@@ -108,7 +108,7 @@ test('install writes each client\'s config and keeps what was there', () => {
   assert.equal(toml.match(/\[mcp_servers\.thinker\]/g).length, 1);
   assert.ok(toml.includes(`THINKER_REPO = ${JSON.stringify(dir)}`));
   // without it Codex asks before each tool call, and codex exec refuses the call
-  assert.equal(toml.match(/^default_tools_approval_mode = "approve"$/gm).length, 1);
+  assert.doesNotMatch(toml, /default_tools_approval_mode/, 'the host owns tool approval');
 
   const gem = read(dir, '.gemini/settings.json');
   assert.equal(gem.telemetry.enabled, true);
@@ -655,7 +655,7 @@ test('an update wires the user\'s settings from the checkouts: the agents they w
     const claude = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8')).hooks;
     assert.ok(claude.UserPromptSubmit[0].hooks[0].command.endsWith('--client claude --user') && claude.Stop && claude.PostToolUse);
     assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8')).mcpServers.thinker);
-    assert.ok(fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8').includes('[hooks.state.'), 'Codex\'s user hooks are marked reviewed');
+    assert.ok(!fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8').includes('[hooks.state.'), 'hook approval belongs to Codex and the user');
     assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')));
     // and once: what is wired stays as it is
     assert.deepEqual(connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry }), []);

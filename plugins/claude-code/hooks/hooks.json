@@ -2,7 +2,6 @@
   "hooks": {
     "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.mjs\" claude prompt --record", "timeout": 15 }] }],
     "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.mjs\" claude tool --late --record", "timeout": 10 }] }],
-    "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.mjs\" claude pre", "timeout": 10 }] }],
     "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.mjs\" claude stop", "timeout": 10 }] }],
     "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.mjs\" claude stop", "timeout": 10 }] }]
   }

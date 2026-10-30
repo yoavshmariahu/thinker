@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MCP server for thinker's own questions to the agent and the desktop app's learning queue (the notes go through the prompt hook). Started by mcp.js, which restarts it on the new code after an update.
+// MCP server for the desktop app's cache-learning queue (the notes go through the prompt hook). Started by mcp.js, which restarts it on the new code after an update.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -7,20 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, findRepoRoot } from './store.js';
-import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-schedule.js';
-import { maybeCheckDailyUpdateInBackground } from './update.js';
-import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { coveragePending, answerCoverage } from './coverage.js';
-import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
-import { errorOfferPending, answerErrorOffer } from './error-report.js';
-import { contextSuggestAwaiting, answerContextSuggestion } from './context-suggest.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
 import { anyDesktopApp } from './app-host.js';
-
-// MCP-only installations need the same default OS schedule as CLI/hook users.
-try { reportTelemetrySchedule(ensureTelemetryScheduled({ rootDir: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') })); }
-catch (e) { reportTelemetrySchedule({ error: e.message }); }
 
 // Which repository: THINKER_REPO when the entry pins one (a checkout's own .mcp.json), else the
 // working directory the client started the server in (the user's machine-wide entry, every
@@ -76,7 +65,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
-    registerCoverageTool(); registerQueueTools();
+    registerQueueTools();
     return { bound: true };
   }
   if (store) return { bound: false };
@@ -87,91 +76,13 @@ const text = s => ({ content: [{ type: 'text', text: s }] });
 
 const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 
-// The agent's own tools (orient, lookup, find, drilldown, remember, behavior, feedback) were taken out on
-// 2026-10-22, at the owner's decision: the notes reach the agent through the prompt hook, and real sessions
-// rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the weekly context
-// suggestion, coverage) and works the desktop app's learning queue (learn_next), each offered only while it has
-// something to do.
+// Notes are injected by hooks. The sole MCP capability is the desktop cache-learning queue.
 function registerTools() {
-  registerContextTool();
-  registerCoverageTool();
-  registerProxyTool();
-  registerErrorsTool();
   registerQueueTools();
 }
 
-// The answer to the weekly context suggestion (context-suggest.js:contextSuggestOffer): offered only while one waits
-// for its answer here, like the coverage tool, and the way the harness question was answered until 2026-10-25. The
-// agent asks the person with its own question tool and hands in what they chose; thinker resolves the numbers against
-// the list it showed and makes the changes, so nothing depends on the agent composing a command line, and the answer
-// is recorded whichever way it goes.
-let contextTool;
-function registerContextTool() {
-  if (contextTool || !store || !contextSuggestAwaiting(store)) return;
-  contextTool = server.registerTool('context', {
-    title: 'Answer a context suggestion',
-    description: 'Only when a thinker-context-suggestions notice tells you to: records the user\'s answer and makes the changes they chose to what loads into every session here.',
-    inputSchema: {
-      choice: z.string().describe('The numbers of the changes the user chose, comma-separated, as the suggestion listed them (a number may name another action after a colon, e.g. 3:remove); or none'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
-    },
-  }, async ({ choice, asked, cwd }) => {
-    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
-    return text(await answerContextSuggestion(store, String(choice), { client: clientName(), asked: asked === 'chat' ? 'chat' : 'picker' }));
-  });
-}
-
-// The answer to a coverage suggestion (coverage.js:coverageOffer): offered only while one waits for its answer
-// here, so it costs nothing the rest of the time.
-let coverageTool;
-function registerCoverageTool() {
-  if (coverageTool || !store || !coveragePending(store)) return;
-  coverageTool = server.registerTool('coverage', {
-    title: 'Answer a coverage suggestion',
-    description: 'Only when a thinker-coverage-suggestion notice tells you to: records the user\'s answer and builds notes for the directories they chose, in the background.',
-    inputSchema: {
-      choice: z.string().describe('The directories the user chose, comma-separated, exactly as listed; or none; or never'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
-    },
-  }, async ({ choice, asked, cwd }) => {
-    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
-    return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
-  });
-}
-
-// The answer to the one-off offer to turn the context proxy back on (proxy-offer.js): offered only while one
-// waits, and it needs no repository of its own -- the proxy is this machine's, not a checkout's.
-let proxyTool;
-function registerProxyTool() {
-  if (proxyTool || !proxyOfferPending()) return;
-  proxyTool = server.registerTool('proxy', {
-    title: 'Answer the context proxy offer',
-    description: 'Only when a thinker-proxy-offer notice tells you to: records the user\'s answer and turns thinker\'s context clearing back on if they said yes.',
-    inputSchema: {
-      choice: z.string().describe('What the user chose: yes, no, or never'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-    },
-  }, async ({ choice, asked }) => text(await answerProxyOffer(String(choice), { store, client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
-}
-
-// The answer to the one-off question about sending error reports (error-report.js): offered only while one
-// waits. It needs no repository either -- the failures are the install's, not a checkout's.
-let errorsTool;
-function registerErrorsTool() {
-  if (errorsTool || !errorOfferPending()) return;
-  errorsTool = server.registerTool('errors', {
-    title: 'Answer the error-report question',
-    description: 'Only when a thinker-error-report notice tells you to: records whether the user agrees to send thinker\'s own error reports to its developers.',
-    inputSchema: {
-      choice: z.string().describe('What the user chose: yes, no, or never'),
-    },
-  }, async ({ choice }) => text(await answerErrorOffer(String(choice), { store, client: clientName() })));
-}
-
-// Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage
-// build (coverage.js). Its subagent works the queue through one tool, learn_next: each call hands in the answer to
+// Cache learning through this session (session-work.js, session-llm.js).
+// Its subagent works the queue through one tool, learn_next: each call hands in the answer to
 // the request it took last (none on the first) and takes the next one, one call a request. Until 2026-10-22 this was
 // two tools named after the warm-up, warmup_next and warmup_answer: two definitions in every desktop-app session and
 // two calls a request. Offered in a desktop app from the start, bound or not, or while such work runs,
@@ -227,7 +138,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerCoverageTool(); registerQueueTools();
+        registerQueueTools();
         break;
       }
     }
@@ -236,14 +147,3 @@ if (late) server.server.oninitialized = async () => {
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
-
-// A client wired to this server alone (no hooks) never runs the CLI, which is where updates and reports
-// start when the OS has no scheduler (containers: no cron, no systemd user manager). Check at start and
-// hourly while the session lasts; the stamps keep it to one update check per 4 hours and one report an hour,
-// and mcp.js restarts this server on the new code once an update lands.
-const upkeep = () => {
-  try { maybeCheckDailyUpdateInBackground(); } catch {}
-  try { maybeSendTelemetryInBackground({ store: store || undefined }); } catch {}
-};
-upkeep();
-setInterval(upkeep, HOUR_MS).unref();

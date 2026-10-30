@@ -6,8 +6,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { installGitHooks } from './git-hooks.js';
-import { trustCodex } from './clients.js';
-import { isTestMode } from './test-mode.js';
 import { SUBAGENT_TOOLS, subagentHarness, desktopApp } from './app-host.js';
 import { SIGNATURE } from './harness.js';
 export { SUBAGENT_TOOLS, subagentHarness, desktopApp };
@@ -22,9 +20,8 @@ const once = (store, name) => {
 };
 
 // The per-repository pieces of `thinker setup`, once per cache: the git hooks that keep the cache fresh
-// after a commit or a merge (a hook that is not thinker's is left alone), Codex's trust in the project
-// (its hooks run nowhere else; never from the test suite, whose home is the real one), and Cursor's
-// always-on rule, kept out of git status as the cache is. Returns what was done, or null when done before.
+// after a commit or a merge (a hook that is not thinker's is left alone).
+// Project trust and host permissions belong to the user. Returns what was done, or null when done before.
 export function setupRepo(store, { client, cli, learn = true }) {
   const done = [];
   // The old repo-setup marker covers the shared git hooks only. Each agent still needs its own
@@ -34,7 +31,6 @@ export function setupRepo(store, { client, cli, learn = true }) {
     try { fn(); once(store, name); done.push(label); } catch {}
   };
   step('repo-setup', 'git hooks', () => installGitHooks(store.repo, cli, learn));
-  if (client === 'codex' && !isTestMode()) step('repo-setup-codex', 'codex trust', () => trustCodex(store.repo));
   // Cursor's always-applied rule, which a step here wrote until 2026-10-22, is taken out by the prompt hook's
   // wiring check (clients.js:removeCursorRule)
   if (!done.length) return null;

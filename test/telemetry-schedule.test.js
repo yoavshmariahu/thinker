@@ -141,12 +141,10 @@ test('Linux reports unavailable schedulers and preserves cron on write errors', 
 // The old updater is still executing when it unpacks a release. This entrypoint
 // existed before the migration; relying only on the new update command would miss
 // the very first upgrade. Keep all launch paths connected to the same migration.
-test('old updater launch, new installation and MCP startup reach the migration', () => {
-  const cli = fs.readFileSync(path.join(root, 'src/cli.js'), 'utf8');
-  assert.match(cli, /async function main\(\) \{[\s\S]*?ensureTelemetryScheduled/);
-  assert.ok(!cli.slice(cli.indexOf('async function main()'), cli.indexOf('// every git repository')).includes("'ranker'"));
-  assert.match(fs.readFileSync(path.join(root, 'src/mcp-server.js'), 'utf8'), /ensureTelemetryScheduled\(\{ rootDir:/);
-  const update = fs.readFileSync(path.join(root, 'src/update.js'), 'utf8');
-  assert.match(update, /fetchRankerModel\(sourceDir\)/);
-  assert.match(update, /scheduleTelemetryAfterUpdate\(path.join\(appDir, 'src', 'cli.js'\), home\)/);
+test('CLI, MCP and updater do not install telemetry schedules as a side effect', () => {
+  for (const f of ['src/cli.js', 'src/mcp-server.js', 'src/update.js']) {
+    const s = fs.readFileSync(path.join(root, f), 'utf8');
+    assert.doesNotMatch(s, /ensureTelemetryScheduled|scheduleTelemetryAfterUpdate/);
+  }
+  assert.match(fs.readFileSync(path.join(root, 'src/commands/setup.js'), 'utf8'), /unscheduleTelemetry/);
 });

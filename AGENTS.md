@@ -14,6 +14,15 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
+**Product scope (MANDATORY, owner's decision, 2026-10-30):**
+- Thinker injects cache notes, cuts/compresses context, and provides explicit offline instruction-waste analysis. Cache learning and refresh stay.
+- Hooks do not run or rewrite commands, block completion, recommend skills, ask setup/feedback/coverage questions, fetch PRs, judge instruction compliance, generate reports, install schedules, approve host permissions, or change project trust.
+- Instruction analysis runs only when requested through the CLI/page. Installation and explicit updates remain administrative operations; sessions do not start update or telemetry work.
+- Missing anchors only mark notes stale; restoration recovers them. Incomplete verifier answers leave notes unchanged. Only an explicit valid invalidation verdict or specific feedback can retire a note; a correction-shaped prompt is not evidence against every note served.
+- No default age-based deletion or archiving of notes. Explicit configured cleanup remains available.
+- This policy supersedes historical descriptions below of retired features and defaults.
+
+
 **CLI and local page in sync (MANDATORY):**
 - `src/ui/` is a second door to the same commands, never a second implementation.
 - Page defaults must use the constants the command reads: `DEFAULT_DISTILL_MODEL` (`src/llm.js`), `buildAgent` (`src/setup/agents.js`).
@@ -106,27 +115,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
 - A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
 
-**A failing test run is rewritten through `thinker test` (2026-10-29, the owner's call):**
-- The `pre` hook (PreToolUse) answers a shell test command with the same run through `thinker test`
-  (`testing.js:wrappedCommand`, `classifyTestCommand`), which runs it with colour off, streams the log to
-  `.thinker/state/tests/` and prints the counts, each distinct failure cause once with a few frames, and the
-  log path. `tests: { nudge: false }` in `.thinker/config.json` turns the rewrite off; the command stays.
-- Why it is on without an agent experiment: the agent is already paying the loss. The stage-0 diagnostic over
-  662 sessions and 910 test runs found selection is not the problem (no full suites, 2 redundant re-runs) and
-  the cost is the single catastrophic failing run -- 50k to 100k tokens, 80-88% of a session's whole tool
-  output, about 30% ANSI escapes, its ~70 failures collapsing to ~13 distinct causes -- which Opus already
-  pipes through `tail`, keeping one cause and throwing away the rest. On this repository a 13-failure run
-  reads 10,493 bytes raw and 513 through the wrapper, with both causes kept. Model-free throughout: colour
-  flags, parsing, grouping. No model call, nothing to meter, no judge.
-- The exit code is passed through (`commands/testing.js`), because agents branch on it: 1 for the failing
-  run, 0 for the passing one.
-- A shell line is split on its separators and only the piece holding the runner is wrapped
-  (`shellSegments`, `renderSegments`): prefixing the whole line put the wrapper before `cd packages/web &&`
-  and left the agent's own `| tail -50` cutting thinker's summary down to nothing. A pipeline stage that only
-  cuts the output down (`tail`, `head`, `grep`, …) is dropped, since the summary is already the short form;
-  a stage doing something else (`tee`) or carrying a redirection another command may read is kept.
-- A line with a substitution or a group (`$(…)`, backticks, `( … )`) is never rewritten (`tooIntricate`): a
-  mangled command costs the agent its test run, which is worse than reading a long log.
+**Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
+- Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
+- Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
 
 **Telemetry and tests (MANDATORY):**
 - Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
@@ -204,12 +195,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/maintain.js` | background maintenance, daily cap |
 | `src/skills.js`, `src/commands/skills.js` | SKILL.md cards; `thinker skills` (`docs/skills.md`) |
 | `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | `thinker context`, Context tab |
-| `src/testing.js`, `src/commands/testing.js` | `thinker test -- <command>`; the `pre` hook rewrites a test run to it (on by default, 2026-10-29) |
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
-| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
-| `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |

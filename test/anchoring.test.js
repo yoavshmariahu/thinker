@@ -90,7 +90,7 @@ test('a symbol dep the change altered keeps its stored hash in the deps checkNot
 // judge, the hooks withhold a stale note so it is never served and so never reaches the verification
 // batch, and the one-time reset re-hashes a gone file to `missing` and puts it straight back. One
 // user had 13 such notes of 68. Retired here, with no model call.
-test('a note whose anchor files are all gone is retired, not left stale for ever', () => {
+test('missing anchor files mark a note stale and restoration makes it usable again', () => {
   const dir = gitRepo();
   const store = new Store(dir).init();
   const gone = createNote(store, { title: 'rows are fetched through fetchRows', kind: 'map', answers: ['where are rows fetched'], body: 'src/a.js:fetchRows is the only reader.', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }, { path: 'src/b.js' }] }, { source: { type: 'agent' } }).note;
@@ -100,14 +100,18 @@ test('a note whose anchor files are all gone is retired, not left stale for ever
   fs.rmSync(path.join(dir, 'src/a.js'));
   const after = refresh(store, store.list());
   const by = id => after.find(n => n.id === id);
-  assert.equal(by(gone.id).status, 'invalid');
-  assert.match(by(gone.id).invalidReason, /anchors removed/);
-  assert.equal(by(gone.id).stale, undefined);
-  assert.equal(store.get(gone.id).status, 'invalid', 'persisted');
-  assert.equal(by(half.id).status, 'invalid', 'its one file is gone too');
+  assert.equal(by(gone.id).status, 'stale');
+  assert.equal(by(gone.id).invalidReason, undefined);
+  assert.equal(by(gone.id).stale.changed[0].reason, 'file removed');
+  assert.equal(store.get(gone.id).status, 'stale', 'persisted');
+  assert.equal(by(half.id).status, 'stale', 'its one file is gone too');
   // a note a person wrote is theirs to decide on
   fs.rmSync(path.join(dir, 'build.sh'));
   assert.equal(refresh(store, store.list()).find(n => n.id === mine.id).status, 'stale');
+  fs.writeFileSync(path.join(dir, 'src/a.js'), A);
+  assert.equal(refresh(store, [store.get(gone.id)])[0].status, 'fresh', 'restoring the file recovers the note');
+  store.put({ ...store.get(gone.id), status: 'invalid', invalidReason: 'anchors removed: src/a.js' });
+  assert.equal(refresh(store, [store.get(gone.id)])[0].status, 'fresh', 'old hash-only retirements also recover');
   // a file that merely changed is still only stale
   const other = new Store(dir);
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
