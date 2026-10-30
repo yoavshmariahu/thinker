@@ -85,3 +85,57 @@ test('HTTPS uses CONNECT and verifies the gateway certificate through a transpor
   assert.deepEqual(await post(await proxy(t, 'https://gateway.invalid', { agentOptions: { ca } })), { status: 200, body: 'secure' });
   assert.equal(tunnels, 1);
 });
+
+// get-uri still requests basic-ftp v5. Our security override to v6 must keep FTP-hosted
+// PAC files working, including servers that need a directory listing instead of the optional MDTM.
+for (const listingFallback of [false, true]) {
+  test(`FTP-hosted PAC routes requests with the patched FTP client (listing fallback: ${listingFallback})`, { timeout: 15000 }, async t => {
+    const networkPort = await listen(t, http.createServer((req, res) => res.end('from-pac')));
+    const pac = `function FindProxyForURL(url, host) { return "PROXY 127.0.0.1:${networkPort}"; }`;
+    const commands = [], sockets = new Set(), servers = new Set();
+    const track = socket => {
+      sockets.add(socket);
+      socket.on('error', () => socket.destroy());
+      socket.on('close', () => sockets.delete(socket));
+      return socket;
+    };
+    t.after(() => {
+      for (const socket of sockets) socket.destroy();
+      for (const server of servers) server.close();
+    });
+    const ftp = net.createServer(control => {
+      track(control).setEncoding('utf8');
+      control.write('220 Fixture ready\r\n');
+      let pending = '', data;
+      control.on('data', async chunk => {
+        pending += chunk;
+        while (pending.includes('\r\n')) {
+          const end = pending.indexOf('\r\n'), command = pending.slice(0, end);
+          pending = pending.slice(end + 2);
+          commands.push(command);
+          const verb = command.split(' ')[0];
+          if (verb === 'USER') control.write('331 Password required\r\n');
+          else if (verb === 'PASS') control.write('230 Logged in\r\n');
+          else if (verb === 'FEAT') control.write('211-Features\r\n MLST type*;size*;modify*;\r\n211 End\r\n');
+          else if (verb === 'MDTM') control.write(listingFallback ? '502 Unsupported\r\n' : '213 20261001000000\r\n');
+          else if (verb === 'EPSV') {
+            const server = net.createServer(socket => { data = track(socket); server.close(); });
+            servers.add(server);
+            await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+            control.write(`229 Entering Extended Passive Mode (|||${server.address().port}|)\r\n`);
+          } else if (verb === 'MLSD' || verb === 'RETR') {
+            control.write('150 Opening data connection\r\n');
+            data.end(verb === 'MLSD' ? `type=file;size=${pac.length};modify=20261001000000; proxy.pac\r\n` : pac,
+              () => control.write('226 Transfer complete\r\n'));
+          } else if (verb === 'QUIT') control.end('221 Goodbye\r\n');
+          else control.write('200 OK\r\n');
+        }
+      });
+    });
+    const ftpPort = await listen(t, ftp);
+    env(t, { HTTP_PROXY: `pac+ftp://127.0.0.1:${ftpPort}/proxy.pac` });
+    assert.deepEqual(await post(await proxy(t, 'http://gateway.invalid')), { status: 200, body: 'from-pac' });
+    assert.ok(commands.includes('RETR /proxy.pac'));
+    assert.equal(commands.some(command => command.startsWith('MLSD')), listingFallback);
+  });
+}
