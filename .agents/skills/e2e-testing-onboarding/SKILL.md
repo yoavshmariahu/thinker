@@ -15,6 +15,14 @@ simulated. The Codex proxy smoke test runs the installed Codex CLI against a loo
 model server, including a resumed session. Desktop learning is exercised through the
 session queue tests, without opening GUI applications.
 
+The Claude gateway test runs the installed Claude Code binary against a loopback
+Messages API fixture. It checks authentication, custom headers, model tier mappings,
+distillation, phrasing, pending-note verification, project-local routing, proxy opt-in
+and unsupported-edit retry. It compares the user's settings through connect, repeat
+connect, proxy on/off, manual removal, and uninstall. Separate regressions require
+unparseable settings to remain untouched. The gateway provides deterministic answers;
+this does not establish compatibility with every real gateway or measure model quality.
+
 ## Run
 
 ```bash
@@ -53,7 +61,8 @@ the host: setup writes agent settings, and the fixture repository is reset each 
    `.thinker/local/notes/` and retrieve it through the CLI.
 6. Edit a dependency: the note remains served with `Pending verification`. Remove
    the dependency: the note is withheld. Both are hard assertions, not warnings.
-7. Run the installer, machine tool switch, pending-verification, desktop
+7. Run the installer, machine tool switch, settings preservation, Claude gateway,
+   pending-verification, desktop
    session-work, proxy network/service, real Codex transport, and
    removed-test-command integration tests.
 
