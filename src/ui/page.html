@@ -1335,8 +1335,8 @@ function renderReport(v) {
   // the cache's numbers over the same window (usage.js:summarize), its saving in dollars first
   const c = v.cache;
   const cards = `<div class="section"><div class="kicker">The cache, over the same ${v.weeks} weeks</div><div class="cards four" style="margin-top:0.6rem">
-    ${card('$ saved', money(Math.max(0, c.dollarsSaved)), `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
-    ${card('Tokens saved', fmt(Math.max(0, c.tokensSaved)), c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read', null, true)}
+    ${card('$ saved', money(Math.max(0, c.dollarsSaved)), c.dollarsDescription || `${c.measured ? 'the input tokens saved against held-out prompts' : 'the code the agents did not read'}, at each model's list input price${c.unpricedTokens ? `; ${fmt(c.unpricedTokens)} tokens on unpriced models not counted` : ''}`, null, true)}
+    ${card(c.tokenLabel || 'Tokens saved', fmt(c.tokensSaved), c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'), c.coverage ? [['Hits with lifetime data', fmt(c.coverage.hits)], ['One-read fallback', fmt(c.coverage.fallback)]] : null, true)}
     ${card('Cache hits', fmt(c.hits), `notes served, for ${fmt(c.answered)} of ${fmt(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${fmt(c.requests - c.attempted)} not asked)` : ''}`)}
     ${card('Acted on', c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`, `of ${fmt(c.judged)} servings the sessions were judged on`)}
   </div></div>`;

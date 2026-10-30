@@ -17,7 +17,8 @@ import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, completenessNudge, nudgedForTest, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
-import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens } from '../usage.js';
+import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens, sessionInputSavings } from '../usage.js';
+import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { claudeCardActive } from '../claude-card.js';
 import { setupRepo } from '../repo-onboard.js';
@@ -124,7 +125,7 @@ async function hookCommand(ctx) {
     // Cursor, ask the agent to end its reply with a Markdown table card box.
     const cursorFootnote = notes => {
       if (client !== 'cursor' || !noticeOn(store)) return '';
-      const footer = turnFooterMarkdown(store.repo, notes);
+      const footer = turnFooterMarkdown(store.repo, notes, { input: sessionInputSavings(store, session) });
       return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
@@ -403,7 +404,9 @@ async function hookCommand(ctx) {
       // (compression.js); the card mod draws it where it runs, as it does the turn's notes
       let compression = '';
       try { compression = carded ? '' : compressionNotice(markCompressionTurn(compressionDir(), session, t.turn)); } catch {}
-      const notice = [served.length && !carded ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean)) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+      const input = sessionInputSavings(store, session, { transcript: ev.transcript_path });
+      const changed = input?.covered && inputNoticeChanged(store.dir, session, input);
+      const notice = [(served.length && !carded) || changed ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean), { input }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
       const o = stopOutput(client, notice); if (o) out(o);
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

@@ -5,6 +5,11 @@ context goes, and what to cut, is the [Find Savings page](context.md). Back to t
 
 ## Cache usage and savings
 
+The Report's estimated input savings now include observed re-reads and subtract
+carried note context. Coverage is shown beside the total; sessions without lifetime
+evidence use a one-read fallback. See [how cache savings are calculated](cache-savings.md)
+for the assumptions, clearing behavior, and compatibility of older JSON fields.
+
 View Report on the page (`thinker ui`) shows the cache's numbers under the tables: its saving at list price,
 tokens saved, cache hits and the share of servings the sessions acted on. Behind them: notes served and how, what the
 sessions did with them, what learning and maintenance cost in reported model tokens, and an estimate of the

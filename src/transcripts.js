@@ -457,7 +457,7 @@ export function parseTranscript(file, { fromLine = 0, format } = {}) {
 // found by its id among the agents' transcripts of the checkout. One listing per checkout.
 const sessionIndex = new Map();
 const MODEL_CACHE = diskCache('session-model', 1);
-export function sessionModel(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
+export function sessionTranscriptFile(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
   if (!repo || !session) return null;
   if (!sessionIndex.has(repo)) {
     const m = new Map();
@@ -465,7 +465,10 @@ export function sessionModel(repo, session, { sinceMs = 90 * 86400_000 } = {}) {
     sessionIndex.set(repo, m);
   }
   const key = String(session).replace(/\.jsonl?$/, '').replace(/^trace-/, '');
-  const file = sessionIndex.get(repo).get(key) || sessionIndex.get(repo).get((key.match(/([0-9a-f]{8}-[0-9a-f-]{27,})$/) || [])[1]);
+  return sessionIndex.get(repo).get(key) || sessionIndex.get(repo).get((key.match(/([0-9a-f]{8}-[0-9a-f-]{27,})$/) || [])[1]);
+}
+export function sessionModel(repo, session, options) {
+  const file = sessionTranscriptFile(repo, session, options);
   if (!file) return null;
   // kept on this machine by the file's size and mtime: a usage summary asks for every session of its window
   try { return cachedByFiles(MODEL_CACHE, cacheKey('model', file), [file], () => ({ model: parseTranscript(file).model || null })).model; } catch { return null; }
