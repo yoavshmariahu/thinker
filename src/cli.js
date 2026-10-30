@@ -132,14 +132,14 @@ const HELP = `thinker — knowledge cache for coding agents
   rm <id>
   feedback [file.json]           report note accuracy (JSON: id, useful, optional correction; stdin or file)
   add [file.json]                add a human-written note (JSON on stdin or file)
-  check                          re-hash dependencies, mark stale notes
+  check                          re-hash dependencies; ordinary edits stay usable pending verification
   archive [--dry] [--list] [--restore] [ids...] [--kinds a,b] [--days n]
                                  take notes out of serving and upkeep, keeping them for lookup by id: the kinds named in the
                                  config (none by default) and notes unserved for 30 days; maintenance applies the same rules
   rehash [--fanout]              re-baseline every note's hashes without verification (--fanout: count references again)
   relink                         recompute cross-note links
-  verify [ids...] [--model m]    re-verify stale notes with a small model
-  maintain [--dry]               run maintenance if four hours have elapsed (--dry previews): re-verify stale notes,
+  verify [ids...] [--model m]    re-verify pending and stale notes with a small model
+  maintain [--dry]               run maintenance if four hours have elapsed (--dry previews): re-verify pending and stale notes,
                                  phrase new ones; runs by itself from the hooks, under a daily cap
   phrase [ids...] [--model m] [--force]
                                  add to each note how a user would put it, in the words of the product (for retrieval)

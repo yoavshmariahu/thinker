@@ -210,22 +210,22 @@ test('a request of one content word is a turn of conversation, not a task: nothi
   assert.ok(rank([st], { query: 'status', mode: 'lookup' }).length, 'lookup by one word is answered');
 });
 
-test('the prompt hook holds stale notes for the next batch and lists them for lookup', async () => {
+test('the prompt hook serves changed notes pending verification, once per session', async () => {
   const { dir, store, cp } = setup();
   const file = path.join(dir, 'src/a.py');
   const original = fs.readFileSync(file, 'utf8');
   fs.writeFileSync(file, original.replace('def launch():\n    pass', 'def launch():\n    return 1'));
   const hook = await orient(store, { task: 'how does launch work', session: 'f1', once: true, freshOnly: true, backgroundVerify: false });
-  assert.equal(store.get(cp.id).status, 'stale', 'the edit made the note stale');
-  assert.ok(!hook.included.some(n => n.id === cp.id), 'the stale note is not served');
-  assert.deepEqual(hook.held.map(n => n.id), [cp.id], 'held back until scheduled maintenance');
-  assert.ok(hook.more.some(n => n.id === cp.id), 'listed for lookup');
-  assert.ok(!(store.get(cp.id).servedIn || []).includes('f1'), 'not counted as served');
+  assert.equal(store.get(cp.id).status, 'pending', 'the edit queues a recheck');
+  assert.ok(hook.included.some(n => n.id === cp.id), 'the pending note is served');
+  assert.deepEqual(hook.held.map(n => n.id), [], 'ordinary edits do not withhold the note');
+  assert.match(hook.text, /Pending verification/);
+  assert.ok(store.get(cp.id).servedIn.includes('f1'), 'counted as served');
   fs.writeFileSync(file, original);
   const later = await orient(store, { task: 'how does launch work', session: 'f1', once: true, freshOnly: true, backgroundVerify: false });
-  assert.ok(later.included.some(n => n.id === cp.id), 'served once fresh again, in the same session');
+  assert.ok(!later.included.some(n => n.id === cp.id), 'already served in this session');
   fs.writeFileSync(file, original.replace('def launch():\n    pass', 'def launch():\n    return 2'));
-  assert.ok((await orient(store, { task: 'how does launch work', session: 'f1', backgroundVerify: false })).included.some(n => n.id === cp.id && n.status === 'stale'), 'the agent\'s own orient still gets it, with the banner');
+  assert.ok((await orient(store, { task: 'how does launch work', session: 'f1', backgroundVerify: false })).included.some(n => n.id === cp.id && n.status === 'pending'), 'the agent\'s own orient still gets it, with the banner');
   assert.ok((await lookup(store, { query: 'how launch works' })).included.some(n => n.id === cp.id), 'and so does lookup');
 });
 

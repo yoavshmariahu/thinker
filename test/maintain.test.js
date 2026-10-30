@@ -109,8 +109,8 @@ test('maintenance re-verifies only notes served lately, and leaves a churning no
   const fns = { spentToday: () => 0, verify: async (s, n) => { verified.push(n.id); return { verdict: 'still_valid', cost: 0.01 }; }, phrase: async (s, n) => ({ done: n, cost: 0 }), verifyCounts: () => new Map([[a.id, 3]]) };
   let run = await maintain(store, dir, { fns });
   assert.deepEqual(verified, []); assert.deepEqual(run.churning, [a.id]);
-  assert.match(renderMaintain(run), /1 churning left stale/);
-  assert.match(maintenanceNotice(store), /1 note repeatedly stale; narrow pointers or retire them/);
+  assert.match(renderMaintain(run), /1 churning awaiting verification/);
+  assert.match(maintenanceNotice(store), /1 note repeatedly changed; verification deferred/);
   const t2 = Date.now() + 3 * 86400_000;
   servedAt(store, a.id, t2 - 1000);
   run = await maintain(store, dir, { fns, now: t2 });

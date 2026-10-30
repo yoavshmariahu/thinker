@@ -37,7 +37,7 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     <div class="viz-row"><span aria-hidden="true">🧠</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Cache hit</span></div>
     <p class="tabular-nums">${counts}</p>
     <details><summary class="cursor-interaction">Retrieved notes</summary>
-      <ul>${unique.map(n => `<li>${escape(n.title || n.id)}${n.status === 'stale' ? ' — dependency changed; verify before use' : ''}</li>`).join('')}</ul>
+      <ul>${unique.map(n => `<li>${escape(n.title || n.id)}${n.status === 'stale' ? ' — verify before use' : n.status === 'pending' ? ' — pending verification' : ''}</li>`).join('')}</ul>
       ${tokens ? '<p class="text-small">Estimated from the code files these notes point to; actual token savings are not measured.</p>' : ''}
     </details>
   </div>

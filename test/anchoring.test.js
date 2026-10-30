@@ -60,7 +60,7 @@ test('a changed whole-file dep narrows to the named definitions, stale only on t
   assert.deepEqual(r.changed, [{ path: 'src/a.js', symbol: 'saveRows', reason: 'symbol body changed' }]);
   assert.equal(r.upgraded, true);
   const [stale] = refresh(store, [store.get(n.id)], { narrow: true });
-  assert.equal(stale.status, 'stale');
+  assert.equal(stale.status, 'pending');
   const stored = store.get(n.id);
   assert.deepEqual(stored.deps.map(d => d.symbol).sort(), ['fetchRows', 'saveRows'], 'narrowed deps persisted while stale');
   // the change is not hidden: the next check still sees saveRows changed, and fetchRows as it is
@@ -82,7 +82,7 @@ test('a symbol dep the change altered keeps its stored hash in the deps checkNot
   assert.equal(r.changed.length, 1);
   assert.equal(r.deps.find(d => d.symbol === 'saveRows').hash, before, 'the stored record, not the new hash');
   const [stale] = refresh(store, [n], { narrow: true });
-  assert.equal(stale.status, 'stale');
+  assert.equal(stale.status, 'pending');
   assert.equal(checkNote(dir, store.get(n.id), { narrow: true }).changed.length, 1, 'still seen as changed');
 });
 
@@ -108,13 +108,13 @@ test('a note whose anchor files are all gone is retired, not left stale for ever
   // a note a person wrote is theirs to decide on
   fs.rmSync(path.join(dir, 'build.sh'));
   assert.equal(refresh(store, store.list()).find(n => n.id === mine.id).status, 'stale');
-  // a file that merely changed is still only stale
+  // a file that merely changed stays usable pending verification
   const other = new Store(dir);
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'src/a.js'), A.replace('return 1;', 'return 9;'));
   const back = createNote(other.init(), { title: 'other returns three', kind: 'rule', answers: ['what does other return'], body: 'src/a.js:other returns 3.', deps: [{ path: 'src/a.js', symbol: 'other' }] }, { source: { type: 'agent' } }).note;
   fs.writeFileSync(path.join(dir, 'src/a.js'), A.replace('return 3;', 'return 4;'));
-  assert.equal(refresh(other, [other.get(back.id)])[0].status, 'stale');
+  assert.equal(refresh(other, [other.get(back.id)])[0].status, 'pending');
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

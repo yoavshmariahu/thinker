@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { Store } from '../src/store.js';
+import { Store, gitHead } from '../src/store.js';
+import { hashDep, checkNote } from '../src/deps.js';
 import { createNote, refresh } from '../src/ops.js';
 import { resetStaleMarks, undoStaleReset, markerFile, RESET_VERSION } from '../src/stale-reset.js';
 
@@ -26,45 +27,54 @@ function repoWithStaleNote() {
   return { dir, store, id: n.id };
 }
 
-test('the reset clears the stale mark, and a refresh does not bring it back', () => withEnv({ THINKER_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'home-')), THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, async () => {
+test('the legacy reset now queues ordinary edits without replacing verified hashes', () => withEnv({ THINKER_LOG: 'off' }, () => {
   const { dir, store, id } = repoWithStaleNote();
-  assert.equal(refresh(store, [store.get(id)])[0].status, 'stale', 'the code moved: stale');
-
-  const r = resetStaleMarks(store);
-  assert.deepEqual(r.cleared, [id]);
-  const after = store.get(id);
-  assert.equal(after.status, 'fresh');
-  assert.equal(after.stale, undefined);
-  assert.ok(after.rebaselined?.at, 'the reset records that no model looked at this note');
-
-  // the point of re-hashing the deps: setting the status alone would be undone by the next refresh,
-  // which re-derives staleness from the stored hashes
-  assert.equal(refresh(store, [store.get(id)])[0].status, 'fresh', 'it stays cleared');
-
-  // a reset is not a verification: confidence is untouched and `verified` is not moved forward
-  const fresh = createNote(store, { title: 'x', kind: 'rule', answers: ['x'], body: 'src/a.js:fetchRows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] }).note;
-  assert.equal(after.confidence, fresh.confidence, 'confidence not bumped');
-
-  // once per repository
-  assert.equal(resetStaleMarks(store), null, 'the marker stops a second run');
-  assert.equal(JSON.parse(fs.readFileSync(markerFile(store), 'utf8')).version, RESET_VERSION);
-  fs.rmSync(dir, { recursive: true, force: true });
+  try {
+    const before = store.get(id);
+    assert.equal(resetStaleMarks(store, { dry: true }), null);
+    assert.equal(store.get(id).status, 'fresh', 'dry run writes nothing');
+    assert.equal(fs.existsSync(markerFile(store)), false);
+    assert.equal(resetStaleMarks(store), null);
+    const after = store.get(id);
+    assert.equal(after.status, 'pending');
+    assert.deepEqual(after.deps, before.deps);
+    assert.equal(after.verifiedCommit, before.verifiedCommit);
+    assert.equal(after.verified, before.verified);
+    assert.equal(after.rebaselined, undefined);
+    assert.ok(after.recheck.changed.length);
+    assert.equal(JSON.parse(fs.readFileSync(markerFile(store), 'utf8')).version, RESET_VERSION);
+    assert.equal(resetStaleMarks(store), null);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }));
 
-test('the reset leaves invalid notes alone and can be undone', () => withEnv({ THINKER_HOME: fs.mkdtempSync(path.join(os.tmpdir(), 'home-')), THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, async () => {
+test('the legacy reset does not clear a contradiction or missing anchor', () => withEnv({ THINKER_LOG: 'off' }, () => {
   const { dir, store, id } = repoWithStaleNote();
-  const dead = createNote(store, { title: 'gone', kind: 'rule', answers: ['q'], body: 'src/a.js:fetchRows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] }).note;
-  store.put({ ...dead, status: 'invalid', invalidReason: 'retired' });
+  try {
+    store.put({ ...store.get(id), contradicted: { evidence: 'The session found this claim wrong' } });
+    const missing = createNote(store, { title: 'human rule', kind: 'rule', answers: ['q'], body: 'src/a.js:fetchRows must read rows', deps: [{ path: 'src/a.js', symbol: 'fetchRows' }] }, { source: { type: 'human' } }).note;
+    fs.writeFileSync(path.join(dir, 'src/a.js'), 'export function different() {}');
+    assert.equal(resetStaleMarks(store), null);
+    assert.equal(store.get(id).status, 'stale');
+    assert.ok(store.get(id).contradicted);
+    assert.equal(store.get(missing.id).status, 'stale');
+    assert.equal(store.get(missing.id).rebaselined, undefined);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));
 
-  const r = resetStaleMarks(store);
-  assert.deepEqual(r.cleared, [id], 'only a stale note is cleared');
-  assert.equal(store.get(dead.id).status, 'invalid', 'an invalid note is not revived');
-
-  const u = undoStaleReset(store);
-  assert.deepEqual(u.restored, [id]);
-  const back = store.get(id);
-  assert.equal(back.status, 'stale');
-  assert.ok(back.stale?.changed?.length, 'the changed deps come back');
-  assert.equal(back.rebaselined, undefined);
-  fs.rmSync(dir, { recursive: true, force: true });
+test('a historical reset snapshot can still be undone, then migrate to pending without losing hashes', () => withEnv({ THINKER_LOG: 'off' }, () => {
+  const { dir, store, id } = repoWithStaleNote();
+  try {
+    const before = store.get(id), changed = checkNote(dir, before).changed;
+    const prior = { id, status: 'stale', deps: before.deps, verifiedCommit: before.verifiedCommit, stale: { since: '2026-01-01', changed } };
+    store.put({ ...before, deps: before.deps.map(d => hashDep(dir, d)), verifiedCommit: gitHead(dir), rebaselined: { at: '2026-01-02' } });
+    const saved = JSON.stringify({ version: RESET_VERSION, before: [prior], cleared: [id] });
+    fs.mkdirSync(path.dirname(markerFile(store)), { recursive: true });
+    fs.writeFileSync(markerFile(store), saved);
+    assert.equal(resetStaleMarks(store), null);
+    assert.equal(fs.readFileSync(markerFile(store), 'utf8'), saved, 'old undo evidence is retained');
+    assert.deepEqual(undoStaleReset(store).restored, [id]);
+    assert.deepEqual(store.get(id).deps, before.deps);
+    assert.equal(store.get(id).rebaselined, undefined);
+    assert.equal(refresh(store)[0].status, 'pending');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }));

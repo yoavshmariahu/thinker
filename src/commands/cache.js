@@ -53,7 +53,7 @@ async function healthCommand(ctx) {
     return;
   }
   const kinds = {};
-  const statusCounts = { fresh: 0, stale: 0, invalid: 0 };
+  const statusCounts = { fresh: 0, pending: 0, stale: 0, invalid: 0 };
   let withSays = 0;
   let brokenDeps = 0;
   const subs = {};
@@ -80,7 +80,7 @@ async function healthCommand(ctx) {
   }
 
   out('\nQuality metrics:');
-  out(`  Status:         ${statusCounts.fresh} fresh, ${statusCounts.stale} stale, ${statusCounts.invalid} invalid`);
+  out(`  Status:         ${statusCounts.fresh} fresh, ${statusCounts.pending} pending verification, ${statusCounts.stale} stale, ${statusCounts.invalid} invalid`);
   out(`  Phrasing:       ${withSays}/${notes.length} (${Math.round((withSays / notes.length) * 100)}%) notes have product phrasings`);
   out(`  Broken deps:    ${brokenDeps} notes point to missing files`);
 

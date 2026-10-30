@@ -216,6 +216,8 @@ export const renderFanout = f => f.files === 0 ? 'no references' : `${f.sites ||
 export function renderNote(n, { full = true } = {}) {
   const flag = n.status === 'stale'
     ? `\n> ⚠ STALE: ${(n.stale?.changed || []).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || 'dependencies changed'} since this was verified. Confirm against the code before relying on it.`
+    : n.status === 'pending'
+    ? '\n> Pending verification: dependency code changed; this note has not been re-checked yet.'
     : n.status === 'broken'
     ? `\n> ⚠ OUT OF DATE: this skill contradicts the code${n.broken?.reason ? `: ${n.broken.reason}` : ''}${(n.broken?.issues || []).length ? ` (${n.broken.issues.slice(0, 3).map(i => i.claim).join('; ')})` : ''}. It is not served until ${n.skill?.file || 'its file'} changes or a person reviews it (thinker skills review ${n.id}).`
     : n.status === 'violated'

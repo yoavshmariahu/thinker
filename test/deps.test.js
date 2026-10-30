@@ -77,14 +77,14 @@ test('extractDeps pulls pointers from body', () => {
   assert.ok(!keys.some(k => k.includes('self') || k.includes('ctx')));
 });
 
-test('createNote + refresh marks stale and recovers', () => {
+test('createNote + refresh queues verification and recovers', () => {
   const repo = tmpRepo();
   const store = new Store(repo).init();
   const r = createNote(store, { title: 'Foo bar flow', kind: 'callpath', answers: ['how does foo bar'], body: 'src/a.py:Foo.bar returns x+1', deps: [{ path: 'src/a.py', symbol: 'Foo.bar' }] });
   assert.ok(r.note);
   assert.equal(refresh(store)[0].status, 'fresh');
   fs.writeFileSync(path.join(repo, 'src/a.py'), PY.replace('return x + 1', 'return x - 1'));
-  assert.equal(refresh(store)[0].status, 'stale');
+  assert.equal(refresh(store)[0].status, 'pending');
   fs.writeFileSync(path.join(repo, 'src/a.py'), PY);
   assert.equal(refresh(store)[0].status, 'fresh');
 });

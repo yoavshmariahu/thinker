@@ -58,6 +58,13 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
 - Offline replays are not evidence. Measure outcomes in agent sessions.
 - Default-on switch = its own PR citing the experiment.
+- Owner-approved freshness policy (2026-10-30): an ordinary dependency edit queues verification while
+  the note remains usable (`status: pending`, `recheck`). Preserve its last verified dependency hashes,
+  timestamp and commit until verification succeeds; do not silently rebaseline. Missing files/symbols
+  and explicit contradictions stay withheld. `refresh` migrates legacy hash-only stale notes to pending,
+  and maintenance plus `thinker verify` handle both states, including the desktop session queue.
+  This is the owner's explicit policy choice after cancelling the serving experiment; dense fallback,
+  CE rescue and serve-stale switches remain off. A changed hash alone is not evidence of a wrong claim.
 - Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 

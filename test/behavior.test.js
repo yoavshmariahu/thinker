@@ -80,7 +80,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   // 1. uncommitted: violated, text untouched
   write('src/core.py', CORE.replace('        validate(ctx)\n', ''));
   let [stale] = refresh(store, [store.get(n.id)]);
-  assert.equal(stale.status, 'stale');
+  assert.equal(stale.status, 'pending');
   fakeModel(t, repo, { verdict: 'broken', reason: 'invoke no longer calls validate', body: 'should be ignored: not merged' });
   let r = await verifyNote(store, stale, {});
   assert.equal(r.verdict, 'broken');
@@ -116,7 +116,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   // the code is restored on main: stale again, then holds
   write('src/core.py', CORE); commit('restore validation');
   [stale] = refresh(store, [store.get(n.id)]);
-  assert.equal(stale.status, 'stale');
+  assert.equal(stale.status, 'pending');
   fakeModel(t, repo, { verdict: 'holds', reason: 'validate is called first again' });
   r = await verifyNote(store, stale, {});
   assert.equal(r.verdict, 'holds'); assert.equal(store.get(n.id).status, 'fresh'); assert.equal(store.get(n.id).violated, undefined);

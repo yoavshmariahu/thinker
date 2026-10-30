@@ -1,3 +1,4 @@
+import { needsVerification, verificationChanges } from '../freshness.js';
 import { projectFromFlags, includesPath, projectRecordKey } from '../project.js';
 import { learningPlan } from '../learning-evidence.js';
 import { deferLearning, safeLearningAssessments, takeContradictions } from '../learning-pending.js';
@@ -73,7 +74,7 @@ async function outcomeCommand(ctx) {
 async function verifyCommand(ctx) {
   const { pos, store } = ctx;
   let notes = refresh(store, store.list());
-  notes = pos.length ? notes.filter(n => pos.includes(n.id)) : notes.filter(n => n.status === 'stale');
+  notes = pos.length ? notes.filter(n => pos.includes(n.id)) : notes.filter(needsVerification);
   await verifyAll(ctx, notes);
   return;
 }
@@ -82,12 +83,13 @@ async function checkCommand(ctx) {
   const { flags, repo, store, out } = ctx;
   const notes = refresh(store, store.list(), { narrow: true });
   const stale = notes.filter(n => n.status === 'stale');
+  const pending = notes.filter(n => n.status === 'pending');
   if (!flags.quiet) {
-    for (const n of stale) out(`stale  ${n.id}: ${n.stale.changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ')}`);
+    for (const n of [...stale, ...pending]) out(`${n.status}  ${n.id}: ${verificationChanges(n).map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ')}`);
     for (const u of store.unreadable()) out(`warning: ${path.relative(repo, u.file)} is not served: ${u.reason}`);
-    out(`${stale.length}/${notes.length} notes stale`);
+    out(`${stale.length}/${notes.length} notes stale; ${pending.length} pending verification (still usable)`);
   }
-  if (flags.verify && stale.length) await verifyAll(ctx, stale);
+  if (flags.verify) await verifyAll(ctx, notes.filter(needsVerification));
   return;
 }
 

@@ -1,3 +1,4 @@
+import { needsVerification, verificationChanges } from './freshness.js';
 // Background maintenance of the cache: what a user would otherwise have to remember to
 // run. It re-verifies a few stale notes and writes phrasings for notes that lack them.
 // Since 2026-10-21 that is all it does by default (the owner's decision: the cache was not
@@ -31,15 +32,15 @@ export const DEFAULTS = {
   // config says otherwise
   dailyTokens: 10_000_000,
   // Verification is one batch every `verifyEveryDays` (2026-10-21; a few notes every four hours until then), of the
-  // stale notes served in the last `verifyServedDays` (0: all), most served first, at most `verifyPerRun`. A stale note
-  // waits for the batch: the prompt hooks hold it back meanwhile (ops.js:orient freshOnly).
+  // Pending and stale notes used or requested in the last `verifyServedDays` (0: all), most used
+  // first, at most `verifyPerRun`. Pending notes remain usable while waiting for the batch.
   verifyEveryDays: 3,
   verifyPerRun: 50,
   verifyServedDays: 3,
   // a note nobody has been served in this many days (and older than that) is deleted, archived ones too; a desired
   // behavior, a skill card and a note a person wrote are kept (0: never delete)
   deleteUnusedDays: 30,
-  verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
+  verifyChurn: 3,   // a note re-verified this many times in a week waits and is reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
   docsPerRun: 3,
@@ -143,13 +144,13 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
   const recent = cfg.verifyServedDays > 0 ? now - cfg.verifyServedDays * 86400_000 : -Infinity;
   const churning = [];
   const stale = notes
-    .filter(n => n.status === 'stale' && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
+    .filter(n => needsVerification(n) && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
     // served recently, or held back from a request recently (ops.js:orient `heldAt`): a stale note the
     // freshness rule withholds can never be served, so `lastUsed` alone deadlocked it out of ever
     // being verified and it stayed stale for good
     .filter(n => n.contradicted || recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent) || (n.heldAt && Date.parse(n.heldAt) >= recent))
     // a skill card whose own file changed is rewritten by the skills step of this run (skills.js:scanSkills), not audited
-    .filter(n => !(n.kind === 'skill' && n.skill?.file && (n.stale?.changed || []).some(c => c.path === n.skill.file)))
+    .filter(n => !(n.kind === 'skill' && n.skill?.file && verificationChanges(n).some(c => c.path === n.skill.file)))
     .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
     // a note a session contradicted first: it is held back from serving until verified
     .sort((a, b) => (b.contradicted ? 1 : 0) - (a.contradicted ? 1 : 0) || (b.uses || 0) - (a.uses || 0))
@@ -385,7 +386,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
   if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior is violated' : 'behaviors are violated'}; see thinker system`);
   if (u.gaveUp?.length) parts.push(...u.gaveUp);
-  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly stale; narrow pointers or retire them`);
+  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly changed; verification deferred`);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -412,7 +413,7 @@ export function renderMaintain(r) {
   if (r.retired) bits.push(`${r.retired} retired`);
   if (r.violated) bits.push(`${r.violated} desired ${r.violated === 1 ? 'behavior' : 'behaviors'} found broken`);
   if (r.revised) bits.push(`${r.revised} desired ${r.revised === 1 ? 'behavior' : 'behaviors'} revised to match the merged code`);
-  if (r.churning?.length) bits.push(`${r.churning.length} churning left stale`);
+  if (r.churning?.length) bits.push(`${r.churning.length} churning awaiting verification`);
   if (r.archived) bits.push(`${r.archived} archived`);
   if (r.merged) bits.push(`${r.merged} duplicates merged`);
   bits.push(`${r.phrased} phrased`);

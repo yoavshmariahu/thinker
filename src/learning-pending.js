@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { verificationChanges } from './freshness.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 
@@ -52,7 +53,9 @@ export function takeContradictions(store, { now = new Date().toISOString() } = {
     let rec; try { rec = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { fs.rmSync(file, { force: true }); continue; }
     const a = rec.assessment || {}, note = a.id && store.get(a.id);
     if (rec.reason === 'contradiction requires investigation' && note && note.status !== 'invalid' && !note.archived && note.kind !== 'behavior' && note.body === rec.existing?.body) {
-      store.put({ ...note, status: 'stale', stale: { since: note.stale?.since || now, changed: note.stale?.changed || [] }, contradicted: { evidence: String(a.evidence || '').slice(0, 2000), source: rec.source, at: rec.at || now } });
+      const next = { ...note, status: 'stale', stale: { since: note.stale?.since || note.recheck?.since || now, changed: verificationChanges(note) }, contradicted: { evidence: String(a.evidence || '').slice(0, 2000), source: rec.source, at: rec.at || now } };
+      delete next.recheck;
+      store.put(next);
       marked.push(note.id);
     } else moot++;
     fs.rmSync(file, { force: true });

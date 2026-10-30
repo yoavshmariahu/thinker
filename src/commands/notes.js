@@ -163,7 +163,7 @@ async function rehashCommand(ctx) {
   // Re-baseline every note's dependency hashes against the current tree
   // without LLM verification (use after upgrading thinker's hashing).
   let n = 0;
-  for (const note of store.list()) { note.deps = (note.deps || []).map(d => ({ ...hashDep(store.repo, d), ...(d.fanout ? { fanout: d.fanout } : {}) })).filter(d => !d.missing); if (flags.fanout) note.deps = annotateFanout(store.repo, note.deps, { max: 12 }); note.status = note.status === 'invalid' ? 'invalid' : 'fresh'; delete note.stale; delete note.verifying; store.put(note); n++; }
+  for (const note of store.list()) { note.deps = (note.deps || []).map(d => ({ ...hashDep(store.repo, d), ...(d.fanout ? { fanout: d.fanout } : {}) })).filter(d => !d.missing); if (flags.fanout) note.deps = annotateFanout(store.repo, note.deps, { max: 12 }); note.status = note.status === 'invalid' ? 'invalid' : 'fresh'; delete note.stale; delete note.recheck; delete note.verifying; store.put(note); n++; }
   out(`rehashed ${n} notes${flags.fanout ? ' and counted their references' : ''}`);
   return;
 }

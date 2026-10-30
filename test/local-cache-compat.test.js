@@ -40,12 +40,15 @@ test('store tiers migrate tracked/untracked notes, preserve runtime state, and r
   assert.equal(fs.existsSync(path.join(store.notesDir, 'local.json')), false);
   assert.match(git('check-ignore', '.thinker/local/notes/local.json'), /local/);
   const committed = fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8');
-  s.put({ ...s.get('value'), body: 'Local correction', uses: 8, confidence: 0.4, status: 'stale' });
+  s.put({ ...s.get('value'), body: 'Local correction', uses: 8, confidence: 0.4, status: 'pending', recheck: { since: '2026-01-01', changed: [{ path: 'code.js', reason: 'file changed' }] } });
   assert.equal(fs.readFileSync(path.join(store.notesDir, 'value.json'), 'utf8'), committed);
   assert.equal(s.pending('value').body, 'Local correction');
+  assert.equal(s.get('value').recheck.changed[0].path, 'code.js');
+  assert.equal(s.pending('value').recheck, undefined, 'verification state is local, not proposed shared content');
   fs.writeFileSync(path.join(store.notesDir, 'value.json'), JSON.stringify(sharedContent(note('value', { body: 'Pulled correction' }))));
   assert.equal(s.get('value').body, 'Pulled correction');
   assert.equal(s.get('value').status, 'fresh');
+  assert.equal(s.get('value').recheck, undefined);
   assert.equal(s.get('value').confidence, 0.87654);
   assert.equal(s.get('value').uses, 8);
   assert.deepEqual(s.pending('value'), {});
@@ -189,8 +192,8 @@ test('list --json applies stale and all filters to the structured inventory', t 
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout).notes.map(n => [n.id, n.status]);
   };
-  assert.deepEqual(list(), [['changed', 'stale']]);
-  assert.deepEqual(list('--stale'), [['changed', 'stale']]);
-  assert.deepEqual(list('--all'), [['changed', 'stale'], ['retired', 'invalid']]);
+  assert.deepEqual(list(), [['changed', 'pending']]);
+  assert.deepEqual(list('--stale'), []);
+  assert.deepEqual(list('--all'), [['changed', 'pending'], ['retired', 'invalid']]);
 });
 

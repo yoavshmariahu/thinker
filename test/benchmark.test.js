@@ -70,7 +70,7 @@ test('benchmark orientation does not count a serving or schedule stale-note veri
   const note = store.get(made.note.id);
   assert.equal(note.uses, 0);
   assert.equal(note.verifying, undefined);
-  assert.equal(note.status, 'stale');
+  assert.equal(note.status, 'pending');
 });
 
 test('benchmark suggestions turn cached questions into alternative commands', () => {

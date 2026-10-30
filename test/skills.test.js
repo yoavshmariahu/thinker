@@ -120,10 +120,10 @@ test('a skill the code contradicts is marked out of date with its issues, leaves
   write('src/billing/charge.js', 'export function charge(order, key) {\n  return { order, key: key || null };\n}\n');
   git(['add', '.']); git(['commit', '-q', '-m', 'two']);
   const [stale] = refresh(store, [store.get(card.id)]);
-  assert.equal(stale.status, 'stale'); assert.ok(stale.stale.changed.some(c => c.symbol === 'charge'));
+  assert.equal(stale.status, 'pending'); assert.ok(stale.recheck.changed.some(c => c.symbol === 'charge'));
   assert.deepEqual(pickStale([stale], DEFAULTS, { now: Date.now() }).stale.map(n => n.id), [], 'not served lately: waits for a serving');
   assert.deepEqual(pickStale([{ ...stale, lastUsed: new Date().toISOString() }], DEFAULTS).stale.map(n => n.id), [card.id]);
-  const fileChanged = { ...stale, lastUsed: new Date().toISOString(), stale: { changed: [...stale.stale.changed, { path: card.skill.file, reason: 'file changed' }] } };
+  const fileChanged = { ...stale, lastUsed: new Date().toISOString(), recheck: { changed: [...stale.recheck.changed, { path: card.skill.file, reason: 'file changed' }] } };
   assert.deepEqual(pickStale([fileChanged], DEFAULTS).stale, [], 'a card whose own file changed is rewritten by the scan, not audited');
   const prompts = [];
   const audit = async ({ prompt }) => { prompts.push(prompt); return { json: { verdict: 'broken', reason: 'the key is optional now', issues: [{ claim: 'charge() requires an idempotency key', actual: 'charge accepts a missing key', pointer: 'src/billing/charge.js:charge' }] }, tokens: { totalTokens: 500 } }; };

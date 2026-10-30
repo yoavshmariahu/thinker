@@ -75,12 +75,12 @@ test('a file in view serves its understanding notes once, by the request\'s rele
   const r3 = onSightNotes(s3, { session: 's3', client: 'claude', files: ['src/a.js', 'src/b.js'] });
   assert.equal(r3.included.length, 1);
   assert.equal(onSightNotes(s3, { session: 's3', client: 'claude', files: ['src/b.js'] }).included.length, 0, 'the cap holds for the session');
-  // a note whose code changed under it (stale on refresh) is not served; one anchored to untouched code still is
+  // ordinary code changes leave a note usable while it awaits verification
   fs.writeFileSync(path.join(store.repo, 'src/a.js'), fs.readFileSync(path.join(store.repo, 'src/a.js'), 'utf8').replace('return 1;', 'return 11;'));
   const s4 = new Store(store.repo);
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ onSight: { enabled: true, perFile: 5 } }));
   const r4 = onSightNotes(s4, { session: 's4', client: 'claude', files: ['src/a.js'] });
-  assert.ok(!r4.included.some(x => x.id === third.id), 'fetchRows changed: its note is stale and held back');
+  assert.ok(r4.included.some(x => x.id === third.id && x.status === 'pending'), 'fetchRows changed: its note stays usable pending verification');
   assert.ok(r4.included.some(x => x.id === onTopic.id), 'saveRows did not: its note is served');
 }));
 
