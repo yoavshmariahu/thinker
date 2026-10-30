@@ -422,7 +422,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   const prTable = read('ui/page.html').split('function prStatsTable(v) {')[1].split('function renderReport(v)')[0];
   assert.match(prTable, /<table class="ctx-table rep-table savings-table"/);
   assert.doesNotMatch(prTable, /<svg/);
-  assert.match(read('ui/page.html'), /parts \+ effectiveness \+ prStatsTable\(v\) \+ `<button/, 'PR table is always outside the collapsed metrics');
+  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
@@ -438,7 +438,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // whose agent reports no usage, on both doors (2026-10-25), from the one view (reportView: rewrites, rewriteTotals, estimated, calibration)
   // the rewrites by cause and the estimated sessions are in the view and on neither door (the owner's call, 2026-10-25)
   for (const re of [/Prompt cache rewrites/, /Sessions whose agent reported no usage/]) { assert.doesNotMatch(read('ui/page.html'), re); assert.doesNotMatch(read('report.js').replace(/\/\/[^\n]*/g, ''), re); }
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ effectiveness \+/); assert.match(read('ui/page.html'), /v\.calibration/);
+  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+/); assert.match(read('ui/page.html'), /v\.calibration/);
   // the rest of the input is one row on both doors (reportView `otherInput`), folded by default on the page, its kinds under it
   assert.match(read('ui/page.html'), /RFOLD = new Set\(\['other-input'\]\)/); assert.match(read('ui/page.html'), /data-fold="other-input"/); assert.match(read('ui/page.html'), /v\.otherInput \|\| \[\]/);
   assert.match(read('report.js'), /line\('Other input', v\.otherInput, false, base, \{ key: 'otherInput', thresholds: true \}\)/); assert.match(read('report.js'), /line\(`  \$\{p\.name\}`, p\.cells/);
@@ -515,7 +515,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const TOKEN_TYPES = \[\['fresh', 'Input, fresh'\], \['cacheWrite', 'Input, written to cache'\], \['cacheRead', 'Input, read from cache'\], \['output', 'Model output'\]\];/);
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]\.map\(k => BREAKDOWN\.find/, 'the rest of the input by kind, then the output (2026-10-25)');
   assert.match(read('report.js'), /'By token type \(as the model reported them/); assert.match(read('ui/page.html'), /<b>By token type<\/b>/);
-  assert.match(read('ui/page.html'), /swapBody\(el, parts \+ effectiveness \+/, 'the token types last, no decisions on the Report');
+  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
   assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);

@@ -847,7 +847,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - View Report keeps four PR summary cards under the cache cards: merged with work here, tokens saved,
   share of their cost, and the median one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
-  The report shows **Cost by context** and **Cache/compression effectiveness** first; **By model** and **By token type** are collapsed under **See more metrics**. The page defaults to Total and displays savings as a weekly table without a graph. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
+  The report leads with **Pull request stats**, followed by **Cost by context** and **Cache/compression effectiveness**; **By model** and **By token type** are collapsed under **See more metrics**. The page defaults to Total and displays savings as a weekly table without a graph. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
   It reads the same `/api/report` data and lists merged PRs newest first: number, title, sessions, cost,
   cleared, reading avoided, saved, share. `thinker report` still prints both summaries and the list.
   12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.
@@ -857,7 +857,8 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   again over every row rather than averaged, and each row carries its repository, since two repositories
   both number from 1.
 - **Pull request stats** is a weekly table matching the other Report tables, with metrics as rows and weeks
-  as columns; no graphs. It stays visible before **See more metrics**. `report.js:weeklyPrStats` groups the
+  as columns; no graphs. It leads the Report, above **Cost by context** and **Cache/compression effectiveness**,
+  and stays outside **See more metrics**. `report.js:weeklyPrStats` groups the
   recorded PR rows by merge week into `prWeekly`: PR count, mean tokens saved per PR, and mean recorded
   input + output tokens per PR. The cost mean uses only PRs with complete counters and exposes that count;
   missing counters never read as zero cost. Empty weeks have zero PRs and null averages. All repositories
