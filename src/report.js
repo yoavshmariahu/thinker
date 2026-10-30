@@ -22,7 +22,6 @@ import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES } from './transcripts.js';
-import { deliveryReport } from './delivery.js';
 
 export const REPORT_WEEKS = 6;
 // What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
@@ -213,41 +212,6 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, cache: cacheMetrics(store, { days, config }),
-    prs: prSavings(store, { days, now }),
-  };
-}
-
-// How much of what was shipped here thinker paid for: the merged pull requests the sessions of this window
-// worked on, and what was saved on each (delivery.js:deliveryReport, the same figures as `thinker prs`).
-//
-// **In tokens, under Cost as much as under Tokens, and that is deliberate.** The two savings are context, not
-// dollars, and only one of them converts. *Reading avoided* is fresh input nobody paid for, so it would price
-// at the input rate. *Cleared* would not: what the proxy takes out of a prompt was mostly being read from the
-// prompt cache at a fortieth of the input price, and the clear writes that cache again at twice it. Priced at
-// the input rate this window's 202M cleared tokens would read as thousands of dollars, where `thinker proxy
-// replay` over 264 real sessions put the whole clearing at +7.3% of session cost. A dollar figure here would
-// contradict this project's own measurement, so there is none: the saving is tokens that never sat in a
-// prompt, and `thinker proxy replay` is what prices a clear.
-export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
-  let r;
-  try { r = delivery || deliveryReport(store, { days, now }); } catch { return null; }
-  const s = r.summary, merged = r.prs.filter(p => p.mergedAt && p.sessions.length);
-  merged.sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
-  return {
-    days, merged: s.merged, mergedSeen: s.mergedSeen, mergedAssisted: s.mergedAssisted, worked: s.worked, open: s.open,
-    saved: { cleared: s.saved.cleared, reading: s.saved.reading, total: s.saved.total },
-    agent: s.tokens.agent, complete: s.tokens.complete,
-    medianSaved: s.medianSavedPerMergedPr, medianAgent: s.medianTokensPerMergedPr, medianHours: s.medianHoursToMerge,
-    // The share of what those pull requests cost that never had to sit in a prompt. Both sides are the same
-    // shape -- every prompt and every answer of their sessions, added up -- so the ratio means something.
-    share: s.tokens.agent ? s.saved.total / s.tokens.agent : null,
-    sessions: s.sessions,
-    rows: merged.map(p => ({
-      number: p.number, title: p.title || null, url: p.url || null, mergedAt: p.mergedAt,
-      sessions: p.sessions.length, prompts: p.tokens.prompts, complete: p.tokens.complete,
-      agent: p.tokens.agent, cleared: p.saved.cleared, reading: p.saved.reading.tokens, saved: p.saved.total,
-      share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
-    })),
   };
 }
 
@@ -388,35 +352,9 @@ export function mergeReports(list) {
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
     cache: { dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.some(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged },
-    prs: mergePrSavings(list),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
-
-// All repositories: the counts and the tokens add, since a pull request belongs to one repository and a
-// session to one pull request, so nothing is counted twice. The medians do not add and are not averaged into
-// a median of medians: they are recomputed over every merged pull request of every repository. Each row
-// carries the repository it came from, because two repositories number their pull requests from 1.
-function mergePrSavings(list) {
-  const parts = list.map(x => ({ p: x.view.prs, repo: x.repo, name: x.name })).filter(x => x.p);
-  if (!parts.length) return null;
-  const sum = f => parts.reduce((a, x) => a + (f(x.p) || 0), 0);
-  const rows = parts.flatMap(x => x.p.rows.map(r => ({ ...r, repo: x.repo, repoName: x.name })));
-  rows.sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
-  const saved = { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading), total: sum(p => p.saved.total) };
-  const agent = sum(p => p.agent);
-  return {
-    days: parts[0].p.days, merged: sum(p => p.merged), mergedSeen: sum(p => p.mergedSeen), mergedAssisted: sum(p => p.mergedAssisted),
-    worked: sum(p => p.worked), open: sum(p => p.open), saved, agent, complete: sum(p => p.complete),
-    medianSaved: median(rows.map(r => r.saved)), medianAgent: median(rows.filter(r => r.complete).map(r => r.agent)),
-    medianHours: median(parts.map(x => x.p.medianHours).filter(h => h != null)),
-    share: agent ? saved.total / agent : null,
-    sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
-    rows,
-  };
-}
-
-const median = xs => { const v = xs.filter(x => Number.isFinite(x)).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2); };
 
 // The report as the command prints it: the three tables with their totals, the cache's numbers. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
@@ -467,31 +405,5 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   const c = v.cache;
   L.push('', 'The cache', `  $ saved          ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(Math.max(0, c.tokensSaved))} ${c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read'}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
-  // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
-  // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
-  // dollar figure on a cleared token.
-  const pr = v.prs;
-  if (pr?.merged) {
-    const share = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
-    L.push('', 'Pull requests (tokens, not dollars: `thinker proxy replay` is what prices a clear)',
-      `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
-      `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
-      `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
-      `  on the median one      ${formatTokens(pr.medianSaved || 0)} saved, ${pr.medianAgent == null ? '–' : formatTokens(pr.medianAgent)} spent${pr.medianHours == null ? '' : `, ${pr.medianHours < 10 ? pr.medianHours.toFixed(1) : Math.round(pr.medianHours)}h open to merged`}`,
-      `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
-    const n = Math.min(pr.rows.length, PR_LINES);
-    if (n) {
-      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}`);
-      for (const r of pr.rows.slice(0, n)) {
-        const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}`);
-      }
-      if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
-      if (pr.rows.slice(0, n).some(r => !r.complete)) L.push('  * a session of that pull request reported no counters, so its cost is partial.');
-    }
-  }
   return L;
 }
-
-// Merged pull requests the command prints before telling the reader to run `thinker prs` for the rest.
-const PR_LINES = 10;

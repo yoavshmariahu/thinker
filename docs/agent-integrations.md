@@ -110,14 +110,6 @@ follow every instruction.
 | Auggie | none: Auggie has no prompt hook | PostToolUse `hookSpecificOutput` (`.sh` wrappers in `~/.augment/thinker`) | Tools; the prompt from the Stop hook's conversation data | MCP (`~/.augment/settings.json`) |
 | Goose | none: hooks give the model nothing | none | Prompt, tools (no output), stop/end, with learning on | MCP extension in `~/.config/goose/config.yaml` |
 
-Claude Code, Codex and Cursor are also wired for a pre-tool event on shell commands, which does
-nothing unless a repository sets `tests: { nudge: true }` in `.thinker/config.json`: it then asks
-for a test run to go through `thinker test` (see docs/usage.md). Claude Code's and Codex's
-`PreToolUse` take `updatedInput`, so the command is rewritten and the host's own permission flow
-still runs on it; Cursor's `beforeShellExecution` cannot rewrite a command, so it is denied once
-with the command to run in `agent_message`. The other five hosts have no pre-tool event Thinker
-can answer on and are not wired for one.
-
 File context is enabled with `--late`. Hook recording is enabled by default;
 `--no-learn` or `THINKER_NO_LEARN=1` disables it. Learning still requires an
 existing Thinker model backend (Anthropic API or a supported model CLI); these

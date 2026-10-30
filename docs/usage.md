@@ -74,54 +74,6 @@ Compact discovery requests at most 3,000 output tokens, assessment alone 1,500, 
 `distillModel` in `.thinker/config.json` chooses the model for session learning; `THINKER_LLM_MODEL`
 takes precedence.
 
-## Pull requests, and what was saved on each
-
-`thinker prs` answers one question: of the work you actually shipped, how much of it did thinker
-pay for.
-
-```
-$ thinker prs --days 7
-Pull requests · github.com/you/repo · last 7 days
-
-Merged with work recorded here: 22 of 90 merged in the repository
-Still open: 3
-
-Saved on those 22 merged pull requests
-  cleared         197M tokens the API left out of their prompts (measured)
-  reading avoided 177k tokens of files the notes meant nobody read (estimate)
-  together        197.2M tokens · 25k on the median one
-
-What they cost
-  agent tokens    865.4M over 29 linked sessions: every prompt and every answer added up,
-                  the same way the saving is
-  median merged   23.5M tokens · 0.7h from opened to merged · 22/22 with complete counters
-```
-
-`--detail` adds a block per pull request, with its sessions; `--pr <n>` takes one; `--json` is the
-data behind both.
-
-**Two savings, never blended silently.** *Cleared* is measured: the context proxy asks the API to drop
-the older tool results of a conversation, the API answers with the tokens it left out of that prompt,
-and those are added up over the pull request's sessions. *Reading avoided* is an estimate: one read per
-file behind each note a session was seen to act on. Both lines are always labelled.
-
-**Matching a session to a pull request** needs nothing from you. A session is matched by a commit it
-was sitting on, or failing that by its branch. Where that is wrong or a session split across two pull
-requests, say so:
-
-```
-thinker prs link --session <id> --pr 42
-thinker prs link --session <id> --split 42:0.4,43:0.6
-```
-
-**Reading the pull requests** uses your own `gh` login, read-only; nothing is ever posted. Maintenance
-does it once a day in the background, so the report is current without you running anything; `maintain:
-{ prSync: false }` in `.thinker/config.json` turns that off and leaves `thinker prs sync` to you.
-
-Everything is local. The counts and token totals reach the telemetry if telemetry is on
-(`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
-title, URL, branch and author, the repository, and the session ids never do.
-
 ## What the hooks serve, and the symbol table behind it
 
 Besides the notes, the post-tool hook can hand the agent two things about the
@@ -196,40 +148,6 @@ A short file, a file with nothing to centre on, or one where the kept lines woul
 passes whole. `minLines` (120), `window` (40 lines each side of a hit), `cap` (0.6), `testChars`
 (2000), `searchChars` (8000), `perFile` (3) and `maxFiles` (40) in the same object adjust it; `tests:
 false` leaves test runs alone. Other agents get their results untouched.
-
-## Test runs an agent can afford to read
-
-A failing test run is often the most expensive thing in a session: whole suites of output read
-back into the context on every iteration, a third of it colour escapes, and seventy failures that
-are really a handful of causes. Off until an experiment shows it helps. With
-
-```json
-{ "tests": { "nudge": true } }
-```
-
-in `.thinker/config.json`, a shell command that is a test run is answered before it runs: Claude
-Code and Codex have the command rewritten to go through thinker's test wrapper, and Cursor is told what
-to run instead. Each command is answered once per session. The wrapper runs the command as given, with
-colour off, keeps the whole log in `.thinker/state/tests/<timestamp>-<runner>.log` (ignored by git; the
-last twenty are kept) and gives the agent only what a reader needs:
-
-```
-pytest: 9 failed, 0 passed — exit 1
-2 distinct causes in 9 failing tests:
-8× ConnectionError: could not reach the rows database at 127.0.0.1:5432
-    tests/test_rows.py::test_fetch_rows[1], tests/test_rows.py::test_fetch_rows[2], … +6 more
-    tests/test_rows.py:8 in test_fetch_rows
-    app/rows.py:6 in fetch
-    app/rows.py:2 in connect
-1× ModuleNotFoundError: No module named 'app.gone'
-    tests/test_rows.py::test_import_missing
-    tests/test_rows.py:17 in test_import_missing
-full log (81 lines): .thinker/state/tests/2026-10-18T05-37-29-595-pytest.log
-```
-
-The exit code is the test command's. pytest, jest, vitest, `go test`, `cargo test` and `node --test`
-are parsed; any other runner is reported by the last lines of its log. The same `tests` object sets
-`color`, `causes`, `examples`, `traceback`, `tail` and `keepLogs`.
 
 ## Your own model endpoint
 

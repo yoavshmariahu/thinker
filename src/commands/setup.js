@@ -11,7 +11,7 @@ import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected, CLIENTS, USER_SCOPE_CLIENTS } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
-import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
+import { unscheduleTelemetry, sendUninstallFeedback } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
 import { readLog } from '../usage.js';
@@ -50,7 +50,6 @@ async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
   // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge. The last report
   // says so (`uninstall`), sent first while the repository's opt-out can still be read; telemetry off sends nothing.
-  await sendTelemetry({ home: thinkerHome(), store, force: true, event: 'uninstall' });
   unscheduleDaily({ home: thinkerHome() });
   unscheduleTelemetry({ home: thinkerHome() });
   uninstallClients(repo);
@@ -139,6 +138,7 @@ async function rewireCommand(ctx) {
   const cli = path.join(HERE, 'cli.js');
   const repos = flags.here ? (store.exists() ? [repo] : []) : knownRepos(store, repo);
   const dry = !!flags.dry, quiet = !!flags.quiet;
+  if (!dry) { try { unscheduleTelemetry({ home: thinkerHome() }); } catch {} }
   const summary = { repos: 0, changed: 0, files: [], errors: [], skipped: [] };
   const blocked = new Set();
   // One damaged client must not prevent the other environments from being repaired.
@@ -308,7 +308,6 @@ async function updateCommand(ctx) {
         if (res.updated) {
           updated = true;
           const rewired = res.environmentRepair || rewireAfterUpdate(newCliOf(install, home), { quiet: true });
-          sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
           const noticeFile = path.join(home, 'state', 'update-notice.json');
           fs.writeFileSync(noticeFile, JSON.stringify({ from: res.from, to: res.to, version: res.version, rewired: rewired?.changed || 0, at: new Date().toISOString() }));
           store.log({ op: 'update', from: res.from, to: res.to, version: res.version, auto: true });
@@ -379,7 +378,6 @@ async function updateCommand(ctx) {
       out(`Updated thinker${branchInfo} to ${res.to ? res.to.slice(0, 7) : res.version} (v${res.version || 'latest'}).`);
     }
     if (!res.environmentRepair) rewireAfterUpdate(newCliOf(install, home), { quiet: !!flags.quiet });
-    sendTelemetryAfterUpdate({ cliPath: newCliOf(install, home), home });
     if (!flags.quiet) {
       if (!isScheduled(home)) {
         out('Tip: Run `thinker update --schedule` to check for updates every 4 hours in the background.');

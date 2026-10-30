@@ -1,34 +1,10 @@
-// Test economy: what a failing test run costs an agent in context.
-//
-// Stage-0 diagnostic over 662 real sessions (910 test runs): test *selection* is not the problem.
-// None of the 910 runs was a full suite, one was a directory run, and only 2 were redundant
-// re-runs: agents already run one or two test files. The tokens are in the single catastrophic
-// failing run — 50k to 100k tokens, 80-88% of a session's whole tool output — of which about 30%
-// is ANSI colour escapes, and whose 70 failures collapse to some 13 distinct causes. Opus already
-// pipes such runs through `tail`, blind.
-//
-// So `thinker test -- <command>` runs the command with colour off, streams the log (ANSI stripped)
-// to a file under .thinker/state/tests/ — already out of git, store.js:EXCLUDED — and prints the
-// counts, the failures grouped by distinct cause (each cause once, with a count, a few example
-// test names and a few frames that point at repository files), the warnings as one number, and
-// the log path for the rest. The `pre` hook (PreToolUse) asks for a test command to go through it.
-//
-// Everything here is model-free: colour flags, output parsing and grouping. No model call, no note.
-//
-// On by default since 2026-10-29, at the owner's decision. What the saving rests on: the agent is
-// already paying the loss. Opus pipes such a run through `tail` and throws away 12 of the 13 causes
-// to keep its context; this hands it all 13 for a fraction of what one truncated log costs. Measured
-// on this repository: a 13-failure run reads 10,493 bytes raw and 513 through the wrapper, both
-// causes kept. No model call, so there is nothing to meter and no judge to trust.
-// `tests: { nudge: false }` in .thinker/config.json turns the rewrite off; the command stays.
+// Passive test-output parsing for the context diet. This module never runs or rewrites commands.
 import fs from 'node:fs';
 import path from 'node:path';
 
 // Read like the other switches (ops.js:onSightConfig): the config, or the options a caller
 // passes. No environment knobs.
 export const TESTS = {
-  nudge: true,       // the pre hook answers a shell test command with the wrapped one (on by default, 2026-10-29)
-  color: true,       // run the command with colour off (and strip what still comes through)
   causes: 10,        // distinct causes printed
   examples: 10,      // test names shown per cause
   traceback: 6,      // frames printed per cause
@@ -37,35 +13,14 @@ export const TESTS = {
 };
 export function testsConfig(store, over = {}) {
   const c = store?.config?.().tests;
-  return { ...TESTS, ...(c === true ? { nudge: true } : c && typeof c === 'object' ? c : {}), ...over };
+  const { nudge, color, ...cfg } = { ...TESTS, ...(c && typeof c === 'object' ? c : {}), ...over };
+  return cfg;
 }
 
 // --- colour ----------------------------------------------------------------
 
 const ANSI = /\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][B0]|\x1b[=>]/g;
 export const stripAnsi = s => String(s).replace(ANSI, '');
-// Strip ANSI from a stream chunk by chunk. An escape sequence can be split across two chunks, so
-// a trailing partial one is carried over instead of being written half-stripped.
-export function ansiStripper() {
-  let carry = '';
-  return {
-    push(chunk) {
-      const text = carry + chunk;
-      const at = text.lastIndexOf('\x1b');
-      // a trailing \x1b with no terminator yet: hold back from there
-      const cut = at >= 0 && !/[A-Za-z\x07]/.test(text.slice(at + 1)) && text.length - at < 64 ? at : text.length;
-      carry = text.slice(cut);
-      return stripAnsi(text.slice(0, cut));
-    },
-    end() { const rest = stripAnsi(carry); carry = ''; return rest; },
-  };
-}
-// The environment a test command runs in with colour off. Honoured by pytest, jest, vitest,
-// cargo and most libraries; the per-runner flags below cover the ones that colour anyway.
-// COLUMNS: pytest cuts each line of its short summary to the terminal width (80 off a terminal),
-// and a cut message splits one cause into several.
-export const NO_COLOR_ENV = { NO_COLOR: '1', FORCE_COLOR: '0', CLICOLOR: '0', CLICOLOR_FORCE: '0', TERM: 'dumb', COLUMNS: '200' };
-
 // --- runners ---------------------------------------------------------------
 
 const lines = s => stripAnsi(s).split('\n');
@@ -157,29 +112,6 @@ export function runnerOfOutput(text) {
   if (/^(--- (FAIL|PASS|SKIP):|ok\s+\S+\s+[\d.]+s$)/m.test(t)) return 'go';
   if (/^test result: (ok|FAILED)\./m.test(t)) return 'cargo';
   return null;
-}
-
-// Colour off, and machine-readable output where it is free. pytest: `-q --tb=short` is its terse
-// traceback and `-rfE` keeps the short summary, one `FAILED path::test - message` line per
-// failure, the cheapest place to read a failure's name and message from. The other runners are
-// parsed from their default text; a command that already asks for JSON (`go test -json`,
-// `jest --json`) is parsed from that. Rewriting someone else's command further is not worth the
-// ways it breaks. A flag the command already carries is never added twice.
-export function machineReadable(command, runner = detectRunner(command), { color = true } = {}) {
-  const c = String(command);
-  const add = [];
-  const has = re => re.test(` ${c} `);
-  if (runner === 'pytest') {
-    if (!has(/\s-(q|v+|-quiet|-verbose)\s/)) add.push('-q');
-    if (!has(/\s--tb[= ]/)) add.push('--tb=short');
-    if (!has(/\s-r[a-zA-Z]+\s/)) add.push('-rfE');
-    if (color && !has(/\s--color[= ]/)) add.push('--color=no');
-    if (color && !has(/\s-p\s+no:cacheprovider\s/)) add.push('-p no:cacheprovider');
-  }
-  if (color && runner === 'jest' && !has(/\s--(no-)?colors?[= ]?/)) add.push('--colors=false');
-  if (color && runner === 'vitest' && !has(/\s--(no-)?color\b/)) add.push('--no-color');
-  if (color && runner === 'cargo' && !has(/\s--color[= ]/)) add.push('--color never');
-  return add.length ? `${c} ${add.join(' ')}` : c;
 }
 
 // --- output parsers --------------------------------------------------------
@@ -513,52 +445,15 @@ export function summarize(parsed, { repo, logPath, logLines, exitCode, command, 
   return out.join('\n');
 }
 
-// --- the command classifier (the pre hook) ---------------------------------
+// --- command recognition for existing tool output ---------------------------------
 
-// Is this shell command a test run? Selection is deliberately not attempted: the diagnostic found
-// agents already run one or two test files, and an import-graph selector widened a real two-file
-// run to 93. The hook's whole job is to put the run through the wrapper.
 export function classifyTestCommand(command) {
   const raw = String(command || '').trim();
   if (!raw) return null;
-  if (/\bthinker\b[^|&;]*\btest\b/.test(raw)) return null; // already wrapped
   if (tooIntricate(raw)) return null; // not taken apart: a mangled command costs the agent its run
   const runner = detectRunner(raw);
   return runner ? { runner, command: raw } : null;
 }
-
-// How a shell reaches the wrapper: the `thinker` the installer puts on PATH (shell-path.js),
-// else this copy's cli.js by path, so the hook's suggestion runs wherever it is pasted.
-export function wrapperBin(cli, env = process.env) {
-  const onPath = String(env.PATH || '').split(path.delimiter).some(d => d && fs.existsSync(path.join(d, 'thinker')));
-  return onPath ? 'thinker' : `node ${JSON.stringify(cli)}`;
-}
-// What an agent pipes a test run into to cut it down. thinker's summary is already the short form of
-// the run, so a `| tail -50` on top of it hides the very summary it just made: those stages are
-// dropped. A stage that does something else (`tee`), or one carrying a redirection another command
-// may read, is kept and applies to the summary instead.
-const TRUNCATING = /^(tail|head|less|more|grep|egrep|fgrep|rg|ag|sed|awk|cut|wc|sort|uniq|tr|fold|column|jq)$/;
-
-// The command the hook asks for instead: the same run, through the wrapper. Only the piece that
-// holds the runner is wrapped -- prefixing the whole line put the wrapper before `cd packages/web &&`
-// and left the agent's `| tail` cutting thinker's own output down to nothing.
-export function wrappedCommand(command, bin = 'thinker') {
-  const raw = String(command).trim();
-  const segs = shellSegments(raw);
-  const at = segs.findIndex(s => runnerOfSegment(s.text));
-  if (at < 0) return `${bin} test -- ${raw}`;
-  const kept = [];
-  for (let i = 0; i < segs.length; i++) {
-    const s = segs[i];
-    if (i === at) { kept.push({ sep: s.sep, text: `${bin} test -- ${s.text}` }); continue; }
-    const head = (tokenize(s.text)[0] || '').split('/').pop();
-    if (i > at && s.sep === '|' && TRUNCATING.test(head) && !/[<>]/.test(s.text)) continue;
-    kept.push(s);
-  }
-  return renderSegments(kept);
-}
-export const NUDGE_REASON = command =>
-  `run this instead: ${command}\nthinker test runs the same command with colour off, keeps the full log in a file, and prints the counts, each distinct failure cause once with a few frames, and the log path.`;
 
 // --- logs ------------------------------------------------------------------
 
