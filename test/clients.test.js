@@ -167,7 +167,7 @@ test('stop hook tells the user what the turn saved, once, where the client can s
 
   hook(dir, 'prompt', 'claude', { session_id: 't1', prompt: PROMPT, cwd: dir });
   const claude = JSON.parse(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn));
-  assert.match(claude.systemMessage, /^🧠 thinker: 1 note this turn \(pointing at 1 file, ~\d+k? tokens of code\)$/);
+  assert.match(claude.systemMessage, /^🧠 thinker: 1 note this turn · estimated input saved this session: ~-?[\d,.]+k? tokens \(one-read fallback; no lifetime data\)$/);
   assert.equal(Object.keys(claude).join(), 'systemMessage', 'no decision: the agent stops as it meant to');
   assert.equal(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn), '', 'the next turn starts from none');
 
@@ -204,7 +204,7 @@ test('cursor gets the bundle with the prompt, as additional_context, once', () =
   const first = JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }));
   assert.equal(first.continue, true);
   assert.ok(first.additional_context.includes('RateLimiter.allow'));
-  assert.match(first.additional_context, /\| 🧠 \*\*thinker\*\* · 1 note this turn · \*est\. savings: ~\d+k? tokens\* \|\n\| :--- \|\n\| Where upload rate limiting happens \|/);
+  assert.match(first.additional_context, /\| 🧠 \*\*thinker\*\* · 1 note this turn · \*est\. input saved this session: ~-?[\d,.]+k? tokens, one-read fallback\* \|\n\| :--- \|\n\| Where upload rate limiting happens \|/);
   assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', generation_id: 'g1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
   // THINKER_NOTICE=off suppresses the in-chat footnote in Cursor
   const quiet = JSON.parse(execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--repo', dir], { input: JSON.stringify({ conversation_id: 'c1-quiet', generation_id: 'g1-quiet', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }));

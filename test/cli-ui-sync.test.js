@@ -18,6 +18,23 @@ const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'sr
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
+test('lifetime savings use shared report values and captions in CLI, page and footer', async () => {
+  const { cacheMetrics } = await import('../src/report.js');
+  const usage = { assessed: { confirmed: 2 }, saved: { tokens: 1000, byModel: {}, input: { tokens: 88000, covered: 1, fallback: 1, sessions: 1, requests: 100 } } };
+  const c = cacheMetrics(null, { usage });
+  assert.equal(c.tokensSaved, 88000);
+  assert.equal(c.tokenLabel, 'Estimated input tokens saved');
+  assert.deepEqual(c.coverage, { hits: 1, fallback: 1, sessions: 1, requests: 100 });
+  for (const file of ['report.js', 'ui/page.html']) {
+    assert.match(read(file), /c\.tokenDescription/);
+    assert.match(read(file), /c\.coverage/);
+    assert.doesNotMatch(read(file), /Math\.max\(0, c\.tokensSaved\)/, 'negative net estimates must stay visible');
+  }
+  assert.match(read('commands/hooks.js'), /sessionInputSavings/);
+  assert.match(read('report-snapshot.js'), /'cache-savings\.js'/);
+  assert.match(read('usage.js'), /estFiles:/, 'future servings carry historical per-file sizes');
+});
+
 test('Codex proxy is wired by the default service and shares the existing thresholds', async () => {
   const { proxyConfig, PROXY_DEFAULTS } = await import('../src/proxy.js');
   const cfg = proxyConfig({ protocol: 'responses', upstream: 'https://api.openai.com/v1' }, {});

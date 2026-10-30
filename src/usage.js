@@ -7,7 +7,10 @@
 // it takes one read per file the note rests on (at most 5) and the tokens those
 // reads would have returned (each file capped at what one read returns). Searches
 // to find the files, and the re-reading of earlier output on every later model
-// call, are left out. It is an estimate of reading avoided, not a measurement.
+// call, are left out of the legacy `saved.tokens` field. `saved.input` adds observed
+// note lifetime and subtracts carried note text (cache-savings.js); the report and
+// running session footer use that estimate. Missing lifetime evidence falls back
+// to one read minus the note text. Neither field is a measurement of avoided work.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,7 +19,8 @@ import { emptySpend, addSpend, formatTokens, normalizeModelUsage, relativeRate, 
 export { formatTokens };
 import { estTokens } from './rank.js';
 import { Store, logFile, adoptLocalLog, repoId } from './store.js';
-import { sessionModel } from './transcripts.js';
+import { sessionModel, sessionTranscriptFile } from './transcripts.js';
+import { sections, lifetimeRequests, sessionClears, inputSavings } from './cache-savings.js';
 import { compressionHeader, compressionSaving } from './compression.js';
 
 export const FILE_CAP = 6000;   // tokens one read of a large file returns (about 2000 lines)
@@ -82,7 +86,8 @@ export function formatSeconds(s) {
 // repository about 30% of servings were acted on. What was saved is counted after the
 // session is assessed (summarize, `thinker usage`). The prompt hook says nothing: a line at
 // every prompt was noise.
-export function turnNotice(repo, notes) {
+export function turnNotice(repo, notes, { input } = {}) {
+  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} this turn · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}`;
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens } = cacheHitSavings(repo, notes);
@@ -103,13 +108,13 @@ export function compressionNotice(state) {
   return `\u{1F5DC} thinker: ${compressionHeader(s, formatTokens)}`;
 }
 
-export function turnFooterMarkdown(repo, notes) {
+export function turnFooterMarkdown(repo, notes, { input } = {}) {
   const unique = [...new Map((notes || []).filter(Boolean).map(n => [n.id || n.title, n])).values()];
   if (!unique.length) return '';
   const { tokens } = cacheHitSavings(repo, unique);
   const hits = unique.length;
   const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
-  const detail = tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
+  const detail = input ? `*est. input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? ', including re-reads' : ', one-read fallback'}*` : tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
   const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/[`|]/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
   const head = `🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}`;
   return titles ? `| ${head} |\n| :--- |\n| ${titles} |` : `| ${head} |\n| :--- |`;
@@ -145,7 +150,37 @@ export function normalizeClient(client, session = '') {
 // them. Both are excluded from `attempted`, the hit rate's honest denominator.
 export const NOT_ATTEMPTED = ['too-few-notes', 'held-out'];
 
-export const servedFields = (store, notes, text) => ({ tokens: estTokens(text || ''), est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }) });
+export const servedFields = (store, notes, text) => {
+  const tokens = estTokens(text || ''), sizes = new Map(sections(text || '').map(n => [n.id, n.tokens]));
+  const parts = notes.map(n => sizes.get(n.id) || estTokens(n.body || ''));
+  const extra = notes.length ? Math.max(0, tokens - parts.reduce((a, b) => a + b, 0)) / notes.length : 0;
+  return { tokens, noteTokens: parts.map(n => Math.ceil(n + extra)),
+    est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }),
+    estFiles: notes.map(n => [...new Set((n.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES).filter(countsAsReading).flatMap(f => {
+      try { const st = fs.statSync(path.join(store.repo, f)); return st.isFile() ? [[f, Math.min(Math.ceil(st.size / 3.6), FILE_CAP)]] : []; } catch { return []; }
+    })),
+  };
+};
+
+function savingsRecords(events, store) {
+  const records = new Map();
+  for (const e of events) if (['orient', 'late', 'lookup'].includes(e.op)) (e.served || []).forEach((id, i) => {
+    if (!records.has(id)) records.set(id, { id, at: e.t, tokens: e.est?.[i]?.[1] ?? savingOf(store.repo, store.get(id)).tokens,
+      noteTokens: e.noteTokens?.[i] ?? (e.tokens || 0) / e.served.length, files: e.estFiles?.[i] });
+  });
+  return records;
+}
+// The running session footer is provisional; aggregate reports select confirmed records below.
+export function sessionInputSavings(store, session, { transcript } = {}) {
+  if (!session || session === 'unknown') return null;
+  const events = readLog(store).filter(e => sessionKey(e.session) === sessionKey(session));
+  const notes = savingsRecords(events, store), verdicts = new Map();
+  for (const e of events) if (e.op === 'attest') for (const a of e.applied || []) verdicts.set(a.id, a.verdict);
+  const selected = [...notes.values()].filter(n => !verdicts.has(n.id) || verdicts.get(n.id) === 'confirmed');
+  if (!selected.length) return null;
+  const requests = lifetimeRequests(transcript || sessionTranscriptFile(store.repo, session));
+  return inputSavings(selected, requests, { clears: sessionClears(sessionKey(session), requests) });
+}
 
 // The log is parsed once a process for its size and mtime: the page's report over every repository summarized
 // a dozen checkouts, and each one read and parsed the same 14 MB (a sixth of a second each, 2 s in all).
@@ -252,7 +287,7 @@ export function summarize(store, { days, all = false } = {}) {
       emptyReasons: {},
       emptyShortPrompts: 0,
     },
-    saved: { calls: 0, tokens: 0, servings: 0, byModel: {} },
+    saved: { calls: 0, tokens: 0, servings: 0, byModel: {}, input: { tokens: 0, covered: 0, fallback: 0, sessions: 0, requests: 0, gross: 0, overhead: 0, fallbackTokens: 0 } },
     holdout: null,
     repos: [], top: [],
   };
@@ -348,11 +383,13 @@ export function summarize(store, { days, all = false } = {}) {
       u.tokensServed += injected;
       const named = e.session && e.session !== 'unknown';
       const key = `${e.origin}|${named ? sessionKey(e.session) : `?${anon++}`}`;
-      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, repo: e.repo, session: named ? e.session : null, named, client: cl, model: null, injected: 0, notes: new Map() });
+      if (!sessions.has(key)) sessions.set(key, { origin: e.origin, repo: e.repo, session: named ? e.session : null, named, client: cl, model: null, injected: 0, notes: new Map(), records: new Map() });
       sessions.get(key).injected += injected;
       ids.forEach((id, i) => {
         const k = `${e.origin}|${id}`; count.set(k, { origin: e.origin, repo: e.repo, id, n: (count.get(k)?.n || 0) + 1 });
         if (!sessions.get(key).notes.has(id)) sessions.get(key).notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo, s.get(id))));
+        if (!sessions.get(key).records.has(id)) sessions.get(key).records.set(id, { id, at: e.t,
+          tokens: sessions.get(key).notes.get(id)[1] || 0, noteTokens: e.noteTokens?.[i] ?? injected / ids.length, files: e.estFiles?.[i] });
       });
     } else if (e.op === 'attest') {
       const key = `${e.origin}|${sessionKey(e.session)}`;
@@ -398,6 +435,12 @@ export function summarize(store, { days, all = false } = {}) {
       else if (v === 'contradicted') u.assessed.contradicted++;
       else if (v) u.assessed.unused++;
       else u.assessed.pending++;
+    }
+    const confirmed = [...x.records.values()].filter(n => verdicts.get(key)?.get(n.id) === 'confirmed');
+    if (confirmed.length) {
+      const requests = x.named ? lifetimeRequests(sessionTranscriptFile(x.repo, x.session)) : [];
+      const input = inputSavings(confirmed, requests, { clears: sessionClears(sessionKey(x.session), requests) });
+      for (const k of Object.keys(u.saved.input)) u.saved.input[k] += input[k];
     }
   }
   u.notesServed = distinct.size;
@@ -608,6 +651,8 @@ export function renderUsage(u, { days } = {}) {
   }
   L.push(...renderHoldout(u.holdout));
   L.push('', 'Estimated saving');
+  if (u.saved.input) L.push(`  input saved     ${num(u.saved.input.tokens)} estimated tokens, including observed re-reads minus note context`,
+    `  coverage        ${u.saved.input.covered} hits with lifetime data; ${u.saved.input.fallback} one-read fallback`);
   if (!u.saved.servings) L.push(`  none counted yet: only notes a session is seen to act on are counted, and none has been assessed so far`);
   else {
     L.push(`  tool calls      about ${num(u.saved.calls)} reads avoided`);
