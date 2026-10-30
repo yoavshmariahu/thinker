@@ -1,12 +1,13 @@
 // `thinker report`: the Report page in the terminal (report.js): the average tokens a prompt (one call to the model) cost here, week by
 // week over the last six, by token type, by part of the context and by model (grouped by provider, with subtotals), at list prices
 // (the default; --tokens counts tokens), --total the week's sum instead of the average and --share each row as its share of the whole session; under it the cache's numbers.
-import { reportView, renderReport, REPORT_WEEKS } from '../report.js';
+import { reportView, renderReport, renderPrBreakdown, REPORT_WEEKS } from '../report.js';
 import { findRepoSessions } from '../instruction-value.js';
 import { readReport, writeReport, refreshReport } from '../report-snapshot.js';
 import { Store } from '../store.js';
 
 async function reportCommand({ store, flags, out }) {
+  if (flags.group !== undefined && !['project', 'people'].includes(flags.group)) throw new Error('--group must be project or people');
   const weeks = Math.max(1, Math.min(26, Number(flags.weeks) || REPORT_WEEKS));
   // --refresh: the report kept for the page made again (report-snapshot.js), which starts it in the background; --all
   // every repository the page lists whose report is not current, in this one process (the machine's log is parsed once)
@@ -26,6 +27,10 @@ async function reportCommand({ store, flags, out }) {
   const v = reportView(store, { weeks });
   writeReport(store, weeks, v); // what the page shows next
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
+  if (flags.prs) {
+    for (const l of renderPrBreakdown(v, { group: flags.group || 'project', total: Boolean(flags.total), share: Boolean(flags.share) })) out(l);
+    return;
+  }
   // cost at list prices is the default view, as on the page (2026-10-26); --tokens counts tokens instead, without bounds.
   // --cost, the flag that chose cost before, is still accepted and changes nothing
   for (const l of renderReport(v, { cost: !flags.tokens, total: Boolean(flags.total), share: Boolean(flags.share) })) out(l);

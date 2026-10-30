@@ -5,6 +5,12 @@ context goes, and what to cut, is the [Find Savings page](context.md). Back to t
 
 ## Cache usage and savings
 
+The Report page leads with weekly PR stats. **See breakdown** opens separate tables for PR count,
+tokens saved, and total tokens, grouped by **Project** or **People** (PR authors). Filter by repository
+and switch between **Per PR / Total** and **Values / Share**. PR savings stay in tokens; total-token
+figures use PRs with complete counters. The same breakdown is available with
+`thinker report --prs --group project` or `--group people`, with `--total` and `--share` as needed.
+
 The Report's estimated input savings now include observed re-reads and subtract
 carried note context. Coverage is shown beside the total; sessions without lifetime
 evidence use a one-read fallback. See [how cache savings are calculated](cache-savings.md)
