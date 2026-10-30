@@ -1336,13 +1336,13 @@ function prStatsTable(v) {
     { key: 'tokensPerPr', name: 'Total tokens per PR · average' },
   ];
   const rows = metrics.map(({ key, name }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
-    const n = w[key], incomplete = key === 'tokensPerPr' && w.complete < w.merged;
+    const n = w[key];
     const title = key === 'tokensPerPr' ? `${w.complete} of ${w.merged} PRs with complete counters` : '';
-    return `<td class="num"${title ? ` title="${esc(title)}"` : ''}>${n == null ? '–' : key === 'merged' ? n : fmt(n)}${incomplete ? '†' : ''}</td>`;
+    return `<td class="num"${title ? ` title="${esc(title)}"` : ''}>${n == null ? '–' : key === 'merged' ? n : fmt(n)}</td>`;
   }).join('')}</tr>`).join('');
   return `<figure class="ctx-figure pr-stats">${heading}
     <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th>Metric</th>${weeks.map((w, i) => `<th class="num">Week of ${dlabel(w.t)}${i === weeks.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens: recorded input + output; averages use only PRs with complete counters. † Incomplete coverage. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
+    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
 function renderReport(v) {
