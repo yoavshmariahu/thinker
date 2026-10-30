@@ -11,12 +11,12 @@ const INSTALL = path.join(path.dirname(fileURLToPath(import.meta.url)), '../inst
 const fn = fs.readFileSync(INSTALL, 'utf8').match(/^add_to_path\(\) \{[\s\S]*?^\}$/m)[0];
 
 const addToPath = (shell, home, dir = '/opt/thinker/bin') => execFileSync('bash', ['-c', `set -euo pipefail\n${fn}\nadd_to_path "$1"`, 'add_to_path', dir], {
-  encoding: 'utf8', env: { PATH: process.env.PATH, HOME: home, SHELL: `/bin/${shell}` },
+  encoding: 'utf8', env: { PATH: process.env.PATH, HOME: home, SHELL: `/bin/${shell}`, THINKER_TEST: '1', THINKER_TELEMETRY: 'off' },
 });
 
-const rcFor = { zsh: '.zshrc', bash: process.platform === 'darwin' ? '.bash_profile' : '.bashrc', fish: '.config/fish/conf.d/thinker.fish' };
+const rcFor = { zsh: '.zshrc', bash: process.platform === 'darwin' ? '.bash_profile' : '.profile', fish: '.config/fish/conf.d/thinker.fish' };
 // bash's files are written whatever the login shell: agents may run their commands in bash
-const bashFiles = process.platform === 'darwin' ? ['.bash_profile', '.bashrc'] : ['.bashrc'];
+const bashFiles = [process.platform === 'darwin' ? '.bash_profile' : '.profile', '.bashrc'];
 
 for (const [shell, rc] of Object.entries(rcFor)) {
   test(`installer puts thinker on PATH once for ${shell}, and for bash`, () => {
@@ -54,7 +54,7 @@ test('a bash agent finds thinker on a zsh machine', () => {
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, 'thinker'), '#!/bin/sh\necho ok\n', { mode: 0o755 });
   addToPath('zsh', home, bin);
-  const env = { PATH: '/usr/bin:/bin', HOME: home };
+  const env = { PATH: '/usr/bin:/bin', HOME: home, THINKER_TEST: '1', THINKER_TELEMETRY: 'off' };
   assert.equal(execFileSync('bash', ['-ic', 'thinker'], { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'ignore'] }).trim(), 'ok', 'interactive bash: .bashrc');
   assert.equal(execFileSync('bash', ['-lc', 'thinker'], { encoding: 'utf8', env }).trim(), 'ok', 'login bash');
 });
@@ -66,13 +66,22 @@ test('on Linux the installer writes an existing .profile, which a login bash rea
   assert.match(fs.readFileSync(path.join(home, '.profile'), 'utf8'), /\/opt\/thinker\/bin/);
 });
 
+test('an existing bash login file remains the entrypoint and is not shadowed by a new profile', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-path-login-'));
+  fs.writeFileSync(path.join(home, '.bash_login'), '# keep my login setup\n');
+  addToPath('zsh', home);
+  assert.match(fs.readFileSync(path.join(home, '.bash_login'), 'utf8'), /^# keep my login setup\n[\s\S]*\/opt\/thinker\/bin/);
+  assert.equal(fs.existsSync(path.join(home, '.bash_profile')), false);
+  assert.equal(fs.existsSync(path.join(home, '.profile')), false);
+});
+
 test('the zsh line makes thinker resolvable in a new shell', { skip: !fs.existsSync('/bin/zsh') }, () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-path-new-'));
   const bin = path.join(home, '.thinker/bin');
   fs.mkdirSync(bin, { recursive: true });
   fs.writeFileSync(path.join(bin, 'thinker'), '#!/bin/sh\necho ok\n', { mode: 0o755 });
   addToPath('zsh', home, bin);
-  assert.equal(execFileSync('/bin/zsh', ['-c', 'source ~/.zshrc; thinker'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: home } }).trim(), 'ok');
+  assert.equal(execFileSync('/bin/zsh', ['-c', 'source ~/.zshrc; thinker'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: home, THINKER_TEST: '1', THINKER_TELEMETRY: 'off' } }).trim(), 'ok');
 });
 
 // macOS ships bash 3.2, which in a UTF-8 locale reads "$label…" as the variable "label…" and, under

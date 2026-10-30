@@ -2,100 +2,66 @@
 name: e2e-testing-onboarding
 description: >-
   Run end-to-end containerized onboarding and feature verification for thinker across coding agent CLIs
-  (Claude, Codex, Cursor, Gemini/agy), validating cache hits, hook recording, trace distillation,
-  and dependency-keyed invalidation.
+  (Claude, Codex, Cursor, Gemini), validating cache hits, hook recording, trace distillation,
+  dependency-keyed verification, and proxy transport.
 ---
 
-# Thinker E2E Testing & Onboarding Skill
+# Thinker E2E Testing & Onboarding
 
-This skill provides the comprehensive guide, automated container harness, and execution scripts for validating **thinker** onboarding and lifecycle operations across all supported coding agent CLIs:
-- **Claude Code** (`claude`)
-- **OpenAI Codex** (`codex`)
-- **Cursor Agent** (`agent` / `cursor-agent`)
-- **Google Antigravity** (`agy` / `gemini`)
+Run this workflow in an isolated worktree. This is a deterministic integration suite,
+not a benchmark or a claim about agent quality. No provider credentials are needed.
+The model response for distillation is a fixture; the four clients' hook payloads are
+simulated. The Codex proxy smoke test runs the installed Codex CLI against a loopback
+model server, including a resumed session. Desktop learning is exercised through the
+session queue tests, without opening GUI applications.
 
----
-
-## 1. The 6-Stage E2E Verification Lifecycle
-
-```
-[Stage 1: Multi-CLI Provisioning] ──► [Stage 2: Repo Baseline] ──► [Stage 3: Thinker Init]
-                                                                          │
-[Stage 6: Re-Use & Invalidation]  ◄── [Stage 5: Learn & Distill] ◄── [Stage 4: Cache Hits]
-```
-
-### Stage 1: Environment & CLI Provisioning
-Verify all target agent CLIs are present, executable, and on PATH.
-- `claude --version`: Anthropic Claude Code CLI
-- `codex --version`: OpenAI Codex CLI
-- `agent --version` or `cursor-agent --version`: Cursor Agent CLI
-- `agy --version`: Google Antigravity CLI
-
-### Stage 2: Repository Setup
-Initialize a clean git repository representing a realistic codebase:
-- Create domain logic files (e.g. `math.js`) and orchestration files (e.g. `server.js`).
-- Commit all code to git to establish initial content hashes.
-
-### Stage 3: Thinker Onboarding (`thinker setup`)
-Run `thinker setup --no-build --yes` in the repository root.
-- **Client Auto-Detection**: Checks PATH for all installed agents (`claude`, `codex`, `cursor`, `gemini`/`agy`).
-- **Configuration & Hooks**:
-  - **Claude Code**: Registers MCP in `.mcp.json` and prompt hooks in `.claude/settings.json` (or `.claude/settings.local.json`).
-  - **Codex CLI**: Registers MCP in `.codex/config.toml`, hooks in `.codex/hooks.json`, and records project trust in `~/.codex/config.toml`.
-  - **Cursor Agent**: Registers MCP in `.cursor/mcp.json`, rules in `.cursor/rules/thinker.mdc`, hooks in `.cursor/hooks.json`, and approves MCP workspace access.
-  - **Gemini / Antigravity (`agy`)**: Registers MCP and hooks in `.gemini/settings.json`.
-
-### Stage 4: Cache Seeding & Multi-Client Cache Hits
-Seed a deterministic note into `.thinker/local/notes/<id>.json` resting on code symbols (`math.js:multiply`).
-1. Re-hash content deps with `thinker check`.
-2. Test CLI retrieval with `thinker orient "<query>"`.
-3. Test prompt hook output across each client adapter:
-   - **Claude**: Injects `<thinker-cache>` bundle to stdout.
-   - **Codex**: Injects `<thinker-cache>` bundle to stdout.
-   - **Gemini / Agy**: Returns JSON output:
-     `{"hookSpecificOutput":{"hookEventName":"BeforeAgent","additionalContext":"<thinker-cache>..."}}`
-   - **Cursor**: Returns `{"continue":true,"additional_context":"<thinker-cache>..."}` directly from `beforeSubmitPrompt` (with `postToolUse` orienting from the transcript as a fallback when `beforeSubmitPrompt` did not run, e.g. `agent -p`).
-
-### Stage 5: Learning Loop (Hook Recording & Distillation)
-Simulate an agent session with `--record`:
-1. `hook prompt`: captures prompt into `.thinker/state/trace-<session>.jsonl`.
-2. `hook tool`: captures tool inputs and file reads into the trace.
-3. `hook stop`: records `{ t: 'say', text: last_assistant_message }`.
-4. Run `thinker distill <trace_file> --repo <repo> --session <session>`.
-5. Verify new note is minted into `.thinker/local/notes/` with symbol dependencies and content hashes.
-
-### Stage 6: Cache Re-use & Invalidation
-1. **Re-use**: Query `thinker orient` for the learned topic and confirm immediate cache hit.
-2. **Invalidation**: Modify a dependency symbol in the working tree.
-3. Query `thinker orient` again and verify thinker detects the content hash mismatch and flags the note:
-   `> ⚠ STALE: <file>:<symbol> (symbol body changed)`
-
----
-
-## 2. Running the Automated Container Suite
-
-The scripts bundled with this skill automate all 6 stages inside an isolated Linux container:
+## Run
 
 ```bash
-# Build the test image
 docker build -t thinker-test -f .agents/skills/e2e-testing-onboarding/scripts/Dockerfile .
-
-# Run the full test suite
-docker run --rm thinker-test
+docker run --rm --network none --security-opt seccomp=unconfined thinker-test
 ```
 
-### Script Inventory
-* [`scripts/Dockerfile`](file:///.agents/skills/e2e-testing-onboarding/scripts/Dockerfile): Multi-CLI Linux container definition (`node:20-bookworm`) installing git, python3, Claude, Codex, Cursor Agent, and Antigravity.
-* [`scripts/run_suite.sh`](file:///.agents/skills/e2e-testing-onboarding/scripts/run_suite.sh): Executable test runner executing all assertions with colorized output.
-* [`scripts/mock_distill_llm.js`](file:///.agents/skills/e2e-testing-onboarding/scripts/mock_distill_llm.js): Deterministic mock LLM command for distillation (`THINKER_LLM_CMD`).
+The image installs Claude Code, Codex, Cursor Agent, and Gemini CLI, then installs
+thinker's locked dependencies with `npm ci`. Installed CLI versions are printed at
+startup. The image sets `THINKER_TEST=1` and `THINKER_TELEMETRY=off` before installs;
+the runner and all its children retain them. Runtime networking is loopback only.
+The seccomp option allows Codex's own sandbox to create namespaces inside Docker;
+without it the fixture shell command fails with a `bwrap` namespace error. Mount
+no personal settings or credentials into this disposable container.
+Setup may report that it cannot fetch the ranker; these lifecycle tests use lexical
+ranking (`THINKER_CE=off`). Ranking itself has separate tests in the full suite.
 
----
+The runner owns `/workspace/trivial-repo` and the container's home. Do not run it on
+the host: setup writes agent settings, and the fixture repository is reset each run.
 
-## 3. Key Behavioral Invariants
+## Lifecycle and assertions
 
-1. **Auto Client Detection**:
-   `detectClients()` in `src/clients.js` detects `gemini` if either `gemini` or `agy` is on PATH or `~/.gemini` exists; it detects `cursor` if `cursor`, `cursor-agent`, or `agent` is on PATH or `~/.cursor` exists.
-2. **Offline & Headless Distillation**:
-   Setting `THINKER_LLM=command` and pointing `THINKER_LLM_CMD="node /path/to/mock_llm.js"` enables complete offline testing of the learning loop without requiring external API credentials or paid tokens.
-3. **Trace Completeness**:
-   `hook stop` records the assistant's final response before evaluating `--no-distill`, ensuring traces are complete even when background distillation is deferred.
+1. Verify all four installed CLIs can report their versions.
+2. Create and commit a small repository with `math.js` and `server.js`.
+3. Run `thinker setup --no-build --yes --clients claude,codex,cursor,gemini`.
+   Assert machine-wide wiring in `~/.claude.json`, `~/.claude/settings.json`,
+   `~/.codex/{hooks.json,config.toml}`, `~/.cursor/{hooks.json,mcp.json}`, and
+   `~/.gemini/settings.json`. Setup no longer creates a Cursor repository rule.
+4. Create a deterministic note fixture with dependency hashes. Set `minNotes: 1`
+   and `holdout: 0` for this deterministic fixture (the shipped hook threshold is
+   three, with a 15% holdout). Assert CLI
+   retrieval and user-scope prompt hook delivery for every client. Cursor delivers
+   `additional_context` on the prompt; Gemini wraps `BeforeAgent` context in JSON.
+5. Record prompt, tool, and final-answer events through hooks. Distill that trace
+   with `THINKER_LLM=command` and `mock_distill_llm.js`; assert a new note in
+   `.thinker/local/notes/` and retrieve it through the CLI.
+6. Edit a dependency: the note remains served with `Pending verification`. Remove
+   the dependency: the note is withheld. Both are hard assertions, not warnings.
+7. Run the installer, machine tool switch, pending-verification, desktop
+   session-work, proxy network/service, real Codex transport, and
+   removed-test-command integration tests.
+
+Fixtures here are test data only. Never use them as benchmark caches. Evals and
+benchmark caches use Artemis and the repository's experiment approval workflow.
+
+## Files
+
+- `scripts/Dockerfile`: isolated Linux image and CLI provisioning.
+- `scripts/run_suite.sh`: lifecycle assertions and integration test selection.
+- `scripts/mock_distill_llm.js`: deterministic distillation model response.

@@ -1,6 +1,7 @@
-FROM node:20-bookworm
+FROM node:22-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV THINKER_TEST=1 THINKER_TELEMETRY=off
 ENV PATH="/root/.local/bin:${PATH}"
 
 # Install core packages
@@ -21,8 +22,8 @@ RUN npm install -g @openai/codex
 # 3. Cursor Agent CLI
 RUN curl -fsSL https://cursor.com/install | bash
 
-# 4. Google Antigravity CLI (agy)
-RUN curl -fsSL https://antigravity.google/cli/install.sh | bash
+# 4. Google Gemini CLI
+RUN npm install -g @google/gemini-cli
 
 # Configure git identity for repository commits
 RUN git config --global user.name "Test Agent" && \
@@ -36,7 +37,7 @@ COPY . /thinker
 
 # Install thinker dependencies
 WORKDIR /thinker
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 WORKDIR /workspace
 CMD ["/bin/bash", "/thinker/.agents/skills/e2e-testing-onboarding/scripts/run_suite.sh"]

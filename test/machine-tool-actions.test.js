@@ -106,3 +106,20 @@ test('a project-only Codex server produces a valid disabled user entry and undo 
   assert.equal(codexHarnessConfig(b.repo, { home }).servers.has('docs'), false);
   assert.match(fs.readFileSync(local, 'utf8'), /keep-private/);
 });
+
+for (const fault of ['malformed', 'external symlink']) test(`a discovered Codex project with ${fault} config leaves a failed machine switch unchanged`, t => {
+  const { home, th, stores: [a, b] } = fixture(t), user = path.join(home, '.codex/config.toml');
+  const original = '[mcp_servers.docs]\ncommand = "docs"\nenabled = true\n';
+  write(user, original);
+  const local = path.join(a.repo, '.codex/config.toml'), bad = path.join(b.repo, '.codex/config.toml');
+  write(local, original);
+  if (fault === 'malformed') write(bad, '[mcp_servers.docs\n');
+  else { fs.mkdirSync(path.dirname(bad), { recursive: true }); fs.symlinkSync(user, bad); }
+  write(path.join(th, 'state/machine-checkouts.json'), { checkouts: [a.repo, b.repo] });
+  const s = source('mcp', 'docs', { client: 'codex', key: 'codex:mcp:docs', how: 'codex-mcp' });
+  const result = switchOffNow(a, s.key, { home: th, userHome: home, global: true, any: true, usage: usage(s) });
+  assert.match(result, /Not switched off/);
+  assert.equal(fs.readFileSync(user, 'utf8'), original, 'a failed action must not disable the user server without an undo record');
+  assert.equal(fs.readFileSync(local, 'utf8'), original, 'earlier project settings stay unchanged too');
+  assert.equal(readHarnessState(a).applied?.length || 0, 0);
+});
