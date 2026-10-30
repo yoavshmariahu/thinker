@@ -684,7 +684,7 @@ const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : b
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
 const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; };
 const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
-const CLIENT = { codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
+const CLIENT = { devin: 'Devin', codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
 // the actions a row takes, as context-suggest.js:allChanges gives them (the server resolves the row by its key): a section
 // compressed or removed; a skill or tool switched off, or back on when thinker switched it off; an output's compression level
 const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', 'Switch off']] : [];

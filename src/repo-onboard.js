@@ -63,4 +63,4 @@ export const askThrough = (tool, question) =>
 export const askInChat = what => `ask the user in chat, in a line opening "${SIGNATURE}:" so they can see the question comes from thinker, ${what}`;
 // The answer goes back through thinker's MCP tool where the agent has thinker's server (it took the answer
 // where the shell did not find `thinker`, 2026-10-15), else through the command line, named by path.
-export const MCP_CLIENTS = new Set(['claude', 'codex', 'gemini', 'agy', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)
+export const MCP_CLIENTS = new Set(['devin', 'claude', 'codex', 'gemini', 'agy', 'cursor', 'opencode', 'copilot']); // Copilot's in .github/mcp.json (clients.js:MCP_FILES)

@@ -1,8 +1,8 @@
 # Coding agent compatibility
 
-Thinker supports fifteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
+Thinker supports sixteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
 machine; its `--clients` option takes `all` or a comma-separated selection
-(`droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
+(`devin,droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
 host is reached; nothing on it needs running by hand.
 
 Every client is wired machine-wide, in the agent's own files; the next update wires an
@@ -14,6 +14,61 @@ Restart the host agent after setup so it discovers the generated hooks/extension
 Project trust and hook enablement remain controlled by the host. New generated project files
 are locally excluded from git; existing instruction files retain their visibility. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
+
+## Devin
+
+Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
+`devin` executable or its user configuration directory. This adapter targets the
+current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer); the legacy Windsurf
+Cascade adapter remains separate.
+
+- Hooks are merged into `~/.config/devin/config.json`, and the MCP server into
+  `~/.config/devin/mcp_config.json` (`%APPDATA%\devin` on Windows). Existing hooks,
+  model settings, permissions, routes and other MCP servers remain intact.
+- `UserPromptSubmit` delivers relevant notes; `PostToolUse` delivers file-related
+  notes and records tool inputs, output and errors. `Stop` checks the learning
+  backlog, and `SessionEnd` queues the remaining trace. Hooks do not rewrite commands.
+- Learning uses Devin's background `run_subagent` (`subagent_general`) and Thinker's `learn_next` MCP
+  queue. No separate Claude/Codex login or API key is needed. Work queued when a
+  session closes is picked up on a later prompt. Devin must allow the background
+  worker to use that MCP tool; Thinker does not alter its permissions. The documented
+  Stop/SessionEnd payloads contain no final answer, so learning uses prompts and tool
+  results rather than inventing a closing summary.
+- `--no-learn` stops recording/learning, `--no-late` omits file-related notes, and
+  `--no-hooks` omits hook delivery. `--no-mcp` connects note delivery only and reports
+  that session learning needs MCP. Rewire, doctor repair and uninstall recognize
+  the adapter. Invalid JSON and JSON with comments are left unchanged with an error;
+  automatic wiring currently requires plain JSON.
+- Devin imports Claude hooks by default. Imported Thinker hooks identified by
+  `DEVIN_PROJECT_DIR` and Devin's payload yield to the dedicated adapter. A Claude
+  subprocess carrying its own transcript path continues to use the Claude adapter.
+
+Tests cover wiring preservation, refresh/removal, hook delivery and recording,
+worker recursion prevention, and a real local MCP/session-provider round trip with
+no external model calls. **A live authenticated Devin session has not been tested.**
+Desktop's Devin Local mode must honor these same hook and MCP contracts; cloud
+sessions and legacy Cascade are not claimed to have this automatic integration.
+
+Cloud Devin can launch a custom STDIO MCP server inside its session environment.
+Install Thinker there and register `thinker mcp`, with `THINKER_REPO` pointing at that
+session's checkout and `THINKER_SESSION_HOST=devin` for the learning queue. This is
+MCP connectivity only: it does not install cloud hooks, carry a local cache into the
+VM, or deliver cached notes by itself. Current Thinker MCP exposes its control and
+learning tools, not general note retrieval. Cloud automation needs separately
+verified hook delivery and cache persistence before it can be called supported.
+
+Devin's `proxy` setting is an outbound HTTP/HTTPS proxy for CLI traffic. It is not
+a documented Anthropic/OpenAI model base URL, and a tunnel alone cannot edit an
+encrypted model request. Thinker does not change it or claim context compression
+for Devin. Supporting that would require verifying the actual protocol, TLS trust
+and request-edit support, as well as the usual experiment before savings claims.
+
+Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
+[lifecycle payloads](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks),
+[MCP configuration](https://docs.devin.ai/cli/extensibility/mcp/configuration),
+[subagents](https://docs.devin.ai/cli/subagents),
+[cloud MCP](https://docs.devin.ai/work-with-devin/mcp),
+[proxy settings](https://docs.devin.ai/cli/reference/configuration/config-file#proxy-user-only).
 
 ## No instructions, no agent tools
 
@@ -98,6 +153,7 @@ follow every instruction.
 | Gemini CLI | BeforeAgent | AfterTool | Native transcript | MCP |
 | Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP |
 | Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | none |
+| Devin CLI / Devin Local | UserPromptSubmit `hookSpecificOutput.additionalContext` | PostToolUse `hookSpecificOutput.additionalContext` | Prompt and tool results; session-end learning through the session queue | MCP (`~/.config/devin/mcp_config.json`) |
 | Windsurf Cascade | None (no prompt hook) | None | Prompt, reads, edits, commands, MCP results, response | none |
 | GitHub Copilot CLI | First successful tool after prompt | postToolUse | Prompt, tools/errors, stop/end | optional manual MCP |
 | OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |

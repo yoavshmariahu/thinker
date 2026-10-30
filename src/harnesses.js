@@ -16,6 +16,7 @@ const DAY = 864e5;
 // agents thinker wires (clients.js:USER_SCOPE_CLIENTS); the rest are counted so that an install on a
 // machine that runs one of them reads as what it is.
 export const HARNESSES = [
+  { name: 'devin', dirs: ['.config/devin'], bins: ['devin'] },
   { name: 'claude', dirs: ['.claude'], bins: ['claude'] },
   { name: 'codex', dirs: ['.codex'], bins: ['codex'] },
   { name: 'cursor', dirs: ['.cursor'], bins: ['cursor', 'cursor-agent'] },

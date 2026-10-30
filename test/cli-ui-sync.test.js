@@ -654,3 +654,13 @@ test('Report defaults to weekly totals and shows savings as a table without a gr
   assert.doesNotMatch(page, /savings-chart|savings-legend/);
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/, 'the page default uses the CLI --total view');
 });
+
+// Devin shares the CLI's client selection/default delivery; the page has no second installer.
+test('Devin is selectable through connect and is named consistently on the page', async () => {
+  const { parseClients, CLIENTS, USER_SCOPE_CLIENTS } = await import('../src/clients.js');
+  assert.deepEqual(parseClients('devin'), ['devin']);
+  assert.ok(CLIENTS.includes('devin') && USER_SCOPE_CLIENTS.includes('devin'));
+  assert.match(read('cli.js'), /opencode, devin and more/);
+  assert.match(read('ui/page.html'), /devin: 'Devin'/);
+  assert.match(read('setup/steps.js'), /devin: \{ name: 'Devin' \}/);
+});

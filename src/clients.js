@@ -45,7 +45,7 @@ import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
 
-export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'];
+export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
 export function mergeJson(file, patch) {
   let cur = {};
@@ -82,7 +82,7 @@ export function detectClients({ fallback = true } = {}) {
     if (onPath(client) || fs.existsSync(home(dir))) found.push(client);
   }
   for (const [client, bins, dirs] of [['droid', ['droid'], [factoryDir()]], ['qwen', ['qwen'], [qwenDir()]], ['kiro', ['kiro-cli'], [kiroDir()]],
-    ['cline', ['cline'], [home('.cline'), clineDocs()]], ['kilo', ['kilo'], [kiloDir()]], ['augment', ['auggie'], [augmentDir()]], ['goose', ['goose'], [gooseDir()]]]) {
+    ['cline', ['cline'], [home('.cline'), clineDocs()]], ['kilo', ['kilo'], [kiloDir()]], ['augment', ['auggie'], [augmentDir()]], ['goose', ['goose'], [gooseDir()]], ['devin', ['devin'], [devinDir()]]]) {
     if (bins.some(onPath) || dirs.some(d => fs.existsSync(d))) found.push(client);
   }
   return found.length || !fallback ? found : ['claude'];
@@ -109,6 +109,9 @@ export function parseClients(value, fallback = ['claude']) {
 // and a PascalCase event name (UserPromptSubmit, PostToolUse; the Copilot CLI's are userPromptSubmitted, postToolUse).
 export function hookClient(flag, ev = {}) {
   const named = flag && flag !== true ? String(flag) : 'claude';
+  // Devin imports Claude hooks by default. Its own adapter handles these events; a real
+  // Claude child has a transcript_path and must keep working even if it inherits the env.
+  if (named === 'claude' && process.env.DEVIN_PROJECT_DIR && ev.session_id && ev.hook_event_name && !ev.transcript_path) return 'devin-import';
   if (named === 'claude' && ev.cursor_version) return 'cursor-import';
   if (named === 'copilot' && ev.transcript_path && /^[A-Z]/.test(ev.hook_event_name || '') && ev.session_id && !ev.sessionId) return 'vscode';
   if ((named === 'gemini' || named === 'agy') && (named === 'agy' || ev.conversationId || ev.workspacePaths || ev.transcriptPath || ev.toolCall || ev.invocationNum != null || ev.terminationReason)) return 'agy';
@@ -119,6 +122,17 @@ export const sessionOf = ev => ev.session_id || ev.conversation_id || ev.convers
 
 // Translate host payloads once, before recording or retrieving anything.
 export function normalizeHookEvent(client, ev, what) {
+  if (client === 'devin') {
+    const names = { exec: 'Bash', read: 'Read', write: 'Write', edit: 'Edit', grep: 'Grep', glob: 'Glob' };
+    const input = ev.tool_input || {};
+    const response = ev.tool_response;
+    // The generic MCP dispatcher must identify learn_next too, so queue workers never learn themselves.
+    const name = ev.tool_name === 'mcp_call_tool' && input.server_name && input.tool_name
+      ? `mcp__${input.server_name}__${input.tool_name}` : names[ev.tool_name] || ev.tool_name;
+    return { ...ev, cwd: ev.cwd || process.env.DEVIN_PROJECT_DIR, tool_name: name,
+      tool_response: response && typeof response === 'object' && !Array.isArray(response)
+        ? [response.output, response.error ? `Error: ${response.error}` : ''].filter(Boolean).join('\n') : response };
+  }
   if (client === 'agy') {
     const tc = ev.toolCall || {}, args = tc.args || {};
     const names = { run_command: 'Bash', read_file: 'Read', view_file: 'Read', edit_file: 'Edit', write_file: 'Write', grep_search: 'Grep', find_by_name: 'Glob' };
@@ -234,6 +248,7 @@ export function searchedIdentifier(ev) {
 // What the prompt hook prints: the bundle as context for the agent, and nothing for the
 // user. A line at every prompt was noise; the stop hook names what the turn served once.
 export function promptOutput(client, text) {
+  if (client === 'devin') return JSON.stringify(text ? { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: text } } : {});
   if (client === 'windsurf' || client === 'goose') return '';
   if (client === 'cline') return JSON.stringify(text ? { cancel: false, contextModification: text } : { cancel: false });
   if (client === 'agy') return JSON.stringify(text ? { injectSteps: [{ systemMessage: { systemMessage: text } }] } : {});
@@ -358,6 +373,7 @@ export function compareVersions(a, b) {
 // An MCP entry as each client's file takes it: Copilot's names its type and the tools it may call
 const mcpServerEntry = (client, e) => {
   if (client === 'copilot') return { type: 'local', command: e.command, args: e.args, env: e.env || {}, tools: ['*'] };
+  if (client === 'devin') return { ...e, env: { ...e.env, THINKER_SESSION_HOST: 'devin' } };
   if (client === 'droid') return { type: 'stdio', command: e.command, args: e.args, env: e.env || {} };
   if (client === 'kiro' || client === 'cline') return { command: e.command, args: e.args, env: e.env || {}, disabled: false };
   return e;
@@ -380,7 +396,7 @@ const RULE_FILES = { windsurf: ['.windsurf/rules/thinker.md', '.devin/rules/thin
 // it reads its hooks from .github/hooks: thinker's server goes there, pinned to the checkout, kept out
 // of git status as the hooks are. Until 2026-10-15 setup only said "/mcp add" and Copilot had no tools.
 const MCP_FILES = { copilot: '.github/mcp.json' };
-export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose'];
+export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
 // --- where each client reads its wiring ----------------------------------------------------------
 // Two scopes. `user` is the agent's own files, read in every checkout: ~/.claude/settings.json and
@@ -402,6 +418,8 @@ const piDir = () => process.env.PI_CODING_AGENT_DIR || home('.pi', 'agent');
 const opencodeDir = () => path.join(process.env.XDG_CONFIG_HOME || home('.config'), 'opencode');
 const copilotHome = () => process.env.COPILOT_HOME || home('.copilot');
 const windsurfDir = () => home('.codeium', 'windsurf');
+// Devin Local 3.6+: hooks in config.json, MCP in its dedicated mcp_config.json.
+const devinDir = () => process.platform === 'win32' ? path.join(process.env.APPDATA || home('AppData', 'Roaming'), 'devin') : home('.config', 'devin');
 // Droid (~/.factory), Qwen Code (QWEN_HOME, ~/.qwen), Kiro CLI (~/.kiro), Cline (hooks and rules under
 // ~/Documents/Cline, its data and MCP servers under ~/.cline/data), Kilo (an OpenCode fork, ~/.config/kilo),
 // Auggie (~/.augment), Goose (~/.config/goose, and the Open Plugins directory ~/.agents/plugins for hooks)
@@ -439,6 +457,9 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
     case 'opencode': return user ? { ext: path.join(opencodeDir(), 'plugins', 'thinker.js') } : {};
     case 'copilot': return user ? { hooks: path.join(copilotHome(), 'hooks', 'thinker.json'), mcp: path.join(copilotHome(), 'mcp-config.json') } : {};
     case 'windsurf': return user ? { hooks: path.join(windsurfDir(), 'hooks.json') } : {};
+    case 'devin': return user
+      ? { hooks: path.join(devinDir(), 'config.json'), mcp: path.join(devinDir(), 'mcp_config.json') }
+      : { hooks: at('.devin', 'hooks.v1.json'), mcp: at('.devin', 'mcp_config.local.json') };
     case 'droid': return user ? { hooks: droidHooks(), mcp: path.join(factoryDir(), 'mcp.json') } : {};
     case 'qwen': return user ? { settings: path.join(qwenDir(), 'settings.json') } : {};
     case 'kiro': return user ? { hooks: path.join(kiroDir(), 'hooks', 'thinker.json'), mcp: path.join(kiroDir(), 'settings', 'mcp.json') } : {};
@@ -559,6 +580,7 @@ function jsonWiring(client, o) {
   if (client === 'cursor') return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'copilot' && f.hooks) return [{ file: f.hooks, hooks: true, keepVersion: true }, { file: f.mcp, mcp: true }];
   if (client === 'windsurf' && f.hooks) return [{ file: f.hooks, hooks: true }];
+  if (client === 'devin') return [{ file: f.hooks, hooks: true, flat: o.scope === 'repo' || !o.scope }, { file: f.mcp, mcp: true }];
   if (client === 'droid' && f.hooks) return [{ file: f.hooks, hooks: true, flat: flatHooks(f.hooks) }, { file: f.mcp, mcp: true }];
   if ((client === 'qwen' || client === 'augment') && f.settings) return [{ file: f.settings, hooks: true, mcp: true }];
   if (client === 'goose' && f.hooks) return [{ file: f.hooks, hooks: true }];
@@ -732,8 +754,8 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     if (w.mcp && !scripts.size) custom.push('rule-only integration; rerun setup to refresh');
   }
   // Droid, Qwen Code, Auggie and Goose: Claude Code's hook groups, in their own files
-  if (['droid', 'qwen', 'augment', 'goose'].includes(client) && scope === 'user') {
-    const [e] = jsonWiring(client, { scope });
+  if ((['droid', 'qwen', 'augment', 'goose'].includes(client) && scope === 'user') || client === 'devin') {
+    const [e] = jsonWiring(client, { scope, repo });
     const hooks = hooksIn(readJsonOr(e.file, {}), e.flat);
     const evs = Object.keys(hooks).filter(ev => ourGroups(hooks, ev).length);
     if (evs.length) {
@@ -742,7 +764,7 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
       const cmds = evs.flatMap(ev => ourGroups(hooks, ev).map(g => commandOf(g) || ''));
       w.learn = cmds.some(c => / --record\b/.test(c)); w.late = cmds.some(c => / --late\b/.test(c));
     }
-    const mcpFile = client === 'droid' ? f.mcp : client === 'goose' ? null : f.settings;
+    const mcpFile = ['droid', 'devin'].includes(client) ? f.mcp : client === 'goose' ? null : f.settings;
     const server = mcpFile && readJsonOr(mcpFile, {}).mcpServers?.thinker;
     if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
     if (client === 'goose') { const sc = gooseMcpScript(readText(f.yaml)); if (sc) { w.mcp = true; scripts.add(sc); } }
@@ -1189,6 +1211,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
   const cmd = (what, extra = '') => scope === 'user' ? `node "${cli}" hook ${what} --client ${client} --user${extra}`
     : client === 'claude' ? `node "${cli}" hook ${what}${extra}` : `node "${cli}" hook ${what} --client ${client} --repo "${repo}"${extra}`;
   const rel = file => label(file, o);
+  if (client === 'devin' && learn && !mcp) {
+    learn = false;
+    done.push('Devin: session learning needs thinker’s MCP server; --no-mcp connects note delivery only');
+  }
   const rec = learn ? ' --record' : '';
   const stopFlags = learn ? rec : ' --no-distill';
   const learned = learn ? ', sessions distilled into new notes when they end' : '';
@@ -1364,12 +1390,13 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
   // hook and runs only scripts (thinker's .sh wrappers); Goose's hooks only record, for learning, since
   // what they print never reaches the model (they are left out without learning).
   const SHAPED = {
+    devin: { name: 'Devin', prompt: 'UserPromptSubmit', matcher: '.*', unit: 1 },
     droid: { name: 'Droid', prompt: 'UserPromptSubmit', matcher: '*', unit: 1 },
     qwen: { name: 'Qwen Code', prompt: 'UserPromptSubmit', matcher: '*', unit: 1 },
     augment: { name: 'Auggie', prompt: null, matcher: '.*', unit: 1000, scripts: true },
     goose: { name: 'Goose', prompt: 'UserPromptSubmit', matcher: '.*', unit: 1, recordOnly: true },
   };
-  const shaped = scope === 'user' && SHAPED[client];
+  const shaped = (scope === 'user' || client === 'devin') && SHAPED[client];
   if (shaped) {
     const [e] = jsonWiring(client, o);
     const events = ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd'];
@@ -1398,10 +1425,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     }
     if (wanted) done.push(`${shaped.name}: hooks in ${rel(e.file)}: ${shaped.recordOnly ? 'sessions recorded for learning (Goose gives hooks no way to add context)' : `${shaped.prompt ? 'notes injected on each prompt' : 'no prompt hook in Auggie: the rules about a file come when it edits one'}${late ? ', file-keyed notes while working' : ''}${learned}`}`);
     if (mcp && client !== 'goose') {
-      const file = client === 'droid' ? f.mcp : f.settings;
+      const file = ['droid', 'devin'].includes(client) ? f.mcp : f.settings;
       mergeJson(file, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry(client, mcpEntry) } }));
       done.push(`${shaped.name}: registered MCP server in ${rel(file)}`);
     }
+    if (client === 'devin') localFiles([f.hooks, ...(mcp ? [f.mcp] : [])]);
     if (mcp && client === 'goose') { setGooseExtension(f.yaml, mcpEntry); done.push(`Goose: added the thinker extension to ${rel(f.yaml)}`); }
   }
 
@@ -1488,6 +1516,8 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   const claude = wiringFiles('claude', o), codex = wiringFiles('codex', o), gemini = wiringFiles('gemini', o), cursor = wiringFiles('cursor', o);
   for (const file of new Set(CLIENTS.flatMap(c => instructionFiles(c, o)))) updateInstructions(file, null);
   untrustCodexHooks(codex.hooks);
+  const devin = wiringFiles('devin', o);
+  stripThinkerHooks(devin.hooks, { flat: scope === 'repo' }); dropMcpEntry(devin.mcp);
   if (scope === 'repo') for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) uninstallRepoClient(repo, client);
   else {
     for (const client of ['pi', 'opencode']) { const ext = wiringFiles(client, o).ext; if (readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext); }
