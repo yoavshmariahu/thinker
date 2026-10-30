@@ -415,6 +415,11 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   background spend in the sense of the rule above.
 - **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
   (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.
+- **Posting is explicit** (`delivery-comment.js`): `thinker prs comment --pr n` publishes the local
+  report on a merged PR; `--dry` previews, `--days` uses the report's window (30 by default). Reruns
+  update the authenticated author's comment for this machine, leaving other authors and machines alone.
+  Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
+  estimated reading, state the window and session attribution, and publish no session IDs or note text.
 - **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a
   pull request's number, title, URL, branch or author, never a repository, never a session id. The metrics
   API promotes the headline numbers to columns and `v_pr_delivery` reads saved per merged pull request.

@@ -38,7 +38,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail', 'dry'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 // A process can be left in a directory that no longer exists: a worktree removed under it, a build directory
@@ -224,6 +224,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  a second call
   prs link --session id --pr n   say by hand which pull request a session belongs to; --split 12:0.4,13:0.6
                                  divides one session between two
+  prs comment --pr n [--days n] [--dry] [--json]
+                                 post local savings on a merged PR through your gh login; reruns update the
+                                 same comment from this machine. --dry previews without posting. Uses the
+                                 report's 30-day default; --days widens it. No model call or automatic posting
   ui [--port n] [--no-open] [--tab save|report|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
                                  checkout alone), on Find Savings (--tab save): where the agents' context goes in each
