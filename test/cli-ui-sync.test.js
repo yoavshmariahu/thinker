@@ -553,6 +553,8 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(cli, /prs \[--days n\] \[--pr n\] \[--detail\] \[--json\]/);
   assert.match(cli, /prs sync \[--days n\] \[--pr n\]/);
   assert.match(cli, /prs link --session id --pr n/);
+  assert.match(cli, /prs comment --pr n \[--days n\] \[--dry\] \[--json\]/);
+  assert.match(cmd, /commentOnPr\(store, \{ pr, days, dry: !!flags\.dry \}\)/);
   for (const phrase of [/\(measured\)/, /\(an estimate\)/]) assert.match(cli, phrase);
   // The page's second door is the Report tab's band, which reads the figures off the report view that
   // report.js already computed (prSavings). There is no endpoint of its own, and nothing on the page

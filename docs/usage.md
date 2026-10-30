@@ -119,11 +119,32 @@ thinker prs link --session <id> --pr 42
 thinker prs link --session <id> --split 42:0.4,43:0.6
 ```
 
-**Reading the pull requests** uses your own `gh` login, read-only; nothing is ever posted. Maintenance
+**Reading the pull requests** uses your own `gh` login, read-only. Maintenance
 does it once a day in the background, so the report is current without you running anything; `maintain:
 { prSync: false }` in `.thinker/config.json` turns that off and leaves `thinker prs sync` to you.
 
-Everything is local. The counts and token totals reach the telemetry if telemetry is on
+**Posting savings after merge** is an explicit local command, with no model calls:
+
+```sh
+thinker prs comment --pr 42 --dry
+thinker prs comment --pr 42
+```
+
+It refreshes GitHub metadata, checks the PR is merged, and posts the same measured clearing and
+estimated reading savings as the report. Rerunning updates this machine's existing comment under your
+`gh` account; an identical comment makes no write. `--dry` refreshes local metadata and prints the comment
+without writing to GitHub. `--json` returns the action, body and comment URL. The default window is
+30 days, as for `thinker prs`; use `--days 90` for older work. Missing sessions or zero recorded savings
+stop the post. Session totals are attributed to a PR, not divided into per-commit measurements.
+
+Run this command after your session finishes, or from your own local job with a specific PR number.
+It needs the local usage and delivery records plus a `gh` login with permission to comment. Maintenance
+and ordinary sync never post; a GitHub Actions runner alone has none of this machine's records.
+Only the summary is published, with its window and machine scope; no session IDs, paths or note text.
+Each machine keeps its own comment, so figures from another machine are not overwritten. Avoid
+summing comments from machines with copied or overlapping session records.
+
+Other than an explicitly posted comment, the evidence stays local. The counts and token totals reach the telemetry if telemetry is on
 (`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
 title, URL, branch and author, the repository, and the session ids never do.
 
