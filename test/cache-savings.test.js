@@ -86,7 +86,7 @@ test('usage, report, and session footer use the same estimate; repeated serving 
   assert.equal(u.saved.input.covered, 1);
   assert.equal(c.tokensSaved, 2000 - 2 * sections(note('n'))[0].tokens);
   assert.equal(running.tokens, c.tokensSaved);
-  assert.match(turnNotice(dir, [], { input: running }), /includes re-reads/);
+  assert.match(turnNotice(dir, [], { input: running }), /estimated input saved this session: ~[\d,.]+k? tokens$/);
   assert.match(turnFooterMarkdown(dir, [{ id: 'n', body: '' }], { input: running }), /input saved this session/);
   assert.equal(c.coverage.hits, 1);
   // Appended requests are picked up; a missing final newline is allowed.

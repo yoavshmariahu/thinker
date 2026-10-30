@@ -87,7 +87,7 @@ export function formatSeconds(s) {
 // session is assessed (summarize, `thinker usage`). The prompt hook says nothing: a line at
 // every prompt was noise.
 export function turnNotice(repo, notes, { input } = {}) {
-  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} this turn · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? ' (includes re-reads, minus note context)' : ' (one-read fallback; no lifetime data)'}`;
+  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} this turn · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}`;
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens } = cacheHitSavings(repo, notes);
