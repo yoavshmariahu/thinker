@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
-import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, enableCodexSubagents, staleRepoInstructions, stripRepoWiring } from '../clients.js';
+import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents, staleRepoInstructions, stripRepoWiring } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
 import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
@@ -146,11 +146,12 @@ async function runChecks(ctx) {
       what: `${w.hooks ? 'register the MCP server' : 'install the hooks'} for ${client}`,
       run: () => {
         installClient(client, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry(), hooks: true, learn: w.hooks ? w.learn : learnOn(), late: w.hooks ? w.late : true, mcp: true });
+        if (client === 'codex') trustCodexUser();
       },
     });
   }
-  // Explicit doctor --fix can enable the subagents desktop cache learning needs; diagnosis never changes settings.
-  if (ctx.flags?.fix && detected.includes('codex') && !unwired.includes('codex')) {
+  // Codex's subagents, which learning in the Codex app reads through: turned on, not reported, as the PATH line
+  if (detected.includes('codex') && !unwired.includes('codex')) {
     let turned = []; try { turned = enableCodexSubagents(); } catch (e) { add('codex subagents', 'warn', `could not turn them on: ${e.message}`); }
     if (turned.length) add('codex subagents', 'ok', 'turned on ([features] multi_agent = true in ~/.codex/config.toml)');
   }
@@ -160,6 +161,7 @@ async function runChecks(ctx) {
       run: () => {
         for (const client of unwired) {
           installClient(client, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry(), hooks: true, learn: learnOn(), late: true, mcp: true });
+          if (client === 'codex') trustCodexUser();
         }
       },
     });

@@ -14,6 +14,7 @@ import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { detectHarnesses } from './harnesses.js';
+import { deliveryMetrics } from './delivery-telemetry.js';
 import { proxyReport } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
@@ -603,6 +604,10 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     periodHours: (days || 1) * 24,
 
     cacheSize,
+
+    // The pull requests this machine's sessions produced and what thinker saved on them, 30 days
+    // regardless of the usage snapshot's periodHours (delivery-telemetry.js). Counts and tokens only.
+    prs: deliveryMetrics(store, { all }),
 
     // Prompts served notes against prompts held out, 30 days (holdoutMetrics).
     holdout: holdoutMetrics(store, { all }),

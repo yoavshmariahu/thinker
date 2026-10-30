@@ -47,5 +47,5 @@ estimated. Provider clearing savings remain separate.
 
 For compatibility, `thinker usage --json` retains `saved.tokens`, `saved.net`, and
 `saved.byModel` as the older one-read accounting. The new `saved.input` object
-contains the report's lifetime estimate and coverage. Existing telemetry fields based on one-read accounting remain compatible. Learning costs
+contains the report's lifetime estimate and coverage. Existing PR attribution and telemetry fields based on one-read accounting remain compatible. Learning costs
 are not included in the new per-hit input estimate.

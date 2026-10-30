@@ -23,6 +23,7 @@ import { understand, UNDERSTAND_DEFAULTS } from '../understand.js';
 import { areasConfig } from '../areas.js';
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 import { isWorkerPrompt } from '../session-llm.js';
+import { instructionValueCheck, valueConfig } from '../instruction-value.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -123,6 +124,8 @@ export async function runMaintain(ctx, { quiet, dry }) {
     docs: provider() ? async ({ limit }) => (await import('../behavior-docs.js')).deriveDocBehaviors(store, { limit, phase: 'maintenance' }) : undefined,
     skills: provider() ? ({ limit }) => scanSkills(store, { limit, phase: 'maintenance' }) : undefined,
   } });
+  // the Context tab's report made again while nobody waits for it (context-snapshot.js); no model call
+  if (!dry && !r.skipped && process.env.THINKER_TEST !== '1') { try { (await import('../context-snapshot.js')).refreshSnapshots(store); } catch {} }
   if (!quiet || (process.env.THINKER_LLM === 'session' && r.errors)) out(renderMaintain(r));
   if (process.env.THINKER_LLM === 'session' && r.errors) process.exitCode = 1;
 }
@@ -193,6 +196,9 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   async function distillEventsToNotes() {
   const markSeen = () => { if (incremental && !batch && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); } };
   if (events.some(e => e.t === 'prompt' && isWorkerPrompt(e.text))) { markSeen(); return; }
+  // on a sample of sessions, which sections of the instruction file bore on the work and whether the agent followed
+  // them (instruction-value.js; off by default): one model call, through the session in a desktop app
+  if (!batch && !dry && valueConfig(store).judge) { try { await instructionValueCheck(store, file, { session, phase }); } catch (e) { store.log({ op: 'instruction-value', session, failed: String(e.message || e).slice(0, 160) }); } }
   const n = exploreCount(events);
   if (n < minExplore && !(incremental && sessionStakes(events).any)) { markSeen(); if (!quiet) out(`only ${n} exploration calls since last distill (<${minExplore}); nothing to distill`); return; }
   if (!events.some(e => e.t === 'say')) { markSeen(); if (!quiet) out('the session has no answer from the agent yet; nothing to distill'); return; }

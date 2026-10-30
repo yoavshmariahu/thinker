@@ -34,20 +34,20 @@ function fixture(t) {
   return { home, thinker, env, config, run };
 }
 
-test('the legacy updater entrypoint repairs Codex wiring without approving hooks, survives dry-run, and is idempotent', t => {
+test('the legacy updater entrypoint repairs unchanged Codex hooks, survives dry-run, and is idempotent', t => {
   const f = fixture(t), before = fs.readFileSync(f.config, 'utf8');
   const hooksFile = path.join(f.env.CODEX_HOME, 'hooks.json'), hooks = fs.readFileSync(hooksFile, 'utf8');
   let r = f.run('rewire', '--json', '--quiet', '--dry');
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(JSON.parse(r.stdout).files.some(p => p.endsWith('hooks.json')));
+  assert.ok(JSON.parse(r.stdout).files.some(p => p.endsWith('config.toml')));
   assert.equal(fs.readFileSync(f.config, 'utf8'), before);
   assert.equal(fs.existsSync(repairFile(f.thinker)), false);
   r = f.run('rewire', '--json', '--quiet'); // exactly what an older update process runs
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).ok, true);
   const repaired = fs.readFileSync(f.config, 'utf8');
-  assert.doesNotMatch(repaired, /multi_agent = true/);
-  assert.doesNotMatch(repaired, /trusted_hash = "sha256:/);
+  assert.match(repaired, /multi_agent = true/);
+  assert.match(repaired, /trusted_hash = "sha256:/);
   assert.match(repaired, /custom_feature = true/);
   assert.match(repaired, /model = "my-model"/);
   const expectedHooks = JSON.parse(hooks); delete expectedHooks.hooks.PreToolUse;
@@ -69,7 +69,7 @@ test('repair retains corrupt config, repairs other clients, reports quiet failur
   assert.equal(JSON.parse(r.stdout).ok, false);
   assert.match(r.stderr, /environment repair incomplete/);
   assert.equal(fs.readFileSync(bad, 'utf8'), '{broken');
-  assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = false/);
+  assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = true/);
   assert.match(checkPendingNotice(f.thinker), /cursor/);
   assert.match(checkPendingNotice(f.thinker), /cursor/, 'failed repair stays visible until fixed');
   fs.writeFileSync(bad, '{}');
@@ -141,8 +141,8 @@ test('already-current foreground and background updates repair settings and repo
     fs.writeFileSync(f.config, '[features]\nmulti_agent = false\n');
     const r = spawnSync(process.execPath, [f.cli, ...args], { cwd: f.home, env: f.env, encoding: 'utf8' });
     assert.equal(r.status, 0, r.stdout + r.stderr);
-    assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = false/);
-    assert.doesNotMatch(fs.readFileSync(f.config, 'utf8'), /trusted_hash/);
+    assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = true/);
+    assert.match(fs.readFileSync(f.config, 'utf8'), /trusted_hash/);
   }
   const bad = path.join(f.home, '.cursor/mcp.json');
   fs.mkdirSync(path.dirname(bad)); fs.writeFileSync(bad, '{broken');
@@ -188,7 +188,7 @@ test('the installer update entrypoint repairs the installed environment through 
   });
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /Updated thinker to v0.0.2/);
-  assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = false/);
-  assert.doesNotMatch(fs.readFileSync(f.config, 'utf8'), /trusted_hash/);
+  assert.match(fs.readFileSync(f.config, 'utf8'), /multi_agent = true/);
+  assert.match(fs.readFileSync(f.config, 'utf8'), /trusted_hash/);
   assert.equal(JSON.parse(fs.readFileSync(repairFile(f.thinker))).ok, true);
 });

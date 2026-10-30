@@ -1,7 +1,9 @@
-// Evidence helpers for explicit, offline instruction-file analysis. No hooks or background work.
+// Shared evidence helpers for instruction-file analysis, extracted unchanged from the retired skill judge.
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
+
+const suggestable = f => Boolean(f) && !f.startsWith('..') && !path.isAbsolute(f) && !/(^|\/)SKILL\.md$/.test(f) && !/^\.(thinker|git|claude|codex|cursor|agents)\//.test(f);
 
 export function outcomeSampled(id, share) {
   if (!(share > 0)) return false;
@@ -11,7 +13,7 @@ export function outcomeSampled(id, share) {
 
 // --- the change --------------------------------------------------------------------------------------------
 export function sessionDiff(repo, files, { start } = {}) {
-  const fs_ = [...new Set(files)].filter(f => f && !f.startsWith('..') && !path.isAbsolute(f) && !/(^|\/)SKILL\.md$/.test(f) && !/^\.(thinker|git|claude|codex|cursor|agents)\//.test(f));
+  const fs_ = [...new Set(files)].filter(suggestable);
   if (!fs_.length) return '';
   const git = (...a) => execFileSync('git', ['-C', repo, ...a], { encoding: 'utf8', maxBuffer: 1 << 27, stdio: ['ignore', 'pipe', 'ignore'] });
   let base = 'HEAD';

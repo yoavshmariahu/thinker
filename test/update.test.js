@@ -580,7 +580,9 @@ console.log(JSON.stringify({ files: [], changed: 0 }));`);
     // installs the new default. New updaters also explicitly run the migration
     // from the final path, with the caller's Thinker home, after replacement.
     assert.ok(launches.some(l => l.args.join(' ') === 'ranker fetch --quiet' && l.cli !== path.join(appDir, 'src/cli.js')));
-    assert.equal(launches.find(l => l.args[0] === 'telemetry'), undefined, 'updates do not install telemetry schedules');
+    assert.deepEqual(launches.find(l => l.args[0] === 'telemetry'), {
+      cli: fs.realpathSync(path.join(appDir, 'src/cli.js')), args: ['telemetry', '--ensure-schedule', '--quiet'], home: tmp, test: '1',
+    });
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { createNote, lateNotes, rememberTask, orient, lookup, takeTurn } from '../src/ops.js';
 import { rank } from '../src/rank.js';
@@ -52,6 +53,18 @@ test('late notes: the limit of a session holds', () => {
   let served = 0;
   for (let i = 0; i < 6; i++) served += lateNotes(store, { session: 'cap', files: [`src/w${i}.py`], edited: true }).included.length;
   assert.equal(served, 3);
+});
+
+test('a legacy stop --nudge hook cannot block finishing over an unseen rule', t => {
+  const { dir } = setup();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', dir]);
+  const r = spawnSync(process.execPath, [path.resolve('src/cli.js'), 'hook', 'stop', '--nudge', '--client', 'claude', '--repo', dir], {
+    input: JSON.stringify({ session_id: 's9', hook_event_name: 'Stop' }), encoding: 'utf8',
+    env: { ...process.env, THINKER_TEST: '1', THINKER_NO_LEARN: '1', THINKER_HOME: path.join(dir, 'home') },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.doesNotMatch(r.stdout, /"decision":"block"|Before finishing|Make the additional edits/);
 });
 
 test('orient with a caller budget: more notes, links add, the rest is listed; lookup takes an id', async () => {

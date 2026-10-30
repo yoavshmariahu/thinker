@@ -79,6 +79,54 @@ Compact discovery requests at most 3,000 output tokens, assessment alone 1,500, 
 `distillModel` in `.thinker/config.json` chooses the model for session learning; `THINKER_LLM_MODEL`
 takes precedence.
 
+## Pull requests, and what was saved on each
+
+`thinker prs` answers one question: of the work you actually shipped, how much of it did thinker
+pay for.
+
+```
+$ thinker prs --days 7
+Pull requests · github.com/you/repo · last 7 days
+
+Merged with work recorded here: 22 of 90 merged in the repository
+Still open: 3
+
+Saved on those 22 merged pull requests
+  cleared         197M tokens the API left out of their prompts (measured)
+  reading avoided 177k tokens of files the notes meant nobody read (estimate)
+  together        197.2M tokens · 25k on the median one
+
+What they cost
+  agent tokens    865.4M over 29 linked sessions: every prompt and every answer added up,
+                  the same way the saving is
+  median merged   23.5M tokens · 0.7h from opened to merged · 22/22 with complete counters
+```
+
+`--detail` adds a block per pull request, with its sessions; `--pr <n>` takes one; `--json` is the
+data behind both.
+
+**Two savings, never blended silently.** *Cleared* is measured: the context proxy asks the API to drop
+the older tool results of a conversation, the API answers with the tokens it left out of that prompt,
+and those are added up over the pull request's sessions. *Reading avoided* is an estimate: one read per
+file behind each note a session was seen to act on. Both lines are always labelled.
+
+**Matching a session to a pull request** needs nothing from you. A session is matched by a commit it
+was sitting on, or failing that by its branch. Where that is wrong or a session split across two pull
+requests, say so:
+
+```
+thinker prs link --session <id> --pr 42
+thinker prs link --session <id> --split 42:0.4,43:0.6
+```
+
+**Reading the pull requests** uses your own `gh` login, read-only; nothing is ever posted. Maintenance
+does it once a day in the background, so the report is current without you running anything; `maintain:
+{ prSync: false }` in `.thinker/config.json` turns that off and leaves `thinker prs sync` to you.
+
+Everything is local. The counts and token totals reach the telemetry if telemetry is on
+(`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
+title, URL, branch and author, the repository, and the session ids never do.
+
 ## What the hooks serve, and the symbol table behind it
 
 Besides the notes, the post-tool hook can hand the agent two things about the

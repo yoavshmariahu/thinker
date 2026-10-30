@@ -142,15 +142,27 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
   return { note, dropped };
 }
 
+// A note whose anchor files have all been deleted is not a stale note, it is a dead one. `file removed`
+// is not a change a verifier can judge - there is no code left to read - so the note stays stale for
+// good: withheld by the hooks (`freshOnly`), therefore never served, therefore never eligible for the
+// verification batch (maintain.js:pickStale), and a one-time reset puts it straight back (stale-reset.js
+// re-hashes a gone file to `missing` again). Thinker refuses such a note at creation already
+// (`createNote`: an anchor must be an existing file); this applies the same rule to one whose files went
+// away afterwards, with no model call. Nothing that was being served stops being served: these notes
+// were already withheld. A desired behavior and a skill card are a person's own, and so is a note someone
+// wrote by hand - those are left for a person to decide on. Returns the gone paths, or null.
+export function anchorsGone(note, changed) {
+  if (['behavior', 'skill'].includes(note.kind) || note.source?.type === 'human') return null;
+  const paths = [...new Set((note.deps || []).map(d => d.path).filter(p => p && !TRANSIENT.test(p)))];
+  if (!paths.length) return null;
+  const removed = new Set(changed.filter(c => c.reason === 'file removed').map(c => c.path));
+  return paths.every(p => removed.has(p)) ? paths : null;
+}
+
 // Recompute staleness for notes against the working tree. Persists status
 // changes. Returns notes with fresh status.
 export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
   return notes.map(n => {
-    // Undo only the former hash-only retirement when all anchors are present again.
-    if (n.status === 'invalid' && /^anchors removed:/.test(n.invalidReason || '')
-        && (n.deps || []).length && n.deps.every(d => !hashDep(store.repo, d).missing)) {
-      n = { ...n, status: 'stale' }; delete n.invalidReason;
-    }
     if (n.status === 'invalid') return n;
     // a broken skill (skills.js) stays as it is until its file changes or a person reviews it: a code
     // change alone does not put it back into audit
@@ -158,6 +170,14 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasStale = n.status === 'stale';
     if (changed.length) {
+      // every file the note rests on is gone: retired here rather than left stale for good (above)
+      const gone = anchorsGone(n, changed);
+      if (gone) {
+        const next = { ...n, status: 'invalid', invalidReason: `anchors removed: ${gone.slice(0, 3).join(', ')}` };
+        delete next.stale;
+        if (persist) { store.put(next); store.log({ op: 'retire-gone', id: next.id, kind: next.kind, paths: gone.slice(0, 10) }); }
+        return next;
+      }
       const stale = { since: n.stale?.since || new Date().toISOString(), changed };
       // a whole-file dep narrowed to definitions (checkNote with narrow) is kept although the note
       // stays stale: the changed definitions carry their hash from the verified commit, so they
@@ -788,7 +808,7 @@ export function outcome(store, { session, positive, reason, turn = undefined }) 
   for (const n of hit) {
     n.outcomes = n.outcomes || { positive: 0, negative: 0 };
     if (positive) { n.outcomes.positive++; n.confidence = Math.min(1, (n.confidence ?? 0.7) + 0.03); }
-    else { n.outcomes.negative++; n.confidence = Math.max(0.05, (n.confidence ?? 0.7) - 0.1); }
+    else { n.outcomes.negative++; n.confidence = Math.max(0.05, (n.confidence ?? 0.7) - 0.1); if (n.confidence < 0.3) { n.status = 'invalid'; n.invalidReason = 'repeated negative outcomes'; } }
     store.put(n);
   }
   store.log({ op: 'outcome', session, turn, positive, reason, notes: hit.map(n => n.id) });
@@ -1133,7 +1153,7 @@ export function cleanBody(body, title) {
 
 // Re-verify a stale note with a small model, using the diff of its changed
 // dependencies plus the current text of each dependency symbol.
-export async function verifyNote(store, note, { model, completeFn = complete } = {}) {
+export async function verifyNote(store, note, { model } = {}) {
   if (note.kind === 'behavior') return verifyBehavior(store, note, { model });
   if (note.kind === 'skill') return auditSkill(store, note, { model }); // the skill file against the code (skills.js)
   const repo = store.repo;
@@ -1144,7 +1164,7 @@ export async function verifyNote(store, note, { model, completeFn = complete } =
   const current = (note.deps || []).map(d => `--- ${d.path}${d.symbol ? ' :: ' + d.symbol : ''} ---\n${symbolText(repo, d, 120) ?? '(missing)'}`).join('\n\n');
   const system = 'You verify cached notes about a codebase after the code changed. Be strict: a note that is subtly wrong is worse than no note. Only answer still_valid when every concrete claim in the note (file paths, symbol names, call order, what must change together, commands) is still true given the current code shown. Answer update if the note is mostly right but some claim needs correction, and give the full corrected body (keep it as short as the original, keep file:symbol pointers). Answer invalid if the thing the note describes no longer exists or the approach changed fundamentally. Answer with the JSON alone: the verdict, one sentence of reason, and a body only for update.';
   const prompt = `NOTE (kind=${note.kind}) "${note.title}"\n${note.body}\n\n${note.contradicted ? `A CODING SESSION REPORTED THIS NOTE CONTRADICTED (check it against the current code; the session may be wrong):\n${note.contradicted.evidence}\n\n` : ''}DEPENDENCIES THAT CHANGED: ${changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`).join(', ') || (note.contradicted ? 'none' : 'unknown')}\n\nGIT DIFF SINCE THE NOTE WAS VERIFIED (may be empty if changes are uncommitted):\n${diff || '(no diff available)'}\n\nCURRENT CODE OF EACH DEPENDENCY:\n${current.slice(0, 40000)}`;
-  const res = await completeFn({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
+  const res = await complete({ system, prompt, model, accounting: { store, purpose: 'verify' }, schema: VERIFY_SCHEMA, maxTokens: VERIFY_MAX_TOKENS });
   const v = res.json || {};
   const now = new Date().toISOString();
   let next;
@@ -1154,11 +1174,8 @@ export async function verifyNote(store, note, { model, completeFn = complete } =
   } else if (v.verdict === 'update' && cleanBody(v.body, note.title)) {
     next = { ...note, body: cleanBody(v.body, note.title), deps: (note.deps || []).map(d => hashDep(repo, d)), status: 'fresh', verified: now, verifiedCommit: gitHead(repo), confidence: Math.max(0.3, Math.min(1, Number(v.confidence) || note.confidence || 0.6)), history: [...(note.history || []), { at: now, reason: v.reason, prevBody: note.body }].slice(-5) };
     delete next.stale;
-  } else if (v.verdict === 'invalid' && typeof v.reason === 'string' && v.reason.trim()) {
-    next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };
   } else {
-    // Empty/unknown verdicts and an update without a body are failed checks, not evidence against a note.
-    throw new Error('note verification returned an incomplete verdict; the note is unchanged');
+    next = { ...note, status: 'invalid', invalidReason: v.reason, verified: now };
   }
   // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
@@ -1340,7 +1357,7 @@ export function holdoutTurn(store, session) {
 // `archive` in .thinker/config.json: `{ kinds: [...], unservedDays: 30 }`, or false.
 // kinds: none by default since the kinds were collapsed to four (the location, fix, cochange and
 // convention notes the sessions never acted on are rules and maps now, beside notes they did act on)
-export const ARCHIVE_DEFAULTS = { kinds: [], unservedDays: 0 };
+export const ARCHIVE_DEFAULTS = { kinds: [], unservedDays: 30 };
 // The kinds worth distilling even when archived: rules, traps, past fixes and why (what a reviewer
 // draws on when a change touches the code). An archived kind outside them (location: `find`
 // answers it) is not worth a note at all.
