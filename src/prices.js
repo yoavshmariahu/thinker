@@ -1,4 +1,4 @@
-// List prices per million tokens, for the Report page's cost view alone (report.js): what a session's tokens would
+// List prices per million tokens, for the Report page and explicit PR savings comments: what a session's tokens would
 // cost at the provider's published API rates, so sessions on different models can be compared on one scale and a
 // switch of model shows in the trend. The rest of the product counts tokens, never dollars (decided 2026-10-04: most
 // agents run on subscriptions, and a price from the list told people what they would not pay); the Report page says
@@ -63,6 +63,26 @@ export function costOfInputSavings(s, price) {
   return ((s.fresh || 0) * price.input + (s.cacheRead || 0) * price.cacheRead
     + ((s.cacheWrite || 0) - (s.cacheWrite1h || 0)) * price.cacheWrite
     + (s.cacheWrite1h || 0) * (price.cacheWrite1h ?? price.cacheWrite)) / 1e6;
+}
+
+// A gross API-price equivalent for PR comments, not net savings: removed context is assumed
+// to have been a cache read; avoided file reading is fresh input. No rewrite/learning costs
+// are deducted. Delivery records carry the last observed model per session, not a per-call mix.
+export function grossSavingsCost(sessions, { config } = {}) {
+  const out = { cleared: 0, reading: 0, total: 0, pricedTokens: 0, unpricedTokens: 0 };
+  for (const session of sessions) {
+    const price = listPrice(session.model, { config });
+    const share = session.share ?? 1;
+    for (const [kind, rate] of [['cleared', price?.cacheRead], ['reading', price?.input]]) {
+      const tokens = (session[kind] || 0) * share;
+      if (!(tokens > 0)) continue;
+      if (!Number.isFinite(rate) || rate < 0) { out.unpricedTokens += tokens; continue; }
+      out[kind] += tokens * rate / 1e6;
+      out.pricedTokens += tokens;
+    }
+  }
+  out.total = !out.pricedTokens && out.unpricedTokens ? null : out.cleared + out.reading;
+  return out;
 }
 
 // A dollar figure for people: $0.42, $3.80, $127, $1.2k

@@ -420,6 +420,10 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   update the authenticated author's comment for this machine, leaving other authors and machines alone.
   Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
   estimated reading, state the window and session attribution, and publish no session IDs or note text.
+  At the owner's request, comments also show a gross API-cost estimate (`prices.js:grossSavingsCost`):
+  clearing at the session model's cache-read rate, reading at its input rate, honoring manual shares
+  and price overrides. Unknown prices stay unpriced. Rewrite and learning costs are not deducted;
+  this is not net savings or a bill reduction. The Report page's PR band remains in tokens.
 - **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a
   pull request's number, title, URL, branch or author, never a repository, never a session id. The metrics
   API promotes the headline numbers to columns and `v_pr_delivery` reads saved per merged pull request.

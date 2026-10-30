@@ -137,6 +137,13 @@ without writing to GitHub. `--json` returns the action, body and comment URL. Th
 30 days, as for `thinker prs`; use `--days 90` for older work. Missing sessions or zero recorded savings
 stop the post. Session totals are attributed to a PR, not divided into per-commit measurements.
 
+The comment includes an **estimated gross API cost avoided** in USD, using the last recorded model
+for each linked session and Thinker's shared price table (including repository `prices` overrides).
+Cleared tokens use the cache-read price; avoided reading uses the input price. Manual PR allocation
+shares apply to both. Unknown models are explicitly unpriced, with partial totals labelled. This is
+an API-price equivalent before cache-rewrite and learning costs, not net savings or a measured change
+to a subscription bill.
+
 Run this command after your session finishes, or from your own local job with a specific PR number.
 It needs the local usage and delivery records plus a `gh` login with permission to comment. Maintenance
 and ordinary sync never post; a GitHub Actions runner alone has none of this machine's records.
