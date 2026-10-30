@@ -225,13 +225,16 @@ A failed call reports the status and the endpoint's answer (a 401 names the toke
 The agents keep their own login in thinker's calls, with the agent's tools, hooks, extensions,
 plugins and project files switched off:
 
-- `claude -p` runs without settings (no hooks, permissions, plugins or skills) and gets the
-  login side of your user settings back: from the `env` block of `~/.claude/settings.json`, the
+- `claude -p` runs without hooks, permissions, plugins or skills and gets the
+  connection settings back: from the `env` blocks of `~/.claude/settings.json` and the repository's
+  `.claude/settings.json` and `.claude/settings.local.json` (local overrides shared, shared overrides user), the
   entries that say where the model is and how to authenticate (a gateway's `ANTHROPIC_BASE_URL`
   and `ANTHROPIC_AUTH_TOKEN`, the Bedrock, Vertex and Foundry switches and their cloud
   credentials, proxies and certificates), with `apiKeyHelper` and the AWS credential helpers.
-  Telemetry exporters and model aliases from the settings stay out; `THINKER_LLM_MODEL` names
-  the model when the gateway does not know Anthropic's model IDs.
+  The `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`,
+  `ANTHROPIC_DEFAULT_OPUS_MODEL` and `ANTHROPIC_DEFAULT_FABLE_MODEL` mappings are preserved,
+  including mappings exported in the shell. Explicit model IDs and `THINKER_LLM_MODEL` still win.
+  Telemetry exporters and per-call output limits from those settings stay out.
 - `codex exec` keeps `~/.codex/config.toml`, so a `model_providers` entry there (a gateway
   base URL and key variable) applies; MCP servers, plugins, hooks and project instructions are off.
 - `gemini` keeps its settings and environment (`GEMINI_API_KEY`, a base URL); extensions and
@@ -239,6 +242,13 @@ plugins and project files switched off:
 
 `thinker doctor` names the provider that answers thinker's calls and makes one short call to it, so a
 gateway that answers 401 shows up there, with the endpoint's answer, before any session is distilled.
+
+The context proxy honors `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase
+forms when connecting to model endpoints. Retries follow the same route. Its background service
+retains these settings and certificate paths from the launch environment or Claude's user settings;
+the service files are readable only by their owner because a transport proxy URL may contain credentials.
+Model API credentials are not copied into the service configuration. To clear a retained transport
+setting, export it as an empty string and run `thinker proxy on` again.
 
 ## Your own model command
 

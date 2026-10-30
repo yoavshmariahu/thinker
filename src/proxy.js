@@ -23,6 +23,7 @@
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
+import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
@@ -330,7 +331,7 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null } = {}) {
   const agents = new Map();
   const log = row => {
     if (!logFile) return;
@@ -361,8 +362,14 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     }
     const up = new URL(requestCfg.upstream);
     const lib = up.protocol === 'http:' ? http : https;
-    if (!agents.has(up.origin)) agents.set(up.origin, new lib.Agent({ keepAlive: true, maxSockets: 256 }));
-    const agent = agents.get(up.origin);
+    // A gateway URL is the destination; HTTP(S)_PROXY/ALL_PROXY is how this machine reaches it.
+    // Direct http.Agent connections bypassed corporate proxies (including their DNS), failing
+    // even while the agent's own connection worked. NO_PROXY remains the person's decision.
+    const getAgent = fresh => {
+      const key = `${up.origin}:${fresh}`;
+      if (!agents.has(key)) agents.set(key, new ProxyAgent({ ...agentOptions, keepAlive: !fresh, maxSockets: 256 }));
+      return agents.get(key);
+    };
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {
@@ -406,7 +413,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           logged = true;
           log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
-        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: attempt ? false : agent }, ures => {
+        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: getAgent(!!attempt) }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
           // A 400 from an upstream that is not Anthropic's may be the gateway refusing the edit the proxy added --
           // or it may be about the request itself, which is the agent's own to see. The body says which
@@ -509,7 +516,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     socket.on('error', () => socket.destroy());
     socket.end('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nthinker proxy uses HTTP/SSE; set supports_websockets = false in the Codex provider.\n');
   });
-  server.on('close', () => { for (const agent of agents.values()) agent.destroy(); });
+  server.on('close', () => { for (const agent of agents.values()) { agent.destroy(); agent.httpAgent.destroy(); agent.httpsAgent.destroy(); } });
   server.listen(cfg.port || 0, host, () => onListen?.(server.address()));
   return server;
 }
