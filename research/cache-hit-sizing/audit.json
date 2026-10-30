@@ -1,0 +1,205 @@
+{
+  "origin": "github.com/yoavshmariahu/thinker",
+  "since": "2026-09-30T05:00:00.000Z",
+  "until": "2026-10-30T05:00:00.000Z",
+  "productSourceSha256": {
+    "usage.js": "e98919fe7628c59b511525d75ce586b60398179ba0b5a085bba73fafe534d4c1",
+    "tool-outputs.js": "59c7d72d8d694082aef1413756c5400ce5d203524a2c62dbd3863ed368447404",
+    "distill.js": "ef80ef96cbac4cb5aa27b980eac529c9dba6ef39f0857b36e23c25204c94363d",
+    "learning-evidence.js": "a83025cbfc70a772a385818ed18640b0f18c0248618f8c4967800c250e3e3352"
+  },
+  "logSha256": "d79da7655449a90c2c4fedf31abe6aeb807ec24281376173e8f643bf62fcd0c5",
+  "toolCacheSha256": "ba03713e5151e98ad3d07d5391ff3db4274461dec68c53e1c21b34c20def825a",
+  "notesSha256": "cd0570951a577027fc3c118cfc1c435ae3fe8eb8957bfe672a811d0df2bd0cb3",
+  "allPositiveServingEstimates": {
+    "n": 1185,
+    "sum": 11184635,
+    "mean": 9438.510548523207,
+    "median": 7930
+  },
+  "namedDistinctSessionNotes": 812,
+  "pendingSessionNotes": 534,
+  "confirmedSessionNotes": 117,
+  "confirmedMissingLoggedEstimate": 0,
+  "confirmedLoggedTokens": {
+    "n": 117,
+    "sum": 1341593,
+    "mean": 11466.606837606838,
+    "median": 9966
+  },
+  "confirmedLoggedFiles": {
+    "n": 117,
+    "sum": 317,
+    "mean": 2.7094017094017095,
+    "median": 2
+  },
+  "sources": {
+    "missing-current-note": 65,
+    "agent": 38,
+    "human": 7,
+    "skill": 1,
+    "pr": 6
+  },
+  "distillation": {
+    "calls": 699,
+    "yieldingCalls": 398,
+    "modes": {
+      "unrecorded": {
+        "calls": 143,
+        "near12000Chars": 3
+      },
+      "evidence": {
+        "calls": 526,
+        "near12000Chars": 457
+      },
+      "audit": {
+        "calls": 27,
+        "near12000Chars": 0
+      },
+      "full": {
+        "calls": 3,
+        "near12000Chars": 0
+      }
+    },
+    "traceSharePerYieldingCall": {
+      "n": 398,
+      "sum": 1117027.1468253972,
+      "mean": 2806.600871420596,
+      "median": 3169.4444444444443
+    },
+    "confirmedWithEarlierDistillation": 67,
+    "matchedTraceShare": {
+      "n": 67,
+      "sum": 197934.17923280422,
+      "mean": 2954.2414810866303,
+      "median": 2328.5416666666665
+    },
+    "matchedLoggedEstimate": {
+      "n": 67,
+      "sum": 774932,
+      "mean": 11566.149253731342,
+      "median": 9985
+    }
+  },
+  "currentFileOverlapDiagnostic": {
+    "overlapSessions": 4,
+    "perNoteTokens": 813594,
+    "unionTokensPerSession": 771594
+  },
+  "allCachedSessionsByModel": {
+    "claude-opus-5-5": {
+      "sessions": 90,
+      "calls": 3157,
+      "rawTokens": 2439033,
+      "modeledCarriedTokens": 289499717,
+      "meanResultTokens": 772.5793474817865,
+      "modeledCarry": 118.69446497853862
+    },
+    "unknown": {
+      "sessions": 56,
+      "calls": 518,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": 0,
+      "modeledCarry": null
+    },
+    "gpt-6-astra": {
+      "sessions": 20,
+      "calls": 0,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": null,
+      "modeledCarry": null
+    },
+    "codex-auto-review": {
+      "sessions": 13,
+      "calls": 0,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": null,
+      "modeledCarry": null
+    },
+    "claude-haiku-4-5-20251001": {
+      "sessions": 2,
+      "calls": 0,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": null,
+      "modeledCarry": null
+    },
+    "claude-fable-5-1": {
+      "sessions": 131,
+      "calls": 3119,
+      "rawTokens": 2941795,
+      "modeledCarriedTokens": 227340344,
+      "meanResultTokens": 943.1853158063482,
+      "modeledCarry": 77.27946508849189
+    },
+    "claude-opus-5": {
+      "sessions": 41,
+      "calls": 1770,
+      "rawTokens": 972763,
+      "modeledCarriedTokens": 120294068,
+      "meanResultTokens": 549.5836158192091,
+      "modeledCarry": 123.6622568909385
+    },
+    "claude-sonnet-5": {
+      "sessions": 2,
+      "calls": 12,
+      "rawTokens": 32180,
+      "modeledCarriedTokens": 168174,
+      "meanResultTokens": 2681.6666666666665,
+      "modeledCarry": 5.226041019266625
+    },
+    "claude-opus-4-8": {
+      "sessions": 1,
+      "calls": 0,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": null,
+      "modeledCarry": null
+    }
+  },
+  "confirmedCachedSessionsByModel": {
+    "claude-opus-5-5": {
+      "sessions": 13,
+      "calls": 655,
+      "rawTokens": 395946,
+      "modeledCarriedTokens": 74200770,
+      "meanResultTokens": 604.4977099236642,
+      "modeledCarry": 187.4012365322544
+    },
+    "unknown": {
+      "sessions": 6,
+      "calls": 194,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": 0,
+      "modeledCarry": null
+    },
+    "gpt-6-astra": {
+      "sessions": 1,
+      "calls": 0,
+      "rawTokens": 0,
+      "modeledCarriedTokens": 0,
+      "meanResultTokens": null,
+      "modeledCarry": null
+    },
+    "claude-fable-5-1": {
+      "sessions": 24,
+      "calls": 886,
+      "rawTokens": 842298,
+      "modeledCarriedTokens": 78358545,
+      "meanResultTokens": 950.6749435665914,
+      "modeledCarry": 93.02948006525007
+    },
+    "claude-opus-5": {
+      "sessions": 9,
+      "calls": 694,
+      "rawTokens": 380051,
+      "modeledCarriedTokens": 63395988,
+      "meanResultTokens": 547.6239193083574,
+      "modeledCarry": 166.80915982328688
+    }
+  }
+}
