@@ -144,9 +144,21 @@ shares apply to both. Unknown models are explicitly unpriced, with partial total
 an API-price equivalent before cache-rewrite and learning costs, not net savings or a measured change
 to a subscription bill.
 
-Run this command after your session finishes, or from your own local job with a specific PR number.
-It needs the local usage and delivery records plus a `gh` login with permission to comment. Maintenance
-and ordinary sync never post; a GitHub Actions runner alone has none of this machine's records.
+**Automatic comments** run as part of the existing four-hour update job, including when no update is
+available or the update check fails. Both the OS schedule (`thinker update --quiet`) and the detached
+check started by normal Thinker use run the same pass. No extra daemon or model calls are needed.
+The first pass records a start date without backfilling old PRs. Subsequent passes post once per PR
+merged after that date, with positive recorded savings, after the merge and linked sessions have been
+quiet for 20 minutes. Receipts prevent repeat comments; manual `prs comment` still updates a comment.
+At most ten comments are attempted per pass, with failures retried on a later pass.
+
+It needs the local usage and delivery records plus a `gh` login with permission to comment. Run
+`thinker prs auto --dry --json` to inspect eligible locally recorded PRs without contacting GitHub,
+or `thinker prs auto` to run the pass now (the four-hour per-repository throttle still applies).
+Set `"prComments": false` in `~/.thinker/config.json` to disable automatic comments for the machine,
+or in a repository's `.thinker/config.json` to disable them there. Disabled repositories are skipped.
+Status/check/scheduling commands never post, and ordinary sync and maintenance remain read-only on
+GitHub. A GitHub Actions runner alone has none of this machine's records.
 Only the summary is published, with its window and machine scope; no session IDs, paths or note text.
 Each machine keeps its own comment, so figures from another machine are not overwritten. Avoid
 summing comments from machines with copied or overlapping session records.

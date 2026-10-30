@@ -16,6 +16,7 @@ import readlinePromises from 'node:readline/promises';
 import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
+import { runAutomaticPrComments } from '../delivery-auto.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
 import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, trackClaude, routeAppeared, standDown } from '../proxy-service.js';
 
@@ -228,7 +229,22 @@ async function rewireCommand(ctx) {
 export { repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
 const newCliOf = (install, home) => install.type === 'git' ? path.join(install.path, 'src', 'cli.js') : path.join(home, 'app', 'src', 'cli.js');
 
-async function updateCommand(ctx) {
+export async function updateCommand(ctx, { updateFn = updateInstallCommand, commentsFn = runAutomaticPrComments } = {}) {
+  const { cmd, flags, pos } = ctx;
+  const runComments = ['update', 'upgrade'].includes(cmd) && !pos.length
+    && !['status', 'check', 'schedule', 'daily', 'unschedule', 'dry', 'branch', 'ref'].some(k => flags[k]);
+  try { return await updateFn(ctx); }
+  finally {
+    // Both the OS's `update --quiet` and the detached invocation check land here, even
+    // without a release or when the update check fails. Comment failures never fail an update.
+    if (runComments) try {
+      const r = await commentsFn(ctx.store);
+      for (const e of r.errors || []) process.stderr.write(`thinker PR comments: ${e.repo}${e.pr ? ` #${e.pr}` : ''}: ${e.error}\n`);
+    } catch (e) { process.stderr.write(`thinker PR comments: ${e.message}\n`); }
+  }
+}
+
+async function updateInstallCommand(ctx) {
   const { cmd, pos, flags, store, out, HERE } = ctx;
   const home = thinkerHome();
   const install = detectInstall(path.resolve(HERE, '..'), home);
@@ -337,7 +353,8 @@ async function updateCommand(ctx) {
     chk = await checkUpdate({ home, install, ghrepo: flags.repo, ref: targetRef });
   } catch (e) {
     out(`Update check failed: ${e.message}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (flags.check) {
@@ -388,7 +405,7 @@ async function updateCommand(ctx) {
     store.log({ op: 'update', from: res.from, to: res.to, version: res.version, branch: res.branch || res.ref, auto: false });
   } catch (e) {
     out(`Update failed: ${e.message}`);
-    process.exit(1);
+    process.exitCode = 1;
   }
   return;
 }

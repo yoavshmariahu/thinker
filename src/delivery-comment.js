@@ -1,5 +1,4 @@
 // Explicit, model-free publishing of the local PR report. Ordinary sync never posts.
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -9,6 +8,7 @@ import { deliveryFile, digest, positiveInteger } from './delivery-journal.js';
 import { deliveryReport, githubReader, syncPrs, WINDOW_DAYS } from './delivery.js';
 import { grossSavingsCost, formatDollars } from './prices.js';
 import { formatTokens } from './model-usage.js';
+import { withCommentLock } from './delivery-lock.js';
 
 // Same author on two machines must not replace one machine's figures with the other's.
 export const commentMarker = (home = thinkerHome()) => `<!-- thinker-pr-savings:v1:${digest([os.hostname(), path.resolve(home)])} -->`;
@@ -44,7 +44,7 @@ export const githubWriter = repo => (endpoint, { method, body }) =>
 
 export async function commentOnPr(store, {
   pr, days = WINDOW_DAYS, dry = false, home = thinkerHome(), now = Date.now(),
-  request = githubReader(store.repo), write = githubWriter(store.repo),
+  request = githubReader(store.repo), write = githubWriter(store.repo), syncWindow = true,
 } = {}) {
   if (pr === undefined) throw new Error('Posting savings requires --pr <number>');
   pr = positiveInteger(pr, 'PR');
@@ -57,17 +57,9 @@ export async function commentOnPr(store, {
 
   // Serialize scheduled/manual runs across worktrees sharing this journal. Never steal a live lock.
   const lock = `${file}.comment-${pr}.lock`;
-  fs.mkdirSync(path.dirname(lock), { recursive: true });
-  let fd;
-  try { fd = fs.openSync(lock, 'wx', 0o600); }
-  catch (e) {
-    if (e.code === 'EEXIST') throw new Error(`A savings comment run holds ${lock}. If it stopped unexpectedly, remove that lock before retrying.`);
-    throw e;
-  }
-  try {
-    fs.writeFileSync(fd, String(process.pid));
+  const result = await withCommentLock(lock, async () => {
     // Refresh competing PRs too: syncing only the target can misassign a reused branch.
-    await syncPrs(store, { days, request, now, home });
+    if (syncWindow) await syncPrs(store, { days, request, now, home });
     await syncPrs(store, { pr, days, request, now, home });
     const report = deliveryReport(store, { pr, days, now, home });
     const target = report.prs.find(p => p.number === pr);
@@ -88,8 +80,7 @@ export async function commentOnPr(store, {
       method: previous ? 'PATCH' : 'POST', body,
     });
     return { action: previous ? 'updated' : 'posted', pr, url: result.html_url, body };
-  } finally {
-    fs.closeSync(fd);
-    fs.unlinkSync(lock);
-  }
+  });
+  if (result.skipped === 'locked') throw new Error(`Another savings comment run holds ${lock}; retry later`);
+  return result;
 }

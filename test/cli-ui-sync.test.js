@@ -554,6 +554,7 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(cli, /prs sync \[--days n\] \[--pr n\]/);
   assert.match(cli, /prs link --session id --pr n/);
   assert.match(cli, /prs comment --pr n \[--days n\] \[--dry\] \[--json\]/);
+  assert.match(cli, /prs auto \[--dry\] \[--json\]/);
   assert.match(cmd, /commentOnPr\(store, \{ pr, days, dry: !!flags\.dry \}\)/);
   for (const phrase of [/\(measured\)/, /\(an estimate\)/]) assert.match(cli, phrase);
   // The page's second door is the Report tab's band, which reads the figures off the report view that
@@ -566,6 +567,18 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.equal(DEFAULTS.prs, undefined, 'maintain.prs is the mining switch; the sync has its own');
   assert.match(read('maintain.js'), /cfg\.prSync !== false/);
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
+});
+
+test('automatic PR comments reuse the update cadence and expose their defaults and opt-out', async () => {
+  const { AUTO_PR_COMMENTS, PR_COMMENT_IDLE_MS, PR_COMMENT_LIMIT } = await import('../src/delivery-auto.js');
+  const { UPDATE_EVERY_MS } = await import('../src/update.js');
+  assert.equal(AUTO_PR_COMMENTS, true);
+  assert.equal(PR_COMMENT_IDLE_MS, 20 * 60_000);
+  assert.equal(PR_COMMENT_LIMIT, 10);
+  assert.equal(UPDATE_EVERY_MS, 4 * 3600_000);
+  assert.match(read('delivery-auto.js'), /< UPDATE_EVERY_MS/);
+  assert.match(read('cli.js'), /false in the machine or repository config/);
+  assert.match(read('commands/prs.js'), /runAutomaticPrComments\(store, \{ dry: !!flags\.dry \}\)/);
 });
 
 test('the Report tab and `thinker report` show the same pull request band, in tokens under either toggle (2026-10-30)', async () => {

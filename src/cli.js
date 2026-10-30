@@ -227,7 +227,11 @@ const HELP = `thinker — knowledge cache for coding agents
   prs comment --pr n [--days n] [--dry] [--json]
                                  post local savings on a merged PR through your gh login; reruns update the
                                  same comment from this machine. --dry previews without posting. Uses the
-                                 report's 30-day default; --days widens it. No model call or automatic posting
+                                 report's 30-day default; --days widens it. No model call
+  prs auto [--dry] [--json]     post savings for newly merged PRs across recorded repositories; also runs with
+                                 the four-hour update job. First run starts tracking, without backfilling.
+                                 --dry lists eligible recorded PRs without syncing or posting. Set prComments:
+                                 false in the machine or repository config to disable automatic comments
   ui [--port n] [--no-open] [--tab save|report|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
                                  checkout alone), on Find Savings (--tab save): where the agents' context goes in each
