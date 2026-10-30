@@ -50,7 +50,8 @@ test('the legacy updater entrypoint repairs unchanged Codex hooks, survives dry-
   assert.match(repaired, /trusted_hash = "sha256:/);
   assert.match(repaired, /custom_feature = true/);
   assert.match(repaired, /model = "my-model"/);
-  assert.equal(fs.readFileSync(hooksFile, 'utf8'), hooks, 'no hook change was needed');
+  const expectedHooks = JSON.parse(hooks); delete expectedHooks.hooks.PreToolUse;
+  assert.deepEqual(JSON.parse(fs.readFileSync(hooksFile, 'utf8')), expectedHooks, 'the retired test hook is removed');
   const stamp = fs.statSync(f.config).mtimeMs;
   r = f.run('rewire', '--json', '--quiet');
   assert.equal(r.status, 0, r.stderr);

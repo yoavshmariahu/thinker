@@ -37,15 +37,9 @@ test('Codex proxy is wired by the default service and shares the existing thresh
   assert.doesNotMatch(read('ui/page.html'), /--protocol responses/);
 });
 
-test('the test-run rewrite is on by default and the help names how to turn it off (2026-10-29)', async () => {
-  const { TESTS, testsConfig, wrappedCommand } = await import('../src/testing.js');
-  assert.equal(TESTS.nudge, true);
-  assert.equal(testsConfig(null).nudge, true, 'no repository config: the default stands');
-  // one wrapping for every door: the hook rewrites with the same function the command documents
-  assert.equal(wrappedCommand('cd web && pytest a | tail -5', 'thinker'), 'cd web && thinker test -- pytest a');
-  assert.match(read('commands/hooks.js'), /wrappedCommand\(command, wrapperBin\(cli\)\)/);
-  assert.match(read('cli.js'), /thinker test/);
-  // the page offers no separate test control: there is nothing to pick, only a config to turn it off
+test('the CLI and page offer no test wrapper or automatic command rewrite', () => {
+  assert.doesNotMatch(read('cli.js'), /test -- <command>|tests\.nudge|testingCommands/);
+  assert.doesNotMatch(read('commands/hooks.js'), /wrappedCommand|test-nudge|preToolOutput/);
   assert.doesNotMatch(read('ui/page.html'), /thinker test --/);
 });
 

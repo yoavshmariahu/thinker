@@ -245,22 +245,6 @@ export function stopOutput(client, notice) {
   if (['pi', 'opencode', 'kilo', 'windsurf', 'droid'].includes(client)) return notice;
   return '';
 }
-// Clients whose pre-tool hook can steer a shell command, and how.
-//   claude, codex: PreToolUse takes `updatedInput`, which replaces the command and leaves the
-//                  host's own permission flow to run on the new one (no decision is returned, so
-//                  nothing is auto-approved); `additionalContext` says why.
-//                  https://code.claude.com/docs/en/hooks, https://learn.chatgpt.com/docs/hooks
-//   cursor:        beforeShellExecution cannot rewrite the command (only its preToolUse can, and
-//                  that one does not see shell commands), so it is denied once with the command to
-//                  run instead in `agent_message`, and the agent re-issues it.
-// The other clients have no pre-tool event thinker can answer on, and are not wired for one.
-export const PRE_TOOL_CLIENTS = ['claude', 'codex', 'cursor'];
-export const rewritesCommands = client => client === 'claude' || client === 'codex';
-export function preToolOutput(client, { command, reason }) {
-  if (client === 'cursor') return JSON.stringify({ permission: 'deny', agent_message: reason });
-  if (!PRE_TOOL_CLIENTS.includes(client)) return '';
-  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { command }, additionalContext: reason } });
-}
 // `updated` (Claude Code only): the tool's result replaced before the model reads it (diet.js); for an MCP tool
 // (`mcp`) it goes as `updatedMCPToolOutput` too, the field Claude Code reads for those without a schema check
 export function toolOutput(client, text, { updated, mcp = false } = {}) {
@@ -1110,7 +1094,6 @@ function trustHooksIn(text, hooksFile, root) {
   const defs = {
     UserPromptSubmit: [['prompt', 15, ['', ' --record']]],
     PostToolUse: [['tool', 10, ['', ' --late', ' --record', ' --late --record']]],
-    PreToolUse: [['pre', 10, ['']]],
     Stop: [['stop', 10, ['', ' --record', ' --no-distill']]],
   };
   const generated = (event, h) => h?.type === 'command' && (defs[event] || []).some(([what, timeout, suffixes]) =>
@@ -1271,7 +1254,6 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
       if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: cmd('tool'), timeout: 10 }] }]);
       // shell commands only, and the hook answers nothing unless the repository's config asks for it
-      entries.push(['PreToolUse', { matcher: 'Bash', hooks: [{ type: 'command', command: cmd('pre'), timeout: 10 }] }]);
       // Stop ends a turn and distills only a large backlog; SessionEnd distills what is left
       entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: cmd('stop', learn ? '' : ' --no-distill'), timeout: 10 }] }]);
       if (learn) entries.push(
@@ -1305,7 +1287,6 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (hooks) {
       const entries = [['UserPromptSubmit', { hooks: [{ type: 'command', command: cmd('prompt', rec), timeout: 15 }] }]];
       if (late || learn) entries.push(['PostToolUse', { hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }]);
-      entries.push(['PreToolUse', { hooks: [{ type: 'command', command: cmd('pre'), timeout: 10 }] }]);
       entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', stopFlags), timeout: 10 }] }]);
       mergeJson(f.hooks, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'PostToolUse', 'PreToolUse', 'Stop'], entries) }));
       done.push(`Codex: hooks in ${rel(f.hooks)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
@@ -1367,7 +1348,6 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       if (learn) entries.push(['afterShellExecution', { command: cmd('tool', rec), timeout: 10 }]);
       // Cursor's shell hook cannot rewrite a command; the pre hook denies a test run once with the
       // wrapped command to run instead, and answers nothing unless the config asks for it
-      entries.push(['beforeShellExecution', { command: cmd('pre'), timeout: 10 }]);
       mergeJson(f.hooks, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'beforeShellExecution', 'stop', 'sessionEnd'], entries) }));
       done.push(`Cursor: hooks in ${rel(f.hooks)}: notes for the request are delivered with the prompt${late ? ', then file-keyed notes while working' : ''}${learned}`);
       generated.push(f.hooks);
