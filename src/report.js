@@ -124,7 +124,7 @@ export function weekColumns(now, weeks) {
 const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0, prompts: 0, pricedPrompts: 0, n: 0 });
 const add = (c, tokens, cost, n = 0, p = 0, prompts = 0, pricedPrompts = 0) => { c.tokens += tokens; c.cost += cost || 0; c.sessions += n; c.priced += p; c.prompts += prompts; c.pricedPrompts += pricedPrompts; };
 
-export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions } = {}) {
+export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions, includePrs = true } = {}) {
   const cols = weekColumns(now, weeks), from = cols[0].t, days = Math.ceil((now - from) / DAY) + 1;
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
@@ -212,7 +212,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : compressionRecords(proxyLogFile());
   const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: readLog(store, { all: true }) });
-  const prs = prSavings(store, { days, now });
+  const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     tokenTypes,
