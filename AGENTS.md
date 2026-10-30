@@ -415,7 +415,7 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   background spend in the sense of the rule above.
 - **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
   (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.
-- **Posting is explicit** (`delivery-comment.js`): `thinker prs comment --pr n` publishes the local
+- **Posting** (`delivery-comment.js`): `thinker prs comment --pr n` publishes the local
   report on a merged PR; `--dry` previews, `--days` uses the report's window (30 by default). Reruns
   update the authenticated author's comment for this machine, leaving other authors and machines alone.
   Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
@@ -424,6 +424,14 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   clearing at the session model's cache-read rate, reading at its input rate, honoring manual shares
   and price overrides. Unknown prices stay unpriced. Rewrite and learning costs are not deducted;
   this is not net savings or a bill reduction. The Report page's PR band remains in tokens.
+- **Automatic posting** (`delivery-auto.js`) runs in the existing four-hour update job, even without
+  a new release or after a failed update check. First pass establishes a start date (no backfill);
+  later passes post once per newly merged PR with local savings after 20 minutes of session quiet.
+  Receipts live in `<THINKER_HOME>/state/pr-comments.json`; failed posts retry, at most 10 attempts
+  per pass. `prComments: false` in machine or repository config disables it, as does disabling the
+  repository. `prs auto --dry --json` inspects locally known candidates without GitHub. Test mode
+  suppresses real publishing; tests must inject every network boundary. Update status/check/schedule
+  paths never post. Manual `prs comment` can update a previously posted comment.
 - **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a
   pull request's number, title, URL, branch or author, never a repository, never a session id. The metrics
   API promotes the headline numbers to columns and `v_pr_delivery` reads saved per merged pull request.
