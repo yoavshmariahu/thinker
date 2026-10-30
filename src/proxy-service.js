@@ -37,6 +37,24 @@ export const OTHER_ROUTES = CLOUD_VARS;
 const stateFile = home => path.join(home, 'state', 'proxy-service.json');
 const readJson = (f, d = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || d; } catch { return d; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v, null, 2) + '\n'); };
+// Only transport settings belong in the service environment, never a model API key. Keep the
+// shell's settings across launchd/systemd restarts; Claude's env block may supply them too.
+const NETWORK_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy', 'NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE', 'SSL_CERT_DIR'];
+export function serviceNetworkEnv(home = thinkerHome(), env = process.env) {
+  const settings = (!isTestMode() || env.CLAUDE_CONFIG_DIR) ? readJson(path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'settings.json')).env : {};
+  const pick = e => Object.fromEntries(NETWORK_KEYS.filter(k => typeof e?.[k] === 'string').map(k => [k, e[k]]));
+  return { ...pick(serviceState(home).networkEnv), ...pick(settings), ...pick(env) };
+}
+function saveNetworkEnv(home, env) {
+  writeJson(stateFile(home), { ...serviceState(home), networkEnv: serviceNetworkEnv(home, env) });
+  fs.chmodSync(stateFile(home), 0o600); // a proxy URL can carry transport credentials
+}
+// Only a process that successfully bound the service's port may claim to be the running service.
+export function recordProxyListening(port, { home = thinkerHome(), pid = process.pid } = {}) {
+  const s = serviceState(home);
+  if (!s.enabled || s.port !== port) return;
+  writeJson(stateFile(home), { ...s, pid, startedAt: new Date().toISOString(), args: serviceArgs(home, s).join(' '), version: appVersion() });
+}
 // An agent's own file, read in order to write it back. `readJson` answers `{}` for anything it cannot parse, and
 // writing that back replaced a whole settings file -- permissions, hooks, model, every env of the person's -- with
 // thinker's one key. A file with a comment in it, a trailing comma, or one caught half-written by another process
@@ -120,21 +138,22 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
 export const appVersion = () => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || null; } catch { return null; } };
 
 export function startDetached({ cli, home = thinkerHome() }) {
+  if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1') return null;
+  saveNetworkEnv(home, process.env);
   const s = serviceState(home);
   if (!s.port) return null;
   fs.mkdirSync(path.dirname(logFile(home)), { recursive: true });
   const fd = fs.openSync(logFile(home), 'a');
-  const child = spawn(process.execPath, [cli, ...serviceArgs(home, s)], { detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, THINKER_HOME: home } });
+  const child = spawn(process.execPath, [cli, ...serviceArgs(home, s)], { detached: true, stdio: ['ignore', fd, fd], env: { ...process.env, ...serviceNetworkEnv(home), THINKER_HOME: home } });
   child.unref();
   try { fs.closeSync(fd); } catch {}
-  writeJson(stateFile(home), { ...s, pid: child.pid, startedAt: new Date().toISOString(), args: serviceArgs(home, s).join(' '), version: appVersion() });
   return child.pid;
 }
 
 // From the prompt hook on every prompt: nothing when the service is off or already listening (one connect, under a
 // millisecond); else the proxy is started and given `wait` ms to listen before the hook returns, so the agent's next
 // model call finds it.
-export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500 } = {}) {
+export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, restartFn = restartService } = {}) {
   const s = serviceState(home);
   if (!s.enabled || !s.port) return { on: false };
   // the setting taken out by hand is an answer, and this is the first thing that runs after it: the service goes,
@@ -153,10 +172,23 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500 } = {
     const version = appVersion();
     if (s.args === want && s.version === version) return { on: true, running: true };
     const why = s.args === undefined ? 'the first run that records them' : s.version !== version ? `a new version (${s.version || 'unknown'} -> ${version})` : 'the flags changed';
+    // Let the installed service manager own the process. Starting a detached competitor here
+    // caused repeated EADDRINUSE crashes, and could inherit the invoking agent's network sandbox.
+    saveNetworkEnv(home, process.env);
+    if (restartFn({ cli, home, managedOnly: true })) {
+      const listening = await waitListening(s.port, wait);
+      return { on: true, restarted: true, why, managed: true, listening };
+    }
+    if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1') return { on: true, running: true, deferred: 'network-restricted hook' };
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
     const pid = startDetached({ cli, home });
     const listening = await waitListening(s.port, wait);
     return { on: true, restarted: true, why, pid, listening };
+  }
+  saveNetworkEnv(home, process.env);
+  if (restartFn({ cli, home, managedOnly: true })) {
+    const listening = await waitListening(s.port, wait);
+    return { on: true, started: true, managed: true, listening };
   }
   const pid = startDetached({ cli, home });
   const listening = await waitListening(s.port, wait);
@@ -168,6 +200,7 @@ const unitPath = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.hom
 const xml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export function plistText({ cli, home = thinkerHome(), args = serviceArgs(home) }) {
   const items = [process.execPath, cli, ...args].map(a => `        <string>${xml(a)}</string>`).join('\n');
+  const network = Object.entries(serviceNetworkEnv(home)).map(([k, v]) => `        <key>${k}</key>\n        <string>${xml(v)}</string>`).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -182,6 +215,7 @@ ${items}
     <dict>
         <key>THINKER_HOME</key>
         <string>${xml(home)}</string>
+${network}
     </dict>
     <key>RunAtLoad</key>
     <true/>
@@ -197,11 +231,13 @@ ${items}
 }
 export function unitText({ cli, home = thinkerHome(), args = serviceArgs(home) }) {
   const q = a => `"${String(a).replace(/"/g, '\\"')}"`;
+  const network = Object.entries(serviceNetworkEnv(home)).map(([k, v]) => `Environment="${k}=${v.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/%/g, '%%').replace(/\n/g, '\\n').replace(/\r/g, '\\r')}"`).join('\n');
   return `[Unit]
 Description=thinker context proxy
 
 [Service]
 Environment=THINKER_HOME=${home}
+${network}
 ExecStart=${[process.execPath, cli, ...args].map(q).join(' ')}
 Restart=always
 RestartSec=2
@@ -222,14 +258,14 @@ export function installService({ cli, home = thinkerHome(), manage = !isTestMode
     const p = plistPath(home);
     fs.mkdirSync(path.dirname(p), { recursive: true });
     if (manage) run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
-    fs.writeFileSync(p, plistText({ cli, home }));
+    fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
     if (manage && !run('launchctl', ['bootstrap', `gui/${uid()}`, p]) && !run('launchctl', ['load', p])) return { type: 'hook', path: p, reason: 'launchctl refused the agent' };
     return { type: 'launchd', path: p };
   }
   if (hasSystemd()) {
     const u = unitPath();
     fs.mkdirSync(path.dirname(u), { recursive: true });
-    fs.writeFileSync(u, unitText({ cli, home }));
+    fs.writeFileSync(u, unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(u, 0o600);
     if (manage) { run('systemctl', ['--user', 'daemon-reload']); if (!run('systemctl', ['--user', 'enable', '--now', 'thinker-proxy.service'])) return { type: 'hook', path: u, reason: 'systemctl refused the unit' }; }
     return { type: 'systemd', path: u };
   }
@@ -246,16 +282,25 @@ export function uninstallService({ home = thinkerHome(), manage = !isTestMode() 
   return done;
 }
 // after an update the service runs the old code until it is started again
-export function restartService({ cli, home = thinkerHome(), manage = !isTestMode() } = {}) {
+export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false } = {}) {
   const s = serviceState(home);
   if (!s.enabled || !manage) return false;
   if (process.platform === 'darwin' && fs.existsSync(plistPath(home))) {
     const p = plistPath(home);
-    fs.writeFileSync(p, plistText({ cli, home }));
+    fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
     run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]); // kickstart -k would restart the old ProgramArguments
-    return run('launchctl', ['bootstrap', `gui/${uid()}`, p]) || run('launchctl', ['load', p]);
+    // An old detached competitor may still own the port after bootout.
+    if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
+    const started = run('launchctl', ['bootstrap', `gui/${uid()}`, p]) || run('launchctl', ['load', p]);
+    return managedOnly || started; // an installed manager must not race a detached fallback
   }
-  if (fs.existsSync(unitPath())) { fs.writeFileSync(unitPath(), unitText({ cli, home })); run('systemctl', ['--user', 'daemon-reload']); return run('systemctl', ['--user', 'restart', 'thinker-proxy.service']); }
+  if (fs.existsSync(unitPath())) {
+    fs.writeFileSync(unitPath(), unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(unitPath(), 0o600);
+    run('systemctl', ['--user', 'daemon-reload']);
+    const started = run('systemctl', ['--user', 'restart', 'thinker-proxy.service']);
+    return managedOnly || started;
+  }
+  if (managedOnly) return false;
   if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
   return true; // the next prompt's hook starts the new code
 }
@@ -464,6 +509,7 @@ export async function enableProxyService({ cli, home = thinkerHome(), env = proc
   const found = gateway === true ? ownGateway({ env, repos, isOwn: u => isOwnUrl(u, home) }) : null;
   const upstream = gateway === true ? found?.url : gateway === false ? undefined : gateway ? trimUrl(gateway) : s.upstream;
   writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined, upstream });
+  saveNetworkEnv(home, env);
   const service = installService({ cli, home, manage });
   const wired = wireAgents(urlFor(port), { home, env, repos });
   // whether Claude Code's settings hold the URL, so that its disappearance can be read as the person's answer

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { complete, resetFallback, claudeLoginSettings } from '../src/llm.js';
 
-const KEYS = ['THINKER_LLM', 'THINKER_LLM_CMD', 'THINKER_LLM_MODEL', 'THINKER_LLM_BASE_URL', 'ANTHROPIC_API_KEY', 'CLAUDE_CONFIG_DIR', 'PATH', 'HOME', 'THINKER_QUIET'];
+const KEYS = ['THINKER_LLM', 'THINKER_LLM_CMD', 'THINKER_LLM_MODEL', 'THINKER_LLM_BASE_URL', 'ANTHROPIC_API_KEY', 'ANTHROPIC_DEFAULT_SONNET_MODEL', 'CLAUDE_CONFIG_DIR', 'PATH', 'HOME', 'THINKER_QUIET'];
 async function withEnv(vars, fn) {
   const saved = Object.fromEntries(KEYS.map(k => [k, process.env[k]]));
   for (const k of KEYS) delete process.env[k];
@@ -35,14 +35,65 @@ test('the login side of the user settings is read: where the model is and how to
   t.after(() => fs.rmSync(cfg, { recursive: true, force: true }));
   fs.writeFileSync(path.join(cfg, 'settings.json'), JSON.stringify(USER_SETTINGS));
   assert.deepEqual(claudeLoginSettings(cfg), {
-    env: { ANTHROPIC_BASE_URL: 'https://llm-gateway.corp.example/anthropic', ANTHROPIC_AUTH_TOKEN: 'corp-token', CLAUDE_CODE_USE_BEDROCK: '0', HTTPS_PROXY: 'http://proxy.corp.example:3128', NODE_EXTRA_CA_CERTS: '/etc/ssl/corp.pem' },
+    env: { ANTHROPIC_BASE_URL: 'https://llm-gateway.corp.example/anthropic', ANTHROPIC_AUTH_TOKEN: 'corp-token', CLAUDE_CODE_USE_BEDROCK: '0', HTTPS_PROXY: 'http://proxy.corp.example:3128', NODE_EXTRA_CA_CERTS: '/etc/ssl/corp.pem', ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-5-5' },
     apiKeyHelper: '/usr/local/bin/corp-token',
-  }, 'telemetry exporters, model aliases and per-call limits are not login');
+  }, 'model mappings travel with the route; telemetry exporters and per-call limits stay out');
   fs.writeFileSync(path.join(cfg, 'settings.json'), JSON.stringify({ hooks: {}, env: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '1', OTEL_METRICS_EXPORTER: 'otlp' } }));
   assert.equal(claudeLoginSettings(cfg), null, 'nothing about the login: nothing passed');
   fs.writeFileSync(path.join(cfg, 'settings.json'), '{not json');
   assert.equal(claudeLoginSettings(cfg), null);
   assert.equal(claudeLoginSettings(path.join(cfg, 'missing')), null);
+});
+
+test('distillation uses gateway tier mappings from settings or the shell, retaining explicit model pins', async t => {
+  const claude = fakeClaude(t);
+  const cfg = path.join(claude.bin, 'config'); fs.mkdirSync(cfg);
+  const settingsFile = path.join(cfg, 'settings.json');
+  await withEnv({ PATH: claude.bin, THINKER_LLM: 'claude', CLAUDE_CONFIG_DIR: cfg, THINKER_QUIET: '1' }, async () => {
+    for (const tier of ['sonnet', 'haiku', 'opus', 'fable']) {
+      fs.writeFileSync(settingsFile, JSON.stringify({ env: {
+        ANTHROPIC_BASE_URL: 'https://gateway.example/anthropic',
+        [`ANTHROPIC_DEFAULT_${tier.toUpperCase()}_MODEL`]: `deployment-${tier}`,
+      } }));
+      await complete({ prompt: 'distill', model: tier });
+      const args = claude.args();
+      assert.equal(args[args.indexOf('--model') + 1], `deployment-${tier}`);
+    }
+    fs.writeFileSync(settingsFile, '{}');
+    process.env.ANTHROPIC_DEFAULT_SONNET_MODEL = 'shell-deployment';
+    await complete({ prompt: 'distill', model: 'sonnet' });
+    assert.equal(claude.args()[2], 'shell-deployment');
+    await complete({ prompt: 'distill', model: 'claude-sonnet-4-5' });
+    assert.equal(claude.args()[2], 'claude-sonnet-4-5', 'an exact model stays exact');
+    process.env.THINKER_LLM_MODEL = 'explicit-deployment';
+    await complete({ prompt: 'distill', model: 'sonnet' });
+    assert.equal(claude.args()[2], 'explicit-deployment');
+  });
+});
+
+test('project-local route, credentials and model mapping survive the empty model-call working directory', async t => {
+  const claude = fakeClaude(t);
+  const cfg = path.join(claude.bin, 'config'); fs.mkdirSync(cfg);
+  const repo = path.join(claude.bin, 'repo'); fs.mkdirSync(path.join(repo, '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(cfg, 'settings.json'), JSON.stringify(USER_SETTINGS));
+  fs.writeFileSync(path.join(repo, '.claude/settings.json'), JSON.stringify({ env: {
+    ANTHROPIC_BASE_URL: 'https://project.example/anthropic', ANTHROPIC_AUTH_TOKEN: 'project-token',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'project-sonnet',
+  }, apiKeyHelper: 'project-helper', hooks: USER_SETTINGS.hooks }));
+  fs.writeFileSync(path.join(repo, '.claude/settings.local.json'), JSON.stringify({ env: {
+    ANTHROPIC_BASE_URL: 'https://local.example/anthropic', ANTHROPIC_AUTH_TOKEN: 'local-token',
+    ANTHROPIC_DEFAULT_SONNET_MODEL: 'local-sonnet',
+  }, apiKeyHelper: 'local-helper', permissions: USER_SETTINGS.permissions }));
+  await withEnv({ PATH: claude.bin, THINKER_LLM: 'claude', CLAUDE_CONFIG_DIR: cfg, THINKER_QUIET: '1' }, async () => {
+    await complete({ prompt: 'distill', model: 'sonnet', accounting: { store: { repo, log() {} }, purpose: 'distill' } });
+    const args = claude.args(), settings = JSON.parse(args[args.indexOf('--settings') + 1]);
+    assert.equal(args[2], 'local-sonnet');
+    assert.equal(settings.env.ANTHROPIC_BASE_URL, 'https://local.example/anthropic');
+    assert.equal(settings.env.ANTHROPIC_AUTH_TOKEN, 'local-token');
+    assert.equal(settings.apiKeyHelper, 'local-helper');
+    assert.equal(settings.hooks, undefined);
+    assert.equal(settings.permissions, undefined);
+  });
 });
 
 test('claude -p still runs without setting sources, and gets the login back through --settings', async t => {

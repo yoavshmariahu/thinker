@@ -68,17 +68,21 @@ export function resolveModel(provider, model) {
 // apiKeyHelper and the AWS credential helpers. A call runs with --setting-sources '' so that hooks,
 // permissions, plugins and skills stay out of it; without this the login configured there was out
 // too, and every call failed to authenticate. Claude Code reads --settings on top of the sources, so
-// the login goes back in that way. Telemetry exporters, model aliases and the per-call limits
-// thinker sets itself are not login and stay out.
-const LOGIN_ENV = /^(ANTHROPIC_(BASE_URL|AUTH_TOKEN|API_KEY|CUSTOM_HEADERS|BEDROCK_|VERTEX_|FOUNDRY_)|CLAUDE_CODE_(USE_|SKIP_|CLIENT_)|AWS_|GOOGLE_|GCLOUD_|CLOUD_ML_REGION$|AZURE_|HTTPS?_PROXY$|NO_PROXY$|NODE_EXTRA_CA_CERTS$|SSL_CERT_|NODE_TLS_)/;
-export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')) {
-  let s; try { s = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8')); } catch { return null; }
+// the login goes back in that way. Model mappings belong to the route too: a gateway may only
+// serve its deployment names. Telemetry exporters and thinker's per-call limits stay out.
+const LOGIN_ENV = /^(ANTHROPIC_(BASE_URL|AUTH_TOKEN|API_KEY|CUSTOM_HEADERS|DEFAULT_(SONNET|HAIKU|OPUS|FABLE)_MODEL$|BEDROCK_|VERTEX_|FOUNDRY_)|CLAUDE_CODE_(USE_|SKIP_|CLIENT_)|AWS_|GOOGLE_|GCLOUD_|CLOUD_ML_REGION$|AZURE_|HTTPS?_PROXY$|NO_PROXY$|NODE_EXTRA_CA_CERTS$|SSL_CERT_|NODE_TLS_)/;
+export function claudeLoginSettings(dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), repo) {
   const out = {};
-  if (s.env && typeof s.env === 'object') {
-    const env = Object.fromEntries(Object.entries(s.env).filter(([k]) => LOGIN_ENV.test(k)));
-    if (Object.keys(env).length) out.env = env;
+  const files = [path.join(dir, 'settings.json'), ...(repo ? ['settings.json', 'settings.local.json'].map(n => path.join(repo, '.claude', n)) : [])];
+  for (const file of files) {
+    let s; try { s = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
+    if (!s || typeof s !== 'object') continue;
+    if (s.env && typeof s.env === 'object') {
+      const env = Object.fromEntries(Object.entries(s.env).filter(([k]) => LOGIN_ENV.test(k)));
+      if (Object.keys(env).length) out.env = { ...out.env, ...env };
+    }
+    for (const k of ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport']) if (s[k] !== undefined) out[k] = s[k];
   }
-  for (const k of ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport']) if (s[k] !== undefined) out[k] = s[k];
   return Object.keys(out).length ? out : null;
 }
 
@@ -714,17 +718,19 @@ function claudeFailure(stdout, stderr, code, cap) {
   return error;
 }
 
-async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTokens, structuredRetries, timeoutMs, cache = true, onUsage }) {
+async function viaCliOnce({ system, prompt, model, schema, maxTokens, thinkingTokens, structuredRetries, timeoutMs, cache = true, onUsage, accounting }) {
   // Run in an empty temp cwd so no project CLAUDE.md / MCP servers leak in.
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-llm-'));
-  const resolved = resolveModel('claude', model);
-  const args = ['-p', '--model', ALIASES[resolved] || resolved, '--output-format', 'json', '--no-session-persistence',
+  const login = claudeLoginSettings(undefined, accounting?.store?.repo || process.cwd());
+  const tier = resolveModel('claude', model);
+  const mapping = `ANTHROPIC_DEFAULT_${tier.toUpperCase()}_MODEL`;
+  const resolved = ALIASES[tier] ? login?.env?.[mapping] || process.env[mapping] || ALIASES[tier] : tier;
+  const args = ['-p', '--model', resolved, '--output-format', 'json', '--no-session-persistence',
     '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
     // Replace Claude Code's own system prompt rather than append to it: appended, every call sent ~7k
     // tokens of agent instructions, written to the one-hour prompt cache (twice the input price) and
     // never read again. No settings or skills either: neither is used, both add to the prompt.
     '--system-prompt', system || CLI_SYSTEM, '--setting-sources', '', '--disable-slash-commands'];
-  const login = claudeLoginSettings();
   if (login) args.push('--settings', JSON.stringify(login));
   if (schema) args.push('--json-schema', JSON.stringify(schema));
   try {

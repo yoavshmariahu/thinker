@@ -17,7 +17,7 @@ const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 function fakeMachine() {
   const root = tmp('thinker-proxy-service-');
   const home = path.join(root, 'thinker');
-  const env = { CODEX_HOME: path.join(root, 'codex'), CLAUDE_CONFIG_DIR: path.join(root, 'claude'), PI_CODING_AGENT_DIR: path.join(root, 'pi'), XDG_CONFIG_HOME: path.join(root, 'config') };
+  const env = { CODEX_SANDBOX_NETWORK_DISABLED: '0', CODEX_HOME: path.join(root, 'codex'), CLAUDE_CONFIG_DIR: path.join(root, 'claude'), PI_CODING_AGENT_DIR: path.join(root, 'pi'), XDG_CONFIG_HOME: path.join(root, 'config') };
   const saved = {};
   for (const [k, v] of Object.entries(env)) { saved[k] = process.env[k]; process.env[k] = v; }
   fs.mkdirSync(path.join(env.XDG_CONFIG_HOME, 'opencode'), { recursive: true });
@@ -389,4 +389,68 @@ test('a route taken over by --gateway is put back when the proxy is taken out', 
     assert.equal(back.env.ANTHROPIC_AUTH_TOKEN, 'gw-token');
     assert.equal(serviceState(m.home).replaced, undefined, 'and forgotten once restored');
   } finally { m.restore(); }
+});
+
+test('service restarts retain network proxy settings but never copy model API credentials', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { HTTPS_PROXY: 'http://network.example:3128', NODE_EXTRA_CA_CERTS: '/corporate/ca.pem', ANTHROPIC_AUTH_TOKEN: 'not-for-the-service' } }));
+    await enableProxyService({ cli: CLI, home: m.home, env: { ...m.env, HTTP_PROXY: 'http://user:pass@network.example:3128', NO_PROXY: 'localhost,127.0.0.1', OPENAI_API_KEY: 'not-for-the-service' }, manage: false });
+    const state = serviceState(m.home);
+    assert.deepEqual(state.networkEnv, { HTTP_PROXY: 'http://user:pass@network.example:3128', HTTPS_PROXY: 'http://network.example:3128', NO_PROXY: 'localhost,127.0.0.1', NODE_EXTRA_CA_CERTS: '/corporate/ca.pem' });
+    assert.equal(fs.statSync(path.join(m.home, 'state/proxy-service.json')).mode & 0o777, 0o600);
+    const plist = plistText({ cli: CLI, home: m.home });
+    const unit = unitText({ cli: CLI, home: m.home });
+    for (const text of [plist, unit]) {
+      assert.match(text, /network.example:3128/);
+      assert.match(text, /NODE_EXTRA_CA_CERTS/);
+      assert.match(text, /localhost,127.0.0.1/);
+      assert.doesNotMatch(text, /not-for-the-service|ANTHROPIC_AUTH_TOKEN|OPENAI_API_KEY/);
+    }
+  } finally { m.restore(); }
+});
+
+test('a managed restart never spawns a detached competitor, and the listening process records its own PID', async () => {
+  const { recordProxyListening } = await import('../src/proxy-service.js');
+  const m = fakeMachine(), server = http.createServer();
+  try {
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'state/proxy-service.json'), JSON.stringify({ enabled: true, port, wroteClaude: false, version: 'old' }));
+    let calls = 0;
+    const result = await ensureProxy({ cli: CLI, home: m.home, restartFn: opts => {
+      calls++; assert.equal(opts.managedOnly, true);
+      recordProxyListening(port, { home: m.home, pid: 123456 });
+      return true;
+    } });
+    assert.equal(calls, 1); assert.equal(result.managed, true); assert.equal(result.listening, true);
+    assert.equal(result.pid, undefined, 'no detached child was started');
+    assert.equal(serviceState(m.home).pid, 123456, 'only the listener claims the service');
+    assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home }), { on: true, running: true });
+    recordProxyListening(port + 1, { home: m.home, pid: 999 });
+    assert.equal(serviceState(m.home).pid, 123456, 'a manually started proxy on another port does not claim the service');
+  } finally { server.close(); m.restore(); }
+});
+
+test('a network-restricted hook cannot replace a working proxy with a sandboxed child', async () => {
+  const { startDetached } = await import('../src/proxy-service.js');
+  const m = fakeMachine(), server = http.createServer();
+  const previous = process.env.CODEX_SANDBOX_NETWORK_DISABLED;
+  try {
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'state/proxy-service.json'), JSON.stringify({ enabled: true, port, wroteClaude: false, version: 'old' }));
+    process.env.CODEX_SANDBOX_NETWORK_DISABLED = '1';
+    assert.equal(startDetached({ cli: CLI, home: m.home }), null);
+    const result = await ensureProxy({ cli: CLI, home: m.home, restartFn: () => false });
+    assert.equal(result.deferred, 'network-restricted hook');
+    assert.equal(serviceState(m.home).version, 'old', 'a blocked restart must not claim the new code is running');
+    assert.equal(server.listening, true);
+  } finally {
+    previous === undefined ? delete process.env.CODEX_SANDBOX_NETWORK_DISABLED : process.env.CODEX_SANDBOX_NETWORK_DISABLED = previous;
+    server.close(); m.restore();
+  }
 });
