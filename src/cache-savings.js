@@ -88,20 +88,23 @@ export function requestsOf(rows, until = Infinity) {
       }
     }
     requests.push({ id: r.id, at: Date.parse(r.timestamp), model: response.model,
-      input: (response.usage.input_tokens || 0) + (response.usage.cache_read_input_tokens || 0) + (response.usage.cache_creation_input_tokens || 0), unresolvedMessages, notes });
+      input: (response.usage.input_tokens || 0) + (response.usage.cache_read_input_tokens || 0) + (response.usage.cache_creation_input_tokens || 0), cacheRead: response.usage.cache_read_input_tokens || 0,
+      cacheWrite: response.usage.cache_creation_input_tokens || 0,
+      cacheWrite1h: response.usage.cache_creation?.ephemeral_1h_input_tokens || 0, unresolvedMessages, notes });
   }
   return { requests, invalid, unmatched };
 }
 
-const CACHE = diskCache('cache-lifetime', 1);
-// Persist only request times and rendered-note sizes, never the source text or message graph.
+const CACHE = diskCache('cache-lifetime', 2);
+// Persist request times, model/usage counters and rendered-note sizes, never source text or the message graph.
 export function lifetimeRequests(file) {
   if (!file) return [];
   try {
     return cachedByFiles(CACHE, cacheKey(file), [file], () => {
       const p = requestsOf(rows(fs.readFileSync(file, 'utf8')));
       // A broken base/prefix could falsely retain notes, so use the single-read fallback.
-      return p.invalid ? [] : p.requests.filter(r => r.notes.size).map(r => ({ at: r.at,
+      return p.invalid ? [] : p.requests.filter(r => r.notes.size).map(r => ({ at: r.at, model: r.model, input: r.input,
+        cacheRead: r.cacheRead, cacheWrite: r.cacheWrite, cacheWrite1h: r.cacheWrite1h,
         notes: Object.fromEntries([...r.notes].map(([id, n]) => [id, n.tokens])) }));
     });
   } catch { return []; }
@@ -143,29 +146,48 @@ export function sessionClears(session, requests) {
 
 // Records are deduplicated by session-note by the caller. Historical records without file
 // sizes share one conservative reading bucket: their largest estimate, not a sum of overlaps.
-export function inputSavings(notes, requests = [], { clears = [], until = Date.now() } = {}) {
+export function inputSavings(notes, requests = [], { clears = [], until = Date.now(), model } = {}) {
   const hits = notes.map(n => ({ ...n, requests: requests.filter(r => r.at >= Date.parse(n.at) && r.at <= until && Number.isFinite(r.notes[n.id])) }));
   const covered = hits.filter(h => h.requests.length);
   const fallback = hits.filter(h => !h.requests.length);
   let gross = 0, overhead = 0, calls = 0;
+  const byModel = {};
+  // The hypothetical reading's exact cache position is unknown. Estimate its cost using
+  // this request's observed input mix, including cache writes and their TTL. Keep signed
+  // net tokens so note overhead after a clear can reduce the estimated dollar saving too.
+  const account = (tokens, r = {}) => {
+    const m = r.model || model || 'unknown';
+    const b = byModel[m] ||= { tokens: 0, fresh: 0, cacheRead: 0, cacheWrite: 0, cacheWrite1h: 0 };
+    const total = Math.max(0, r.input || 0), write = Math.min(total, Math.max(0, r.cacheWrite || 0));
+    const read = Math.min(total - write, Math.max(0, r.cacheRead || 0));
+    const write1h = Math.min(write, Math.max(0, r.cacheWrite1h || 0));
+    b.tokens += tokens;
+    b.fresh += total ? tokens * (total - read - write) / total : tokens;
+    b.cacheRead += total ? tokens * read / total : 0;
+    b.cacheWrite += total ? tokens * write / total : 0;
+    b.cacheWrite1h += total ? tokens * write1h / total : 0;
+  };
   const stop = new Map(covered.map(h => [h.id, clears.find(t => t >= h.requests[0].at) ?? Infinity]));
   for (const r of requests) {
     if (r.at > until) continue;
     const active = covered.filter(h => r.at >= Date.parse(h.at) && Number.isFinite(r.notes[h.id]));
     if (!active.length) continue;
     calls++;
-    const files = new Map(); let legacy = 0;
+    const files = new Map(); let legacy = 0, carried = 0;
     for (const h of active) {
-      overhead += r.notes[h.id];
+      carried += r.notes[h.id];
       if (r.at >= stop.get(h.id)) continue;
       if (h.files?.length) for (const [file, tokens] of h.files) files.set(file, Math.max(files.get(file) || 0, tokens));
       else legacy = Math.max(legacy, h.tokens || 0);
     }
     // Legacy anchors may overlap the newer recorded ones too.
-    gross += Math.max(legacy, [...files.values()].reduce((a, b) => a + b, 0));
+    const avoided = Math.max(legacy, [...files.values()].reduce((a, b) => a + b, 0));
+    gross += avoided; overhead += carried;
+    account(avoided - carried, r);
   }
   const once = fallback.reduce((s, h) => s + (h.tokens || 0) - (h.noteTokens || 0), 0);
-  return { tokens: Math.round(gross - overhead + once), gross, overhead, fallbackTokens: Math.round(once),
+  if (fallback.length) account(once);
+  return { byModel, tokens: Math.round(gross - overhead + once), gross, overhead, fallbackTokens: Math.round(once),
     covered: covered.length, fallback: fallback.length, sessions: covered.length ? 1 : 0, requests: calls };
 }
 

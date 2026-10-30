@@ -56,6 +56,15 @@ export function costOf(usage, price) {
   return (fresh * price.input + read * price.cacheRead + writeCost(write, n('cacheWrite1h'), price) + n('output') * price.output) / 1e6;
 }
 
+// Signed input savings allocated to the observed request's input mix (cache-savings.js).
+// Unlike billed usage, net savings can be negative after carried note text is subtracted.
+export function costOfInputSavings(s, price) {
+  if (!price) return null;
+  return ((s.fresh || 0) * price.input + (s.cacheRead || 0) * price.cacheRead
+    + ((s.cacheWrite || 0) - (s.cacheWrite1h || 0)) * price.cacheWrite
+    + (s.cacheWrite1h || 0) * (price.cacheWrite1h ?? price.cacheWrite)) / 1e6;
+}
+
 // A dollar figure for people: $0.42, $3.80, $127, $1.2k
 export function formatDollars(d) {
   if (d == null || !Number.isFinite(d)) return '–';

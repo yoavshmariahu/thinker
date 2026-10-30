@@ -217,7 +217,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /\b550\b/, 'the whole session a prompt: 1,100 over two calls'); }
   assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
   assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
-  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Initial-read savings\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
+  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Estimated \$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
   // the prompt-cache rewrites by cause (transcripts.js:cacheRewrites): the fixture sessions are under 20k of context, so none
   assert.deepEqual(v.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(REWRITES, REWRITE_CAUSES);
   assert.equal(v.rewrites.reduce((a, p) => a + p.cells[last].n, 0), 0); assert.equal(v.rewriteTotals[last].tokens, 0);

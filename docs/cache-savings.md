@@ -38,14 +38,19 @@ aggregate report includes confirmed notes only. A retried Stop hook does not
 repeat an unchanged lifetime total. Transcripts are cached by file size and mtime;
 persisted results contain times and note sizes, not transcript text.
 
-The **Initial-read savings** card prices initial reading at model list prices;
-its caption says repeated reads are excluded. Repeated input must not be valued
-as fresh input indiscriminately.
-Existing holdout comparisons retain precedence when sufficiently populated; a
-machine-wide mixture of measured and estimated repository totals is labeled
-estimated. Provider clearing savings remain separate.
+The **Estimated $ saved** card prices the same net input saved from cache hits,
+including repeated reads and subtracting carried note text. Each request uses its
+recorded model and the proportions of fresh input, prompt-cache reads and cache
+writes in its reported usage; one-hour writes use their own rate. The exact cache
+position of hypothetical avoided reading is unknown, so this is an estimated
+API-list-price equivalent, not measured billing savings. Missing lifetime data
+uses the same single-read estimate as the token card, at the session model's input
+rate. Unknown models remain unpriced and are named beside the total. Negative
+savings remain visible. Existing sufficiently populated holdout comparisons retain
+precedence and use their existing per-model input-price estimate. Provider clearing
+savings remain separate.
 
 For compatibility, `thinker usage --json` retains `saved.tokens`, `saved.net`, and
 `saved.byModel` as the older one-read accounting. The new `saved.input` object
-contains the report's lifetime estimate and coverage. Existing PR attribution and telemetry fields based on one-read accounting remain compatible. Learning costs
+contains the report's lifetime estimate, coverage and input mix by model. Existing PR attribution and telemetry fields based on one-read accounting remain compatible. Learning costs
 are not included in the new per-hit input estimate.

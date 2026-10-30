@@ -28,7 +28,7 @@ test('lifetime savings use shared report values and captions in CLI, page and fo
   for (const file of ['report.js', 'ui/page.html']) {
     assert.match(read(file), /c\.tokenDescription/);
     assert.match(read(file), /c\.dollarsLabel/);
-    assert.doesNotMatch(read(file), /Math\.max\(0, c\.tokensSaved\)/, 'negative net estimates must stay visible');
+    assert.doesNotMatch(read(file), /Math\.max\(0, c\.(tokensSaved|dollarsSaved)\)/, 'negative net estimates must stay visible');
   }
   assert.match(read('commands/hooks.js'), /sessionInputSavings/);
   assert.match(read('report-snapshot.js'), /'cache-savings\.js'/);

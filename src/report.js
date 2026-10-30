@@ -19,7 +19,7 @@ import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
 import { summarize, readLog } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
-import { listPrice, providerOf, costOf, writeCost, formatDollars, PRICED_ON } from './prices.js';
+import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
@@ -330,9 +330,9 @@ export function reportActions(store, from, sessionRows = [], now = Date.now()) {
   return withEffects(changeHistory(store).filter(e => Date.parse(e.at) >= from), sessionRows, now).map(e => ({ ...e, repo: null }));
 }
 // The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in
-// dollars (the tokens saved on each model at that model's input price; the holdout's figure by model where it is
-// measured, else the servings acted on), the same in tokens, the cache hits, and the share of judged servings the
-// sessions acted on.
+// dollars (lifetime net input at each request's observed input mix, or the holdout's per-model
+// input-price estimate where measured), the same in tokens, the cache hits, and the share of
+// judged servings the sessions acted on.
 export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
   const u = usage || summarize(store, { days, all });
   const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
@@ -346,9 +346,14 @@ export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
       if (a == null || b == null || !n) continue;
       const t = (b - a) * n, p = priceIn(m); if (p == null) unpricedTokens += t; else dollars += t * p / 1e6;
     }
+  } else if (lifetime?.byModel) {
+    for (const [m, counts] of Object.entries(lifetime.byModel)) {
+      const cost = costOfInputSavings(counts, listPrice(m, { config }));
+      if (cost == null) unpricedTokens += counts.tokens; else dollars += cost;
+    }
   } else for (const [m, x] of Object.entries(u.saved?.byModel || {})) { const p = priceIn(m); if (p == null) unpricedTokens += x.tokens; else dollars += x.tokens * p / 1e6; }
   return {
-    dollarsLabel: measured ? 'Estimated $ saved' : 'Initial-read savings',
+    dollarsLabel: 'Estimated $ saved',
     dollarsSaved: dollars, unpricedTokens: Math.round(unpricedTokens), measured,
     tokensSaved: measured ? ho.saved.inputTokens : lifetime?.tokens ?? u.saved?.tokens ?? 0,
     tokenLabel: measured ? 'Tokens saved' : 'Estimated input tokens saved',
@@ -356,7 +361,7 @@ export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
       ? 'Avoided reading and subsequent re-reads, minus cached-note context.'
       : lifetime ? 'One-read estimate minus note context; lifetime data unavailable.' : 'tokens of code the agents did not read',
     coverage: lifetime ? { hits: lifetime.covered, fallback: lifetime.fallback, sessions: lifetime.sessions, requests: lifetime.requests } : null,
-    dollarsDescription: !measured ? 'Estimated at model list prices. Repeated reads are excluded.' : null,
+    dollarsDescription: !measured && lifetime?.byModel ? 'Total from cache hits, including repeated reads and subtracting note context, at estimated model input costs.' : null,
     hits: Object.values(u.servings || {}).reduce((a, b) => a + b, 0), requests: u.requests || 0, answered: u.answered || 0,
     // the hit rate is quoted over the requests the cache was asked, not every prompt (usage.js:NOT_ATTEMPTED)
     attempted: u.attempted || 0,
@@ -395,11 +400,11 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
-    cache: { dollarsLabel: cache.every(c => !c.measured) ? 'Initial-read savings' : cache.every(c => c.measured) ? 'Estimated $ saved' : 'Estimated $ saved (partial)', dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.every(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged,
+    cache: { dollarsLabel: 'Estimated $ saved', dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.every(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged,
       tokenLabel: cache.every(c => c.measured) ? 'Tokens saved' : 'Estimated input tokens saved',
       tokenDescription: cache.every(c => c.measured) ? 'versus prompts with the notes withheld' : 'Avoided reading and observed re-reads, minus note context; holdout comparisons where available.',
       coverage: cache.some(c => c.coverage) ? Object.fromEntries(['hits', 'fallback', 'sessions', 'requests'].map(k => [k, cache.reduce((n, c) => n + (c.coverage?.[k] || 0), 0)])) : null,
-      dollarsDescription: cache.every(c => !c.measured) ? 'Estimated at model list prices. Repeated reads are excluded.' : cache.some(c => !c.measured) ? 'Initial reads and holdout comparisons, at model list prices. Repeated reads outside holdout comparisons are excluded.' : null },
+      dollarsDescription: cache.some(c => !c.measured) ? 'Total from cache hits, including repeated reads and subtracting note context; holdout comparisons where available.' : null },
     prs: mergePrSavings(list),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };

@@ -43,7 +43,46 @@ test('file overlap is unioned and old estimates share a conservative bucket', ()
 
 test('unsupported desktop transcripts and missing files use the one-read fallback without a login', () => {
   const r = lifetimeRequests('/nonexistent/desktop-session.jsonl');
-  assert.deepEqual(inputSavings([hit()], r), { tokens: 900, gross: 0, overhead: 0, fallbackTokens: 900, covered: 0, fallback: 1, sessions: 0, requests: 0 });
+  assert.deepEqual(inputSavings([hit()], r), { byModel: { unknown: { tokens: 900, fresh: 900, cacheRead: 0, cacheWrite: 0, cacheWrite1h: 0 } }, tokens: 900, gross: 0, overhead: 0, fallbackTokens: 900, covered: 0, fallback: 1, sessions: 0, requests: 0 });
+});
+
+test('total hit savings price repeated reads, mixed input, model switches and note overhead', () => {
+  const r = [
+    { ...request(1, { n: 100 }), model: 'a', input: 1000 },
+    { ...request(2, { n: 100 }), model: 'a', input: 1000, cacheRead: 1000 },
+    { ...request(3, { n: 100 }), model: 'b', input: 1000, cacheRead: 400, cacheWrite: 500, cacheWrite1h: 200 },
+  ];
+  const input = inputSavings([hit()], r);
+  assert.equal(input.tokens, 2700);
+  assert.deepEqual(input.byModel, {
+    a: { tokens: 1800, fresh: 900, cacheRead: 900, cacheWrite: 0, cacheWrite1h: 0 },
+    b: { tokens: 900, fresh: 90, cacheRead: 360, cacheWrite: 450, cacheWrite1h: 180 },
+  });
+  const config = { prices: {
+    a: { input: 4, cacheRead: 0.4 },
+    b: { input: 2, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 },
+  } };
+  const usage = { saved: { input, byModel: { a: { tokens: 1000 } } } };
+  const c = cacheMetrics(null, { usage, config });
+  const expected = (900 * 4 + 900 * 0.4 + 90 * 2 + 360 * 0.2 + 270 * 2.5 + 180 * 4) / 1e6;
+  assert.ok(Math.abs(c.dollarsSaved - expected) < 1e-12);
+  assert.equal(c.tokensSaved, input.tokens);
+  assert.equal(c.unpricedTokens, 0);
+  // After clearing, only carried note text remains. Its cost must reduce savings.
+  const negative = inputSavings([hit('n', 0)], r);
+  const nc = cacheMetrics(null, { usage: { saved: { input: negative } }, config });
+  assert.ok(Math.abs(nc.dollarsSaved + expected / 9) < 1e-12);
+  assert.equal(nc.tokensSaved, -300);
+  const unknown = cacheMetrics(null, { usage: { saved: { input: inputSavings([hit()], r.map(q => ({ ...q, model: 'unpriced' }))) } } });
+  assert.equal(unknown.unpricedTokens, 2700);
+  assert.equal(unknown.dollarsSaved, 0);
+});
+
+test('desktop fallback prices the same net tokens at the known session model, without inventing repeats', () => {
+  const input = inputSavings([hit()], [], { model: 'desktop-model' });
+  const c = cacheMetrics(null, { usage: { saved: { input } }, config: { prices: { 'desktop-model': { input: 2 } } } });
+  assert.equal(c.tokensSaved, 900);
+  assert.equal(c.dollarsSaved, 0.0018);
 });
 
 test('request prefixes, compaction, branches, streaming and duplicate responses do not overcount', () => {
@@ -79,13 +118,20 @@ test('usage, report, and session footer use the same estimate; repeated serving 
   const store = new Store(dir).init();
   const file = path.join(process.env.CLAUDE_CONFIG_DIR, 'projects', dir.replace(/[^A-Za-z0-9]/g, '-'), 's.jsonl');
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, [blob('a', note('n')), req('1', 0, ['a']), response('1'), req('2', 1, [], 2), response('2')].map(r => JSON.stringify(r)).join('\n'));
+  const paid = (id, usage) => ({ ...response(id), message: { model: 'claude-opus-5-5', usage } });
+  fs.writeFileSync(file, [blob('a', note('n')), req('1', 0, ['a']),
+    paid('1', { input_tokens: 0, cache_creation_input_tokens: 1000, cache_creation: { ephemeral_1h_input_tokens: 1000 } }),
+    req('2', 1, [], 2), paid('2', { input_tokens: 0, cache_read_input_tokens: 1000 })].map(r => JSON.stringify(r)).join('\n'));
   for (const op of ['orient', 'late']) store.log({ op, t: new Date(start).toISOString(), session: 's', served: ['n'], tokens: 100, est: [[1, 1000]] });
   store.log({ op: 'attest', session: 's', applied: [{ id: 'n', verdict: 'confirmed' }] });
   const u = summarize(store), c = cacheMetrics(store, { usage: u }), running = sessionInputSavings(store, 's', { transcript: file });
   assert.equal(u.saved.input.covered, 1);
   assert.equal(c.tokensSaved, 2000 - 2 * sections(note('n'))[0].tokens);
   assert.equal(running.tokens, c.tokensSaved);
+  assert.ok(Math.abs(c.dollarsSaved - (1000 - sections(note('n'))[0].tokens) * 8.2 / 1e6) < 1e-12);
+  assert.equal(c.unpricedTokens, 0);
+  assert.equal(lifetimeRequests(file)[0].cacheWrite1h, 1000);
+  assert.equal(lifetimeRequests(file)[1].cacheRead, 1000);
   assert.match(turnNotice(dir, [], { input: running }), /estimated input saved this session: ~[\d,.]+k? tokens$/);
   assert.match(turnFooterMarkdown(dir, [{ id: 'n', body: '' }], { input: running }), /input saved this session/);
   assert.equal(c.coverage.hits, 1);
