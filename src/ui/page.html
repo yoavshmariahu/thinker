@@ -25,6 +25,9 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
+    .scan-progress { flex-basis: 100%; margin-top: .65rem; font-size: .75rem; color: #6b7280; }
+    .scan-progress progress { display: block; width: 100%; height: 4px; margin-top: .4rem; accent-color: #111; }
+    nav:has(.scan-progress:not([hidden])) { flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 0.55rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.12rem 0.5rem; line-height: 1.2; }
@@ -327,6 +330,7 @@
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
+    <div id="scan-progress" class="scan-progress" hidden><span id="scan-label" role="status" aria-live="polite"></span><button id="scan-retry" class="ctx-more" hidden>Retry</button><progress id="scan-bar" aria-label="Session data read"></progress></div>
   </nav>
 
   <main>
@@ -519,6 +523,7 @@ function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   for (const k of ['save', 'report', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
+  scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
   if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else loadActivity();
 }
@@ -540,23 +545,66 @@ const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"
 // scroll and the open rows kept (swapBody), and the header says `updating…` meanwhile. Until then every refresh went through
 // the spinner, and the page flashed on every action and every poll. The spinner is for the first read, and a change of
 // repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
+// Poll lightweight revisions; fetch tables only when a checkpoint is ready.
+// A new tab/repository/window invalidates the old loop, including in-flight replies.
+function scanProgress(v) {
+  const el = $('#scan-progress'), bar = $('#scan-bar'), label = $('#scan-label'), p = v?.progress;
+  el.hidden = !v || (!v.refreshing && !p?.error);
+  $('#scan-retry').hidden = !p?.error;
+  if (!el.hidden) {
+    label.textContent = v.paused ? 'Newer figures are ready. Clear your selection to update them.' : p?.error ? `Could not finish reading session data: ${p.error}`
+      : p?.total == null ? `${p?.completed ? fmt(p.completed) + ' sessions read · ' : ''}Finding session data… Figures shown so far are partial.`
+      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions · Figures shown so far are partial.`;
+    if (p?.total > 0) { bar.max = p.total; bar.value = p.completed; }
+    else bar.removeAttribute('value');
+    bar.hidden = Boolean(p?.error || v.paused);
+  }
+  navHeight();
+}
+async function progressiveView(url, receive, current, selected = () => false) {
+  let revision = null, first = true;
+  while (current()) {
+    const stamp = await api(`${url}&progressive=1&stamp=1${first ? '&retry=1' : ''}`);
+    first = false;
+    if (!current()) return;
+    scanProgress(stamp);
+    if (stamp.loading && stamp.progress?.error) throw new Error(stamp.progress.error);
+    if (!stamp.loading && stamp.revision !== revision && !selected()) {
+      const full = await api(`${url}&progressive=1`);
+      if (!current()) return;
+      revision = full.revision;
+      receive(full);
+      scanProgress(full);
+      if (!full.refreshing) return;
+    }
+    if (selected() && stamp.revision !== revision && !stamp.progress?.error) scanProgress({ refreshing: true, paused: true });
+    else if (!stamp.refreshing) return;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+
+$('#scan-retry').onclick = () => { if (TAB === 'save') loadContext(); else if (TAB === 'report') loadReport(); else loadActivity(); };
 let CTX_FOR = null, CLOAD = 0;
 async function loadContext() {
+  clearTimeout(CPOLL);
+  scanProgress({ refreshing: true });
   const el = $('#context-body'), seq = ++CLOAD, inPlace = Boolean(CTX) && CTX_FOR === `${CREPO}|${cdays}`;
   if (inPlace) { const a = $('#c-asof'); if (a && !/updating/.test(a.textContent)) a.textContent = `${a.textContent.replace(/\s*$/, '')}${a.textContent.trim() ? ', ' : ''}updating…`; }
   else el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
   try {
     if (!REPOS.length) await fetchRepos();
+    if (seq !== CLOAD || TAB !== 'save') return;
     if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     if (CREPO === 'all' && !inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
-    if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
+    if (!CREPO) { scanProgress(null); el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
     const want = `${CREPO}|${cdays}`;
-    const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/activity?repo=${encodeURIComponent(CREPO)}`).catch(e => ({ error: e.message, history: [] }))]);
-    if (seq !== CLOAD || want !== `${CREPO}|${cdays}`) return;
-    CHIST = d; CTX_FOR = want; CDREW = Date.now();
-    renderContext(v); contextAsOf(v);
-  } catch (e) { if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf(CTX); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+    const current = () => seq === CLOAD && want === `${CREPO}|${cdays}` && TAB === 'save';
+    api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`).then(d => { if (current()) CHIST = d; }).catch(() => {});
+    await progressiveView(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, v => {
+      CTX_FOR = want; CDREW = Date.now(); renderContext(v); contextAsOf({ ...v, refreshing: false });
+    }, current, () => CTX_FOR === want && Object.values(PICKS).some(m => m.size));
+  } catch (e) { if (seq === CLOAD && TAB === 'save') scanProgress({ progress: { error: e.message } }); if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf({ ...CTX, refreshing: false }); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
 // A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with See more (by the
 // row's key, not its index, since the rows may have moved), and the body's height until the new content has laid out, so
@@ -908,7 +956,7 @@ let EXPLAIN_TIMER = null, EXPLAIN_TRIES = 0;
 const VROWS = {};
 // the cards on the two pages in view that have no words yet
 const explainWanted = () => {
-  if (CMODE !== 'cards' || !CTX) return [];
+  if (CMODE !== 'cards' || !CTX || CTX.partial) return [];
   const rows = VROWS[CVIEW] || [], from = (VPAGE[CVIEW] || 0) * TABLE_PAGE;
   return rows.slice(from, from + TABLE_PAGE * 2).filter(r => r.explainKey && !r.explain);
 };
@@ -1033,7 +1081,7 @@ async function applyRows(view, items, btn) {
     // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
     // place), a second or more after an action, since the action made the kept copy stale
     if (!failed) patchContext(rest);
-    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}`); } catch {} }
+    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`); } catch {} }
     if (CTX) renderContext(CTX);
     loadContext(); pollActivity();
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
@@ -1055,7 +1103,7 @@ function renderContext(v) {
   // one table at a time: every part on All, then one kind each (the decisions are the Recent activity page since 2026-10-24)
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perPrompt = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
   // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
-  if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
+  if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
   const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
   const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
@@ -1188,10 +1236,18 @@ async function loadActivity() {
     if (!AREPO) AREPO = REPOS.find(r => r.current)?.id || 'all';
     else if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
     $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = AREPO, d = await api(prs ? `/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6` : `/api/activity?repo=${encodeURIComponent(AREPO)}`);
-    if (seq !== ALOAD || want !== AREPO) return;
-    if (prs) { APR_FOR = want; renderActivityPrs(d); }
-    else { ACT_FOR = want; renderActivity(d); }
+    const want = AREPO;
+    if (prs) {
+      scanProgress({ refreshing: true });
+      await progressiveView(`/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6`, d => {
+        APR_FOR = want; renderActivityPrs({ ...d, refreshing: false });
+      }, () => seq === ALOAD && want === AREPO && TAB === 'activity' && AVIEW === 'prs');
+    } else {
+      scanProgress(null);
+      const d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`);
+      if (seq !== ALOAD || want !== AREPO) return;
+      ACT_FOR = want; renderActivity(d);
+    }
   } catch (e) { if (seq !== ALOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
 // while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
@@ -1201,7 +1257,7 @@ function activityCheckBack(d) {
   const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
   AMPOLL = setTimeout(async () => {
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
-    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
+    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`); } catch { return; }
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
     if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
   }, 5000);
@@ -1261,7 +1317,7 @@ function badge(d) {
 }
 async function pollActivity() {
   clearTimeout(APOLL);
-  let d = null; try { d = await api('/api/activity?repo=all'); } catch {}
+  let d = null; try { d = await api('/api/activity?repo=all&progressive=1&measure=0'); } catch {}
   if (d) {
     badge(d);
     // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
@@ -1293,18 +1349,21 @@ const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d)
 // the spinner is for the first read and a change of repository
 let RPT_FOR = null, RLOAD = 0;
 async function loadReport() {
+  scanProgress({ refreshing: true });
   const el = $('#report-body'), seq = ++RLOAD, inPlace = Boolean(RPT) && RPT_FOR === REPO;
   if (!inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`;
   clearTimeout(RPOLL);
   try {
     if (!REPOS.length) await fetchRepos();
+    if (seq !== RLOAD || TAB !== 'report') return;
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = REPO, v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
-    if (seq !== RLOAD || want !== REPO) return;
-    if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-    RPT_FOR = want; renderReport(v); reportAsOf(v);
-  } catch (e) { if (seq !== RLOAD) return; if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
+    const want = REPO;
+    await progressiveView(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`, v => {
+      if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
+      RPT_FOR = want; renderReport(v);
+    }, () => seq === RLOAD && want === REPO && TAB === 'report');
+  } catch (e) { if (seq !== RLOAD || TAB !== 'report') return; scanProgress({ progress: { error: e.message } }); if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
 }
 // The report is kept and made again in the background (report-snapshot.js), like the Save page's: while a newer one is
 // being made the page checks back and shows it. It says nothing of when it was measured, and nothing under its tables

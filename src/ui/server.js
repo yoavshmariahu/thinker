@@ -25,6 +25,7 @@ import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptA
 import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
 import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
+import { uiScans, scanStatus } from './scans.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -113,6 +114,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
   refreshFn ||= checkout => background(`context:${checkout}`, () => child(['context', '--refresh', '--quiet', '--repo', checkout], checkout));
   // an old Report by `thinker report --refresh`: one repository's, or every repository's in one run (null)
   refreshReportFn ||= checkout => checkout ? background(`report:${checkout}`, () => child(['report', '--refresh', '--quiet', '--repo', checkout], checkout)) : background('report:all', () => child(['report', '--refresh', '--all', '--quiet'], store.repo));
+  const scans = uiScans();
+  let discovering;
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
   let port = 0, known = null, lastRequest = Date.now();
   // the checkouts found before, looked for again in the background when old (once a while per process)
@@ -157,31 +160,51 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
     try {
       // which repository: '' (this one), 'all', or one of machineRepos by id
       const want = String(url.searchParams.get('repo') || '');
-      if (req.method === 'GET' && url.pathname === '/api/repos') { known = listRepos(); return json(res, 200, { repos: known }); }
+      if (req.method === 'GET' && url.pathname === '/api/repos') {
+        if (!keptCheckouts({ home, transcriptsHome })) {
+          discovering ||= scans.discover({ repo: store.repo, home, transcriptsHome }).finally(() => { discovering = null; });
+          known = await discovering;
+        } else known = listRepos();
+        return json(res, 200, { repos: known });
+      }
+      // Progressive responses are opt-in so command/API clients still receive a complete view.
+      const progressive = url.searchParams.get('progressive') === '1';
+      if (!known && keptCheckouts({ home, transcriptsHome })) known = listRepos();
+      if (!known) {
+        discovering ||= scans.discover({ repo: store.repo, home, transcriptsHome }).finally(() => { discovering = null; });
+        known = await discovering;
+      }
       // the Report tab (report.js:reportView, as `thinker report`): one repository, or every repository's report merged, from
       // the report kept in each checkout (report-snapshot.js): made now only when there is none, made again in the background
       // when it is old, the page told when it was made and whether a newer one is coming; the decisions under it read live
       if (req.method === 'GET' && url.pathname === '/api/report') {
         const weeks = Math.max(1, Math.min(26, Number(url.searchParams.get('weeks')) || REPORT_WEEKS));
-        const read = st => { const s = reportSnapshot(st, weeks); return { ...s, refreshing: s.stale || reportRefreshing(st) }; };
-        let view, at, busy;
+        const read = st => { if (progressive) return scans.read('report', st, weeks, { retry: url.searchParams.get('retry') === '1' }); const s = reportSnapshot(st, weeks); return { ...s, refreshing: s.stale || reportRefreshing(st) }; };
+        let view, at, busy, status = {};
         if (want === 'all') {
           const xs = repos().flatMap(r => { try { const st = open(r.checkout); return [{ r, st, s: read(st) }]; } catch { return []; } });
           if (!xs.length) return json(res, 200, { empty: true });
-          view = mergeReports(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
+          if (progressive) status = scanStatus(xs.map(x => x.s));
+          if (progressive && url.searchParams.get('stamp') === '1') return json(res, 200, { loading: !xs.some(x => x.s.view), ...status });
+          const ready = xs.filter(x => x.s.view);
+          if (!ready.length) return json(res, 200, { loading: true, ...status });
+          view = mergeReports(ready.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
           // the decisions and what each saved, read live over each kept report (report.js:reportActions)
-          view.actions = xs.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.sessionRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
+          view.actions = ready.flatMap(({ r, st, s }) => reportActions(st, view.from, s.view.sessionRows || []).map(a => ({ ...a, repo: r.id, repoName: r.name }))).sort((a, b) => b.at.localeCompare(a.at));
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
           if (xs.some(x => x.s.stale && !reportRefreshing(x.st))) refreshReportFn(null);
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
           const s = read(one);
+          if (progressive) status = scanStatus([s]);
+          if (progressive && url.searchParams.get('stamp') === '1') return json(res, 200, { loading: !s.view, ...status });
+          if (!s.view) return json(res, 200, { loading: true, ...status });
           const actions = reportActions(one, s.view.from, s.view.sessionRows || []);
           view = { ...s.view, actions }; at = s.at; busy = s.refreshing;
           if (s.stale && !reportRefreshing(one)) refreshReportFn(one.repo);
         }
         const { sessionRows, ...sent } = view; // the session rows stay on this side: the page reads the actions costed
-        return json(res, 200, { ...sent, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        return json(res, 200, { ...sent, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy, ...status });
       }
       // what Claude Code loads into every session here and what switching it off saved (harness.js:harnessView, as `thinker harness`)
       if (req.method === 'GET' && url.pathname === '/api/harness') {
@@ -211,6 +234,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // the last report kept is shown at once, even one the code or the files it rests on have outgrown, and made again
         // behind it; the transcripts are read now only when there is none (a first visit, or after an action dropped it)
         const read = st => {
+          if (progressive) return scans.read('context', st, d, { retry: url.searchParams.get('retry') === '1' });
           const last = lastSnapshot(st, d);
           if (!last) return { ...snapshotView(st, d), refreshing: false };
           const stale = !last.current || Date.now() - last.at > REFRESH_MS;
@@ -222,21 +246,26 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // 2026-10-29 that poll fetched the merged report itself (1.3 MB on this machine, a dozen times over) and threw
         // all of it away whenever the answer was "not yet". Nothing below the stamp is worked out for one.
         const stamp = url.searchParams.get('stamp') === '1';
-        let view, at, busy, offered;
+        let view, at, busy, offered, status = {};
         // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
         if (want === 'all') {
           const xs = repos().flatMap(r => { try { return [{ r, s: read(open(r.checkout)) }]; } catch { return []; } });
           at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
+          if (progressive) status = scanStatus(xs.map(x => x.s));
+          if (xs.length && !xs.some(x => x.s.view)) return json(res, 200, { loading: true, ...status });
           if (!stamp) {
-            view = mergeViews(xs.map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
+            view = mergeViews(xs.filter(x => x.s.view).map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
             offered = xs.flatMap(({ r, s: _s }) => { try { return offeredPicks(open(r.checkout)).map(x => ({ ...x, repo: x.repo || r.id })); } catch { return []; } });
           }
         } else {
           const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
-          ({ view, at, refreshing: busy } = read(one));
+          const s = read(one);
+          if (progressive) status = scanStatus([s]);
+          if (!s.view) return json(res, 200, { loading: true, ...status });
+          ({ view, at, refreshing: busy } = s);
           if (!stamp) offered = offeredPicks(one);
         }
-        if (stamp) return json(res, 200, { asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        if (stamp) return json(res, 200, { asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy, ...status });
         // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
         // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
         // `offered` is what the weekly question numbered in the session (context-suggest.js:offeredPicks), which the link
@@ -250,7 +279,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // why someone would make the change offered on it, and what they would lose by making it. The cards are those
         // words; the numbers go around them. `explainMissing` is what has none yet, so the page can offer to write them.
         const have = readExplains();
-        return json(res, 200, { ...attachExplains(describeParts(shown), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy });
+        return json(res, 200, { ...attachExplains(describeParts(shown), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy, ...status });
       }
       // The plain-words explanation of every part (part-explain.js), which a small model writes once and the machine
       // keeps: GET says how many are missing, POST writes them. A person asks for it by opening the cards and agreeing
@@ -299,7 +328,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           for (const h of entries.filter(h => h.scope === 'machine')) if (!machine.has(h.id)) machine.set(h.id, { ...h, repo: r.id, repoName: 'All repositories' });
           xs.push(...historyEffects(st, entries.filter(h => h.scope !== 'machine')).map(h => ({ ...h, repo: r.id, repoName: r.name })));
           sessionRows.push(...kept.rows); avgs.push(promptAverageHere(st));
-          if (kept.stale) { measuring = true; if (!reportRefreshing(st)) refreshReportFn(st.repo); }
+          if (kept.stale && url.searchParams.get('measure') !== '0') { measuring = true; if (progressive) scans.read('report', st, REPORT_WEEKS); else if (!reportRefreshing(st)) refreshReportFn(st.repo); }
         } catch {} }
         xs.push(...withEffects([...machine.values()], sessionRows));
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
@@ -309,6 +338,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       const b = await readBody(req);
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
+      await scans.cancel(); // an older scan must not overwrite snapshots after this action
       let r;
       if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
       // a decision on a row or in History keeps the report: the files it writes (config, settings, AGENTS.md) make the Context
@@ -367,7 +397,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       });
     },
     // the browser keeps connections open; Ctrl+C must not wait for them
-    close: () => new Promise(r => { server.close(r); server.closeAllConnections?.(); }),
+    close: async () => { await scans.close(); await new Promise(r => { server.close(r); server.closeAllConnections?.(); }); },
     idleMs: () => Date.now() - lastRequest,
   };
 }
