@@ -856,6 +856,11 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   tokens add (a pull request belongs to one repository, a session to one pull request), medians are taken
   again over every row rather than averaged, and each row carries its repository, since two repositories
   both number from 1.
+- **Pull request stats** stays visible before **See more metrics**. `report.js:weeklyPrStats` groups the
+  recorded PR rows by merge week into `prWeekly`: PR count, mean tokens saved per PR, and mean recorded
+  input + output tokens per PR. The cost mean uses only PRs with complete counters and exposes that count;
+  missing counters never read as zero cost. Empty weeks have zero PRs and null averages. All repositories
+  recomputes from all PR rows, never averages repository averages. The CLI prints the same weekly values.
 - **Tokens, under Cost as much as under Tokens, and no dollar figure anywhere in the band.** Only one of the
   two savings converts: reading avoided is fresh input nobody paid for, but a cleared token was mostly being
   read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice

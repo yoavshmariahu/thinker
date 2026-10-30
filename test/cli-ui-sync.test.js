@@ -415,6 +415,10 @@ test('the page touches no element it no longer renders', () => {
 });
 
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
+  assert.match(read('report.js'), /prs, prWeekly: weeklyPrStats\(prs, columns, now\)/);
+  assert.match(read('report.js'), /for \(const w of v\.prWeekly\)/);
+  assert.match(read('ui/page.html'), /const weeks = v\.prWeekly;/);
+  assert.match(read('ui/page.html'), /parts \+ effectiveness \+ prStatsChart\(v\) \+ `<button/, 'PR charts are always outside the collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
@@ -584,7 +588,7 @@ test('automatic PR comments reuse the update cadence and expose their defaults a
 test('Report summaries and Recent activity PR savings share the CLI report data, in tokens under either toggle (2026-10-30)', async () => {
   const page = read('ui/page.html'), rep = read('report.js');
   // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
-  assert.match(rep, /prs: prSavings\(store, \{ days, now \}\)/);
+  assert.match(rep, /const prs = prSavings\(store, \{ days, now \}\)/);
   assert.match(page, /pr = v\.prs;/);
   // PR details live in Recent activity; the report now charts weekly savings.
   assert.doesNotMatch(page, /const cards =|const prBand =/);

@@ -101,6 +101,13 @@
     .savings-counts { color: #777; font-size: .78rem; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
     .metrics-toggle { margin-top: 1.2rem; }
+    .pr-charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; margin-top: 1rem; }
+    .pr-chart h3 { font-size: .85rem; font-weight: 500; margin: 0 0 .5rem; }
+    .pr-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .pr-chart text { font-family: inherit; font-size: 11px; fill: #777; }
+    .pr-chart .pr-value { fill: #333; font-size: 12px; }
+    .pr-chart [tabindex]:focus { outline: 2px solid #6366f1; outline-offset: 3px; }
+    @media (max-width: 1000px) { .pr-charts { grid-template-columns: 1fr; } .pr-chart svg { max-width: 600px; } }
     .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     @media (max-width: 1040px) { .ctx-figure { overflow-x: auto; } }
     /* The cards: what a part is and why you would change it, in words, with the figures under them. The table is the
@@ -1325,6 +1332,34 @@ function reportAsOf(v) {
 }
 // Merged pull requests the band lists before the fold opens the rest.
 const PR_ROWS = 12;
+// Values come from report.js, including the denominator when some PRs lack counters.
+// Independent scales keep PR counts readable beside much larger token figures.
+function prStatsChart(v) {
+  const weeks = v.prWeekly;
+  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date</span></figcaption>';
+  if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
+  const metrics = [
+    { key: 'merged', name: 'Number of PRs', color: '#6366f1' },
+    { key: 'savedPerPr', name: 'Tokens saved per PR', color: '#07866c' },
+    { key: 'tokensPerPr', name: 'Total tokens per PR', color: '#5577aa' },
+  ];
+  const charts = metrics.map(({ key, name, color }) => {
+    const values = weeks.map(w => w[key]), max = Math.max(1, ...values.filter(n => n != null));
+    const step = 360 / weeks.length, x = i => 30 + step * (i + .5), y = n => 150 - n / max * 108;
+    const label = n => n == null ? '–' : key === 'merged' ? String(n) : fmt(n);
+    const description = weeks.map((w, i) => `Week of ${dlabel(w.t)}: ${label(values[i])}${key === 'tokensPerPr' ? `; ${w.complete} of ${w.merged} PRs with complete counters` : ''}`).join('. ');
+    const marks = weeks.map((w, i) => {
+      const n = values[i], at = x(i), top = n == null ? 150 : y(n);
+      const tip = `${dlabel(w.t)}: ${n == null ? 'No measurements' : Math.round(n).toLocaleString()}${key === 'tokensPerPr' ? ` tokens; ${w.complete}/${w.merged} PRs with complete counters` : key === 'savedPerPr' ? ' tokens saved per PR' : ' PRs'}`;
+      const connector = key !== 'merged' && n != null && i > 0 && values[i - 1] != null ? `<line x1="${x(i - 1)}" y1="${y(values[i - 1])}" x2="${at}" y2="${top}" stroke="${color}" stroke-width="2"/>` : '';
+      const mark = n == null ? '' : key === 'merged' ? `<rect x="${at - 13}" y="${top}" width="26" height="${Math.max(1, 150 - top)}" rx="3" fill="${color}"/>` : `<circle cx="${at}" cy="${top}" r="4" fill="${color}"/>`;
+      return `${connector}<g tabindex="0" role="img" aria-label="${esc(tip)}"><title>${esc(tip)}</title>${mark}<text class="pr-value" x="${at}" y="${top - 12}" text-anchor="middle">${label(n)}${key === 'tokensPerPr' && w.complete < w.merged ? '†' : ''}</text></g><text x="${at}" y="174" text-anchor="middle">${esc(dlabel(w.t))}${i === weeks.length - 1 ? '*' : ''}</text>`;
+    }).join('');
+    return `<div class="pr-chart"><h3>${name}${key === 'merged' ? '' : ' · average'}</h3><svg viewBox="0 0 420 190" role="img" aria-label="${esc(name + '. ' + description)}"><rect x="${x(weeks.length - 1) - step / 2}" y="20" width="${step}" height="140" fill="#f5f5fa" rx="4"/><line x1="30" y1="150" x2="390" y2="150" stroke="#ddd"/><text x="18" y="154" text-anchor="end">0</text>${marks}</svg></div>`;
+  }).join('');
+  return `<figure class="ctx-figure pr-stats">${heading}<div class="pr-charts">${charts}</div><p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens: recorded input + output; averages use only PRs with complete counters. † Incomplete coverage. * Current week so far. Gaps mean no measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
+}
+
 function renderReport(v) {
   RPT = v;
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
@@ -1390,7 +1425,7 @@ function renderReport(v) {
   const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Cache/compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
     <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${s.key === 'cache' ? 'estimated' : 'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
     <p class="savings-note">Cache: avoided reading minus note context. Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
-  swapBody(el, parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+  swapBody(el, parts + effectiveness + prStatsChart(v) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

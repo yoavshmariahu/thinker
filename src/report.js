@@ -212,6 +212,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : compressionRecords(proxyLogFile());
   const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: readLog(store, { all: true }) });
+  const prs = prSavings(store, { days, now });
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     tokenTypes,
@@ -221,7 +222,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, savings, cache: cacheMetrics(store, { days, config, usage }),
-    prs: prSavings(store, { days, now }),
+    prs, prWeekly: weeklyPrStats(prs, columns, now),
   };
 }
 
@@ -257,6 +258,21 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
     })),
   };
+}
+
+// Attribute recorded work to the merge week. Missing counters cannot make a PR look cheap:
+// the cost average uses only complete PRs, with its denominator exposed beside the merge count.
+export function weeklyPrStats(prs, columns, now = Date.now()) {
+  if (!prs) return null;
+  return columns.map(({ t }) => {
+    const rows = prs.rows.filter(r => { const at = Date.parse(r.mergedAt); return at >= t && at < nextWeek(t) && at <= now; });
+    const complete = rows.filter(r => r.complete);
+    const saved = rows.reduce((sum, r) => sum + r.saved, 0);
+    const tokens = complete.reduce((sum, r) => sum + r.agent, 0);
+    return { t, merged: rows.length, complete: complete.length, saved, tokens,
+      savedPerPr: rows.length ? saved / rows.length : null,
+      tokensPerPr: complete.length ? tokens / complete.length : null };
+  });
 }
 
 // What compressing a tool's output measured: the tool's row under the compression against its row from before
@@ -393,6 +409,7 @@ export function mergeReports(list) {
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
   const cache = views.map(v => v.cache), sum = k => cache.reduce((a, c) => a + (c[k] || 0), 0), judged = sum('judged');
   const confirmed = cache.reduce((a, c) => a + (c.acted == null ? 0 : c.acted * c.judged), 0);
+  const prs = mergePrSavings(list);
   return {
     all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn, costThresholds: COST_THRESHOLDS,
     columns: Array.from({ length: n }, (_, w) => ({ t: first.columns[w].t, prompts: views.reduce((a, v) => a + (v.columns[w].prompts || 0), 0), pricedPrompts: views.reduce((a, v) => a + (v.columns[w].pricedPrompts || 0), 0), sessions: views.reduce((a, v) => a + v.columns[w].sessions, 0), priced: views.reduce((a, v) => a + v.columns[w].priced, 0), unmeasured: views.reduce((a, v) => a + v.columns[w].unmeasured, 0) })),
@@ -414,7 +431,7 @@ export function mergeReports(list) {
       coverage: cache.some(c => c.coverage) ? Object.fromEntries(['hits', 'fallback', 'sessions', 'requests'].map(k => [k, cache.reduce((n, c) => n + (c.coverage?.[k] || 0), 0)])) : null,
       dollarsDescription: cache.some(c => !c.measured) ? 'Total from cache hits, including repeated reads and subtracting note context; holdout comparisons where available.' : null },
     savings: mergeSavings(views, n),
-    prs: mergePrSavings(list),
+    prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -501,6 +518,14 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
   // dollar figure on a cleared token.
   const pr = v.prs;
+  if (v.prWeekly) {
+    const value = x => x == null ? '–' : formatTokens(x);
+    L.push('', 'Pull request stats · by merge week (current week so far)',
+      '  Week of       PRs    Saved / PR    Tokens / PR    Complete counters');
+    for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${value(w.savedPerPr).padStart(14)}${value(w.tokensPerPr).padStart(15)}    ${w.complete}/${w.merged}`);
+    L.push('  Merged PRs with work recorded here. Saved / PR: cleared (measured) + reading avoided (estimate).',
+      '  Tokens / PR averages recorded input and output over PRs with complete counters only.');
+  }
   if (pr?.merged) {
     const share = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
     L.push('', 'Pull requests (tokens spent and saved on merged work)',

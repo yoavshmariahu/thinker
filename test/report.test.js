@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
+import { weeklyPrStats } from '../src/report.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
 
@@ -400,14 +401,36 @@ test('All repositories adds the pull requests up and takes the median over all o
     pr(1, { merged: '2026-10-21T00:00:00Z', agent: 2_000_000, cleared: 900_000 }),
     pr(2, { merged: '2026-10-19T00:00:00Z', agent: 2_000_000, cleared: 500_000 }),
   ]) });
-  const view = v => ({ columns: [], models: [], unpriced: [], parts: [], totals: [], sessionTotals: [], actions: [], cache: {}, prs: v });
+  const view = v => ({ to: new Date(2026, 9, 30).getTime(), columns: weekColumns(new Date(2026, 9, 30).getTime(), 2), models: [], unpriced: [], parts: [], totals: [], sessionTotals: [], actions: [], cache: {}, prs: v });
   const m = mergeReports([{ repo: 'a', name: 'A', view: view(a) }, { repo: 'b', name: 'B', view: view(b) }]);
   assert.equal(m.prs.merged, 3);
   assert.equal(m.prs.saved.cleared, 1_500_000);
   assert.equal(m.prs.agent, 5_000_000);
+  assert.equal(m.prWeekly[0].merged, 3);
+  assert.equal(m.prWeekly[0].savedPerPr, 500_000, 'average all PRs, not repository averages');
+  near(m.prWeekly[0].tokensPerPr, 5_000_000 / 3);
   // the three savings are 100k, 900k and 500k: the median is 500k, not the mean of each repository's own median
   assert.equal(m.prs.medianSaved, 500_000);
   // two repositories both number from 1, so a row says which it came from
   assert.deepEqual(m.prs.rows.map(r => `${r.repoName}#${r.number}`), ['B#1', 'A#1', 'B#2']);
   assert.equal(mergeReports([{ repo: 'a', name: 'A', view: { ...view(null) } }]).prs, null, 'a report from before this has no band, not an empty one');
+});
+
+test('weekly PR stats respect merge boundaries, empty weeks and missing counters', () => {
+  const now = new Date(2026, 9, 30, 12).getTime(), columns = weekColumns(now, 3);
+  const row = (at, saved, agent, complete = true) => ({ mergedAt: new Date(at).toISOString(), saved, agent, complete });
+  const stats = weeklyPrStats({ rows: [
+    row(columns[0].t - 1, 999, 999),
+    row(columns[1].t - 1, 20, 100),
+    row(columns[1].t, 40, 200, false),
+    row(columns[1].t + 1, 0, 600),
+    row(now + 1, 999, 999),
+  ] }, columns, now);
+  assert.deepEqual(stats.map(w => [w.merged, w.complete, w.savedPerPr, w.tokensPerPr]), [
+    [1, 1, 20, 100], [2, 1, 20, 600], [0, 0, null, null],
+  ]);
+  assert.equal(weeklyPrStats(null, columns, now), null, 'unavailable is distinct from zero merges');
+  const missing = weeklyPrStats({ rows: [row(now, 0, 0, false)] }, columns, now).at(-1);
+  assert.equal(missing.savedPerPr, 0, 'measured zero savings is not a gap');
+  assert.equal(missing.tokensPerPr, null, 'missing counters never read as free work');
 });
