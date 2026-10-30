@@ -131,8 +131,8 @@ export function clearBoundaries(records, session, requests) {
 const PROXY_CACHE = diskCache('cache-clears', 1);
 let proxyMemo;
 export function sessionClears(session, requests) {
-  if (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME) return [];
-  const file = path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'state', 'proxy.jsonl');
+  if (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG) return [];
+  const file = process.env.THINKER_PROXY_LOG || path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'state', 'proxy.jsonl');
   try {
     const stat = fs.statSync(file), stamp = `${file}:${stat.size}:${stat.mtimeMs}`;
     if (proxyMemo?.stamp === stamp) return clearBoundaries(proxyMemo.records, session, requests);

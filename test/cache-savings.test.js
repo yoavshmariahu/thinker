@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { inputSavings, requestsOf, messageHash, sections, lifetimeRequests, clearBoundaries, inputNoticeChanged } from '../src/cache-savings.js';
+import { inputSavings, requestsOf, messageHash, sections, lifetimeRequests, clearBoundaries, sessionClears, inputNoticeChanged } from '../src/cache-savings.js';
 import { Store } from '../src/store.js';
 import { summarize, sessionInputSavings, turnNotice, turnFooterMarkdown, servedFields } from '../src/usage.js';
 import { cacheMetrics } from '../src/report.js';
@@ -157,4 +157,15 @@ test('a retried stop does not repeat an unchanged running total; sessions remain
   assert.equal(inputNoticeChanged(dir, 'one', value), false);
   assert.equal(inputNoticeChanged(dir, 'two', value), true);
   assert.equal(inputNoticeChanged(dir, 'one', { tokens: 2000, requests: 3 }), true);
+});
+
+
+test('explicit proxy logs supply clear boundaries in isolated previews', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-clears-'));
+  const old = process.env.THINKER_PROXY_LOG;
+  t.after(() => { if (old == null) delete process.env.THINKER_PROXY_LOG; else process.env.THINKER_PROXY_LOG = old; fs.rmSync(dir, { recursive: true, force: true }); });
+  process.env.THINKER_PROXY_LOG = path.join(dir, 'proxy.jsonl');
+  fs.writeFileSync(process.env.THINKER_PROXY_LOG, JSON.stringify({ op: 'proxy', session: 's', at: new Date(start + 2000).toISOString(), cleared: 1000, clearedUses: 1 }) + '\n');
+  assert.deepEqual(sessionClears('s', [request(1, { n: 100 })]), [start + 1000]);
+  assert.deepEqual(sessionClears('other', [request(1, { n: 100 })]), []);
 });

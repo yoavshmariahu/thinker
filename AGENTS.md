@@ -847,7 +847,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 - View Report keeps four PR summary cards under the cache cards: merged with work here, tokens saved,
   share of their cost, and the median one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
-  The report shows **Cost by context** and **Cache/compression effectiveness** first; **By model** and **By token type** are collapsed under **See more metrics**. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
+  The report shows **Cost by context** and **Cache/compression effectiveness** first; **By model** and **By token type** are collapsed under **See more metrics**. The page defaults to Total and displays savings as a weekly table without a graph. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
   It reads the same `/api/report` data and lists merged PRs newest first: number, title, sessions, cost,
   cleared, reading avoided, saved, share. `thinker report` still prints both summaries and the list.
   12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.

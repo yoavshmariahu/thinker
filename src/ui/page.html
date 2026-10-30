@@ -95,13 +95,8 @@
     /* a table wider than the box scrolls inside it, never past its border -- but a scroll container anchors a sticky
        header to itself instead of to the page, so the figure only becomes one at the widths where the table cannot fit.
        Above that the headers stay under the view tabs while the table scrolls (ctx-table thead th below). */
-    .savings-legend { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 1.1rem 0 .3rem; font-size: .82rem; }
-    .savings-legend span { display: inline-flex; align-items: center; gap: .45rem; }
-    .savings-legend small { color: #777; }
-    .savings-legend i, .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
-    .savings-chart { display: block; width: 100%; min-width: 580px; margin: .4rem 0 .8rem; overflow: visible; }
-    .savings-chart text { fill: #777; font-size: 11px; }
     .savings-table thead th { position: static; }
     .savings-counts { color: #777; font-size: .78rem; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
@@ -352,7 +347,7 @@
       <div class="ctx-top"><div><h1>View Report</h1></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
-        <div class="seg" id="r-mode"><button data-mode="avg" class="on">Per prompt</button><button data-mode="sum">Total</button></div>
+        <div class="seg" id="r-mode"><button data-mode="avg">Per prompt</button><button data-mode="sum" class="on">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></div>
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
@@ -1284,7 +1279,7 @@ async function fetchRepos() {
   REPOS = r.repos;
 }
 // ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
-let RPT = null, RMEASURE = 'cost', RMODE = 'avg', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
+let RPT = null, RMEASURE = 'cost', RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
 document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
@@ -1384,30 +1379,16 @@ function renderReport(v) {
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  const series = (v.savings || []).map((s, i) => ({ ...s, color: i ? '#6366f1' : '#07866c', values: s.cells.map((c, w) => {
+  const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: s.key === 'compression' ? '#6366f1' : '#07866c', values: s.cells.map((c, w) => {
     if (!(cost ? c.pricedEvents : c.events)) return null;
     const amount = cost ? c.cost : c.tokens, col = v.columns[w], total = v.sessionTotals[w];
     const denominator = share ? (cost ? total?.cost : total?.tokens) : sum ? 1 : (cost ? col.pricedPrompts : col.prompts);
     return denominator ? amount / denominator : null;
   }) }));
-  const values = series.flatMap(s => s.values).filter(x => x != null), lo = Math.min(0, ...values), hi = Math.max(0, ...values);
-  const span = hi - lo || 1, floor = lo < 0 ? lo - span * .08 : 0, ceiling = hi + span * .12;
-  const width = 1000, height = 245, left = 78, right = 30, top = 18, bottom = 38;
-  const x = w => left + w * (width - left - right) / Math.max(1, v.columns.length - 1);
-  const y = n => top + (ceiling - n) / (ceiling - floor) * (height - top - bottom);
   const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
-  const grid = Array.from({ length: 4 }, (_, i) => floor + (ceiling - floor) * i / 3).map(n => `<line x1="${left}" x2="${width - right}" y1="${y(n)}" y2="${y(n)}" stroke="#e5e7eb"/><text x="${left - 12}" y="${y(n) + 4}" text-anchor="end">${esc(number(n))}</text>`).join('');
-  const paths = series.map(s => {
-    let pen = false;
-    const d = s.values.map((n, w) => { if (n == null) { pen = false; return ''; } const p = `${pen ? 'L' : 'M'} ${x(w)} ${y(n)}`; pen = true; return p; }).join(' ');
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.5"/>` + s.values.map((n, w) => n == null ? '' : `<circle cx="${x(w)}" cy="${y(n)}" r="4" fill="${s.color}" tabindex="0"><title>${esc(s.name)} · week of ${dlabel(v.columns[w].t)}: ${esc(number(n))}</title></circle>`).join('');
-  }).join('');
-  const labels = v.columns.map((c, w) => `<text x="${x(w)}" y="${height - 10}" text-anchor="middle">${dlabel(c.t)}${w === v.columns.length - 1 ? ' *' : ''}</text>`).join('');
   const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
   const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Cache/compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
-    <div class="savings-legend">${series.map(s => `<span><i style="background:${s.color}"></i>${esc(s.name)} <small>${s.key === 'cache' ? 'estimated' : 'gross'}</small></span>`).join('')}</div>
-    ${values.length ? `<svg class="savings-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Weekly cache-hit and context-compression savings. Exact values are in the table below.">${grid}${paths}${labels}</svg>` : '<div class="empty">No savings measurements in this window yet.</div>'}
-    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map(c => `<th class="num">${dlabel(c.t)}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)}</td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series[0]?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
+    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${s.key === 'cache' ? 'estimated' : 'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
     <p class="savings-note">Cache: avoided reading minus note context. Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
   swapBody(el, parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };

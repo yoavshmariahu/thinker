@@ -438,9 +438,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('report.js'), /export const OTHERS = \[\.\.\.REST_INPUT, 'output'\]/, 'the rows under the four parts are the breakdown\'s kinds');
   // the page's Total toggle is the command's --total
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/);
-  assert.match(read('ui/page.html'), /data-mode="sum">Total</);
+  assert.match(read('ui/page.html'), /data-mode="sum" class="on">Total</);
   // the unit is a prompt, one call to the model, on both doors (2026-10-24): the average is the week's sum over its prompts
-  assert.match(read('ui/page.html'), /data-mode="avg" class="on">Per prompt</);
+  assert.match(read('ui/page.html'), /data-mode="sum" class="on">Total</);
   assert.match(read('ui/page.html'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
   assert.match(read('report.js'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
   assert.match(read('report.js'), /per prompt \(one call to the model\)/);
@@ -635,4 +635,14 @@ test('Recent activity defaults to Action savings; PR savings uses the report dat
   assert.match(page, /const want = AREPO, d = await api\(prs \? `\/api\/report/);
   assert.match(page, /r\.kind === 'tool' \? \[r\.repo \|\| r\.repoIds\?\.\[0\]/, 'one request per tool, not per repository');
   assert.match(read('context-suggest.js'), /global: c\.kind === 'tool'/, 'CLI approvals use the same machine-wide tool scope');
+});
+
+
+test('Report defaults to weekly totals and shows savings as a table without a graph', () => {
+  const page = read('ui/page.html');
+  assert.match(page, /RMODE = 'sum'/);
+  assert.match(page, /data-mode="sum" class="on">Total</);
+  assert.match(page, /class="ctx-table rep-table savings-table"/);
+  assert.doesNotMatch(page, /savings-chart|savings-legend/);
+  assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/, 'the page default uses the CLI --total view');
 });
