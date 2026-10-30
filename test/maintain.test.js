@@ -62,7 +62,7 @@ test('maintain verifies stale notes, phrases unphrased ones, and reports once', 
 test('by default maintenance verifies and phrases only: no documents, no skills, no duplicate pass, and never any mining', () => withEnv(async () => {
   assert.equal(DEFAULTS.prs, undefined); assert.equal(DEFAULTS.docs, false); assert.equal(DEFAULTS.skills, false); assert.equal(DEFAULTS.dedupe, false);
   // one verification batch every three days, of the notes served in those days; unused notes deleted after two weeks
-  assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 30);
+  assert.equal(DEFAULTS.verifyEveryDays, 3); assert.equal(DEFAULTS.verifyServedDays, 3); assert.equal(DEFAULTS.verifyPerRun, 50); assert.equal(DEFAULTS.deleteUnusedDays, 0);
   const { dir, store } = staleRepo();
   const called = [];
   const fns = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', tokens: 0 }), phrase: async (s, n) => ({ done: n, tokens: 0 }),
@@ -237,9 +237,9 @@ test('notes nobody was served in a month are deleted; behaviors, skill cards, hu
   const h = createNote(store, { title: 'Human note', kind: 'rule', answers: ['y'], body: 'src/a.py:foo', deps: [{ path: 'src/a.py', symbol: 'foo' }] }, { source: { type: 'human' } }).note;
   store.put({ ...h, created: old });                                                          // a person's: kept
   const young = createNote(store, { title: 'New note', kind: 'rule', answers: ['z'], body: 'src/a.py:foo', deps: [{ path: 'src/a.py', symbol: 'foo' }] }).note; // made today: kept
-  assert.deepEqual(deleteUnused(store, { dry: true, now }).sort(), [b.id, c.id].sort());
+  assert.deepEqual(deleteUnused(store, { days: 30, dry: true, now }).sort(), [b.id, c.id].sort());
   assert.ok(store.get(b.id), 'dry deletes nothing');
-  assert.deepEqual(deleteUnused(store, { now }).sort(), [b.id, c.id].sort());
+  assert.deepEqual(deleteUnused(store, { days: 30, now }).sort(), [b.id, c.id].sort());
   assert.equal(store.get(b.id), null); assert.equal(store.get(c.id), null);
   assert.ok(store.get(a.id) && store.get(h.id) && store.get(young.id));
   fs.rmSync(dir, { recursive: true, force: true });
@@ -264,45 +264,9 @@ test('a stale note held back from a request is eligible for verification, and is
   assert.deepEqual(ids, ['held', 'served'], 'being held back counts as demand, as being served does');
 
   // and the same note is not deleted for not having been served: thinker is what refused to serve it
-  assert.equal(DEFAULTS.deleteUnusedDays, 30);
+  assert.equal(DEFAULTS.deleteUnusedDays, 0);
   const store = { list: () => notes, isShared: () => false, remove() { throw new Error('must not delete a held note'); }, config: () => ({}) };
   const removed = deleteUnused(store, { days: 30, dry: true, now });
   assert.ok(!removed.includes('held'), 'a note wanted within the window is kept');
   assert.ok(removed.includes('forgotten'), 'a note nobody asked for is still deleted');
 });
-
-test('maintenance reads the pull requests once a day, and records the attempt even when it fails', () => withEnv(async () => {
-  const { dir, store } = staleRepo();
-  const calls = [];
-  const stub = { spentToday: () => 0, verify: async () => ({ verdict: 'still_valid', tokens: 0 }), phrase: async (s, n) => ({ done: n, tokens: 0 }) };
-  const fns = { ...stub, syncPrs: async (s, o) => { calls.push(o); return { synced: 3 }; } };
-  const now = Date.parse('2026-10-29T12:00:00.000Z');
-  const first = await maintain(store, dir, { fns, now });
-  assert.equal(first.prSynced, 3);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].days, 30, 'the first sync covers the whole report window');
-
-  // A run four hours later is due for maintenance but not for GitHub.
-  const soon = now + 5 * 3600_000;
-  assert.equal((await maintain(store, dir, { fns, now: soon })).prSynced, 0);
-  assert.equal(calls.length, 1);
-
-  // A day later it goes again, back only to the last sync.
-  const later = now + 30 * 3600_000;
-  await maintain(store, dir, { fns, now: later });
-  assert.equal(calls.length, 2);
-  assert.equal(calls[1].days, 3);
-
-  // A repository GitHub refuses must not try again on every run.
-  const broken = { ...stub, syncPrs: async () => { throw new Error('no origin'); } };
-  const after = now + 60 * 3600_000;
-  const r = await maintain(store, dir, { fns: broken, now: after });
-  assert.equal(r.prSynced, 0);
-  assert.ok(r.errors >= 1);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8')).prsSyncedAt, new Date(after).toISOString());
-
-  // And the switch in the config stops it.
-  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ maintain: { prSync: false } }));
-  await maintain(store, dir, { fns, now: now + 90 * 3600_000 });
-  assert.equal(calls.length, 2);
-}));

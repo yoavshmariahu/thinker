@@ -1,11 +1,10 @@
 // The guided setup's one step: wiring the agents' hooks and MCP entries.
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { installGitHooks } from '../git-hooks.js';
-import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, removeCursorRule, stripRepoWiring, trustCodex, trustCodexUser, markConnected } from '../clients.js';
+import { CLIENTS, USER_SCOPE_CLIENTS, detectClients, installClient, removeCursorRule, stripRepoWiring, markConnected } from '../clients.js';
 import { thinkerHome } from '../update.js';
-import { findBin } from '../llm.js';
 import { c } from './ui.js';
 import { enableProxyService, wiredLines } from '../proxy-service.js';
 import { isTestMode } from '../test-mode.js';
@@ -64,25 +63,6 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
         const moved = stripRepoWiring(repo, { cli: cliPath, clients: [client] });
         if (moved.length) logs.push(`${(clientMeta[client]?.name || client)}: moved thinker's entries out of ${moved.join(', ')}: they run from your own settings now`);
         if (client === 'cursor') removeCursorRule(repo);
-      }
-
-      // Codex runs no hook it has not marked reviewed: the marks are written without asking (the
-      // hooks are thinker's own, just installed); --no-trust leaves them to the person
-      if (client === 'codex' && (hooks || mcp) && !noTrust) {
-        if (repo) trustCodex(repo);
-        trustCodexUser();
-        logs.push(`Codex: ${repo ? 'project trust & ' : ''}reviewed hook hashes saved in ~/.codex/config.toml`);
-      }
-
-      // Special handling for Cursor MCP workspace approval
-      if (client === 'cursor' && mcp && repo) {
-        const agentBin = findBin(['agent', 'cursor-agent']);
-        if (agentBin) {
-          try {
-            spawnSync(agentBin, ['mcp', 'enable', 'thinker'], { cwd: repo, encoding: 'utf8', timeout: 15_000 });
-            logs.push('Cursor: workspace MCP server approved via agent CLI');
-          } catch {}
-        }
       }
 
       results.push({ client, status: 'connected', name: clientMeta[client]?.name || client, logs });

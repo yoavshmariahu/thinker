@@ -14,6 +14,15 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 ## Working on this repository
 
+**Product scope (MANDATORY, owner's decision, 2026-10-30):**
+- Thinker injects cache notes, cuts/compresses context, and provides explicit offline instruction-waste analysis. Cache learning and refresh stay.
+- Hooks do not run or rewrite commands, block completion, recommend skills, ask setup/feedback/coverage questions, fetch PRs, judge instruction compliance, generate reports, install schedules, approve host permissions, or change project trust.
+- Instruction analysis runs only when requested through the CLI/page. Installation and explicit updates remain administrative operations; sessions do not start update or telemetry work.
+- Missing anchors only mark notes stale; restoration recovers them. Incomplete verifier answers leave notes unchanged. Only an explicit valid invalidation verdict or specific feedback can retire a note; a correction-shaped prompt is not evidence against every note served.
+- No default age-based deletion or archiving of notes. Explicit configured cleanup remains available.
+- This policy supersedes historical descriptions below of retired features and defaults.
+
+
 **CLI and local page in sync (MANDATORY):**
 - `src/ui/` is a second door to the same commands, never a second implementation.
 - Page defaults must use the constants the command reads: `DEFAULT_DISTILL_MODEL` (`src/llm.js`), `buildAgent` (`src/setup/agents.js`).
@@ -189,8 +198,6 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
-| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
-| `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |

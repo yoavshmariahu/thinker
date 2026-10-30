@@ -358,7 +358,7 @@ const mcpServerEntry = (client, e) => {
 };
 function codexTomlBlock(mcpEntry) {
   const env = Object.entries(mcpEntry.env || {});
-  return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`, 'default_tools_approval_mode = "approve"',
+  return [TOML_START, '[mcp_servers.thinker]', `command = ${tomlStr(mcpEntry.command)}`, `args = [${mcpEntry.args.map(tomlStr).join(', ')}]`,
     ...(env.length ? ['', '[mcp_servers.thinker.env]', ...env.map(([k, v]) => `${k} = ${tomlStr(v)}`)] : []), TOML_END].join('\n');
 }
 const EXTENSIONS = { pi: '.pi/extensions/thinker.js', opencode: '.opencode/plugins/thinker.js' };
@@ -805,7 +805,7 @@ export function connectFromCheckouts(repos, { cli, mcpEntry, dry = false, client
       from++; for (const k of Object.keys(options)) options[k] ||= !!w[k];
     }
     if (!from) continue;
-    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
+    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); }
     done.push({ client, from, options });
   }
   return done;
@@ -836,7 +836,7 @@ export function connectDetected({ cli, mcpEntry, home: thinker, learn = true, dr
     if (excluded.includes(client) || seen[client] || !detected.includes(client)) continue;
     marked.push(client);
     if (inferWiring(null, client, { scope: 'user' })) continue;
-    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); if (client === 'codex') trustCodexUser(); }
+    if (!dry) { installClient(client, { scope: 'user', cli, mcpEntry, ...options }); }
     done.push(client);
   }
   if (!dry) markConnected(thinker, marked);
@@ -879,8 +879,6 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
           const next = setTomlTable(text, header, [...kept, ...Object.entries(mcpEntry.env || {}).map(([k, v]) => `${k} = ${tomlStr(v)}`)]);
           if (next !== text) fs.writeFileSync(file, next);
         }
-        if (scope === 'user') trustCodexUser();
-        else if (readText(codexConfig()).includes(`[projects.${tomlStr(real(repo))}]`)) trustCodex(repo);
       }
       r.clients.push(client);
     }
@@ -902,14 +900,6 @@ export function refreshWiring(repo, { cli, mcpEntry, dry = false, clients = CLIE
     const after = snapshot();
     for (const f of files) if (before[f] !== after[f]) r.changed.push(label(f, o));
     if (dry) for (const f of files) { if (before[f] === after[f]) continue; if (before[f] === null) fs.rmSync(f, { force: true }); else fs.writeFileSync(f, before[f]); }
-  }
-  // Codex keeps a hash of each reviewed hook: a rewritten hook needs its hash again, where the hooks were trusted before
-  if (!repair && !dry && r.clients.includes('codex')) {
-    const hooksFile = wiringFiles('codex', o).hooks;
-    if (r.changed.includes(label(hooksFile, o))) {
-      if (scope === 'repo' && readText(codexConfig()).includes(`[projects.${tomlStr(real(repo))}]`)) trustCodex(repo);
-      if (scope === 'user' && readText(codexConfig()).includes(trustPrefix(hooksFile))) trustCodexUser();
-    }
   }
   return r;
 }
