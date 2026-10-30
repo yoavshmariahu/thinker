@@ -185,16 +185,44 @@ test('a receipt lost after publication is recovered through the existing GitHub 
   assert.equal(f.writes.length, 1, 'same body is unchanged, not another POST');
 });
 
-test('lock excludes concurrent runs, recovers dead owners, and releases on failure', async t => {
+test('lock excludes concurrent runs and releases on success and failure', async t => {
   const f = fixture(t), lock = path.join(f.home, 'lock');
-  fs.writeFileSync(lock, String(process.pid));
-  assert.deepEqual(await withCommentLock(lock, () => assert.fail('live lock')), { skipped: 'locked' });
-  const child = execFileSync(process.execPath, ['-p', 'process.pid'], { encoding: 'utf8' });
-  fs.writeFileSync(lock, child);
-  assert.equal(await withCommentLock(lock, () => 7), 7);
+  assert.equal(await withCommentLock(lock, async () => {
+    assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid));
+    assert.deepEqual(await withCommentLock(lock, () => assert.fail('live lock')), { skipped: 'locked' });
+    return 7;
+  }), 7);
   assert.equal(fs.existsSync(lock), false);
   await assert.rejects(withCommentLock(lock, () => { throw new Error('failed'); }), /failed/);
   assert.equal(fs.existsSync(lock), false);
+  assert.equal(await withCommentLock(lock, () => 8), 8, 'a failed run does not block the next one');
+});
+
+test('lock recovers an owner confirmed dead by ESRCH', async t => {
+  const f = fixture(t), lock = path.join(f.home, 'lock'), owner = 12345;
+  fs.writeFileSync(lock, String(owner));
+  // An exited child's PID can be reused before the probe. Control the OS response
+  // instead of relying on any real PID staying absent during a parallel suite.
+  const probe = t.mock.method(process, 'kill', () => {
+    throw Object.assign(new Error('no such process'), { code: 'ESRCH' });
+  });
+  assert.equal(await withCommentLock(lock, () => {
+    assert.equal(fs.readFileSync(lock, 'utf8'), String(process.pid), 'the new run owns the recovered lock');
+    return 7;
+  }), 7);
+  assert.deepEqual(probe.mock.calls.map(call => call.arguments), [[owner, 0]]);
+  assert.equal(fs.existsSync(lock), false);
+});
+
+test('lock preserves an owner whose liveness probe is denied', async t => {
+  const f = fixture(t), lock = path.join(f.home, 'lock'), owner = 12345;
+  fs.writeFileSync(lock, String(owner));
+  const probe = t.mock.method(process, 'kill', () => {
+    throw Object.assign(new Error('operation not permitted'), { code: 'EPERM' });
+  });
+  assert.deepEqual(await withCommentLock(lock, () => assert.fail('unconfirmed dead owner')), { skipped: 'locked' });
+  assert.deepEqual(probe.mock.calls.map(call => call.arguments), [[owner, 0]]);
+  assert.equal(fs.readFileSync(lock, 'utf8'), String(owner));
 });
 
 test('update job runs comments after no-update, success and failure, but never for status/check/scheduling', async () => {
