@@ -472,15 +472,26 @@ const addTo = (list, v) => { const a = Array.isArray(list) ? list : []; return a
 // overrides is left as that file says ("off" is stronger than what thinker writes).
 function apply(repo, s, { userHome, home, now, backups, overrides = {}, global = false }) {
   if (s.client === 'codex') {
-    const ctx = { home, userHome, now, backups }, primary = applyCodex(repo, s, { ...ctx, global });
+    const ctx = { home, userHome, now, backups };
+    let checkouts = [];
     if (global) {
       // A project can explicitly enable a server/plugin over the user default. Cover the existing
       // checkouts too, keeping these overrides under the same machine-wide undo record.
       const known = readJson(path.join(home || thinkerHome(), 'state', 'machine-checkouts.json'))?.checkouts
         || discoverRepos({ repo }, { home: userHome }).flatMap(r => r.checkouts || [r.checkout]);
+      checkouts = [...new Set([repo, ...known])].filter(checkout => checkout && fs.existsSync(checkout));
+      // Validate every layer and prospective project write before disabling the user entry.
+      // Otherwise a malformed later checkout leaves an unrecorded partial switch with no undo.
+      for (const checkout of checkouts) {
+        const cfg = codexHarnessConfig(checkout, { home: userHome });
+        const setting = s.kind === 'mcp' ? cfg.servers.get(s.name) : cfg.plugins.get(s.id || s.name);
+        if (setting && !setting.off) applyCodex(checkout, s, { ...ctx, dry: true });
+      }
+    }
+    const primary = applyCodex(repo, s, { ...ctx, global });
+    if (global) {
       primary.overrides = [];
-      for (const checkout of new Set([repo, ...known])) {
-        if (!checkout || !fs.existsSync(checkout)) continue;
+      for (const checkout of checkouts) {
         const cfg = codexHarnessConfig(checkout, { home: userHome });
         const setting = s.kind === 'mcp' ? cfg.servers.get(s.name) : cfg.plugins.get(s.id || s.name);
         if (setting && !setting.off) primary.overrides.push({ ...applyCodex(checkout, s, ctx), repo: checkout });
@@ -537,7 +548,7 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {}, global =
 // 2026-10-19: switched off in the project's file, all 107 of PostHog's skills stayed listed; in the user's file
 // they left the prompt, 7.3k tokens to 2.8k). Each entry names this checkout's file, so it switches off only here.
 const codexUserConfig = userHome => path.join(process.env.CODEX_HOME || path.join(userHome || os.homedir(), '.codex'), 'config.toml');
-function applyCodex(repo, s, { home, userHome, now, backups, global = false }, undo) {
+function applyCodex(repo, s, { home, userHome, now, backups, global = false, dry = false }, undo) {
   const user = global || s.kind === 'skill' || undo?.global;
   const file = undo?.file || (user ? codexUserConfig(userHome) : codexConfigFile(repo));
   const existing = fs.existsSync(file) ? file : path.dirname(file);
@@ -545,6 +556,7 @@ function applyCodex(repo, s, { home, userHome, now, backups, global = false }, u
   const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const effective = global && s.kind === 'mcp' && !undo ? codexHarnessConfig(repo, { home: userHome }).servers.get(s.name)?.config : null;
   const changed = editCodexSetting(before, effective ? { ...s, inheritedConfig: effective } : s, undo);
+  if (dry) return;
   if (before && !backups.has(file)) {
     const dir = path.join(home || thinkerHome(), 'state', 'harness-backups', new Date(now).toISOString().replace(/[:.]/g, '-'));
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
