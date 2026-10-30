@@ -261,7 +261,7 @@ pass "Note with a missing dependency is withheld"
 info "Testing desktop queue, proxy transport, and removed test hooks..."
 cd /thinker
 unset THINKER_LLM THINKER_LLM_CMD
-THINKER_CODEX_PROXY_SMOKE=1 npm test -- test/install.test.js test/machine-tool-actions.test.js test/pending-verification.test.js test/session-work.test.js test/proxy-network.test.js test/proxy-service.test.js test/proxy-codex.test.js test/test-command-removed.test.js
+THINKER_CODEX_PROXY_SMOKE=1 THINKER_CLAUDE_GATEWAY_SMOKE=1 npm test -- test/install.test.js test/machine-tool-actions.test.js test/settings-preservation.test.js test/claude-gateway.test.js test/pending-verification.test.js test/session-work.test.js test/proxy-network.test.js test/proxy-service.test.js test/proxy-codex.test.js test/test-command-removed.test.js
 
 echo -e "\n${BOLD}================================================================${NC}"
 echo -e "${GREEN}${BOLD}       ALL TESTS COMPLETED SUCCESSFULLY IN DOCKER!        ${NC}"

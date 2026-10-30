@@ -511,7 +511,13 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
 // A service that stood down (the person's own route, or the setting deleted) stays off until `thinker proxy on`
 // asks for it: rerunning the installer or `thinker connect` does not put it back.
 export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [], gateway } = {}) {
-  const s = serviceState(home);
+  let s = serviceState(home);
+  // Connect/setup can run before the next prompt observes a manual removal or a
+  // new route. Preserve that answer before resetting wroteClaude and rewiring.
+  if (s.enabled && !force) {
+    const gone = trackClaude({ home, env }) || removedByHand({ home }) || routeAppeared({ home, env });
+    if (gone) { standDown(gone, { home, manage }); s = serviceState(home); }
+  }
   // `stoodDown` is the reason, as `ensureProxy` returns it
   if (s.standDown && !force) return { stoodDown: s.standDown.reason || 'it stood aside earlier', at: s.standDown.at, port: s.port, url: s.port ? urlFor(s.port) : null, service: { type: 'none' }, wired: { changed: [], skipped: [], unchanged: [] } };
   const port = s.port || await freePort();
