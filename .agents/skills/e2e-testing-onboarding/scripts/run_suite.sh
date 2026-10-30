@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Test fixtures and model responses never send telemetry or start background learning.
+export THINKER_TEST=1 THINKER_TELEMETRY=off THINKER_HOOKS=on THINKER_CE=off
+export THINKER_LOG=local
+# This runner owns /workspace/trivial-repo and the container's agent settings.
+[ -f /.dockerenv ] || { echo "Run this suite inside its Docker image." >&2; exit 1; }
+
 BOLD='\033[1m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -14,7 +20,7 @@ warn() { echo -e "${YELLOW}⚠ WARN:${NC} $1"; }
 fail() { echo -e "${RED}✖ FAIL:${NC} $1"; exit 1; }
 
 echo -e "\n${BOLD}================================================================${NC}"
-echo -e "${BOLD}     THINKER ONBOARDING & BASIC FEATURES EXPERIMENT SUITE      ${NC}"
+echo -e "${BOLD}     THINKER ONBOARDING & BASIC FEATURES E2E TEST SUITE      ${NC}"
 echo -e "${BOLD}================================================================${NC}\n"
 
 # -------------------------------------------------------------
@@ -25,7 +31,7 @@ info "Step 1: Checking installed agent CLIs..."
 which claude >/dev/null && pass "Claude Code CLI installed: $(claude --version 2>&1 | head -n 1)" || fail "Claude CLI missing"
 which codex >/dev/null && pass "OpenAI Codex CLI installed: $(codex --version 2>&1 | head -n 1)" || fail "Codex CLI missing"
 which agent >/dev/null && pass "Cursor Agent CLI installed: $(agent --version 2>&1 | head -n 1)" || fail "Cursor Agent CLI missing"
-which agy >/dev/null && pass "Google Antigravity CLI (agy) installed: $(agy --version 2>&1 | head -n 1)" || fail "agy CLI missing"
+which gemini >/dev/null && pass "Google Gemini CLI installed: $(gemini --version 2>&1 | head -n 1)" || fail "Gemini CLI missing"
 
 # -------------------------------------------------------------
 # STEP 2: Initialize a trivial repository
@@ -82,25 +88,20 @@ pass "Trivial repo created with 2 code files and committed to git."
 info "Step 3: Running thinker setup..."
 CLI_JS="/thinker/src/cli.js"
 
-INIT_OUT=$(node "$CLI_JS" setup --no-build --yes 2>&1)
+INIT_OUT=$(node "$CLI_JS" setup --no-build --yes --clients claude,codex,cursor,gemini 2>&1)
 echo "$INIT_OUT"
 
-[ -f ".mcp.json" ] && pass "Found .mcp.json" || fail ".mcp.json missing"
-([ -f ".claude/settings.json" ] || [ -f ".claude/settings.local.json" ]) && pass "Found Claude settings (.claude/settings*.json)" || fail ".claude settings missing"
-[ -f ".codex/hooks.json" ] && pass "Found .codex/hooks.json" || fail ".codex/hooks.json missing"
-[ -f ".codex/config.toml" ] && pass "Found .codex/config.toml" || fail ".codex/config.toml missing"
-[ -f ".cursor/hooks.json" ] && pass "Found .cursor/hooks.json" || fail ".cursor/hooks.json missing"
-[ -f ".cursor/mcp.json" ] && pass "Found .cursor/mcp.json" || fail ".cursor/mcp.json missing"
-[ -f ".cursor/rules/thinker.mdc" ] && pass "Found .cursor/rules/thinker.mdc" || fail ".cursor rule missing"
-[ -f ".gemini/settings.json" ] && pass "Found .gemini/settings.json (for agy/gemini)" || fail ".gemini/settings.json missing"
+for file in "$HOME/.claude.json" "$HOME/.claude/settings.json" "$HOME/.codex/hooks.json" "$HOME/.codex/config.toml" "$HOME/.cursor/hooks.json" "$HOME/.cursor/mcp.json" "$HOME/.gemini/settings.json"; do
+  [ -f "$file" ] && pass "Found $file" || fail "$file missing"
+done
 
 # -------------------------------------------------------------
 # STEP 4: Seed a simple cache note & test cache hits
 # -------------------------------------------------------------
 info "Step 4: Seeding cache with a simple note about math.js..."
-mkdir -p .thinker/notes
+mkdir -p .thinker/local/notes
 
-cat << 'EOF' > .thinker/notes/calc-multiply.json
+cat << 'EOF' > .thinker/local/notes/calc-multiply.json
 {
   "id": "calc-multiply",
   "kind": "location",
@@ -125,7 +126,18 @@ EOF
 
 # Refresh deps & content hashes
 node "$CLI_JS" check
-pass "Cache note created and hashes refreshed."
+# The hook threshold normally waits for three notes. This fixture deliberately has one.
+node --input-type=module <<'JS'
+import fs from 'node:fs';
+import { Store } from '/thinker/src/store.js';
+import { createNote } from '/thinker/src/ops.js';
+const store = new Store(process.cwd());
+const file = '.thinker/local/notes/calc-multiply.json';
+const input = JSON.parse(fs.readFileSync(file, 'utf8'));
+createNote(store, input, { source: { type: 'human' }, reuseId: 'calc-multiply' });
+fs.writeFileSync('.thinker/config.json', JSON.stringify({ ...store.config(), minNotes: 1, holdout: 0 }));
+JS
+pass "Cache fixture created with dependency hashes."
 
 # Test orient CLI
 info "Testing thinker orient CLI for query: 'where is multiplication implemented?'"
@@ -138,7 +150,7 @@ fi
 
 # Test hook prompt for Claude
 info "Testing Claude Code hook prompt..."
-CLAUDE_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?"}' | node "$CLI_JS" hook prompt --client claude)
+CLAUDE_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?", "session_id": "claude-hit"}' | node "$CLI_JS" hook prompt --user --client claude)
 if echo "$CLAUDE_HOOK_OUT" | grep -q "<thinker-cache>" && echo "$CLAUDE_HOOK_OUT" | grep -q "math.js:multiply"; then
   pass "Claude Code prompt hook returned <thinker-cache> bundle"
 else
@@ -147,7 +159,7 @@ fi
 
 # Test hook prompt for Codex
 info "Testing Codex hook prompt..."
-CODEX_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?"}' | node "$CLI_JS" hook prompt --client codex)
+CODEX_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?", "session_id": "codex-hit"}' | node "$CLI_JS" hook prompt --user --client codex)
 if echo "$CODEX_HOOK_OUT" | grep -q "<thinker-cache>" && echo "$CODEX_HOOK_OUT" | grep -q "math.js:multiply"; then
   pass "Codex prompt hook returned <thinker-cache> bundle"
 else
@@ -156,21 +168,20 @@ fi
 
 # Test hook prompt for Gemini / Agy
 info "Testing Gemini/Agy hook prompt..."
-GEMINI_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?"}' | node "$CLI_JS" hook prompt --client gemini)
+GEMINI_HOOK_OUT=$(echo '{"prompt": "where is multiplication implemented?", "session_id": "gemini-hit"}' | node "$CLI_JS" hook prompt --user --client gemini)
 if echo "$GEMINI_HOOK_OUT" | grep -q "BeforeAgent" && echo "$GEMINI_HOOK_OUT" | grep -q "math.js:multiply"; then
   pass "Gemini/Agy prompt hook returned JSON BeforeAgent hook output with cache bundle"
 else
   fail "Gemini hook prompt failed: $GEMINI_HOOK_OUT"
 fi
 
-# Test Cursor hook (parks at prompt, delivers on first tool call)
-info "Testing Cursor hooks (prompt park -> tool deliver)..."
-CURSOR_PROMPT_OUT=$(echo '{"prompt": "where is multiplication implemented?", "session_id": "curs-sess-1"}' | node "$CLI_JS" hook prompt --client cursor)
-CURSOR_TOOL_OUT=$(echo '{"tool_name": "read_file", "tool_input": {"file_path": "math.js"}, "session_id": "curs-sess-1"}' | node "$CLI_JS" hook tool --client cursor)
-if echo "$CURSOR_TOOL_OUT" | grep -q "additional_context" && echo "$CURSOR_TOOL_OUT" | grep -q "math.js:multiply"; then
-  pass "Cursor delivered parked cache bundle on first tool call"
+# Cursor receives the context directly on beforeSubmitPrompt.
+info "Testing Cursor prompt hook..."
+CURSOR_PROMPT_OUT=$(echo '{"prompt": "where is multiplication implemented?", "session_id": "curs-sess-1"}' | node "$CLI_JS" hook prompt --user --client cursor)
+if echo "$CURSOR_PROMPT_OUT" | grep -q "additional_context" && echo "$CURSOR_PROMPT_OUT" | grep -q "math.js:multiply"; then
+  pass "Cursor delivered cache bundle with the prompt"
 else
-  fail "Cursor tool hook failed: $CURSOR_TOOL_OUT"
+  fail "Cursor prompt hook failed: $CURSOR_PROMPT_OUT"
 fi
 
 # -------------------------------------------------------------
@@ -181,15 +192,15 @@ SESS="sess-learn-001"
 
 # 1. Prompt hook records user prompt
 echo "{\"prompt\": \"How does the server start and on what port?\", \"session_id\": \"$SESS\"}" | \
-  node "$CLI_JS" hook prompt --client gemini --record >/dev/null
+  node "$CLI_JS" hook prompt --user --client gemini --record >/dev/null
 
 # 2. Tool hook records file read
 echo "{\"tool_name\": \"read_file\", \"tool_input\": {\"file_path\": \"server.js\"}, \"tool_response\": \"export function startServer(port = 8080) { return { port, status: 'running' }; }\", \"session_id\": \"$SESS\"}" | \
-  node "$CLI_JS" hook tool --client gemini --record >/dev/null
+  node "$CLI_JS" hook tool --user --client gemini --record >/dev/null
 
 # 3. Stop hook records final answer
 echo "{\"session_id\": \"$SESS\", \"last_assistant_message\": \"The server starts via startServer in server.js listening on port 8080.\"}" | \
-  node "$CLI_JS" hook stop --client gemini --record --no-distill >/dev/null
+  node "$CLI_JS" hook stop --user --client gemini --record --no-distill >/dev/null
 
 TRACE_FILE=".thinker/state/trace-$SESS.jsonl"
 if [ -f "$TRACE_FILE" ]; then
@@ -204,7 +215,7 @@ export THINKER_LLM_CMD="node /thinker/.agents/skills/e2e-testing-onboarding/scri
 
 node "$CLI_JS" distill "$TRACE_FILE" --repo "$REPO_DIR" --session "$SESS"
 
-NEW_NOTE_COUNT=$(ls -1 .thinker/notes/*.json | wc -l)
+NEW_NOTE_COUNT=$(ls -1 .thinker/local/notes/*.json | wc -l)
 info "Total notes in cache now: $NEW_NOTE_COUNT"
 if [ "$NEW_NOTE_COUNT" -ge 2 ]; then
   pass "Successfully distilled new note from session trace into cache!"
@@ -233,12 +244,25 @@ sed -i 's/8080/9090/g' server.js
 STALE_ORIENT=$(node "$CLI_JS" orient "$SERVER_QUERY")
 echo "$STALE_ORIENT"
 
-if echo "$STALE_ORIENT" | grep -q "STALE" || echo "$STALE_ORIENT" | grep -q "changed"; then
-  pass "Thinker correctly detected dependency edit and flagged the note as STALE!"
+if echo "$STALE_ORIENT" | grep -q "Pending verification"; then
+  pass "Dependency edit leaves the note usable and labelled pending verification"
 else
-  warn "Note was served, checking exact status..."
+  fail "Edited note was not labelled pending verification: $STALE_ORIENT"
 fi
 
+info "Testing that a missing dependency is withheld..."
+rm server.js
+MISSING_ORIENT=$(node "$CLI_JS" orient "$SERVER_QUERY")
+if echo "$MISSING_ORIENT" | grep -q "server.js:startServer"; then
+  fail "Note with a missing dependency was served: $MISSING_ORIENT"
+fi
+pass "Note with a missing dependency is withheld"
+
+info "Testing desktop queue, proxy transport, and removed test hooks..."
+cd /thinker
+unset THINKER_LLM THINKER_LLM_CMD
+THINKER_CODEX_PROXY_SMOKE=1 npm test -- test/install.test.js test/machine-tool-actions.test.js test/pending-verification.test.js test/session-work.test.js test/proxy-network.test.js test/proxy-service.test.js test/proxy-codex.test.js test/test-command-removed.test.js
+
 echo -e "\n${BOLD}================================================================${NC}"
-echo -e "${GREEN}${BOLD}       ALL EXPERIMENTS COMPLETED SUCCESSFULLY IN DOCKER!        ${NC}"
+echo -e "${GREEN}${BOLD}       ALL TESTS COMPLETED SUCCESSFULLY IN DOCKER!        ${NC}"
 echo -e "${BOLD}================================================================${NC}\n"

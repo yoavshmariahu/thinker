@@ -55,7 +55,7 @@ test('installed Codex resumes through the proxy with old outputs cleared', { ski
   const first = await run(['exec', '--skip-git-repo-check', '--json', 'Run the fixture command and reply READY.']);
   const thread = first.split('\n').filter(Boolean).map(l => JSON.parse(l)).find(e => e.type === 'thread.started')?.thread_id;
   assert.ok(thread, first);
-  assert.ok(seen.some(r => r.input.some(i => i.type === 'function_call_output' && typeof i.output === 'string' && i.output.includes('fixture-output-'))), 'the first turn receives its full tool output');
+  assert.ok(seen.some(r => r.input.some(i => i.type === 'function_call_output' && typeof i.output === 'string' && i.output.includes('fixture-output-'))), `the first turn receives its full tool output: ${first}`);
   await run(['exec', 'resume', '--skip-git-repo-check', '--json', thread, 'Now reply READY again.']);
   assert.ok(seen.at(-1).input.some(i => i.type === 'function_call_output' && i.output === CLEARED_OUTPUT), 'the resumed second turn clears the old output');
   assert.ok(seen.at(-1).input.some(i => i.type === 'function_call' && i.call_id === 'fixture_call'), 'the matching call survives');
