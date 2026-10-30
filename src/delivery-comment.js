@@ -7,12 +7,17 @@ import { repoId } from './store.js';
 import { thinkerHome } from './update.js';
 import { deliveryFile, digest, positiveInteger } from './delivery-journal.js';
 import { deliveryReport, githubReader, syncPrs, WINDOW_DAYS } from './delivery.js';
+import { grossSavingsCost, formatDollars, PRICED_ON } from './prices.js';
 
 // Same author on two machines must not replace one machine's figures with the other's.
 export const commentMarker = (home = thinkerHome()) => `<!-- thinker-pr-savings:v1:${digest([os.hostname(), path.resolve(home)])} -->`;
 
-export function renderSavingsComment(report, pr, marker) {
+export function renderSavingsComment(report, pr, marker, { config } = {}) {
   const n = value => Math.round(value).toLocaleString('en-US');
+  const cost = grossSavingsCost(pr.sessions, { config });
+  const estimate = cost.total === null
+    ? '**Estimated gross API cost avoided: unavailable** — no price is known for the recorded models.'
+    : `**Estimated gross API cost avoided: ~${formatDollars(cost.total)} USD${cost.unpricedTokens ? ' (partial)' : ''}** — ${formatDollars(cost.cleared)} from clearing + ${formatDollars(cost.reading)} from avoided reading.`;
   return [
     marker,
     '### Thinker savings',
@@ -20,9 +25,13 @@ export function renderSavingsComment(report, pr, marker) {
     `- **${n(pr.saved.cleared)} prompt tokens avoided through context clearing** — measured from the API's reports, summed across requests.`,
     `- **${n(pr.saved.reading.tokens)} file-reading tokens avoided through reused notes** — estimated from notes the agent was recorded acting on.`,
     '',
+    estimate,
+    ...(cost.unpricedTokens ? [`${n(cost.unpricedTokens)} avoided tokens have no known price and are excluded from the dollar estimate.`] : []),
+    `Clearing is valued at the cache-read rate; avoided reading at the input rate, using the last recorded model per session. Rates: Thinker's ${PRICED_ON} list-price table, with repository price overrides where configured.`,
+    '',
     `Based on ${pr.sessions.length} linked ${pr.sessions.length === 1 ? 'session' : 'sessions'} recorded on this machine in the last ${report.windowDays} days (${report.since.slice(0, 10)} to ${report.generatedAt.slice(0, 10)}, UTC). These are session totals attributed to this PR, not measurements of individual commits. Other machines and unrecorded work are not included.`,
     '',
-    'Clearing savings are gross: prompt-cache rewrite costs are not deducted. These token figures are not a claim of money or time saved.',
+    'This is a gross API-price equivalent, not net savings or a measured bill reduction: prompt-cache rewrite costs are not deducted, nor are learning costs. Subscription charges may be unchanged.',
   ].join('\n');
 }
 
@@ -65,7 +74,7 @@ export async function commentOnPr(store, {
     if (!target.sessions.length) throw new Error(`No recorded sessions linked to PR #${pr} in the last ${days} days; use thinker prs link or a wider --days window`);
     if (!(target.saved.total > 0)) throw new Error(`No savings recorded for PR #${pr}; nothing was posted`);
     const marker = commentMarker(home);
-    const body = renderSavingsComment(report, target, marker);
+    const body = renderSavingsComment(report, target, marker, { config: store.config() });
     if (dry) return { action: 'preview', pr, body };
 
     const user = await request('user');

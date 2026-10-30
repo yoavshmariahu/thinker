@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { deliveryFile } from '../src/delivery-journal.js';
 import { commentOnPr, commentMarker } from '../src/delivery-comment.js';
+import { grossSavingsCost, formatDollars } from '../src/prices.js';
 
 const now = Date.now();
 const at = days => new Date(now - days * 86400_000).toISOString();
@@ -18,7 +19,7 @@ function fixture(t) {
   execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/owner/repo.git'], { cwd: dir });
   const store = new Store(dir).init(), home = path.join(dir, 'home');
   store.log({ op: 'orient', t: at(2), session: 'private-session-id', branch: 'fix', head: 'commit1', served: ['private-note'], est: [[2, 9000]] });
-  store.log({ op: 'attest', t: at(1), session: 'private-session-id', applied: [{ id: 'private-note', verdict: 'confirmed' }] });
+  store.log({ op: 'attest', t: at(1), session: 'private-session-id', model: 'claude-opus-5', applied: [{ id: 'private-note', verdict: 'confirmed' }] });
   fs.mkdirSync(path.join(home, 'state', 'compression'), { recursive: true });
   fs.writeFileSync(path.join(home, 'state', 'compression', 'private-session-id.json'), JSON.stringify({ saved: 120000 }));
   const pull = { number: 42, state: 'closed', created_at: at(5), updated_at: at(1), merged_at: at(1), head: { ref: 'fix', sha: 'commit1' }, base: { sha: 'base' } };
@@ -54,7 +55,47 @@ test('preview refreshes the PR but publishes nothing, and discloses evidence wit
   assert.match(result.body, /1 linked session.*last 30 days/);
   assert.match(result.body, /session totals attributed to this PR/);
   assert.match(result.body, /rewrite costs are not deducted/);
+  assert.ok(result.body.includes(`~${formatDollars(120000 * 0.5 / 1e6 + 9000 * 5 / 1e6)} USD`));
+  assert.match(result.body, /cache-read rate.*input rate/);
+  assert.match(result.body, /not net savings or a measured bill reduction/);
   for (const secret of [f.dir, os.hostname(), 'private-session-id', 'private-note', 'commit1']) assert.ok(!result.body.includes(secret), secret);
+});
+
+test('cost estimates use cache-read rates for clearing, model-specific rates and manual allocation shares', () => {
+  const cost = grossSavingsCost([
+    { model: 'claude-opus-5', cleared: 2000000, reading: 100000, share: 0.25 },
+    { model: 'claude-opus-5-5', cleared: 1000000, reading: 50000, share: 1 },
+  ]);
+  assert.equal(cost.cleared, 0.45);
+  assert.equal(cost.reading, 0.325);
+  assert.equal(cost.total, 0.775);
+  assert.equal(cost.pricedTokens, 1575000);
+  assert.equal(cost.unpricedTokens, 0);
+});
+
+test('unknown models remain unpriced and configured price overrides are honored', () => {
+  const rows = [{ model: 'private-model', cleared: 1000000, reading: 100000, share: 0.5 }];
+  assert.equal(grossSavingsCost(rows).total, null);
+  assert.equal(grossSavingsCost(rows).unpricedTokens, 550000);
+  const partial = grossSavingsCost([...rows, { model: 'claude-opus-5', cleared: 1000000, reading: 0 }]);
+  assert.equal(partial.total, 0.5);
+  assert.equal(partial.unpricedTokens, 550000);
+  const custom = grossSavingsCost(rows, { config: { prices: { 'private-model': { input: 2, cacheRead: 0.1 } } } });
+  assert.equal(custom.total, 0.15000000000000002);
+  assert.equal(custom.unpricedTokens, 0);
+});
+
+test('preview identifies unavailable and partial pricing rather than reporting missing prices as zero', async t => {
+  const f = fixture(t);
+  f.store.log({ op: 'attest', t: at(0), session: 'private-session-id', model: 'private-model', applied: [] });
+  const unavailable = await commentOnPr(f.store, { ...f.options, dry: true });
+  assert.match(unavailable.body, /cost avoided: unavailable/);
+  assert.match(unavailable.body, /129,000 avoided tokens have no known price/);
+  f.store.log({ op: 'orient', t: at(0), session: 'second-session', branch: 'fix', served: ['n2'], est: [[1, 10000]] });
+  f.store.log({ op: 'attest', t: at(0), session: 'second-session', model: 'claude-opus-5', applied: [{ id: 'n2', verdict: 'confirmed' }] });
+  const partial = await commentOnPr(f.store, { ...f.options, dry: true });
+  assert.match(partial.body, /~\$0\.05 USD \(partial\)/);
+  assert.match(partial.body, /129,000 avoided tokens have no known price/);
 });
 
 test('posting, identical rerun and later savings use one paginated comment with POST then PATCH', async t => {
