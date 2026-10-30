@@ -232,8 +232,7 @@ test('archiving: kinds the sessions never acted on, and notes unserved for a mon
   const byKind = { ...ARCHIVE_DEFAULTS, kinds: ['map'] };
   assert.equal(archiveReason(loc, byKind), 'kind map');
   assert.equal(archiveReason(store.get(rule.id), byKind), null, 'a rule stays in serving');
-  assert.equal(archiveReason(store.get(old.id), ARCHIVE_DEFAULTS), null, 'age alone does not archive by default');
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ archive: { unservedDays: 30 } }));
+  assert.equal(archiveReason(store.get(old.id), ARCHIVE_DEFAULTS), 'not served in 30 days');
   assert.equal(archiveReason(store.get(oldUsed.id), ARCHIVE_DEFAULTS), null, 'served once: kept');
   const dry = archiveNotes(store, { dry: true });
   assert.deepEqual(dry.map(d => d.id), [old.id]);

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { createNote, lateNotes, rememberTask, orient, lookup, takeTurn } from '../src/ops.js';
+import { createNote, lateNotes, rememberTask, completenessNudge, orient, lookup, takeTurn } from '../src/ops.js';
 import { rank } from '../src/rank.js';
 process.env.THINKER_CE = 'off'; // these tests are about the lexical path; the cross-encoder (dense.js) has its own test
 
@@ -52,6 +52,14 @@ test('late notes: the limit of a session holds', () => {
   let served = 0;
   for (let i = 0; i < 6; i++) served += lateNotes(store, { session: 'cap', files: [`src/w${i}.py`], edited: true }).included.length;
   assert.equal(served, 3);
+});
+
+test('completeness nudge: an unseen rule on an edited file, once', () => {
+  const { store } = setup();
+  const n = completenessNudge(store, { session: 's9', changed: ['src/a.py'] });
+  assert.ok(n.text.includes('Launch must check can_edit'));
+  assert.equal(completenessNudge(store, { session: 's9', changed: ['src/a.py'] }).text, '');
+  assert.equal(completenessNudge(store, { session: 's10', changed: ['src/zzz.py'] }).text, '', 'no rule on the file: nothing');
 });
 
 test('orient with a caller budget: more notes, links add, the rest is listed; lookup takes an id', async () => {

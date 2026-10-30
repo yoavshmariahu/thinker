@@ -21,6 +21,7 @@ import { writeSystemMarkdown } from './behavior.js';
 import { isTestMode } from './test-mode.js';
 import { takeContradictions } from './learning-pending.js';
 import { pruneState } from './state-prune.js';
+import { syncPrs, ghAvailable, WINDOW_DAYS as DELIVERY_WINDOW_DAYS } from './delivery.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -37,13 +38,20 @@ export const DEFAULTS = {
   verifyServedDays: 3,
   // a note nobody has been served in this many days (and older than that) is deleted, archived ones too; a desired
   // behavior, a skill card and a note a person wrote are kept (0: never delete)
-  deleteUnusedDays: 0,
+  deleteUnusedDays: 30,
   verifyChurn: 3,   // a note re-verified this many times in a week is left stale and reported (0: never)
   phrasePerRun: 8,  // notes given phrasings per run (one model call)
   docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
   docsPerRun: 3,
   skills: false,    // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js); off since 2026-10-21
   skillsPerRun: 3,
+  // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
+  // shows it helps (AGENTS.md), and held there on 2026-10-25 (the owner's call: it was not effective enough to put to
+  // people); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
+  coverage: false,
+  // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
+  // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
+  contextSuggest: true,
   // merge notes that say the same thing in different words (dedupe.js): one model call a pair. On by default
   // from 2026-10-19 to 2026-10-21, off since with the other background spend; `maintain: { dedupe: true }` or
   // THINKER_DEDUPE=on turns it on
@@ -51,8 +59,14 @@ export const DEFAULTS = {
   dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
   dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
   archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
+  // read the repository's pull requests from GitHub, so `thinker prs` and the telemetry know what the
+  // sessions here delivered (delivery.js). Free: the person's own `gh` login, read-only, no model call and
+  // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it
+  // off. Not `prs`, which is the mining step: that one writes notes and calls a model, and this one does not.
+  prSync: true,
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
+export const PRS_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
 // The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash):
@@ -147,7 +161,6 @@ export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } =
 // card (rewritten from its file) and a note a person added are kept; a note committed to the repository is archived
 // instead (its file is the team's). Logged as op "delete-unused" with the ids.
 export function deleteUnused(store, { days = DEFAULTS.deleteUnusedDays, dry = false, now = Date.now() } = {}) {
-  if (!(days > 0)) return [];
   const cutoff = now - days * 86400_000;
   const out = [];
   for (const n of store.list()) {
@@ -218,6 +231,27 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     // 1e. notes nobody was served in two weeks are deleted (deleteUnused): free, and they cost upkeep for nothing
     if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch { r.errors++; } }
+    // 1f. the repository's pull requests, so what a session delivered is known without anybody typing a
+    // command (delivery.js). Free and model-free: the person's own gh login, read-only. Once a day, back to
+    // the last sync, so the usual run is one listing page and a detail call for the branches worked on here.
+    // A test never reaches GitHub; a test that injects its own reader is testing this step and does.
+    const syncFn = fns.syncPrs || (isTestMode() ? null : syncPrs);
+    if (cfg.prSync !== false && !dry && syncFn) {
+      const last = Date.parse(state.prsSyncedAt || '');
+      if (!Number.isFinite(last) || now - last >= PRS_SYNC_INTERVAL_MS) {
+        try {
+          if (fns.syncPrs || ghAvailable(store.repo)) {
+            // The first sync covers the whole report window, so a fresh install is not reporting a third of
+            // what it delivered; later ones go back only to the last one.
+            const days = Math.min(DELIVERY_WINDOW_DAYS, Number.isFinite(last) ? Math.max(2, Math.ceil((now - last) / 86400_000) + 1) : DELIVERY_WINDOW_DAYS);
+            r.prSynced = (await syncFn(store, { days, now })).synced;
+          }
+        } catch { r.errors++; }
+        // Recorded whether it worked or not: a repository with no GitHub origin must not try every run.
+        state.prsSyncedAt = new Date(now).toISOString();
+        try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
+      }
+    }
     // the verification batch is due every `verifyEveryDays`, or at once for a note a session contradicted
     const lastBatch = Date.parse(state.verifiedAt || '');
     // (a dry run previews the next batch, due or not)
@@ -271,6 +305,15 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
       if (afford()) {
         if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch { r.errors++; } }
       } else r.capped = true;
+    }
+    // 7. at most weekly, a question for the person: the directories their sessions work in that the cache covers
+    // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
+    if (cfg.coverage === true && !dry) {
+      try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
+    }
+    // 8. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
+    if (cfg.contextSuggest !== false && !dry) {
+      try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch { r.errors++; }
     }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself

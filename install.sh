@@ -30,7 +30,7 @@
 #   --no-ui             do not offer the browser for the Context report; it is shown in the terminal, with its suggestions to pick from
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
-#   --auto-update       explicitly schedule background auto-updates (every 4 hours)
+#   --no-auto-update    do not schedule background auto-updates (every 4 hours)
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's and bash's startup files
 #   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
 #                       a repository, it removes the wiring from your agents' own settings
@@ -87,7 +87,7 @@ path_hint() {
 }
 
 main() {
-  local cache="" areas="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=0 modpath=1 ref="${THINKER_REF:-latest}" yes=0 no_seed=0 ui=1
+  local cache="" areas="" clients="" learn=1 late=0 mcp=0 githook=0 uninstall=0 purge=0 update=0 autoupdate=1 modpath=1 ref="${THINKER_REF:-latest}" yes=0 no_seed=0 ui=1
   while [ $# -gt 0 ]; do
     case "$1" in
       --cache) cache="${2:-}"; shift 2 ;;

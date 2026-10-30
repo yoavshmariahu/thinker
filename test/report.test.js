@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages } from '../src/report.js';
+import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
@@ -333,4 +333,81 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
   const twice = withEffects([{ ...tool, id: 'first' }, { ...tool, id: 'second', at: at(15) }, { ...tool, id: 'dis', at: at(12), decision: 'dismissed' }], rows, now);
   assert.equal(twice.find(e => e.id === 'first').effect.after.sessions, 2, 'hours 10 and 11'); assert.equal(twice.find(e => e.id === 'second').effect.after.sessions, 1, 'hour 20');
   assert.equal(twice.find(e => e.id === 'first').effect.to, null, 'not a revert');
+});
+
+// ---- Pull requests on the Report: what was shipped here and how much of it thinker paid for ----
+const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, title = `PR ${n}` } = {}) => ({
+  number: n, title, url: `https://example.test/${n}`, mergedAt: merged,
+  sessions: Array.from({ length: sessions }, (_, i) => ({ id: `s${n}-${i}` })),
+  tokens: { agent, prompts: 10, unknownSessions: 0, complete },
+  saved: { cleared, reading: { calls: 0, tokens: reading, servings: 0 }, total: cleared + reading },
+});
+const delivery = (prs, over) => {
+  const merged = prs.filter(p => p.mergedAt && p.sessions.length);
+  const sum = f => merged.reduce((a, p) => a + f(p), 0);
+  const mid = xs => { const v = xs.slice().sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
+  return { prs, summary: {
+    merged: merged.length, mergedSeen: prs.filter(p => p.mergedAt).length, mergedAssisted: merged.filter(p => p.saved.total > 0).length,
+    open: 0, worked: prs.filter(p => p.sessions.length).length,
+    saved: { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading.tokens), total: sum(p => p.saved.total) },
+    tokens: { agent: sum(p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
+    medianSavedPerMergedPr: mid(merged.map(p => p.saved.total)), medianTokensPerMergedPr: mid(merged.map(p => p.tokens.agent)), medianHoursToMerge: 2,
+    sessions: { linked: sum(p => p.sessions.length), unlinked: 4 },
+    ...over,
+  } };
+};
+
+test('the Report band counts only the pull requests a session here worked on, and keeps the two savings apart', () => {
+  const band = prSavings(null, { days: 42, delivery: delivery([
+    pr(10, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000 }),
+    pr(11, { merged: '2026-10-22T00:00:00Z', agent: 3_000_000, cleared: 0, reading: 0 }),
+    // merged in the window but nobody here worked on it: it must not dilute the figures
+    { ...pr(12, { merged: '2026-10-21T00:00:00Z', agent: 9_000_000 }), sessions: [] },
+    // open, so not in the merged figures at all
+    pr(13, { agent: 500_000, cleared: 400_000 }),
+  ]) });
+  assert.equal(band.merged, 2);
+  assert.equal(band.mergedSeen, 3, 'the repository\'s own merges are carried beside, for context');
+  assert.equal(band.mergedAssisted, 1);
+  assert.deepEqual(band.saved, { cleared: 200_000, reading: 50_000, total: 250_000 });
+  assert.equal(band.agent, 4_000_000, 'the open pull request and the untouched one are not in the cost either');
+  near(band.share, 250_000 / 4_000_000, 'saved over what those pull requests cost');
+  // newest merged first, and only the merged ones with work here
+  assert.deepEqual(band.rows.map(r => r.number), [11, 10]);
+  assert.equal(band.rows[1].saved, 250_000);
+  near(band.rows[1].share, 0.25);
+  assert.equal(band.rows[0].share, 0, 'a pull request that saved nothing is a row, at zero, not a gap');
+  assert.equal(band.days, 42);
+});
+
+test('the band is tokens in the cost view as much as the token view: a cleared token has no dollar figure here', t => {
+  const { dir, store } = fixture(t);
+  transcript(dir, 'a', { model: 'claude-opus-5-5', usage: OPUS, mtime: NOW - DAY });
+  const v = reportView(store, { now: NOW });
+  v.prs = prSavings(null, { days: 42, delivery: delivery([pr(7, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000 })]) });
+  for (const cost of [true, false]) {
+    const text = renderReport(v, { cost }).join('\n'), band = text.slice(text.indexOf('Pull requests ('));
+    assert.ok(band.includes('250k'), `the saving is in tokens under ${cost ? 'cost' : 'tokens'}`);
+    assert.doesNotMatch(band, /\$/, 'no dollar figure is put on a cleared token: the clear rewrites the prompt cache');
+    assert.ok(band.includes('proxy replay'), 'and the line says what does price a clear');
+    assert.ok(/200k cleared \(measured\)/.test(band) && /50k reading avoided \(estimate\)/.test(band), 'measured and estimated are never silently added');
+  }
+});
+
+test('All repositories adds the pull requests up and takes the median over all of them, never a median of medians', () => {
+  const a = prSavings(null, { days: 30, delivery: delivery([pr(1, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 100_000 })]) });
+  const b = prSavings(null, { days: 30, delivery: delivery([
+    pr(1, { merged: '2026-10-21T00:00:00Z', agent: 2_000_000, cleared: 900_000 }),
+    pr(2, { merged: '2026-10-19T00:00:00Z', agent: 2_000_000, cleared: 500_000 }),
+  ]) });
+  const view = v => ({ columns: [], models: [], unpriced: [], parts: [], totals: [], sessionTotals: [], actions: [], cache: {}, prs: v });
+  const m = mergeReports([{ repo: 'a', name: 'A', view: view(a) }, { repo: 'b', name: 'B', view: view(b) }]);
+  assert.equal(m.prs.merged, 3);
+  assert.equal(m.prs.saved.cleared, 1_500_000);
+  assert.equal(m.prs.agent, 5_000_000);
+  // the three savings are 100k, 900k and 500k: the median is 500k, not the mean of each repository's own median
+  assert.equal(m.prs.medianSaved, 500_000);
+  // two repositories both number from 1, so a row says which it came from
+  assert.deepEqual(m.prs.rows.map(r => `${r.repoName}#${r.number}`), ['B#1', 'A#1', 'B#2']);
+  assert.equal(mergeReports([{ repo: 'a', name: 'A', view: { ...view(null) } }]).prs, null, 'a report from before this has no band, not an empty one');
 });
