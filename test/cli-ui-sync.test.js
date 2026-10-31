@@ -228,7 +228,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('ui/server.js'), /offered = offeredPicks\(one\)/);
   assert.match(read('ui/server.js'), /suggested: suggestedPicks\(view\), offered,/);
   assert.match(read('commands/context.js'), /machineContext\(store, \{ days, limit/);
-  assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.map/);
+  assert.match(machine, /mergeViews\(views\)/); assert.match(read('ui/server.js'), /mergeViews\(xs\.filter\(x => x\.s\.view\)\.map/);
   assert.match(machine, /writeSnapshot\(st, d, v/); assert.match(machine, /refreshCheckouts\(store/);
   // `thinker ui` opens over every repository, on every tab, and `--here` on this checkout alone (2026-10-25):
   // one default, the command's hash and the page's own reading of it
@@ -320,7 +320,7 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // Recent activity is its own page, the tab at the right of the nav with a badge counting what is not complete (a job running or
   // failed, a pull request to merge: context-suggest.js:changeHistory `attention`); Retry there is `thinker context --retry <n>`
   assert.match(page, /data-tab="activity"[^>]*>Recent activity<span class="badge" id="act-badge"/);
-  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(AREPO\)\}`\)/);
+  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(AREPO\)\}&progressive=1`\)/);
   assert.match(page, /api\('\/api\/changes\/retry', \{ repo: e\.repo, id: e\.id \}\)/);
   assert.match(read('ui/server.js'), /attention: history\.filter\(h => h\.attention\)\.length/);
   assert.match(cs, /attention: running \? 'running' : failed && !e\.revertedAt \? 'failed' : pending \? 'pr' : null/);
@@ -344,7 +344,7 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(read('commands/context.js'), /if \(flags\.retry !== undefined\)/);
   assert.doesNotMatch(page, /\['history', 'History'\]/);
   // the page's rows read the same decisions, for the pill on a section under way, failed or pending on a pull request
-  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(CREPO\)\}`\)/);
+  assert.match(page, /api\(`\/api\/activity\?repo=\$\{encodeURIComponent\(CREPO\)\}&progressive=1&measure=0`\)/);
   assert.match(read('context-suggest.js'), /days: 7,/);
   assert.match(read('context-suggest.js'), /tab=save&view=all/);
   // a failed change leaves the section its waste pill on Find Savings (the failure is Recent activity's to say)
@@ -415,6 +415,15 @@ test('the page touches no element it no longer renders', () => {
 });
 
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
+  assert.match(read('report.js'), /prBreakdown: prStatsBreakdown\(prs, columns, now\)/);
+  assert.match(read('report.js'), /prBreakdown: prStatsBreakdown\(prs, first.columns, first.to\)/);
+  assert.match(read('commands/report.js'), /renderPrBreakdown\(v, \{ group: flags.group \|\| 'project'/);
+  assert.match(read('cli.js'), /report --prs \[--group project\|people\]/);
+  assert.match(read('ui/page.html'), /PRGROUP = H\(\).get\('group'\) === 'people' \? 'people' : 'project'/);
+  assert.match(read('ui/page.html'), /PRMODE = H\(\).get\('mode'\) === 'sum' \? 'sum' : 'avg'/);
+  assert.match(read('ui/page.html'), /v.prBreakdown\?\.\[PRGROUP\]/);
+  assert.match(read('ui/page.html'), /id="pr-breakdown">See breakdown/);
+  assert.match(read('ui/page.html'), /id="pr-back" hidden>← Back to Report/);
   assert.match(read('report.js'), /prs, prWeekly: weeklyPrStats\(prs, columns, now\)/);
   assert.match(read('report.js'), /for \(const w of v\.prWeekly\)/);
   assert.match(read('ui/page.html'), /const weeks = v\.prWeekly;/);
@@ -428,7 +437,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
   assert.match(read('report-snapshot.js'), /reportView\(store, \{ weeks, now \}\)/);
   assert.match(read('ui/server.js'), /reportSnapshot\(st, weeks\)/);
-  assert.match(read('ui/server.js'), /mergeReports\(xs\.map/);
+  assert.match(read('ui/server.js'), /mergeReports\(ready\.map/);
   // six weeks; the page's Share toggle is the command's --share (every row but the whole-session total as its share of it), on both doors
   assert.match(read('ui/page.html'), /<div class="seg" id="r-view"><button data-view="values" class="on">Values<\/button><button data-view="share">Share<\/button><\/div>/);
   assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--tokens\] \[--total\] \[--share\]/);
@@ -495,7 +504,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
   // a kept report none of this code's is not read for the savings; the activity API starts the refresh and the page checks back
   assert.match(read('report-snapshot.js'), /export function keptRows/);
-  assert.match(read('ui/server.js'), /if \(kept\.stale\) \{ measuring = true; if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
+  assert.match(read('ui/server.js'), /if \(kept\.stale && url\.searchParams\.get\('measure'\) !== '0'\) \{ measuring = true; if \(progressive\) scans\.read\('report', st, REPORT_WEEKS\); else if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
   assert.match(read('ui/page.html'), /function activityCheckBack/);
   // the page's script parses (2026-10-24: a second `let APOLL` left the whole page blank, which no test caught)
   for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
@@ -592,7 +601,7 @@ test('automatic PR comments reuse the update cadence and expose their defaults a
 test('Report summaries and Recent activity PR savings share the CLI report data, in tokens under either toggle (2026-10-30)', async () => {
   const page = read('ui/page.html'), rep = read('report.js');
   // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
-  assert.match(rep, /const prs = prSavings\(store, \{ days, now \}\)/);
+  assert.match(rep, /const prs = includePrs \? prSavings\(store, \{ days, now \}\) : null/);
   assert.match(page, /pr = v\.prs;/);
   // PR details live in Recent activity; the report now charts weekly savings.
   assert.doesNotMatch(page, /const cards =|const prBand =/);
@@ -640,7 +649,7 @@ test('Recent activity defaults to Action savings; PR savings uses the report dat
   const report = page.slice(page.indexOf('function renderReport('));
   assert.doesNotMatch(report, /prTable|prRows|metric-label|c\.tokenDescription|c\.dollarsDescription/);
   assert.match(page, /function renderActivityPrs\(v\)/);
-  assert.match(page, /const want = AREPO, d = await api\(prs \? `\/api\/report/);
+  assert.match(page, /await progressiveView\(`\/api\/report\?repo=\$\{encodeURIComponent\(AREPO\)\}/);
   assert.match(page, /r\.kind === 'tool' \? \[r\.repo \|\| r\.repoIds\?\.\[0\]/, 'one request per tool, not per repository');
   assert.match(read('context-suggest.js'), /global: c\.kind === 'tool'/, 'CLI approvals use the same machine-wide tool scope');
 });
@@ -663,4 +672,29 @@ test('Devin is selectable through connect and is named consistently on the page'
   assert.match(read('cli.js'), /opencode, devin and more/);
   assert.match(read('ui/page.html'), /devin: 'Devin'/);
   assert.match(read('setup/steps.js'), /devin: \{ name: 'Devin' \}/);
+});
+
+test('PR breakdown renders three tables in either grouping, with totals, shares and escaped names', async () => {
+  const { prStatsBreakdown, weeklyPrStats, weekColumns } = await import('../src/report.js');
+  const now = new Date(2026, 9, 30).getTime(), columns = weekColumns(now, 2);
+  const prs = { rows: [
+    { repo: 'a', repoName: '<project>', author: '<person>', mergedAt: new Date(columns[0].t).toISOString(), saved: 200, agent: 1000, complete: true },
+    { repo: 'b', repoName: 'Other', author: null, mergedAt: new Date(columns[0].t).toISOString(), saved: 300, agent: 2000, complete: true },
+  ] };
+  const v = { columns, prWeekly: weeklyPrStats(prs, columns, now), prBreakdown: prStatsBreakdown(prs, columns, now) };
+  const src = read('ui/page.html').split('function renderPrStats(v) {')[1].split('function renderReport(v) {')[0];
+  const pager = read('ui/page.html').split('const TABLE_PAGE =')[1].split('function renderTable(')[0];
+  const render = new Function('v', 'PRGROUP', 'PRMODE', 'RVIEW', 'fmt', 'esc', 'dlabel', `const TABLE_PAGE =${pager} return (function renderPrStats(v) {${src})(v);`);
+  const html = (group, mode = 'avg', view = 'values') => render(v, group, mode, view, String, s => String(s).replaceAll('<', '&lt;').replaceAll('>', '&gt;'), t => new Date(t).toISOString());
+  const project = html('project');
+  assert.equal((project.match(/<table /g) || []).length, 3);
+  assert.match(project, /&lt;project&gt;/); assert.doesNotMatch(project, /<project>|<svg/);
+  assert.match(project, /Tokens saved per PR · average/);
+  assert.match(html('people'), /&lt;person&gt;/); assert.match(html('people'), /Unknown author/);
+  assert.doesNotMatch(html('people', 'sum'), /per PR · average/);
+  assert.match(html('people', 'avg', 'share'), /40%/);
+  assert.match(html('project', 'sum'), /<td class="num">500<\/td>/, 'total row sums the individual PRs');
+  v.prBreakdown.project = Array.from({ length: 21 }, (_, i) => ({ ...v.prBreakdown.project[0], name: `Project ${i}` }));
+  assert.match(html('project'), /1–20 of 21/);
+  assert.doesNotMatch(html('project'), />Project 20</);
 });

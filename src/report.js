@@ -124,7 +124,7 @@ export function weekColumns(now, weeks) {
 const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0, prompts: 0, pricedPrompts: 0, n: 0 });
 const add = (c, tokens, cost, n = 0, p = 0, prompts = 0, pricedPrompts = 0) => { c.tokens += tokens; c.cost += cost || 0; c.sessions += n; c.priced += p; c.prompts += prompts; c.pricedPrompts += pricedPrompts; };
 
-export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions } = {}) {
+export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions, includePrs = true } = {}) {
   const cols = weekColumns(now, weeks), from = cols[0].t, days = Math.ceil((now - from) / DAY) + 1;
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
@@ -212,7 +212,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : compressionRecords(proxyLogFile());
   const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: readLog(store, { all: true }) });
-  const prs = prSavings(store, { days, now });
+  const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     tokenTypes,
@@ -223,6 +223,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, savings, cache: cacheMetrics(store, { days, config, usage }),
     prs, prWeekly: weeklyPrStats(prs, columns, now),
+    prBreakdown: prStatsBreakdown(prs, columns, now),
   };
 }
 
@@ -253,6 +254,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     sessions: s.sessions,
     rows: merged.map(p => ({
       number: p.number, title: p.title || null, url: p.url || null, mergedAt: p.mergedAt,
+      author: p.author || null, repo: r.scope || null, repoName: r.scope?.replace(/^github\.com\//, '') || null,
       sessions: p.sessions.length, prompts: p.tokens.prompts, complete: p.tokens.complete,
       agent: p.tokens.agent, cleared: p.saved.cleared, reading: p.saved.reading.tokens, saved: p.saved.total,
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
@@ -273,6 +275,50 @@ export function weeklyPrStats(prs, columns, now = Date.now()) {
       savedPerPr: rows.length ? saved / rows.length : null,
       tokensPerPr: complete.length ? tokens / complete.length : null };
   });
+}
+
+// Build both dimensions from individual PRs, not from averages of repository averages.
+// People are the PR authors recorded by the GitHub sync; missing authors stay explicit.
+export function prStatsBreakdown(prs, columns, now = Date.now()) {
+  if (!prs) return null;
+  const totals = weeklyPrStats(prs, columns, now);
+  const dimension = by => {
+    const groups = new Map();
+    for (const r of prs.rows) {
+      const at = Date.parse(r.mergedAt);
+      if (at > now || !columns.some(c => at >= c.t && at < nextWeek(c.t))) continue;
+      const key = by === 'people' ? r.author?.toLowerCase() || '' : r.repo || '';
+      const name = by === 'people' ? r.author || 'Unknown author' : r.repoName || r.repo || 'Unknown project';
+      if (!groups.has(key)) groups.set(key, { key, name, rows: [] });
+      groups.get(key).rows.push(r);
+    }
+    return [...groups.values()].sort((a, b) => b.rows.length - a.rows.length || a.name.localeCompare(b.name)).map(g => ({
+      key: g.key, name: g.name,
+      cells: weeklyPrStats(g, columns, now).map((c, i) => ({ ...c,
+        shares: Object.fromEntries(['merged', 'saved', 'tokens'].map(k => [k, totals[i][k] && (k !== 'tokens' || c.complete) ? c[k] / totals[i][k] : null])),
+      })),
+    }));
+  };
+  return { project: dimension('project'), people: dimension('people') };
+}
+
+export function renderPrBreakdown(v, { group = 'project', total = false, share = false } = {}) {
+  if (!['project', 'people'].includes(group)) throw new Error('--group must be project or people');
+  const groups = v.prBreakdown?.[group];
+  const L = [`Pull request stats · by ${group === 'people' ? 'PR author' : 'project'} · ${share ? 'share of weekly totals' : total ? 'weekly totals' : 'per PR'}`];
+  if (!groups?.length) return [...L, 'No merged pull requests with recorded work in this window.'];
+  const head = ' '.repeat(34) + v.columns.map(c => new Date(c.t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).padStart(12)).join('');
+  for (const [key, name, avg] of [['merged', 'Number of PRs', 'merged'], ['saved', 'Tokens saved', 'savedPerPr'], ['tokens', 'Total tokens', 'tokensPerPr']]) {
+    L.push('', name + (key !== 'merged' && !total && !share ? ' per PR · average' : ''), head);
+    for (const g of [...groups, { name: total || key === 'merged' ? 'Total' : 'All PRs · average', cells: v.prWeekly, totalRow: true }]) L.push(g.name.slice(0, 34).padEnd(34) + g.cells.map(c => {
+      const percent = share && !g.totalRow;
+      const value = percent ? c.shares[key] : total ? (key === 'tokens' && !c.complete ? null : c[key]) : c[avg];
+      return (value == null ? '–' : percent ? `${Number((value * 100).toFixed(2))}%` : formatTokens(value)).padStart(12);
+    }).join(''));
+  }
+  L.push('', 'Merged PRs with work recorded here, by merge week; current week so far. People means PR authors.',
+    'Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens use PRs with complete counters.');
+  return L;
 }
 
 // What compressing a tool's output measured: the tool's row under the compression against its row from before
@@ -432,6 +478,7 @@ export function mergeReports(list) {
       dollarsDescription: cache.some(c => !c.measured) ? 'Total from cache hits, including repeated reads and subtracting note context; holdout comparisons where available.' : null },
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
+    prBreakdown: prStatsBreakdown(prs, first.columns, first.to),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }

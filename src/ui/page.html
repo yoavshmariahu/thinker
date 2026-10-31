@@ -25,6 +25,9 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
+    .scan-progress { flex-basis: 100%; margin-top: .65rem; font-size: .75rem; color: #6b7280; }
+    .scan-progress progress { display: block; width: 100%; height: 4px; margin-top: .4rem; accent-color: #111; }
+    nav:has(.scan-progress:not([hidden])) { flex-wrap: wrap; }
     .brand { display: flex; align-items: center; gap: 0.55rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.12rem 0.5rem; line-height: 1.2; }
@@ -70,6 +73,7 @@
     .seg { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 8px; padding: 2px; background: #fafafa; }
     .seg button { border: none; background: transparent; padding: 0.38rem 0.75rem; border-radius: 6px; font-size: 0.8rem; color: #444; cursor: pointer; }
     .seg button.on { background: #fff; color: #000; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 500; }
+    .seg button:disabled { opacity: .45; cursor: default; }
     .seg.small button { padding: 0.22rem 0.55rem; font-size: 0.74rem; }
 
     .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
@@ -327,6 +331,7 @@
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
+    <div id="scan-progress" class="scan-progress" hidden><span id="scan-label" role="status" aria-live="polite"></span><button id="scan-retry" class="ctx-more" hidden>Retry</button><progress id="scan-bar" aria-label="Session data read"></progress></div>
   </nav>
 
   <main>
@@ -344,9 +349,10 @@
 
     <!-- Report: what a prompt (one call to the model) costs here week by week, by part, by model and by token type, the cache's numbers (report.js, as `thinker report`) -->
     <section id="tab-report" hidden>
-      <div class="ctx-top"><div><h1>View Report</h1></div>
+      <div class="ctx-top"><div><button class="btn ghost" id="pr-back" hidden>← Back to Report</button><h1 id="report-title">View Report</h1></div>
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
+        <div class="seg" id="pr-group" hidden aria-label="Break down by"><button data-group="project" class="on">Project</button><button data-group="people">People</button></div>
         <div class="seg" id="r-mode"><button data-mode="avg">Per prompt</button><button data-mode="sum" class="on">Total</button></div>
         <div class="seg" id="r-measure"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></div>
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
@@ -507,7 +513,7 @@ function confirmDialog({ title, body, ok = 'Confirm' }) {
 }
 
 // tabs
-document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => show(b.dataset.tab));
+document.querySelectorAll('.nav-link').forEach(b => b.onclick = () => { if (b.dataset.tab === 'report') PRDETAIL = false; show(b.dataset.tab); });
 function show(tab) {
   // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22, and Save's History view is
   // the Recent activity page (`activity`) since 2026-10-24; an old link (context, changes, cache, view=history) and any tab the page
@@ -519,7 +525,8 @@ function show(tab) {
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   for (const k of ['save', 'report', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
-  history.replaceState(null, '', `#tab=${tab}`);
+  scanProgress(null);
+  history.replaceState(null, '', tab === 'report' ? reportHash() : `#tab=${tab}`);
   if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
@@ -540,23 +547,66 @@ const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"
 // scroll and the open rows kept (swapBody), and the header says `updating…` meanwhile. Until then every refresh went through
 // the spinner, and the page flashed on every action and every poll. The spinner is for the first read, and a change of
 // repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
+// Poll lightweight revisions; fetch tables only when a checkpoint is ready.
+// A new tab/repository/window invalidates the old loop, including in-flight replies.
+function scanProgress(v) {
+  const el = $('#scan-progress'), bar = $('#scan-bar'), label = $('#scan-label'), p = v?.progress;
+  el.hidden = !v || (!v.refreshing && !p?.error);
+  $('#scan-retry').hidden = !p?.error;
+  if (!el.hidden) {
+    label.textContent = v.paused ? 'Newer figures are ready. Clear your selection to update them.' : p?.error ? `Could not finish reading session data: ${p.error}`
+      : p?.total == null ? `${p?.completed ? fmt(p.completed) + ' sessions read · ' : ''}Finding session data… Figures shown so far are partial.`
+      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions · Figures shown so far are partial.`;
+    if (p?.total > 0) { bar.max = p.total; bar.value = p.completed; }
+    else bar.removeAttribute('value');
+    bar.hidden = Boolean(p?.error || v.paused);
+  }
+  navHeight();
+}
+async function progressiveView(url, receive, current, selected = () => false) {
+  let revision = null, first = true;
+  while (current()) {
+    const stamp = await api(`${url}&progressive=1&stamp=1${first ? '&retry=1' : ''}`);
+    first = false;
+    if (!current()) return;
+    scanProgress(stamp);
+    if (stamp.loading && stamp.progress?.error) throw new Error(stamp.progress.error);
+    if (!stamp.loading && stamp.revision !== revision && !selected()) {
+      const full = await api(`${url}&progressive=1`);
+      if (!current()) return;
+      revision = full.revision;
+      receive(full);
+      scanProgress(full);
+      if (!full.refreshing) return;
+    }
+    if (selected() && stamp.revision !== revision && !stamp.progress?.error) scanProgress({ refreshing: true, paused: true });
+    else if (!stamp.refreshing) return;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+}
+
+$('#scan-retry').onclick = () => { if (TAB === 'save') loadContext(); else if (TAB === 'report') loadReport(); else loadActivity(); };
 let CTX_FOR = null, CLOAD = 0;
 async function loadContext() {
+  clearTimeout(CPOLL);
+  scanProgress({ refreshing: true });
   const el = $('#context-body'), seq = ++CLOAD, inPlace = Boolean(CTX) && CTX_FOR === `${CREPO}|${cdays}`;
   if (inPlace) { const a = $('#c-asof'); if (a && !/updating/.test(a.textContent)) a.textContent = `${a.textContent.replace(/\s*$/, '')}${a.textContent.trim() ? ', ' : ''}updating…`; }
   else el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the transcripts…</div>`;
   try {
     if (!REPOS.length) await fetchRepos();
+    if (seq !== CLOAD || TAB !== 'save') return;
     if (!CREPO || (CREPO !== 'all' && !REPOS.some(r => r.id === CREPO))) CREPO = REPO !== 'all' && REPOS.some(r => r.id === REPO) ? REPO : REPOS.find(r => r.current)?.id || REPOS[0]?.id || '';
     $('#c-repo').innerHTML = `<option value="all"${CREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === CREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
     if (CREPO === 'all' && !inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading every repository's transcripts (the first time takes a while)…</div>`;
-    if (!CREPO) { el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
+    if (!CREPO) { scanProgress(null); el.innerHTML = `<div class="empty">No repository with a cache on this machine yet.</div>`; return; }
     const want = `${CREPO}|${cdays}`;
-    const [v, d] = await Promise.all([api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`), api(`/api/activity?repo=${encodeURIComponent(CREPO)}`).catch(e => ({ error: e.message, history: [] }))]);
-    if (seq !== CLOAD || want !== `${CREPO}|${cdays}`) return;
-    CHIST = d; CTX_FOR = want; CDREW = Date.now();
-    renderContext(v); contextAsOf(v);
-  } catch (e) { if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf(CTX); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
+    const current = () => seq === CLOAD && want === `${CREPO}|${cdays}` && TAB === 'save';
+    api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`).then(d => { if (current()) CHIST = d; }).catch(() => {});
+    await progressiveView(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, v => {
+      CTX_FOR = want; CDREW = Date.now(); renderContext(v); contextAsOf({ ...v, refreshing: false });
+    }, current, () => CTX_FOR === want && Object.values(PICKS).some(m => m.size));
+  } catch (e) { if (seq === CLOAD && TAB === 'save') scanProgress({ progress: { error: e.message } }); if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf({ ...CTX, refreshing: false }); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
 // A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with See more (by the
 // row's key, not its index, since the rows may have moved), and the body's height until the new content has laid out, so
@@ -908,7 +958,7 @@ let EXPLAIN_TIMER = null, EXPLAIN_TRIES = 0;
 const VROWS = {};
 // the cards on the two pages in view that have no words yet
 const explainWanted = () => {
-  if (CMODE !== 'cards' || !CTX) return [];
+  if (CMODE !== 'cards' || !CTX || CTX.partial) return [];
   const rows = VROWS[CVIEW] || [], from = (VPAGE[CVIEW] || 0) * TABLE_PAGE;
   return rows.slice(from, from + TABLE_PAGE * 2).filter(r => r.explainKey && !r.explain);
 };
@@ -1033,7 +1083,7 @@ async function applyRows(view, items, btn) {
     // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
     // place), a second or more after an action, since the action made the kept copy stale
     if (!failed) patchContext(rest);
-    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}`); } catch {} }
+    if (secs.length) { try { CHIST = await api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`); } catch {} }
     if (CTX) renderContext(CTX);
     loadContext(); pollActivity();
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
@@ -1055,7 +1105,7 @@ function renderContext(v) {
   // one table at a time: every part on All, then one kind each (the decisions are the Recent activity page since 2026-10-24)
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perPrompt = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
   // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
-  if (PRESELECT && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
+  if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
   const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
   const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
@@ -1188,10 +1238,18 @@ async function loadActivity() {
     if (!AREPO) AREPO = REPOS.find(r => r.current)?.id || 'all';
     else if (AREPO !== 'all' && !REPOS.some(r => r.id === AREPO)) AREPO = 'all';
     $('#a-repo').innerHTML = `<option value="all"${AREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === AREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = AREPO, d = await api(prs ? `/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6` : `/api/activity?repo=${encodeURIComponent(AREPO)}`);
-    if (seq !== ALOAD || want !== AREPO) return;
-    if (prs) { APR_FOR = want; renderActivityPrs(d); }
-    else { ACT_FOR = want; renderActivity(d); }
+    const want = AREPO;
+    if (prs) {
+      scanProgress({ refreshing: true });
+      await progressiveView(`/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6`, d => {
+        APR_FOR = want; renderActivityPrs({ ...d, refreshing: false });
+      }, () => seq === ALOAD && want === AREPO && TAB === 'activity' && AVIEW === 'prs');
+    } else {
+      scanProgress(null);
+      const d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`);
+      if (seq !== ALOAD || want !== AREPO) return;
+      ACT_FOR = want; renderActivity(d);
+    }
   } catch (e) { if (seq !== ALOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the activity: ${esc(e.message)}</div>`; }
 }
 // while the report the savings are read from is being made again (`measuring`), check back and show it (as reportAsOf does)
@@ -1201,7 +1259,7 @@ function activityCheckBack(d) {
   const want = AREPO, tries = (d.tries || 0) + 1; if (tries > 24) return;
   AMPOLL = setTimeout(async () => {
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
-    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}`); } catch { return; }
+    let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`); } catch { return; }
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
     if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
   }, 5000);
@@ -1261,7 +1319,7 @@ function badge(d) {
 }
 async function pollActivity() {
   clearTimeout(APOLL);
-  let d = null; try { d = await api('/api/activity?repo=all'); } catch {}
+  let d = null; try { d = await api('/api/activity?repo=all&progressive=1&measure=0'); } catch {}
   if (d) {
     badge(d);
     // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
@@ -1280,12 +1338,48 @@ async function fetchRepos() {
 }
 // ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
 let RPT = null, RMEASURE = 'cost', RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
+let PRDETAIL = hashTab() === 'report' && H().get('view') === 'prs', PRGROUP = H().get('group') === 'people' ? 'people' : 'project', PRMODE = H().get('mode') === 'sum' ? 'sum' : 'avg';
+if (PRDETAIL && H().get('values') === 'share') RVIEW = 'share';
+function reportHash() {
+  return `#tab=report&repo=${encodeURIComponent(REPO)}${PRDETAIL ? `&view=prs&group=${PRGROUP}&mode=${PRMODE}&values=${RVIEW}` : ''}`;
+}
+function syncReportControls() {
+  $('#report-title').textContent = PRDETAIL ? 'PR stats' : 'View Report';
+  $('#pr-back').hidden = !PRDETAIL; $('#pr-group').hidden = !PRDETAIL;
+  document.querySelectorAll('#pr-group button').forEach(b => b.classList.toggle('on', b.dataset.group === PRGROUP));
+  document.querySelectorAll('#r-mode button').forEach(b => {
+    if (b.dataset.mode === 'avg') b.textContent = PRDETAIL ? 'Per PR' : 'Per prompt';
+    b.classList.toggle('on', b.dataset.mode === (PRDETAIL ? PRMODE : RMODE));
+  });
+  document.querySelectorAll('#r-measure button').forEach(b => {
+    b.disabled = PRDETAIL && b.dataset.m === 'cost';
+    b.title = b.disabled ? 'PR savings are reported in tokens; cleared tokens do not have a reliable dollar value.' : '';
+    b.classList.toggle('on', b.dataset.m === (PRDETAIL ? 'tokens' : RMEASURE));
+  });
+  document.querySelectorAll('#r-view button').forEach(b => b.classList.toggle('on', b.dataset.view === RVIEW));
+}
+function openPrBreakdown(open) {
+  PRDETAIL = open;
+  history.pushState(null, '', reportHash());
+  if (RPT) renderReport(RPT); else loadReport();
+  window.scrollTo(0, 0);
+}
+$('#pr-back').onclick = () => openPrBreakdown(false);
+document.querySelectorAll('#pr-group button').forEach(b => b.onclick = () => { PRGROUP = b.dataset.group; if (RPT) renderReport(RPT); });
+addEventListener('popstate', () => {
+  PRDETAIL = hashTab() === 'report' && H().get('view') === 'prs';
+  PRGROUP = H().get('group') === 'people' ? 'people' : 'project';
+  PRMODE = H().get('mode') === 'sum' ? 'sum' : 'avg';
+  RVIEW = H().get('values') === 'share' ? 'share' : 'values';
+  if (hashTab() === 'report') REPO = hashRepo();
+  show(hashTab());
+});
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
 document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
-document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
+document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { if (PRDETAIL) PRMODE = b.dataset.mode; else RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
-document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
+document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { if (!PRDETAIL) RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
 // a Report cell's colour is report.js:COST_THRESHOLDS, read from the view (`costThresholds`): the command marks the same cells ✓ · ✗
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
@@ -1293,18 +1387,22 @@ const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d)
 // the spinner is for the first read and a change of repository
 let RPT_FOR = null, RLOAD = 0;
 async function loadReport() {
+  syncReportControls();
+  scanProgress({ refreshing: true });
   const el = $('#report-body'), seq = ++RLOAD, inPlace = Boolean(RPT) && RPT_FOR === REPO;
   if (!inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the report…</div>`;
   clearTimeout(RPOLL);
   try {
     if (!REPOS.length) await fetchRepos();
+    if (seq !== RLOAD || TAB !== 'report') return;
     if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
     $('#r-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-    const want = REPO, v = await api(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`);
-    if (seq !== RLOAD || want !== REPO) return;
-    if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
-    RPT_FOR = want; renderReport(v); reportAsOf(v);
-  } catch (e) { if (seq !== RLOAD) return; if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
+    const want = REPO;
+    await progressiveView(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`, v => {
+      if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
+      RPT_FOR = want; renderReport(v);
+    }, () => seq === RLOAD && want === REPO && TAB === 'report');
+  } catch (e) { if (seq !== RLOAD || TAB !== 'report') return; scanProgress({ progress: { error: e.message } }); if (inPlace) toast(`Could not read the report: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the report: ${esc(e.message)}</div>`; }
 }
 // The report is kept and made again in the background (report-snapshot.js), like the Save page's: while a newer one is
 // being made the page checks back and shows it. It says nothing of when it was measured, and nothing under its tables
@@ -1328,7 +1426,7 @@ const PR_ROWS = 12;
 // Values come from report.js, including the denominator when some PRs lack counters.
 function prStatsTable(v) {
   const weeks = v.prWeekly;
-  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date</span></figcaption>';
+  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date</span><span class="ctx-capact"><button class="btn ghost" id="pr-breakdown">See breakdown</button></span></figcaption>';
   if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
   const metrics = [
     { key: 'merged', name: 'Number of PRs' },
@@ -1345,8 +1443,34 @@ function prStatsTable(v) {
     <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
+function renderPrStats(v) {
+  const groups = v.prBreakdown?.[PRGROUP], columns = v.columns, sum = PRMODE === 'sum', share = RVIEW === 'share';
+  if (!groups?.length) return `<div class="empty">${v.refreshing ? 'Updating PR breakdown…' : 'No merged pull requests with recorded work in this window.'}</div>`;
+  const number = (c, key, avg, totalRow = false) => {
+    const n = share && !totalRow ? c.shares[key] : sum ? (key === 'tokens' && !c.complete ? null : c[key]) : c[avg];
+    return n == null ? '–' : share && !totalRow ? `${Number((n * 100).toFixed(2))}%` : fmt(n);
+  };
+  const tables = [['merged', 'Number of PRs', 'merged'], ['saved', 'Tokens saved', 'savedPerPr'], ['tokens', 'Total tokens', 'tokensPerPr']].map(([key, label, avg]) => {
+    const pageKey = `pr-${PRGROUP}-${key}`, page = Math.min(Math.max(0, Math.ceil(groups.length / TABLE_PAGE) - 1), VPAGE[pageKey] || 0);
+    const shown = groups.slice(page * TABLE_PAGE, (page + 1) * TABLE_PAGE);
+    const title = label + (key !== 'merged' && !sum && !share ? ' per PR · average' : '');
+    const row = (name, cells, totalRow = false) => `<tr${totalRow ? ' class="rep-total"' : ''}><td class="ctx-name">${esc(name)}</td>${cells.map(c => `<td class="num"${key === 'tokens' ? ` title="${c.complete} of ${c.merged} PRs with complete counters"` : ''}>${number(c, key, avg, totalRow)}</td>`).join('')}</tr>`;
+    return `<figure class="ctx-figure"><figcaption><b>${title}</b><span class="ctx-sub">${share ? 'Share of weekly totals' : key === 'merged' || sum ? 'Weekly totals' : 'Weekly averages'} · by ${PRGROUP === 'people' ? 'PR author' : 'project'}</span></figcaption>
+      <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${columns.map(() => '<col>').join('')}</colgroup><thead><tr><th>${PRGROUP === 'people' ? 'Person' : 'Project'}</th>${columns.map((c, i) => `<th class="num">Week of ${dlabel(c.t)}${i === columns.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${shown.map(g => row(g.name, g.cells)).join('')}${row(sum || key === 'merged' ? 'Total' : 'All PRs · average', v.prWeekly, true)}</tbody></table>${pagerOf(pageKey, groups.length, page, TABLE_PAGE)}</figure>`;
+  }).join('');
+  return tables + '<p class="savings-note">Merged PRs with work recorded here, by merge date. People means PR authors. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens use PRs with complete counters. Share compares each group’s weekly total with all groups; the final row keeps its value. * Current week so far.</p>';
+}
+
 function renderReport(v) {
   RPT = v;
+  syncReportControls();
+  if (TAB === 'report') history.replaceState(null, '', reportHash());
+  if (PRDETAIL) {
+    const root = $('#report-body');
+    swapBody(root, renderPrStats(v));
+    root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.vpage.split(':'); VPAGE[k] = Math.max(0, Number(n)); renderReport(v); });
+    return;
+  }
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
   // a cell: the week's sum over its prompts (the priced sessions' in the cost view), or that sum itself (Total); null where the week has none
   const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.pricedPrompts ? c.cost / col.pricedPrompts : null) : (col.prompts ? c.tokens / col.prompts : null); };
@@ -1411,6 +1535,7 @@ function renderReport(v) {
     <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${s.key === 'cache' ? 'estimated' : 'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
     <p class="savings-note">Cache: avoided reading minus note context. Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
   swapBody(el, prStatsTable(v) + parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+  $('#pr-breakdown').onclick = () => openPrBreakdown(true);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

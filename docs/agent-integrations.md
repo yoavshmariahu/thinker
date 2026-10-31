@@ -45,7 +45,12 @@ Cascade adapter remains separate.
 
 Tests cover wiring preservation, refresh/removal, hook delivery and recording,
 worker recursion prevention, and a real local MCP/session-provider round trip with
-no external model calls. **A live authenticated Devin session has not been tested.**
+no external model calls. A network-isolated Docker smoke test with the official
+Devin CLI `3000.11.234` (`92c83011d113`) confirms that `thinker connect --clients devin`
+produces a registration that the real `devin mcp list` and `devin mcp get thinker`
+recognize. A real agent prompt stopped at login before any hooks ran; no hook trace
+was produced. **Live note injection and learning remain unverified without an
+authenticated Devin session.**
 Desktop's Devin Local mode must honor these same hook and MCP contracts; cloud
 sessions and legacy Cascade are not claimed to have this automatic integration.
 

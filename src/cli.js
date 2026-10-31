@@ -209,6 +209,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
                                  --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
                                  this in the background; --all for every repository the page lists, in one run)
+  report --prs [--group project|people] [--total] [--share]   weekly PR stats by project (default) or PR author;
+                                 token averages per PR, --total for weekly sums, --share for shares of weekly totals
   guide                          the cache usage guidance an install writes into an agent's instructions
   export [file.tgz] [--dir d]    back the cache up to a .tgz; --dir writes every note whole, one <id>.json each, into d
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = notes for the request,
