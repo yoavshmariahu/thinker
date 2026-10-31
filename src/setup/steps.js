@@ -33,6 +33,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
     kilo: { name: 'Kilo Code' },
     augment: { name: 'Augment (Auggie)' },
     goose: { name: 'Goose' },
+    devin: { name: 'Devin' },
     claude: { name: 'Claude Code', bin: 'claude', desc: 'Anthropic Claude Code CLI' },
     codex: { name: 'OpenAI Codex', bin: 'codex', desc: 'OpenAI Codex CLI' },
     cursor: { name: 'Cursor Agent', bin: 'agent / cursor', desc: 'Cursor Editor & Agent CLI' },
@@ -113,7 +114,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
 
     if (res.status === 'connected') {
       out(`  ${c.green('✓')} ${c.bold(clientLabel)} Connected`);
-      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'proxy'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
+      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin', 'proxy'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
     } else if (res.status === 'skipped') {
       out(`  ${c.gray('○')} ${c.dim(clientLabel)} ${c.dim(`Skipped · ${res.detail}`)}`);
     } else {

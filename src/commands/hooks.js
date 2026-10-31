@@ -71,7 +71,7 @@ async function hookCommand(ctx) {
     ev = normalizeHookEvent(client, ev, pos[0]);
     if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
     // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
-    if (client === 'cursor-import') return;
+    if (client === 'cursor-import' || client === 'devin-import') return;
     // a host plugin's hook yields to the host's own settings where they run thinker's hooks (clients.js:pluginYields)
     if (flags.plugin && pluginYields(client)) return;
     // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
@@ -128,7 +128,7 @@ async function hookCommand(ctx) {
       return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
-    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy'].includes(client) && session === 'unknown') return;
+    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy', 'devin'].includes(client) && session === 'unknown') return;
     // Copilot CLI, VS Code's Copilot and the Cline CLI take no context from a prompt hook: the bundle waits
     // for the turn's first tool hook (parkPending)
     const parks = client === 'copilot' || client === 'vscode' || (client === 'cline' && ev.cline_cli);

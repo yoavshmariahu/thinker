@@ -40,6 +40,7 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | GitHub Copilot CLI, Copilot in VS Code | by hand (the CLI, with your own Anthropic key) | yes, one tool call late | | |
 | Cline | by hand: the Anthropic provider's custom base URL | yes (the CLI one tool call late) | | |
 | Kiro CLI | no: Kiro's own backend | notes on each prompt (V3 engine) | | |
+| Devin CLI / Local | not supported: its outbound proxy is not a model endpoint | prompt and file notes; session learning through MCP (contract-tested; live validation pending) | | |
 | Windsurf Cascade | no: Windsurf's servers | no: its hooks only record, for learning | | |
 | Auggie | no: Augment's servers | notes on the files being edited | | |
 | Goose | by hand (`ANTHROPIC_HOST`) | no: its hooks only record, for learning | | |

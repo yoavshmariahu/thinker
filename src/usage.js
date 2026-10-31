@@ -132,7 +132,7 @@ export function sessionKey(s) {
 export function normalizeClient(client, session = '') {
   if (client) {
     const c = String(client).toLowerCase();
-    if (['claude', 'codex', 'cursor', 'gemini', 'copilot', 'windsurf', 'opencode', 'pi', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'mcp', 'cli'].includes(c)) return c;
+    if (['claude', 'codex', 'cursor', 'gemini', 'copilot', 'windsurf', 'opencode', 'pi', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin', 'mcp', 'cli'].includes(c)) return c;
     if (c.startsWith('cursor')) return 'cursor';
     if (c.startsWith('claude')) return 'claude';
     if (c.startsWith('codex')) return 'codex';

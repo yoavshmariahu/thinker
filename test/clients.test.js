@@ -49,7 +49,7 @@ test('hook ownership recognizes the package when the checkout path has no produc
 
 test('parseClients validates names and expands all', () => {
   assert.deepEqual(parseClients('codex, cursor'), ['codex', 'cursor']);
-  assert.deepEqual(parseClients('all'), ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose']);
+  assert.deepEqual(parseClients('all'), ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin']);
   assert.deepEqual(parseClients(undefined), ['claude']);
   assert.throws(() => parseClients('nonexistent'), /unknown client/);
 });
