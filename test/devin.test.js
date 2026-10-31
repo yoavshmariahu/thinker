@@ -128,8 +128,9 @@ test('Devin injects notes in documented JSON, records actual outputs/errors and 
   assert.equal(events[1].name, 'Bash');
   assert.equal(events[1].result, 'actual output');
   assert.match(events[2].result, /Error: permission denied/);
-  hook('stop', { ...base, hook_event_name: 'Stop', stop_hook_active: false }, ['--record']);
+  hook('stop', { ...base, hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: 'Checked the upload rate limiter.' }, ['--record']);
   assert.deepEqual(pendingJobs(store), []);
+  assert.ok(fs.readFileSync(trace, 'utf8').includes('Checked the upload rate limiter.'));
   hook('stop', { ...base, hook_event_name: 'SessionEnd', reason: 'exit' }, ['--record']);
   assert.deepEqual(pendingJobs(store).map(j => j.key), ['distill-d-main']);
   assert.equal(json(path.join(store.dir, 'state', 'app-session')).app, 'Devin');
@@ -169,6 +170,8 @@ test('Devin queue workers do not record or distill themselves, and background wo
   let options;
   const instruction = startSessionWork(store, { cli: CLI, harness: 'devin', spawnFn: (_cmd, _args, o) => { options = o; return { pid: process.pid, unref() {} }; } });
   assert.match(instruction, /run_subagent.*subagent_general.*background/);
+  assert.match(instruction, /mcp_call_tool with server_name/);
+  assert.match(instruction, /not a shell command/);
   assert.equal(options.env.THINKER_LLM, 'session');
   assert.equal(options.env.THINKER_TEST, '1');
 });

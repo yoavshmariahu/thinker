@@ -101,8 +101,9 @@ export function requestText(r) {
 // What the session agent is told to start: a subagent that works the queue until the work ends, learning's
 // (session-work.js) or a coverage build's (coverage.js).
 const WORKER_INTRO = "You answer model requests for thinker's background work";
-export function subagentPrompt(repo) {
-  return `${WORKER_INTRO} (learning or a coverage build) in the repository at ${repo}. Loop: call thinker's learn_next tool (cwd "${repo}") with no answer. It returns a request: instructions, an input (an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call learn_next again with the request's id and your answer: it saves the answer and returns the next request. If it refuses the answer, fix it and call again with the same id. When it says nothing has come yet, call it again with no answer. Stop when it says the work is done, and reply with one line: how many requests you answered.`;
+export function subagentPrompt(repo, { harness } = {}) {
+  const transport = harness === 'devin' ? ' Use only mcp_call_tool with server_name "thinker", tool_name "learn_next", and the arguments below. learn_next is an MCP tool, not a shell command; do not invoke thinker or npx.' : '';
+  return `${WORKER_INTRO} (learning or a coverage build) in the repository at ${repo}.${transport} Loop: call thinker's learn_next tool (cwd "${repo}") with no answer. It returns a request: instructions, an input (an agent session's record, source code to describe, or notes) and the JSON shape the answer must have. Answer it yourself, from the input alone: do not read files, run commands or use other tools. Call learn_next again with the request's id and your answer: it saves the answer and returns the next request. If it refuses the answer, fix it and call again with the same id. When it says nothing has come yet, call it again with no answer. Stop when it says the work is done, and reply with one line: how many requests you answered.`;
 }
 
 // A background subagent spawned with `subagentPrompt` triggers the host's hooks on its own turns and tool

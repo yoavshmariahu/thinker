@@ -32,8 +32,8 @@ Cascade adapter remains separate.
   queue. No separate Claude/Codex login or API key is needed. Work queued when a
   session closes is picked up on a later prompt. Devin must allow the background
   worker to use that MCP tool; Thinker does not alter its permissions. The documented
-  Stop/SessionEnd payloads contain no final answer, so learning uses prompts and tool
-  results rather than inventing a closing summary.
+  examples omit a final answer, but CLI 3000.11.234 sends `last_assistant_message`
+  on Stop; Thinker records it when present alongside prompts and tool results.
 - `--no-learn` stops recording/learning, `--no-late` omits file-related notes, and
   `--no-hooks` omits hook delivery. `--no-mcp` connects note delivery only and reports
   that session learning needs MCP. Rewire, doctor repair and uninstall recognize
@@ -48,9 +48,17 @@ worker recursion prevention, and a real local MCP/session-provider round trip wi
 no external model calls. A network-isolated Docker smoke test with the official
 Devin CLI `3000.11.234` (`92c83011d113`) confirms that `thinker connect --clients devin`
 produces a registration that the real `devin mcp list` and `devin mcp get thinker`
-recognize. A real agent prompt stopped at login before any hooks ran; no hook trace
-was produced. **Live note injection and learning remain unverified without an
-authenticated Devin session.**
+recognize. An authenticated macOS smoke test on the same version with SWE-1.6 Slow
+then confirmed prompt injection (an undisclosed fixture sentinel), a real `exec`
+tool result and final-answer recording, and SessionEnd job queuing. A single Devin
+background subagent answered the real distillation request through MCP; Thinker
+logged the job as successful. The initial smoke prompt also launched a second
+connectivity worker that claimed a request without answering, so that run failed
+and was repeated with exactly one worker. The Devin worker prompt now names the
+MCP dispatcher explicitly. `THINKER_TEST=1` suppresses automatic worker launch,
+so the smoke test started the product's queue runner explicitly; automatic
+next-prompt launch and live desktop/cloud behavior remain unverified. These are
+mechanism checks, not evidence of token savings or improved task correctness.
 Desktop's Devin Local mode must honor these same hook and MCP contracts; cloud
 sessions and legacy Cascade are not claimed to have this automatic integration.
 
@@ -74,6 +82,63 @@ Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overv
 [subagents](https://docs.devin.ai/cli/subagents),
 [cloud MCP](https://docs.devin.ai/work-with-devin/mcp),
 [proxy settings](https://docs.devin.ai/cli/reference/configuration/config-file#proxy-user-only).
+
+## Selective tool context in Devin
+
+The optional `thinker-context` skill and companion hook live in
+`src/integrations/devin-context`. Install them with:
+
+```sh
+node src/integrations/devin-context/scripts/context.mjs install
+```
+
+Restart Devin, then ask `/thinker-context` to configure specific tool results. The
+skill writes an explicit per-repository `.devin/thinker-context.json` policy with
+`keep`, `compress` (bounded beginning/end), or `omit` rules, selected by an exact
+tool name and literal input substring. No reduction rules are enabled at install.
+A large successful result can offer the skill once per session. `off <repo>`
+disables offers and reduction. The helper archives the original before replacing
+it, preserves failures and unmatched results, and keeps the original on errors.
+It makes no model calls, rewrites no commands, and changes only future tool results.
+
+Live mechanism probes on Devin CLI `3000.11.234`, macOS arm64 (binary SHA-256
+`cd6a8c9d7d95d8a46fb3fb5504e29ffbf3f392fbc772a25e619091cbd64124a2`):
+
+- `PostToolUse.updatedToolOutput` works: the hook received the original canary;
+  the exported tool observation and model answer contained the replacement. A second
+  live test invoked the actual `thinker-context` skill and companion: the exported
+  result kept the leading/trailing canaries, excluded the middle canary, and left
+  the original in the local archive.
+- ACP advertises `/compact`, and it can be invoked through `session/prompt`.
+  It acknowledges before finishing. Wait for `_cognition.ai/compaction` with
+  `status: completed`, not just the prompt RPC response.
+- `PreCompact`, `PostCompaction`, and `PostCompact` hooks actually fired. The
+  post-compaction event includes the generated summary.
+- A populated-session compaction wrote a history file and retained the original
+  user messages verbatim in the continuation alongside its summary. It therefore
+  did not remove the obsolete label embedded in a user message.
+- The tested `PreCompact.hookSpecificOutput.additionalContext` shape was rejected
+  as invalid. Top-level summary replacement and a PostCompaction-specific
+  `summary`/`additionalContext` response did not alter the active summary.
+  `/compact` arguments did not establish a working selection interface.
+- A static binary inspection found summarizer prompt text, a `CompactionRequest`
+  with an `instructions` field, and compaction-threshold controls. These are
+  implementation clues, not a supported external API or proof of availability.
+
+These are isolated protocol/mechanism checks, not an efficacy benchmark. They do
+not establish token savings, task quality, desktop parity, or retroactive erasure.
+The skill must not claim to edit earlier user/system messages or tool history.
+
+For a supported retrospective API, Cognition's published contact is
+[support@cognition.ai](https://docs.devin.ai/cli/troubleshooting#getting-help);
+`/bug` in Devin CLI also reaches the CLI developers. Ask for selective compaction
+by stable message/tool-call ID, custom compaction instructions, a supported summary
+replacement response, preservation of tool-call/result pairing, and before/after
+context usage. The installed distribution also contains
+`share/devin/docs/reference/partner-builds.mdx`, describing an **approved-partner**
+build with custom model endpoints and custom tools. That is a possible partnership
+route, not evidence that partner access includes compaction control. No request has
+been sent and no restricted build was requested or downloaded.
 
 ## No instructions, no agent tools
 
