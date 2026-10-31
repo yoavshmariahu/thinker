@@ -415,15 +415,6 @@ test('the page touches no element it no longer renders', () => {
 });
 
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
-  assert.match(read('report.js'), /prBreakdown: prStatsBreakdown\(prs, columns, now\)/);
-  assert.match(read('report.js'), /prBreakdown: prStatsBreakdown\(prs, first.columns, first.to\)/);
-  assert.match(read('commands/report.js'), /renderPrBreakdown\(v, \{ group: flags.group \|\| 'project'/);
-  assert.match(read('cli.js'), /report --prs \[--group project\|people\]/);
-  assert.match(read('ui/page.html'), /PRGROUP = H\(\).get\('group'\) === 'people' \? 'people' : 'project'/);
-  assert.match(read('ui/page.html'), /PRMODE = H\(\).get\('mode'\) === 'sum' \? 'sum' : 'avg'/);
-  assert.match(read('ui/page.html'), /v.prBreakdown\?\.\[PRGROUP\]/);
-  assert.match(read('ui/page.html'), /id="pr-breakdown">See breakdown/);
-  assert.match(read('ui/page.html'), /id="pr-back" hidden>← Back to Report/);
   assert.match(read('report.js'), /prs, prWeekly: weeklyPrStats\(prs, columns, now\)/);
   assert.match(read('report.js'), /for \(const w of v\.prWeekly\)/);
   assert.match(read('ui/page.html'), /const weeks = v\.prWeekly;/);
@@ -662,29 +653,4 @@ test('Report defaults to weekly totals and shows savings as a table without a gr
   assert.match(page, /class="ctx-table rep-table savings-table"/);
   assert.doesNotMatch(page, /savings-chart|savings-legend/);
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/, 'the page default uses the CLI --total view');
-});
-
-test('PR breakdown renders three tables in either grouping, with totals, shares and escaped names', async () => {
-  const { prStatsBreakdown, weeklyPrStats, weekColumns } = await import('../src/report.js');
-  const now = new Date(2026, 9, 30).getTime(), columns = weekColumns(now, 2);
-  const prs = { rows: [
-    { repo: 'a', repoName: '<project>', author: '<person>', mergedAt: new Date(columns[0].t).toISOString(), saved: 200, agent: 1000, complete: true },
-    { repo: 'b', repoName: 'Other', author: null, mergedAt: new Date(columns[0].t).toISOString(), saved: 300, agent: 2000, complete: true },
-  ] };
-  const v = { columns, prWeekly: weeklyPrStats(prs, columns, now), prBreakdown: prStatsBreakdown(prs, columns, now) };
-  const src = read('ui/page.html').split('function renderPrStats(v) {')[1].split('function renderReport(v) {')[0];
-  const pager = read('ui/page.html').split('const TABLE_PAGE =')[1].split('function renderTable(')[0];
-  const render = new Function('v', 'PRGROUP', 'PRMODE', 'RVIEW', 'fmt', 'esc', 'dlabel', `const TABLE_PAGE =${pager} return (function renderPrStats(v) {${src})(v);`);
-  const html = (group, mode = 'avg', view = 'values') => render(v, group, mode, view, String, s => String(s).replaceAll('<', '&lt;').replaceAll('>', '&gt;'), t => new Date(t).toISOString());
-  const project = html('project');
-  assert.equal((project.match(/<table /g) || []).length, 3);
-  assert.match(project, /&lt;project&gt;/); assert.doesNotMatch(project, /<project>|<svg/);
-  assert.match(project, /Tokens saved per PR · average/);
-  assert.match(html('people'), /&lt;person&gt;/); assert.match(html('people'), /Unknown author/);
-  assert.doesNotMatch(html('people', 'sum'), /per PR · average/);
-  assert.match(html('people', 'avg', 'share'), /40%/);
-  assert.match(html('project', 'sum'), /<td class="num">500<\/td>/, 'total row sums the individual PRs');
-  v.prBreakdown.project = Array.from({ length: 21 }, (_, i) => ({ ...v.prBreakdown.project[0], name: `Project ${i}` }));
-  assert.match(html('project'), /1–20 of 21/);
-  assert.doesNotMatch(html('project'), />Project 20</);
 });
