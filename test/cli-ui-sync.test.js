@@ -662,6 +662,10 @@ test('Devin is selectable through connect and is named consistently on the page'
   assert.ok(CLIENTS.includes('devin') && USER_SCOPE_CLIENTS.includes('devin'));
   assert.match(read('cli.js'), /opencode, devin and more/);
   assert.match(read('ui/page.html'), /devin: 'Devin'/);
+  // the compaction policy is off by default and documented under the key Devin reads (devin-compaction.js)
+  const compaction = await import('../src/devin-compaction.js');
+  assert.equal(compaction.devinCompactAt(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nopolicy-')), {}), 0);
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'agent-integrations.md'), 'utf8'), new RegExp(`devin: \\{ compactAt[^\\n]*|agent\\.${compaction.DEVIN_COMPACT_KEY}`));
   assert.match(read('setup/steps.js'), /devin: \{ name: 'Devin' \}/);
 });
 

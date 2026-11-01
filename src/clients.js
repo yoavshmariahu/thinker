@@ -34,6 +34,7 @@
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
 import fs from 'node:fs';
+import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -1457,6 +1458,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // A background subagent is denied every tool not already approved (Devin's subagents.mdx), and an MCP tool
       // prompts by default: without this rule the learning worker can never answer learn_next (seen live 2026-11-01).
       if (scope === 'user' && setDevinLearnRule(e.file, !!(wanted && learn && mcp))) done.push('Devin: allowed thinker’s learn_next MCP tool for the background learning worker (permissions.allow in config.json)');
+      // the compaction threshold, where the machine config asks for one (devin-compaction.js); off, it restores Devin's own
+      if (scope === 'user' && wanted) { const line = setDevinCompaction(e.file, { merge: mergeJson }); if (line) done.push(line); }
       localFiles([f.hooks, ...(mcp ? [f.mcp] : [])]);
     }
     if (mcp && client === 'goose') { setGooseExtension(f.yaml, mcpEntry); done.push(`Goose: added the thinker extension to ${rel(f.yaml)}`); }
@@ -1546,7 +1549,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   for (const file of new Set(CLIENTS.flatMap(c => instructionFiles(c, o)))) updateInstructions(file, null);
   untrustCodexHooks(codex.hooks);
   const devin = wiringFiles('devin', o);
-  if (scope === 'user') setDevinLearnRule(devin.hooks, false);
+  if (scope === 'user') { setDevinLearnRule(devin.hooks, false); try { setDevinCompaction(devin.hooks, { at: 0, merge: mergeJson }); } catch {} }
   stripThinkerHooks(devin.hooks, { flat: scope === 'repo' }); dropMcpEntry(devin.mcp);
   if (scope === 'repo') for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) uninstallRepoClient(repo, client);
   else {

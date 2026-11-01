@@ -104,9 +104,35 @@ verified hook delivery and cache persistence before it can be called supported.
 
 Devin's `proxy` setting is an outbound HTTP/HTTPS proxy for CLI traffic. It is not
 a documented Anthropic/OpenAI model base URL, and a tunnel alone cannot edit an
-encrypted model request. Thinker does not change it or claim context compression
-for Devin. Supporting that would require verifying the actual protocol, TLS trust
-and request-edit support, as well as the usual experiment before savings claims.
+encrypted model request, so the context proxy never applies to Devin.
+
+**Context reduction in Devin is Devin's own compaction, steered and measured**
+(`src/devin-compaction.js`, 2026-11-01). Devin summarizes the conversation in the
+background at a token threshold and swaps the summary in at the next turn. The
+threshold is an undocumented integer in the user config, `agent.compaction_threshold_tokens`
+(the binary names it; a wrong value draws "Ignoring invalid value for
+agent.compaction_threshold_tokens"). Measured over ACP on CLI 3000.11.234, SWE-2 Medium:
+with the key at 20k a session that sat at 41k tokens a call held at 19k-20k, the first
+applied compaction taking it from 25.9k to 17.3k; `PreCompact` and `PostCompaction` fired.
+Caveats: a print-mode session (`devin -p`) exits before the summary applies, so the key
+does nothing there; a threshold below the post-compaction size makes Devin re-summarize
+every turn (a model call each time); the summary keeps the user's messages verbatim. The
+finer `DEVIN_COMPACTION_THRESHOLDS=spawn,apply,hard` is an environment variable no config
+file can set.
+
+- The policy is **off by default**: `devin: { compactAt: <tokens> }` in `~/.thinker/config.json`
+  (or `THINKER_DEVIN_COMPACT_AT`) makes `connect` and `rewire` write the key; taking it out
+  restores what was there, and a value thinker did not write is never touched
+  (`setDevinCompaction`; `uninstall` restores too). Turning it on by default needs an
+  experiment, like every context reduction strategy (AGENTS.md); judge it by the summary
+  calls and cache rewrites it adds, not by the tokens it removes.
+- The meter runs whether the threshold is thinker's or Devin's own: Devin's session database
+  (`~/.local/share/devin/cli/sessions.db`, `message_nodes.metadata`) records the context size
+  at every assistant node and marks the summary nodes, so at the end of each turn the Stop
+  hook reads what each compaction took out (`recordDevinCompactions`, read-only through
+  `node:sqlite` or the `sqlite3` command) and records it as the proxy's clears are
+  (`compression.js:noteCompression`, `kind: compaction`; log rows `op: compaction`), so the
+  card, the end-of-turn notice and `thinker usage` read it the same way.
 
 Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
 [lifecycle payloads](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks),

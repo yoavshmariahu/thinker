@@ -15,6 +15,9 @@ import { installClient, inferWiring, refreshWiring, uninstallWiring, detectClien
 import { desktopApp, anyDesktopApp, subagentHarness } from '../src/app-host.js';
 import { pendingJobs, enqueueJob, startSessionWork } from '../src/session-work.js';
 import { subagentPrompt, viaSession, queueDir, nextRequest, releaseStaleClaims, CLAIM_STALE_MS } from '../src/session-llm.js';
+import { DEVIN_COMPACT_KEY, devinCompactAt, setDevinCompaction, compactionsOf, contextNodes, recordDevinCompactions } from '../src/devin-compaction.js';
+import { readCompression } from '../src/compression.js';
+import { execFileSync as execFile } from 'node:child_process';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const MCP = fileURLToPath(new URL('../src/mcp.js', import.meta.url));
@@ -243,4 +246,86 @@ test('Devin MCP exposes and answers the learning queue from startup, even outsid
   fs.writeFileSync(path.join(queueDir(store), 'build.json'), JSON.stringify({ pid: 99999999 }));
   await client.callTool({ name: 'learn_next', arguments: { cwd: store.repo, id, answer: 'ready' } });
   assert.equal((await answer).text, 'ready');
+});
+
+test('the compaction threshold is written into Devin\'s config by policy and what was there comes back', t => {
+  const { home } = fixture(t);
+  const thome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-'));
+  t.after(() => fs.rmSync(thome, { recursive: true, force: true }));
+  atHome(home, () => {
+    const f = wiringFiles('devin', { scope: 'user' });
+    fs.mkdirSync(path.dirname(f.hooks), { recursive: true });
+    fs.writeFileSync(f.hooks, JSON.stringify({ agent: { model: 'swe-2-medium', [DEVIN_COMPACT_KEY]: 90000 } }));
+    const merge = (file, fn) => fs.writeFileSync(file, JSON.stringify(fn(json(file))));
+    assert.equal(devinCompactAt(thome, {}), 0, 'no policy, nothing written');
+    assert.equal(setDevinCompaction(f.hooks, { home: thome, at: 0, merge }), null, 'a value thinker did not write is not touched');
+    assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 90000);
+    assert.equal(devinCompactAt(thome, { THINKER_DEVIN_COMPACT_AT: '140000' }), 140000);
+    fs.mkdirSync(thome, { recursive: true }); fs.writeFileSync(path.join(thome, 'config.json'), JSON.stringify({ devin: { compactAt: 120000 } }));
+    assert.equal(devinCompactAt(thome, {}), 120000, 'the machine config carries the policy');
+    assert.match(setDevinCompaction(f.hooks, { home: thome, merge }), /compacts the conversation at 120000 tokens/);
+    assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 120000);
+    assert.equal(json(f.hooks).agent.model, 'swe-2-medium', 'the rest of the agent block stays');
+    assert.equal(setDevinCompaction(f.hooks, { home: thome, merge }), null, 'already there: nothing to say');
+    // the person changed it by hand since: not thinker's any more
+    fs.writeFileSync(f.hooks, JSON.stringify({ agent: { model: 'swe-2-medium', [DEVIN_COMPACT_KEY]: 70000 } }));
+    assert.equal(setDevinCompaction(f.hooks, { home: thome, at: 0, merge }), null);
+    assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 70000);
+    // thinker's own value, policy taken out: what was there before comes back
+    fs.writeFileSync(f.hooks, JSON.stringify({ agent: { model: 'swe-2-medium', [DEVIN_COMPACT_KEY]: 120000 } }));
+    assert.match(setDevinCompaction(f.hooks, { home: thome, at: 0, merge }), /back to 90000/);
+    assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 90000);
+    // nothing there before: the key goes
+    fs.writeFileSync(f.hooks, JSON.stringify({ agent: { model: 'swe-2-medium' } }));
+    setDevinCompaction(f.hooks, { home: thome, at: 100000, merge });
+    assert.match(setDevinCompaction(f.hooks, { home: thome, at: 0, merge }), /Devin's own default/);
+    assert.deepEqual(json(f.hooks).agent, { model: 'swe-2-medium' });
+    // through connect, with the environment policy; uninstall restores
+    process.env.THINKER_DEVIN_COMPACT_AT = '140000'; process.env.THINKER_HOME = thome;
+    try {
+      const lines = installClient('devin', opts);
+      assert.match(lines.join('\n'), /compacts the conversation at 140000 tokens/);
+      assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 140000);
+      delete process.env.THINKER_DEVIN_COMPACT_AT;
+      uninstallWiring({ scope: 'user' });
+      assert.equal(json(f.hooks).agent?.[DEVIN_COMPACT_KEY], undefined);
+    } finally { delete process.env.THINKER_DEVIN_COMPACT_AT; delete process.env.THINKER_HOME; }
+  });
+});
+
+test('what a Devin compaction took out is read from its session database and recorded as a clear', async t => {
+  const { store } = fixture(t);
+  // the shape Devin stores: the context size at each assistant node, a summary node between (2026-11-01, brawny-cave)
+  const nodes = [
+    { node: 48, tokens: 14556, summary: false }, { node: 59, tokens: 23394, summary: false }, { node: 65, tokens: 23777, summary: false },
+    { node: 70, tokens: null, summary: true }, { node: 85, tokens: 25855, summary: false }, { node: 90, tokens: null, summary: true },
+    { node: 102, tokens: 17267, summary: false }, { node: 110, tokens: 18805, summary: false },
+  ];
+  assert.deepEqual(compactionsOf(nodes), [
+    { node: 70, before: 23777, after: 25855, saved: 0 },
+    { node: 90, before: 25855, after: 17267, saved: 8588 },
+  ]);
+  const dir = path.join(store.dir, 'state', 'compression'); fs.mkdirSync(dir, { recursive: true });
+  const logged = []; const s = { ...store, log: row => logged.push(row) };
+  const fresh = await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes });
+  assert.deepEqual(fresh.map(c => c.node), [90], 'a summary that saved nothing is not a clear');
+  assert.deepEqual(logged.map(r => [r.op, r.client, r.before, r.after, r.saved]), [['compaction', 'devin', 25855, 17267, 8588]]);
+  const rec = readCompression(dir, 'brawny-cave');
+  assert.equal(rec.saved, 8588); assert.equal(rec.requests, 1); assert.equal(rec.kind, 'compaction');
+  assert.deepEqual(await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes }), [], 'recorded once');
+  assert.equal(logged.length, 1);
+  // a later compaction in the same session adds to the same record
+  const later = [...nodes, { node: 116, tokens: null, summary: true }, { node: 121, tokens: 16000, summary: false }];
+  assert.deepEqual((await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes: later })).map(c => c.saved), [2805]);
+  assert.equal(readCompression(dir, 'brawny-cave').saved, 8588 + 2805);
+  // the database itself, where sqlite3 is on this machine
+  let have = false; try { execFile('sqlite3', ['-version'], { stdio: 'ignore' }); have = true; } catch {}
+  if (!have) { t.diagnostic('sqlite3 not installed: the database read is not exercised'); return; }
+  const db = path.join(store.dir, 'sessions.db');
+  const row = (id, role, meta) => `insert into message_nodes values (${id}, 's1', ${id}, null, '${JSON.stringify({ role })}', 0, '${JSON.stringify(meta)}');`;
+  execFile('sqlite3', [db, 'create table message_nodes(row_id integer primary key, session_id text, node_id integer, parent_node_id integer, chat_message text, created_at integer, metadata text);'
+    + row(1, 'user', { num_tokens_preceding: null }) + row(2, 'assistant', { num_tokens_preceding: 1000, summarized_from: null }) + row(3, 'assistant', { num_tokens_preceding: null, summarized_from: 2 }) + row(4, 'assistant', { num_tokens_preceding: 400, summarized_from: null })]);
+  assert.deepEqual(await contextNodes('s1', { db }), [{ node: 2, tokens: 1000, summary: false }, { node: 3, tokens: null, summary: true }, { node: 4, tokens: 400, summary: false }]);
+  assert.deepEqual(await contextNodes('nobody', { db }), []);
+  assert.deepEqual(await contextNodes('s1', { db: path.join(store.dir, 'missing.db') }), []);
 });

@@ -65,6 +65,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   and maintenance plus `thinker verify` handle both states, including the desktop session queue.
   This is the owner's explicit policy choice after cancelling the serving experiment; dense fallback,
   CE rescue and serve-stale switches remain off. A changed hash alone is not evidence of a wrong claim.
+- Off behind a switch, awaiting an experiment (2026-11-01, `devin-compaction.js`): `devin: { compactAt: <tokens> }` in the machine config (`THINKER_DEVIN_COMPACT_AT`) writes Devin's own compaction threshold, `agent.compaction_threshold_tokens`, into its user config; Devin has no model endpoint, so this is the only context reduction it can have. What each compaction took out is measured from Devin's session database regardless (`docs/agent-integrations.md`).
 - Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
@@ -229,6 +230,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
+| `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |

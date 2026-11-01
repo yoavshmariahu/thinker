@@ -19,6 +19,7 @@ import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcri
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens, sessionInputSavings } from '../usage.js';
 import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
+import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
 import { noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../notice-cadence.js';
 import { setupRepo } from '../repo-onboard.js';
@@ -349,6 +350,9 @@ async function hookCommand(ctx) {
     if (parts.length || updated !== undefined) out(toolOutput(client, parts.join('\n\n'), { updated, mcp: updatedMcp }));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
+    // Devin compacts by itself; what each compaction took out of the context is read from its session database
+    // and recorded as the proxy's clears are (devin-compaction.js). No model call, nothing when there is none.
+    if (client === 'devin') { try { await recordDevinCompactions(store, { session, dir: compressionDir() }); } catch {} }
     const workerSession = isWorkerPrompt(ev.prompt) || (() => {
       for (const f of [ev.transcript_path, traceFile(store.dir, session)]) {
         if (!f || !fs.existsSync(f)) continue;
