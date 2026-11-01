@@ -15,7 +15,7 @@ import { installClient, inferWiring, refreshWiring, uninstallWiring, detectClien
 import { desktopApp, anyDesktopApp, subagentHarness } from '../src/app-host.js';
 import { pendingJobs, enqueueJob, startSessionWork } from '../src/session-work.js';
 import { subagentPrompt, viaSession, queueDir, nextRequest, releaseStaleClaims, CLAIM_STALE_MS } from '../src/session-llm.js';
-import { DEVIN_COMPACT_KEY, devinCompactAt, setDevinCompaction, compactionsOf, contextNodes, recordDevinCompactions } from '../src/devin-compaction.js';
+import { DEVIN_COMPACT_KEY, DEVIN_COMPACT_AT, devinCompactAt, setDevinCompaction, compactionsOf, callSavings, contextNodes, recordDevinCompactions } from '../src/devin-compaction.js';
 import { readCompression } from '../src/compression.js';
 import { execFileSync as execFile } from 'node:child_process';
 
@@ -257,11 +257,15 @@ test('the compaction threshold is written into Devin\'s config by policy and wha
     fs.mkdirSync(path.dirname(f.hooks), { recursive: true });
     fs.writeFileSync(f.hooks, JSON.stringify({ agent: { model: 'swe-2-medium', [DEVIN_COMPACT_KEY]: 90000 } }));
     const merge = (file, fn) => fs.writeFileSync(file, JSON.stringify(fn(json(file))));
-    assert.equal(devinCompactAt(thome, {}), 0, 'no policy, nothing written');
+    assert.equal(devinCompactAt(thome, {}), DEVIN_COMPACT_AT, 'the default is on (the owner\'s call, 2026-11-01)');
+    assert.equal(devinCompactAt(thome, { THINKER_DEVIN_COMPACT_AT: 'off' }), 0);
+    assert.equal(devinCompactAt(thome, { THINKER_DEVIN_COMPACT_AT: '0' }), 0);
     assert.equal(setDevinCompaction(f.hooks, { home: thome, at: 0, merge }), null, 'a value thinker did not write is not touched');
     assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 90000);
     assert.equal(devinCompactAt(thome, { THINKER_DEVIN_COMPACT_AT: '140000' }), 140000);
-    fs.mkdirSync(thome, { recursive: true }); fs.writeFileSync(path.join(thome, 'config.json'), JSON.stringify({ devin: { compactAt: 120000 } }));
+    fs.mkdirSync(thome, { recursive: true }); fs.writeFileSync(path.join(thome, 'config.json'), JSON.stringify({ devin: { compactAt: 0 } }));
+    assert.equal(devinCompactAt(thome, {}), 0, 'compactAt 0 in the machine config is off');
+    fs.writeFileSync(path.join(thome, 'config.json'), JSON.stringify({ devin: { compactAt: 120000 } }));
     assert.equal(devinCompactAt(thome, {}), 120000, 'the machine config carries the policy');
     assert.match(setDevinCompaction(f.hooks, { home: thome, merge }), /compacts the conversation at 120000 tokens/);
     assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 120000);
@@ -287,6 +291,7 @@ test('the compaction threshold is written into Devin\'s config by policy and wha
       assert.match(lines.join('\n'), /compacts the conversation at 140000 tokens/);
       assert.equal(json(f.hooks).agent[DEVIN_COMPACT_KEY], 140000);
       delete process.env.THINKER_DEVIN_COMPACT_AT;
+      fs.writeFileSync(path.join(thome, 'config.json'), JSON.stringify({ devin: { compactAt: 0 } }));
       uninstallWiring({ scope: 'user' });
       assert.equal(json(f.hooks).agent?.[DEVIN_COMPACT_KEY], undefined);
     } finally { delete process.env.THINKER_DEVIN_COMPACT_AT; delete process.env.THINKER_HOME; }
@@ -307,17 +312,20 @@ test('what a Devin compaction took out is read from its session database and rec
   ]);
   const dir = path.join(store.dir, 'state', 'compression'); fs.mkdirSync(dir, { recursive: true });
   const logged = []; const s = { ...store, log: row => logged.push(row) };
+  // every call after the summary leaves those 8,588 tokens out again: the proxy's accounting
+  assert.deepEqual(callSavings(nodes), [{ node: 102, saved: 8588, summary: 90 }, { node: 110, saved: 8588, summary: 90 }]);
   const fresh = await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes });
   assert.deepEqual(fresh.map(c => c.node), [90], 'a summary that saved nothing is not a clear');
   assert.deepEqual(logged.map(r => [r.op, r.client, r.before, r.after, r.saved]), [['compaction', 'devin', 25855, 17267, 8588]]);
   const rec = readCompression(dir, 'brawny-cave');
-  assert.equal(rec.saved, 8588); assert.equal(rec.requests, 1); assert.equal(rec.kind, 'compaction');
+  assert.equal(rec.saved, 2 * 8588); assert.equal(rec.requests, 2); assert.equal(rec.kind, 'compaction');
   assert.deepEqual(await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes }), [], 'recorded once');
-  assert.equal(logged.length, 1);
-  // a later compaction in the same session adds to the same record
+  assert.equal(logged.length, 1); assert.equal(readCompression(dir, 'brawny-cave').saved, 2 * 8588);
+  // a later compaction in the same session: its own row, and the call after it adds its own saving
   const later = [...nodes, { node: 116, tokens: null, summary: true }, { node: 121, tokens: 16000, summary: false }];
   assert.deepEqual((await recordDevinCompactions(s, { session: 'brawny-cave', dir, nodes: later })).map(c => c.saved), [2805]);
-  assert.equal(readCompression(dir, 'brawny-cave').saved, 8588 + 2805);
+  assert.equal(readCompression(dir, 'brawny-cave').saved, 2 * 8588 + 2805);
+  assert.equal(readCompression(dir, 'brawny-cave').requests, 3);
   // the database itself, where sqlite3 is on this machine
   let have = false; try { execFile('sqlite3', ['-version'], { stdio: 'ignore' }); have = true; } catch {}
   if (!have) { t.diagnostic('sqlite3 not installed: the database read is not exercised'); return; }

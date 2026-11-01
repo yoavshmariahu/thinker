@@ -120,19 +120,24 @@ every turn (a model call each time); the summary keeps the user's messages verba
 finer `DEVIN_COMPACTION_THRESHOLDS=spawn,apply,hard` is an environment variable no config
 file can set.
 
-- The policy is **off by default**: `devin: { compactAt: <tokens> }` in `~/.thinker/config.json`
-  (or `THINKER_DEVIN_COMPACT_AT`) makes `connect` and `rewire` write the key; taking it out
-  restores what was there, and a value thinker did not write is never touched
-  (`setDevinCompaction`; `uninstall` restores too). Turning it on by default needs an
-  experiment, like every context reduction strategy (AGENTS.md); judge it by the summary
-  calls and cache rewrites it adds, not by the tokens it removes.
+- **On by default at 140k tokens** (`DEVIN_COMPACT_AT`, the proxy's own result-clearing trigger; the
+  owner's call, 2026-11-01, an exception to the rule that a context reduction strategy ships off
+  until an experiment): `connect` and `rewire` write the key into Devin's user config beside the
+  hooks, so the installer and `thinker update` install it. `devin: { compactAt: <tokens> }` in
+  `~/.thinker/config.json` (or `THINKER_DEVIN_COMPACT_AT`) moves it; `0` or `off` turns it off and
+  restores what was there; a value thinker did not write is never touched (`setDevinCompaction`;
+  `uninstall` restores too). The saving is still unmeasured in agent sessions: judge it by the
+  summary calls and cache rewrites it adds, not by the tokens it removes.
 - The meter runs whether the threshold is thinker's or Devin's own: Devin's session database
   (`~/.local/share/devin/cli/sessions.db`, `message_nodes.metadata`) records the context size
   at every assistant node and marks the summary nodes, so at the end of each turn the Stop
   hook reads what each compaction took out (`recordDevinCompactions`, read-only through
-  `node:sqlite` or the `sqlite3` command) and records it as the proxy's clears are
-  (`compression.js:noteCompression`, `kind: compaction`; log rows `op: compaction`), so the
-  card, the end-of-turn notice and `thinker usage` read it the same way.
+  `node:sqlite` or the `sqlite3` command) and records it as the proxy's clears are: one log row
+  per compaction (`op: compaction`, before, after, saved) and, per later call, the tokens that
+  call leaves out (`callSavings`, the latest summary's before minus after, into
+  `compression.js:noteCompression` with `kind: compaction`), the proxy's own accounting. The
+  card, the end-of-turn notice and the pull-request savings read that record; `thinker usage`
+  and `thinker proxy report` still total the proxy's log alone.
 
 Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
 [lifecycle payloads](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks),

@@ -9,12 +9,15 @@
 // session that sat at 41k tokens a call held at 19k-20k, the first applied compaction taking it from 25.9k to
 // 17.3k. A print-mode session (`devin -p`) exits before the summary applies, so the key does nothing there.
 //
-// Two things here. The policy: `devin: { compactAt: <tokens> }` in the machine config writes the key, and
-// taking the policy out puts back what was there -- off until an experiment measures it, as every context
-// reduction strategy is (AGENTS.md). The meter: Devin's session database records the context size at every
-// assistant node (`num_tokens_preceding`) and marks the summary nodes (`summarized_from`), so what each
-// compaction left out is read from there at the end of a turn and recorded as the proxy's clears are, whether
-// the threshold is thinker's or Devin's own.
+// Two things here. The policy: the key is written at `DEVIN_COMPACT_AT`, the proxy's own trigger, **on by
+// default at the owner's call (2026-11-01)**, an exception to the rule that a context reduction strategy ships
+// off until an experiment; `devin: { compactAt: <tokens> }` in the machine config moves it, 0 or `off` turns it
+// off and puts back what was there. The saving is still unmeasured in agent sessions: judge it by the summary
+// calls and cache rewrites it adds, not by the tokens it removes. The meter: Devin's session database records
+// the context size at every assistant node (`num_tokens_preceding`) and marks the summary nodes
+// (`summarized_from`), so what each compaction left out is read from there at the end of a turn and recorded
+// as the proxy's clears are -- per later call, since every call after a summary leaves those tokens out again
+// -- whether the threshold is thinker's or Devin's own.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,15 +26,18 @@ import { readMachineConfig } from './repo-switch.js';
 import { noteCompression } from './compression.js';
 
 export const DEVIN_COMPACT_KEY = 'compaction_threshold_tokens';
+// The default: the proxy's result-clearing trigger (proxy.js:PROXY_DEFAULTS.trigger), held equal by test/cli-ui-sync.test.js.
+export const DEVIN_COMPACT_AT = 140_000;
 const thinkerHome = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v, null, 2) + '\n'); };
 
-// The policy: tokens at which Devin should compact, or 0 to leave Devin's own setting alone.
-// THINKER_DEVIN_COMPACT_AT wins over the config; `off`, 0 or nothing is off.
+// The policy: tokens at which Devin should compact; 0 leaves Devin's own setting alone. Nothing set is the
+// default; THINKER_DEVIN_COMPACT_AT wins over the config; `off`, 0 or false is off.
 export function devinCompactAt(home = thinkerHome(), env = process.env) {
   const raw = env.THINKER_DEVIN_COMPACT_AT ?? readMachineConfig(home).devin?.compactAt;
-  if (raw == null || raw === '' || raw === 'off' || raw === false) return 0;
+  if (raw == null || raw === '') return DEVIN_COMPACT_AT;
+  if (raw === 'off' || raw === false) return 0;
   const n = Math.floor(Number(raw));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
@@ -52,7 +58,7 @@ export function setDevinCompaction(file, { home = thinkerHome(), at = devinCompa
     const prior = state && current === state.wrote ? state.prior : (current ?? null);
     merge(file, c => ({ ...c, agent: { ...(c.agent || {}), [DEVIN_COMPACT_KEY]: at } }));
     writeJson(stateFile(home), { wrote: at, prior, at: new Date().toISOString() });
-    return `Devin: compacts the conversation at ${at} tokens (agent.${DEVIN_COMPACT_KEY} in config.json; devin.compactAt in thinker's config turns it off)`;
+    return `Devin: compacts the conversation at ${at} tokens (agent.${DEVIN_COMPACT_KEY} in config.json; devin: { compactAt: 0 } in thinker's config turns it off)`;
   }
   if (!state || current !== state.wrote) return null;
   merge(file, c => {
@@ -105,22 +111,40 @@ export function compactionsOf(nodes) {
   return out;
 }
 
+// What each call after a summary leaves out of its prompt: the latest summary's before minus after, for as
+// long as that summary is the latest. The proxy's `cleared` is the same thing, reported by the API per request.
+export function callSavings(nodes) {
+  const out = [];
+  let cur = null, before = null, pending = null;
+  for (const n of nodes || []) {
+    if (n.summary && n.tokens == null) { if (before != null) pending = { node: n.node, before }; continue; }
+    if (n.tokens == null) continue;
+    if (pending) { cur = { ...pending, after: n.tokens, saved: Math.max(0, pending.before - n.tokens) }; pending = null; }
+    if (cur && cur.saved > 0) out.push({ node: n.node, saved: cur.saved, summary: cur.node });
+    before = n.tokens;
+  }
+  return out;
+}
+
 const markerFile = (dir, session) => path.join(dir, '..', 'devin-compaction', `${session}.json`);
 
-// At the end of a Devin turn: every compaction the session has had and nothing has recorded yet becomes a
-// `compaction` log row and a compression record in the proxy's shape (compression.js:noteCompression), so the
-// card, the end-of-turn notice and the report read it as they read a clear.
+// At the end of a Devin turn: every compaction the session has had and nothing has logged yet becomes a
+// `compaction` log row (before, after, saved), and every call since the last turn that a summary shortened
+// becomes a compression record in the proxy's shape (compression.js:noteCompression), so the card, the
+// end-of-turn notice and the report read it as they read a clear. Returns the newly logged compactions.
 export async function recordDevinCompactions(store, { session, dir, client = 'devin', now = Date.now(), nodes = null } = {}) {
   if (!session || session === 'unknown' || !dir) return [];
-  const list = compactionsOf(nodes || await contextNodes(session));
+  const all = nodes || await contextNodes(session);
+  const list = compactionsOf(all);
   if (!list.length) return [];
   const marker = markerFile(dir, session);
-  const seen = readJson(marker)?.node || 0;
-  const fresh = list.filter(c => c.node > seen && c.saved > 0);
-  for (const c of fresh) {
-    store.log({ op: 'compaction', client, session, node: c.node, before: c.before, after: c.after, saved: c.saved });
+  const seen = readJson(marker) || {};
+  const fresh = list.filter(c => c.node > (seen.summary || 0) && c.saved > 0);
+  for (const c of fresh) store.log({ op: 'compaction', client, session, node: c.node, before: c.before, after: c.after, saved: c.saved });
+  const calls = callSavings(all).filter(c => c.node > (seen.call || 0));
+  for (const c of calls) {
     try { noteCompression(dir, { op: 'compaction', session, at: new Date(now).toISOString(), cleared: c.saved, clearedUses: 0 }, { now }); } catch {}
   }
-  writeJson(marker, { node: Math.max(seen, ...list.map(c => c.node)) });
+  writeJson(marker, { summary: Math.max(seen.summary || 0, ...list.map(c => c.node)), call: Math.max(seen.call || 0, ...calls.map(c => c.node)) });
   return fresh;
 }

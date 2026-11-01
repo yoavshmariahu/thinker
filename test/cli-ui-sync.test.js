@@ -664,7 +664,9 @@ test('Devin is selectable through connect and is named consistently on the page'
   assert.match(read('ui/page.html'), /devin: 'Devin'/);
   // the compaction policy is off by default and documented under the key Devin reads (devin-compaction.js)
   const compaction = await import('../src/devin-compaction.js');
-  assert.equal(compaction.devinCompactAt(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nopolicy-')), {}), 0);
+  const { PROXY_DEFAULTS } = await import('../src/proxy.js');
+  assert.equal(compaction.DEVIN_COMPACT_AT, PROXY_DEFAULTS.trigger, 'Devin compacts where the proxy clears');
+  assert.equal(compaction.devinCompactAt(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nopolicy-')), {}), compaction.DEVIN_COMPACT_AT, 'on by default (owner, 2026-11-01)');
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'agent-integrations.md'), 'utf8'), new RegExp(`devin: \\{ compactAt[^\\n]*|agent\\.${compaction.DEVIN_COMPACT_KEY}`));
   assert.match(read('setup/steps.js'), /devin: \{ name: 'Devin' \}/);
 });
