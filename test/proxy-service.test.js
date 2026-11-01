@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import http from 'node:http';
@@ -10,7 +10,16 @@ import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, servi
   wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
-const tmp = prefix => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+// Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
+// the file is done: a test that failed before its own cleanup left a `thinker proxy` listening from a temp directory,
+// one per suite run, four of them from release runs on 2026-11-02.
+const homes = new Set();
+const tmp = prefix => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); homes.add(d); return d; };
+after(() => {
+  for (const d of homes) for (const home of [d, path.join(d, 'thinker')]) {
+    try { const pid = JSON.parse(fs.readFileSync(path.join(home, 'state', 'proxy-service.json'), 'utf8')).pid; if (pid) process.kill(pid, 'SIGTERM'); } catch {}
+  }
+});
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 
 // every agent's file under one temporary home: Claude Code's settings, pi's models.json, OpenCode's opencode.json
@@ -395,6 +404,9 @@ test('--gateway with nothing of the person\'s own to forward to', async () => {
 test('a proxy already listening is replaced when its flags or its version moved, and left alone otherwise', async () => {
   const m = fakeMachine();
   const server = http.createServer(() => {});
+  // every replacement here spawns a real detached proxy, and the state this test writes names no pid for the next
+  // call to stop, so they are stopped by hand: one of them outlived every suite run until 2026-11-02
+  const children = [];
   try {
     fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
     fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
@@ -403,7 +415,7 @@ test('a proxy already listening is replaced when its flags or its version moved,
     const write = extra => fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port, ports: [port], wroteClaude: false, ...extra }));
     // a state from before the record: replaced once, so every machine picks up the present policy
     write({});
-    const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(first.pid);
     assert.equal(first.restarted, true);
     assert.equal(first.listening, false, 'the existing listener cannot establish readiness for the new child');
     assert.match(first.why, /first run that records them/);
@@ -412,17 +424,17 @@ test('a proxy already listening is replaced when its flags or its version moved,
     assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home, wait: 1 }), { on: true, running: true });
     // an older thinker started it
     write({ args: serviceArgs(m.home).join(' '), version: '0.0.1' });
-    const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(upgraded.pid);
     assert.equal(upgraded.restarted, true);
     assert.equal(upgraded.listening, false);
     assert.match(upgraded.why, /new version \(0\.0\.1 -> /);
     // the flags moved under it (a gateway, a clearing policy, the codex route)
     write({ args: 'proxy --port 1 --holdout 0.15', version: appVersion() });
-    const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1 });
+    const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(reflagged.pid);
     assert.equal(reflagged.restarted, true);
     assert.equal(reflagged.listening, false);
     assert.equal(reflagged.why, 'the flags changed');
-  } finally { server.close(); m.restore(); }
+  } finally { for (const pid of children) { try { process.kill(pid, 'SIGTERM'); } catch {} } server.close(); m.restore(); }
 });
 
 test('a settings file that does not parse is left exactly as it is, never written over', async () => {
