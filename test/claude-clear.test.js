@@ -85,3 +85,10 @@ test('connect names the clearing folder with the card in the user\'s Claude sett
     fs.rmSync(home, { recursive: true, force: true });
   }
 });
+
+test('the first desktop session on a machine is told once that clearing reaches it now', () => {
+  const s = src();
+  assert.ok(s.includes("(await $.env.get('CLAUDE_CODE_ENTRYPOINT')) === 'claude-desktop'"), 'the desktop app alone: the terminal had the proxy all along');
+  assert.ok(s.includes('await $.store.get(INTRODUCED)') && s.includes('await $.store.set(INTRODUCED, Date.now())'), 'once per machine, kept across sessions');
+  assert.match(s, /export const INTRO = 'thinker now clears old tool results[^']*Claude Desktop[^']*'/);
+});

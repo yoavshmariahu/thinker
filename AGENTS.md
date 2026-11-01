@@ -129,7 +129,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   breakage was an in-place edit of the history with no compaction boundary.
 - Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 100k, keep the newest turn and 3 results,
   the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
-  machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. It
+  machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
+  first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
+  terminal had the proxy all along, so it is not told). It
   stays idle where thinker's own proxy serves the session (a loopback `ANTHROPIC_BASE_URL`), under `THINKER_TEST`, and
   in a held-out session. `clearInputs` and `clearThinking` from the same block switch the two piggybacks off, as for
   the proxy. Replayed on this repository's last 14 days (138 sessions) the policy matters: results alone at 140k/100k

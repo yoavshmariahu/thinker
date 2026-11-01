@@ -26,6 +26,8 @@ export const MIN_CHARS = 200
 export const RETRY_GROWTH = 20000
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
+export const INTRODUCED = 'thinker-clear:introduced'
+export const INTRO = 'thinker now clears old tool results, call text and earlier thinking in Claude Desktop sessions too, as it does in the terminal: the card under an answer shows what it saved. /thinker-clear runs one by hand.'
 export const TOP_TOOLS = 3
 export const RECENT = 8
 export const placeholder = (chars: number) =>
@@ -188,6 +190,11 @@ export const register: Register = (on) => {
       const test = (await $.env.get('THINKER_TEST')) === '1'
       auto = policy.auto && !test && !proxied(await $.env.get('ANTHROPIC_BASE_URL')) && !heldOut(session, policy.holdout)
       $.command.register({ name: COMMAND, description: 'Clear old tool results from this conversation in place (thinker)' })
+      // once per machine, in the desktop app, where there was no clearing before this mod: say so
+      if (auto && (await $.env.get('CLAUDE_CODE_ENTRYPOINT')) === 'claude-desktop' && !(await $.store.get(INTRODUCED))) {
+        await $.store.set(INTRODUCED, Date.now())
+        $.ui.toast(INTRO)
+      }
     } catch {}
     return r
   })
