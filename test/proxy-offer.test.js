@@ -147,3 +147,17 @@ test('a yes that leaves Claude Code alone says so instead of claiming the cleari
     assert.match(reply, /not being cleared/);
   } finally { m.rm(); }
 });
+
+// A machine whose only "route" is the desktop app's own ANTHROPIC_BASE_URL=https://api.anthropic.com is a plain
+// machine: the offer never names Anthropic's host as a model server of the person's own (2026-11-01).
+test('Anthropic\'s own host is not a gateway to offer', () => {
+  const API = 'https://api.anthropic.com';
+  const m = machine({ service: { enabled: false, standDown: { at: OFF_BEFORE, reason: `ANTHROPIC_BASE_URL is ${API} in your environment` } }, shell: `export ANTHROPIC_BASE_URL=${API}\n` });
+  try {
+    const due = proxyOfferDue({ home: m.home, env: { ...m.env, ANTHROPIC_BASE_URL: API } });
+    assert.equal(due.kind, 'plain');
+    assert.equal(due.gateway, null);
+    const text = proxyOffer(store(), { client: 'claude', home: m.home, env: { ...m.env, ANTHROPIC_BASE_URL: API } });
+    assert.ok(!text.includes('api.anthropic.com') && !/in front of my model server/.test(text), 'nothing of Anthropic\'s own is called a model server of theirs');
+  } finally { m.rm(); }
+});

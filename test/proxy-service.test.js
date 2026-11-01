@@ -537,3 +537,45 @@ test('a network-restricted hook cannot replace a working proxy with a sandboxed 
     server.close(); m.restore();
   }
 });
+
+// The Claude desktop app sets ANTHROPIC_BASE_URL=https://api.anthropic.com in the environment of every local
+// session. On 2026-11-01 the prompt hook in one read that as a route of the person's own ("ANTHROPIC_BASE_URL is
+// https://api.anthropic.com in your environment"), stood the machine's service down, and the repair offer then put
+// the proxy back "in front of" api.anthropic.com. Anthropic's own host is no route and no upstream.
+test('Anthropic\'s own host in the environment is no blocker, stands nothing down, and is never an upstream', async () => {
+  const API = 'https://api.anthropic.com';
+  const m = fakeMachine();
+  try {
+    const shellHome = path.join(m.root, 'shell');
+    fs.mkdirSync(shellHome, { recursive: true });
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, '{}');
+    const env = { ...m.env, THINKER_ROUTE_HOME: shellHome };
+    const desktop = { ...env, [PROXY_ENV]: API };
+    assert.equal(claudeBlocker({}, { home: m.home, env: desktop }), null, 'the desktop app\'s own value');
+    assert.equal(claudeBlocker({ env: { [PROXY_ENV]: `${API}/` } }, { home: m.home, env }), null, 'in the settings too');
+    assert.match(claudeBlocker({}, { home: m.home, env: { ...env, [PROXY_ENV]: 'https://gw.corp' } }), /gw\.corp in your environment/, 'anyone else\'s still is');
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: desktop, manage: false });
+    assert.deepEqual(p.wired.skipped.filter(s => s.agent === 'claude'), [], 'Claude Code is wired');
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], p.url);
+    assert.equal(routeAppeared({ home: m.home, env: desktop }), null, 'a desktop session\'s hook stands nothing down');
+    fs.writeFileSync(path.join(shellHome, '.zshrc'), `export ANTHROPIC_BASE_URL=${API}/v1\n`);
+    assert.equal(routeAppeared({ home: m.home, env: desktop }), null, 'nor does a shell line exporting the default');
+    fs.writeFileSync(path.join(shellHome, '.zshrc'), 'export ANTHROPIC_BASE_URL=https://smartrouter.internal\n');
+    assert.match(routeAppeared({ home: m.home, env: desktop }), /smartrouter\.internal/, 'a route of their own still does');
+    fs.rmSync(path.join(shellHome, '.zshrc'));
+    // --gateway with only Anthropic's host to be found: the API as usual, not "a model server of your own"
+    const g = await enableProxyService({ cli: CLI, home: m.home, env: desktop, manage: false, force: true, gateway: true });
+    assert.equal(g.upstream, null); assert.equal(g.gatewayFrom, null);
+    assert.equal(proxyThrough(m.home), null);
+    assert.equal(serviceArgs(m.home).includes('--upstream'), false);
+    // named as the upstream by hand, or left in the state by the yes of 2026-11-01: normalised away
+    const named = await enableProxyService({ cli: CLI, home: m.home, env: desktop, manage: false, force: true, gateway: `${API}/` });
+    assert.equal(named.upstream, null); assert.equal(serviceState(m.home).upstream, undefined);
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ ...serviceState(m.home), upstream: API }));
+    assert.equal(proxyThrough(m.home), null, 'the status line reads as the ordinary route');
+    assert.equal(serviceArgs(m.home).includes('--upstream'), false);
+    const again = await enableProxyService({ cli: CLI, home: m.home, env: desktop, manage: false, force: true });
+    assert.equal(again.upstream, null); assert.equal(serviceState(m.home).upstream, undefined, 'the stored value is dropped on the next on');
+  } finally { m.restore(); }
+});
