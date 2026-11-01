@@ -158,9 +158,22 @@ repairs wiring but does not launch background learning or discard failed jobs.
 ## End-of-turn notices
 
 All adapters install a stop callback when hooks are enabled, including with
-`--no-learn`. Notices describe notes actually served during that session's turn;
+`--no-learn`. Notices describe notes actually served since the last one;
 an empty turn produces no cache-hit notice. `THINKER_NOTICE=off` or `notice: false`
 in `.thinker/config.json` disables notices without disabling learning.
+
+A notice is a summary, not a line under every answer: one comes due when 20 prompts
+have passed since the last one **and** a day has gone by (`notice-cadence.js`). The
+first turn of a fresh cache speaks at once. While a summary waits, the notes served
+are collected and the line says what span it covers ("3 notes over the last 24
+prompts"); maintenance keeps its lines, and a stand-down or a broken skill is named
+in that summary rather than the turn it was found in. The cadence is the machine's,
+counted across every checkout, since what the person sees is one stream of messages;
+`notice: { "everyPrompts": 20, "everyHours": 24 }` in `.thinker/config.json` moves
+either floor, and 0 drops it. The cards come due the same way, so a box is not drawn
+under every answer either: the Claude Code card mod holds a turn's notes for the next
+card and says the span in its header, and the Codex desktop card waits before drawing
+a new one, while a card already referenced in the turn's answer is kept up to date.
 
 | Client | Notice display |
 | --- | --- |

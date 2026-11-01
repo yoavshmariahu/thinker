@@ -45,6 +45,7 @@ test('only the notes served count, not the titles listed for lookup', () => {
 test('the header reads as the Codex card does', () => {
   expect(cardHeader(1, 7000)).toBe('1 note this turn · Estimated tokens saved: ~7k')
   expect(cardHeader(2, 0)).toBe('2 notes this turn')
+  expect(cardHeader(3, 0, 24)).toBe('3 notes over the last 24 prompts')
 })
 
 test('a title shows its headline only', () => {

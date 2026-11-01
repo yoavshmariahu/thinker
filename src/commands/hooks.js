@@ -20,6 +20,7 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, format
 import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { claudeCardActive } from '../claude-card.js';
+import { noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../notice-cadence.js';
 import { setupRepo } from '../repo-onboard.js';
 import { coverageOffer, recordAccess } from '../coverage.js';
 import { proxyOffer } from '../proxy-offer.js';
@@ -122,9 +123,16 @@ async function hookCommand(ctx) {
     const session = sessionOf(ev);
     // Cursor's stop hook has no user-facing message field (clients.js:stopOutput); when notes are served in
     // Cursor, ask the agent to end its reply with a Markdown table card box.
+    // Cursor has no message field at the end of a turn, so the card is asked for in the agent's own
+    // reply -- which makes it the door the cadence has to hold back there (notice-cadence.js).
     const cursorFootnote = notes => {
       if (client !== 'cursor' || !noticeOn(store)) return '';
-      const footer = turnFooterMarkdown(store.repo, notes, { input: sessionInputSavings(store, session) });
+      const due = noticeDue(store);
+      // held turns are counted once a turn, by the Stop hook below, which sees everything the turn served
+      if (!due.due) return '';
+      const held = pendingNotice(store);
+      const footer = turnFooterMarkdown(store.repo, [...held.ids.map(id => store.get(id)).filter(Boolean), ...(notes || [])], { input: sessionInputSavings(store, session), prompts: held.turns + 1 });
+      if (footer) noticeShown(store);
       return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
@@ -364,13 +372,30 @@ async function hookCommand(ctx) {
       // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);
       // what the context proxy's clearing left out of this session's prompts, a few turns after the clear
-      // (compression.js); the card mod draws it where it runs, as it does the turn's notes
-      let compression = '';
-      try { compression = carded ? '' : compressionNotice(markCompressionTurn(compressionDir(), session, t.turn)); } catch {}
-      const input = sessionInputSavings(store, session, { transcript: ev.transcript_path });
-      const changed = input?.covered && inputNoticeChanged(store.dir, session, input);
-      const notice = [(served.length && !carded) || changed ? turnNotice(store.repo, served.map(id => store.get(id)).filter(Boolean), { input }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
-      const o = stopOutput(client, notice); if (o) out(o);
+      // (compression.js); the card mod draws it where it runs, as it does the turn's notes. The clock is
+      // read every turn whether or not anything is said: it counts the person's turns since the clear, and
+      // starting it at the first turn a summary came due would push the figure a day further off each time.
+      let cleared = null;
+      try { cleared = markCompressionTurn(compressionDir(), session, t.turn); } catch {}
+      // One summary every so many prompts, and at most one a day (notice-cadence.js). What this turn
+      // served waits with the rest until then; maintenance is not asked for its lines while it waits,
+      // since reading them clears its state (maintain.js:maintenanceNotice).
+      countPrompt(store);
+      const due = noticeDue(store);
+      if (!due.due) holdNotice(store, served);
+      else {
+        const compression = carded ? '' : compressionNotice(cleared);
+        const input = sessionInputSavings(store, session, { transcript: ev.transcript_path });
+        const changed = input?.covered && inputNoticeChanged(store.dir, session, input);
+        const held = pendingNotice(store);
+        const waiting = [...new Set([...held.ids, ...served])].map(id => store.get(id)).filter(Boolean);
+        const notice = [(waiting.length && !carded) || changed ? turnNotice(store.repo, waiting, { input, prompts: held.turns + 1 }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+        // The floors start again only once the person has actually been told: nothing to say yet, or a
+        // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
+        // leaves the summary waiting rather than spending it on an answer nobody reads.
+        const o = stopOutput(client, notice);
+        if (o) { noticeShown(store); out(o); }
+      }
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,
     // plus the agent's closing message from the hook input or its transcript.

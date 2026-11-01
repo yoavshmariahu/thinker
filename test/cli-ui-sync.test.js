@@ -654,3 +654,13 @@ test('Report defaults to weekly totals and shows savings as a table without a gr
   assert.doesNotMatch(page, /savings-chart|savings-legend/);
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/, 'the page default uses the CLI --total view');
 });
+
+test('the end-of-turn notices have one cadence, and the hooks read it from the module', async () => {
+  const { NOTICE_PROMPTS, NOTICE_HOURS, noticeCadence } = await import('../src/notice-cadence.js');
+  assert.deepEqual([NOTICE_PROMPTS, NOTICE_HOURS], [20, 24], 'one summary every 20 prompts and at most one a day');
+  assert.deepEqual(noticeCadence({ config: () => ({}) }), { prompts: NOTICE_PROMPTS, hours: NOTICE_HOURS });
+  const hooks = read('commands/hooks.js');
+  for (const fn of ['noticeDue', 'noticeShown', 'countPrompt', 'holdNotice', 'pendingNotice']) assert.match(hooks, new RegExp(fn));
+  assert.doesNotMatch(hooks, /everyPrompts|everyHours|NOTICE_PROMPTS|NOTICE_HOURS/, 'the floors are the module\'s, never a second copy at a door');
+  assert.match(read('usage.js'), /over the last \$\{prompts\} prompts/, 'a held summary says the span it speaks for');
+});

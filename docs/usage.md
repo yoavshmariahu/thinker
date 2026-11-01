@@ -44,7 +44,9 @@ shown until twenty prompts stand on each side. Claude Code, Codex and Gemini sho
 the line as a message to you, outside the model's context; Cursor and Copilot
 have no such channel, so there it lives on the page.
 `THINKER_NOTICE=off` or `"notice": false` in the config turns it off with the
-other end-of-turn notices.
+other end-of-turn notices, which are themselves one summary every 20 prompts and
+at most one a day (`notice: { "everyPrompts": 20, "everyHours": 24 }`; see
+docs/agent-integrations.md).
 
 The report separates cache initialization (PR mining and phrasings; exploration in logs
 from before it was removed), ongoing session distillation, and maintenance. It records reported
