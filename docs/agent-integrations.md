@@ -469,9 +469,10 @@ plugin on a machine without thinker does nothing.
   API's `clear_tool_uses` edit, with the beta header it needs added when the agent does not send it (Claude Code
   does; the others do not, so until 2026-10-24 the proxy served Claude Code alone), so the server drops old tool results from the context on its side once they
   amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
-  what a clear leaves: `turn`, the default since 2026-10-22, the tool uses of the request's current turn
-  (never under `--keep-min`, 3), so only results fetched by earlier turns are cleared; or a count of the
-  newest tool uses (`--keep 3`, the default before). Two more things a clear can take, off until an
+  what a clear leaves: `turn`, the default, now the `--keep-min` (3) newest tool uses, a constant; until
+  2026-11-02 it was the count of the request's current turn's tool uses, which grew by one a call, and every
+  increment made the server restore one earlier result and write the cache again from the system prompt
+  (`src/proxy.js:keepValue`); or a count of the newest tool uses (`--keep 5`). Two more things a clear can take, off until an
   experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
   `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
   goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a
