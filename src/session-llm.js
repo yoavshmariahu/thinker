@@ -56,6 +56,7 @@ export async function viaSession({ system, prompt, schema }, { dir = process.env
 export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
   const start = Date.now();
   for (;;) {
+    releaseStaleClaims(dir);
     let names = []; try { names = fs.readdirSync(dir).filter(n => n.endsWith('.req.json')).sort(); } catch {}
     for (const n of names) {
       const id = n.slice(0, -'.req.json'.length);
@@ -70,6 +71,24 @@ export async function nextRequest(dir, { waitMs = 45_000, pollMs = 500 } = {}) {
     if (Date.now() - start >= waitMs) return { waiting: true };
     await sleep(pollMs);
   }
+}
+
+// A claim this old was taken by a subagent that is no longer answering: a background subagent dies with its
+// session, and a print-mode session ends on the first refused tool call (Devin, 2026-11-01). The request goes
+// back to waiting for the next worker; should the first answer still arrive, answerRequest finds no claim of its
+// own and refuses it, or the later taker's claim and keeps whichever lands first.
+export const CLAIM_STALE_MS = 3 * 60_000;
+export function releaseStaleClaims(dir, now = Date.now()) {
+  let released = 0;
+  let names = []; try { names = fs.readdirSync(dir).filter(n => n.endsWith('.claimed.json')); } catch { return 0; }
+  for (const n of names) {
+    const f = path.join(dir, n);
+    try { if (now - fs.statSync(f).mtimeMs < CLAIM_STALE_MS) continue; fs.renameSync(f, path.join(dir, n.replace(/\.claimed\.json$/, '.req.json'))); released++; } catch {}
+  }
+  return released;
+}
+export function staleClaim(dir, now = Date.now()) {
+  try { return fs.readdirSync(dir).some(n => n.endsWith('.claimed.json') && now - fs.statSync(path.join(dir, n)).mtimeMs >= CLAIM_STALE_MS); } catch { return false; }
 }
 
 // learn_next, handing in: the answer to a taken request; one that does not parse to the request's schema is
@@ -117,3 +136,5 @@ export const isWorkerPrompt = s => {
   return text.startsWith(`${WORKER_INTRO} (`) && (/\blearn_next\b/.test(text) || /\bwarmup_next\b[\s\S]*\bwarmup_answer\b/.test(text));
 };
 export const isWorkerTool = n => /(?:^|[:_])(?:learn_next|warmup_(?:next|answer))$/i.test(String(n || ''));
+// the tool call that starts the worker (run_subagent, Agent): its input carries the worker prompt
+export const isWorkerLaunch = input => !!input && typeof input === 'object' && Object.values(input).some(v => typeof v === 'string' && isWorkerPrompt(v));

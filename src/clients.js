@@ -341,7 +341,11 @@ function excludeLocally(repo, entries) {
 }
 
 const isOurs = h => {
-  if (JSON.stringify(h).includes('thinker')) return true;
+  const text = JSON.stringify(h);
+  // The Devin context skill's companion hook (src/integrations/devin-context) is installed by the skill, not
+  // by connect: it must survive connect, rewire and uninstall, or wiring Devin switches the skill off (2026-11-01).
+  if (/thinker-context[/\\]scripts[/\\]context\.mjs/.test(text)) return false;
+  if (text.includes('thinker')) return true;
   // A checkout/container may be named /workspace or anything else. Identify the
   // installed package as well as legacy hooks whose old path no longer exists.
   const script = hookScript(h);
@@ -1079,6 +1083,26 @@ function uninstallRepoClient(repo, client) {
   return gone;
 }
 // Take thinker's server out of an mcpServers file; the file goes when nothing else is left in it
+// The one permission thinker asks Devin for: its own learn_next tool, which reads the learning queue and saves an
+// answer and nothing else. Returns whether the rule was added.
+export const DEVIN_LEARN_RULE = 'mcp__thinker__learn_next';
+function setDevinLearnRule(file, on) {
+  if (!on && !fs.existsSync(file)) return false;
+  const list = v => (Array.isArray(v) ? v : []);
+  const had = list(readJsonOr(file, {}).permissions?.allow).includes(DEVIN_LEARN_RULE);
+  if (had === !!on) return false;
+  mergeJson(file, c => {
+    const allow = list(c.permissions?.allow).filter(r => r !== DEVIN_LEARN_RULE);
+    if (on) allow.push(DEVIN_LEARN_RULE);
+    const permissions = { ...(c.permissions || {}), allow };
+    if (!allow.length) delete permissions.allow;
+    const n = { ...c, permissions };
+    if (!Object.keys(permissions).length) delete n.permissions;
+    return n;
+  });
+  return !!on;
+}
+
 function dropMcpEntry(file) {
   if (!readJsonOr(file, {}).mcpServers?.thinker) return false;
   mergeJson(file, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
@@ -1429,7 +1453,12 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       mergeJson(file, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry(client, mcpEntry) } }));
       done.push(`${shaped.name}: registered MCP server in ${rel(file)}`);
     }
-    if (client === 'devin') localFiles([f.hooks, ...(mcp ? [f.mcp] : [])]);
+    if (client === 'devin') {
+      // A background subagent is denied every tool not already approved (Devin's subagents.mdx), and an MCP tool
+      // prompts by default: without this rule the learning worker can never answer learn_next (seen live 2026-11-01).
+      if (scope === 'user' && setDevinLearnRule(e.file, !!(wanted && learn && mcp))) done.push('Devin: allowed thinker’s learn_next MCP tool for the background learning worker (permissions.allow in config.json)');
+      localFiles([f.hooks, ...(mcp ? [f.mcp] : [])]);
+    }
     if (mcp && client === 'goose') { setGooseExtension(f.yaml, mcpEntry); done.push(`Goose: added the thinker extension to ${rel(f.yaml)}`); }
   }
 
@@ -1517,6 +1546,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   for (const file of new Set(CLIENTS.flatMap(c => instructionFiles(c, o)))) updateInstructions(file, null);
   untrustCodexHooks(codex.hooks);
   const devin = wiringFiles('devin', o);
+  if (scope === 'user') setDevinLearnRule(devin.hooks, false);
   stripThinkerHooks(devin.hooks, { flat: scope === 'repo' }); dropMcpEntry(devin.mcp);
   if (scope === 'repo') for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) uninstallRepoClient(repo, client);
   else {

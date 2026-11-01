@@ -14,7 +14,7 @@ import { createNote } from '../src/ops.js';
 import { installClient, inferWiring, refreshWiring, uninstallWiring, detectClients, hookClient, normalizeHookEvent, wiringFiles } from '../src/clients.js';
 import { desktopApp, anyDesktopApp, subagentHarness } from '../src/app-host.js';
 import { pendingJobs, enqueueJob, startSessionWork } from '../src/session-work.js';
-import { subagentPrompt, viaSession, queueDir } from '../src/session-llm.js';
+import { subagentPrompt, viaSession, queueDir, nextRequest, releaseStaleClaims, CLAIM_STALE_MS } from '../src/session-llm.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const MCP = fileURLToPath(new URL('../src/mcp.js', import.meta.url));
@@ -47,16 +47,21 @@ test('Devin connects, detects, refreshes idempotently and uninstalls without tou
   const { home } = fixture(t);
   atHome(home, () => {
     const f = wiringFiles('devin', { scope: 'user' });
-    const original = { agent: { model: 'sonnet' }, proxy: { mode: 'manual', url: 'http://company.invalid:8080' }, permissions: { deny: ['Write(secret)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo mine' }] }] } };
+    const skillHook = { matcher: '.*', hooks: [{ type: 'command', command: "'/usr/bin/node' '/home/me/.config/devin/skills/thinker-context/scripts/context.mjs' hook", timeout: 5 }] };
+    const original = { agent: { model: 'sonnet' }, proxy: { mode: 'manual', url: 'http://company.invalid:8080' }, permissions: { deny: ['Write(secret)'] }, hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo mine' }] }], PostToolUse: [skillHook] } };
     write(f.hooks, original); write(f.mcp, { mcpServers: { other: { command: 'other' } } });
     assert.ok(detectClients({ fallback: false }).includes('devin'));
     installClient('devin', opts);
     const cfg = json(f.hooks);
     assert.deepEqual(cfg.proxy, original.proxy);
-    assert.deepEqual(cfg.permissions, original.permissions);
+    // Devin denies a background subagent every tool not approved already: the worker needs learn_next allowed
+    assert.deepEqual(cfg.permissions, { deny: ['Write(secret)'], allow: ['mcp__thinker__learn_next'] });
     assert.equal(cfg.hooks.Stop.length, 2);
     assert.equal(cfg.hooks.PreToolUse, undefined);
-    assert.equal(cfg.hooks.PostToolUse[0].matcher, '.*');
+    // the context skill's own hook has 'thinker' in its path and is not connect's to remove
+    assert.deepEqual(cfg.hooks.PostToolUse[0], skillHook);
+    assert.equal(cfg.hooks.PostToolUse.length, 2);
+    assert.equal(cfg.hooks.PostToolUse[1].matcher, '.*');
     assert.match(cfg.hooks.UserPromptSubmit[0].hooks[0].command, /--client devin --user --record$/);
     assert.equal(cfg.hooks.UserPromptSubmit[0].hooks[0].timeout, 15);
     assert.ok(cfg.hooks.SessionEnd);
@@ -174,6 +179,52 @@ test('Devin queue workers do not record or distill themselves, and background wo
   assert.match(instruction, /not a shell command/);
   assert.equal(options.env.THINKER_LLM, 'session');
   assert.equal(options.env.THINKER_TEST, '1');
+});
+
+test('a Devin session keeps its own record when its background learning worker runs under the same session id', t => {
+  const { store, hook, repo } = fixture(t);
+  const base = { session_id: 'd-parent', hook_event_name: 'PostToolUse' };
+  hook('prompt', { ...base, hook_event_name: 'UserPromptSubmit', prompt: 'document the upload rate limit' }, ['--record']);
+  hook('tool', { ...base, tool_name: 'read', tool_input: { file_path: 'src/upload.py' }, tool_response: { success: true, output: 'class RateLimiter', error: null } }, ['--record']);
+  // the parent launches the worker: Devin reports the subagent's calls with the parent's session id
+  hook('tool', { ...base, tool_name: 'run_subagent', tool_input: { title: 'Thinker learning', task: subagentPrompt(repo, { harness: 'devin' }) }, tool_response: { success: true, output: 'Background subagent started', error: null } }, ['--record']);
+  hook('tool', { ...base, tool_name: 'mcp_call_tool', tool_input: { server_name: 'thinker', tool_name: 'learn_next', arguments: {} }, tool_response: { success: true, output: 'nothing has come yet', error: null } }, ['--record']);
+  hook('tool', { ...base, tool_name: 'edit', tool_input: { file_path: 'src/upload.py' }, tool_response: { success: true, output: 'edited', error: null } }, ['--record']);
+  hook('stop', { ...base, hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: 'Documented it.' }, ['--record']);
+  const events = fs.readFileSync(path.join(store.dir, 'state', 'trace-d-parent.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.deepEqual(events.map(e => e.t === 'tool' ? e.name : e.t), ['prompt', 'Read', 'Edit', 'say'], 'the worker\'s launch and calls are left out; nothing else is');
+});
+
+test('the worker instruction is given again while a live runner has a request nobody took', t => {
+  const { store } = fixture(t);
+  enqueueJob(store, 'verify', ['verify']);
+  const start = () => startSessionWork(store, { cli: CLI, harness: 'devin', spawnFn: () => ({ pid: process.pid, unref() {} }) });
+  assert.match(start(), /<thinker-learning>/);
+  assert.equal(start(), '', 'the runner is alive and has written nothing yet');
+  const req = path.join(queueDir(store), 'x.req.json');
+  fs.writeFileSync(req, '{}');
+  assert.equal(start(), '', 'a request just written may still be taken by the subagent already asked for');
+  const old = new Date(Date.now() - 5 * 60_000); fs.utimesSync(req, old, old);
+  assert.match(start(), /<thinker-learning>/, 'a request untaken for a minute means no subagent is working the queue');
+  assert.ok(fs.existsSync(req), 'the waiting request is left for the subagent this prompt starts');
+  // a subagent took the request and its session ended: the claim goes stale and counts the same
+  fs.renameSync(req, path.join(queueDir(store), 'x.claimed.json'));
+  const fresh = new Date(); fs.utimesSync(path.join(queueDir(store), 'x.claimed.json'), fresh, fresh);
+  assert.equal(start(), '', 'a fresh claim is being answered');
+  const stale = new Date(Date.now() - CLAIM_STALE_MS - 1000); fs.utimesSync(path.join(queueDir(store), 'x.claimed.json'), stale, stale);
+  assert.match(start(), /<thinker-learning>/, 'a claim nobody answered for three minutes means the subagent died with its session');
+});
+
+test('a claim whose subagent stopped answering is released to the next worker', async t => {
+  const { store } = fixture(t);
+  const dir = queueDir(store); fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'build.json'), JSON.stringify({ pid: process.pid }));
+  fs.writeFileSync(path.join(dir, 'a.claimed.json'), JSON.stringify({ id: 'a', prompt: 'p' }));
+  assert.equal(releaseStaleClaims(dir), 0, 'a fresh claim stays with its taker');
+  const stale = new Date(Date.now() - CLAIM_STALE_MS - 1000); fs.utimesSync(path.join(dir, 'a.claimed.json'), stale, stale);
+  const r = await nextRequest(dir, { waitMs: 50, pollMs: 5 });
+  assert.equal(r.request?.id, 'a', 'the next worker takes the released request');
+  assert.ok(fs.existsSync(path.join(dir, 'a.claimed.json')) && !fs.existsSync(path.join(dir, 'a.req.json')));
 });
 
 test('Devin MCP exposes and answers the learning queue from startup, even outside the checkout', async t => {

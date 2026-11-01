@@ -33,7 +33,7 @@ import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
 import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
-import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
+import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint } from '../proxy-service.js';
 
@@ -262,7 +262,11 @@ async function hookCommand(ctx) {
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
-    if (isWorkerTool(ev.tool_name)) { try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {} if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
+    // The learning worker's own calls (learn_next, and the call that launches it) are not the session's work and
+    // are not recorded. They used to delete the session's trace, on the assumption that a worker is its own
+    // session: in Devin (and Claude Code) a background subagent's hooks carry the parent's session id, so the
+    // person's own prompt and tool calls were wiped and the session distilled as nothing (seen live 2026-11-01).
+    if (isWorkerTool(ev.tool_name) || isWorkerLaunch(ev.tool_input)) { if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }

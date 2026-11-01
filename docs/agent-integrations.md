@@ -30,10 +30,24 @@ Cascade adapter remains separate.
   backlog, and `SessionEnd` queues the remaining trace. Hooks do not rewrite commands.
 - Learning uses Devin's background `run_subagent` (`subagent_general`) and Thinker's `learn_next` MCP
   queue. No separate Claude/Codex login or API key is needed. Work queued when a
-  session closes is picked up on a later prompt. Devin must allow the background
-  worker to use that MCP tool; Thinker does not alter its permissions. The documented
+  session closes is picked up on a later prompt. A background subagent is denied every
+  tool the session has not approved already, and an MCP tool prompts by default, so
+  `connect` adds the one rule the worker needs, `mcp__thinker__learn_next`, to
+  `permissions.allow` in `config.json` (`clients.js:DEVIN_LEARN_RULE`; `uninstall` takes it
+  out). It is thinker's own tool, which reads the queue and saves an answer. Without the
+  rule the worker ran and was denied, and learning stalled, in every live session on
+  2026-11-01. The documented
   examples omit a final answer, but CLI 3000.11.234 sends `last_assistant_message`
   on Stop; Thinker records it when present alongside prompts and tool results.
+- The worker's hooks arrive under the parent session's id. Its own calls (`learn_next`,
+  and the `run_subagent` call that starts it) are left out of the session's record and
+  nothing else is; an earlier version deleted the record on seeing them, which wiped the
+  person's session. A prompt that finds the runner alive with a request nobody has taken
+  for a minute asks for the worker again (`session-work.js:unclaimedRequest`), since the
+  last instruction evidently reached no subagent.
+- Print mode (`devin -p`) in the default permission mode rejects the first edit and ends
+  the session without a final answer; such a session has nothing to distill. Use
+  `--permission-mode accept-edits` (or an interactive session) for an end-to-end check.
 - `--no-learn` stops recording/learning, `--no-late` omits file-related notes, and
   `--no-hooks` omits hook delivery. `--no-mcp` connects note delivery only and reports
   that session learning needs MCP. Rewire, doctor repair and uninstall recognize
@@ -56,8 +70,16 @@ logged the job as successful. The initial smoke prompt also launched a second
 connectivity worker that claimed a request without answering, so that run failed
 and was repeated with exactly one worker. The Devin worker prompt now names the
 MCP dispatcher explicitly. `THINKER_TEST=1` suppresses automatic worker launch,
-so the smoke test started the product's queue runner explicitly; automatic
-next-prompt launch and live desktop/cloud behavior remain unverified. These are
+so the smoke test started the product's queue runner explicitly. On 2026-11-01 five
+further print-mode sessions on the real CLI (SWE-1.6 Slow, holdout off) verified the
+automatic path without starting anything by hand: the prompt hook started the runner and
+handed the worker instruction to Devin, Devin started a background subagent, the
+subagent called `learn_next` through MCP once the permission rule was in place, the
+session's distillation request was answered from that subagent (provider `session` in
+the log, ten seconds) and the job was marked done, with the person's own session record
+intact. The same sessions found the three faults fixed that day: the skill hook dropped
+by `connect`, the missing permission rule, and the record wiped by the worker's calls.
+Live desktop/cloud behavior remains unverified. These are
 mechanism checks, not evidence of token savings or improved task correctness.
 Desktop's Devin Local mode must honor these same hook and MCP contracts; cloud
 sessions and legacy Cascade are not claimed to have this automatic integration.
