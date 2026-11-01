@@ -47,7 +47,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     // --no-gateway goes back to the API. Nothing but these puts the proxy in front of someone's gateway.
     const gateway = flags.upstream ? String(flags.upstream) : flags.gateway === true ? true : flags.gateway === false || flags['no-gateway'] ? false : undefined;
     const p = await enableProxyService({ cli, force: true, gateway });
-    if (gateway === true && !p.upstream) { out('thinker proxy on --gateway: no model server of your own was found to forward to (no ANTHROPIC_BASE_URL in your settings, environment or shell files). The proxy forwards to the API as usual.'); }
+    if (gateway === true && !p.upstream) { out('thinker proxy on --gateway: no model server of your own was found to forward to (no ANTHROPIC_BASE_URL in your settings, environment or shell files, or only Anthropic\'s own api.anthropic.com, which is the ordinary route). The proxy forwards to the API as usual.'); }
     out(`Context proxy on: ${p.url}${p.upstream ? ` -> ${p.upstream}${p.gatewayFrom ? ` (your route, from ${p.gatewayFrom})` : ''}` : ''}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
     for (const l of wiredLines(p.wired, p.url, p.upstream)) out(`  ${l}`);
     for (const u of p.wired.unchanged) if (!u.absent) out(`  ${u.agent}: already pointed at it`);
