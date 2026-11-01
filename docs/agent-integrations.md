@@ -128,16 +128,28 @@ file can set.
   restores what was there; a value thinker did not write is never touched (`setDevinCompaction`;
   `uninstall` restores too). The saving is still unmeasured in agent sessions: judge it by the
   summary calls and cache rewrites it adds, not by the tokens it removes.
+- **Proven at the installed threshold (2026-11-01, CLI 3000.11.234 over ACP, SWE-2 Medium, 30 files
+  of 24 KB read five a turn over six turns):** with the key at 140k the context peaked at 142k-143k
+  and fell to about 100k at each of six applied compactions; the same workload with the key removed
+  climbed to 296k before Devin's own first compaction (to 157k) and reached 297k again by the end.
+  Peak context is the fair comparison: the two runs' models batched their reads differently, so
+  summed prompt tokens are not.
 - The meter runs whether the threshold is thinker's or Devin's own: Devin's session database
-  (`~/.local/share/devin/cli/sessions.db`, `message_nodes.metadata`) records the context size
-  at every assistant node and marks the summary nodes, so at the end of each turn the Stop
-  hook reads what each compaction took out (`recordDevinCompactions`, read-only through
-  `node:sqlite` or the `sqlite3` command) and records it as the proxy's clears are: one log row
-  per compaction (`op: compaction`, before, after, saved) and, per later call, the tokens that
-  call leaves out (`callSavings`, the latest summary's before minus after, into
-  `compression.js:noteCompression` with `kind: compaction`), the proxy's own accounting. The
-  card, the end-of-turn notice and the pull-request savings read that record; `thinker usage`
-  and `thinker proxy report` still total the proxy's log alone.
+  (`~/.local/share/devin/cli/sessions.db`, `message_nodes`) records the context size on each call's
+  assistant node (`num_tokens_preceding`) and the summary twice, as an assistant node when the
+  background summarizer finishes and as a *system* node when it is swapped in (both
+  `summarized_from`); the context drops at the first call after the system node, so that is the
+  marker (`mainLine`, `applied`). A background subagent's calls are stored under the same session
+  id below a root of their own ("You are a subagent of Devin") and are left out; every other root
+  is the main line, since a turn after a compaction hangs off an early node. At the end of each
+  turn the Stop hook reads it (`recordDevinCompactions`, read-only through `node:sqlite` or the
+  `sqlite3` command) and records it as the proxy's clears are: one log row per applied compaction
+  (`op: compaction`, before, after, saved) and, per later call, every compaction applied before
+  it added up (`callSavings`, into `compression.js:noteCompression` with `kind: compaction`),
+  which is what the API's cumulative `cleared_input_tokens` reports for the proxy. On the run
+  above that read "context cleared · ~3.4M tokens not re-read over 25 calls". The card, the
+  end-of-turn notice and the pull-request savings read that record; `thinker usage` and
+  `thinker proxy report` still total the proxy's log alone.
 
 Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
 [lifecycle payloads](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks),

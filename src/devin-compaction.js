@@ -76,34 +76,70 @@ export function setDevinCompaction(file, { home = thinkerHome(), at = devinCompa
 export const devinSessionsDb = (env = process.env) =>
   path.join(env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share'), 'devin', 'cli', 'sessions.db');
 
-const SQL = "select node_id as node, json_extract(metadata,'$.num_tokens_preceding') as tokens, json_extract(metadata,'$.summarized_from') as summary"
-  + " from message_nodes where session_id = ? and json_extract(chat_message,'$.role') = 'assistant'"
-  + " and (json_extract(metadata,'$.num_tokens_preceding') is not null or json_extract(metadata,'$.summarized_from') is not null) order by node_id";
-const norm = r => ({ node: Number(r.node), tokens: r.tokens == null ? null : Number(r.tokens), summary: r.summary != null });
+const SQL = "select node_id as node, parent_node_id as parent, json_extract(chat_message,'$.role') as role,"
+  + " json_extract(metadata,'$.num_tokens_preceding') as tokens, json_extract(metadata,'$.summarized_from') as summary,"
+  + " substr(json_extract(chat_message,'$.content'),1,120) as head"
+  + " from message_nodes where session_id = ? order by node_id";
+const SUBAGENT_ROOT = /subagent of devin/i;
 
-// The session's assistant nodes in order: the context size each call carried, and the summaries between them.
-// Read-only, through node:sqlite where Node has it (22.13+) and the sqlite3 command otherwise; nothing on either
-// path gives [].
+// The session's main line, in order: the context size each model call carried (`num_tokens_preceding` on the
+// assistant node of the call) and the points where a summary was applied. Devin stores the summary text as an
+// assistant node when the background summarizer finishes and a *system* node when the summary is swapped in,
+// both carrying `summarized_from`; the context drops at the first call after the system node, so that is the
+// marker (`applied`), and the assistant one is ignored. The conversation is not one tree: a turn after a
+// compaction hangs off an early node and the system prefix has several parentless variants, so every root is
+// the main line except a background subagent's, stored under the same session id below a system root of its
+// own that opens "You are a subagent of Devin".
+export function mainLine(rows) {
+  const byId = new Map(rows.map(r => [Number(r.node), r]));
+  const rootOf = new Map();
+  const root = id => {
+    if (rootOf.has(id)) return rootOf.get(id);
+    const seen = []; let cur = id;
+    for (;;) {
+      if (rootOf.has(cur)) { cur = rootOf.get(cur); break; }
+      seen.push(cur);
+      const up = byId.get(cur)?.parent;
+      if (up == null || !byId.has(Number(up)) || seen.includes(Number(up))) break;
+      cur = Number(up);
+    }
+    for (const n of seen) rootOf.set(n, cur);
+    return cur;
+  };
+  const side = new Set(rows.filter(r => r.parent == null && SUBAGENT_ROOT.test(r.head || '')).map(r => Number(r.node)));
+  return rows.filter(r => !side.has(root(Number(r.node)))).map(r => ({
+    node: Number(r.node),
+    tokens: r.tokens == null || r.role !== 'assistant' ? null : Number(r.tokens),
+    applied: r.role === 'system' && r.summary != null,
+  })).filter(n => n.tokens != null || n.applied);
+}
+
+// Read-only, through node:sqlite where Node has it (22.13+) and the sqlite3 command otherwise; nothing on
+// either path gives [].
 export async function contextNodes(session, { db = devinSessionsDb() } = {}) {
   if (!session || !fs.existsSync(db)) return [];
+  let rows = null;
   try {
     const { DatabaseSync } = await import('node:sqlite');
     const d = new DatabaseSync(db, { readOnly: true });
-    try { return d.prepare(SQL).all(session).map(norm); } finally { d.close(); }
+    try { rows = d.prepare(SQL).all(session); } finally { d.close(); }
   } catch {}
-  try {
-    const out = execFileSync('sqlite3', ['-readonly', '-json', db, SQL.replace('?', `'${String(session).replace(/'/g, "''")}'`)], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
-    return (out.trim() ? JSON.parse(out) : []).map(norm);
-  } catch { return []; }
+  if (!rows) {
+    try {
+      const out = execFileSync('sqlite3', ['-readonly', '-json', db, SQL.replace('?', `'${String(session).replace(/'/g, "''")}'`)], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+      rows = out.trim() ? JSON.parse(out) : [];
+    } catch { return []; }
+  }
+  return mainLine(rows);
 }
 
-// Each summary with the context size of the last call before it and of the first call after it; the
-// difference is what every later call leaves out, which is the proxy's `cleared` figure.
+// Each applied summary with the context size of the last call before it and of the first call after it; the
+// difference is what that compaction took out.
 export function compactionsOf(nodes) {
   const out = [];
   let before = null, pending = null;
   for (const n of nodes || []) {
-    if (n.summary && n.tokens == null) { if (before != null) pending = { node: n.node, before }; continue; }
+    if (n.applied) { if (before != null) pending = { node: n.node, before }; continue; }
     if (n.tokens == null) continue;
     if (pending) { out.push({ ...pending, after: n.tokens, saved: Math.max(0, pending.before - n.tokens) }); pending = null; }
     before = n.tokens;
@@ -111,16 +147,16 @@ export function compactionsOf(nodes) {
   return out;
 }
 
-// What each call after a summary leaves out of its prompt: the latest summary's before minus after, for as
-// long as that summary is the latest. The proxy's `cleared` is the same thing, reported by the API per request.
+// What each call leaves out of its prompt: every compaction applied before it, added up, since the context
+// would carry all of it still. The proxy's `cleared` is the same figure, reported by the API per request.
 export function callSavings(nodes) {
   const out = [];
-  let cur = null, before = null, pending = null;
+  let before = null, pending = null, saved = 0;
   for (const n of nodes || []) {
-    if (n.summary && n.tokens == null) { if (before != null) pending = { node: n.node, before }; continue; }
+    if (n.applied) { if (before != null) pending = { node: n.node, before }; continue; }
     if (n.tokens == null) continue;
-    if (pending) { cur = { ...pending, after: n.tokens, saved: Math.max(0, pending.before - n.tokens) }; pending = null; }
-    if (cur && cur.saved > 0) out.push({ node: n.node, saved: cur.saved, summary: cur.node });
+    if (pending) { saved += Math.max(0, pending.before - n.tokens); pending = null; }
+    if (saved > 0) out.push({ node: n.node, saved });
     before = n.tokens;
   }
   return out;
