@@ -1,0 +1,5 @@
+{
+  "name": "thinker-clear",
+  "version": "0.1.0",
+  "description": "thinker's context clearing inside a Claude Code session the context proxy cannot reach: old tool results replaced in place, no summary"
+}
