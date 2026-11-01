@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
-import { weeklyPrStats, prStatsBreakdown, renderPrBreakdown } from '../src/report.js';
+import { weeklyPrStats } from '../src/report.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
 
@@ -433,39 +433,4 @@ test('weekly PR stats respect merge boundaries, empty weeks and missing counters
   const missing = weeklyPrStats({ rows: [row(now, 0, 0, false)] }, columns, now).at(-1);
   assert.equal(missing.savedPerPr, 0, 'measured zero savings is not a gap');
   assert.equal(missing.tokensPerPr, null, 'missing counters never read as free work');
-});
-
-test('PR breakdown groups authors across projects, preserves unknowns and weights individual PRs', () => {
-  const now = new Date(2026, 9, 30, 12).getTime(), columns = weekColumns(now, 2);
-  const row = (repo, author, saved, agent, complete = true) => ({ number: 1, repo, repoName: repo.toUpperCase(), author, mergedAt: new Date(columns[0].t + 1000).toISOString(), saved, agent, complete });
-  const prs = { rows: [row('a', 'Alice', 100, 1000), row('b', 'alice', 300, 3000), row('b', 'Bob', 0, 900, false), row('b', null, 200, 2000), { ...row('a', 'Future', 999, 999), mergedAt: new Date(now + 1000).toISOString() }] };
-  const breakdown = prStatsBreakdown(prs, columns, now), alice = breakdown.people.find(g => g.key === 'alice');
-  assert.equal(alice.cells[0].merged, 2, 'same author across projects, case insensitive');
-  assert.equal(alice.cells[0].savedPerPr, 200);
-  assert.equal(alice.cells[0].tokensPerPr, 2000);
-  near(alice.cells[0].shares.saved, 2 / 3);
-  assert.equal(breakdown.people.find(g => g.key === 'bob').cells[0].tokensPerPr, null);
-  assert.equal(breakdown.people.find(g => g.key === 'bob').cells[0].shares.tokens, null);
-  assert.equal(breakdown.people.find(g => g.key === '').name, 'Unknown author');
-  const b = breakdown.project.find(g => g.key === 'b').cells[0];
-  near(b.savedPerPr, 500 / 3);
-  assert.equal(b.tokensPerPr, 2500, 'incomplete counters are excluded from token averages');
-  assert.equal(breakdown.project.find(g => g.key === 'a').cells[0].merged, 1, 'future merges excluded');
-  assert.deepEqual(alice.cells[1].shares, { merged: null, saved: null, tokens: null });
-  assert.equal(prStatsBreakdown(null, columns, now), null);
-  assert.deepEqual(prStatsBreakdown({ rows: [] }, columns, now), { project: [], people: [] });
-  const v = { columns, prWeekly: weeklyPrStats(prs, columns, now), prBreakdown: breakdown };
-  assert.match(renderPrBreakdown(v, { group: 'people' }).join('\n'), /Alice\s+200/);
-  assert.match(renderPrBreakdown(v, { group: 'people', total: true }).join('\n'), /Alice\s+400/);
-  assert.match(renderPrBreakdown(v, { group: 'people', share: true }).join('\n'), /Alice\s+66\.67%/);
-  assert.throws(() => renderPrBreakdown(v, { group: 'bogus' }), /project or people/);
-});
-
-test('PR authors and project identity survive the shared report row', () => {
-  const r = delivery([{ ...pr(1, { merged: '2026-10-20T00:00:00Z' }), author: 'octocat' }]);
-  r.scope = 'github.com/example/repo';
-  const band = prSavings(null, { days: 42, delivery: r });
-  assert.equal(band.rows[0].author, 'octocat');
-  assert.equal(band.rows[0].repo, r.scope);
-  assert.equal(band.rows[0].repoName, 'example/repo');
 });

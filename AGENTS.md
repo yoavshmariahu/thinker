@@ -113,6 +113,35 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
 - A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
 
+**One summary, not a line a turn (2026-11-01, the owner's call):**
+- thinker said something at the end of nearly every turn: the notes served in it, what the clearing
+  saved (`compressionNotice` had no guard at all, so from three turns past a clear it printed under
+  every answer with the same figure), what maintenance did, the weekly line. A line under every answer
+  is noise, and every figure in it is on the Report page and in `thinker usage` anyway.
+- A summary comes due when `NOTICE_PROMPTS` (20) prompts have passed since the last one **and**
+  `NOTICE_HOURS` (24) have gone by (`notice-cadence.js`). Both floors: a day of heavy work carries one
+  summary, and a quiet week still gets one once 20 prompts add up. The first turn of a fresh cache
+  speaks at once -- there is nothing to be quiet about yet, and that is how a person learns it is there.
+- Nothing is dropped by waiting. A held turn's servings go to `holdNotice` as a set (a note served in
+  three held turns is one note), `maintenanceNotice` is not called while a summary waits because reading
+  its lines clears them, and the clearing's own clock (`markCompressionTurn`) is still read every turn.
+  The line says the span it speaks for ("3 notes over the last 24 prompts"), counted in this cache's
+  held turns, not the machine's prompts.
+- The floors start again only once the person has actually been told: an empty summary, or a client
+  with no message at the end of a turn (`clients.js:stopOutput` returns nothing for Cursor and Cline),
+  leaves it waiting. Cursor's door is its prompt-time footnote, which holds back the same way.
+- The cadence is the machine's (`THINKER_HOME/state/notice.json`, beside the weekly marker), since the
+  person sees one stream of messages however many checkouts they work in; what waits to be said is the
+  cache's own (`<cache>/state/notice-pending.json`). `notice: { everyPrompts, everyHours }` in
+  `.thinker/config.json` moves either floor and 0 drops it; `notice: false` is still the off switch.
+- The cards come due the same way, since a box under every answer is the same noise: the Claude Code
+  mod reads and stamps the same state file (its own copy of the floors, `NOTICE_PROMPTS`/`NOTICE_HOURS`
+  in `register.tsx`, held together by `test/claude-card.test.js`), keeps a held turn's notes in `served`
+  and says the span in its header; the Codex desktop card waits for the next summary before drawing a
+  new one, while a card whose reference is already in the turn's answer is still kept up to date. The
+  hooks count the prompts and the cards only read the count: both run in every turn, and counting twice
+  would halve the floor. One thinker message, whichever door it comes through.
+
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
 - Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
@@ -200,6 +229,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
+| `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
 | `src/server/` | `thinker-server`: `index.js`, `repos.js`, `auth.js`, `worker.js` |
@@ -863,11 +893,6 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   input + output tokens per PR. The cost mean uses only PRs with complete counters and exposes that count;
   missing counters never read as zero cost. Empty weeks have zero PRs and null averages. All repositories
   recomputes from all PR rows, never averages repository averages. The CLI prints the same weekly values.
-- **See breakdown** opens the PR stats report (`#tab=report&view=prs`) with three weekly tables.
-  Project/People selects the dimension; People means the synced PR author, with missing authors shown as
-  Unknown author. `report.js:prStatsBreakdown` computes both dimensions and shares, including across projects.
-  Repository filtering, Per PR/Total and Values/Share apply; Cost is disabled because PR savings stay in tokens.
-  Back to Report restores the overview. CLI: `thinker report --prs --group project|people [--total] [--share]`.
 - **Tokens, under Cost as much as under Tokens, and no dollar figure anywhere in the band.** Only one of the
   two savings converts: reading avoided is fresh input nobody paid for, but a cleared token was mostly being
   read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice
