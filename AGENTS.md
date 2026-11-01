@@ -106,6 +106,32 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   set, so summing counts one call many times; it is the latest prompt's set. `CARD_TOOLS`/`shortTool` keep an MCP
   tool's long name from pushing a card's line off the screen.
 
+**The desktop door of the clearing (2026-11-01, `src/integrations/claude-clear`):**
+- The Claude desktop app sets `ANTHROPIC_BASE_URL` itself and Claude Code ignores the settings' value when the variable
+  is already set (its docs say so), so a desktop session never reaches the proxy: checked live that day, zero rows in the
+  proxy log for a desktop session. A settings hook cannot help either: PreCompact only blocks, and no hook reaches the
+  request. Claude Code 2.1.316 itself carries a flag-gated server-side clearing ("tool result clearing after idle",
+  `tengu_jiggly_blossom`, off by default, no setting), which will overlap this when it rolls out.
+- So the clearing runs as a mod inside the session, wired beside the card in `CLAUDE_CODE_PLUGIN_DIRS`
+  (`claude-card.js:claudeClearDir`; `thinker connect` writes it, uninstall takes it out). At the end of a turn it reads
+  the context (`$.session.usage()`) and past the proxy's trigger queues the engine's own `/compact` from a timer; its
+  `session.compact` hook answers that compaction itself with the old tool results replaced in place by a placeholder,
+  no summary written, every assistant row kept whole so its thinking stands. The timer is not a flourish: to the engine
+  a desktop session is headless, where `$.session.compact()` is refused and compaction runs only as a `/compact` turn,
+  and nothing may start one from the hook holding the turn. Tested live in Claude Desktop on 2026-11-01 (Claude Code
+  2.1.309 bundled with the app): 3 results, 106k chars cleared, the next Opus 5.5 call answered with its thinking, no
+  400; the model saw the placeholders and said so.
+- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 100k, keep the newest turn and 3 results,
+  the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
+  machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. It
+  stays idle where thinker's own proxy serves the session (a loopback `ANTHROPIC_BASE_URL`), under `THINKER_TEST`, and
+  in a held-out session. Results only: a mod cannot rebuild an assistant row without losing its thinking, so the call
+  text and earlier thinking stay, unlike the proxy's clear.
+- It writes the proxy's own record (`compression.js:noteCompression`'s shape, `state/compression/<session>.json`),
+  counting `saved` on every later model request (`turn.step`) as the proxy counts it per request, so the card, the Stop
+  hook's line and `thinker proxy report` read it unchanged. What is not measured: the holdout's question, whether the
+  model reads again what was cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
+
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
