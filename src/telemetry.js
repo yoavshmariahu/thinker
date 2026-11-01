@@ -365,7 +365,8 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     },
     standDowns,
     offer,
-    sides: proxyReport(rows, { since }),
+    // the rewrite rates ride along (`rewrites` per side, `sessionsCacheBroken`); the warning sentence stays on the machine
+    sides: (({ warning, ...s }) => s)(proxyReport(rows, { since })),
     byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };
 }

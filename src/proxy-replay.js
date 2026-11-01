@@ -134,6 +134,8 @@ export function simulate(items, policy) {
     if (prefix === null) prefix = it.read + it.write;
     let read = Math.max(0, it.read - cleared), write = it.write, invalidateAt = null;
     if (policy && it.input + read + write >= policy.trigger) {
+      // the replay still models `turn` as the growing count it sent until 2026-11-02, as if the server took it without
+      // moving the cleared set; it does not (proxy.js:keepValue), so this arm overstates what a growing keep saved
       const keep = policy.keep === 'turn' ? Math.max(policy.keepMin ?? 0, turnUses) : policy.keep;
       const results = log.filter(x => x.k === 'result');
       const cand = results.slice(0, Math.max(0, results.length - keep)).filter(r => !r.cleared);

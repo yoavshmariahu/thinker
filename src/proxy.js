@@ -45,6 +45,17 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // count's 1.58%, with 17 sessions costlier against 20, and by construction never clears a result of the turn in hand;
 // what the replay cannot see, the agent reading again what was cleared, is the experiment still to run
 // (research/output-lifetime-2026-10-22). The proxy itself stays off until then: nothing points an agent at it.
+// **`turn` sends `keepMin`, a constant, since 2026-11-02.** It used to send the count of the turn's tool uses, which grows
+// by one with every call of the turn, and the server does not take a growing keep the way the replay modelled it: read
+// from this machine's proxy log beside Claude Code's own transcripts, each increment un-cleared one earlier result
+// (the server's `cleared_tool_uses` fell 108, 107, 106 ... as keep rose 3, 4, 5 ...), so the edited prompt differed
+// from the one just cached at a result near its top, and everything after the system prompt was written again:
+// 152 calls running in one session, 100k-236k tokens each, read pinned at 31,520. Over 30 days a long session rewrote
+// its prefix on 1.2% of calls before its first clear and 1.4% held out, on 23.6% after it; 95% of the calls where the
+// cleared set moved rewrote, 4% where it stayed; and when keep did not change between calls, 5%. At list it was -$801
+// on the 16 sessions that cleared in the week to 2026-11-01, 4 of them ahead. A constant keep changes the cleared set
+// only as the conversation grows at its end, where the rewrite is the tail. The name stays for configs that say `turn`;
+// the Responses proxy keeps the turn by itself (transformResponses) and is not affected.
 // Bigger cuts, less often (2026-10-28, the owner's call on the replay below). A clear rewrites the prompt cache
 // from the first result it removes, and a 1h write costs ~200% of an input token against ~2.5% for a read, so what
 // a clear costs is the rewrite and what it saves is every later read of what it took. Clearing from 100k paid that
@@ -57,7 +68,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false };
 // Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
 // (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
 // not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
@@ -98,6 +109,35 @@ export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthro
 // one stands the service down once (commands/proxy.js, proxy-service.js:standDown), so the next session goes
 // straight to the API again and nothing writes the URL back. The request itself is forwarded as it is and the
 // API's own answer reaches the agent: the proxy invents no failure, and a session under way hears it from the API.
+// The other way the proxy can cost more than it saves: the cache stops holding after a clear. A clear is one
+// rewrite of the prompt cache and the calls after it read the shorter prefix back; if those calls write the prefix
+// again instead, the clearing is paying the rewrite on every call and saving nothing (2026-11-02: the keep that
+// grew with the turn did exactly that, 152 calls running in one session, -$801 at list in a week on one machine,
+// and nothing in the proxy noticed). So the proxy watches its own answers: `REWRITE_STREAK` calls running in one
+// session, each with a clear applied and most of its context written rather than read, and it stops editing that
+// session's requests (`reason: 'cache-broken'`): one more rewrite as the results come back, then the cache holds.
+// Logged once as `proxy-cache-broken`; `thinker proxy report` counts the sessions and prints the rewrite rate after
+// a clear beside the held-out one, which is the number that judges any change to the policy. A fresh subagent's
+// first calls write their prefix too, so a call counts only when it carried a clear.
+export const REWRITE_STREAK = 3;
+// a call that wrote most of its context into the cache rather than reading it, on a context worth caching
+export const isRewrite = u => ((u?.write || 0) > 0.5 * ((u?.read || 0) + (u?.write || 0) + (u?.input || 0))) && ((u?.read || 0) + (u?.write || 0)) > 20000;
+export function rewriteWatch({ limit = REWRITE_STREAK } = {}) {
+  const streaks = new Map(), broken = new Set();
+  return {
+    broken: session => !!session && broken.has(session),
+    // after an edited request was answered: true the once the session's clearing is given up on
+    response: (session, usage) => {
+      if (!session || broken.has(session)) return false;
+      if (!(usage?.cleared > 0) || !isRewrite(usage)) { streaks.delete(session); return false; }
+      const n = (streaks.get(session) || 0) + 1;
+      streaks.set(session, n);
+      if (n < limit) return false;
+      broken.add(session); streaks.delete(session);
+      return true;
+    },
+  };
+}
 export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}) {
   let refusals = 0, stoodDown = false;
   const fire = reason => { if (stoodDown || !on) return; stoodDown = true; onStandDown(reason); };
@@ -127,6 +167,12 @@ export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}
 // same point and never on their own: 5.0% of the bill in the replay, 10.1% on the long sessions; thinking cleared on its
 // own schedule was negative, and a sliding keep (every call) cost 190%. This edit replaces the one the agent sent
 // (Claude Code's `keep: all`), the one place the proxy changes an edit of the agent's rather than appending.
+// Off by default since 2026-11-02: its keep is the count of the turn's assistant messages, which grows by one a call
+// like the tool keep did, and on this machine's log the calls that carried it rewrote the prefix 45% of the time where
+// the tool clear's set had not moved, against 6% without it. The docs say `thinking_turns` counts assistant turns with
+// thinking; whether that is one per message or one per exchange decides which constant is stable, and only a live
+// run can tell. `--clear-thinking` turns it back on. The desktop mod's thinking clear is one rewrite at a compaction
+// boundary (claude-clear), not this edit, and stays on.
 export const THINKING_EDIT_TYPE = 'clear_thinking_20251015';
 // what a text block costs the model, for the proxy's own count: four characters are 1.44 tokens (report.js:CALIBRATION)
 export const TOKENS_PER_CHAR = 1.44 / 4;
@@ -196,7 +242,7 @@ export function turnToolUses(messages) {
   for (const m of messages.slice(turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
   return n;
 }
-export const keepValue = (cfg, messages) => cfg.keep === 'turn' ? Math.max(cfg.keepMin ?? 0, turnToolUses(messages || [])) : cfg.keep;
+export const keepValue = (cfg, messages) => cfg.keep === 'turn' ? (cfg.keepMin ?? 0) : cfg.keep;
 
 export function clearEdit(cfg, messages) {
   return {
@@ -350,6 +396,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
   let editRejected = false;
+  const cache = rewriteWatch();
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -378,6 +425,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       let t;
       const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
       try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, requestCfg); } catch { t = { body: raw, reason: 'error' }; }
+      if (t.injected && cache.broken(sessionOf(req.headers))) t = { body: raw, reason: 'cache-broken', model: t.model };
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
@@ -460,9 +508,11 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             if (recorded) return;
             recorded = true;
             res.removeListener('close', record);
+            const usage = tap ? tap.result() : null;
+            if (tap && t.injected && t.protocol !== 'responses' && cache.response(sessionOf(req.headers), usage)) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, streak: REWRITE_STREAK, read: usage.read, write: usage.write, cleared: usage.cleared });
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...tap.result() }, t.actions);
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
@@ -530,8 +580,12 @@ export function proxyReport(rows, { since } = {}) {
     if (r.op !== 'proxy' || (since && r.at < since)) continue;
     const side = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : null;
     if (!side) continue;
-    const s = sides[side] ||= { requests: 0, sessions: new Set(), input: 0, read: 0, write: 0, out: 0, cleared: 0, clears: 0, truncated: 0, overheadMs: [] };
+    const s = sides[side] ||= { requests: 0, sessions: new Set(), input: 0, read: 0, write: 0, out: 0, cleared: 0, clears: 0, truncated: 0, overheadMs: [], long: { before: [0, 0], after: [0, 0] }, seenClear: new Set() };
     s.requests++; if (r.session) s.sessions.add(r.session); if (r.truncated) s.truncated++;
+    // the cache after a clear: of the calls over LONG_CONTEXT, how many wrote their prefix rather than read it, before
+    // the session's first clear and after it (a held-out session has no clear, so all of its calls are `before`)
+    if (r.cleared) s.seenClear.add(r.session);
+    if ((r.input || 0) + (r.read || 0) + (r.write || 0) >= LONG_CONTEXT) { const b = s.long[s.seenClear.has(r.session) ? 'after' : 'before']; b[0]++; if (isRewrite(r)) b[1]++; }
     s.input += r.input || 0; s.read += r.read || 0; s.write += r.write || 0; s.out += r.out || 0;
     s.cleared += r.cleared || 0; if (r.cleared) s.clears++;
     s.overheadMs.push(r.overheadMs || 0);
@@ -544,8 +598,27 @@ export function proxyReport(rows, { since } = {}) {
       // These sums are the tokens that arrived. An answer that stopped partway is counted as a request
       // and contributes what it got through, so the two sides are read beside this.
       requestsTruncated: s.truncated,
+      rewrites: { before: { calls: s.long.before[0], rewrites: s.long.before[1] }, after: { calls: s.long.after[0], rewrites: s.long.after[1] } },
       overheadP50: ms[Math.floor(ms.length / 2)] ?? 0, overheadP99: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] ?? 0 };
   }
   const responses = responsesReport(rows, { since });
-  return { ...outSides, ...(Object.keys(responses).length ? { responses } : {}) };
+  const broken = new Set(rows.filter(r => r.op === 'proxy-cache-broken' && (!since || r.at >= since)).map(r => r.session));
+  if (outSides.clearing) outSides.clearing.sessionsCacheBroken = broken.size;
+  const warning = rewriteWarning(outSides);
+  return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}) };
+}
+// a call this long is one where a rewrite is a cost worth noticing and a clear can have happened
+export const LONG_CONTEXT = 100000;
+// The clearing is breaking the cache when the calls after a clear rewrite their prefix far more often than long
+// calls do without one: the held-out sessions where there are enough of them, the same sessions before their
+// first clear otherwise. Held-out long sessions ran at 1.4% and clearing sessions after a clear at 23.6% when the
+// keep grew (2026-11-02); a clear itself is one rewrite per new turn, so a few percent is the policy working.
+export function rewriteWarning(sides, { minCalls = 50, minBaseCalls = 20, floor = 0.08, ratio = 3 } = {}) {
+  const c = sides.clearing?.rewrites; if (!c || c.after.calls < minCalls) return null;
+  const after = c.after.rewrites / c.after.calls;
+  const bases = [sides.holdout?.rewrites?.before, c.before].filter(b => b && b.calls >= minBaseCalls);
+  const base = bases.length ? bases[0].rewrites / bases[0].calls : null;
+  if (after < floor || (base != null && after < ratio * base)) return null;
+  return `the calls after a clear write their prefix into the cache again on ${Math.round(after * 100)}% of ${c.after.calls} calls over ${LONG_CONTEXT / 1000}k of context` +
+    (base != null ? ` against ${Math.round(base * 100)}% without a clear` : '') + ': the clearing is breaking the cache instead of saving on it. Check what the edit sends from one call to the next (proxy.js:keepValue); thinker proxy off until it is understood.';
 }

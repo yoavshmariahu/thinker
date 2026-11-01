@@ -148,10 +148,39 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
   cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
 
+**What the proxy adds to a request is the same on every call of a turn (MANDATORY, 2026-11-02):**
+- The server edits the conversation afresh on every call. A parameter that differs between two calls of a turn makes the
+  edited prompt differ from the one just cached, near its top, and every call writes the prefix over at the 1h rate: the
+  keep that grew with the turn cost −$801 at list in a week on one machine, and no test, replay or card noticed.
+- `test/proxy.test.js` ("identical from one call of a turn to the next") runs a long turn through `transformRequest` and
+  requires `context_management` byte-identical on every call for the default config, and that any edit whose value
+  moves within a turn is behind a switch that is off by default. A new edit or parameter derived from the messages
+  must pass it or stay off; the thinking edit is off for this reason.
+- The proxy judges its own answers (`proxy.js:rewriteWatch`): `REWRITE_STREAK` (3) cleared calls running that wrote
+  most of their context instead of reading it, and it stops editing that session (`reason: 'cache-broken'`, logged
+  `proxy-cache-broken` once). `thinker proxy status` prints the prefix-rewrite rate after a clear beside the held-out
+  rate and warns past 8% and three times the base (`rewriteWarning`). That rate, read from the proxy log beside the
+  transcripts, is what judges a clearing policy; a replay that models an edit as cache-stable is not evidence, and
+  `proxy-replay.js` still models `turn` as the growing keep it used to send.
+- Price a clear by the cache writes of every call after it in the session, not the clear request alone.
+
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
-- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
+- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
 - Judge any change to this by replaying transcripts and counting cache **write** tokens, never reads.
+- **A keep that grows within a turn rewrites the cache on every call (2026-11-02).** `turn` used to send the count of the
+  turn's tool uses, one more each call. Read from this machine's proxy log beside Claude Code's own transcripts: each
+  increment un-cleared one earlier result on the server (`cleared_tool_uses` 108, 107, 106 … as keep rose 3, 4, 5 …), so
+  the edited prompt differed from the cached one near its top and everything after the system prompt was written
+  again, 152 calls running in one session at 100k-236k tokens each. Long sessions rewrote their prefix on 1.2% of calls
+  before the first clear and 1.4% held out, on 23.6% after; 95% of calls where the cleared set moved rewrote, 4% where
+  it stayed, 5% where keep was unchanged. The week to 2026-11-01 at list: $194 of reads avoided, $1,061 of rewrites
+  after the first clear, −$801 on the 16 sessions that cleared (4 ahead). So `turn` now sends `keepMin`, constant
+  (`proxy.js:keepValue`), and the thinking edit, whose keep grew the same way (45% rewrite where it was sent, 6%
+  without), is off by default. The replay never saw it: it models a growing keep as cache-stable (`proxy-replay.js`),
+  and the holdout had 2 long sessions. Judge the fix by the rewrite rate after the first clear in the proxy log, which
+  should return to the held-out 1-2%. Not known: the server's exact rule for a growing keep (in another session the
+  cleared count held at 82 while keep rose), and whether `thinking_turns` counts messages or exchanges.
 - The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
 - A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
 

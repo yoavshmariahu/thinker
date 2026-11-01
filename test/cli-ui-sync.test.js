@@ -41,7 +41,9 @@ test('Codex proxy is wired by the default service and shares the existing thresh
   for (const key of ['trigger', 'keep', 'keepMin', 'clearAtLeast']) assert.equal(cfg[key], PROXY_DEFAULTS[key]);
   assert.equal(proxyConfig({}, {}).protocol, 'anthropic');
   // the three clears are one default, wherever the service is started from, and the help names how to go back
-  for (const key of ['clearInputs', 'clearThinking']) { assert.equal(PROXY_DEFAULTS[key], true); assert.equal(proxyConfig({}, {})[key], true); }
+  // inputs on; the thinking edit off since 2026-11-02 (proxy.js: its growing keep rewrote the cache)
+  assert.equal(PROXY_DEFAULTS.clearInputs, true); assert.equal(proxyConfig({}, {}).clearInputs, true);
+  assert.equal(PROXY_DEFAULTS.clearThinking, false); assert.equal(proxyConfig({}, {}).clearThinking, false);
   assert.match(read('cli.js'), /--no-clear-inputs\] \[--no-clear-thinking/);
   assert.match(read('cli.js'), /--protocol anthropic\|responses/);
   assert.match(read('commands/proxy.js'), /cfg\.protocol === 'responses'/);

@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, AUTH_REFUSALS, refusesEdit, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -95,13 +95,17 @@ test('keep turn: the clear leaves the current turn\'s tool uses, never under kee
   const cfg = proxyConfig({ keep: 'turn', 'keep-min': '3' }, {});
   assert.equal(cfg.keep, 'turn');
   assert.equal(cfg.keepMin, 3);
-  assert.equal(clearEdit(cfg, messages).keep.value, 5);
+  // `turn` sends the minimum, constant (2026-11-02): a keep that grew with the turn moved the server's cleared set on every
+  // call and the cache was written again from the system prompt each time (proxy.js:keepValue)
+  assert.equal(clearEdit(cfg, messages).keep.value, 3, 'five tool uses in the turn, still the minimum');
   assert.equal(clearEdit(cfg, messages.slice(0, 3)).keep.value, 3, 'a turn of two tool uses keeps the minimum');
-  assert.equal(clearEdit(proxyConfig({}, { THINKER_PROXY_KEEP: 'turn' }), messages).keep.value, 5, 'from the environment too');
+  assert.equal(clearEdit(cfg, messages.slice(0, 8)).keep.value, clearEdit(cfg, messages).keep.value, 'the same value from one call of a turn to the next');
+  assert.equal(clearEdit(proxyConfig({}, { THINKER_PROXY_KEEP: 'turn' }), messages).keep.value, 3, 'from the environment too');
+  assert.equal(clearEdit(proxyConfig({ keep: 'turn', 'keep-min': '5' }, {}), messages).keep.value, 5, 'the minimum is the value');
   assert.equal(clearEdit(proxyConfig({ keep: '2' }, {}), messages).keep.value, 2, 'a count is a count');
   const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages })), cfg);
-  assert.equal(t.keep, 5);
-  assert.equal(JSON.parse(t.body).context_management.edits[0].keep.value, 5);
+  assert.equal(t.keep, 3);
+  assert.equal(JSON.parse(t.body).context_management.edits[0].keep.value, 3);
 });
 
 test('forwards the bytes as they came when the edit cannot or should not be added', async () => {
@@ -321,8 +325,11 @@ test('clear-inputs and clear-thinking: on by default and switchable off, the inp
     { role: 'assistant', content: [tu('b')] }, { role: 'user', content: [tr('b', 10)] },
     { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c', 10)] },
   ];
-  // on by default since 2026-10-28: the three clears together are what pays, results alone is break-even
-  const on = proxyConfig({}, {});
+  // inputs on by default since 2026-10-28; the thinking edit off since 2026-11-02, its growing keep rewrote the cache
+  // (proxy.js:THINKING_EDIT_TYPE); `on` is a config that asks for it
+  assert.equal(proxyConfig({}, {}).clearInputs, true); assert.equal(proxyConfig({}, {}).clearThinking, false);
+  assert.equal(thinkingEdit(proxyConfig({}, {}), messages), null, 'no thinking edit by default');
+  const on = proxyConfig({ 'clear-thinking': true }, {});
   assert.equal(on.clearInputs, true); assert.equal(on.clearThinking, true);
   assert.equal(clearEdit(on, messages).clear_tool_inputs, true);
   // and each goes off on its own, by flag, by `--no-` and by the variable
@@ -338,8 +345,8 @@ test('clear-inputs and clear-thinking: on by default and switchable off, the inp
   assert.deepEqual(thinkingEdit(on, messages), { type: 'clear_thinking_20251015', keep: { type: 'thinking_turns', value: 2 } });
   assert.equal(thinkingEdit(on, messages.slice(0, 6)).keep.value, 1, 'at least one turn, as the API requires');
   assert.equal(thinkingEdit(on, messages.slice(0, 4)), null, 'in the first turn nothing is clearable');
-  assert.equal(thinkingEdit(proxyConfig({ 'clear-at-least': '120000' }, {}), messages), null, '130k does not clear 120k by the margin of 1.25');
-  assert.equal(thinkingEdit(proxyConfig({ keep: '3' }, {}), messages), null, 'keep turn alone: a count keeps results of earlier turns');
+  assert.equal(thinkingEdit(proxyConfig({ 'clear-at-least': '120000', 'clear-thinking': true }, {}), messages), null, '130k does not clear 120k by the margin of 1.25');
+  assert.equal(thinkingEdit(proxyConfig({ keep: '3', 'clear-thinking': true }, {}), messages), null, 'keep turn alone: a count keeps results of earlier turns');
   // in the request: the proxy's thinking edit first, in place of the agent's `keep: all`, the agent's other edits kept, the clear last
   const body = Buffer.from(JSON.stringify({ model: 'm', messages, context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } }));
   const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, body, on);
@@ -444,4 +451,117 @@ test('refusesEdit: the field or the beta header named, not every 400', () => {
   assert.equal(refusesEdit('{"error":{"message":"tools.0.input_schema: unknown field foo"}}'), false);
   assert.equal(refusesEdit(''), false);
   assert.equal(refusesEdit(null), false);
+});
+
+// What the keep that grew with the turn did (2026-11-02): a parameter that differs from one call of a turn to the next
+// makes the server edit the conversation differently each time, the cached prefix never matches again, and every call
+// writes the prefix over (152 running in one session). The rule: whatever the proxy adds to a request must be the same
+// on every call of a turn, and an edit that cannot be is not on by default.
+test('what the proxy adds to a request is identical from one call of a turn to the next, for everything on by default', () => {
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  // a first turn heavy enough for every clear to fire by the proxy's own count, then a long second turn
+  const messages = [
+    { role: 'user', content: 'first request' },
+    { role: 'assistant', content: [tu('a')] }, { role: 'user', content: [tr('a', 400000)] },
+    { role: 'assistant', content: [tu('b')] }, { role: 'user', content: [tr('b', 400000)] },
+    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
+  ];
+  for (let i = 0; i < 12; i++) messages.push({ role: 'assistant', content: [tu(`t${i}`)] }, { role: 'user', content: [tr(`t${i}`, 3000)] });
+  const added = (cfg, k) => {
+    const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, k) })), cfg);
+    assert.equal(t.injected, true, `call ${k} carries the edit`);
+    return JSON.parse(t.body).context_management;
+  };
+  const first = added(proxyConfig({}, {}), 8);
+  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({}, {}), k), first, `call ${k} of the turn adds what the first did`);
+  // every switch on: an edit whose value moves within the turn is one the defaults may not carry
+  const all = proxyConfig({ 'clear-inputs': true, 'clear-thinking': true }, {});
+  const moving = new Set();
+  const firstAll = added(all, 8);
+  for (let k = 9; k <= messages.length; k++) {
+    const now = added(all, k);
+    for (const e of now.edits) { const was = firstAll.edits.find(f => f.type === e.type); if (!was || JSON.stringify(was) !== JSON.stringify(e)) moving.add(e.type); }
+  }
+  for (const type of moving) {
+    const sw = { clear_thinking_20251015: 'clearThinking' }[type];
+    assert.ok(sw, `${type} moves within a turn and no switch covers it`);
+    assert.equal(PROXY_DEFAULTS[sw], false, `${type} moves within a turn (its keep grows a call), so ${sw} may not be on by default`);
+  }
+  assert.ok(moving.has('clear_thinking_20251015'), 'the thinking edit still moves (its keep counts the turn\'s assistant messages); when it is made constant, turn it back on and drop this line');
+});
+
+test('the rewrite watch gives a session up after REWRITE_STREAK cleared calls running that wrote their prefix over', () => {
+  assert.equal(isRewrite({ read: 31520, write: 150000, input: 2, cleared: 140000 }), true);
+  assert.equal(isRewrite({ read: 200000, write: 3000, input: 2 }), false, 'a hit');
+  assert.equal(isRewrite({ read: 0, write: 9000 }), false, 'a fresh subagent\'s small first call is not a rewrite worth counting');
+  const w = rewriteWatch();
+  const rw = { read: 31520, write: 150000, input: 2, cleared: 140000 };
+  assert.equal(w.response('s1', rw), false); assert.equal(w.response('s1', rw), false);
+  assert.equal(w.response('s1', { ...rw, cleared: 0 }), false, 'a rewrite with no clear on it (a pause past the TTL) is not the clearing\'s, and breaks the streak');
+  assert.equal(w.broken('s1'), false);
+  assert.equal(w.response('s1', rw), false); assert.equal(w.response('s1', rw), false);
+  assert.equal(w.response('s1', { read: 200000, write: 3000, input: 2, cleared: 140000 }), false, 'a hit after a clear is the policy working');
+  for (let i = 0; i < REWRITE_STREAK - 1; i++) assert.equal(w.response('s1', rw), false);
+  assert.equal(w.response('s1', rw), true, 'the streak');
+  assert.equal(w.broken('s1'), true); assert.equal(w.broken('s2'), false); assert.equal(w.broken(null), false);
+  assert.equal(w.response('s1', rw), false, 'said once');
+});
+
+test('the proxy stops editing a session whose cache its clears keep breaking, and says so once in the log', async () => {
+  // an upstream whose every answer is a clear applied and the prefix written over
+  const sse = [
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":150000,"output_tokens":1}}}\n\n',
+    'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":100,"cleared_input_tokens":140000}]}}\n\n',
+    'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+  ];
+  const seen = [];
+  const up = http.createServer((req, res) => { const c = []; req.on('data', x => c.push(x)); req.on('end', () => { seen.push(JSON.parse(Buffer.concat(c).toString())); res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const e of sse) res.write(e); res.end(); }); });
+  await new Promise(r => up.listen(0, '127.0.0.1', r));
+  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`);
+  try {
+    for (let i = 0; i < REWRITE_STREAK + 2; i++) { await send(port); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === i + 1); }
+    const all = rows(logFile);
+    const calls = all.filter(r => r.op === 'proxy');
+    assert.deepEqual(calls.map(r => !!r.injected), [...Array(REWRITE_STREAK).fill(true), false, false], 'edited until the streak, passed through after');
+    assert.deepEqual(calls.slice(REWRITE_STREAK).map(r => r.reason), ['cache-broken', 'cache-broken']);
+    assert.equal(all.filter(r => r.op === 'proxy-cache-broken').length, 1, 'said once');
+    assert.equal(all.find(r => r.op === 'proxy-cache-broken').session, 's1');
+    assert.equal(seen.slice(REWRITE_STREAK).every(j => !(j.context_management?.edits || []).some(e => e.type === EDIT_TYPE)), true, 'the request goes up as the agent wrote it');
+    // another session is still edited
+    await send(port, { headers: { 'x-claude-code-session-id': 's2' } });
+    await until(() => rows(logFile).filter(r => r.op === 'proxy').length === REWRITE_STREAK + 3);
+    assert.equal(rows(logFile).filter(r => r.op === 'proxy').at(-1).injected, true);
+    const report = proxyReport(rows(logFile));
+    assert.equal(report.clearing.sessionsCacheBroken, 1);
+    assert.deepEqual(report.clearing.rewrites.after, { calls: REWRITE_STREAK + 1, rewrites: REWRITE_STREAK + 1 }, 's1\'s edited calls after its first clear, and s2\'s one');
+  } finally { server.close(); up.close(); }
+});
+
+test('the report counts prefix rewrites after a clear beside the held-out rate, and warns when the clearing breaks the cache', () => {
+  const at = i => new Date(1e12 + i * 1000).toISOString();
+  const hit = (session, i, extra = {}) => ({ at: at(i), op: 'proxy', session, injected: true, input: 2, read: 200000, write: 2000, cleared: 140000, ...extra });
+  const rewrite = (session, i, extra = {}) => ({ at: at(i), op: 'proxy', session, injected: true, input: 2, read: 31520, write: 160000, cleared: 140000, ...extra });
+  const held = (session, i, extra = {}) => ({ at: at(i), op: 'proxy', session, reason: 'holdout', input: 2, read: 200000, write: 2000, ...extra });
+  let i = 0;
+  const good = [];
+  for (let s = 0; s < 4; s++) { good.push(hit(`c${s}`, i++, { cleared: 0, write: 150000, read: 31520 })); for (let k = 0; k < 20; k++) good.push(hit(`c${s}`, i++)); }
+  for (let s = 0; s < 2; s++) for (let k = 0; k < 15; k++) good.push(held(`h${s}`, i++));
+  const g = proxyReport(good);
+  assert.deepEqual(g.clearing.rewrites, { before: { calls: 4, rewrites: 4 }, after: { calls: 80, rewrites: 0 } }, 'the clear is the one rewrite, before the first cleared call lands');
+  assert.deepEqual(g.holdout.rewrites.before, { calls: 30, rewrites: 0 });
+  assert.equal(g.warning, undefined);
+  assert.equal(rewriteWarning(g), null);
+  const bad = [...good];
+  for (let s = 0; s < 2; s++) for (let k = 0; k < 40; k++) bad.push(rewrite(`b${s}`, i++));
+  const b = proxyReport(bad);
+  assert.deepEqual(b.clearing.rewrites.after, { calls: 160, rewrites: 80 });
+  assert.match(b.warning, /50% of 160 calls over 100k of context against 0% without a clear/);
+  assert.match(b.warning, /breaking the cache/);
+  // short calls are not counted: a rewrite of a small prefix is a fresh subagent, not a cost
+  assert.deepEqual(proxyReport([rewrite('x', 1, { read: 1000, write: 60000 })]).clearing.rewrites.after, { calls: 0, rewrites: 0 });
+  assert.equal(LONG_CONTEXT, 100000);
+  // a few percent after a clear is a clear per new turn, the policy working: no warning without a base to beat
+  const some = [...good]; for (let k = 0; k < 6; k++) some.push(rewrite('c0', i++));
+  assert.equal(proxyReport(some).warning, undefined);
 });

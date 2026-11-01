@@ -3,7 +3,7 @@
 // of what it did and the offline replay.
 import fs from 'node:fs';
 import path from 'node:path';
-import { proxyConfig, startProxy, proxyReport } from '../proxy.js';
+import { proxyConfig, startProxy, proxyReport, LONG_CONTEXT } from '../proxy.js';
 import { replay, renderReplay, parsePolicies } from '../proxy-replay.js';
 import { NoteInjector, PROXY_CLIENT } from '../proxy-notes.js';
 import { findSessions } from '../transcripts.js';
@@ -100,6 +100,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       return;
     }
     for (const [side, s] of Object.entries(sides)) {
+      if (side === 'warning') continue;
       if (side === 'responses') {
         for (const [name, r] of Object.entries(s)) out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
           (Object.keys(r.reasons).length ? `; ${Object.entries(r.reasons).map(([k, n]) => `${k}: ${n}`).join(', ')}` : '') + '.');
@@ -111,7 +112,11 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       // The same sentence the card draws in a session (compression.js:compressionHeader), so the command and
       // the card never put a different figure on the same thing.
       if (side === 'clearing' && s.cleared) out(`  ${compressionHeader({ saved: s.cleared, requests: s.requestsCleared }, formatTokens)}.`);
+      // the cache after a clear (proxy.js:rewriteWarning): the figure that judges the policy, beside the held-out one
+      const pct = b => b.calls ? `${Math.round(100 * b.rewrites / b.calls)}% of ${b.calls}` : 'none';
+      if (side === 'clearing' && s.rewrites) out(`  prefix rewrites on calls over ${LONG_CONTEXT / 1000}k of context: after a clear ${pct(s.rewrites.after)}, before one ${pct(s.rewrites.before)}${sides.holdout?.rewrites ? `, held out ${pct(sides.holdout.rewrites.before)}` : ''}${s.sessionsCacheBroken ? `; clearing given up on in ${s.sessionsCacheBroken} session${s.sessionsCacheBroken === 1 ? '' : 's'} whose cache it broke` : ''}.`);
     }
+    if (sides.warning) out(`  \u26a0 ${sides.warning}`);
     return;
   }
   // the policies replayed over this checkout's Claude Code sessions, no model call (proxy-replay.js)
@@ -153,7 +158,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     onStandDown: reason => { try { standDown(reason, { port: cfg.port, manage: false }); } catch { /* the request in hand matters more */ } },
     onListen: a => out(cfg.protocol === 'responses'
       ? `Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
-      : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping ${cfg.keep === 'turn' ? `the current turn's (at least ${cfg.keepMin})` : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
+      : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping the newest ${cfg.keep === 'turn' ? cfg.keepMin : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
       (notes ? `\nServes the notes of ${notesRepo} to agents with no prompt hook (Anthropic and OpenAI chat requests; one carrying a Claude Code session is left to its hooks).` : '') +
       `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}` +
       (cfg.codex ? `\nCodex: http://127.0.0.1:${a.port}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '')),
