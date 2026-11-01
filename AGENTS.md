@@ -137,8 +137,12 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   the rewrite is paid either way, and the inputs and the thinking ride on it for nothing.
 - It writes the proxy's own record (`compression.js:noteCompression`'s shape, `state/compression/<session>.json`),
   counting `saved` on every later model request (`turn.step`) as the proxy counts it per request, so the card, the Stop
-  hook's line and `thinker proxy report` read it unchanged. What is not measured: the holdout's question, whether the
-  model reads again what was cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
+  hook's line and `thinker proxy report` read it unchanged. The whole of a clear is measured, not estimated: the
+  context the API reported before the clear less what the first request after it was answered over (a floor, since
+  that request carries the new prompt). Beside the proxy's fields the record keeps `kinds`: the results and the
+  emptied call text estimated from their characters, and the thinking as the measured remainder, since a mod never
+  sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
+  cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
 
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.

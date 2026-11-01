@@ -17,7 +17,9 @@ test('the newest turn and the newest three results stay; older ones become place
   expect(c.rows).toBe(4)
   const inputs = 4 * JSON.stringify({}).length
   expect(c.chars).toBe(3000 + inputs)
-  expect(c.tokens).toBe(Math.round((3000 + inputs) * TOKENS_PER_CHAR))
+  expect(c.resultTokens).toBe(Math.round(3000 * TOKENS_PER_CHAR))
+  expect(c.inputTokens).toBe(Math.round(inputs * TOKENS_PER_CHAR))
+  expect(c.tokens).toBe(c.resultTokens + c.inputTokens)
   expect(c.tools).toEqual([{ name: 'Bash', calls: 1, tokens: Math.round(2000 * TOKENS_PER_CHAR) }, { name: 'Read', calls: 1, tokens: Math.round(1000 * TOKENS_PER_CHAR) }])
   const rows = c.messages as any[]
   expect(rows.length).toBe(messages.length)

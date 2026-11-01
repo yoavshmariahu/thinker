@@ -51,6 +51,9 @@ test('the mod writes the record the proxy writes, where the card and the report 
     // every key the proxy's record carries is set by the mod's state, in the same spelling
     for (const key of Object.keys(state)) assert.ok(new RegExp(`\\b${key}:`).test(s.slice(s.indexOf('state = {'))), `the mod sets ${key}`);
     assert.deepEqual(readCompression(dir, 's1'), state);
+    // and this door's own breakdown beside them, which the proxy's record does not have (the API reports one figure)
+    for (const key of ['results', 'inputs', 'thinking', 'total', 'measured']) assert.ok(s.includes(`${key}:`), `kinds carry ${key}`);
+    assert.ok(s.includes('kinds,'), 'the record carries kinds');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 

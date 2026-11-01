@@ -64,7 +64,7 @@ export function heldOut(session: string, share: number): boolean {
 // thinker's own proxy, which clears for this session already
 export const proxied = (baseUrl: string | undefined) => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(String(baseUrl ?? '').trim())
 
-export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; rows: number; tools: { name: string; calls: number; tokens: number }[] }
+export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; resultTokens: number; inputTokens: number; rows: number; tools: { name: string; calls: number; tokens: number }[] }
 
 // The proxy's `keep: turn` (proxy.js): every result of the newest prompt's turn stays, and at least `keepMin`
 // results in all; every older result worth a placeholder is replaced. A user row that carries results is
@@ -72,13 +72,14 @@ export type Clear = { messages: SessionMessage[]; cleared: number; chars: number
 // the assistant rows before the newest turn are rebuilt too, once a result is cleared (the proxy's
 // piggyback): without a handle the row carries no thinking, and with `clearInputs` its tool calls carry no
 // arguments. The newest turn stands as the engine has it, its thinking included, which is what the API
-// requires of the turn in progress. `chars` and `tokens` count the results and the emptied call text; the
-// thinking a rebuilt row sheds is not in a SessionMessage, so it is not counted.
+// requires of the turn in progress. `chars` and `tokens` estimate the results and the emptied call text, kept
+// apart as `resultTokens` and `inputTokens`; the thinking a rebuilt row sheds is not in a SessionMessage, so
+// its share is measured after the fact, from the context sizes the API reports (the `kinds` of the record).
 export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, clearInputs = true, clearThinking = true } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
-  let kept = 0, cleared = 0, chars = 0, rows = 0, inLatestTurn = true
+  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true
   const out: SessionMessage[] = []
   const older: number[] = []   // positions in `out` of assistant rows before the newest turn
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -109,7 +110,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       rows++
       const toolUses = (m.toolUses ?? []).map(u => {
         if (!clearInputs) return { tool_use_id: u.tool_use_id, tool: u.tool, input: u.input }
-        chars += JSON.stringify(u.input ?? {}).length
+        inputChars += JSON.stringify(u.input ?? {}).length
         return { tool_use_id: u.tool_use_id, tool: u.tool, input: {} }
       })
       out[at] = { role: 'assistant', text: m.text, toolUses } as SessionMessage
@@ -118,12 +119,18 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   out.reverse()
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
-  return { messages: out, cleared, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), rows, tools }
+  const resultTokens = Math.round(chars * TOKENS_PER_CHAR), inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
+  return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens + inputTokens, resultTokens, inputTokens, rows, tools }
 }
 
 // The record the proxy writes (compression.js:noteCompression): `saved` adds up over the requests that leave
 // the cleared tokens out, `uses` and `tools` describe what is out of the prompt now.
-export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; firstTurn?: number; told?: boolean }
+// `kinds` is this door's own: the latest clear by what left the prompt, in tokens. `results` and `inputs` are
+// estimated from the text; `thinking` is what the measured whole leaves once those are taken out, and
+// `measured` says whether the whole came from the API's context figures (before the clear, and on the first
+// request after it) or is the estimate alone.
+export type Kinds = { results: number; inputs: number; thinking: number; total: number; measured: boolean }
+export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; firstTurn?: number; told?: boolean }
 
 // module state: starts over on a reload (the record on disk does not)
 let policy: Policy = DEFAULTS
@@ -132,6 +139,8 @@ let pending = false
 let pendingFrom = ''
 let lastTried = 0
 let out = 0          // tokens out of the prompt now, added to `saved` on every request
+let before = 0       // the context as the API last reported it, taken as the clear is scheduled and again as it runs
+let settle = false   // the first request after a clear sizes it for real
 let uses = 0
 let state: State | null = null
 let file = ''
@@ -149,8 +158,11 @@ async function save($: any) {
 
 const describe = (c: Clear) => `cleared ${c.cleared} tool ${c.cleared === 1 ? 'result' : 'results'} and ${c.rows} earlier ${c.rows === 1 ? 'turn' : 'turns'}' call text and thinking, ${c.tokens.toLocaleString()} tokens`
 
+const contextTokens = async ($: any) => { try { return (await $.session.usage()).context.tokens ?? 0 } catch { return 0 } }
+
 function schedule($: any, from: string) {
   pending = true; pendingFrom = from
+  void contextTokens($).then(t => { if (t) before = t })
   $.clock.after(DELAY_MS, async () => {
     try {
       await $.command.run({ command: 'compact' })
@@ -184,6 +196,19 @@ export const register: Register = (on) => {
   on('turn.step', async function* ($, e, next) {
     const r = yield* next(e)
     if (!e.agentId && out > 0 && state) {
+      if (settle) {
+        // what the API says left the prompt: the context before the clear less the context this request was
+        // answered over (which carries the new prompt too, so this is a floor); thinking is the remainder
+        settle = false
+        const after = await contextTokens($)
+        const k = state.kinds
+        if (k && before > 0 && after > 0 && before - after > k.results + k.inputs) {
+          k.total = before - after; k.thinking = k.total - k.results - k.inputs; k.measured = true
+          out = k.total
+          const last = state.recent[state.recent.length - 1]
+          if (last) last.cleared = k.total
+        }
+      }
       state.requests++; state.saved += out; state.lastAt = Date.now()
       await save($)
     }
@@ -211,7 +236,9 @@ export const register: Register = (on) => {
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }
     }
     const now = Date.now()
-    out = c.tokens; uses = c.cleared
+    before = (await contextTokens($)) || before
+    out = c.tokens; uses = c.cleared; settle = true
+    const kinds: Kinds = { results: c.resultTokens, inputs: c.inputTokens, thinking: 0, total: c.tokens, measured: false }
     state = {
       session: String(await $.session.id()),
       firstAt: state?.firstAt ?? now,
@@ -221,6 +248,7 @@ export const register: Register = (on) => {
       uses: (state?.uses ?? 0) + uses,
       tools: c.tools,
       recent: [...(state?.recent ?? []), { at: now, cleared: c.tokens, uses }].slice(-RECENT),
+      kinds,
       ...(state?.firstTurn != null ? { firstTurn: state.firstTurn } : {}),
       ...(state?.told ? { told: true } : {}),
     }
