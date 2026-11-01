@@ -164,24 +164,27 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   `proxy-replay.js` still models `turn` as the growing keep it used to send.
 - Price a clear by the cache writes of every call after it in the session, not the clear request alone.
 
-**The deep clear, off behind \`proxy: { clearDeep: true }\` until a live week against the holdout (2026-11-02, the owner's ask):**
-- After the keep fix the clearing was break-even at best: re-pricing the week to 2026-11-01 on this machine with one
-  rewrite per turn that extends the cleared block gave −$81 to −$399 on $1,559 of cleared sessions, against $199 of
-  reads avoided. The reason is where the API puts the block's end. It clears the oldest results and only as much as
-  \`clear_at_least\` asks (100k of a 350k context here), so the tail behind the block, 250k, is what the cache writes
-  again at the 1h rate at every turn boundary, for 100k of reads saved per call: on Fable (a 1h write is 80 cache
-  reads) a turn needed ~200 calls to pay for its own rewrite, on Opus 5 ~50; turns here have ~20.
-- \`proxy.js:deepAsk\` asks for \`DEEP_MARGIN\` (0.7) of the proxy's own count of the results before the current turn
-  instead, so the block ends at the turn and the tail is the previous turn alone (the same ask on every call of a
-  turn, which the turn-invariant test holds; more at the next). An ask the API cannot meet is an edit it does not
-  apply, every result back and the whole prefix written again: hence the margin, and \`deepWatch\`, which puts a session
-  whose deep ask was refused (acknowledged, nothing cleared, past the trigger) back on the fixed ask for good, logged
-  once as \`proxy-deep-refused\`. The row carries \`deep\` (the ask) so the log can say what was asked against what came.
-- \`thinker proxy replay\` models both depths now (\`depth: min|turn\`, \`margin\`): until 2026-11-02 it cleared everything
-  but the kept results at every application and charged the rewrite from the first of them, which is the deep
-  policy's cost at the shipped policy's ask, and how +7.3% was reported for a policy that was break-even at best.
-- What the replay cannot see is the risk of a deep clear: the model reading again what it lost, fresh input at the
-  full rate. The holdout is the measure, and \`thinker proxy status\` prints the rewrite rate after a clear beside it.
+**Clear once and hold the block, off behind \`proxy: { clearDeep: true }\` until a live week against the holdout (2026-11-02, the owner's ask):**
+- After the keep fix the clearing was break-even at best, and the replay, once it charged a rewrite the way the API
+  does, said why: every extension of the cleared block writes the cache again from the block's end at the 1h rate, the
+  API extends the block on its own at every turn boundary (by a result or three, seen live), and this repository's
+  sessions have turns of four calls and contexts of 500k. Replayed over the 240 sessions of the last 30 days the proxy
+  never touched (a session it cleared live carries the clearing in its own usage and is no baseline): the shipped ask
+  −50% to −120% at list by model, an ask deep to the turn at every boundary −24% to −50%, and one deep clear with the
+  block then held +4% to +12% (Fable, Opus 5, Opus 5.5), one session in forty costlier (\`proxy-replay.js\`, \`freeze\`;
+  \`depth\` is what a clear takes, \`margin\` the share of it asked for). On Fable a 1h write is 80 cache reads, so any
+  policy that rewrites per turn is lost there.
+- \`proxy.js:deepPlan\`: the first clear asks for \`DEEP_MARGIN\` (0.7) of what sits before the current turn, results and
+  (with \`clearInputs\`) the text of their calls, since the API counts both toward the ask (\`clearableBeforeTurn\`); an
+  ask the API cannot meet is an edit it does not apply at all, hence the margin and \`deepWatch\`, which puts a refused
+  session on the fixed ask for good (\`proxy-deep-refused\`). From the first response on the block is frozen: the keep is
+  set to hold the API's cleared count where it is (\`FROZEN_OFFSET\`, observed: the API clears \`uses before the turn − keep
+  − 1\` when keep binds), constant through a turn and one step at the next, and a block the API moves anyway is logged
+  (\`proxy-deep-moved\`) and followed. A pause past the cache's hour (\`COLD_MS\`) lets the block go: that request writes
+  its context whatever the proxy does, so the next clear deepens for nothing. The row carries \`deep\` (deep or frozen)
+  and \`asked\`. The turn-invariant test holds for it; the rewrite watch is the net.
+- What the replay cannot see is the risk of a deep block: the model reading again what it lost, fresh input at the full
+  rate. The holdout is the measure, and \`thinker proxy status\` prints the rewrite rate after a clear beside it.
 
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.

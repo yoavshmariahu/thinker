@@ -48,8 +48,8 @@ export const DEEP_MARGIN = 0.7;
 export const POLICIES = {
   shipped: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'min' },
   deep: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: DEEP_MARGIN },
-  'deep-ideal': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: 1 },
-  'deep-thinking': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: DEEP_MARGIN, thinking: 'piggyback' },
+  freeze: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN },
+  'freeze-thinking': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN, thinking: 'piggyback' },
 };
 // `name=keep:3,trigger:100000,clear:80000;turn=keep:turn,trigger:60000,clear:60000,inputs:on,thinking:piggyback`
 export function parsePolicies(spec) {
@@ -66,7 +66,7 @@ export function parsePolicies(spec) {
       else if (k === 'trigger') p.trigger = Number(v);
       else if (k === 'clear' || k === 'clearAtLeast') p.clearAtLeast = Number(v);
       else if (k === 'inputs') p.inputs = /^(1|on|true|yes)$/i.test(v);
-      else if (k === 'depth') { if (v === 'min' || v === 'turn') p.depth = v; else throw new Error(`policy ${name}: depth is min or turn`); }
+      else if (k === 'depth') { if (v === 'min' || v === 'turn' || v === 'freeze') p.depth = v; else throw new Error(`policy ${name}: depth is min, turn or freeze`); }
       else if (k === 'margin') p.margin = Number(v);
       else if (k === 'thinking') { if (v === 'piggyback') p.thinking = 'piggyback'; else if (/^(0|off|none|no)$/i.test(v)) delete p.thinking; else throw new Error(`policy ${name}: thinking is piggyback or off`); }
     }
@@ -130,7 +130,9 @@ export const dollarsOf = r => { const p = priceOf(r.model); return p ? (r.input 
 // with their call's input, the agent's text and its thinking per request. A clear invalidates the cache from the first
 // item it removes: what sits before it (the first request's prefix, the system prompt and instruction files, and every
 // item still kept) is read, the rest written again at the write weight.
-export function simulate(items, policy) {
+// `trace`, when given, receives one row per request: what was read and written as recorded and as modelled, and where
+// a clear on that request invalidated the cache (the log index) -- for looking at one session, and the tests
+export function simulate(items, policy, trace = null) {
   let log = [], turnUses = 0, turnStart = 0, turnThink = 0, turnsSinceClear = 0, cleared = 0, base = 0, billed = 0, baseUsd = 0, usd = 0, priced = true, clears = 0, clearedTokens = 0, inputsCleared = 0, thinkingClears = 0, thinkingCleared = 0, requests = 0, prefix = null;
   const reset = () => { log = []; cleared = 0; turnUses = 0; turnStart = 0; turnThink = 0; turnsSinceClear = 0; prefix = null; };
   for (const it of items) {
@@ -150,13 +152,18 @@ export function simulate(items, policy) {
       // clear a result of the turn in hand, and the shipped edit keeps 3 anyway)
       const eligible = log.slice(0, turnStart).filter(x => x.k === 'result').slice(0, Math.max(0, results.length - keep));
       // the oldest first, until the cleared set weighs what the edit asks (depth, above); a result once cleared stays so
-      const ask = policy.depth === 'turn' ? Math.max(policy.clearAtLeast, Math.floor((policy.margin ?? 1) * eligible.reduce((a, x) => a + x.tokens, 0))) : policy.clearAtLeast;
+      // `freeze`: a deep clear once, and the block then held where it is (no extension at the turn boundaries, which each
+      // cost a rewrite of the previous turn) until a request whose cache is cold anyway -- a pause past the TTL, the
+      // recorded request already writing its context -- when it is extended to the turn again for nothing
+      const cold = it.write > 50000 && it.read < 0.2 * (it.read + it.write);
+      const frozen = policy.depth === 'freeze' && clears > 0 && !cold;
+      const ask = frozen ? 0 : policy.depth === 'turn' || policy.depth === 'freeze' ? Math.max(policy.clearAtLeast, Math.floor((policy.margin ?? 1) * eligible.reduce((a, x) => a + weight(x), 0))) : policy.clearAtLeast;
       let acc = eligible.filter(x => x.cleared).reduce((a, x) => a + weight(x), 0);
       const cand = [];
       for (const x of eligible) { if (x.cleared) continue; if (acc >= ask) break; cand.push(x); acc += weight(x); }
       // the extension the shipped edit was seen to make: a block in place, a new turn since, one more result
-      if (!cand.length && policy.depth !== 'turn' && turnsSinceClear > 0) { const next = eligible.find(x => !x.cleared); if (next) cand.push(next); }
-      if (cand.length && acc >= policy.clearAtLeast) {
+      if (!cand.length && policy.depth !== 'turn' && policy.depth !== 'freeze' && turnsSinceClear > 0) { const next = eligible.find(x => !x.cleared); if (next) cand.push(next); }
+      if (cand.length && !frozen && acc >= policy.clearAtLeast) {
         const sum = cand.reduce((a, x) => a + x.tokens, 0), inputs = policy.inputs ? cand.reduce((a, x) => a + x.input, 0) : 0;
         for (const x of cand) { x.cleared = true; if (policy.inputs) x.inputCleared = true; }
         cleared += sum + inputs; clearedTokens += sum; inputsCleared += inputs; clears++; turnsSinceClear = 0;
@@ -175,6 +182,7 @@ export function simulate(items, policy) {
       const kept = Math.min(read, prefix + before);
       write = it.write + Math.max(0, read - kept); read = kept;
     }
+    if (trace) trace.push({ read0: it.read, write0: it.write, read, write, invalidateAt, cleared, think: it.think || 0, text: it.text || 0, accounted: (prefix || 0) + log.reduce((a, x) => a + x.tokens + (x.k === 'result' ? x.input : 0), 0), logged: log.length });
     billed += billedOf({ input: it.input, read, write, out: it.out });
     const d2 = dollarsOf({ ...it, read, write }); if (d2 != null) usd += d2;
     log.push({ k: 'text', tokens: it.text || 0, cleared: false }); log.push({ k: 'think', tokens: it.think || 0, cleared: false }); turnThink++;
@@ -222,7 +230,7 @@ export function renderReplay(r, fmt = n => String(n)) {
     lines.push(`${title}: ${t.sessions} sessions, ${fmt(t.base)} billed-equivalent tokens as recorded${t.priced ? `, ${usd(t.baseUsd)} at list over the ${t.priced} priced` : ''}; ceiling (reads after last use, at the cache-read weight) ${pct(t.ceiling)}`);
     for (const [name, p] of Object.entries(t.policies)) {
       const pol = r.policies[name];
-      lines.push(`  ${name.padEnd(16)} keep ${String(pol.keep === 'turn' ? `turn (min ${pol.keepMin ?? 0})` : pol.keep).padEnd(13)} trigger ${fmt(pol.trigger).padStart(5)} clear ${pol.depth === 'turn' ? `to the turn (x${pol.margin ?? 1})` : fmt(pol.clearAtLeast).padStart(5)}${pol.inputs ? ' +inputs' : ''}${pol.thinking ? ' +thinking' : ''}: saves ${pct(p.saving).padStart(6)} billed-eq${t.priced ? `, ${pct(p.usdSaving).padStart(6)} at list (${p.costlierUsd} costlier)` : ''}, ${p.costlier} sessions costlier, ${p.clears} clears, ${fmt(p.cleared)} results${p.inputs ? ` + ${fmt(p.inputs)} inputs` : ''}${p.thinkingClears ? ` + ${fmt(p.thinking)} thinking` : ''} cleared`);
+      lines.push(`  ${name.padEnd(16)} keep ${String(pol.keep === 'turn' ? `turn (min ${pol.keepMin ?? 0})` : pol.keep).padEnd(13)} trigger ${fmt(pol.trigger).padStart(5)} clear ${pol.depth === 'turn' ? `to the turn (x${pol.margin ?? 1})` : pol.depth === 'freeze' ? `once, frozen` : fmt(pol.clearAtLeast).padStart(5)}${pol.inputs ? ' +inputs' : ''}${pol.thinking ? ' +thinking' : ''}: saves ${pct(p.saving).padStart(6)} billed-eq${t.priced ? `, ${pct(p.usdSaving).padStart(6)} at list (${p.costlierUsd} costlier)` : ''}, ${p.costlier} sessions costlier, ${p.clears} clears, ${fmt(p.cleared)} results${p.inputs ? ` + ${fmt(p.inputs)} inputs` : ''}${p.thinkingClears ? ` + ${fmt(p.thinking)} thinking` : ''} cleared`);
     }
   };
   block('All', r.all);
