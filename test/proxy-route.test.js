@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { routeEvidence, ownGateway, shellRoute, envRoute, foreignAuth, cloudOn, BASE_URL_VAR } from '../src/proxy-route.js';
+import { routeEvidence, ownGateway, shellRoute, envRoute, foreignAuth, cloudOn, isAnthropicHost, BASE_URL_VAR } from '../src/proxy-route.js';
 import { authWatch, forwardsToAnthropic, AUTH_REFUSALS, MESSAGES_PATH } from '../src/proxy.js';
 
 const OURS = 'http://127.0.0.1:6901';
@@ -153,4 +153,31 @@ test('gatewayHint names the flag that works, says when nothing can, and keeps th
     assert.equal(wiredLines({ changed: [{ agent: 'pi', file: 'f' }], skipped: [], unchanged: [] }, 'http://127.0.0.1:6901', null, { home: m.home, env: m.env }).length, 1, 'nothing skipped, nothing to add');
     assert.equal(wiredLines(skipped, null, null, { home: m.home, env: m.env }).length, 1, 'taking the URL out is not the moment to offer it');
   } finally { m.rm(); }
+});
+
+// The Claude desktop app sets ANTHROPIC_BASE_URL=https://api.anthropic.com itself in every local session it
+// starts. On 2026-11-01 a hook inside one took that for a gateway and stood the machine's service down. Anthropic's
+// own host is where Claude Code goes with no route at all: never evidence, never a gateway to forward to.
+test('Anthropic\'s own API host is not a route: not in an env block, a shell file, or as a gateway', () => {
+  const API = 'https://api.anthropic.com';
+  for (const u of [API, `${API}/`, `${API}/v1`, `${API}/v1/`, 'HTTPS://API.ANTHROPIC.COM', 'http://api.anthropic.com']) assert.equal(isAnthropicHost(u), true, u);
+  for (const u of ['https://api.anthropic.com:8080', 'https://gw.api.anthropic.com', 'https://api.anthropic.com/proxy', 'https://api.anthropic.com/?x=1', 'https://anthropic.com', 'https://gw.corp', 'api.anthropic.com', '', null]) assert.equal(isAnthropicHost(u), false, String(u));
+  assert.equal(envRoute({ [BASE_URL_VAR]: API }, { isOwn }), null, 'the desktop app\'s own value');
+  assert.equal(envRoute({ [BASE_URL_VAR]: `${API}/` }, { isOwn }), null);
+  assert.equal(shellRoute(`export ${BASE_URL_VAR}=${API}`, { isOwn }), null, 'exporting the default is no route');
+  assert.equal(shellRoute(`export ${BASE_URL_VAR}="${API}/v1"`, { isOwn }), null);
+  assert.match(shellRoute(`export ${BASE_URL_VAR}=https://gw.corp`, { isOwn }).what, /gw\.corp/, 'anyone else\'s host still is');
+  const m = fakeHome({ '.zshrc': `export ${BASE_URL_VAR}=${API}\n`, '.claude/settings.local.json': JSON.stringify({ env: { [BASE_URL_VAR]: `${API}/` } }) });
+  try {
+    assert.deepEqual(routeEvidence({ env: m.env, isOwn }), []);
+    assert.equal(ownGateway({ env: { ...m.env, [BASE_URL_VAR]: API }, isOwn }), null, 'never offered as a model server of the person\'s own');
+    fs.mkdirSync(path.join(m.home, '.claude'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, '.claude', 'settings.json'), JSON.stringify({ env: { [BASE_URL_VAR]: API } }));
+    assert.equal(ownGateway({ env: m.env, isOwn }), null, 'nor from the settings file');
+  } finally { m.rm(); }
+  const gw = fakeHome({ '.zshrc': `export ${BASE_URL_VAR}=${API}\n`, '.bashrc': `export ${BASE_URL_VAR}=https://smartrouter.internal\n` });
+  try {
+    assert.equal(ownGateway({ env: { ...gw.env, [BASE_URL_VAR]: API }, isOwn }).url, 'https://smartrouter.internal', 'a real gateway behind the default is still found');
+    assert.deepEqual(routeEvidence({ env: gw.env, isOwn }).map(e => e.where), ['~/.bashrc']);
+  } finally { gw.rm(); }
 });

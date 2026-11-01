@@ -26,7 +26,7 @@ import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
 import { wireCodexProxy } from './proxy-codex.js';
-import { routeEvidence, ownGateway, cloudOn, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
+import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 
 export const SERVICE_HOLDOUT = 0.15;
 export const PROXY_LABEL = 'com.thinker.proxy';
@@ -78,8 +78,11 @@ const trimUrl = v => String(v || '').replace(/\/+$/, '');
 // through a model server of their own can have the proxy sit in front of that instead (`thinker proxy on
 // --gateway`, the question in proxy-offer.js), which is the only way the clearing reaches those sessions at all.
 // Kept in the service's own state rather than written into the machine's config.json, which is the person's file;
-// `proxy: { upstream }` there still wins for anyone who set it by hand.
-export const proxyThrough = (home = thinkerHome()) => readMachineConfig(home).proxy?.upstream || serviceState(home).upstream || null;
+// `proxy: { upstream }` there still wins for anyone who set it by hand. Anthropic's own host is the default
+// and never a gateway (proxy-route.js:isAnthropicHost): a state that holds it -- written by a yes to the repair
+// question on 2026-11-01, when the desktop app's own ANTHROPIC_BASE_URL was taken for a model server -- reads
+// as no upstream, so the flags, the status line and `isOwnRoute` all say the ordinary route.
+export const proxyThrough = (home = thinkerHome()) => { const u = readMachineConfig(home).proxy?.upstream || serviceState(home).upstream || null; return u && !isAnthropicHost(u) ? u : null; };
 // A route of the person's own that the proxy forwards to is not a reason to leave their settings alone: pointing
 // the agent at the proxy keeps every request going to the same place, with the same credentials, plus the edit.
 export const isOwnRoute = (value, home = thinkerHome()) => isOwnUrl(value, home) || (!!value && trimUrl(value) === trimUrl(proxyThrough(home)));
@@ -325,10 +328,15 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
 // enterprise policy file (proxy-route.js:routeEvidence) -- or a cloud route. A gateway that routes to models of
 // its own is the common case, and its token is not Anthropic's: forwarding it would fail every call of every
 // session, so anything short of certainty leaves the person's settings as they are.
+//
+// Anthropic's own host is not a route (proxy-route.js:isAnthropicHost): the Claude desktop app puts
+// `ANTHROPIC_BASE_URL=https://api.anthropic.com` in every local session's environment, and on 2026-11-01 that
+// stood this machine's service down from inside a desktop session.
 export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [] } = {}) {
+  const theirs = v => !!v && !isOwnRoute(v, home) && !isAnthropicHost(v);
   const inFile = settings?.env?.[PROXY_ENV];
-  if (inFile && !isOwnRoute(inFile, home)) return `${PROXY_ENV} is already ${inFile} in the settings`;
-  if (env[PROXY_ENV] && !isOwnRoute(env[PROXY_ENV], home)) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
+  if (theirs(inFile)) return `${PROXY_ENV} is already ${inFile} in the settings`;
+  if (theirs(env[PROXY_ENV])) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
   for (const k of OTHER_ROUTES) if (cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
   const [found] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1 });
   return found ? `${found.what} in ${found.where}` : null;
@@ -525,8 +533,11 @@ export async function enableProxyService({ cli, home = thinkerHome(), env = proc
   // `gateway: true` finds the person's own model server and forwards to it; a URL names one; `false` goes back to
   // Anthropic's API. Only ever set by the person (the flag, or a yes to the question): the proxy never puts itself
   // in front of a gateway unasked.
+  // Anthropic's own host named as the gateway, or left in the state by an earlier yes, is the default upstream
+  // and is not stored (proxy-route.js:isAnthropicHost).
   const found = gateway === true ? ownGateway({ env, repos, isOwn: u => isOwnUrl(u, home) }) : null;
-  const upstream = gateway === true ? found?.url : gateway === false ? undefined : gateway ? trimUrl(gateway) : s.upstream;
+  const notDefault = u => (u && !isAnthropicHost(u) ? u : undefined);
+  const upstream = gateway === true ? found?.url : gateway === false ? undefined : gateway ? notDefault(trimUrl(gateway)) : notDefault(s.upstream);
   writeJson(stateFile(home), { ...s, enabled: true, port, ports, since: s.since || new Date().toISOString(), off: undefined, standDown: undefined, wroteClaude: undefined, upstream });
   saveNetworkEnv(home, env);
   const service = installService({ cli, home, manage });

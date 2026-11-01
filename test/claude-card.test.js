@@ -92,7 +92,7 @@ test('connect names the card folder in the user\'s Claude settings, and uninstal
     fs.writeFileSync(settings, JSON.stringify({ env: { [CARD_ENV]: '/my/mod' } }));
     installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
     const s = JSON.parse(fs.readFileSync(settings, 'utf8'));
-    assert.equal(s.env[CARD_ENV], ['/my/mod', MOD].join(D));
+    assert.equal(s.env[CARD_ENV], ['/my/mod', MOD, path.join(ROOT, 'src', 'integrations', 'claude-clear')].join(D), 'the card and the clearing mod, after the person\'s own');
     assert.ok(s.hooks.Stop, 'the hooks are written as before');
     uninstallWiring({ scope: 'user' });
     assert.deepEqual(JSON.parse(fs.readFileSync(settings, 'utf8')), { env: { [CARD_ENV]: '/my/mod' } }, 'only thinker\'s folder and hooks go');

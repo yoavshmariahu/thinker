@@ -13,8 +13,12 @@ import path from 'node:path';
 
 export const CARD_ENV = 'CLAUDE_CODE_PLUGIN_DIRS';
 export const claudeCardDir = cli => path.join(path.dirname(cli), 'integrations', 'claude-card');
+// the clearing mod (src/integrations/claude-clear): thinker's context clearing inside the sessions the
+// proxy cannot reach, the desktop app's above all; wired beside the card, under the same variable
+export const claudeClearDir = cli => path.join(path.dirname(cli), 'integrations', 'claude-clear');
 // any copy's folder: the one being installed replaces the others, so a session loads one card
 const isCardDir = p => /[\\/]integrations[\\/]claude-card[\\/]?$/.test(p);
+const isClearDir = p => /[\\/]integrations[\\/]claude-clear[\\/]?$/.test(p);
 
 function setDirs(settings, dirs) {
   const env = { ...(settings.env || {}) };
@@ -29,6 +33,9 @@ const dirsOf = settings => String(settings?.env?.[CARD_ENV] || '').split(path.de
 export const withCardDir = (settings, dir) => setDirs(settings, [...dirsOf(settings).filter(p => !isCardDir(p)), dir]);
 export const withoutCardDir = settings => setDirs(settings, dirsOf(settings).filter(p => !isCardDir(p)));
 export const cardDirIn = settings => dirsOf(settings).find(isCardDir) || null;
+export const withClearDir = (settings, dir) => setDirs(settings, [...dirsOf(settings).filter(p => !isClearDir(p)), dir]);
+export const withoutClearDir = settings => setDirs(settings, dirsOf(settings).filter(p => !isClearDir(p)));
+export const clearDirIn = settings => dirsOf(settings).find(isClearDir) || null;
 
 const markDir = (home = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker')) => path.join(home, 'state', 'claude-card');
 

@@ -72,6 +72,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 **The proxy never takes over someone else's route (MANDATORY, 2026-10-28):**
 - Many people run Claude Code against a model server of their own (smart routing to models) through `ANTHROPIC_BASE_URL` and a token minted for it. The proxy forwards to `api.anthropic.com`, so writing its URL into such a harness sends that token to Anthropic and every model call fails ("invalid bearer token"). That happened; it must not happen again.
 - Before writing, every place Claude Code can take a route from is read (`proxy-route.js:routeEvidence`): the settings' `env` block, the process environment, `~/.claude/settings.local.json`, the enterprise policy file, a project's `.claude/settings*.json`, and the shell startup files (a line naming a route variable counts, wrapper or alias included). Any route that is not thinker's own leaves Claude Code exactly as it is, with the reason named. The settings `env` block is applied over the shell's variables, so the shell case is the one that breaks; and once thinker has written its URL, a hook's own environment can no longer see the person's.
+- **Anthropic's own host is not a route** (2026-11-01, `proxy-route.js:isAnthropicHost`): the Claude desktop app sets `ANTHROPIC_BASE_URL=https://api.anthropic.com` itself in the environment of every local session it starts (code.claude.com/docs/en/desktop: "Desktop sets those variables itself"). On 2026-11-01 the prompt hook inside one such session took that for a model server of the person's own, stood the whole machine's service down (`proxy-standdown`, "ANTHROPIC_BASE_URL is https://api.anthropic.com in your environment"), and the repair question in `proxy-offer.js` then offered `--gateway` "in front of" api.anthropic.com; a yes stored it as the upstream and `thinker proxy status` called it "a model server of your own". Exactly `api.anthropic.com` (http or https, trailing slash or `/v1`, no port, no subdomain) is now no evidence in `envRoute`, `shellRoute`, `claudeBlocker` and `routeAppeared`, never what `ownGateway` finds, and `proxyThrough`/`enableProxyService` read it as no upstream, so a state left by that yes is dropped on the next `thinker proxy on`. A desktop session goes straight to the API regardless, bypassing the proxy (checked the same day: the session's id has no rows in the proxy log), so there was never anything there to protect.
 - Taking the URL out by hand is an answer (`proxy-service.js:removedByHand`): the next prompt hook stands the service down instead of writing it back, which `thinker update`'s rewire used to do the next day.
 - A route that turns up after the wiring stands the service down at the next prompt, before a call fails (`routeAppeared`). A service enabled before the record existed takes what the settings hold now as its baseline, and an absence nothing explains as a removal (`trackClaude`).
 - A stand-down (`standDown`) takes the URL out of every agent's file, removes the service entry, and keeps the reason. `thinker proxy on` is the only thing that turns it back on: an install, `connect` and a rewire leave it off.
@@ -106,6 +107,46 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   cleared, never which. `saved` sums across requests, `tools` never does: each request clears the same cumulative
   set, so summing counts one call many times; it is the latest prompt's set. `CARD_TOOLS`/`shortTool` keep an MCP
   tool's long name from pushing a card's line off the screen.
+
+**The desktop door of the clearing (2026-11-01, `src/integrations/claude-clear`):**
+- The Claude desktop app sets `ANTHROPIC_BASE_URL` itself and Claude Code ignores the settings' value when the variable
+  is already set (its docs say so), so a desktop session never reaches the proxy: checked live that day, zero rows in the
+  proxy log for a desktop session. A settings hook cannot help either: PreCompact only blocks, and no hook reaches the
+  request. Claude Code 2.1.316 itself carries a flag-gated server-side clearing ("tool result clearing after idle",
+  `tengu_jiggly_blossom`, off by default, no setting), which will overlap this when it rolls out.
+- So the clearing runs as a mod inside the session, wired beside the card in `CLAUDE_CODE_PLUGIN_DIRS`
+  (`claude-card.js:claudeClearDir`; `thinker connect` writes it, uninstall takes it out). At the end of a turn it reads
+  the context (`$.session.usage()`) and past the proxy's trigger queues the engine's own `/compact` from a timer; its
+  `session.compact` hook answers that compaction itself with the old tool results replaced in place by a placeholder,
+  and, as the proxy does, the call text emptied and the earlier thinking dropped from the turns before the newest (a
+  rebuilt assistant row sheds its thinking with its handle); no summary written, the newest turn never touched. The
+  timer is not a flourish: to the engine
+  a desktop session is headless, where `$.session.compact()` is refused and compaction runs only as a `/compact` turn,
+  and nothing may start one from the hook holding the turn. Tested live in Claude Desktop on 2026-11-01 (Claude Code
+  2.1.309 bundled with the app): 3 results, 106k chars cleared, the next Opus 5.5 call answered with its thinking, no
+  400; the model saw the placeholders and said so. The deep clear the same evening: 40 assistant rows rebuilt without
+  thinking and with empty arguments, 6 results and 62k tokens cleared, the next call answered with thinking of its
+  own, no 400, a 129.5k cache write for the rewrite. The API lets a previous turn's thinking go; the October
+  breakage was an in-place edit of the history with no compaction boundary.
+- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 100k, keep the newest turn and 3 results,
+  the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
+  machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
+  first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
+  terminal had the proxy all along, so it is not told). It
+  stays idle where thinker's own proxy serves the session (a loopback `ANTHROPIC_BASE_URL`), under `THINKER_TEST`, and
+  in a held-out session. `clearInputs` and `clearThinking` from the same block switch the two piggybacks off, as for
+  the proxy. Replayed on this repository's last 14 days (138 sessions) the policy matters: results alone at 140k/100k
+  saved 5.1% billed-equivalent and 1.6% at list; with the call text and the thinking 13.9% and 6.5%. A results-only
+  clear at a 60k floor reached nearly every result the full clear does (5.8M of 5.9M) and still saved half as much:
+  the rewrite is paid either way, and the inputs and the thinking ride on it for nothing.
+- It writes the proxy's own record (`compression.js:noteCompression`'s shape, `state/compression/<session>.json`),
+  counting `saved` on every later model request (`turn.step`) as the proxy counts it per request, so the card, the Stop
+  hook's line and `thinker proxy report` read it unchanged. The whole of a clear is measured, not estimated: the
+  context the API reported before the clear less what the first request after it was answered over (a floor, since
+  that request carries the new prompt). Beside the proxy's fields the record keeps `kinds`: the results and the
+  emptied call text estimated from their characters, and the thinking as the measured remainder, since a mod never
+  sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
+  cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
 
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` and `clearThinking` on. A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.

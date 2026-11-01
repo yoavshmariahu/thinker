@@ -44,7 +44,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
-import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
+import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -1322,9 +1322,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       done.push(`Claude Code: hooks in ${rel(target)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
       // the cache-hit card under each served answer (claude-card.js); one copy's folder, the user's settings only
       if (scope === 'user') {
-        const dir = claudeCardDir(cli);
-        if (cardDirIn(readJsonOr(f.local, {})) !== dir) mergeJson(f.local, c => withCardDir(c, dir));
-        done.push(`Claude Code: cache-hit card under each served answer (${CARD_LABEL} in ${rel(f.local)})`);
+        const dir = claudeCardDir(cli), clearDir = claudeClearDir(cli);
+        const cur = readJsonOr(f.local, {});
+        if (cardDirIn(cur) !== dir || clearDirIn(cur) !== clearDir) mergeJson(f.local, c => withClearDir(withCardDir(c, dir), clearDir));
+        done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
       }
     }
   }
@@ -1577,7 +1578,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
     if (gemini.agyMcp) dropMcpEntry(gemini.agyMcp);
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
-  if (scope === 'user' && cardDirIn(readJsonOr(claude.local, {}))) mergeJson(claude.local, withoutCardDir);
+  if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

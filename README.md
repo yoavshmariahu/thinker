@@ -29,7 +29,7 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | Agent | Tool output compression | Knowledge cache | Instruction file optimization | Token usage analytics |
 | --- | --- | --- | --- | --- |
 | Claude Code (CLI, VS Code, JetBrains) | automatic: the proxy clears old tool results; per-tool caps from the Find Savings page | yes: notes on each prompt and on the files being edited, learned from every session | yes: every section, nested file and rule measured; cuts as pull requests | yes: tokens by part and by model, week by week |
-| Claude desktop app (Code tab) | per-tool caps only: Desktop sets its own API URL, so the proxy cannot sit in front of it | yes, through the session itself | yes | yes |
+| Claude desktop app (Code tab) | automatic: old tool results, call text and earlier thinking cleared inside the session itself (Desktop sets its own API URL, so the proxy cannot sit in front of it); per-tool caps from the Find Savings page | yes, through the session itself | yes | yes |
 | Codex CLI and app | no: Codex speaks only OpenAI's API, and its hooks cannot rewrite a result | yes | the root AGENTS.md measured | yes |
 | Cursor (editor and `agent` CLI) | no: calls go through Cursor's servers | yes (the CLI one tool call late) | the root AGENTS.md measured | partial: Cursor reports no token usage |
 | Gemini CLI | no: Google's API only | yes | the root AGENTS.md measured | partial: tool outputs only |
