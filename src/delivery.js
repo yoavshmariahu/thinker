@@ -247,7 +247,16 @@ export function linkSession(store, session, allocations, { home = thinkerHome() 
 export const githubReader = repo => (endpoint, { paginate = false } = {}) =>
   JSON.parse(execFileSync('gh', ['api', ...(paginate ? ['--paginate', '--slurp'] : []), endpoint], { cwd: repo, encoding: 'utf8', timeout: 120_000, maxBuffer: 64 * 1024 * 1024 }));
 
+// A repository whose origin is on github.com: what syncPrs can read at all.
+export function githubOrigin(repo) {
+  try { return /^github\.com\/[^/]+\/[^/]+$/.test(repoId(repo)); } catch { return false; }
+}
+
+// Whether the sync can run here: a github.com origin and a `gh` login. Checked before maintenance calls it,
+// since the batch swallows a step's error and counts it: on a repository with no GitHub origin every queued
+// learning job read as failed, retried five times and was given up on (found through Devin, 2026-11-01).
 export function ghAvailable(repo) {
+  if (!githubOrigin(repo)) return false;
   try { execFileSync('gh', ['auth', 'status'], { cwd: repo, stdio: 'ignore', timeout: 15_000 }); return true; } catch { return false; }
 }
 
