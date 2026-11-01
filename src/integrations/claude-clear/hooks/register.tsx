@@ -1,9 +1,12 @@
 // The desktop door of thinker's context clearing. The context proxy (src/proxy.js) clears old tool results
 // server-side through ANTHROPIC_BASE_URL, and the Claude desktop app sets that variable itself, so its
 // sessions never reach the proxy (2026-11-01). This mod runs inside the session instead: when the context
-// passes the proxy's trigger it queues the engine's own /compact and answers that compaction itself, the
-// old tool results replaced in place by a short placeholder, no summary written, every assistant row kept
-// whole so its thinking stands. To the engine a desktop session is headless, where compaction only runs as
+// passes the proxy's trigger it queues the engine's own /compact and answers that compaction itself: the
+// old tool results replaced in place by a short placeholder, and, as the proxy does, the call text emptied
+// and the earlier thinking dropped from the turns before the newest, which a rebuilt assistant row sheds
+// with its handle (the API lets a previous turn's thinking go; checked live 2026-11-01, the next call
+// answered with thinking of its own and no 400). No summary is written, and the newest turn is never
+// touched. To the engine a desktop session is headless, where compaction only runs as
 // a /compact turn: `$.session.compact()` is refused there, and so is anything from a hook holding the turn,
 // which is why the command goes through a timer. The record it writes is the proxy's own
 // (src/compression.js:noteCompression), so the card, the Stop hook's line and `thinker proxy report` read
@@ -28,8 +31,8 @@ export const RECENT = 8
 export const placeholder = (chars: number) =>
   `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
 
-export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean }
-export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true }
+export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean }
+export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true }
 
 // THINKER_HOME/config.json's `proxy` block, as proxy-service.js:serviceArgs reads it; `desktop: false` keeps
 // the automatic clearing off here (the command still works), `holdout` 0 keeps every session in
@@ -42,6 +45,9 @@ export function policyOf(config: any): Policy {
     trigger: num(p.trigger, TRIGGER),
     holdout: Math.min(1, Math.max(0, num(p.holdout, HOLDOUT))),
     auto: p.desktop !== false,
+    // on by default as the proxy's are (proxy-service.js:serviceArgs); false in the config keeps each off
+    clearInputs: p.clearInputs !== false,
+    clearThinking: p.clearThinking !== false,
   }
 }
 
@@ -58,24 +64,30 @@ export function heldOut(session: string, share: number): boolean {
 // thinker's own proxy, which clears for this session already
 export const proxied = (baseUrl: string | undefined) => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(String(baseUrl ?? '').trim())
 
-export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; tools: { name: string; calls: number; tokens: number }[] }
+export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; rows: number; tools: { name: string; calls: number; tokens: number }[] }
 
 // The proxy's `keep: turn` (proxy.js): every result of the newest prompt's turn stays, and at least `keepMin`
 // results in all; every older result worth a placeholder is replaced. A user row that carries results is
-// rebuilt without its handle, so the engine builds it from the blocks; every other row, the assistant's
-// above all, keeps its handle and stands as the engine has it, thinking included.
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): Clear {
+// rebuilt without its handle, so the engine builds it from the blocks. With `clearInputs` or `clearThinking`
+// the assistant rows before the newest turn are rebuilt too, once a result is cleared (the proxy's
+// piggyback): without a handle the row carries no thinking, and with `clearInputs` its tool calls carry no
+// arguments. The newest turn stands as the engine has it, its thinking included, which is what the API
+// requires of the turn in progress. `chars` and `tokens` count the results and the emptied call text; the
+// thinking a rebuilt row sheds is not in a SessionMessage, so it is not counted.
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, clearInputs = true, clearThinking = true } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
-  let kept = 0, cleared = 0, chars = 0, inLatestTurn = true
+  let kept = 0, cleared = 0, chars = 0, rows = 0, inLatestTurn = true
   const out: SessionMessage[] = []
+  const older: number[] = []   // positions in `out` of assistant rows before the newest turn
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     const rs = m.role === 'user' ? m.toolResults ?? [] : []
     if (!rs.length) {
       // a prompt row ends the newest turn, seen from the end
       if (m.role === 'user' && (m.text ?? '').trim()) inLatestTurn = false
+      if (m.role === 'assistant' && !inLatestTurn && m.handle) older.push(out.length)
       out.push(m); continue
     }
     let touched = false
@@ -91,10 +103,22 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
     }).reverse()
     out.push(touched ? { role: 'user', text: m.text, toolUses: [], toolResults } : m)
   }
+  if (cleared && (clearInputs || clearThinking)) {
+    for (const at of older) {
+      const m = out[at]
+      rows++
+      const toolUses = (m.toolUses ?? []).map(u => {
+        if (!clearInputs) return { tool_use_id: u.tool_use_id, tool: u.tool, input: u.input }
+        chars += JSON.stringify(u.input ?? {}).length
+        return { tool_use_id: u.tool_use_id, tool: u.tool, input: {} }
+      })
+      out[at] = { role: 'assistant', text: m.text, toolUses } as SessionMessage
+    }
+  }
   out.reverse()
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
-  return { messages: out, cleared, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), tools }
+  return { messages: out, cleared, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), rows, tools }
 }
 
 // The record the proxy writes (compression.js:noteCompression): `saved` adds up over the requests that leave
@@ -123,7 +147,7 @@ async function save($: any) {
   try { await $.fs.write(file, JSON.stringify(state)) } catch {}
 }
 
-const describe = (c: { cleared: number; tokens: number }) => `cleared ${c.cleared} tool ${c.cleared === 1 ? 'result' : 'results'}, ${c.tokens.toLocaleString()} tokens`
+const describe = (c: Clear) => `cleared ${c.cleared} tool ${c.cleared === 1 ? 'result' : 'results'} and ${c.rows} earlier ${c.rows === 1 ? 'turn' : 'turns'}' call text and thinking, ${c.tokens.toLocaleString()} tokens`
 
 function schedule($: any, from: string) {
   pending = true; pendingFrom = from
@@ -201,7 +225,7 @@ export const register: Register = (on) => {
       ...(state?.told ? { told: true } : {}),
     }
     await save($)
-    $.ui.toast(`thinker ${describe(c)}`)
+    if (from === 'manual') $.ui.toast(`thinker ${describe(c)}`)
     return { messages: c.messages }
   }).catch(($, e, next) => next(e))
 

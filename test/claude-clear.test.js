@@ -35,6 +35,10 @@ test('the mod clears by the proxy\'s policy: same trigger, floor, kept results, 
   // the same config keys the service reads (proxy-service.js:serviceArgs), plus the desktop switch
   for (const key of ['keepMin', 'clearAtLeast', 'trigger', 'holdout']) assert.ok(s.includes(`p.${key},`), `reads proxy.${key}`);
   assert.ok(s.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
+  for (const key of ['clearInputs', 'clearThinking']) {
+    assert.equal(PROXY_DEFAULTS[key], true, `${key} is on in the proxy`);
+    assert.ok(s.includes(`p.${key} !== false`), `proxy.${key}: false switches it off here as in proxy-service.js:serviceArgs`);
+  }
 });
 
 test('the mod writes the record the proxy writes, where the card and the report read it', () => {
