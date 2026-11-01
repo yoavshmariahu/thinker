@@ -31,6 +31,20 @@ export const CLOUD_VARS = ['CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 
 export const ROUTE_VARS = [BASE_URL_VAR, ...CLOUD_VARS, 'ANTHROPIC_BEDROCK_BASE_URL', 'ANTHROPIC_VERTEX_BASE_URL'];
 // a gateway's token is not an Anthropic one: every key and OAuth token the API issues starts with this
 export const ANTHROPIC_TOKEN = /^sk-ant-/;
+// Anthropic's own API host. A base URL that names it is not a route of the person's own: it is where Claude Code
+// goes with no route at all, and where the proxy forwards by default. The Claude desktop app sets
+// ANTHROPIC_BASE_URL to exactly this in the environment of every local session it starts ("Desktop sets those
+// variables itself", code.claude.com/docs/en/desktop), so on 2026-11-01 a prompt hook inside a desktop session
+// took it for a gateway, stood the whole machine's service down, and the repair question then offered to put
+// the proxy "in front of" api.anthropic.com. Exactly this host, no other: a subdomain or a port of someone's
+// own is still theirs.
+export const ANTHROPIC_HOSTS = ['api.anthropic.com'];
+export function isAnthropicHost(value) {
+  let u; try { u = new URL(String(value || '').trim()); } catch { return false; }
+  if (!['http:', 'https:'].includes(u.protocol) || u.port || u.username || u.search || u.hash) return false;
+  if (!ANTHROPIC_HOSTS.includes(u.hostname.toLowerCase())) return false;
+  return /^\/?(v1\/?)?$/.test(u.pathname);
+}
 // the shell startup files a route is usually exported from, including a wrapper or an alias that names it
 const SHELL_FILES = ['.zshrc', '.zshenv', '.zprofile', '.zlogin', '.bashrc', '.bash_profile', '.bash_login', '.profile', path.join('.config', 'fish', 'config.fish')];
 // Claude Code's enterprise policy file
@@ -46,7 +60,7 @@ const shortPath = (f, home) => (home && f.startsWith(home + path.sep) ? '~' + f.
 export function envRoute(block, { isOwn = () => false } = {}) {
   if (!block || typeof block !== 'object') return null;
   const url = block[BASE_URL_VAR];
-  if (url && !isOwn(url)) return { what: `${BASE_URL_VAR} is ${url}`, url: String(url) };
+  if (url && !isOwn(url) && !isAnthropicHost(url)) return { what: `${BASE_URL_VAR} is ${url}`, url: String(url) };
   for (const k of CLOUD_VARS) if (cloudOn(block[k])) return { what: `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`, cloud: k };
   return null;
 }
@@ -66,7 +80,8 @@ export function routeFiles({ env = process.env, repos = [], home = env.HOME || o
 
 // A shell startup file is not evaluated: any line that names a route variable and is not a comment counts,
 // whatever it does with it (an export, a wrapper function, an alias around `claude`). A line that names
-// thinker's own URL is the proxy's own doing and no evidence of anything.
+// thinker's own URL is the proxy's own doing and no evidence of anything, and one that names Anthropic's own
+// host sets the route to where it already was.
 export function shellRoute(text, { isOwn = () => false } = {}) {
   for (const line of String(text).split('\n')) {
     const code = line.replace(/^\s+/, '');
@@ -74,7 +89,7 @@ export function shellRoute(text, { isOwn = () => false } = {}) {
     const v = ROUTE_VARS.find(name => code.includes(name));
     if (!v) continue;
     const value = new RegExp(`${v}[=\\s:]+["']?([^"'\\s;]+)`).exec(code)?.[1];
-    if (value && isOwn(value)) continue;
+    if (value && (isOwn(value) || isAnthropicHost(value))) continue;
     if (v === BASE_URL_VAR && value) return { what: `${BASE_URL_VAR} is set to ${value}`, url: value };
     return { what: `${v} is set`, ...(CLOUD_VARS.includes(v) ? { cloud: v } : {}) };
   }
@@ -102,7 +117,8 @@ export function routeEvidence({ env = process.env, isOwn = () => false, repos = 
 
 // The one route of the person's own the proxy could forward to, nearest first: a base URL that speaks the
 // Messages API. A cloud route is not one, and neither is a variable set to something the proxy cannot read as a
-// URL. `{ url, where }` or null.
+// URL, nor Anthropic's own host (`isAnthropicHost`): the proxy forwards there already, so there is nothing to
+// put it in front of. `{ url, where }` or null.
 export function ownGateway({ env = process.env, isOwn = () => false, repos = [] } = {}) {
   const usable = v => { try { return ['http:', 'https:'].includes(new URL(v).protocol); } catch { return false; } };
   const out = [];
@@ -111,17 +127,17 @@ export function ownGateway({ env = process.env, isOwn = () => false, repos = [] 
   // thinker writes, so `routeEvidence` has no business reading it. For finding a gateway to forward to they are
   // the two likeliest places of all -- the API's own documentation puts ANTHROPIC_BASE_URL in that env block --
   // and leaving them out classed such a machine as having no route at all (2026-10-28).
-  if (env[BASE_URL_VAR] && !isOwn(env[BASE_URL_VAR])) out.push({ url: env[BASE_URL_VAR], where: 'your environment' });
+  if (env[BASE_URL_VAR] && !isOwn(env[BASE_URL_VAR]) && !isAnthropicHost(env[BASE_URL_VAR])) out.push({ url: env[BASE_URL_VAR], where: 'your environment' });
   // in test mode the real file is left unread unless the test names the directory, as everywhere else that
   // touches an agent's own files (proxy-service.js:testGuard)
   if (!isTestMode() || env.CLAUDE_CONFIG_DIR) {
     const claudeDir = env.CLAUDE_CONFIG_DIR || path.join(env.HOME || os.homedir(), '.claude');
     const settings = path.join(claudeDir, 'settings.json');
     const inFile = readJson(settings).env?.[BASE_URL_VAR];
-    if (inFile && !isOwn(inFile)) out.push({ url: inFile, where: shortPath(settings, env.HOME || os.homedir()) });
+    if (inFile && !isOwn(inFile) && !isAnthropicHost(inFile)) out.push({ url: inFile, where: shortPath(settings, env.HOME || os.homedir()) });
   }
   for (const e of routeEvidence({ env, isOwn, repos })) if (e.url) out.push(e);
-  for (const e of out) if (usable(e.url)) return { url: String(e.url).replace(/\/+$/, ''), where: e.where };
+  for (const e of out) if (usable(e.url) && !isAnthropicHost(e.url)) return { url: String(e.url).replace(/\/+$/, ''), where: e.where };
   return null;
 }
 
