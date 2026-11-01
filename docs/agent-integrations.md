@@ -79,10 +79,20 @@ session's distillation request was answered from that subagent (provider `sessio
 the log, ten seconds) and the job was marked done, with the person's own session record
 intact. The same sessions found the three faults fixed that day: the skill hook dropped
 by `connect`, the missing permission rule, and the record wiped by the worker's calls.
-Live desktop/cloud behavior remains unverified. These are
+Devin Desktop 3.11.238 (its bundled agent 3000.11.238, the **Devin CLI** entry of the
+Desktop's agent picker) was verified the same day on two local sessions: it reads the same
+`config.json` and `mcp_config.json`, the prompt hook served a note, reads, edits and the
+answer were recorded, the Desktop started the learning subagent on its own and the subagent
+answered a phrasing request and a distillation through `learn_next`. Not seen there: a
+`SessionEnd` event (the Desktop keeps a session open; the first session was distilled by
+the catch-up `learn` once it had been quiet twenty minutes). A Desktop prompt sent to
+**Devin Cloud** runs on Devin's VM and reaches no hook on the machine. The cloud path
+itself could not be run: the organization was out of cloud quota. These are
 mechanism checks, not evidence of token savings or improved task correctness.
-Desktop's Devin Local mode must honor these same hook and MCP contracts; cloud
-sessions and legacy Cascade are not claimed to have this automatic integration.
+Cloud sessions and legacy Cascade are not claimed to have this automatic integration.
+The session model (SWE-1.6 Slow) answered every distillation request with no notes and no
+assessments, where a Claude dry run on one of the same records returned a confirmed
+assessment: the loop runs, and what it learns from that model is an open question.
 
 Cloud Devin can launch a custom STDIO MCP server inside its session environment.
 Install Thinker there and register `thinker mcp`, with `THINKER_REPO` pointing at that

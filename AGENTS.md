@@ -1326,6 +1326,7 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Codex CLI (incl. desktop) | each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
 | Gemini CLI | each prompt | yes | yes | `~/.gemini/settings.json` |
 | Cursor | each prompt (`additional_context`); first-tool fallback for `agent -p` | yes | yes (needs approval) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
+| Devin CLI and Devin Desktop's local agent | each prompt | yes | yes (`learn_next` allowed in `permissions.allow`) | `~/.config/devin/config.json`, `~/.config/devin/mcp_config.json` |
 | Pi, Windsurf, Copilot CLI, OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` | | | agent's own files |
 
 - Edited-file notes are on by default; `--no-late` omits them.
