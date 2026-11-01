@@ -655,6 +655,22 @@ test('Report defaults to weekly totals and shows savings as a table without a gr
   assert.match(read('commands/report.js'), /total: Boolean\(flags\.total\)/, 'the page default uses the CLI --total view');
 });
 
+// Devin shares the CLI's client selection/default delivery; the page has no second installer.
+test('Devin is selectable through connect and is named consistently on the page', async () => {
+  const { parseClients, CLIENTS, USER_SCOPE_CLIENTS } = await import('../src/clients.js');
+  assert.deepEqual(parseClients('devin'), ['devin']);
+  assert.ok(CLIENTS.includes('devin') && USER_SCOPE_CLIENTS.includes('devin'));
+  assert.match(read('cli.js'), /opencode, devin and more/);
+  assert.match(read('ui/page.html'), /devin: 'Devin'/);
+  // the compaction policy is off by default and documented under the key Devin reads (devin-compaction.js)
+  const compaction = await import('../src/devin-compaction.js');
+  const { PROXY_DEFAULTS } = await import('../src/proxy.js');
+  assert.equal(compaction.DEVIN_COMPACT_AT, PROXY_DEFAULTS.trigger, 'Devin compacts where the proxy clears');
+  assert.equal(compaction.devinCompactAt(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nopolicy-')), {}), compaction.DEVIN_COMPACT_AT, 'on by default (owner, 2026-11-01)');
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'agent-integrations.md'), 'utf8'), new RegExp(`devin: \\{ compactAt[^\\n]*|agent\\.${compaction.DEVIN_COMPACT_KEY}`));
+  assert.match(read('setup/steps.js'), /devin: \{ name: 'Devin' \}/);
+});
+
 test('the end-of-turn notices have one cadence, and the hooks read it from the module', async () => {
   const { NOTICE_PROMPTS, NOTICE_HOURS, noticeCadence } = await import('../src/notice-cadence.js');
   assert.deepEqual([NOTICE_PROMPTS, NOTICE_HOURS], [20, 24], 'one summary every 20 prompts and at most one a day');

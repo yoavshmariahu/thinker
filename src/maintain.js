@@ -23,6 +23,7 @@ import { isTestMode } from './test-mode.js';
 import { takeContradictions } from './learning-pending.js';
 import { pruneState } from './state-prune.js';
 import { syncPrs, ghAvailable, WINDOW_DAYS as DELIVERY_WINDOW_DAYS } from './delivery.js';
+import { recordError } from './error-report.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
@@ -184,6 +185,11 @@ export function deleteUnused(store, { days = DEFAULTS.deleteUnusedDays, dry = fa
   return out;
 }
 
+// A step that fails is named, with its message: the count alone ("1 failed") sent a person running the
+// steps by hand to find that the pull-request sync wanted a github.com origin (2026-11-01).
+const ERROR_MESSAGE = 200;
+const failMessage = e => String(e?.message || e || 'unknown error').replace(/\s+/g, ' ').trim().slice(0, ERROR_MESSAGE);
+
 function stateFile(store) { return path.join(store.dir, 'state', 'maintain.json'); }
 function readState(store) { try { return JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch { return {}; } }
 
@@ -209,29 +215,36 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     fs.rmSync(lock, { force: true });
     // A cooldown is not recovery from the previous batch's errors. Queued session work
     // must retain its retry until a due batch actually succeeds.
-    return { skipped: 'not-due', ...(state.last?.errors ? { errors: state.last.errors } : {}) };
+    return { skipped: 'not-due', ...(state.last?.errors ? { errors: state.last.errors, ...(state.last.errorList?.length ? { errorList: state.last.errorList } : {}) } : {}) };
   }
   // Persist before any model calls: failed/interrupted batches must not retry every prompt.
   if (!dry) {
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prSynced: 0, tokens: 0, capped: false, errors: 0 };
+  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prSynced: 0, tokens: 0, capped: false, errors: 0, errorList: [] };
+  // every swallowed step error: counted, named on the result and in the state file, and recorded for the
+  // consent-gated error report (error-report.js, which scrubs paths and does nothing in test mode)
+  const failed = (step, e) => {
+    r.errors++;
+    r.errorList.push({ step, message: failMessage(e) });
+    try { recordError(`maintain.${step.split(' ')[0]}`, e, { repo: store.repo }); } catch {}
+  };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
   const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
     // 1b. state files no session will read again (state-prune.js)
-    if (!dry) { try { r.pruned = pruneState(store.dir, { now }).length; } catch { r.errors++; } }
+    if (!dry) { try { r.pruned = pruneState(store.dir, { now }).length; } catch (e) { failed('prune', e); } }
     // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
     // served in a month, leave serving and upkeep and stay for lookup by id (ops.js:archiveNotes)
-    if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch { r.errors++; } }
+    if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch (e) { failed('archive', e); } }
     // 1d. contradictions sessions reported (learning-pending.js): the notes are marked for verification
-    if (!dry) { try { takeContradictions(store); } catch { r.errors++; } }
+    if (!dry) { try { takeContradictions(store); } catch (e) { failed('contradictions', e); } }
     // 2. Re-hashing is free, even when the model budget is exhausted.
     const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
     // 1e. notes nobody was served in two weeks are deleted (deleteUnused): free, and they cost upkeep for nothing
-    if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch { r.errors++; } }
+    if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch (e) { failed('delete-unused', e); } }
     // 1f. the repository's pull requests, so what a session delivered is known without anybody typing a
     // command (delivery.js). Free and model-free: the person's own gh login, read-only. Once a day, back to
     // the last sync, so the usual run is one listing page and a detail call for the branches worked on here.
@@ -247,7 +260,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
             const days = Math.min(DELIVERY_WINDOW_DAYS, Number.isFinite(last) ? Math.max(2, Math.ceil((now - last) / 86400_000) + 1) : DELIVERY_WINDOW_DAYS);
             r.prSynced = (await syncFn(store, { days, now })).synced;
           }
-        } catch { r.errors++; }
+        } catch (e) { failed('pr-sync', e); }
         // Recorded whether it worked or not: a repository with no GitHub origin must not try every run.
         state.prsSyncedAt = new Date(now).toISOString();
         try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -274,7 +287,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
           if (v.verdict === 'broken' && n.kind === 'skill') r.skillsBroken++; // a skill out of date (skills.js:auditSkill); the notice names it
           else if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
           if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
-        } catch { r.errors++; }
+        } catch (e) { failed(`verify ${n.id}`, e); }
       }
     } else r.capped = true;
     // 2b. notes that say the same thing in different words, merged (dedupe.js; off unless maintain.dedupe); before the
@@ -282,9 +295,11 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (dedupeOn(cfg) && afford()) {
       try {
         const d = await (fns.dedupe || dedupeNotes)(store, { perRun: cfg.dedupePerRun, threshold: cfg.dedupeThreshold, dry, afford });
-        r.merged = d.merged.length; r.tokens += d.tokens || 0; r.errors += d.errors || 0;
+        r.merged = d.merged.length; r.tokens += d.tokens || 0;
+        // the pairs dedupe.js judged and swallowed itself: counted, and named as one entry
+        if (d.errors) { r.errors += d.errors; r.errorList.push({ step: 'dedupe', message: `${d.errors} pair ${d.errors === 1 ? 'judgment' : 'judgments'} failed` }); }
         if (d.capped) r.capped = true;
-      } catch { r.errors++; }
+      } catch (e) { failed('dedupe', e); }
     }
     // 3. phrasings for notes that have none for their present text
     if (afford()) {
@@ -292,29 +307,29 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         && (!n.says?.length || !n.search || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
       if (need.length) {
         if (dry) r.phrased = need.length;
-        else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch { r.errors++; } }
+        else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch (e) { failed('phrase', e); } }
       }
     } else r.capped = true;
     // 5. design documents that are new or changed since they were read: their behaviors follow them
     if (cfg.docs !== false && fns.docs) {
       if (afford()) {
-        if (!dry) { try { const d = await fns.docs({ limit: cfg.docsPerRun }); r.docs = d?.saved?.length || 0; r.unstated = d?.unstated?.length || 0; r.tokens += d?.tokens || 0; if (r.docs || r.unstated || d?.reworded?.length) { try { writeSystemMarkdown(store); } catch {} } } catch { r.errors++; } }
+        if (!dry) { try { const d = await fns.docs({ limit: cfg.docsPerRun }); r.docs = d?.saved?.length || 0; r.unstated = d?.unstated?.length || 0; r.tokens += d?.tokens || 0; if (r.docs || r.unstated || d?.reworded?.length) { try { writeSystemMarkdown(store); } catch {} } } catch (e) { failed('docs', e); } }
       } else r.capped = true;
     }
     // 6. skill files that are new or changed since they were carded; their duplicates settled (skills.js)
     if (cfg.skills !== false && fns.skills) {
       if (afford()) {
-        if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch { r.errors++; } }
+        if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch (e) { failed('skills', e); } }
       } else r.capped = true;
     }
     // 7. at most weekly, a question for the person: the directories their sessions work in that the cache covers
     // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
     if (cfg.coverage === true && !dry) {
-      try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch { r.errors++; }
+      try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch (e) { failed('coverage', e); }
     }
     // 8. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
     if (cfg.contextSuggest !== false && !dry) {
-      try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch { r.errors++; }
+      try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
     }
     const u = state.unreported || {};
     // a behavior found broken during this run was written to the state file by the verification itself
@@ -421,5 +436,14 @@ export function renderMaintain(r) {
   if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
   if (r.skills) bits.push(`${r.skills} skill ${r.skills === 1 ? 'card' : 'cards'}`);
   if (r.skillsBroken) bits.push(`${r.skillsBroken} ${r.skillsBroken === 1 ? 'skill' : 'skills'} found out of date`);
-  return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed` : ''}`;
+  return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
+}
+
+// "(pr-sync: Reading pull requests needs a github.com origin)": the first three, on the one line
+const RENDER_FAILURES = 3;
+function renderFailures(list) {
+  if (!list?.length) return '';
+  const shown = list.slice(0, RENDER_FAILURES).map(e => `${e.step}: ${e.message}`);
+  const more = list.length - shown.length;
+  return ` (${shown.join('; ')}${more > 0 ? `; and ${more} more` : ''})`;
 }

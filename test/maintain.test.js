@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { Store, repoId } from '../src/store.js';
 import { createNote } from '../src/ops.js';
 import { phraseKey } from '../src/note-search.js';
+import { readErrors } from '../src/error-report.js';
 import { maintain, maintenanceNotice, renderMaintain, spentToday, withinDailyCap, reportCapped, postCommitHook, pickStale, DEFAULTS, DAILY_TOKENS_COSTLY, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
 // a git repo with one note whose dependency is then changed, so the note is stale
@@ -218,11 +219,62 @@ test('a failed maintenance batch stays failed through cooldown until a due batch
   const fns = { spentToday: () => 0, verify: async () => { throw new Error('session stopped'); }, phrase: async (s, notes) => ({ done: notes, tokens: 0 }) };
   try {
     assert.equal((await maintain(store, dir, { now, fns })).errors, 1);
-    assert.deepEqual(await maintain(new Store(dir), dir, { now: now + 30 * 60_000, fns }), { skipped: 'not-due', errors: 1 });
+    const held = await maintain(new Store(dir), dir, { now: now + 30 * 60_000, fns });
+    assert.equal(held.skipped, 'not-due'); assert.equal(held.errors, 1);
+    assert.deepEqual(held.errorList.map(e => e.step.split(' ')[0]), ['verify'], 'the cooldown carries what failed, not only that something did');
     fns.verify = async () => ({ verdict: 'still_valid', tokens: 0 });
     assert.equal((await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS, fns })).errors, 0);
     assert.deepEqual(await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS + 1, fns }), { skipped: 'not-due' });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}));
+
+test('a failed step is named with its message: on the result, in the line, in the state file, through the cooldown, and in the error report', () => withEnv(async () => {
+  const { dir, store, a } = staleRepo(), now = Date.now();
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-home-'));
+  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_ERRORS_TEST: process.env.THINKER_ERRORS_TEST };
+  process.env.THINKER_HOME = home; process.env.THINKER_ERRORS_TEST = '1';
+  const fns = {
+    spentToday: () => 0,
+    archive: () => { throw new Error(`Reading pull requests needs a github.com origin\n   at ${dir}/src/delivery.js:1`); },
+    verify: async () => { throw new Error('  session   stopped  '); },
+    phrase: async (s, notes) => ({ done: notes, tokens: 0 }),
+  };
+  try {
+    const r = await maintain(store, dir, { now, fns });
+    assert.equal(r.errors, 2, 'the count is as before');
+    assert.deepEqual(r.errorList, [
+      { step: 'archive', message: `Reading pull requests needs a github.com origin at ${dir}/src/delivery.js:1` },
+      { step: `verify ${a.id}`, message: 'session stopped' },
+    ], 'each failure names its step and the message, whitespace folded, no stack');
+    const line = renderMaintain(r);
+    assert.ok(!line.includes('\n'), 'one line');
+    assert.ok(line.endsWith(`; 2 failed (archive: Reading pull requests needs a github.com origin at ${dir}/src/delivery.js:1; verify ${a.id}: session stopped)`), line);
+    const state = JSON.parse(fs.readFileSync(path.join(dir, '.thinker', 'state', 'maintain.json'), 'utf8'));
+    assert.equal(state.last.errors, 2);
+    assert.deepEqual(state.last.errorList, r.errorList, 'the state file keeps the list beside the count');
+    // the cooldown carries the list too, so the queued job that keeps retrying can say why
+    const held = await maintain(new Store(dir), dir, { now: now + 30 * 60_000, fns });
+    assert.deepEqual(held, { skipped: 'not-due', errors: 2, errorList: r.errorList });
+    // and each one is a record for the consent-gated error report, under maintain.<step>, scrubbed
+    const recs = readErrors(home, { now });
+    assert.deepEqual(recs.map(e => e.op).sort(), ['maintain.archive', 'maintain.verify']);
+    const archive = recs.find(e => e.op === 'maintain.archive');
+    assert.ok(!archive.message.includes(dir), 'the repository path never reaches the report');
+    assert.ok(archive.message.startsWith('Reading pull requests needs a github.com origin'));
+    // a long message is cut on the result, not on the record
+    fns.archive = () => { throw new Error('x'.repeat(500)); };
+    const again = await maintain(store, dir, { now: now + MAINTENANCE_INTERVAL_MS, fns });
+    assert.equal(again.errorList[0].message.length, 200);
+    // a step that fails for no named reason still has an entry
+    fns.archive = () => { throw undefined; };
+    const bare = await maintain(store, dir, { now: now + 2 * MAINTENANCE_INTERVAL_MS, fns });
+    assert.equal(bare.errorList[0].message, 'unknown error');
+    const five = [...bare.errorList, { step: 'docs', message: 'a' }, { step: 'skills', message: 'b' }, { step: 'phrase', message: 'c' }, { step: 'prune', message: 'd' }].slice(0, 5);
+    assert.equal(renderMaintain({ ...bare, errorList: five, errors: 5 }).split('; ').slice(-1)[0], 'and 2 more)', 'the line shows three and counts the rest');
+  } finally {
+    for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    fs.rmSync(dir, { recursive: true, force: true }); fs.rmSync(home, { recursive: true, force: true });
+  }
 }));
 
 test('notes nobody was served in a month are deleted; behaviors, skill cards, human notes and committed notes stay', () => withEnv(async () => {

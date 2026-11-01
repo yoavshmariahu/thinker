@@ -69,7 +69,8 @@ function prune(dir, { now = Date.now() } = {}) {
 // The proxy's side: one row of its log. Only a request the server actually cleared something from counts --
 // a row with `cleared: 0` is a request under the trigger, and saying a clear happened there would be a lie.
 export function noteCompression(dir, row, { now = Date.now(), actions = null } = {}) {
-  if (!dir || !row || row.op !== 'proxy' || !row.session || !(row.cleared > 0)) return null;
+  // a `compaction` row is Devin's own compactor measured from its session database (devin-compaction.js)
+  if (!dir || !row || !['proxy', 'compaction'].includes(row.op) || !row.session || !(row.cleared > 0)) return null;
   const file = fileFor(dir, row.session);
   const prev = read(file);
   if (!prev) prune(dir, { now });
@@ -87,6 +88,7 @@ export function noteCompression(dir, row, { now = Date.now(), actions = null } =
     recent: [...(prev?.recent || []), { at: row.at, cleared: row.cleared, uses: row.clearedUses || 0 }].slice(-RECENT),
     ...(prev?.firstTurn != null ? { firstTurn: prev.firstTurn } : {}),
     ...(prev?.told ? { told: prev.told } : {}),
+    ...(row.op === 'compaction' ? { kind: 'compaction' } : prev?.kind ? { kind: prev.kind } : {}),
   };
   try { write(file, state); } catch { return null; } // a card is never worth a failed request
   return state;

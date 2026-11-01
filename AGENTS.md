@@ -65,6 +65,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   and maintenance plus `thinker verify` handle both states, including the desktop session queue.
   This is the owner's explicit policy choice after cancelling the serving experiment; dense fallback,
   CE rescue and serve-stale switches remain off. A changed hash alone is not evidence of a wrong claim.
+- Owner-approved exception (2026-11-01, `devin-compaction.js`): Devin's own compaction threshold is written into its user config (`agent.compaction_threshold_tokens`) at `DEVIN_COMPACT_AT`, the proxy's trigger (140k), **on by default** with no experiment. Devin has no model endpoint, so its compactor is the only context reduction it can have; `devin: { compactAt: 0 }` (`THINKER_DEVIN_COMPACT_AT=off`) turns it off and restores what was there. Proven live at 140k: six turns of heavy reads peaked at 143k and fell to ~100k at each applied compaction, where the same workload without the key climbed to 297k (`docs/agent-integrations.md`). What each compaction took out is measured from Devin's session database either way, per later call as the proxy's clears are. Savings claims still need an experiment: judge by summary calls and cache rewrites, not tokens removed.
 - Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
 - Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
@@ -270,6 +271,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
+| `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
@@ -1367,6 +1369,7 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Codex CLI (incl. desktop) | each prompt | yes | yes | `~/.codex/hooks.json`, `~/.codex/config.toml` |
 | Gemini CLI | each prompt | yes | yes | `~/.gemini/settings.json` |
 | Cursor | each prompt (`additional_context`); first-tool fallback for `agent -p` | yes | yes (needs approval) | `~/.cursor/hooks.json`, `~/.cursor/mcp.json`, `.cursor/rules/thinker.mdc` |
+| Devin CLI and Devin Desktop's local agent | each prompt | yes | yes (`learn_next` allowed in `permissions.allow`) | `~/.config/devin/config.json`, `~/.config/devin/mcp_config.json` |
 | Pi, Windsurf, Copilot CLI, OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` | | | agent's own files |
 
 - Edited-file notes are on by default; `--no-late` omits them.

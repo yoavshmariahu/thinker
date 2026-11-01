@@ -73,7 +73,7 @@ const HELP = `thinker — knowledge cache for coding agents
 
   setup [--clients list|all|auto] [--no-learn] [--no-hooks] [--no-late] [--no-mcp] [--no-git-hook] [--no-trust] [--no-proxy] [--yes] [--no-ui]
                                  the one command that sets a repository up: connect the agent CLIs (hooks and the MCP
-                                 server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode; default auto)
+                                 server, clients claude, codex, cursor, gemini, pi, windsurf, copilot, opencode, devin and more; default auto)
                                  and fetch the ranking model. Nothing is built: the cache starts empty and grows from your
                                  sessions. The first setup of a repository opens the local page (thinker ui) in the browser,
                                  --no-ui leaves it closed

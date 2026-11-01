@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { appendDelivery, readDelivery, deliveryFile } from '../src/delivery-journal.js';
-import { deliveryReport, renderDelivery, linkSession, syncPrs, sessionsOf, SAVED_BUCKETS } from '../src/delivery.js';
+import { deliveryReport, renderDelivery, linkSession, syncPrs, sessionsOf, SAVED_BUCKETS, githubOrigin, ghAvailable } from '../src/delivery.js';
 
 const now = Date.parse('2026-10-29T12:00:00.000Z');
 const at = hoursAgo => new Date(now - hoursAgo * 3600_000).toISOString();
@@ -197,4 +197,20 @@ test('sessionsOf keeps the last token count a session reported', t => {
   const x = sessionsOf(store, { home }).get('sA');
   assert.equal(x.tokens, 9000);
   assert.equal(x.prompts, 9);
+});
+
+test('the pull-request sync is not available in a repository whose origin is not on github.com', t => {
+  // one repository per origin: the id is read once per process
+  const repo = origin => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-origin-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    if (origin) execFileSync('git', ['remote', 'add', 'origin', origin], { cwd: dir });
+    return dir;
+  };
+  const none = repo();
+  assert.equal(githubOrigin(none), false, 'no origin at all');
+  assert.equal(ghAvailable(none), false, 'so maintenance never calls the sync, whatever gh says');
+  assert.equal(githubOrigin(repo('git@gitlab.com:team/app.git')), false, 'another host');
+  assert.equal(githubOrigin(repo('git@github.com:team/app.git')), true);
 });

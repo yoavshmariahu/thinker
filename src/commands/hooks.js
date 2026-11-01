@@ -19,6 +19,7 @@ import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcri
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens, sessionInputSavings } from '../usage.js';
 import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
+import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
 import { noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../notice-cadence.js';
 import { setupRepo } from '../repo-onboard.js';
@@ -33,7 +34,7 @@ import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
 import { thinkerHome } from '../update.js';
 import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
-import { isWorkerPrompt, isWorkerTool } from '../session-llm.js';
+import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint } from '../proxy-service.js';
 
@@ -72,7 +73,7 @@ async function hookCommand(ctx) {
     ev = normalizeHookEvent(client, ev, pos[0]);
     if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
     // Cursor also runs the Claude Code hooks it imports; its own hooks do the work
-    if (client === 'cursor-import') return;
+    if (client === 'cursor-import' || client === 'devin-import') return;
     // a host plugin's hook yields to the host's own settings where they run thinker's hooks (clients.js:pluginYields)
     if (flags.plugin && pluginYields(client)) return;
     // A hook at user scope (--user: the agent's own settings, read in every checkout) takes the
@@ -136,7 +137,7 @@ async function hookCommand(ctx) {
       return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
-    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy'].includes(client) && session === 'unknown') return;
+    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy', 'devin'].includes(client) && session === 'unknown') return;
     // Copilot CLI, VS Code's Copilot and the Cline CLI take no context from a prompt hook: the bundle waits
     // for the turn's first tool hook (parkPending)
     const parks = client === 'copilot' || client === 'vscode' || (client === 'cline' && ev.cline_cli);
@@ -262,7 +263,11 @@ async function hookCommand(ctx) {
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
-    if (isWorkerTool(ev.tool_name)) { try { fs.rmSync(traceFile(store.dir, session), { force: true }); } catch {} if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
+    // The learning worker's own calls (learn_next, and the call that launches it) are not the session's work and
+    // are not recorded. They used to delete the session's trace, on the assumption that a worker is its own
+    // session: in Devin (and Claude Code) a background subagent's hooks carry the parent's session id, so the
+    // person's own prompt and tool calls were wiped and the session distilled as nothing (seen live 2026-11-01).
+    if (isWorkerTool(ev.tool_name) || isWorkerLaunch(ev.tool_input)) { if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
@@ -345,6 +350,9 @@ async function hookCommand(ctx) {
     if (parts.length || updated !== undefined) out(toolOutput(client, parts.join('\n\n'), { updated, mcp: updatedMcp }));
   } else if (pos[0] === 'stop') {
     if (!store.exists()) return;
+    // Devin compacts by itself; what each compaction took out of the context is read from its session database
+    // and recorded as the proxy's clears are (devin-compaction.js). No model call, nothing when there is none.
+    if (client === 'devin') { try { await recordDevinCompactions(store, { session, dir: compressionDir() }); } catch {} }
     const workerSession = isWorkerPrompt(ev.prompt) || (() => {
       for (const f of [ev.transcript_path, traceFile(store.dir, session)]) {
         if (!f || !fs.existsSync(f)) continue;

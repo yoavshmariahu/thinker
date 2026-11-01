@@ -1,8 +1,8 @@
 # Coding agent compatibility
 
-Thinker supports fifteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
+Thinker supports sixteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
 machine; its `--clients` option takes `all` or a comma-separated selection
-(`droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
+(`devin,droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
 host is reached; nothing on it needs running by hand.
 
 Every client is wired machine-wide, in the agent's own files; the next update wires an
@@ -14,6 +14,206 @@ Restart the host agent after setup so it discovers the generated hooks/extension
 Project trust and hook enablement remain controlled by the host. New generated project files
 are locally excluded from git; existing instruction files retain their visibility. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
+
+## Devin
+
+Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
+`devin` executable or its user configuration directory. This adapter targets the
+current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer); the legacy Windsurf
+Cascade adapter remains separate.
+
+- Hooks are merged into `~/.config/devin/config.json`, and the MCP server into
+  `~/.config/devin/mcp_config.json` (`%APPDATA%\devin` on Windows). Existing hooks,
+  model settings, permissions, routes and other MCP servers remain intact.
+- `UserPromptSubmit` delivers relevant notes; `PostToolUse` delivers file-related
+  notes and records tool inputs, output and errors. `Stop` checks the learning
+  backlog, and `SessionEnd` queues the remaining trace. Hooks do not rewrite commands.
+- Learning uses Devin's background `run_subagent` (`subagent_general`) and Thinker's `learn_next` MCP
+  queue. No separate Claude/Codex login or API key is needed. Work queued when a
+  session closes is picked up on a later prompt. A background subagent is denied every
+  tool the session has not approved already, and an MCP tool prompts by default, so
+  `connect` adds the one rule the worker needs, `mcp__thinker__learn_next`, to
+  `permissions.allow` in `config.json` (`clients.js:DEVIN_LEARN_RULE`; `uninstall` takes it
+  out). It is thinker's own tool, which reads the queue and saves an answer. Without the
+  rule the worker ran and was denied, and learning stalled, in every live session on
+  2026-11-01. The documented
+  examples omit a final answer, but CLI 3000.11.234 sends `last_assistant_message`
+  on Stop; Thinker records it when present alongside prompts and tool results.
+- The worker's hooks arrive under the parent session's id. Its own calls (`learn_next`,
+  and the `run_subagent` call that starts it) are left out of the session's record and
+  nothing else is; an earlier version deleted the record on seeing them, which wiped the
+  person's session. A prompt that finds the runner alive with a request nobody has taken
+  for a minute asks for the worker again (`session-work.js:unclaimedRequest`), since the
+  last instruction evidently reached no subagent.
+- Print mode (`devin -p`) in the default permission mode rejects the first edit and ends
+  the session without a final answer; such a session has nothing to distill. Use
+  `--permission-mode accept-edits` (or an interactive session) for an end-to-end check.
+- `--no-learn` stops recording/learning, `--no-late` omits file-related notes, and
+  `--no-hooks` omits hook delivery. `--no-mcp` connects note delivery only and reports
+  that session learning needs MCP. Rewire, doctor repair and uninstall recognize
+  the adapter. Invalid JSON and JSON with comments are left unchanged with an error;
+  automatic wiring currently requires plain JSON.
+- Devin imports Claude hooks by default. Imported Thinker hooks identified by
+  `DEVIN_PROJECT_DIR` and Devin's payload yield to the dedicated adapter. A Claude
+  subprocess carrying its own transcript path continues to use the Claude adapter.
+
+Tests cover wiring preservation, refresh/removal, hook delivery and recording,
+worker recursion prevention, and a real local MCP/session-provider round trip with
+no external model calls. A network-isolated Docker smoke test with the official
+Devin CLI `3000.11.234` (`92c83011d113`) confirms that `thinker connect --clients devin`
+produces a registration that the real `devin mcp list` and `devin mcp get thinker`
+recognize. An authenticated macOS smoke test on the same version with SWE-1.6 Slow
+then confirmed prompt injection (an undisclosed fixture sentinel), a real `exec`
+tool result and final-answer recording, and SessionEnd job queuing. A single Devin
+background subagent answered the real distillation request through MCP; Thinker
+logged the job as successful. The initial smoke prompt also launched a second
+connectivity worker that claimed a request without answering, so that run failed
+and was repeated with exactly one worker. The Devin worker prompt now names the
+MCP dispatcher explicitly. `THINKER_TEST=1` suppresses automatic worker launch,
+so the smoke test started the product's queue runner explicitly. On 2026-11-01 five
+further print-mode sessions on the real CLI (SWE-1.6 Slow, holdout off) verified the
+automatic path without starting anything by hand: the prompt hook started the runner and
+handed the worker instruction to Devin, Devin started a background subagent, the
+subagent called `learn_next` through MCP once the permission rule was in place, the
+session's distillation request was answered from that subagent (provider `session` in
+the log, ten seconds) and the job was marked done, with the person's own session record
+intact. The same sessions found the three faults fixed that day: the skill hook dropped
+by `connect`, the missing permission rule, and the record wiped by the worker's calls.
+Devin Desktop 3.11.238 (its bundled agent 3000.11.238, the **Devin CLI** entry of the
+Desktop's agent picker) was verified the same day on two local sessions: it reads the same
+`config.json` and `mcp_config.json`, the prompt hook served a note, reads, edits and the
+answer were recorded, the Desktop started the learning subagent on its own and the subagent
+answered a phrasing request and a distillation through `learn_next`. Not seen there: a
+`SessionEnd` event (the Desktop keeps a session open; the first session was distilled by
+the catch-up `learn` once it had been quiet twenty minutes). A Desktop prompt sent to
+**Devin Cloud** runs on Devin's VM and reaches no hook on the machine. The cloud path
+itself could not be run: the organization was out of cloud quota. These are
+mechanism checks, not evidence of token savings or improved task correctness.
+Cloud sessions and legacy Cascade are not claimed to have this automatic integration.
+The session model (SWE-1.6 Slow) answered every distillation request with no notes and no
+assessments, where a Claude dry run on one of the same records returned a confirmed
+assessment: the loop runs, and what it learns from that model is an open question.
+
+Cloud Devin can launch a custom STDIO MCP server inside its session environment.
+Install Thinker there and register `thinker mcp`, with `THINKER_REPO` pointing at that
+session's checkout and `THINKER_SESSION_HOST=devin` for the learning queue. This is
+MCP connectivity only: it does not install cloud hooks, carry a local cache into the
+VM, or deliver cached notes by itself. Current Thinker MCP exposes its control and
+learning tools, not general note retrieval. Cloud automation needs separately
+verified hook delivery and cache persistence before it can be called supported.
+
+Devin's `proxy` setting is an outbound HTTP/HTTPS proxy for CLI traffic. It is not
+a documented Anthropic/OpenAI model base URL, and a tunnel alone cannot edit an
+encrypted model request, so the context proxy never applies to Devin.
+
+**Context reduction in Devin is Devin's own compaction, steered and measured**
+(`src/devin-compaction.js`, 2026-11-01). Devin summarizes the conversation in the
+background at a token threshold and swaps the summary in at the next turn. The
+threshold is an undocumented integer in the user config, `agent.compaction_threshold_tokens`
+(the binary names it; a wrong value draws "Ignoring invalid value for
+agent.compaction_threshold_tokens"). Measured over ACP on CLI 3000.11.234, SWE-2 Medium:
+with the key at 20k a session that sat at 41k tokens a call held at 19k-20k, the first
+applied compaction taking it from 25.9k to 17.3k; `PreCompact` and `PostCompaction` fired.
+Caveats: a print-mode session (`devin -p`) exits before the summary applies, so the key
+does nothing there; a threshold below the post-compaction size makes Devin re-summarize
+every turn (a model call each time); the summary keeps the user's messages verbatim. The
+finer `DEVIN_COMPACTION_THRESHOLDS=spawn,apply,hard` is an environment variable no config
+file can set.
+
+- **On by default at 140k tokens** (`DEVIN_COMPACT_AT`, the proxy's own result-clearing trigger; the
+  owner's call, 2026-11-01, an exception to the rule that a context reduction strategy ships off
+  until an experiment): `connect` and `rewire` write the key into Devin's user config beside the
+  hooks, so the installer and `thinker update` install it. `devin: { compactAt: <tokens> }` in
+  `~/.thinker/config.json` (or `THINKER_DEVIN_COMPACT_AT`) moves it; `0` or `off` turns it off and
+  restores what was there; a value thinker did not write is never touched (`setDevinCompaction`;
+  `uninstall` restores too). The saving is still unmeasured in agent sessions: judge it by the
+  summary calls and cache rewrites it adds, not by the tokens it removes.
+- **Proven at the installed threshold (2026-11-01, CLI 3000.11.234 over ACP, SWE-2 Medium, 30 files
+  of 24 KB read five a turn over six turns):** with the key at 140k the context peaked at 142k-143k
+  and fell to about 100k at each of six applied compactions; the same workload with the key removed
+  climbed to 296k before Devin's own first compaction (to 157k) and reached 297k again by the end.
+  Peak context is the fair comparison: the two runs' models batched their reads differently, so
+  summed prompt tokens are not.
+- The meter runs whether the threshold is thinker's or Devin's own: Devin's session database
+  (`~/.local/share/devin/cli/sessions.db`, `message_nodes`) records the context size on each call's
+  assistant node (`num_tokens_preceding`) and the summary twice, as an assistant node when the
+  background summarizer finishes and as a *system* node when it is swapped in (both
+  `summarized_from`); the context drops at the first call after the system node, so that is the
+  marker (`mainLine`, `applied`). A background subagent's calls are stored under the same session
+  id below a root of their own ("You are a subagent of Devin") and are left out; every other root
+  is the main line, since a turn after a compaction hangs off an early node. At the end of each
+  turn the Stop hook reads it (`recordDevinCompactions`, read-only through `node:sqlite` or the
+  `sqlite3` command) and records it as the proxy's clears are: one log row per applied compaction
+  (`op: compaction`, before, after, saved) and, per later call, every compaction applied before
+  it added up (`callSavings`, into `compression.js:noteCompression` with `kind: compaction`),
+  which is what the API's cumulative `cleared_input_tokens` reports for the proxy. On the run
+  above that read "context cleared · ~3.4M tokens not re-read over 25 calls". The card, the
+  end-of-turn notice and the pull-request savings read that record; `thinker usage` and
+  `thinker proxy report` still total the proxy's log alone.
+
+Contract references: [hooks](https://docs.devin.ai/cli/extensibility/hooks/overview),
+[lifecycle payloads](https://docs.devin.ai/cli/extensibility/hooks/lifecycle-hooks),
+[MCP configuration](https://docs.devin.ai/cli/extensibility/mcp/configuration),
+[subagents](https://docs.devin.ai/cli/subagents),
+[cloud MCP](https://docs.devin.ai/work-with-devin/mcp),
+[proxy settings](https://docs.devin.ai/cli/reference/configuration/config-file#proxy-user-only).
+
+## Selective tool context in Devin
+
+The optional `thinker-context` skill and companion hook live in
+`src/integrations/devin-context`. Install them with:
+
+```sh
+node src/integrations/devin-context/scripts/context.mjs install
+```
+
+Restart Devin, then ask `/thinker-context` to configure specific tool results. The
+skill writes an explicit per-repository `.devin/thinker-context.json` policy with
+`keep`, `compress` (bounded beginning/end), or `omit` rules, selected by an exact
+tool name and literal input substring. No reduction rules are enabled at install.
+A large successful result can offer the skill once per session. `off <repo>`
+disables offers and reduction. The helper archives the original before replacing
+it, preserves failures and unmatched results, and keeps the original on errors.
+It makes no model calls, rewrites no commands, and changes only future tool results.
+
+Live mechanism probes on Devin CLI `3000.11.234`, macOS arm64 (binary SHA-256
+`cd6a8c9d7d95d8a46fb3fb5504e29ffbf3f392fbc772a25e619091cbd64124a2`):
+
+- `PostToolUse.updatedToolOutput` works: the hook received the original canary;
+  the exported tool observation and model answer contained the replacement. A second
+  live test invoked the actual `thinker-context` skill and companion: the exported
+  result kept the leading/trailing canaries, excluded the middle canary, and left
+  the original in the local archive.
+- ACP advertises `/compact`, and it can be invoked through `session/prompt`.
+  It acknowledges before finishing. Wait for `_cognition.ai/compaction` with
+  `status: completed`, not just the prompt RPC response.
+- `PreCompact`, `PostCompaction`, and `PostCompact` hooks actually fired. The
+  post-compaction event includes the generated summary.
+- A populated-session compaction wrote a history file and retained the original
+  user messages verbatim in the continuation alongside its summary. It therefore
+  did not remove the obsolete label embedded in a user message.
+- The tested `PreCompact.hookSpecificOutput.additionalContext` shape was rejected
+  as invalid. Top-level summary replacement and a PostCompaction-specific
+  `summary`/`additionalContext` response did not alter the active summary.
+  `/compact` arguments did not establish a working selection interface.
+- A static binary inspection found summarizer prompt text, a `CompactionRequest`
+  with an `instructions` field, and compaction-threshold controls. These are
+  implementation clues, not a supported external API or proof of availability.
+
+These are isolated protocol/mechanism checks, not an efficacy benchmark. They do
+not establish token savings, task quality, desktop parity, or retroactive erasure.
+The skill must not claim to edit earlier user/system messages or tool history.
+
+For a supported retrospective API, Cognition's published contact is
+[support@cognition.ai](https://docs.devin.ai/cli/troubleshooting#getting-help);
+`/bug` in Devin CLI also reaches the CLI developers. Ask for selective compaction
+by stable message/tool-call ID, custom compaction instructions, a supported summary
+replacement response, preservation of tool-call/result pairing, and before/after
+context usage. The installed distribution also contains
+`share/devin/docs/reference/partner-builds.mdx`, describing an **approved-partner**
+build with custom model endpoints and custom tools. That is a possible partnership
+route, not evidence that partner access includes compaction control. No request has
+been sent and no restricted build was requested or downloaded.
 
 ## No instructions, no agent tools
 
@@ -98,6 +298,7 @@ follow every instruction.
 | Gemini CLI | BeforeAgent | AfterTool | Native transcript | MCP |
 | Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP |
 | Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | none |
+| Devin CLI / Devin Local | UserPromptSubmit `hookSpecificOutput.additionalContext` | PostToolUse `hookSpecificOutput.additionalContext` | Prompt and tool results; session-end learning through the session queue | MCP (`~/.config/devin/mcp_config.json`) |
 | Windsurf Cascade | None (no prompt hook) | None | Prompt, reads, edits, commands, MCP results, response | none |
 | GitHub Copilot CLI | First successful tool after prompt | postToolUse | Prompt, tools/errors, stop/end | optional manual MCP |
 | OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |

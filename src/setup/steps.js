@@ -33,6 +33,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
     kilo: { name: 'Kilo Code' },
     augment: { name: 'Augment (Auggie)' },
     goose: { name: 'Goose' },
+    devin: { name: 'Devin' },
     claude: { name: 'Claude Code', bin: 'claude', desc: 'Anthropic Claude Code CLI' },
     codex: { name: 'OpenAI Codex', bin: 'codex', desc: 'OpenAI Codex CLI' },
     cursor: { name: 'Cursor Agent', bin: 'agent / cursor', desc: 'Cursor Editor & Agent CLI' },
@@ -113,7 +114,7 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
 
     if (res.status === 'connected') {
       out(`  ${c.green('✓')} ${c.bold(clientLabel)} Connected`);
-      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'proxy'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
+      if (['pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin', 'proxy'].includes(res.client)) for (const line of res.logs) out(`    ${line}`);
     } else if (res.status === 'skipped') {
       out(`  ${c.gray('○')} ${c.dim(clientLabel)} ${c.dim(`Skipped · ${res.detail}`)}`);
     } else {
@@ -124,7 +125,8 @@ export async function stepConnectClis({ repo = null, cliPath, mcpEntry, userMcpE
   // a hook that is not thinker's is left alone, and said so: the doctor then names the line to add to it
   if (gitHook && repo) installGitHooks(repo, cliPath, learn, l => { if (l.startsWith('skipped git')) out(`  ${c.gray('○')} ${c.dim(`git hook · ${l.replace(/^skipped git /, '')}`)}`); });
 
-  const connectedCount = results.filter(r => r.status === 'connected').length;
+  // the proxy is a row above, not one of the agents asked for: with it the line read "2 of 1"
+  const connectedCount = results.filter(r => r.status === 'connected' && r.client !== 'proxy').length;
   out(`\n  ${c.cyan('Summary:')} ${c.bold(connectedCount)} of ${targetClients.length} selected agents connected.`);
   return results;
 }

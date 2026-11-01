@@ -231,7 +231,7 @@ export async function answerCoverage(store, choice, { client, via = 'picker', ho
     saveState(store, st);
     store.log({ op: 'coverage-build', started: true, dirs: chosen.length, tokens: Math.min(tokens, COVERAGE.sessionCode * 2), agent: 'session', ...(app ? { app } : {}) });
     const why = app ? `This session runs in ${app}, so the build reads through it` : 'No agent CLI is signed in on this machine, so the build reads through this session';
-    return `${why}: notes on how ${names2} work${chosen.length === 1 ? 's' : ''} started in the background, the most changed code first, as much as one subagent's context holds (later suggestions continue it). It waits for a subagent to answer its model calls. Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the build runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo)}`;
+    return `${why}: notes on how ${names2} work${chosen.length === 1 ? 's' : ''} started in the background, the most changed code first, as much as one subagent's context holds (later suggestions continue it). It waits for a subagent to answer its model calls. Start one now with ${SUBAGENT_TOOLS[harness]}, and do not wait for it: give it exactly the prompt below. Tell the user in one line that the build runs in a background subagent of this session, then go on with the task.\n\n${subagentPrompt(store.repo, { harness })}`;
   }
   if (!auth?.ok) {
     saveState(store, st);

@@ -39,7 +39,7 @@ const checkoutOf = d => {
 };
 // `thinker mcp --enable <tools>` (an experiment arm's command) is still accepted: there are no agent tools to enable.
 const pinned = process.env.THINKER_REPO;
-let repo = pinned ? findRepoRoot(pinned) : checkoutOf(process.cwd()) || checkoutOf(process.env.CLAUDE_PROJECT_DIR);
+let repo = pinned ? findRepoRoot(pinned) : checkoutOf(process.cwd()) || checkoutOf(process.env.DEVIN_PROJECT_DIR) || checkoutOf(process.env.CLAUDE_PROJECT_DIR);
 // THINKER_MCP=off: the server starts but offers no tools and no instructions. For control arms of a
 // benchmark when the agent's MCP registration is machine-wide and cannot be left out for one run.
 // A repository switched off machine-wide (repo-switch.js) is served the same way: no tools, no notes.
