@@ -10,7 +10,7 @@ import type { Register } from 'claude-code'
 export type Note = { title: string; id: string }
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-export type Card = { tail: string; titles: string[]; tokens: number; at: number; compression?: Saving }
+export type Card = { tail: string; titles: string[]; tokens: number; at: number; prompts?: number; compression?: Saving }
 
 // Each served note is headed `### [kind] Title  (id: …)` inside a `<thinker-cache>` block; the titles
 // listed under "Other cached titles" were not served.
@@ -91,8 +91,8 @@ async function markSession($: any): Promise<void> {
   } catch {}
 }
 
-export const cardHeader = (n: number, tokens: number) =>
-  `${n} ${n === 1 ? 'note' : 'notes'} this turn${tokens ? ` · Estimated tokens saved: ~${formatTokens(tokens)}` : ''}`
+export const cardHeader = (n: number, tokens: number, prompts = 0) =>
+  `${n} ${n === 1 ? 'note' : 'notes'} ${prompts > 1 ? `over the last ${prompts} prompts` : 'this turn'}${tokens ? ` · Estimated tokens saved: ~${formatTokens(tokens)}` : ''}`
 
 // The context proxy's clearing, drawn beside the notes (src/compression.js holds the same rule; the figures
 // are the API's own `cleared_input_tokens`, which the proxy writes per session as it sees them). The wait:
@@ -123,6 +123,27 @@ async function compressionState($: any): Promise<Saving | null> {
   } catch { return null }
 }
 
+// One card per summary, not one a turn (src/notice-cadence.js holds the same floors and writes the
+// same file): a box under every answer is noise, and the clearing's figure in particular was redrawn
+// unchanged every turn from TURNS_AFTER on. A card is drawn when a summary is due -- 20 prompts since
+// the last one and a day gone by -- and then stamps it, so the person gets one thinker message
+// whichever door it comes through. The Stop hook counts the prompts; the card only reads the count,
+// since both run in every turn and counting it twice would halve the floor.
+export const NOTICE_PROMPTS = 20
+export const NOTICE_HOURS = 24
+const noticeFile = async ($: any) => `${(await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`}/state/notice.json`
+async function noticeDue($: any): Promise<boolean> {
+  try {
+    const st = JSON.parse(String(await $.fs.read(await noticeFile($))))
+    const at = st?.at ? Date.parse(st.at) : NaN
+    if (!(at > 0)) return true   // nothing said yet: a fresh cache draws its first card at once
+    return (st.prompts || 0) >= NOTICE_PROMPTS && Date.now() - at >= NOTICE_HOURS * 3600e3
+  } catch { return true }
+}
+async function noticeShown($: any): Promise<void> {
+  try { await $.fs.write(await noticeFile($), JSON.stringify({ at: new Date().toISOString(), prompts: 0 })) } catch {}
+}
+
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
 let cards: Card[] | null = null
@@ -132,8 +153,10 @@ async function load($: any): Promise<Card[]> {
 }
 
 export const register: Register = on => {
-  // notes served since the main loop's turn began, prompt-time and late
+  // notes served since the last card was drawn, prompt-time and late: a held turn keeps them
   let served: Note[] = []
+  // turns that served something and drew nothing, waiting for the next summary
+  let held = 0
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
   cards = null
@@ -157,19 +180,23 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
       const byId = new Map(served.map(n => [n.id, n]))
-      served = []
       const state = await compressionState($)
       if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
       const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
       if ((byId.size || compression) && tail) {
-        const tokens = byId.size ? await estimate($, [...byId.keys()]).catch(() => 0) : 0
-        const card: Card = { tail, titles: [...byId.values()].map(n => n.title), tokens, at: Date.now(), ...(compression ? { compression } : {}) }
-        cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
-        await $.store.set('cards', cards).catch(() => {})
-        await markSession($)
-        // the answer was drawn before the turn ended: draw it again, now with its card
-        $.ui.invalidate('ui.render')
+        if (!(await noticeDue($))) held++   // the notes stay in `served` and come with the next card
+        else {
+          const tokens = byId.size ? await estimate($, [...byId.keys()]).catch(() => 0) : 0
+          const card: Card = { tail, titles: [...byId.values()].map(n => n.title), tokens, at: Date.now(), prompts: held + 1, ...(compression ? { compression } : {}) }
+          cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
+          await $.store.set('cards', cards).catch(() => {})
+          await markSession($)
+          await noticeShown($)
+          served = []; held = 0
+          // the answer was drawn before the turn ended: draw it again, now with its card
+          $.ui.invalidate('ui.render')
+        }
       }
     }
     return next(e)
@@ -187,7 +214,7 @@ export const register: Register = on => {
         {drawn}
         {card.titles.length ? (
           <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-            <Text><Text bold>🧠 Thinker</Text><Text dimColor> · {cardHeader(card.titles.length, card.tokens)}</Text></Text>
+            <Text><Text bold>🧠 Thinker</Text><Text dimColor> · {cardHeader(card.titles.length, card.tokens, card.prompts ?? 0)}</Text></Text>
             {card.titles.slice(0, 3).map((t, i) => (
               <Text key={'t' + i} dimColor>• {shortTitle(t)}</Text>
             ))}

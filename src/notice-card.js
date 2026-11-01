@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { desktopApp, subagentHarness } from './app-host.js';
 import { cacheHitSavings, formatTokens } from './usage.js';
 import { CARD_TOOLS, compressionDir, compressionSaving, compressionTools, markCompressionTurn } from './compression.js';
+import { noticeDue, noticeShown } from './notice-cadence.js';
 
 export function noticeCardOn(store, client, { env = process.env, app = () => desktopApp('codex') } = {}) {
   const cfg = store.config();
@@ -31,6 +32,10 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     const file = path.resolve(store.dir, 'state', 'notice-cards', `${key}.html`);
     const exists = fs.existsSync(file);
     if (updateOnly && !exists) return '';
+    // One card per summary, not one a turn (notice-cadence.js): a card whose reference is already in
+    // this turn's answer is kept up to date, but a new one waits for the next summary to come due.
+    // It speaks for the turn it is drawn in; what the held turns served is in `thinker usage`.
+    if (!exists && !noticeDue(store).due) return '';
     const { calls, tokens } = unique.length ? cacheHitSavings(store.repo, unique) : { calls: 0, tokens: 0 };
     const counts = [`${unique.length} ${unique.length === 1 ? 'note' : 'notes'} ${linked ? 'this turn' : 'retrieved'}`, calls ? `${calls} ${calls === 1 ? 'file' : 'files'}` : '', tokens ? `Estimated tokens saved: ~${formatTokens(tokens)}` : ''].filter(Boolean).join(' · ');
     const hit = !unique.length ? '' : `  <div class="card">
@@ -59,6 +64,7 @@ ${hit}${compressed}</section>
     try { fs.writeFileSync(temp, html); fs.renameSync(temp, file); }
     finally { fs.rmSync(temp, { force: true }); }
     if (exists || updateOnly) return '';
+    noticeShown(store);
     return `<thinker-notice>Thinker has something to show for this turn. At the end of your final answer, include the following display reference on its own line, once, without a code fence. It renders the notice automatically; do not ask the user to request or approve it. Use only the latest reference from this turn, never one from a previous turn. Do not call tools just to display it.\nvisualize${JSON.stringify({ path: file })}\n</thinker-notice>`;
   } catch { return ''; } // Presentation must never break retrieval or learning.
 }

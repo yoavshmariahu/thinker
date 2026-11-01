@@ -8,6 +8,7 @@ import { CARD_ENV, claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claude
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { FILE_CAP, MAX_FILES, NOT_READING } from '../src/usage.js';
 import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
+import { NOTICE_PROMPTS, NOTICE_HOURS } from '../src/notice-cadence.js';
 import { formatTokens } from '../src/model-usage.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -50,6 +51,23 @@ test('the card waits as long as the notice does, and words the saving the same w
   const builtTools = tools.tools.map(t => new Function('t', 'formatTokens', 'shortTool', `return ${modTools[1]};`)(t, formatTokens, shortTool)).join(', ');
   assert.equal(builtTools, compressionTools(tools, formatTokens, { limit: CARD_TOOLS }));
   assert.ok(builtTools.includes('artemis/get_experiment'), 'an MCP name is written as the person reads it');
+});
+
+test('the card comes due as the notice does, and speaks for the turns it held', () => {
+  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+  // the mod runs inside Claude Code, so it has its own copy of the floors and reads the same state file
+  assert.match(src, new RegExp(`export const NOTICE_PROMPTS = ${NOTICE_PROMPTS}\\n`), 'the prompts floor matches notice-cadence.js');
+  assert.match(src, new RegExp(`export const NOTICE_HOURS = ${NOTICE_HOURS}\\n`), 'the hours floor matches notice-cadence.js');
+  assert.ok(src.includes('/state/notice.json'), 'one cadence for every door');
+  assert.ok(!/countPrompt|st\.prompts = /.test(src), 'the Stop hook counts the prompts; the card only reads the count');
+  // a held turn keeps its notes for the next card, and the header says the span
+  assert.ok(src.includes('if (!(await noticeDue($))) held++'));
+  assert.ok(src.includes('prompts: held + 1'));
+  const header = src.match(/export const cardHeader = \(n: number, tokens: number, prompts = 0\) =>\n  (.+)/);
+  assert.ok(header, 'the mod exports a header');
+  const build = (n, tokens, prompts) => new Function('n', 'tokens', 'prompts', 'formatTokens', `return ${header[1]};`)(n, tokens, prompts, formatTokens);
+  assert.equal(build(1, 7000, 0), '1 note this turn \u00b7 Estimated tokens saved: ~7k');
+  assert.equal(build(3, 0, 24), '3 notes over the last 24 prompts');
 });
 
 test('the settings name one copy\'s card folder and keep every other plugin folder', () => {

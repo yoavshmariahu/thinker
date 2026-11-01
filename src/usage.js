@@ -80,18 +80,21 @@ export function formatSeconds(s) {
   return `${Math.round(s)}s`;
 }
 
-// What the user sees at the end of a turn: everything served in it, at the prompt and
+// What the user sees when a summary comes due: everything served since the last one, at the prompts and
 // while the agent read and edited files. Nothing is known yet about whether the agent acted
 // on them, so the notice describes the notes and does not say "saved"; in a week on this
 // repository about 30% of servings were acted on. What was saved is counted after the
 // session is assessed (summarize, `thinker usage`). The prompt hook says nothing: a line at
-// every prompt was noise.
-export function turnNotice(repo, notes, { input } = {}) {
-  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} this turn · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}`;
+// every prompt was noise, and so was one at the end of every turn: a summary comes due every
+// `prompts` prompts and at most once a day (notice-cadence.js), and `prompts` here is how many
+// have passed since the last one, so the line says what span it covers.
+export function turnNotice(repo, notes, { input, prompts = 0 } = {}) {
+  const span = prompts > 1 ? `over the last ${prompts} prompts` : 'this turn';
+  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} ${span} · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}`;
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens } = cacheHitSavings(repo, notes);
-  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
+  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} ${span}`;
   // Notes that rest only on configuration point at no code to read: say how many there were
   // and stop, rather than print `~0 tokens of code` or a figure the note's length invented.
   if (!tokens) return `🧠 thinker: ${noun}`;
@@ -108,12 +111,12 @@ export function compressionNotice(state) {
   return `\u{1F5DC} thinker: ${compressionHeader(s, formatTokens)}`;
 }
 
-export function turnFooterMarkdown(repo, notes, { input } = {}) {
+export function turnFooterMarkdown(repo, notes, { input, prompts = 0 } = {}) {
   const unique = [...new Map((notes || []).filter(Boolean).map(n => [n.id || n.title, n])).values()];
   if (!unique.length) return '';
   const { tokens } = cacheHitSavings(repo, unique);
   const hits = unique.length;
-  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} this turn`;
+  const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} ${prompts > 1 ? `over the last ${prompts} prompts` : 'this turn'}`;
   const detail = input ? `*est. input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? ', including re-reads' : ', one-read fallback'}*` : tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
   const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/[`|]/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
   const head = `🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}`;

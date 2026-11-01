@@ -20,7 +20,9 @@ function fixture(t) {
   fs.mkdirSync(path.join(repo, '.codex'));
   fs.writeFileSync(path.join(repo, '.codex/config.toml'), 'x'.repeat(3600));
   const store = new Store(repo).init();
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ minNotes: 1 }));
+  // no floors on the notices: these tests are about the card itself, a turn at a time, and the cadence
+  // that holds a new card back until a summary is due has its own test below and in notice-cadence.test.js
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ minNotes: 1, notice: { everyPrompts: 0, everyHours: 0 } }));
   return store;
 }
 function enable(t) {
@@ -49,6 +51,17 @@ test('one card per turn deduplicates notes and files, escapes titles and preserv
   assert.notEqual(first, ref(noticeCard(store, { ...args, session: 'another-chat' })));
   const config = ref(noticeCard(store, { client: 'codex', notes: [{ id: 'cfg', deps: [{ path: '.codex/config.toml' }] }] }));
   assert.doesNotMatch(fs.readFileSync(config, 'utf8'), /Estimated tokens saved|file ·|this turn/);
+});
+
+test('a new card waits for the next summary; one already referenced is kept up to date', t => {
+  enable(t); const store = fixture(t);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ minNotes: 1 }));   // the real floors
+  const args = { client: 'codex', session: 'held', turn: 1, notes: [one] };
+  const first = ref(noticeCard(store, args));   // nothing said here yet: the first card is drawn
+  assert.equal(noticeCard(store, { ...args, notes: [one, two] }), '', 'the drawn card is still updated');
+  assert.match(fs.readFileSync(first, 'utf8'), /2 notes this turn/);
+  assert.equal(noticeCard(store, { ...args, turn: 2 }), '', 'the next turn draws nothing: 20 prompts and a day away');
+  assert.deepEqual(fs.readdirSync(path.join(store.dir, 'state/notice-cards')), [path.basename(first)], 'one card, not one a turn');
 });
 
 test('misses, holdouts, disabled notices and write failures leave retrieval alone', t => {
