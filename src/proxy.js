@@ -68,7 +68,35 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: false };
+// The deep clear (`--clear-deep`, `proxy: { clearDeep: true }`; off until a live week against the holdout, 2026-11-02).
+// The API clears the oldest results first and only as much as `clear_at_least` asks, so the shipped edit leaves most of
+// the conversation behind the cleared block, and that tail is what the cache writes again at every turn boundary
+// (250k of 350k in one session here, at the 1h rate, for 100k of reads saved per call: on Fable a turn needed ~200
+// calls to pay for its own rewrite, on Opus ~50; turns here have ~20). The deep edit asks for what sits before the
+// current turn instead, so the block ends at the turn and the tail is the previous turn alone. The ask is the proxy's
+// own count of the results before the turn at TOKENS_PER_CHAR, times DEEP_MARGIN, because an ask the API cannot meet
+// is an edit it does not apply at all -- every result comes back and the whole prefix is written again -- and a
+// count by characters overshoots prose and whitespace-heavy output. It is the same for every call of a turn (the
+// results before the turn do not change while it runs: the turn-invariant test holds) and grows once at the next.
+// An ask the API still refused (`deepWatch`: the edit acknowledged, nothing cleared, the context past the trigger)
+// puts that session back on the fixed ask for good, logged once as `proxy-deep-refused`.
+export const DEEP_MARGIN = 0.7;
+export const deepAsk = (cfg, messages) => cfg.clearDeep ? Math.max(cfg.clearAtLeast, Math.floor(DEEP_MARGIN * resultsBeforeTurn(messages))) : cfg.clearAtLeast;
+export function deepWatch() {
+  const refused = new Set();
+  return {
+    refused: session => !!session && refused.has(session),
+    // after an edited request was answered: true the once the session's deep ask is given up on
+    response: (session, asked, cfg, usage) => {
+      if (!session || refused.has(session) || !(asked > cfg.clearAtLeast)) return false;
+      const ctx = (usage?.input || 0) + (usage?.read || 0) + (usage?.write || 0);
+      if (!usage?.editAcknowledged || usage.cleared > 0 || ctx < cfg.trigger) return false;
+      refused.add(session);
+      return true;
+    },
+  };
+}
 // Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
 // (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
 // not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
@@ -205,6 +233,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   };
   cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
   cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
+  cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -249,7 +278,7 @@ export function clearEdit(cfg, messages) {
     type: EDIT_TYPE,
     trigger: { type: 'input_tokens', value: cfg.trigger },
     keep: { type: 'tool_uses', value: keepValue(cfg, messages) },
-    clear_at_least: { type: 'input_tokens', value: cfg.clearAtLeast },
+    clear_at_least: { type: 'input_tokens', value: deepAsk(cfg, messages) },
     ...(cfg.clearInputs ? { clear_tool_inputs: true } : {}),
   };
 }
@@ -329,7 +358,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const edit = clearEdit(cfg, j.messages), thinking = thinkingEdit(cfg, j.messages);
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(cfg.clearDeep ? { deep: edit.clear_at_least.value } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -396,7 +425,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
   let editRejected = false;
-  const cache = rewriteWatch();
+  const cache = rewriteWatch(), deep = deepWatch();
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -424,7 +453,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
-      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, requestCfg); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, deep.refused(sessionOf(req.headers)) ? { ...requestCfg, clearDeep: false } : requestCfg); } catch { t = { body: raw, reason: 'error' }; }
       if (t.injected && cache.broken(sessionOf(req.headers))) t = { body: raw, reason: 'cache-broken', model: t.model };
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
@@ -510,9 +539,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
             if (tap && t.injected && t.protocol !== 'responses' && cache.response(sessionOf(req.headers), usage)) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, streak: REWRITE_STREAK, read: usage.read, write: usage.write, cleared: usage.cleared });
+            if (tap && t.injected && t.protocol !== 'responses' && deep.response(sessionOf(req.headers), t.asked, requestCfg, usage)) log({ at: new Date().toISOString(), op: 'proxy-deep-refused', session: sessionOf(req.headers), model: t.model, asked: t.asked, read: usage.read, write: usage.write });
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.deep != null ? { deep: t.deep } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.

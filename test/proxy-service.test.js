@@ -55,6 +55,8 @@ test('the state: off until enabled, the port kept, every port the service had is
     // both are on by default now, so the config is only needed to turn one off, and then it is passed as such
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, clearThinking: false } }));
     assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--no-clear-thinking'], 'false keeps that clear off');
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, clearDeep: true } }));
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--clear-deep'], 'the deep clear is a machine-config switch, off by default');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, clearInputs: 'yes' } }));
     assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex'], 'a value that is neither true nor false leaves the default');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }

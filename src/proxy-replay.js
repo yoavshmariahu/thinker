@@ -36,12 +36,20 @@ export const WEIGHTS = { read: 0.1, write: 2, out: 5 };
 const TOKENS_PER_CHAR = 1.44 / 4;
 // the policies compared by default: what ships (proxy.js:PROXY_DEFAULTS), the same with the agent's tool inputs, and with
 // the thinking of the earlier turns cleared alongside; the turn policy at a lower trigger
+// `depth` is how much a clear takes, which is what the API decides from `clear_at_least` (2026-11-02): `min`, the
+// shipped edit, clears the oldest results until they weigh clearAtLeast and no more, and once a block exists a new
+// turn extends it by one result (observed live, 46 to 47 and 305 to 308 tool uses), which costs a rewrite of the whole
+// tail behind the block; `turn` is the deep edit (proxy.js:deepAsk), an ask of `margin` times what sits before the
+// current turn, so the block ends at the turn and the tail is the previous turn alone. The API was never seen to
+// clear a result of the current turn, so neither depth does. Until 2026-11-02 the replay cleared everything but the
+// kept results at every application and charged the rewrite from the first of them, which is the deep policy's
+// cost at the shipped policy's ask: +7.3% at list for a policy that was break-even at best.
+export const DEEP_MARGIN = 0.7;
 export const POLICIES = {
-  shipped: { keep: 'turn', keepMin: 3, trigger: 100000, clearAtLeast: 80000 },
-  inputs: { keep: 'turn', keepMin: 3, trigger: 100000, clearAtLeast: 80000, inputs: true },
-  'inputs-thinking': { keep: 'turn', keepMin: 3, trigger: 100000, clearAtLeast: 80000, inputs: true, thinking: 'piggyback' },
-  'count-3': { keep: 3, trigger: 100000, clearAtLeast: 80000 },
-  turn: { keep: 'turn', keepMin: 3, trigger: 60000, clearAtLeast: 60000 },
+  shipped: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'min' },
+  deep: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: DEEP_MARGIN },
+  'deep-ideal': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: 1 },
+  'deep-thinking': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: DEEP_MARGIN, thinking: 'piggyback' },
 };
 // `name=keep:3,trigger:100000,clear:80000;turn=keep:turn,trigger:60000,clear:60000,inputs:on,thinking:piggyback`
 export function parsePolicies(spec) {
@@ -58,6 +66,8 @@ export function parsePolicies(spec) {
       else if (k === 'trigger') p.trigger = Number(v);
       else if (k === 'clear' || k === 'clearAtLeast') p.clearAtLeast = Number(v);
       else if (k === 'inputs') p.inputs = /^(1|on|true|yes)$/i.test(v);
+      else if (k === 'depth') { if (v === 'min' || v === 'turn') p.depth = v; else throw new Error(`policy ${name}: depth is min or turn`); }
+      else if (k === 'margin') p.margin = Number(v);
       else if (k === 'thinking') { if (v === 'piggyback') p.thinking = 'piggyback'; else if (/^(0|off|none|no)$/i.test(v)) delete p.thinking; else throw new Error(`policy ${name}: thinking is piggyback or off`); }
     }
     if (p.keep == null || !p.trigger || !p.clearAtLeast) throw new Error(`policy ${name}: needs keep, trigger and clear`);
@@ -121,11 +131,11 @@ export const dollarsOf = r => { const p = priceOf(r.model); return p ? (r.input 
 // item it removes: what sits before it (the first request's prefix, the system prompt and instruction files, and every
 // item still kept) is read, the rest written again at the write weight.
 export function simulate(items, policy) {
-  let log = [], turnUses = 0, turnStart = 0, turnThink = 0, cleared = 0, base = 0, billed = 0, baseUsd = 0, usd = 0, priced = true, clears = 0, clearedTokens = 0, inputsCleared = 0, thinkingClears = 0, thinkingCleared = 0, requests = 0, prefix = null;
-  const reset = () => { log = []; cleared = 0; turnUses = 0; turnStart = 0; turnThink = 0; prefix = null; };
+  let log = [], turnUses = 0, turnStart = 0, turnThink = 0, turnsSinceClear = 0, cleared = 0, base = 0, billed = 0, baseUsd = 0, usd = 0, priced = true, clears = 0, clearedTokens = 0, inputsCleared = 0, thinkingClears = 0, thinkingCleared = 0, requests = 0, prefix = null;
+  const reset = () => { log = []; cleared = 0; turnUses = 0; turnStart = 0; turnThink = 0; turnsSinceClear = 0; prefix = null; };
   for (const it of items) {
     if (it.t === 'compact') { reset(); continue; }
-    if (it.t === 'turn') { turnUses = 0; turnThink = 0; turnStart = log.length; log.push({ k: 'turn', tokens: it.tokens || 0, cleared: false }); continue; }
+    if (it.t === 'turn') { turnUses = 0; turnThink = 0; turnsSinceClear++; turnStart = log.length; log.push({ k: 'turn', tokens: it.tokens || 0, cleared: false }); continue; }
     if (it.t === 'result') { log.push({ k: 'result', tokens: it.tokens, input: it.input || 0, cleared: false, inputCleared: false }); turnUses++; continue; }
     requests++;
     base += billedOf(it);
@@ -134,15 +144,22 @@ export function simulate(items, policy) {
     if (prefix === null) prefix = it.read + it.write;
     let read = Math.max(0, it.read - cleared), write = it.write, invalidateAt = null;
     if (policy && it.input + read + write >= policy.trigger) {
-      // the replay still models `turn` as the growing count it sent until 2026-11-02, as if the server took it without
-      // moving the cleared set; it does not (proxy.js:keepValue), so this arm overstates what a growing keep saved
       const keep = policy.keep === 'turn' ? Math.max(policy.keepMin ?? 0, turnUses) : policy.keep;
-      const results = log.filter(x => x.k === 'result');
-      const cand = results.slice(0, Math.max(0, results.length - keep)).filter(r => !r.cleared);
-      const sum = cand.reduce((a, r) => a + r.tokens, 0), inputs = policy.inputs ? cand.reduce((a, r) => a + r.input, 0) : 0;
-      if (sum + inputs >= policy.clearAtLeast) {
-        for (const r of cand) { r.cleared = true; if (policy.inputs) r.inputCleared = true; }
-        cleared += sum + inputs; clearedTokens += sum; inputsCleared += inputs; clears++;
+      const results = log.filter(x => x.k === 'result'), weight = x => x.tokens + (policy.inputs ? x.input : 0);
+      // what the API may take: the results before the current turn, never the newest `keep` (the API was not seen to
+      // clear a result of the turn in hand, and the shipped edit keeps 3 anyway)
+      const eligible = log.slice(0, turnStart).filter(x => x.k === 'result').slice(0, Math.max(0, results.length - keep));
+      // the oldest first, until the cleared set weighs what the edit asks (depth, above); a result once cleared stays so
+      const ask = policy.depth === 'turn' ? Math.max(policy.clearAtLeast, Math.floor((policy.margin ?? 1) * eligible.reduce((a, x) => a + x.tokens, 0))) : policy.clearAtLeast;
+      let acc = eligible.filter(x => x.cleared).reduce((a, x) => a + weight(x), 0);
+      const cand = [];
+      for (const x of eligible) { if (x.cleared) continue; if (acc >= ask) break; cand.push(x); acc += weight(x); }
+      // the extension the shipped edit was seen to make: a block in place, a new turn since, one more result
+      if (!cand.length && policy.depth !== 'turn' && turnsSinceClear > 0) { const next = eligible.find(x => !x.cleared); if (next) cand.push(next); }
+      if (cand.length && acc >= policy.clearAtLeast) {
+        const sum = cand.reduce((a, x) => a + x.tokens, 0), inputs = policy.inputs ? cand.reduce((a, x) => a + x.input, 0) : 0;
+        for (const x of cand) { x.cleared = true; if (policy.inputs) x.inputCleared = true; }
+        cleared += sum + inputs; clearedTokens += sum; inputsCleared += inputs; clears++; turnsSinceClear = 0;
         invalidateAt = log.indexOf(cand[0]);
         // the thinking of the turns before this one goes with the results (proxy.js:thinkingEdit)
         if (policy.thinking === 'piggyback') {
@@ -205,7 +222,7 @@ export function renderReplay(r, fmt = n => String(n)) {
     lines.push(`${title}: ${t.sessions} sessions, ${fmt(t.base)} billed-equivalent tokens as recorded${t.priced ? `, ${usd(t.baseUsd)} at list over the ${t.priced} priced` : ''}; ceiling (reads after last use, at the cache-read weight) ${pct(t.ceiling)}`);
     for (const [name, p] of Object.entries(t.policies)) {
       const pol = r.policies[name];
-      lines.push(`  ${name.padEnd(16)} keep ${String(pol.keep === 'turn' ? `turn (min ${pol.keepMin ?? 0})` : pol.keep).padEnd(13)} trigger ${fmt(pol.trigger).padStart(5)} clear ${fmt(pol.clearAtLeast).padStart(5)}${pol.inputs ? ' +inputs' : ''}${pol.thinking ? ' +thinking' : ''}: saves ${pct(p.saving).padStart(6)} billed-eq${t.priced ? `, ${pct(p.usdSaving).padStart(6)} at list (${p.costlierUsd} costlier)` : ''}, ${p.costlier} sessions costlier, ${p.clears} clears, ${fmt(p.cleared)} results${p.inputs ? ` + ${fmt(p.inputs)} inputs` : ''}${p.thinkingClears ? ` + ${fmt(p.thinking)} thinking` : ''} cleared`);
+      lines.push(`  ${name.padEnd(16)} keep ${String(pol.keep === 'turn' ? `turn (min ${pol.keepMin ?? 0})` : pol.keep).padEnd(13)} trigger ${fmt(pol.trigger).padStart(5)} clear ${pol.depth === 'turn' ? `to the turn (x${pol.margin ?? 1})` : fmt(pol.clearAtLeast).padStart(5)}${pol.inputs ? ' +inputs' : ''}${pol.thinking ? ' +thinking' : ''}: saves ${pct(p.saving).padStart(6)} billed-eq${t.priced ? `, ${pct(p.usdSaving).padStart(6)} at list (${p.costlierUsd} costlier)` : ''}, ${p.costlier} sessions costlier, ${p.clears} clears, ${fmt(p.cleared)} results${p.inputs ? ` + ${fmt(p.inputs)} inputs` : ''}${p.thinkingClears ? ` + ${fmt(p.thinking)} thinking` : ''} cleared`);
     }
   };
   block('All', r.all);

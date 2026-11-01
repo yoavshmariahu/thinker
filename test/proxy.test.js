@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { deepAsk, deepWatch, DEEP_MARGIN, startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -457,6 +457,46 @@ test('refusesEdit: the field or the beta header named, not every 400', () => {
 // makes the server edit the conversation differently each time, the cached prefix never matches again, and every call
 // writes the prefix over (152 running in one session). The rule: whatever the proxy adds to a request must be the same
 // on every call of a turn, and an edit that cannot be is not on by default.
+test('the deep clear asks for what sits before the turn, the same on every call of the turn, more at the next', () => {
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } }), tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  const user = c => ({ role: 'user', content: typeof c === 'string' ? [{ type: 'text', text: c }] : c }), asst = c => ({ role: 'assistant', content: c });
+  const cfg = proxyConfig({ 'clear-deep': true }, {});
+  assert.equal(proxyConfig({}, {}).clearDeep, false, 'off by default until a live week says otherwise');
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_DEEP: 'on' }).clearDeep, true);
+  const big = [user('first'), asst([tu('a')]), user([tr('a', 400000)]), asst([tu('b')]), user([tr('b', 400000)]), user('second')];
+  const before = resultsBeforeTurn(big), ask = Math.floor(DEEP_MARGIN * before);
+  assert.ok(ask > cfg.clearAtLeast, 'the fixture is big enough for the ask to rise above the floor');
+  assert.equal(deepAsk(cfg, big), ask);
+  assert.equal(deepAsk(proxyConfig({}, {}), big), PROXY_DEFAULTS.clearAtLeast, 'off: the fixed ask');
+  // the turn runs: the ask does not move, whatever the turn fetches
+  const turn = [...big];
+  for (let i = 0; i < 6; i++) { turn.push(asst([tu('t' + i)]), user([tr('t' + i, 50000)])); assert.equal(deepAsk(cfg, turn), ask, `call ${i}`); }
+  // the next turn: the previous turn's results are before it now
+  turn.push(user('third'));
+  assert.equal(deepAsk(cfg, turn), Math.floor(DEEP_MARGIN * resultsBeforeTurn(turn)));
+  assert.ok(deepAsk(cfg, turn) > ask);
+  // a small conversation asks the floor, never less
+  assert.equal(deepAsk(cfg, [user('x'), asst([tu('a')]), user([tr('a', 10)]), user('y')]), cfg.clearAtLeast);
+  // the edit carries it, and the log row says so
+  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), cfg);
+  assert.equal(JSON.parse(t.body).context_management.edits.at(-1).clear_at_least.value, deepAsk(cfg, turn));
+  assert.equal(t.deep, deepAsk(cfg, turn)); assert.equal(t.asked, deepAsk(cfg, turn));
+  assert.equal(transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), proxyConfig({}, {})).deep, undefined);
+});
+
+test('an ask the API refused puts the session back on the fixed ask, once, and only on a refusal', () => {
+  const w = deepWatch(), cfg = proxyConfig({ 'clear-deep': true }, {});
+  const refusal = { editAcknowledged: true, cleared: 0, input: 100, read: 200000, write: 1000 };
+  assert.equal(w.response('s', 150000, cfg, { ...refusal, cleared: 150500 }), false, 'applied: fine');
+  assert.equal(w.response('s', cfg.clearAtLeast, cfg, refusal), false, 'the fixed ask is never a deep refusal');
+  assert.equal(w.response('s', 150000, cfg, { ...refusal, editAcknowledged: false }), false, 'an answer that said nothing of the edit is not a refusal (seen 2026-11-02)');
+  assert.equal(w.response('s', 150000, cfg, { ...refusal, read: 50000 }), false, 'under the trigger the edit does not apply anyway');
+  assert.equal(w.refused('s'), false);
+  assert.equal(w.response('s', 150000, cfg, refusal), true);
+  assert.equal(w.refused('s'), true); assert.equal(w.refused('other'), false); assert.equal(w.refused(undefined), false);
+  assert.equal(w.response('s', 150000, cfg, refusal), false, 'said once');
+});
+
 test('what the proxy adds to a request is identical from one call of a turn to the next, for everything on by default', () => {
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
@@ -475,6 +515,9 @@ test('what the proxy adds to a request is identical from one call of a turn to t
   };
   const first = added(proxyConfig({}, {}), 8);
   for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({}, {}), k), first, `call ${k} of the turn adds what the first did`);
+  // the deep clear too: its ask is a function of what sits before the turn, which does not move while the turn runs
+  const deepFirst = added(proxyConfig({ 'clear-deep': true }, {}), 8);
+  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({ 'clear-deep': true }, {}), k), deepFirst, `call ${k} of the turn, deep`);
   // every switch on: an edit whose value moves within the turn is one the defaults may not carry
   const all = proxyConfig({ 'clear-inputs': true, 'clear-thinking': true }, {});
   const moving = new Set();
