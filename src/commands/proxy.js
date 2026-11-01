@@ -3,7 +3,7 @@
 // of what it did and the offline replay.
 import fs from 'node:fs';
 import path from 'node:path';
-import { proxyConfig, startProxy, proxyReport, LONG_CONTEXT } from '../proxy.js';
+import { proxyConfig, startProxy, proxyReport, LONG_CONTEXT, REWRITE_DAYS } from '../proxy.js';
 import { replay, renderReplay, parsePolicies } from '../proxy-replay.js';
 import { NoteInjector, PROXY_CLIENT } from '../proxy-notes.js';
 import { findSessions } from '../transcripts.js';
@@ -83,6 +83,8 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     const rows = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : [];
     const since = flags.days ? new Date(Date.now() - Number(flags.days) * 864e5).toISOString() : undefined;
     const sides = proxyReport(rows, { since });
+    const recentDays = Math.min(REWRITE_DAYS, Number(flags.days) || REWRITE_DAYS);
+    const recent = recentDays === Number(flags.days) ? sides : proxyReport(rows, { since: new Date(Date.now() - recentDays * 864e5).toISOString() });
     if (flags.json) { out(JSON.stringify(sides, null, 2)); return; }
     if (!Object.keys(sides).length) {
       // Requests the proxy passed on without the edit are in neither side of the holdout, so they were reported
@@ -114,9 +116,11 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       if (side === 'clearing' && s.cleared) out(`  ${compressionHeader({ saved: s.cleared, requests: s.requestsCleared }, formatTokens)}.`);
       // the cache after a clear (proxy.js:rewriteWarning): the figure that judges the policy, beside the held-out one
       const pct = b => b.calls ? `${Math.round(100 * b.rewrites / b.calls)}% of ${b.calls}` : 'none';
-      if (side === 'clearing' && s.rewrites) out(`  prefix rewrites on calls over ${LONG_CONTEXT / 1000}k of context: after a clear ${pct(s.rewrites.after)}, before one ${pct(s.rewrites.before)}${sides.holdout?.rewrites ? `, held out ${pct(sides.holdout.rewrites.before)}` : ''}${s.sessionsCacheBroken ? `; clearing given up on in ${s.sessionsCacheBroken} session${s.sessionsCacheBroken === 1 ? '' : 's'} whose cache it broke` : ''}.`);
+      // The cache rewrites are read over the last REWRITE_DAYS only, whatever the window: this line is a verdict on the
+      // policy running now, and a month of history under a fixed fault (2026-11-02) would keep the warning up for a month.
+      if (side === 'clearing' && s.rewrites) { const r = recent.clearing?.rewrites || s.rewrites, rh = recent.holdout?.rewrites || sides.holdout?.rewrites; out(`  prefix rewrites on calls over ${LONG_CONTEXT / 1000}k of context, last ${recentDays} days: after a clear ${pct(r.after)}, before one ${pct(r.before)}${rh ? `, held out ${pct(rh.before)}` : ''}${s.sessionsCacheBroken ? `; clearing given up on in ${s.sessionsCacheBroken} session${s.sessionsCacheBroken === 1 ? '' : 's'} whose cache it broke` : ''}.`); }
     }
-    if (sides.warning) out(`  \u26a0 ${sides.warning}`);
+    if (recent.warning) out(`  \u26a0 ${recent.warning}`);
     return;
   }
   // the policies replayed over this checkout's Claude Code sessions, no model call (proxy-replay.js)

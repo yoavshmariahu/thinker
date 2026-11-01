@@ -609,6 +609,9 @@ export function proxyReport(rows, { since } = {}) {
 }
 // a call this long is one where a rewrite is a cost worth noticing and a clear can have happened
 export const LONG_CONTEXT = 100000;
+// how far back `thinker proxy status` reads the rewrite rates: a verdict on the policy running now, not on the month
+// behind it (a fault fixed on 2026-11-02 would otherwise have kept the warning up for a month)
+export const REWRITE_DAYS = 7;
 // The clearing is breaking the cache when the calls after a clear rewrite their prefix far more often than long
 // calls do without one: the held-out sessions where there are enough of them, the same sessions before their
 // first clear otherwise. Held-out long sessions ran at 1.4% and clearing sessions after a clear at 23.6% when the
