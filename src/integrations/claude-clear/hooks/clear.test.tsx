@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, holdsBlock, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, remainingCalls, WRITE_RATIO, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -107,16 +107,22 @@ test('a clear that would be refused is never started: no compaction turn, so no 
   expect(worthIt(null, DEFAULTS, 'auto')).toBe(true)
 })
 
-test('one clear per cached stretch: the block is held until a pause past the cache\'s hour lets it go', () => {
-  // before the first clear there is nothing to hold
-  expect(holdsBlock(DEFAULTS, { clearedAt: 0, sinceTurn: 1000 })).toBe(false)
-  // cleared, cache still warm: held, however much the context has grown since
-  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: 1000 })).toBe(true)
-  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: COLD_MS - 1 })).toBe(true)
-  // a pause past the hour: the request rewrites its context anyway, so the block goes
-  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: COLD_MS })).toBe(false)
-  // the switch is the proxy's own key
-  expect(holdsBlock({ ...DEFAULTS, clearDeep: false }, { clearedAt: 1, sinceTurn: 1000 })).toBe(false)
+test('a clear is made when what it drops, read back over the calls left, outweighs the write it costs', () => {
+  const calls = 20, left = remainingCalls(calls)
+  // nothing to drop: nothing to decide
+  expect(clearPays(DEFAULTS, { dropped: 0, recache: 0, calls, idle: 0, cleared: false })).toBe(false)
+  // the write is small beside the saving: pays
+  expect(clearPays(DEFAULTS, { dropped: 100000, recache: 20000, calls, idle: 0, cleared: true })).toBe(true)
+  // the write is most of the context: does not pay over the calls a session this long has left
+  expect(clearPays(DEFAULTS, { dropped: 100000, recache: 100000, calls, idle: 0, cleared: true })).toBe(false)
+  // the line itself: remaining calls x dropped against WRITE_RATIO x recache
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO), calls, idle: 0, cleared: true })).toBe(true)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO) + 1, calls, idle: 0, cleared: true })).toBe(false)
+  // a pause past the cache's hour: the request writes its context anyway, so the clear is free
+  expect(clearPays(DEFAULTS, { dropped: 100000, recache: 100000, calls, idle: COLD_MS, cleared: true })).toBe(true)
+  // the proxy's own key off: one clear a session
+  expect(clearPays({ ...DEFAULTS, clearDeep: false }, { dropped: 100000, recache: 1000, calls, idle: 0, cleared: true })).toBe(false)
+  expect(clearPays({ ...DEFAULTS, clearDeep: false }, { dropped: 100000, recache: 1000, calls, idle: 0, cleared: false })).toBe(true)
   expect(policyOf({ proxy: { clearDeep: false } }).clearDeep).toBe(false)
   expect(policyOf(null).clearDeep).toBe(true)
 })

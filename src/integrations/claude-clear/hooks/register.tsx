@@ -22,18 +22,17 @@ export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4
 // a result under this is not worth a placeholder
 export const MIN_CHARS = 200
-// a skipped attempt is not made again until the context has grown this much
-export const RETRY_GROWTH = 20000
-// Clear once and hold, as the proxy does (proxy.js:DEEP_MARGIN, FROZEN_OFFSET, COLD_MS; on by default from 0.2.19,
-// the owner's decision 2026-11-02). There the depth is an ask the API meets and the block is the server's, which
-// extends it at every turn boundary, so the keep is frozen to pin it. Here there is no server-side block: `clearOld`
-// already takes everything before the newest turn, so a desktop clear is deep by construction -- what it lacked is
-// the holding. Each clear rewrites the conversation in place at a compaction boundary, and the whole prompt after it
-// is written to the cache again at the 1h rate; clearing again every RETRY_GROWTH of growth paid that rewrite over
-// and over, which is what the replay found a per-turn policy loses on (-24% to -50% at list, against +4% to +12%
-// for one clear held). So one automatic clear per cached stretch, and a pause past the cache's hour lets it go: that
-// request writes its context whatever this mod does, so the next clear is free. `/thinker-clear` is never held back.
+// Clear, freeze what was cleared, and clear again when it pays (src/clearing.js: the proxy's policy and this door's,
+// the owner's call 2026-11-02). A clear here rewrites the conversation in place at a compaction boundary, so
+// everything after the first row it changes is written to the cache again, at WRITE_RATIO cache reads a token at the
+// 1h rate; it saves a cache read of what it cleared on every later request. So a clear is made when what it would
+// drop, read back over the requests the session likely has left, outweighs that write (`clearPays`). What was
+// cleared stays cleared: `clearOld` leaves a placeholder alone, so a later clear only takes what came after. A pause
+// past the cache's hour makes the next request write its context anyway, so a clear then costs nothing extra.
 export const COLD_MS = 65 * 60 * 1000
+export const WRITE_RATIO = 80
+export const REMAINING: [number, number][] = [[10, 40], [20, 40], [40, 68], [100, 90]]
+export const remainingCalls = (n: number) => (REMAINING.find(([at]) => n <= at) || [0, 90])[1]
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
 export const INTRODUCED = 'thinker-clear:introduced'
@@ -65,11 +64,16 @@ export function policyOf(config: any): Policy {
   }
 }
 
-// Whether the block this session already cleared is still held: one automatic clear per cached stretch, let go
-// after a pause past the cache's hour (proxy.js:COLD_MS, where a cold request rewrites its context anyway).
-// `clearedAt` is 0 until the first clear of the session; `sinceTurn` is the gap before the turn just finished.
-export const holdsBlock = (p: Policy, { clearedAt, sinceTurn }: { clearedAt: number; sinceTurn: number }) =>
-  p.clearDeep && clearedAt > 0 && sinceTurn < COLD_MS
+// A clear is made when what it drops (`dropped` tokens), read back over the requests the session likely has left
+// (`calls` made so far), outweighs the write after it (`recache`, the context after the first row it changes); free
+// after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
+// never held back.
+export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean }) => {
+  if (!(dropped > 0)) return false
+  if (!p.clearDeep && cleared) return false
+  if (idle >= COLD_MS) return true
+  return remainingCalls(calls) * dropped >= WRITE_RATIO * recache
+}
 
 // a session is on one side of the holdout for its whole life (proxy.js:heldOut hashes the same id with
 // sha256; this is FNV-1a, there being no crypto in a mod, so the sides differ but the share is the same)
@@ -84,7 +88,7 @@ export function heldOut(session: string, share: number): boolean {
 // thinker's own proxy, which clears for this session already
 export const proxied = (baseUrl: string | undefined) => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(String(baseUrl ?? '').trim())
 
-export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; resultTokens: number; inputTokens: number; rows: number; tools: { name: string; calls: number; tokens: number }[] }
+export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; resultTokens: number; inputTokens: number; rows: number; prefixChars: number; tools: { name: string; calls: number; tokens: number }[] }
 
 // The proxy's `keep: turn` (proxy.js): every result of the newest prompt's turn stays, and at least `keepMin`
 // results in all; every older result worth a placeholder is replaced. A user row that carries results is
@@ -99,16 +103,16 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
-  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true
+  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true, firstChanged = -1
   const out: SessionMessage[] = []
-  const older: number[] = []   // positions in `out` of assistant rows before the newest turn
+  const older: number[] = [], olderAt: number[] = []   // positions in `out` (and in `messages`) of assistant rows before the newest turn
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     const rs = m.role === 'user' ? m.toolResults ?? [] : []
     if (!rs.length) {
       // a prompt row ends the newest turn, seen from the end
       if (m.role === 'user' && (m.text ?? '').trim()) inLatestTurn = false
-      if (m.role === 'assistant' && !inLatestTurn && m.handle) older.push(out.length)
+      if (m.role === 'assistant' && !inLatestTurn && m.handle) { older.push(out.length); olderAt.push(i) }
       out.push(m); continue
     }
     let touched = false
@@ -123,6 +127,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       return { tool_use_id: r.tool_use_id, text: placeholder(text.length), ...(r.isError ? { isError: true as const } : {}) }
     }).reverse()
     out.push(touched ? { role: 'user', text: m.text, toolUses: [], toolResults } : m)
+    if (touched) firstChanged = i
   }
   if (cleared && (clearInputs || clearThinking)) {
     for (const at of older) {
@@ -137,10 +142,14 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
     }
   }
   out.reverse()
+  // the rows before the first one a clear changes keep their place in the cache; what follows is written again
+  const changedAt = cleared && (clearInputs || clearThinking) && olderAt.length ? Math.min(firstChanged < 0 ? Infinity : firstChanged, ...olderAt) : firstChanged
+  const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
+  const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
   const resultTokens = Math.round(chars * TOKENS_PER_CHAR), inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
-  return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens + inputTokens, resultTokens, inputTokens, rows, tools }
+  return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens + inputTokens, resultTokens, inputTokens, rows, prefixChars, tools }
 }
 
 // The record the proxy writes (compression.js:noteCompression): `saved` adds up over the requests that leave
@@ -157,8 +166,11 @@ let policy: Policy = DEFAULTS
 let auto = false
 let pending = false
 let pendingFrom = ''
-let lastTried = 0
-let clearedAt = 0    // when this session last cleared; the block is held from then (holdsBlock)
+// the pause before this turn, the requests the session has made, and whether a turn is under way (for the pause)
+let idle = 0
+let inTurn = false
+let steps = 0
+let clearedAt = 0    // when this session last cleared; the block is held from then (clearPays)
 let lastTurnAt = 0   // the previous turn's end, to see a pause past the cache's hour
 let out = 0          // tokens out of the prompt now, added to `saved` on every request
 let before = 0       // the context as the API last reported it, taken as the clear is scheduled and again as it runs
@@ -235,6 +247,7 @@ export const register: Register = (on) => {
 
   // a request after a clear leaves the cleared tokens out: that is the saving, counted as the proxy counts it
   on('turn.step', async function* ($, e, next) {
+    if (!e.agentId) { if (!inTurn) { inTurn = true; idle = lastTurnAt ? Date.now() - lastTurnAt : 0 } steps++ }
     const r = yield* next(e)
     if (!e.agentId && out > 0 && state) {
       if (settle) {
@@ -260,18 +273,16 @@ export const register: Register = (on) => {
     const r = await next(e)
     if (!e.agentId && auto && !pending) {
       try {
-        const now = Date.now()
-        const sinceTurn = lastTurnAt ? now - lastTurnAt : 0
-        lastTurnAt = now
-        // this session has cleared and the cache is still warm: hold the block, and say nothing
-        if (holdsBlock(policy, { clearedAt, sinceTurn })) return r
-        // the cache went cold: that request writes its context anyway, so the block goes and a clear is free again
-        if (clearedAt && sinceTurn >= COLD_MS) { clearedAt = 0; lastTried = 0 }
+        const wasIdle = idle
+        inTurn = false
+        lastTurnAt = Date.now()
         const tokens = (await $.session.usage()).context.tokens ?? 0
-        if (tokens >= policy.trigger && tokens >= lastTried + RETRY_GROWTH) {
-          lastTried = tokens
-          // nothing worth clearing yet: wait for the context to grow, and say nothing in the meantime
-          if (worthIt(await wouldClear($, policy), policy, 'auto')) schedule($, 'auto')
+        if (tokens >= policy.trigger) {
+          const c = await wouldClear($, policy)
+          // the write a clear would make: the context after the first row it changes, less what it drops
+          const recache = c ? Math.max(0, tokens - Math.round(c.prefixChars * TOKENS_PER_CHAR) - c.tokens) : 0
+          // nothing worth clearing yet, or a write the session's remaining calls would not repay: say nothing
+          if (worthIt(c, policy, 'auto') && (!c || clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0 }))) schedule($, 'auto')
         }
       } catch {}
     }

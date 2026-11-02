@@ -118,7 +118,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       const pct = b => b.calls ? `${Math.round(100 * b.rewrites / b.calls)}% of ${b.calls}` : 'none';
       // The cache rewrites are read over the last REWRITE_DAYS only, whatever the window: this line is a verdict on the
       // policy running now, and a month of history under a fixed fault (2026-11-02) would keep the warning up for a month.
-      if (side === 'clearing' && s.rewrites) { const r = recent.clearing?.rewrites || s.rewrites, rh = recent.holdout?.rewrites || sides.holdout?.rewrites; out(`  prefix rewrites on calls over ${LONG_CONTEXT / 1000}k of context, last ${recentDays} days: after a clear ${pct(r.after)}, before one ${pct(r.before)}${rh ? `, held out ${pct(rh.before)}` : ''}${s.sessionsCacheBroken ? `; clearing given up on in ${s.sessionsCacheBroken} session${s.sessionsCacheBroken === 1 ? '' : 's'} whose cache it broke` : ''}.`); }
+      if (side === 'clearing' && s.rewrites) { const r = recent.clearing?.rewrites || s.rewrites, rh = recent.holdout?.rewrites || sides.holdout?.rewrites; out(`  prefix rewrites on calls over ${LONG_CONTEXT / 1000}k of context, last ${recentDays} days: after a clear ${pct(r.after)}, before one ${pct(r.before)}${rh ? `, held out ${pct(rh.before)}` : ''}${s.sessionsStopped ? `; clearing stopped in ${s.sessionsStopped} session${s.sessionsStopped === 1 ? '' : 's'} where the rewrites after it cost more than it saved` : ''}.`); }
     }
     if (recent.warning) out(`  \u26a0 ${recent.warning}`);
     return;
