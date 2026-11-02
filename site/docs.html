@@ -890,18 +890,6 @@ read any range: Read with offset and limit</span></pre>
         <p>
           That writes the hooks and the MCP server into Devin's own configuration, adds the one permission its background subagent needs to do the learning, and sets Devin's compaction threshold to the same point thinker's proxy clears at. The CLI and Devin Desktop's local agent read the same files, so both are covered at once.
         </p>
-        <h3 id="devin-cloud">Devin Cloud</h3>
-        <p>
-          A cloud session runs on Devin's own machine, so nothing in your settings reaches it. What reaches it is the repository, so the wiring goes there. Three steps, all on your own machine; nothing is ever run inside a cloud session.
-        </p>
-        <ol>
-          <li><strong>Write the wiring</strong> in the repository your cloud sessions clone: <code>thinker connect --clients devin --cloud</code>. Add <code>--cache &lt;url&gt;</code> to have sessions start from a cache you published with <code>thinker export</code>, instead of an empty one.</li>
-          <li><strong>Commit the two files</strong> it writes, <code>.devin/hooks.v1.json</code> and <code>.devin/blueprint.yaml</code>, onto the branch your sessions check out. A session reads them from the clone as it starts, so they have to be there first.</li>
-          <li><strong>Sync the blueprint, then build the snapshot.</strong> Committing the file does not make Devin use it: it keeps its own stored copy, and a build uses that. In Devin's environment settings press <strong>Sync</strong>, then <strong>Build snapshot</strong>. Skipping the sync is silent, so the build succeeds having installed nothing.</li>
-        </ol>
-        <p>
-          From then on every cloud session starts with thinker installed and the hooks in its checkout, and notes arrive on each prompt as they do locally. What a cloud session learns stays on its own machine, so treat cloud serving as read-only.
-        </p>
         <p>
           <strong>If Devin refuses to start</strong> with <em>Refusing to run in an untrusted workspace</em>, that is Devin's own check, not thinker's, and it happens before any hook runs, so you would see no notes and no error. Run <code>devin</code> once in that repository, accept the prompt, and quit.
         </p>
