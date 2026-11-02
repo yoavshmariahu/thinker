@@ -663,6 +663,11 @@ test('Devin is selectable through connect and is named consistently on the page'
   assert.deepEqual(parseClients('devin'), ['devin']);
   assert.ok(CLIENTS.includes('devin') && USER_SCOPE_CLIENTS.includes('devin'));
   assert.match(read('cli.js'), /opencode, devin and more/);
+  // the cloud door is a repository file, so the flag and what it writes are named in the help (devin-cloud.js)
+  assert.match(read('cli.js'), /connect --clients devin --cloud/);
+  const cloud = await import('../src/devin-cloud.js');
+  assert.deepEqual(Object.keys(cloud.cloudHooks()), ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd']);
+  assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'agent-integrations.md'), 'utf8'), /connect --clients devin --cloud/);
   assert.match(read('ui/page.html'), /devin: 'Devin'/);
   // the compaction policy is off by default and documented under the key Devin reads (devin-compaction.js)
   const compaction = await import('../src/devin-compaction.js');
