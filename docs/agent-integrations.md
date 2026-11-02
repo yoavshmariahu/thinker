@@ -128,9 +128,14 @@ assessment: the loop runs, and what it learns from that model is an open questio
    and merge them to the branch your sessions check out (usually the default branch).
    A session reads them from the clone when it starts, so they have to be there first.
 
-3. **Let the snapshot pick up thinker.** Press **Build snapshot** once in Devin's
-   environment settings, or do nothing: Devin refreshes the environment by itself about
-   once a day. `devin cloud drs build` does the same from a terminal.
+3. **Sync the blueprint, then build the snapshot.** Committing the file does not make
+   Devin use it: Devin keeps its own stored copy of the blueprint, and a build uses that.
+   In the environment settings press **Sync** (which reads the committed file) and then
+   **Build snapshot**. From a terminal the same pair is
+   `devin cloud drs blueprint-write --blueprint-id <id> --from-file .devin/blueprint.yaml`
+   followed by `devin cloud drs build`; `devin cloud drs blueprint-list` gives the id.
+   Skipping the sync is silent: the build succeeds, having installed nothing, and every
+   session then runs a hook whose command does not exist.
 
 That is the whole of it. From then on every cloud session starts with thinker installed
 and the hooks in its checkout, and notes arrive on each prompt as they do locally.
