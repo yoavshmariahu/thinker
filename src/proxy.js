@@ -77,7 +77,23 @@ export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 
 // What a clear takes before the turn, as the API counts what it cleared: the results, and with `clearInputs` the
 // text of their calls too (an ask that counted the results alone stopped the API half way, since the inputs it cleared
 // with them counted toward the ask: 296k of inputs beside 345k of results in one session here).
-export const clearableBeforeTurn = (cfg, messages) => resultsBeforeTurn(messages) + (cfg.clearInputs ? inputsBeforeTurn(messages) : 0);
+// Less the newest `keep` tool uses before the turn, which the server never clears: counted in, they put the ask past
+// what the server can meet, and an ask it cannot meet is an edit it does not apply at all. On 2026-11-02 (smoke5,
+// mlflow PR26265) the policy asked 182k at a turn boundary with 120k cleared and 89k in the three kept results, the
+// server cleared nothing on that call and the whole conversation came back uncleared: 171k read and 73k written for
+// nothing, then the floor ask again the next call (`proxy-clear-unmet`).
+export function clearableBeforeTurn(cfg, messages) {
+  const keep = keepValue(cfg, messages);
+  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
+  const results = [], inputs = [];
+  for (const m of messages.slice(0, turnStart(messages))) {
+    if (!Array.isArray(m?.content)) continue;
+    if (m.role === 'user') for (const b of m.content) if (b?.type === 'tool_result') results.push(textLen(b.content));
+    if (m.role === 'assistant') for (const b of m.content) if (b?.type === 'tool_use') inputs.push(JSON.stringify(b.input ?? {}).length);
+  }
+  const sum = a => a.slice(0, Math.max(0, a.length - keep)).reduce((x, y) => x + y, 0);
+  return Math.round((sum(results) + (cfg.clearInputs ? sum(inputs) : 0)) * TOKENS_PER_CHAR);
+}
 // The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix up to the
 // first result a deeper ask would newly drop (the one after the `clearedUses` the server already holds, so the write
 // a deepening costs is the tail from there), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from

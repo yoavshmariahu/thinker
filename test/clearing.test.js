@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { freshRecord, decide, price, response, store, remainingCalls, isRewrite, DEEP_MARGIN, COLD_MS, WRITE_1H, WRITE_5M, READ } from '../src/clearing.js';
-import { PROXY_DEFAULTS, measureClearing, turnId, transformRequest, proxyConfig, EDIT_TYPE } from '../src/proxy.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR, measureClearing, turnId, transformRequest, proxyConfig, EDIT_TYPE } from '../src/proxy.js';
 
 const cfg = { ...PROXY_DEFAULTS };
 // a request measured before the turn: what sits before it, the prompt, and the cached prefix up to the first result
@@ -155,6 +155,13 @@ test('the request is measured before the turn: the prefix runs to the first resu
   assert.ok(none.prefix < two.prefix && two.prefix < two.prompt, 'the cached prefix grows with what the server already holds');
   assert.equal(none.before, two.before, 'what sits before the turn is the same count either way');
   assert.ok(none.before > 0 && none.before < none.prompt);
+  // the newest keep results and their calls are never cleared, so they are not clearable: 6 results of 10000 chars
+  // before the turn and a keep of 3 leave 3 (smoke5, 2026-11-02: counted in, the ask passed what the server could
+  // meet and it applied nothing)
+  const results = 3 * 10000 * TOKENS_PER_CHAR, inputs = 3 * JSON.stringify({ command: 'ls' }).length * TOKENS_PER_CHAR;
+  assert.equal(none.before, Math.round(results + inputs));
+  assert.equal(measureClearing({ ...cfg, keepMin: 0 }, j, 0).before, Math.round(2 * results + 2 * inputs), 'with no keep, all six');
+  assert.equal(measureClearing({ ...cfg, keepMin: 9 }, j, 0).before, 0, 'a keep past the count leaves nothing clearable');
   // the current turn's results are not counted, so the measure does not move while the turn runs
   const longer = { model: 'm', messages: [...messages, { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c', 50000)] }] };
   assert.deepEqual(measureClearing(cfg, longer, 2), two);
