@@ -77,10 +77,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  and fetch the ranking model. Nothing is built: the cache starts empty and grows from your
                                  sessions. The first setup of a repository opens the local page (thinker ui) in the browser,
                                  --no-ui leaves it closed
-  connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--no-proxy] [--yes] [--cloud] [--cache <url>]
+  connect [--clients list|all|auto] [--no-hooks] [--no-late] [--no-learn] [--no-mcp] [--no-trust] [--no-proxy] [--yes]
                                  wire the agents on this machine into their own settings, once: hooks and the MCP
-                                 server. --cloud instead writes the hooks a Devin Cloud session reads into this
-                                 repository (.devin/, to commit), with --cache <url> restoring a published cache.
                                  server. Thinker then runs in every git repository: a cache starts with the first
                                  session there and grows from the sessions. Codex's hook-review
                                  marks are written without asking (--no-trust leaves them). The installer runs this.

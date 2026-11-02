@@ -101,72 +101,29 @@ Desktop's agent picker) was verified the same day on two local sessions: it read
 answer were recorded, the Desktop started the learning subagent on its own and the subagent
 answered a phrasing request and a distillation through `learn_next`. Not seen there: a
 `SessionEnd` event (the Desktop keeps a session open; the first session was distilled by
-the catch-up `learn` once it had been quiet twenty minutes). A Desktop prompt sent to
-**Devin Cloud** runs on Devin's VM and reaches no hook on the machine. The cloud path
-itself could not be run: the organization was out of cloud quota. These are
-mechanism checks, not evidence of token savings or improved task correctness.
-Cloud sessions and legacy Cascade are not claimed to have this automatic integration.
-The session model (SWE-1.6 Slow) answered every distillation request with no notes and no
-assessments, where a Claude dry run on one of the same records returned a confirmed
+the catch-up `learn` once it had been quiet twenty minutes). These are mechanism checks, not evidence of token
+savings or improved task correctness. Legacy Cascade is not claimed to have this automatic
+integration. The session model (SWE-1.6 Slow) answered every distillation request with no notes
+and no assessments, where a Claude dry run on one of the same records returned a confirmed
 assessment: the loop runs, and what it learns from that model is an open question.
 
-### Devin Cloud
-
-**Three steps, all on your own machine. Nothing is ever run inside a cloud session.**
-
-1. **Write the wiring**, in the repository your cloud sessions clone:
-
-   ```bash
-   thinker connect --clients devin --cloud
-   ```
-
-   To have cloud sessions start with a cache instead of an empty one, publish it first
-   with `thinker export cache.tgz`, put it somewhere the box can fetch, and name it:
-   `thinker connect --clients devin --cloud --cache https://…/cache.tgz`.
-
-2. **Commit the two files it wrote**, `.devin/hooks.v1.json` and `.devin/blueprint.yaml`,
-   and merge them to the branch your sessions check out (usually the default branch).
-   A session reads them from the clone when it starts, so they have to be there first.
-
-3. **Sync the blueprint, then build the snapshot.** Committing the file does not make
-   Devin use it: Devin keeps its own stored copy of the blueprint, and a build uses that.
-   In the environment settings press **Sync** (which reads the committed file) and then
-   **Build snapshot**. From a terminal the same pair is
-   `devin cloud drs blueprint-write --blueprint-id <id> --from-file .devin/blueprint.yaml`
-   followed by `devin cloud drs build`; `devin cloud drs blueprint-list` gives the id.
-   Skipping the sync is silent: the build succeeds, having installed nothing, and every
-   session then runs a hook whose command does not exist.
-
-That is the whole of it. From then on every cloud session starts with thinker installed
-and the hooks in its checkout, and notes arrive on each prompt as they do locally.
-
-**What the two files are.** `.devin/hooks.v1.json` holds the four hooks; their commands
-carry no path from your machine and no `--repo`, since the box's paths are not yours, so
-they call the bare `thinker` from the snapshot's PATH and take the checkout from the
-hook's own working directory. `.devin/blueprint.yaml` holds one `initialize` step that
-installs thinker when the snapshot is built. Rerunning the command merges rather than
-overwrites: another project's hooks are kept, thinker's own are replaced, and a blueprint
-thinker did not write is never edited, only printed for you to paste.
-
-**Why it has to be in the repository.** A cloud session runs on Cognition's VM, so nothing
-`thinker connect` writes on your machine reaches it: the box has no Devin configuration of
-its own, and hooks placed in its home or user-config directories never fire. The
-repository's own file does, on every prompt, with the working directory set to the
-checkout, and its injected context reaches the model (verified 2026-11-02 against a
-`devin cloud drs sandbox-create` session, by a sentinel the agent repeated that existed
-nowhere on disk). Devin reads that file when the session starts and then caches it, which
-is the other reason it must be committed ahead of time: a file written or edited during a
-session does not take effect.
-
-**What a cloud session does not do.** It does not learn back into your cache. Notes it
-distills live on its own box and go when the box does, so treat cloud serving as
-read-only until that is built.
-
-MCP is a separate, weaker door: cloud Devin can launch a custom STDIO MCP server inside the
-session, so thinker installed there and registered as `thinker mcp` would connect, with
-`THINKER_REPO` pointing at the checkout and `THINKER_SESSION_HOST=devin` for the learning
-queue. That is connectivity only: thinker's MCP server exposes its control and learning
-tools, not note retrieval, so nothing would serve notes through it.
+**Devin Cloud is not supported (2026-11-02, the owner's call).** A cloud session runs on
+Cognition's VM under a different agent binary (`devin-remote`, not the CLI), and a Desktop
+prompt sent to Devin Cloud is that same session. A door through the repository's own
+`.devin/hooks.v1.json` and a snapshot blueprint that installed thinker
+(`thinker connect --clients devin --cloud`, on `main` for a day and never released) was built
+and run in a sandbox that day: the hook fired and logged, and it recorded the session into a
+trace file, but that is where it ended. The box served an empty cache; it has no model login
+and no Devin configuration, so it cannot distill; MCP servers reach a cloud session only
+through the organization's settings, never the repository; and the context cannot be
+reduced: the model request never passes through anything on the VM, the cloud binary carries
+no compaction threshold key, and no hook edits history. What decided it is who pays. On
+Devin Cloud the person pays in ACUs, a unit of agent time, and Cognition pays for the
+tokens, so clearing context there would save Cognition, not the user. What would change
+it is on Cognition's side: an environment-level compaction setting, or a PostToolUse hook
+output that replaces the tool result. The blueprint Devin keeps for this repository has to
+be removed or emptied by hand; a snapshot built from the old one carries hooks that run
+against an empty cache and nothing else.
 
 Devin's `proxy` setting is an outbound HTTP/HTTPS proxy for CLI traffic. It is not
 a documented Anthropic/OpenAI model base URL, and a tunnel alone cannot edit an

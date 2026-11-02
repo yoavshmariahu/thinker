@@ -9,7 +9,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected, CLIENTS, USER_SCOPE_CLIENTS } from '../clients.js';
-import { writeDevinCloud, CLOUD_BLUEPRINT } from '../devin-cloud.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
@@ -38,34 +37,9 @@ async function setupCommand(ctx) {
 // every repository that is set up (a repository that is not is served nothing and learns nothing).
 // No repository is needed; `setup` runs this as its first step, and so does the installer.
 
-// `thinker connect --clients devin --cloud`, run inside the repository the cloud sessions clone.
-export function connectDevinCloud(ctx, clients) {
-  const { flags, out, repo, store } = ctx;
-  if (!clients.includes('devin')) { out('  --cloud is for Devin: run thinker connect --clients devin --cloud'); return; }
-  const origin = (() => { try { return store?.repoKey?.() || ''; } catch { return ''; } })();
-  const r = writeDevinCloud(repo, {
-    late: !flags['no-late'], learn: !flags['no-hooks'] && ctx.learnOn(),
-    cacheUrl: typeof flags.cache === 'string' ? flags.cache : '', origin,
-  });
-  out(`\n  ✓ Devin Cloud wiring written into ${path.basename(repo)}`);
-  for (const f of r.files) out(`    ${f}`);
-  if (r.blueprint === 'left alone') {
-    out(`    .devin/${CLOUD_BLUEPRINT} already exists and is not thinker's, so it was not touched. Add this step under its \`initialize:\`:\n`);
-    out(r.snippet.replace(/^/gm, '  '));
-  }
-  out(`\n  Commit both files. A cloud session reads them from the clone when it starts, so they must be on the branch it checks out.`);
-  out(`  Then the snapshot needs thinker in it: press Build snapshot in Devin's environment settings once, or leave it, since Devin refreshes the environment by itself about once a day.`);
-  if (!flags.cache) out(`  The cache a cloud session serves is whatever is committed under .thinker/; --cache <url> adds a restore step for a cache you publish with thinker export.`);
-  out(`  Devin Cloud sessions are not this machine's: nothing here is wired by --cloud, and what the session learns stays on its own box.`);
-}
-
 async function connectCommand(ctx) {
   const { flags, out, HERE, learnOn, mcpEntry, userMcpEntry } = ctx;
   const clients = parseClients(flags.clients, parseClients('auto'));
-  // --cloud: a Devin Cloud session runs on Cognition's machine, where nothing this one's settings hold can
-  // reach it. What reaches it is the repository's own hooks file, cloned with the code, so this writes that
-  // and the snapshot step beside it, for the person to commit (devin-cloud.js).
-  if (flags.cloud) return connectDevinCloud(ctx, clients);
   await stepConnectClis({
     repo: null, cliPath: path.join(HERE, 'cli.js'), mcpEntry: mcpEntry(), userMcpEntry: userMcpEntry(), clients,
     hooks: !flags['no-hooks'], learn: !flags['no-hooks'] && learnOn(), late: !flags['no-late'], mcp: !flags['no-mcp'],
