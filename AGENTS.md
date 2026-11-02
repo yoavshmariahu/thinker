@@ -164,7 +164,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   `proxy-replay.js` still models `turn` as the growing keep it used to send.
 - Price a clear by the cache writes of every call after it in the session, not the clear request alone.
 
-**Clear once and hold the block, off behind \`proxy: { clearDeep: true }\` until a live week against the holdout (2026-11-02, the owner's ask):**
+**Clear once and hold the block, on by default from 0.2.19 (2026-11-02, the owner's call, an exception to the experiment rule: the fixed ask it replaces was a measured loss at list on every model, so waiting a live week would have kept a known-bad default on every machine; \`proxy: { clearDeep: false }\` / \`THINKER_PROXY_CLEAR_DEEP=off\` turns it off; the live week still runs on the owner's machine, judged by the rewrite line of \`thinker proxy status\` and \`proxy-deep-moved\` rows, and a default-off PR is the answer if it fails):**
 - After the keep fix the clearing was break-even at best, and the replay, once it charged a rewrite the way the API
   does, said why: every extension of the cleared block writes the cache again from the block's end at the 1h rate, the
   API extends the block on its own at every turn boundary (by a result or three, seen live), and this repository's

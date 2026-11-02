@@ -461,14 +461,16 @@ test('the deep clear asks for what sits before the turn, the same on every call 
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } }), tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
   const user = c => ({ role: 'user', content: typeof c === 'string' ? [{ type: 'text', text: c }] : c }), asst = c => ({ role: 'assistant', content: c });
   const cfg = proxyConfig({ 'clear-deep': true }, {});
-  assert.equal(proxyConfig({}, {}).clearDeep, false, 'off by default until a live week says otherwise');
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_DEEP: 'on' }).clearDeep, true);
+  assert.equal(proxyConfig({}, {}).clearDeep, true, 'on by default since 0.2.19: the fixed ask it replaces was a loss at list on every model');
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_DEEP: 'off' }).clearDeep, false);
+  assert.equal(proxyConfig({ 'clear-deep': false }, {}).clearDeep, false);
   const big = [user('first'), asst([tu('a')]), user([tr('a', 400000)]), asst([tu('b')]), user([tr('b', 400000)]), user('second')];
   const before = clearableBeforeTurn(cfg, big), ask = Math.floor(DEEP_MARGIN * before);
   assert.ok(before > resultsBeforeTurn(big), 'the calls\' text counts with the results it is cleared with');
   assert.ok(ask > cfg.clearAtLeast, 'the fixture is big enough for the ask to rise above the floor');
   assert.deepEqual(deepPlan(cfg, big), { ask, keep: cfg.keepMin, deep: 'deep' });
-  assert.deepEqual(deepPlan(proxyConfig({}, {}), big), { ask: PROXY_DEFAULTS.clearAtLeast, keep: 3 }, 'off: the fixed ask, the constant keep');
+  assert.deepEqual(deepPlan(proxyConfig({ 'clear-deep': false }, {}), big), { ask: PROXY_DEFAULTS.clearAtLeast, keep: 3 }, 'off: the fixed ask, the constant keep');
+  assert.equal(deepPlan(proxyConfig({ keep: '2' }, {}), big).keep, 2, 'a count the person set is the deep clear\'s keep too');
   // the turn runs: the ask does not move, whatever the turn fetches
   const turn = [...big];
   for (let i = 0; i < 6; i++) { turn.push(asst([tu('t' + i)]), user([tr('t' + i, 50000)])); assert.equal(deepPlan(cfg, turn).ask, ask, `call ${i}`); }
@@ -492,7 +494,7 @@ test('the deep clear asks for what sits before the turn, the same on every call 
   assert.equal(t.deep, 'deep'); assert.equal(t.asked, deepPlan(cfg, turn).ask);
   const f = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), { ...cfg, deepState: frozen });
   assert.equal(JSON.parse(f.body).context_management.edits.at(-1).keep.value, held.keep); assert.equal(f.deep, 'frozen'); assert.equal(f.asked, 123456);
-  assert.equal(transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), proxyConfig({}, {})).deep, undefined);
+  assert.equal(transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), proxyConfig({ 'clear-deep': false }, {})).deep, undefined);
 });
 
 test('the deep watch: a block is frozen on the first clear, held, let go after a pause, and a refused ask gives the session up', () => {
@@ -500,7 +502,7 @@ test('the deep watch: a block is frozen on the first clear, held, let go after a
   const applied = { editAcknowledged: true, cleared: 150500, clearedUses: 40, input: 100, read: 200000, write: 1000 };
   // before any clear: the deep ask, no state
   assert.deepEqual(w.cfgFor('s', cfg).deepState, null);
-  assert.equal(w.cfgFor('s', proxyConfig({}, {})).clearDeep, false, 'off: the config as it came');
+  assert.equal(w.cfgFor('s', proxyConfig({ 'clear-deep': false }, {})).clearDeep, false, 'off: the config as it came');
   assert.equal(w.response('s', 150000, cfg, { ...applied, cleared: 0, editAcknowledged: false }), false, 'an answer that said nothing of the edit is nothing (seen 2026-11-02)');
   assert.equal(w.response('s', 150000, cfg, { ...applied, cleared: 0, read: 50000 }), false, 'under the trigger the edit does not apply anyway');
   assert.equal(w.response('s', 150000, cfg, applied), 'frozen');
@@ -537,8 +539,8 @@ test('what the proxy adds to a request is identical from one call of a turn to t
     assert.equal(t.injected, true, `call ${k} carries the edit`);
     return JSON.parse(t.body).context_management;
   };
-  const first = added(proxyConfig({}, {}), 8);
-  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({}, {}), k), first, `call ${k} of the turn adds what the first did`);
+  const first = added(proxyConfig({ 'clear-deep': false }, {}), 8);
+  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({ 'clear-deep': false }, {}), k), first, `call ${k} of the turn adds what the first did`);
   // the deep clear too: its ask is a function of what sits before the turn, which does not move while the turn runs
   const deepFirst = added(proxyConfig({ 'clear-deep': true }, {}), 8);
   for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({ 'clear-deep': true }, {}), k), deepFirst, `call ${k} of the turn, deep`);
