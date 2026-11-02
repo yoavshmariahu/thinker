@@ -123,6 +123,8 @@ test('isRewrite: a call that wrote most of its context rather than reading it', 
   assert.equal(isRewrite({ read: 31520, write: 150000, input: 2, cleared: 140000 }), true);
   assert.equal(isRewrite({ read: 200000, write: 3000, input: 2 }), false, 'a hit');
   assert.equal(isRewrite({ read: 0, write: 9000 }), false, 'a fresh subagent\'s small first call is not a rewrite worth counting');
+  assert.equal(isRewrite({ read: 21035, write: 21742, input: 2 }), false, 'a file read into a 40k conversation is new content, not a rewrite (the multi-turn run, 2026-11-02)');
+  assert.equal(isRewrite({ read: 40000, write: 60000, input: 2 }), true, 'from LONG_CONTEXT up the same shape is a rewrite');
 });
 
 test('the request is measured before the turn: the prefix runs to the first result a deeper ask would newly drop', () => {

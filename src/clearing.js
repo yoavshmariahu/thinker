@@ -35,8 +35,12 @@ export const COLD_MS = 65 * 60 * 1000;
 export const REMAINING = [[10, 40], [20, 40], [40, 68], [100, 90]];
 export const remainingCalls = n => (REMAINING.find(([at]) => n <= at) || [0, 90])[1];
 
-// a call that wrote most of its context into the cache rather than reading it, on a context worth caching
-export const isRewrite = u => ((u?.write || 0) > 0.5 * ((u?.read || 0) + (u?.write || 0) + (u?.input || 0))) && ((u?.read || 0) + (u?.write || 0)) > 20000;
+// A call that wrote most of its context into the cache rather than reading it, on a context long enough for the
+// write to be a rewrite: under LONG_CONTEXT the newest result alone can be half the context (a 21k file read into
+// a 40k conversation), and the gauge took that for the server moving the block and stopped the session on its
+// second cleared call (measured 2026-11-02, the multi-turn paired run). The report draws the same line.
+export const LONG_CONTEXT = 100000;
+export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
 
 // A session's record. `edit` is what every call sends until a decision changes it; `turn` the boundary the edit was
 // last decided at; `cleared` and `clearedUses` the server's own count from its last answer; `saved` and `written`
