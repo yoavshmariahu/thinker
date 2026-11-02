@@ -101,10 +101,11 @@
     main {
       min-height: 100vh;
       width: 100vw;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: center;
       align-items: center;
+      justify-items: center;
       text-align: center;
       padding: 4.5rem 1.5rem 2rem;
     }
@@ -499,6 +500,254 @@
       letter-spacing: -0.01em;
     }
 
+
+    /* ---- How it works: the hero and the walkthrough share one cell and cross-fade ---- */
+    main > * { grid-area: 1 / 1; }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .btn-play {
+      margin-top: 2rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.65rem;
+      background: #ffffff;
+      color: #111111;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      padding: 0.45rem 1.15rem 0.45rem 0.5rem;
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+      transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+
+    .btn-play:hover {
+      border-color: #111111;
+      background: #fafafa;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+      transform: translateY(-1px);
+    }
+
+    .btn-play:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+
+    .btn-play .ico {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #000000;
+      display: grid;
+      place-items: center;
+      flex: none;
+      transition: background 0.15s ease;
+    }
+
+    .btn-play:hover .ico { background: #262626; }
+
+    .btn-play .ico::after {
+      content: "";
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 6px 0 6px 10px;
+      border-color: transparent transparent transparent #ffffff;
+      margin-left: 3px;
+    }
+
+    .walk {
+      width: min(960px, 100%);
+      opacity: 0;
+      visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      text-align: left;
+      letter-spacing: -0.01em;
+    }
+
+    .walk-stage { position: relative; width: 100%; overflow: hidden; }
+    .walk .stage { position: absolute; left: 0; top: 0; width: 960px; height: 540px; transform-origin: 0 0; }
+    .walk .scene { position: absolute; inset: 0; opacity: 0; visibility: hidden; }
+
+    .walk-ui {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      padding: 0 0.15rem;
+    }
+
+    .walk .chip {
+      position: relative;
+      overflow: hidden;
+      font-family: inherit;
+      cursor: pointer;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 0.32rem 0.8rem;
+      color: #444444;
+      letter-spacing: -0.01em;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+
+    .walk .chip:hover, .walk .chip.on { border-color: #111111; color: #000000; background: #fafafa; }
+    .walk .chip.on { font-weight: 600; }
+    .walk .chip i { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: #111111; }
+
+    .walk .ctl { margin-left: auto; display: flex; gap: 0.2rem; }
+
+    .walk .ctl button {
+      font-family: inherit;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: #444444;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 0.4rem 0.7rem;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      transition: all 0.15s ease;
+    }
+
+    .walk .ctl button:hover { color: #000000; background: #f5f5f5; }
+    .walk .ctl button:focus-visible { outline: 2px solid #111111; outline-offset: 2px; }
+    .walk .ctl #walk-play { min-width: 64px; }
+
+    /* Stage internals (960x540 coordinate space, scaled to the column) */
+    /* Stage */
+
+    .walk .chapter { position: absolute; left: 40px; top: 28px; display: flex; align-items: baseline; gap: 0.6rem; }
+    .walk .chapter .num { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .chapter .name { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.03em; }
+
+    /* Narration: one strip at the bottom of the stage, the only text in this style */
+    .walk .cap {
+    position: absolute; left: 40px; right: 40px; bottom: 26px; opacity: 0;
+    background: #111; color: #fff; border-radius: 10px;
+    padding: 0.72rem 1.1rem; font-size: 1.02rem; line-height: 1.4; font-weight: 500; text-align: center; letter-spacing: -0.015em;
+    will-change: transform, opacity;
+    }
+    .walk .cap b { font-weight: 700; }
+    .walk .cap .g { color: #86efac; font-weight: 700; }
+    .walk .cap .r { color: #fca5a5; font-weight: 700; }
+
+    /* Context window */
+    .walk .ctx-head { position: absolute; left: 40px; right: 40px; top: 86px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .walk .ctx-head .lbl { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .ctx-head .lbl span { text-transform: none; letter-spacing: -0.01em; font-weight: 500; color: var(--faint); margin-left: 0.5rem; }
+    .walk .counter { font-size: 2rem; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; line-height: 1; }
+    .walk .counter small { font-size: 0.85rem; font-weight: 500; color: var(--faint); letter-spacing: -0.01em; margin-left: 0.3rem; }
+    .walk .track { position: absolute; left: 40px; top: 128px; width: 880px; height: 52px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-2); display: flex; overflow: hidden; }
+    .walk .seg { height: 100%; width: 0; flex: none; display: flex; align-items: center; justify-content: center; overflow: hidden; border-right: 1px solid #fff; position: relative; }
+    .walk .seg span { font-size: 0.64rem; font-weight: 600; white-space: nowrap; color: #fff; opacity: 0; letter-spacing: 0; }
+    .walk .seg.sys { background: #111; }
+    .walk .seg.instr { background: #444; }
+    .walk .seg.res { background: var(--bar-before); }
+    .walk .seg.res span { color: #111; }
+    .walk .seg.think { background: var(--bar-soft); }
+    .walk .seg.think span { color: #444; }
+    .walk .seg.cleared { background: #fff; border-right: 1px dashed #d1d5db; }
+    .walk .trigger { opacity: 0; position: absolute; top: 118px; height: 72px; width: 0; border-left: 2px dashed #111; }
+    .walk .trigger i { position: absolute; left: 6px; top: -2px; font-style: normal; font-size: 0.68rem; font-weight: 600; color: var(--fg-2); white-space: nowrap; }
+    .walk .legend { position: absolute; left: 40px; top: 190px; display: flex; gap: 1rem; font-size: 0.72rem; color: var(--muted); font-weight: 500; }
+    .walk .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .walk .calls { position: absolute; left: 40px; top: 222px; width: 400px; display: flex; flex-direction: column; gap: 3px; }
+    .walk .call { display: flex; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 0.72rem; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; opacity: 0; transform: translateX(-10px); }
+    .walk .call .tk { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .walk .call.gone { color: var(--faint); }
+    .walk .call.gone .tk { text-decoration: line-through; }
+    .walk .flow { position: absolute; left: 500px; top: 236px; width: 420px; display: flex; align-items: center; justify-content: space-between; opacity: 0; }
+    .walk .node { border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.8rem; font-size: 0.85rem; font-weight: 600; background: #fff; text-align: center; min-width: 96px; }
+    .walk .node.me { background: #111; color: #fff; border-color: #111; }
+    .walk .node small { display: block; font-size: 0.68rem; font-weight: 500; color: var(--faint); margin-top: 2px; }
+    .walk .node.me small { color: #a3a3a3; }
+    .walk .arrow { flex: 1; height: 2px; background: var(--line); position: relative; margin: 0 8px; }
+    .walk .arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 6px solid var(--line); }
+    .walk .arrow i { position: absolute; left: 0; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: #111; opacity: 0; }
+    .walk .acc { position: absolute; left: 500px; top: 330px; opacity: 0; }
+    .walk .acc .lbl { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .acc .n { font-size: 2.4rem; font-weight: 700; letter-spacing: -0.045em; line-height: 1; color: var(--gain); font-variant-numeric: tabular-nums; margin-top: 4px; transform-origin: 0 50%; }
+    .walk .acc .n small { font-size: 0.85rem; font-weight: 500; color: var(--faint); letter-spacing: -0.01em; margin-left: 0.3rem; }
+    .walk .acc .sub { font-size: 0.78rem; color: var(--fg-2); margin-top: 6px; }
+    .walk .call.more { border-style: dashed; color: var(--muted); }
+    .walk .saved { position: absolute; right: 40px; top: 190px; font-size: 1.1rem; font-weight: 700; color: var(--gain); letter-spacing: -0.03em; opacity: 0; }
+
+    /* Cache scene */
+    .walk .col-h { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
+    .walk .sess { position: absolute; left: 40px; top: 92px; width: 250px; }
+    .walk .sess .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 5px; transform-origin: 100% 50%; }
+    .walk .sess .ln { height: 8px; border-radius: 3px; background: var(--bar-before); }
+    .walk .sess .ln.p { background: #111; width: 70%; }
+    .walk .sess .ln.w1 { width: 95%; } .sess .ln.w2 { width: 60%; } .sess .ln.w3 { width: 85%; } .sess .ln.w4 { width: 40%; }
+    .walk .sess .foot { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+    .walk .dist { position: absolute; left: 300px; top: 150px; width: 70px; text-align: center; font-size: 0.72rem; font-weight: 600; color: var(--fg-2); opacity: 0; }
+    .walk .dist .arrow { margin: 6px 0 0; }
+    .walk .notes { position: absolute; left: 380px; top: 92px; width: 270px; display: flex; flex-direction: column; gap: 10px; }
+    .walk .note { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); opacity: 0; transform: translateX(-16px); }
+    .walk .note .kind { display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 4px; background: #111; color: #fff; }
+    .walk .note .kind.rule { background: #444; }
+    .walk .note .kind.howto { background: var(--bar-before); color: #111; }
+    .walk .note .t { font-size: 0.84rem; font-weight: 600; margin-top: 5px; line-height: 1.3; }
+    .walk .note .dep { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .walk .note .hash { color: var(--faint); }
+    .walk .pill { font-size: 0.62rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; opacity: 0; display: inline-block; }
+    .walk .pill.stale { background: var(--warn-bg); color: var(--warn); }
+    .walk .pill.fresh { background: var(--gain-bg); color: var(--gain); }
+    .walk .pill.verify { background: #f3f4f6; color: var(--fg-2); }
+    .walk .next { position: absolute; left: 680px; top: 92px; width: 240px; }
+    .walk .prompt { font-family: var(--mono); font-size: 0.78rem; background: var(--card-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--fg); line-height: 1.4; opacity: 0; }
+    .walk .prompt b { font-weight: 700; color: var(--faint); }
+    .walk .served { margin-top: 8px; position: relative; min-height: 78px; }
+    .walk .served .note { position: absolute; left: 0; top: 0; width: 240px; }
+    .walk .explore { margin-top: 10px; display: flex; flex-direction: column; gap: 3px; }
+    .walk .explore .call { font-size: 0.7rem; padding: 3px 8px; }
+    .walk .skip { font-size: 0.8rem; font-weight: 700; color: var(--gain); margin-top: 6px; opacity: 0; }
+
+    /* Instruction scene */
+    .walk .tbl { position: absolute; left: 40px; top: 86px; width: 592px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+    .walk .tr { display: grid; grid-template-columns: 1fr 74px 80px 56px 56px 74px; align-items: center; gap: 8px; padding: 7px 12px; border-top: 1px solid var(--line-2); font-size: 0.78rem; font-variant-numeric: tabular-nums; position: relative; }
+    .walk .tr:not(.th) { opacity: 0; }
+    .walk .tr.th { white-space: nowrap; border-top: 0; background: var(--card); font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .tr .src { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .walk .tr .src .k { font-size: 0.58rem; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; white-space: nowrap; }
+    .walk .tr .src .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .walk .tr .num { text-align: right; color: var(--fg); }
+    .walk .tr .need { display: flex; align-items: center; gap: 6px; }
+    .walk .tr .need .b { flex: 1; height: 8px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .walk .tr .need .b i { display: block; height: 100%; width: 0; background: #111; border-radius: 2px; }
+    .walk .tr .need em { font-style: normal; color: var(--muted); width: 28px; text-align: right; }
+    .walk .tr .waste { text-align: right; font-weight: 600; border-radius: 4px; padding: 2px 4px; }
+    .walk .tr .chk { position: relative; flex: none; width: 14px; height: 14px; border: 1px solid var(--line); border-radius: 3px; background: #fff; }
+    .walk .tr .chk::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); opacity: 0; }
+    .walk .tr .chk.on::after { opacity: 1; }
+    .walk .tr.picked { background: var(--gain-bg); }
+    .walk .tr .act { justify-self: end; background: #111; color: #fff; font-size: 0.66rem; font-weight: 600; padding: 3px 8px; border-radius: 5px; opacity: 0; transform: translateX(8px); transition: opacity 0.3s ease, transform 0.3s ease; white-space: nowrap; }
+    .walk .tr.picked .act { opacity: 1; transform: none; }
+    .walk .pr { position: absolute; left: 652px; top: 150px; width: 268px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 0.9rem 1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); opacity: 0; transform: translateY(14px); }
+    .walk .pr .k { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .pr .t { font-size: 1rem; font-weight: 700; letter-spacing: -0.03em; margin-top: 0.3rem; line-height: 1.3; }
+    .walk .pr .d { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.45; }
+    .walk .pr .d b { color: var(--gain); font-weight: 700; }
+    .walk .pr .diff { font-family: var(--mono); font-size: 0.66rem; margin-top: 0.6rem; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+    .walk .pr .diff div { padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .walk .pr .diff .m { background: var(--loss-bg); color: #991b1b; }
+    .walk .pr .diff .a { background: var(--gain-bg); color: #166534; }
+    .walk .pr .go { display: inline-block; margin-top: 0.7rem; background: #000; color: #fff; font-size: 0.78rem; font-weight: 500; padding: 0.45rem 0.9rem; border-radius: 6px; }
+
+
     /* Modal Overlay */
     .modal-overlay {
       position: fixed;
@@ -772,11 +1021,14 @@
       }
       nav { padding: 1rem 1.25rem; }
       .nav-right { gap: 0.2rem; }
+      .btn-play { margin-top: 1.5rem; }
+      .walk .ctl { margin-left: 0; width: 100%; }
       .nav-link { padding-left: 0.5rem; padding-right: 0.5rem; }
     }
   </style>
   <link rel="stylesheet" href="/message.css">
   <script src="/message.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
 </head>
 <body>
 
@@ -790,6 +1042,7 @@
   </nav>
 
   <main>
+    <div class="hero" id="hero">
     <h1>thinker</h1>
     <p class="subtitle">Think ahead. Save tokens.</p>
 
@@ -832,6 +1085,115 @@
 
     <div class="supported-agents">
       Claude Code &bull; Codex CLI &bull; Gemini CLI &bull; Cursor &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
+    </div>
+
+    <button class="btn-play" id="btn-play" type="button" aria-controls="walk"><span class="ico" aria-hidden="true"></span>See how it works</button>
+    </div>
+
+    <!-- How it works: a one-minute walkthrough in the hero's place -->
+    <div class="walk" id="walk" aria-hidden="true">
+      <div class="walk-stage" id="walk-box">
+        <div class="stage" id="stage">
+          <!-- 1 and 2 · Context window: baseline, then compression -->
+          <section class="scene" id="s-ctx">
+            <div class="chapter"><span class="num" id="c-num">Baseline</span><span class="name" id="c-name">A session without thinker</span></div>
+            <div class="ctx-head">
+              <div class="lbl">Context window <span>what every model call carries</span></div>
+              <div class="counter"><span id="counter">0</span><small>tokens per call</small></div>
+            </div>
+            <div class="track" id="track"></div>
+            <div class="trigger" id="trigger"><i>140k · clearing trigger</i></div>
+            <div class="legend">
+              <span><i style="background:#111"></i>System prompt</span>
+              <span><i style="background:#444"></i>Instruction files</span>
+              <span><i style="background:#b4b4bb"></i>Tool results</span>
+              <span><i style="background:#d9d9de"></i>Call text and thinking</span>
+            </div>
+            <div class="saved" id="saved">−63k tokens on every later call</div>
+            <div class="acc" id="acc"><div class="lbl">Saved so far this session</div><div class="n"><span id="acc-n">0</span><small>tokens</small></div><div class="sub">63k off each call, for the rest of the session</div></div>
+            <div class="calls" id="calls"></div>
+            <div class="flow" id="flow">
+              <div class="node">Agent<small>Claude Code</small></div>
+              <div class="arrow"><i></i></div>
+              <div class="node me">thinker proxy<small>clears old results</small></div>
+              <div class="arrow"><i></i></div>
+              <div class="node">API<small>Anthropic</small></div>
+            </div>
+            <div class="cap" id="cap-b1">Every tool result stays in the prompt and is <b>re-read by every later call</b>.</div>
+            <div class="cap" id="cap-b2">Ten calls in, the agent is paying for <span class="r">140k tokens</span> of mostly old output.</div>
+            <div class="cap" id="cap-c1">thinker sits between the agent and the API. Past 140k, it has the <b>old tool results cleared</b> server-side.</div>
+            <div class="cap" id="cap-c2">Only the newest turn and the last three results stay.</div>
+            <div class="cap" id="cap-c3"><span class="g">Measured, not modelled</span>: the API reports what it left out of each prompt.</div>
+            <div class="cap" id="cap-c4">A clear is not a one-off. Dozens of calls follow, each 63k lighter: <span class="g">2.5M tokens</span> over one session.</div>
+          </section>
+
+          <!-- 3 · Knowledge cache -->
+          <section class="scene" id="s-cache">
+            <div class="chapter"><span class="num">2 of 3</span><span class="name">Knowledge cache</span></div>
+            <div class="sess" id="sess" style="opacity:0">
+              <div class="col-h">Session ends</div>
+              <div class="card" id="sess-card">
+                <div class="ln p"></div><div class="ln w1"></div><div class="ln w2"></div><div class="ln w3"></div><div class="ln w1"></div><div class="ln w4"></div><div class="ln w3"></div>
+                <div class="foot">transcript · 48 tool calls · 312k tokens</div>
+              </div>
+            </div>
+            <div class="dist" id="dist">distill<div class="arrow"></div><small style="font-weight:500;color:#9ca3af">one model call, in the background</small></div>
+            <div class="notes" id="notes">
+              <div class="col-h" style="opacity:0" id="notes-h">Notes · .thinker/</div>
+              <div class="note" id="n1"><span class="kind rule">rule</span><div class="t">The proxy never takes over a route of the person's own</div><div class="dep">proxy-route.js:routeEvidence <span class="hash" id="h1">#a41f</span> <span class="pill stale" id="p-stale">⚠ stale</span><span class="pill verify" id="p-verify">verifying…</span><span class="pill fresh" id="p-fresh">✓ still valid</span></div></div>
+              <div class="note" id="n2"><span class="kind">map</span><div class="t">Where a clear is recorded and which doors read it</div><div class="dep">compression.js:noteCompression <span class="hash">#7c20</span></div></div>
+              <div class="note" id="n3"><span class="kind howto">howto</span><div class="t">Run one test file against the working tree only</div><div class="dep">scripts/select-tests.mjs <span class="hash">#e1b9</span></div></div>
+            </div>
+            <div class="next" id="next">
+              <div class="col-h" id="next-h" style="opacity:0">Next session</div>
+              <div class="prompt" id="prompt"><b>&gt;</b> why does the proxy stand down when I use my own gateway?</div>
+              <div class="served" id="served-slot"></div>
+              <div class="explore" id="explore">
+                <div class="call"><span>Read src/proxy-route.js</span><span class="tk">8.1k</span></div>
+                <div class="call"><span>Grep ANTHROPIC_BASE_URL</span><span class="tk">2.3k</span></div>
+                <div class="call"><span>Read src/proxy-service.js</span><span class="tk">9.7k</span></div>
+                <div class="call"><span>Read src/proxy-offer.js</span><span class="tk">5.4k</span></div>
+                <div class="call"><span>Bash git log -S standDown</span><span class="tk">6.0k</span></div>
+              </div>
+              <div class="skip" id="skip">5 exploration calls skipped · −31k tokens</div>
+            </div>
+            <div class="cap" id="cap-k1">Once per session, in the background, what the agent learned becomes <b>short notes with file pointers</b>.</div>
+            <div class="cap" id="cap-k2">On the next prompt the matching note is served <b>before the agent explores</b>.</div>
+            <div class="cap" id="cap-k3">Notes rest on <b>code hashes</b>. A change marks one stale, and a small model re-verifies it.</div>
+          </section>
+
+          <!-- 4 · Instruction files -->
+          <section class="scene" id="s-instr">
+            <div class="chapter"><span class="num">3 of 3</span><span class="name">Instruction file analysis</span></div>
+            <div class="tbl" id="tbl">
+              <div class="tr th"><div>Source</div><div class="num">Per prompt</div><div>Needed</div><div class="num">30 days</div><div class="num">Wasted</div><div></div></div>
+              <div class="tr" data-need="3"><div class="src"><span class="chk"></span><span class="k">AGENTS.md</span><span class="n">Benchmark caches</span></div><div class="num">4.1k</div><div class="need"><div class="b"><i></i></div><em>3%</em></div><div class="num">12.3M</div><div class="waste">11.9M</div><span class="act">Compress</span></div>
+              <div class="tr" data-need="1"><div class="src"><span class="chk"></span><span class="k">AGENTS.md</span><span class="n">Releases</span></div><div class="num">2.6k</div><div class="need"><div class="b"><i></i></div><em>1%</em></div><div class="num">7.8M</div><div class="waste">7.7M</div><span class="act">Compress</span></div>
+              <div class="tr" data-need="38"><div class="src"><span class="chk"></span><span class="k">CLAUDE.md</span><span class="n">Docker isolation</span></div><div class="num">1.9k</div><div class="need"><div class="b"><i></i></div><em>38%</em></div><div class="num">5.7M</div><div class="waste">3.5M</div><span class="act">Keep</span></div>
+              <div class="tr" data-need="0"><div class="src"><span class="chk"></span><span class="k">skill</span><span class="n">dataviz</span></div><div class="num">3.2k</div><div class="need"><div class="b"><i></i></div><em>0%</em></div><div class="num">9.6M</div><div class="waste">9.6M</div><span class="act">Switch off</span></div>
+              <div class="tr" data-need="2"><div class="src"><span class="chk"></span><span class="k">MCP</span><span class="n">artemis · 40 tools</span></div><div class="num">9.4k</div><div class="need"><div class="b"><i></i></div><em>2%</em></div><div class="num">28.2M</div><div class="waste">27.6M</div><span class="act">Switch off</span></div>
+              <div class="tr" data-need="0"><div class="src"><span class="chk"></span><span class="k">built-in</span><span class="n">Workflow</span></div><div class="num">1.8k</div><div class="need"><div class="b"><i></i></div><em>0%</em></div><div class="num">5.4M</div><div class="waste">5.4M</div><span class="act">Switch off</span></div>
+            </div>
+            <div class="pr" id="pr">
+              <div class="k">Pull request #581</div>
+              <div class="t">Compress two sections of AGENTS.md</div>
+              <div class="d"><b>−5.9k tokens per prompt</b> · 18M over 30 days. The agent acted on these sections in 2% of prompts.</div>
+              <div class="diff"><div class="m">− Build only through product paths: `mine-prs` (GitHub or …</div><div class="m">− Forbidden: `seed`, synthetic agent sessions, distilling …</div><div class="a">+ Benchmark caches: product paths only, anchored before …</div></div>
+              <span class="go">Review on GitHub</span>
+            </div>
+            <div class="cap" id="cap-i1">Every instruction section, skill and tool becomes a row: <b>cost per prompt</b> and <b>how often it was needed</b>.</div>
+            <div class="cap" id="cap-i2">Unneeded rows are picked for you. A section changes by <b>pull request</b>; a tool switches off with an undo.</div>
+            <div class="cap" id="cap-i3"><span class="g">24k tokens</span> off every prompt, from a table you read once.</div>
+          </section>
+        </div>
+      </div>
+      <div class="walk-ui">
+        <div class="chips" id="chips" style="display:contents"></div>
+        <div class="ctl">
+          <button type="button" id="walk-play" aria-label="Pause or play">Pause</button>
+          <button type="button" id="walk-exit">Exit</button>
+        </div>
+      </div>
     </div>
   </main>
 
@@ -961,8 +1323,301 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeModal();
-
       }
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+    // ---- How it works: the hero is the title and the outro; the stage runs the three chapters between ----
+    (function () {
+      if (!window.gsap) return;
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => Array.from(document.querySelectorAll(s));
+      const hero = $('#hero'), walk = $('#walk'), box = $('#walk-box'), stage = $('#stage');
+      const heroParts = $$('#hero > *');
+      const playBtn = $('#walk-play'), exitBtn = $('#walk-exit'), startBtn = $('#btn-play');
+      const START = 5, END = 55;
+      let playing = false;
+
+      function fit() {
+        const s = Math.min(1, box.clientWidth / 960);
+        stage.style.transform = `scale(${s})`;
+        box.style.height = `${Math.round(540 * s)}px`;
+      }
+      fit(); window.addEventListener('resize', fit);
+
+  // ---- Context window data (1k tokens = 4.4px on an 880px track for 200k) ----
+  const PX = 4.4;
+  const items = [
+    { kind: 'sys',   label: 'sys',       tk: 9.0 },
+    { kind: 'instr', label: 'AGENTS.md', tk: 24.0 },
+    { kind: 'res',   label: 'Read src/proxy.js',          tk: 6.2 },
+    { kind: 'res',   label: 'Read src/proxy-route.js',    tk: 8.1 },
+    { kind: 'res',   label: 'Bash npm test',               tk: 11.6 },
+    { kind: 'res',   label: 'Read AGENTS.md',              tk: 14.3 },
+    { kind: 'res',   label: 'Read src/clients.js',        tk: 17.9 },
+    { kind: 'res',   label: 'Bash git log -p',             tk: 21.2 },
+    { kind: 'res',   label: 'Read src/proxy-service.js',  tk: 9.7 },
+    { kind: 'res',   label: 'Read test/proxy.test.js',    tk: 12.4 },
+    { kind: 'think', label: 'calls + thinking',            tk: 7.0 },
+  ];
+  const later = [
+    { kind: 'res', label: 'Read src/compression.js', tk: 7.3 },
+    { kind: 'res', label: 'Bash npm test', tk: 10.1 },
+  ];
+  const track = $('#track'), calls = $('#calls');
+  function mkSeg(it) {
+    const d = document.createElement('div');
+    d.className = 'seg ' + it.kind;
+    d.innerHTML = `<span>${it.kind === 'res' ? it.tk.toFixed(1) + 'k' : it.label}</span>`;
+    track.appendChild(d); it.seg = d; return d;
+  }
+  function mkCall(it) {
+    const d = document.createElement('div');
+    d.className = 'call';
+    d.innerHTML = `<span>${it.label}</span><span class="tk">${it.tk.toFixed(1)}k</span>`;
+    calls.appendChild(d); it.row = d; return d;
+  }
+  items.forEach(mkSeg);
+  items.filter(i => i.kind === 'res').forEach(mkCall);
+  later.forEach(it => { mkSeg(it); mkCall(it); });
+  const trig = $('#trigger'); trig.style.left = (40 + 140 * PX) + 'px';
+
+  const count = { v: 0 };
+  const counterEl = $('#counter');
+  const fmt = (v) => v >= 100 ? Math.round(v) + 'k' : v.toFixed(1) + 'k';
+  const writeCount = () => { counterEl.textContent = fmt(count.v); };
+
+  // ---- Master timeline, 60 s ----
+  const tl = gsap.timeline({ paused: true, defaults: { ease: 'power2.out' } });
+  const show = (sel, at, d = 0.5) => tl.to(sel, { autoAlpha: 1, duration: d }, at);
+  const hide = (sel, at, d = 0.45) => tl.to(sel, { autoAlpha: 0, duration: d }, at);
+  const cap = (sel, at, len) => {
+    tl.fromTo(sel, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.55, immediateRender: false }, at);
+    tl.to(sel, { opacity: 0, y: -8, duration: 0.35 }, at + len);
+  };
+
+  // 1 · Baseline (5–14)
+  show('#s-ctx', 5);
+  tl.set(count, { v: 0 }, 5); tl.call(writeCount, null, 5);
+  let acc = 0, t = 5.3;
+  // system + instructions arrive together
+  items.slice(0, 2).forEach((it) => {
+    tl.to(it.seg, { width: it.tk * PX, duration: 0.6 }, t);
+    tl.to(it.seg.querySelector('span'), { opacity: 1, duration: 0.3 }, t + 0.3);
+    acc += it.tk;
+  });
+  tl.to(count, { v: acc, duration: 0.6, onUpdate: writeCount }, t);
+  t += 0.9;
+  const step = 0.55;
+  items.slice(2).forEach((it) => {
+    if (it.row) tl.to(it.row, { opacity: 1, x: 0, duration: 0.3 }, t);
+    tl.to(it.seg, { width: it.tk * PX, duration: 0.45 }, t + 0.05);
+    if (it.kind === 'res' && it.tk >= 6) tl.to(it.seg.querySelector('span'), { opacity: 1, duration: 0.3 }, t + 0.3);
+    acc += it.tk;
+    tl.to(count, { v: acc, duration: 0.45, onUpdate: writeCount }, t + 0.05);
+    t += step;
+  });
+  // t ≈ 11.7, acc = 142.8
+  cap('#cap-b1', 6.6, 3.2);
+  cap('#cap-b2', 10.4, 3.1);
+  tl.fromTo(trig, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 11.2);
+  tl.to('#counter', { color: '#dc2626', duration: 0.3 }, 11.4);
+
+  // 2 · Compression (14–28)
+  tl.set('#c-num', { textContent: '1 of 3' }, 14);
+  tl.set('#c-name', { textContent: 'Context compression' }, 14);
+  tl.fromTo('#c-name', { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.5, immediateRender: false }, 14);
+  tl.to('#flow', { opacity: 1, duration: 0.5 }, 14.3);
+  cap('#cap-c1', 15, 4.2);
+  // pulse the proxy node and run dots along the arrows
+  tl.fromTo('#flow .node.me', { scale: 1 }, { scale: 1.06, duration: 0.35, yoyo: true, repeat: 3, ease: 'sine.inOut', immediateRender: false }, 16.2);
+  $$('#flow .arrow i').forEach((dot, i) => {
+    tl.fromTo(dot, { left: '0%', opacity: 0 }, { left: '92%', opacity: 1, duration: 0.7, ease: 'none', immediateRender: false }, 16.4 + i * 0.75);
+    tl.to(dot, { opacity: 0, duration: 0.15 }, 17.05 + i * 0.75);
+  });
+  // highlight the old results (all but the newest 3), then collapse them
+  const results = items.filter(i => i.kind === 'res');
+  const old = results.slice(0, results.length - 3);
+  const keep = results.slice(-3);
+  const thinkSeg = items.find(i => i.kind === 'think');
+  old.forEach((it, i) => {
+    tl.to(it.seg, { backgroundColor: '#6b6b75', duration: 0.25 }, 18.2 + i * 0.08);
+  });
+  tl.to(thinkSeg.seg, { backgroundColor: '#9a9aa3', duration: 0.25 }, 18.7);
+  cap('#cap-c2', 19.0, 3.4);
+  let left = acc;
+  old.forEach((it, i) => {
+    tl.to(it.seg.querySelector('span'), { opacity: 0, duration: 0.2 }, 19.6 + i * 0.1);
+    tl.to(it.seg, { width: 6, backgroundColor: '#ffffff', duration: 0.5, ease: 'power3.inOut' }, 19.7 + i * 0.1);
+    tl.set(it.seg, { className: 'seg cleared' }, 19.9 + i * 0.1);
+    tl.to(it.row, { opacity: 0.45, duration: 0.3 }, 19.7 + i * 0.1);
+    tl.set(it.row, { className: 'call gone' }, 19.7 + i * 0.1);
+    left -= it.tk;
+  });
+  tl.to(thinkSeg.seg, { width: 2 * PX, backgroundColor: '#d9d9de', duration: 0.5, ease: 'power3.inOut' }, 20.3);
+  tl.to(thinkSeg.seg.querySelector('span'), { opacity: 0, duration: 0.2 }, 20.2);
+  left -= 5;
+  tl.to(count, { v: left, duration: 1.0, ease: 'power3.inOut', onUpdate: writeCount }, 19.8);
+  tl.to('#counter', { color: '#15803d', duration: 0.3 }, 20.3);
+  tl.fromTo('#saved', { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.5, immediateRender: false }, 21.0);
+  // the session goes on, with a smaller prompt
+  const acc2 = { v: 0 };
+  const accEl = $('#acc-n');
+  const fmtBig = (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'M' : Math.round(v) + 'k';
+  const writeAcc = () => { accEl.textContent = fmtBig(acc2.v); };
+  tl.to('#acc', { opacity: 1, duration: 0.5 }, 21.6);
+  let t2 = 22.3;
+  later.forEach((it) => {
+    tl.to(it.row, { opacity: 1, x: 0, duration: 0.3 }, t2);
+    tl.to(it.seg, { width: it.tk * PX, duration: 0.45 }, t2 + 0.05);
+    tl.to(it.seg.querySelector('span'), { opacity: 1, duration: 0.3 }, t2 + 0.3);
+    left += it.tk;
+    tl.to(count, { v: left, duration: 0.45, onUpdate: writeCount }, t2 + 0.05);
+    tl.to(acc2, { v: acc2.v + 63.1, duration: 0.45, onUpdate: writeAcc }, t2 + 0.1);
+    acc2.v += 63.1;
+    t2 += 0.9;
+  });
+  const more = document.createElement('div');
+  more.className = 'call more';
+  more.innerHTML = '<span>… 38 more calls this session</span><span class="tk">−63k each</span>';
+  calls.appendChild(more);
+  tl.to(more, { opacity: 1, x: 0, duration: 0.3 }, 24.4);
+  tl.to(acc2, { v: 63.1 * 40, duration: 2.4, ease: 'power2.inOut', onUpdate: writeAcc }, 24.5);
+  tl.fromTo('#acc .n', { scale: 1 }, { scale: 1.08, duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, 26.7);
+  cap('#cap-c3', 21.8, 2.2);
+  cap('#cap-c4', 24.4, 3.0);
+  hide('#s-ctx', 27.5);
+
+  // 3 · Knowledge cache (28–44)
+  show('#s-cache', 28);
+  tl.fromTo('#sess', { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.5, immediateRender: false }, 28.2);
+  cap('#cap-k1', 29.0, 4.6);
+  tl.to('#dist', { opacity: 1, duration: 0.4 }, 29.6);
+  tl.to('#sess-card', { scale: 0.86, opacity: 0.55, duration: 0.8, ease: 'power2.inOut' }, 30.0);
+  tl.to('#notes-h', { opacity: 1, duration: 0.3 }, 30.4);
+  ['#n1', '#n2', '#n3'].forEach((n, i) => {
+    tl.to(n, { opacity: 1, x: 0, duration: 0.5, ease: 'back.out(1.4)' }, 30.6 + i * 0.35);
+  });
+  // next session: prompt, served note, exploration skipped
+  tl.to('#next-h', { opacity: 1, duration: 0.3 }, 34.0);
+  tl.to('#prompt', { opacity: 1, duration: 0.4 }, 34.1);
+  const clone = $('#n1').cloneNode(true);
+  clone.id = 'n1-served'; clone.querySelectorAll('.pill').forEach(p => p.remove()); clone.querySelector('.dep').textContent = 'proxy-route.js:routeEvidence';
+  clone.style.opacity = 0; $('#served-slot').appendChild(clone);
+  tl.fromTo(clone, { opacity: 0, x: -300, y: 0, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.8, ease: 'power3.inOut', immediateRender: false }, 35.0);
+  tl.fromTo('#n1', { borderColor: '#e5e7eb' }, { borderColor: '#111111', duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, 34.8);
+  cap('#cap-k2', 35.4, 4.0);
+  $$('#explore .call').forEach((c, i) => {
+    tl.to(c, { opacity: 1, x: 0, duration: 0.25 }, 36.2 + i * 0.12);
+  });
+  $$('#explore .call').forEach((c, i) => {
+    tl.to(c, { opacity: 0.35, duration: 0.3 }, 37.4 + i * 0.08);
+    tl.set(c, { className: 'call gone' }, 37.4 + i * 0.08);
+  });
+  tl.to('#skip', { opacity: 1, duration: 0.4 }, 38.0);
+  // staleness and verification
+  tl.set('#h1', { textContent: '#c902', color: '#b45309' }, 39.8);
+  tl.fromTo('#h1', { scale: 1 }, { scale: 1.25, duration: 0.2, yoyo: true, repeat: 1, immediateRender: false }, 39.8);
+  tl.to('#p-stale', { opacity: 1, duration: 0.3 }, 40.1);
+  cap('#cap-k3', 40.0, 3.8);
+  tl.to('#p-stale', { opacity: 0, duration: 0.2 }, 41.6);
+  tl.to('#p-verify', { opacity: 1, duration: 0.2 }, 41.7);
+  tl.to('#p-verify', { opacity: 0, duration: 0.2 }, 42.9);
+  tl.to('#p-fresh', { opacity: 1, duration: 0.3 }, 43.0);
+  tl.set('#h1', { color: '#9ca3af' }, 43.0);
+  hide('#s-cache', 43.6);
+
+  // 4 · Instruction files (44–55)
+  show('#s-instr', 44);
+  const rows = $$('#tbl .tr:not(.th)');
+  rows.forEach((r, i) => {
+    tl.fromTo(r, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.35, immediateRender: false }, 44.3 + i * 0.12);
+    const need = +r.dataset.need;
+    tl.to(r.querySelector('.need i'), { width: need + '%', duration: 0.7 }, 45.0 + i * 0.1);
+    const w = r.querySelector('.waste');
+    const bad = need < 10;
+    tl.to(w, { backgroundColor: bad ? '#fef2f2' : '#ecfdf3', color: bad ? '#dc2626' : '#15803d', duration: 0.4 }, 45.8 + i * 0.1);
+  });
+  cap('#cap-i1', 44.8, 4.4);
+  // pick the wasteful rows
+  const picks = rows.filter(r => +r.dataset.need < 10);
+  picks.forEach((r, i) => {
+    tl.to(r.querySelector('.chk'), { backgroundColor: '#111', borderColor: '#111', duration: 0.2 }, 48.6 + i * 0.15);
+    tl.set(r.querySelector('.chk'), { className: 'chk on' }, 48.6 + i * 0.15);
+    tl.set(r, { className: 'tr picked' }, 48.7 + i * 0.15);
+  });
+  cap('#cap-i2', 49.6, 4.6);
+  tl.to('#pr', { opacity: 1, y: 0, duration: 0.6, ease: 'back.out(1.2)' }, 50.6);
+  cap('#cap-i3', 52.0, 3.0);
+  hide('#s-instr', 54.6);
+
+      tl.to({}, { duration: 0.01 }, END + 0.2); // pin the end
+
+      // ---- Chapters ----
+      const chapters = [
+        { t: 5, name: 'Baseline' },
+        { t: 14, name: 'Context compression' },
+        { t: 28, name: 'Knowledge cache' },
+        { t: 44, name: 'Instruction files' },
+      ];
+      const chips = $('#chips');
+      chapters.forEach((c, i) => {
+        c.end = chapters[i + 1] ? chapters[i + 1].t : END;
+        const chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'chip'; chip.innerHTML = `${c.name}<i></i>`;
+        chip.addEventListener('click', () => seek(c.t, true));
+        chips.appendChild(chip); c.chip = chip; c.el = chip.lastChild;
+      });
+      function render() {
+        const now = tl.time();
+        chapters.forEach((c) => {
+          const p = Math.max(0, Math.min(1, (now - c.t) / (c.end - c.t)));
+          c.el.style.width = (p * 100) + '%';
+          c.chip.classList.toggle('on', now >= c.t && now < c.end);
+        });
+        playBtn.textContent = tl.paused() ? 'Play' : 'Pause';
+      }
+      tl.eventCallback('onUpdate', render);
+      tl.eventCallback('onComplete', () => exit());
+      function seek(t, andPlay) { tl.pause(); tl.seek(t, false); if (andPlay) tl.play(); render(); }
+      function toggle() { tl.paused() ? tl.play() : tl.pause(); render(); }
+
+      // ---- Hero <-> walkthrough ----
+      function start() {
+        if (playing) return;
+        playing = true;
+        fit();
+        tl.pause(); tl.seek(START, false); render();
+        walk.setAttribute('aria-hidden', 'false');
+        const x = gsap.timeline();
+        x.to(hero, { autoAlpha: 0, y: -6, duration: 0.4, ease: 'power2.in' }, 0);
+        x.to(walk, { autoAlpha: 1, duration: 0.5, ease: 'power2.out' }, 0.25);
+        x.call(() => tl.play(), null, 0.3);
+      }
+      function exit() {
+        if (!playing) return;
+        playing = false;
+        tl.pause();
+        const x = gsap.timeline();
+        x.to(walk, { autoAlpha: 0, duration: 0.45, ease: 'power2.in' }, 0);
+        x.set(hero, { y: 0 }, 0.3);
+        x.fromTo(hero, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3, ease: 'none' }, 0.3);
+        x.fromTo(heroParts, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.55, stagger: 0.07, ease: 'power2.out' }, 0.35);
+        x.call(() => { walk.setAttribute('aria-hidden', 'true'); tl.seek(START, false); render(); }, null, 1);
+      }
+      startBtn.addEventListener('click', start);
+      playBtn.addEventListener('click', toggle);
+      exitBtn.addEventListener('click', exit);
+      document.addEventListener('keydown', (e) => {
+        if (!playing) return;
+        if (e.key === 'Escape') { exit(); return; }
+        if (e.target !== document.body) return;
+        if (e.key === ' ') { toggle(); e.preventDefault(); }
+        if (e.key === 'ArrowRight') seek(Math.min(END, tl.time() + 5), !tl.paused());
+        if (e.key === 'ArrowLeft') seek(Math.max(START, tl.time() - 5), !tl.paused());
+      });
+      tl.seek(START, false); render();
+    })();
     });
 
   </script>
