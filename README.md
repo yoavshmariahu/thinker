@@ -16,7 +16,7 @@ npx @zerotimedev/thinker
 The installer connects your coding agents and shows suggested savings from your recent sessions.
 Review them in your browser or terminal, then keep coding as usual.
 
-Works with Claude Code, Codex, Cursor, Gemini CLI, Devin and [more](docs/agent-integrations.md).
+Works with Claude Code, Codex, Cursor, Gemini CLI, Devin CLI and [more](docs/agent-integrations.md).
 Requires Node 20+, git and a supported agent. Free and open source.
 
 [See how it works](https://zerotime.dev/docs#overview) · [Setup guide](docs/setup.md)
