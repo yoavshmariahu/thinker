@@ -10,7 +10,8 @@ const res = tokens => ({ t: 'result', tokens });
 const turn = { t: 'turn' }, compact = { t: 'compact' };
 
 test('a clear re-writes the prefix once and every later request reads the cleared tokens no more', () => {
-  const items = [turn, req(100, 0, 1000), res(60000), req(100, 61000, 0), res(100), req(100, 61100, 100), req(100, 61300, 50)];
+  // the 60k result is in a turn that is over: the API was never seen to clear a result of the turn in hand
+  const items = [turn, req(100, 0, 1000), res(60000), turn, req(100, 61000, 0), res(100), req(100, 61100, 100), req(100, 61300, 50)];
   const as = simulate(items, null);
   assert.equal(as.requests, 4);
   assert.equal(as.base, 2150 + 6250 + 6460 + 6380);
@@ -62,9 +63,10 @@ test('a transcript is read as requests, results, turns and compactions, a reques
 
 test('policies are parsed from a spec, named ones as a base', () => {
   assert.deepEqual(parsePolicies(''), POLICIES);
-  const p = parsePolicies('a=keep:2,trigger:50000,clear:40000;turn=trigger:80000');
-  assert.deepEqual(p.a, { keep: 2, trigger: 50000, clearAtLeast: 40000 });
-  assert.deepEqual(p.turn, { ...POLICIES.turn, trigger: 80000 });
+  const p = parsePolicies('a=keep:2,trigger:50000,clear:40000,depth:turn,margin:0.5;deep=trigger:80000');
+  assert.deepEqual(p.a, { keep: 2, trigger: 50000, clearAtLeast: 40000, depth: 'turn', margin: 0.5 });
+  assert.deepEqual(p.deep, { ...POLICIES.deep, trigger: 80000 });
+  assert.throws(() => parsePolicies('x=keep:1,trigger:1,clear:1,depth:all'), /depth is min, turn or freeze/);
   assert.throws(() => parsePolicies('x=keep:1'), /needs keep, trigger and clear/);
   assert.equal(WEIGHTS.read, 0.1);
 });
@@ -98,11 +100,51 @@ test('inputs go with their results, the earlier turns\' thinking rides the same 
   assert.ok(withThinking.usd < plain.usd);
   assert.equal(simulate([{ t: 'turn' }, { ...r(100, 0, 1000), model: 'mystery-9' }], null).baseUsd, null, 'an unpriced model has no dollars');
   // the spec names the two: inputs on, thinking piggyback or off
-  const p = parsePolicies('a=keep:turn,trigger:50000,clear:50000,inputs:on,thinking:piggyback;inputs-thinking=thinking:off');
+  const p = parsePolicies('a=keep:turn,trigger:50000,clear:50000,inputs:on,thinking:piggyback;freeze-thinking=thinking:off');
   assert.deepEqual(p.a, { keep: 'turn', trigger: 50000, clearAtLeast: 50000, inputs: true, thinking: 'piggyback' });
-  assert.equal(p['inputs-thinking'].thinking, undefined, 'a named policy as the base, one field turned off'); assert.equal(p['inputs-thinking'].inputs, true);
+  assert.equal(p['freeze-thinking'].thinking, undefined, 'a named policy as the base, one field turned off'); assert.equal(p['freeze-thinking'].inputs, true); assert.equal(p['freeze-thinking'].depth, 'freeze');
   assert.throws(() => parsePolicies('x=keep:1,trigger:1,clear:1,thinking:sliding'), /piggyback or off/);
-  assert.deepEqual(Object.keys(POLICIES), ['shipped', 'inputs', 'inputs-thinking', 'count-3', 'turn']);
+  assert.deepEqual(Object.keys(POLICIES), ['shipped', 'deep', 'freeze', 'freeze-thinking']);
   const out = renderReplay(replay([], POLICIES));
-  assert.match(out, /^All: 0 sessions, 0 billed-equivalent tokens as recorded/); assert.match(out, /inputs-thinking  keep turn \(min 3\)  trigger 100000 clear 80000 \+inputs \+thinking: saves   0\.0% billed-eq, 0 sessions costlier, 0 clears, 0 results cleared/);
+  assert.match(out, /^All: 0 sessions, 0 billed-equivalent tokens as recorded/); assert.match(out, /freeze-thinking\s+keep 3\s+trigger 140000 clear once, frozen \+inputs \+thinking: saves\s+0\.0% billed-eq, 0 sessions costlier, 0 clears, 0 results cleared/);
+});
+
+test('the shipped edit clears the least it may and grows by a result a turn, the deep edit clears to the turn and rewrites the previous turn alone', () => {
+  // three turns: five results of 30k, then two of 30k, then one call; every request past the trigger
+  const r = read => req(100, read, 0);
+  const items = [turn, req(100, 0, 1000), res(30000), res(30000), res(30000), res(30000), res(30000), r(151000),
+    turn, r(151100), res(30000), res(30000), r(211100),
+    turn, r(211200), r(211300)];
+  // the trigger is read on the context as the clear leaves it, so it sits under what the third turn reads after either clear
+  const shipped = { keep: 0, trigger: 50000, clearAtLeast: 100000, depth: 'min' }, deep = { ...shipped, depth: 'turn', margin: 1 }, cautious = { ...deep, margin: 0.7 };
+  const a = simulate(items, shipped), b = simulate(items, deep), c = simulate(items, cautious);
+  // the shipped ask takes four results (120k, the first past 100k) at the second turn's first request, then one more at
+  // the third turn: the block grows by a result a turn, and each growth is a rewrite of everything behind it
+  assert.equal(a.clears, 2); assert.equal(a.cleared, 150000);
+  // the deep ask takes all five, then the second turn's two at the third: the block ends at the turn each time
+  assert.equal(b.clears, 2); assert.equal(b.cleared, 210000);
+  // at 0.7 the first ask is 105k: four results (120k); at the third turn the ask is 147k of 210k: five
+  assert.equal(c.clears, 2); assert.equal(c.cleared, 150000);
+  assert.ok(b.billed < a.billed, 'the deep clear reads less and rewrites less');
+  assert.ok(simulate(items, null).base > b.billed);
+  // nothing of the turn in hand is ever taken, whatever the ask
+  assert.equal(simulate([turn, req(100, 0, 1000), res(30000), res(30000), res(30000), res(30000), r(121000)], deep).cleared, 0);
+});
+
+test('the frozen block: one deep clear, no extension at the turns after it, extended again only when the cache is cold anyway', () => {
+  // the agent thinks and writes between its calls, so an extension of the block at a turn boundary has the previous
+  // turn's thinking and text behind it to write again, as a real session does
+  const r = read => ({ ...req(100, read, 0), think: 20000, text: 1000 });
+  const items = [turn, req(100, 0, 1000), res(30000), res(30000), res(30000), res(30000), res(30000), r(151000),
+    turn, r(172100), res(30000), res(30000), r(253100),
+    turn, r(274200), r(295300),
+    // a pause past the cache: the request already writes its whole context, so the extension is free here
+    turn, req(100, 0, 316400), r(337500)];
+  const freeze = { keep: 0, trigger: 50000, clearAtLeast: 100000, depth: 'freeze', margin: 1 }, deep = { ...freeze, depth: 'turn' };
+  const f = simulate(items, freeze), d = simulate(items, deep);
+  assert.equal(f.clears, 2, 'the first clear, and the one on the cold request'); assert.equal(f.cleared, 210000);
+  // deep to the turn extends at the third turn, a rewrite at a warm cache; the fourth turn brought no result, so neither
+  // policy has anything to take there, and the freeze took the second turn's results on the cold request instead
+  assert.equal(d.clears, 2);
+  assert.ok(f.billed < d.billed, 'the extension the freeze skipped was a rewrite');
 });
