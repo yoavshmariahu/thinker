@@ -94,6 +94,9 @@ test('the record after an answer: the clear\'s own write is planned, a move is l
     // the clear saved and can still save over the calls left, so the session is stopped
     ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 20000, write: 250000, input: 2 }, { now: now + 3000 });
     assert.equal(ev.length, 1); assert.equal(ev[0].stopped, 'uneconomic');
+    // the prompt did not grow between the last two answers (raw 514002 -> 482002), so all 250000 written is the
+    // prefix written again
+    assert.equal(ev[0].again, 250000, 'what was written beyond the prompt\'s own growth');
     assert.equal(ev[0].written, 250000 * WRITE_1H); assert.ok(ev[0].written > ev[0].saved + ev[0].ahead);
     assert.equal(rec.stopped, 'uneconomic');
     assert.deepEqual(response(rec, cfg, t(undefined, false, 210000), { cleared: 0, read: 1, write: 1 }, now + 4000), [], 'said once');
@@ -106,6 +109,14 @@ test('the record after an answer: the clear\'s own write is planned, a move is l
     const w = s.read('w'); response(w, cfg, t(1, true, 200000), { cleared: 200000, clearedUses: 90, read: 1000, write: 100000 }, { now: now });
     response(w, cfg, t(undefined, false, 200000), { cleared: 200000, clearedUses: 90, read: 1000, write: 300000 }, { now: now + COLD_MS + 1 });
     assert.equal(w.written, 0); assert.equal(w.stopped, null);
+    // a 21k file read into a 40k conversation is new content, not a rewrite: the request grew by it (the multi-turn
+    // paired run of 2026-11-02 stopped both sessions on exactly this call under a ratio heuristic)
+    const g = s.read('g'); response(g, cfg, t(1, true, 30000), { cleared: 31556, clearedUses: 2, read: 17161, write: 3874 }, { now });
+    response(g, cfg, t(undefined, false, 30000), { cleared: 32900, clearedUses: 2, read: 21035, write: 21742 }, { now: now + 1000 });
+    assert.equal(g.written, 0); assert.equal(g.stopped, null);
+    // the same growth with the prefix written over as well: only the excess counts (raw 75677 -> 113900, +38223)
+    response(g, cfg, t(undefined, false, 30000), { cleared: 32900, clearedUses: 2, read: 1000, write: 80000 }, { now: now + 2000 });
+    assert.equal(g.written, (80000 - (113900 - 75677)) * WRITE_1H);
     // the first application of an ask raised ahead of the trigger is the clear's own write too
     const f = s.read('f'); f.edit = { keep: 3, ask: 180000 };
     response(f, cfg, t(2, false, 180000), { cleared: 181000, clearedUses: 80, read: 1000, write: 300000 }, { now: now });
