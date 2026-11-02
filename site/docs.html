@@ -882,6 +882,17 @@ read any range: Read with offset and limit</span></pre>
             <li><strong>Pi, Windsurf Cascade, Copilot CLI, OpenCode:</strong> nothing machine-wide. The installer, given <code>--clients pi,windsurf,copilot,opencode</code>, writes an extension, a hook file or a rule. Restart the host agent afterwards.</li>
           </ul>
         </details>
+        <h3 id="devin-setup">Setting up Devin</h3>
+        <p>
+          The installer finds Devin on its own, so there is usually nothing to do beyond <code>npx @zerotimedev/thinker</code> and restarting Devin. If you installed thinker before Devin, or skipped it, wire it by hand:
+        </p>
+        <pre><code>thinker connect --clients devin</code></pre>
+        <p>
+          That writes the hooks and the MCP server into Devin's own configuration, adds the one permission its background subagent needs to do the learning, and sets Devin's compaction threshold to the same point thinker's proxy clears at. The CLI and Devin Desktop's local agent read the same files, so both are covered at once. Devin Cloud is not: those sessions run on Devin's own machines, where none of this reaches them.
+        </p>
+        <p>
+          <strong>If Devin refuses to start</strong> with <em>Refusing to run in an untrusted workspace</em>, that is Devin's own check, not thinker's, and it happens before any hook runs, so you would see no notes and no error. Run <code>devin</code> once in that repository, accept the prompt, and quit.
+        </p>
       </section>
 
       <div class="part-label">The knowledge cache</div>
