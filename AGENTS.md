@@ -229,18 +229,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   turn to the next") runs a long turn through `transformRequest` with a record and requires `context_management`
   byte-identical on every call for the default config; a new edit must pass it or stay off (the thinking edit is off for
   this reason). `measureClearing` counts only what sits before the turn, so the decision cannot move while the turn runs.
-- **The server's rule, measured (2026-11-02, `research/clearing-bench`, three single-rep runs of the 18-file
-  workload with the trigger at 100k, 140k and 180k, identical to the token).** The API applies `clear_tool_uses`
-  only once at least `clear_at_least` of results have accumulated beyond what it already cleared (the keep aside),
-  and when it applies, it clears everything but the keep: first at a raw prompt of 192k (5 of 8 results, 104k), then
-  at 302k (10 of 13), then at 413k (15 of 18), each a rewrite of the post-clear context (~70k there). The trigger
-  plays no part once crossed, and between applications the cleared set is held whatever the edit says. So the set
-  cannot be steered by keep or trigger (raising keep shrinks it at the next application, which is what the
-  keep-steered freeze was seeing as "the block moving"), `clear_at_least` is the interval between applications, and
-  each application costs the post-clear context at the write rate against `ask` fewer tokens read on the calls
-  until the next one. That is why clearing lost on this machine's long sessions (a post-clear context of 400-600k
-  of prompts and answers, written again every ~100k of results) and why the policy's ask only ever grows: a larger
-  ask is a rarer rewrite. Claude Code 2.1.316 sends no tool clearing of its own (captured the same day: its only
+- **The server's rule, read from the requests (2026-11-02/03, `THINKER_PROXY_DUMP`, mlflow PR26265 smoke6, Opus 5.5
+  1M; the earlier reading from `research/clearing-bench`'s uniform 20k results, "everything but the keep", was wrong).**
+  Claude Code's requests are append-only (only the cache_control marker moves), so what moves is the server's own
+  choice. When the input crosses the trigger the API clears the smallest oldest-first set whose tokens reach
+  `clear_at_least`, the newest `keep` aside (7 of 10 results, 108k at ask 100k); it holds that set on every later
+  call while the context stays under the trigger; once the post-clear context crosses the trigger again it clears
+  about 100k beyond what it held (108k to 219k, 7 to 12 of 15), which the bench's 5, 10, 15 of 18 also fit. A changed
+  ask is evaluated afresh (ask 255,717 cleared 32 of 39, 256,970 tokens). **An ask the server cannot meet applies
+  nothing at all**: the whole conversation comes back uncleared for that call (171k read, 73k written, smoke5), which
+  is why the kept results are left out of what is clearable. The shrinking of the cleared set seen in smoke5 (23, 22,
+  20, 19, each a rewrite from the system prompt) appeared only in sessions that had such an unmet ask; smoke6, without
+  one, went 0, 7, 12, 32, 34 and never shrank. Claude Code sets its cache breakpoints on the system prompt and the
+  newest messages, and the API finds a cached prefix only at a breakpoint or within about twenty blocks before one, so
+  any change of the cleared set mid-conversation reads the system prompt alone (12,707 tokens there) and writes the
+  whole post-clear context: a re-application is cheap only while that context is small (7 to 12: 9k written), and a
+  deeper ask that dropped 12-28k wrote 60k each time. Claude Code 2.1.316 sends no tool clearing of its own (its only
   edit is `clear_thinking keep: all`), so this is the API's answer to thinker's edit alone.
 - **The gauge is exact, not a ratio (2026-11-02).** The first gauge judged a rewrite by write over half the context,
   the report's heuristic, and on a 40k conversation a 21k file read is half the context: both sessions of the
