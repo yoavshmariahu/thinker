@@ -219,13 +219,26 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   turn to the next") runs a long turn through `transformRequest` with a record and requires `context_management`
   byte-identical on every call for the default config; a new edit must pass it or stay off (the thinking edit is off for
   this reason). `measureClearing` counts only what sits before the turn, so the decision cannot move while the turn runs.
-- **What the server does under a constant edit is the open measurement, and it is the ceiling on all of this.** Read
-  from this machine's log on 2026-11-02: at a constant keep of 3 and ask of 100k the server's cleared count moved 105,
-  104, 103, 104, 103 over a morning, and 14 of 18 moves wrote the prefix over, 245k to 617k each. The rewrite rate after
-  a clear here was 10% on 11-01 and 9% on 11-02 against 4% held out (`thinker proxy status` prints both beside the
-  warning, `rewriteWarning`; `proxy-replay.js` still models the old freeze and is not evidence for this policy). The
-  gauge is what sees it live; `proxy-clear-moved` rows and `proxy-clearing-stopped` rows are the count to read before
-  trusting any replay. If most sessions stop, the server will not hold a block and clearing should be off, not refined.
+- **The server's rule, measured (2026-11-02, `research/clearing-bench`, three single-rep runs of the 18-file
+  workload with the trigger at 100k, 140k and 180k, identical to the token).** The API applies `clear_tool_uses`
+  only once at least `clear_at_least` of results have accumulated beyond what it already cleared (the keep aside),
+  and when it applies, it clears everything but the keep: first at a raw prompt of 192k (5 of 8 results, 104k), then
+  at 302k (10 of 13), then at 413k (15 of 18), each a rewrite of the post-clear context (~70k there). The trigger
+  plays no part once crossed, and between applications the cleared set is held whatever the edit says. So the set
+  cannot be steered by keep or trigger (raising keep shrinks it at the next application, which is what the
+  keep-steered freeze was seeing as "the block moving"), `clear_at_least` is the interval between applications, and
+  each application costs the post-clear context at the write rate against `ask` fewer tokens read on the calls
+  until the next one. That is why clearing lost on this machine's long sessions (a post-clear context of 400-600k
+  of prompts and answers, written again every ~100k of results) and why the policy's ask only ever grows: a larger
+  ask is a rarer rewrite. Claude Code 2.1.316 sends no tool clearing of its own (captured the same day: its only
+  edit is `clear_thinking keep: all`), so this is the API's answer to thinker's edit alone.
+- **The gauge is exact, not a ratio (2026-11-02).** The first gauge judged a rewrite by write over half the context,
+  the report's heuristic, and on a 40k conversation a 21k file read is half the context: both sessions of the
+  multi-turn paired run were stopped on their second cleared call and passed through unedited after, +9.4%. The
+  gauge now reads the prompt's size from the API's own usage on every answer (`clearing.js:rawOf`: input, cache
+  read, cache write and cleared, added up), so the growth between two answers is known in the API's units, and
+  what was written beyond that growth is the prefix written again, counted as it is. `isRewrite` stays for the
+  report, over `LONG_CONTEXT` only.
 - What the replay cannot see either way is the model reading again what it lost, fresh input at the full rate. The 15%
   holdout stays for that.
 
