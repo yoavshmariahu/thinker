@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { deepPlan, deepWatch, DEEP_MOVES, REWRITE_RATE, REWRITE_MIN_CALLS, DEEP_MARGIN, FROZEN_OFFSET, COLD_MS, clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { remainingCalls, deepPlan, deepWatch, DEEP_MOVES, REWRITE_RATE, REWRITE_MIN_CALLS, DEEP_MARGIN, FROZEN_OFFSET, COLD_MS, clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -92,7 +92,7 @@ test('keep turn: the clear leaves the current turn\'s tool uses, never under kee
   assert.equal(turnToolUses(messages), 5, 'the second turn\'s: a text block beside a tool result starts no turn');
   assert.equal(turnToolUses(messages.slice(0, 5)), 3);
   assert.equal(turnToolUses([]), 0);
-  const cfg = proxyConfig({ keep: 'turn', 'keep-min': '3' }, {});
+  const cfg = { ...proxyConfig({ keep: 'turn', 'keep-min': '3' }, {}), payDecision: true };
   assert.equal(cfg.keep, 'turn');
   assert.equal(cfg.keepMin, 3);
   // `turn` sends the minimum, constant (2026-11-02): a keep that grew with the turn moved the server's cleared set on every
@@ -488,17 +488,17 @@ test('the deep clear asks for what sits before the turn, the same on every call 
   assert.equal(held.keep, 8 - FROZEN_OFFSET - 2, 'eight calls before the third turn, two of them cleared');
   for (let i = 0; i < 4; i++) { turn.push(asst([tu('u' + i)]), user([tr('u' + i, 50000)])); assert.deepEqual(deepPlan(cfg, turn, frozen), held, `frozen call ${i}: nothing moves inside the turn`); }
   // the edit carries it, and the log row says so
-  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), cfg);
+  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), { ...cfg, payDecision: true });
   const e = JSON.parse(t.body).context_management.edits.at(-1);
   assert.equal(e.clear_at_least.value, deepPlan(cfg, turn).ask); assert.equal(e.keep.value, cfg.keepMin);
   assert.equal(t.deep, 'deep'); assert.equal(t.asked, deepPlan(cfg, turn).ask);
-  const f = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), { ...cfg, deepState: frozen });
+  const f = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), { ...cfg, deepState: frozen, payDecision: true });
   assert.equal(JSON.parse(f.body).context_management.edits.at(-1).keep.value, held.keep); assert.equal(f.deep, 'frozen'); assert.equal(f.asked, 123456);
-  assert.equal(transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), proxyConfig({ 'clear-deep': false }, {})).deep, undefined);
+  assert.equal(transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ model: 'm', messages: turn })), { ...proxyConfig({ 'clear-deep': false }, {}), payDecision: true }).deep, undefined);
 });
 
 test('the deep watch: a block is frozen on the first clear, held, let go after a pause, and a refused ask gives the session up', () => {
-  let t = 1000; const w = deepWatch({ now: () => t }), cfg = proxyConfig({ 'clear-deep': true }, {});
+  let t = 1000; const w = deepWatch({ now: () => t }), cfg = { ...proxyConfig({ 'clear-deep': true }, {}), payDecision: true };
   const applied = { editAcknowledged: true, cleared: 150500, clearedUses: 40, input: 100, read: 200000, write: 1000 };
   // before any clear: the deep ask, no state
   assert.deepEqual(w.cfgFor('s', cfg).deepState, null);
@@ -535,7 +535,7 @@ test('what the proxy adds to a request is identical from one call of a turn to t
   ];
   for (let i = 0; i < 12; i++) messages.push({ role: 'assistant', content: [tu(`t${i}`)] }, { role: 'user', content: [tr(`t${i}`, 3000)] });
   const added = (cfg, k) => {
-    const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, k) })), cfg);
+    const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, k) })), { ...cfg, payDecision: true });
     assert.equal(t.injected, true, `call ${k} carries the edit`);
     return JSON.parse(t.body).context_management;
   };
@@ -684,4 +684,76 @@ test('the freeze gives up when the block it holds will not hold', () => {
   assert.equal(held.response('h', cfg.clearAtLeast + 1, cfg, clear(230)), 'frozen');
   for (let i = 0; i < 50; i++) assert.equal(held.response('h', cfg.clearAtLeast + 1, cfg, clear(230)), false);
   assert.ok(held.cfgFor('h', cfg).deepState?.frozen, 'still frozen at a block that holds (a real session held 230)');
+});
+
+test('a clear is asked for only when it earns its own cache write back', () => {
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  // a first turn holding ~288k tokens of results, then a second turn under way
+  const messages = [{ role: 'user', content: 'first' }];
+  for (let i = 0; i < 2; i++) messages.push({ role: 'assistant', content: [tu('a' + i)] }, { role: 'user', content: [tr('a' + i, 400000)] });
+  messages.push({ role: 'user', content: [{ type: 'text', text: 'second' }] });
+  const req = { model: 'm', messages, system: 'S'.repeat(40000), tools: [{ name: 'Bash' }] };
+  const send = (c, msgs = messages) => transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify({ ...req, messages: msgs })), c);
+  // the check is off by default, so every case that exercises it turns it on
+  const on = (extra, more = {}) => ({ ...proxyConfig(extra, {}), clearEconomics: true, ...more });
+
+  // the fixed ask takes 100k of a 288k block and leaves the rest to be written again: it cannot pay
+  const fixed = send(on({ 'clear-deep': false }));
+  assert.equal(fixed.reason, 'uneconomic'); assert.equal(fixed.injected, undefined);
+  assert.ok(fixed.pays.need > fixed.pays.have, `needs ${fixed.pays.need} calls, expects ${fixed.pays.have}`);
+  assert.ok(fixed.pays.recache > fixed.pays.dropped, 'more would be re-cached than dropped');
+
+  // the deep ask takes most of the block, so little is left to write and the same clear pays
+  const deep = send(on({ 'clear-deep': true }));
+  assert.equal(deep.injected, true); assert.equal(deep.paid, true);
+  assert.ok(deep.pays.need <= deep.pays.have, `needs ${deep.pays.need} calls, expects ${deep.pays.have}`);
+  assert.ok(deep.pays.dropped > deep.pays.recache, 'more dropped than re-cached');
+
+  // off by default until a backtest on traffic gathered since the ask was fixed (2026-11-02)
+  assert.equal(PROXY_DEFAULTS.clearEconomics, false, 'the decision is off by default; the sums are still logged');
+  assert.equal(send(proxyConfig({ 'clear-deep': false, 'clear-economics': false }, {})).injected, true, 'off: as before');
+  assert.equal(send(on({ 'clear-deep': false }, { payDecision: true })).injected, true, 'the session already said yes');
+  assert.equal(send(on({ 'clear-deep': true }, { payDecision: false })).reason, 'uneconomic', 'the session already said no');
+
+  // and the verdict cannot move while a turn runs: it reads only what sits before the turn
+  const cfg = on({ 'clear-deep': true });
+  const first = send(cfg).pays;
+  const grown = [...messages];
+  for (let i = 0; i < 8; i++) {
+    grown.push({ role: 'assistant', content: [tu('g' + i)] }, { role: 'user', content: [tr('g' + i, 9000)] });
+    const now = send(cfg, grown).pays;
+    assert.deepEqual(now, first, `call ${i + 2} of the turn judges what the first did`);
+  }
+});
+
+test('a clear at the floor is not frozen as a deep one: the ask deepens at the next turn boundary', () => {
+  // The first clear of a session lands mid-turn, where nothing sits before the turn, so the deep ask comes out at
+  // the floor. Freezing that pinned the floor for the session (measured 2026-11-02: `asked: 100000` on every clear
+  // of every benchmark that day), so a floor-level clear now leaves the session free to deepen.
+  const cfg = proxyConfig({ 'clear-deep': true }, {});
+  const w = deepWatch();
+  const clear = (uses = 30) => ({ cleared: 400000, clearedUses: uses, editAcknowledged: true, input: 1, read: 200000, write: 1000 });
+  w.cfgFor('s', cfg);
+  assert.equal(w.response('s', cfg.clearAtLeast, cfg, clear()), 'shallow', 'the floor is not a deep clear');
+  assert.equal(w.cfgFor('s', cfg).deepState, null, 'nothing frozen, so the next boundary asks deep again');
+  assert.equal(w.response('s', cfg.clearAtLeast, cfg, clear()), false, 'said once, not on every clear until the next boundary');
+  assert.equal(w.cfgFor('s', cfg).deepState, null);
+  // the first ask above the floor is the one that freezes
+  assert.equal(w.response('s', cfg.clearAtLeast + 50000, cfg, clear(42)), 'frozen');
+  assert.deepEqual(w.cfgFor('s', cfg).deepState, { frozen: true, ask: cfg.clearAtLeast + 50000, uses: 42 });
+  // and a session whose ask is refused outright is still given up on, as before
+  const r = deepWatch();
+  r.cfgFor('x', cfg);
+  assert.equal(r.response('x', cfg.clearAtLeast + 1, cfg, { cleared: 0, clearedUses: 0, editAcknowledged: true, input: 1, read: 200000, write: 1000 }), 'refused');
+  assert.equal(r.cfgFor('x', cfg).clearDeep, false);
+});
+
+test('the remaining-calls estimate never falls as a session gets longer', () => {
+  let last = 0;
+  for (let n = 0; n <= 400; n += 5) {
+    const r = remainingCalls(n);
+    assert.ok(r >= last, `at ${n} calls the estimate fell from ${last} to ${r}`);
+    last = r;
+  }
 });
