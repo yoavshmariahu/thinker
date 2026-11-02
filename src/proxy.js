@@ -94,9 +94,13 @@ export function clearableBeforeTurn(cfg, messages) {
   const sum = a => a.slice(0, Math.max(0, a.length - keep)).reduce((x, y) => x + y, 0);
   return Math.round((sum(results) + (cfg.clearInputs ? sum(inputs) : 0)) * TOKENS_PER_CHAR);
 }
-// The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix up to the
-// first result a deeper ask would newly drop (the one after the `clearedUses` the server already holds, so the write
-// a deepening costs is the tail from there), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from
+// The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix a deeper ask
+// keeps (`prefix`: the system prompt and the tool definitions alone, so the write a deepening costs is everything
+// after them less what it drops. Claude Code sets its cache breakpoints on the system prompt and the newest messages,
+// and the API finds a cached prefix only at a breakpoint or within twenty blocks before one, so a prefix ending at
+// the first result a deeper ask drops, mid-conversation, is never found: measured 2026-11-02 (mlflow PR26265, smoke6),
+// two deeper asks read 12,707 tokens each, the system prompt, and wrote 60k, the whole post-clear context, where the
+// tail from the drop point was priced at 44-51k), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from
 // what sits before the turn: within a turn the request grows with every call, and a verdict that moved from one
 // call of a turn to the next would move the edit with it, which is the rewrite this exists to avoid.
 export function measureClearing(cfg, j, clearedUses = 0) {
@@ -105,15 +109,8 @@ export function measureClearing(cfg, j, clearedUses = 0) {
   const all = Array.isArray(j?.messages) ? j.messages : [];
   const messages = all.slice(0, turnStart(all));
   const head = txt(j?.system) + txt(j?.tools);
-  let seen = 0, at = -1;
-  for (let i = 0; i < messages.length && at < 0; i++) {
-    const m = messages[i];
-    if (m?.role !== 'user' || !Array.isArray(m.content)) continue;
-    for (const c of m.content) if (c?.type === 'tool_result' && seen++ === clearedUses) { at = i; break; }
-  }
   const prompt = tok(head + txt(messages));
-  const prefix = at < 0 ? prompt : tok(head + txt(messages.slice(0, at)));
-  return { prompt, prefix, before: clearableBeforeTurn(cfg, all), turn: turnId(all) };
+  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all), turn: turnId(all) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {

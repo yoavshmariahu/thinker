@@ -146,7 +146,7 @@ test('isRewrite: a call that wrote most of its context rather than reading it', 
   assert.equal(isRewrite({ read: 40000, write: 60000, input: 2 }), true, 'from LONG_CONTEXT up the same shape is a rewrite');
 });
 
-test('the request is measured before the turn: the prefix runs to the first result a deeper ask would newly drop', () => {
+test('the request is measured before the turn: the prefix a deeper ask keeps is the head, the system prompt and tools', () => {
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
   const messages = [{ role: 'user', content: 'first' }];
@@ -157,7 +157,9 @@ test('the request is measured before the turn: the prefix runs to the first resu
   assert.equal(turnId(messages), 2);
   const none = measureClearing(cfg, j, 0), two = measureClearing(cfg, j, 2);
   assert.equal(none.turn, 2);
-  assert.ok(none.prefix < two.prefix && two.prefix < two.prompt, 'the cached prefix grows with what the server already holds');
+  assert.equal(none.prefix, two.prefix, 'the head, whatever the server already holds: a prefix ending mid-conversation is not found');
+  assert.ok(two.prefix < two.prompt);
+  assert.equal(measureClearing(cfg, { ...j, system: 's'.repeat(4000), tools: [{ name: 't', description: 'd'.repeat(4000) }] }, 0).prefix, Math.floor((JSON.stringify('s'.repeat(4000)).length + JSON.stringify([{ name: 't', description: 'd'.repeat(4000) }]).length) * TOKENS_PER_CHAR));
   assert.equal(none.before, two.before, 'what sits before the turn is the same count either way');
   assert.ok(none.before > 0 && none.before < none.prompt);
   // the newest keep results and their calls are never cleared, so they are not clearable: 6 results of 10000 chars

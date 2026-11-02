@@ -66,11 +66,12 @@ export const freshRecord = (session, cfg) => ({
 export const clearable = (rec, m) => Math.max(0, m.before - rec.cleared);
 
 // What clearing `dropped` more tokens would cost and save, from the request as proxy.js measured it (`m`: `prompt`
-// tokens before the turn, `prefix` tokens up to the first result the clear would newly drop). The write is the tail
-// after that drop point less what the clear takes out of it: dropping 102,691 tokens from a 137k context cost a
-// 26,694-token write, because most of what followed the drop point was the dropped material (measured 2026-11-02).
-// A deeper ask only ever extends the cleared region oldest-first, so the cached prefix up to the old drop point
-// survives and only the tail is written: that is why several clears a session are fine, each priced as its own tail.
+// tokens before the turn, `prefix` the cached head the clear keeps: the system prompt and the tools, proxy.js). The
+// write is everything after that less what the clear takes out: dropping 102,691 tokens from a 137k context cost a
+// 26,694-token write, because most of what followed was the dropped material (measured 2026-11-02). A deeper ask
+// extends the cleared region oldest-first, but the cached prefix up to the old drop point is not found again (it ends
+// mid-conversation, where no breakpoint is), so each deepening writes the whole post-clear context: on Opus 5.5 a
+// 60k write for 12-28k dropped (smoke6, 2026-11-02), which is why a deeper ask rarely pays there.
 export function price(m, dropped, { ttl = '1h', cold = false, calls = 0, model = null } = {}) {
   const recache = Math.max(0, m.prompt - m.prefix - dropped);
   const cost = cold ? 0 : recache * writeRate(ttl);
