@@ -1,0 +1,4 @@
+initialize:
+  - name: thinker
+    run: |
+      npx -y @zerotimedev/thinker --yes --no-ui
