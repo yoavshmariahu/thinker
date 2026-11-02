@@ -35,15 +35,24 @@ export const COLD_MS = 65 * 60 * 1000;
 export const REMAINING = [[10, 40], [20, 40], [40, 68], [100, 90]];
 export const remainingCalls = n => (REMAINING.find(([at]) => n <= at) || [0, 90])[1];
 
-// a call that wrote most of its context into the cache rather than reading it, on a context worth caching
-export const isRewrite = u => ((u?.write || 0) > 0.5 * ((u?.read || 0) + (u?.write || 0) + (u?.input || 0))) && ((u?.read || 0) + (u?.write || 0)) > 20000;
+// For the report: a call that wrote most of its context into the cache rather than reading it, on a context long
+// enough for that to be a rewrite. A heuristic, and the gauge does not use it: under LONG_CONTEXT the newest result
+// alone can be half the context, and a gauge built on this ratio stopped two sessions on their second cleared call
+// over a 21k file read into a 40k conversation (2026-11-02).
+export const LONG_CONTEXT = 100000;
+export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
+// What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
+// plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
+// known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written
+// again. No estimate, no margin.
+export const rawOf = u => (u?.input || 0) + (u?.read || 0) + (u?.write || 0) + (u?.cleared || 0);
 
 // A session's record. `edit` is what every call sends until a decision changes it; `turn` the boundary the edit was
 // last decided at; `cleared` and `clearedUses` the server's own count from its last answer; `saved` and `written`
 // the gauge's two sides in input-equivalent tokens; `stopped` the reason the session no longer clears, if any.
 export const freshRecord = (session, cfg) => ({
   session, edit: { keep: cfg.keepMin ?? 0, ask: cfg.clearAtLeast }, turn: -1, changedAt: 0, calls: 0, lastAt: 0,
-  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, unmet: false, stopped: null,
+  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, raw: 0, unmet: false, stopped: null,
 });
 
 // What is clearable: what sits before the turn by the proxy's count, less what the server already cleared. The
@@ -97,6 +106,9 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
   rec.lastAt = now;
   if (!usage) return events;
   const cleared = usage.cleared || 0, uses = usage.clearedUses || 0;
+  // the prompt's growth since the previous answer, in the API's tokens; the first answer seen sets the mark
+  const raw = rawOf(usage), grew = rec.raw > 0 && raw > 0 ? Math.max(0, raw - rec.raw) : null;
+  if (raw > 0) rec.raw = raw;
   const ctx = (usage.input || 0) + (usage.read || 0) + (usage.write || 0);
   // a write the policy meant: the session's first clear, a call that carries a changed edit, or the edit in force
   // applied for the first time (the server clears at least what the ask says, so the count reaching the ask is that
@@ -112,15 +124,19 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
     rec.unmet = true; rec.edit = { ...rec.edit, ask: cfg.clearAtLeast };
     events.push({ unmet: true, asked: t.asked });
   }
-  // The cost side: a rewrite the policy did not plan. A call after a cold pause writes whatever the proxy does;
-  // every other rewrite after the first clear is the server moving the block, or the clear itself not holding, and
-  // it counts against what the clears have saved. The session stops once those rewrites cost more than the clears
-  // have saved plus what they can still save over the calls the session likely has left: one 245k rewrite after a
-  // 100k clear needs ~200 more calls to earn back, and the median session has 50 to 90.
-  if (rec.clears > 0 && !planned && !cold && isRewrite(usage)) {
-    rec.written += (usage.write || 0) * writeRate(usage.write5m > 0 && !(usage.write1h > 0) ? '5m' : '1h');
-    const ahead = rec.cleared * READ * remainingCalls(rec.calls);
-    if (rec.written > rec.saved + ahead) { rec.stopped = 'uneconomic'; events.push({ stopped: 'uneconomic', saved: Math.round(rec.saved), ahead: Math.round(ahead), written: Math.round(rec.written) }); }
+  // The cost side: what the API wrote beyond the request's own growth, on a call the policy did not plan -- not the
+  // session's first clear, not a changed edit's call, not the ask's first application, not after a cold pause (that
+  // request writes its context whatever the proxy does). It is the prefix written again: the server moving the block,
+  // or the clear itself not holding. The session stops once those writes cost more than the clears have saved plus
+  // what they can still save over the calls the session likely has left: one 245k rewrite after a 100k clear needs
+  // ~200 more calls to earn back, and the median session has 50 to 90.
+  if (rec.clears > 0 && !planned && !cold && grew != null) {
+    const again = Math.max(0, (usage.write || 0) - grew);
+    if (again > 0) {
+      rec.written += again * writeRate(usage.write5m > 0 && !(usage.write1h > 0) ? '5m' : '1h');
+      const ahead = rec.cleared * READ * remainingCalls(rec.calls);
+      if (rec.written > rec.saved + ahead) { rec.stopped = 'uneconomic'; events.push({ stopped: 'uneconomic', saved: Math.round(rec.saved), ahead: Math.round(ahead), written: Math.round(rec.written), again: Math.round(again) }); }
+    }
   }
   return events;
 }
