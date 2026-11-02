@@ -162,6 +162,20 @@ const describe = (c: Clear) => `cleared ${c.cleared} tool ${c.cleared === 1 ? 'r
 
 const contextTokens = async ($: any) => { try { return (await $.session.usage()).context.tokens ?? 0 } catch { return 0 } }
 
+// What a clear would take right now, read from the conversation before anything is started. The engine
+// prints a skipped compaction under the answer ("not compacted: <reason>"), so an attempt that was never
+// going to clear enough became a line in the session every time the context grew past the trigger again
+// (reported from a desktop session, 2026-11-02). Checking first means the automatic clear says nothing at
+// all until it has something to do, and no turn is spent on a compaction that gets refused. Returns null
+// where the transcript cannot be read, which leaves the old behavior: schedule, and let the skip stand.
+async function wouldClear($: any, p: Policy): Promise<Clear | null> {
+  try { return clearOld((await $.session.messages()) as any, p) } catch { return null }
+}
+
+// enough to be worth a compaction turn: `clearAtLeast` for the automatic clear, anything at all by hand
+export const worthIt = (c: Clear | null, p: Policy, from: string) =>
+  !c || (c.cleared > 0 && (from !== 'auto' || c.tokens >= p.clearAtLeast))
+
 function schedule($: any, from: string) {
   pending = true; pendingFrom = from
   void contextTokens($).then(t => { if (t) before = t })
@@ -227,7 +241,11 @@ export const register: Register = (on) => {
     if (!e.agentId && auto && !pending) {
       try {
         const tokens = (await $.session.usage()).context.tokens ?? 0
-        if (tokens >= policy.trigger && tokens >= lastTried + RETRY_GROWTH) { lastTried = tokens; schedule($, 'auto') }
+        if (tokens >= policy.trigger && tokens >= lastTried + RETRY_GROWTH) {
+          lastTried = tokens
+          // nothing worth clearing yet: wait for the context to grow, and say nothing in the meantime
+          if (worthIt(await wouldClear($, policy), policy, 'auto')) schedule($, 'auto')
+        }
       } catch {}
     }
     return r
@@ -266,6 +284,8 @@ export const register: Register = (on) => {
 
   on('command.run', { command: COMMAND }, async ($) => {
     if (pending) return { text: 'thinker-clear: a clear is already on its way' }
+    // asked for by hand: answer here rather than spending a turn on a compaction that would be refused
+    if (!worthIt(await wouldClear($, policy), policy, 'manual')) return { text: 'thinker-clear: nothing old enough to clear' }
     schedule($, 'manual')
     return { text: 'thinker-clear: clearing old tool results in a moment (the engine\'s /compact, answered by thinker without a summary)' }
   })

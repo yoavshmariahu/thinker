@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -89,4 +89,20 @@ test('thinker\'s own proxy is recognized by its loopback address', () => {
   expect(proxied('http://localhost:3000/')).toBe(true)
   expect(proxied('https://api.anthropic.com')).toBe(false)
   expect(proxied(undefined)).toBe(false)
+})
+
+test('a clear that would be refused is never started: no compaction turn, so no "not compacted" line', () => {
+  const nothing = clearOld([prompt('go'), call('a'), result('a', big(5000))] as any)
+  expect(nothing.cleared).toBe(0)
+  expect(worthIt(nothing, DEFAULTS, 'auto')).toBe(false)
+  expect(worthIt(nothing, DEFAULTS, 'manual')).toBe(false)
+  // something to clear, but under `clearAtLeast`: by hand it runs, by itself it waits and says nothing
+  const some = clearOld([prompt('go'), call('a'), result('a', big(5000)), prompt('next'), call('b'), result('b', big(100))] as any, { keepMin: 0 })
+  expect(some.cleared).toBe(1)
+  expect(some.tokens).toBeLessThan(DEFAULTS.clearAtLeast)
+  expect(worthIt(some, DEFAULTS, 'auto')).toBe(false)
+  expect(worthIt(some, DEFAULTS, 'manual')).toBe(true)
+  expect(worthIt(some, { ...DEFAULTS, clearAtLeast: 100 }, 'auto')).toBe(true)
+  // the transcript could not be read: schedule as before and let the engine's skip stand
+  expect(worthIt(null, DEFAULTS, 'auto')).toBe(true)
 })
