@@ -15,7 +15,38 @@ const CLI = path.join(ROOT, 'src', 'cli.js');
 const MOD = path.join(ROOT, 'src', 'integrations', 'claude-clear');
 const tmp = prefix => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 const D = path.delimiter;
+const MOD_SRC = path.join('src', 'integrations', 'claude-clear', 'hooks', 'register.tsx');
 const src = () => fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+// the value of an `export const NAME = <expr>` in the mod, so a constant written as `65 * 60 * 1000` compares
+const modConst = (s, name) => {
+  const m = s.match(new RegExp(`export const ${name} = (.+)\\n`));
+  return m ? new Function(`return ${m[1]}`)() : undefined;
+};
+
+// Every key of the proxy's clearing policy must reach the desktop door, or say here why it cannot.
+// The drift this stops: PR #588 turned `clearDeep` on in src/proxy.js alone, and the suite stayed green
+// because the test below pinned four constants by hand and knew nothing of a fifth key. Desktop sessions
+// kept a policy the replay had measured as a loss until it was found by hand. So the check is keyed on
+// `Object.keys(PROXY_DEFAULTS)` now: a key added there fails this test until someone either wires it into
+// the mod or writes down why a mod inside the session cannot have it.
+//   reads   - what `policyOf` must contain for the key to reach the mod's own policy
+//   mirrors - a constant in the mod that must equal the proxy's default (`value` where it differs by design)
+//   acts    - what the mod must contain to act on the key, where reading it is not the whole of it
+//   exempt  - why the key has no desktop meaning; a sentence, not a word
+// What this cannot check: that the two doors *behave* alike. It pins the policy surface, not the mechanism;
+// the mod's own behaviour is `claude plugin test src/integrations/claude-clear`.
+const DESKTOP_POLICY = {
+  trigger: { reads: 'p.trigger,', mirrors: 'TRIGGER' },
+  clearAtLeast: { reads: 'p.clearAtLeast,', mirrors: 'CLEAR_AT_LEAST' },
+  keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
+  // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
+  holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
+  clearInputs: { reads: 'p.clearInputs !== false' },
+  clearThinking: { reads: 'p.clearThinking !== false' },
+  clearDeep: { reads: 'p.clearDeep !== false', acts: 'holdsBlock(policy, { clearedAt, sinceTurn })' },
+  keep: { exempt: 'the API\'s own keep count, sent as an edit parameter; the mod keeps the newest turn itself in clearOld, so there is nothing to send and no value that could differ within a turn' },
+  upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
+};
 
 test('the clearing mod ships beside the CLI, with a manifest and one hooks module', () => {
   assert.equal(claudeClearDir(CLI), MOD);
@@ -24,32 +55,38 @@ test('the clearing mod ships beside the CLI, with a manifest and one hooks modul
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(MOD, 'hooks', 'hooks.json'), 'utf8')).modules, ['./register.tsx']);
 });
 
-test('the mod clears by the proxy\'s policy: same trigger, floor, kept results, holdout and token rate', () => {
+test('every key of the proxy\'s clearing policy reaches the desktop door, or says why it cannot', () => {
   const s = src();
-  assert.match(s, new RegExp(`export const TRIGGER = ${PROXY_DEFAULTS.trigger}\\n`));
-  assert.match(s, new RegExp(`export const CLEAR_AT_LEAST = ${PROXY_DEFAULTS.clearAtLeast}\\n`));
-  assert.match(s, new RegExp(`export const KEEP_MIN = ${PROXY_DEFAULTS.keepMin}\\n`));
-  assert.match(s, new RegExp(`export const HOLDOUT = ${SERVICE_HOLDOUT}\\n`));
-  const rate = s.match(/export const TOKENS_PER_CHAR = (.+)\n/);
-  assert.ok(rate && new Function(`return ${rate[1]}`)() === TOKENS_PER_CHAR, 'tokens per char match proxy.js');
-  // the same config keys the service reads (proxy-service.js:serviceArgs), plus the desktop switch
-  for (const key of ['keepMin', 'clearAtLeast', 'trigger', 'holdout']) assert.ok(s.includes(`p.${key},`), `reads proxy.${key}`);
-  assert.ok(s.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
-  // the mod clears thinking at a compaction boundary, one rewrite; the proxy's thinking edit is off since 2026-11-02 (proxy.js)
-  assert.equal(PROXY_DEFAULTS.clearInputs, true, 'clearInputs is on in the proxy');
-  assert.equal(PROXY_DEFAULTS.clearThinking, false, 'the proxy\'s thinking edit is off');
-  for (const key of ['clearInputs', 'clearThinking']) {
-    assert.ok(s.includes(`p.${key} !== false`), `proxy.${key}: false switches it off here as in proxy-service.js:serviceArgs`);
+  for (const key of Object.keys(PROXY_DEFAULTS)) {
+    assert.ok(DESKTOP_POLICY[key], `proxy.${key} is new in PROXY_DEFAULTS and this door knows nothing about it. `
+      + `Either honour it in ${MOD_SRC} (policyOf, and whatever reads it) and add a { reads } entry to DESKTOP_POLICY `
+      + `in this test, or add { exempt: '<why a mod inside the session cannot have it>' }.`);
   }
-  // Clear once and hold the block (proxy.js, on by default since 0.2.19). The proxy freezes the keep because the
-  // block is the server's; here each clear is a rewrite of the conversation, so the holding is the whole of it.
-  // #588 turned the deep clear on in proxy.js alone and this test did not notice, the four constants above being
-  // all it pinned -- so the switch and the cold pause are pinned here too.
-  assert.equal(PROXY_DEFAULTS.clearDeep, true, 'the proxy clears deep by default');
-  assert.ok(s.includes('p.clearDeep !== false'), 'proxy.clearDeep: false switches the holding off here too');
-  assert.ok(s.includes('holdsBlock(policy, { clearedAt, sinceTurn })'), 'turn.complete holds the block after a clear');
-  const cold = s.match(/export const COLD_MS = (.+)\n/);
-  assert.ok(cold && new Function(`return ${cold[1]}`)() === COLD_MS, 'the cache-cold pause matches proxy.js');
+  for (const key of Object.keys(DESKTOP_POLICY)) {
+    assert.ok(key in PROXY_DEFAULTS, `DESKTOP_POLICY names proxy.${key}, which PROXY_DEFAULTS no longer has`);
+  }
+  const policy = s.slice(s.indexOf('export function policyOf'), s.indexOf('export const holdsBlock'));
+  const shape = s.match(/export type Policy = \{(.+?)\}/s)?.[1] ?? '';
+  const defaults = s.match(/export const DEFAULTS: Policy = \{(.+?)\}/s)?.[1] ?? '';
+  for (const [key, rule] of Object.entries(DESKTOP_POLICY)) {
+    if (rule.exempt) {
+      assert.ok(rule.exempt.length > 40, `the exemption for proxy.${key} must say why, in a sentence`);
+      continue;
+    }
+    assert.ok(policy.includes(rule.reads), `policyOf must read proxy.${key} (\`${rule.reads}\`)`);
+    assert.ok(new RegExp(`\\b${key}\\b`).test(shape), `the mod's Policy type must carry ${key}`);
+    assert.ok(new RegExp(`\\b${key}:`).test(defaults), `the mod's DEFAULTS must set ${key}`);
+    if (rule.mirrors) {
+      const want = 'value' in rule ? rule.value : PROXY_DEFAULTS[key];
+      assert.equal(modConst(s, rule.mirrors), want, `${rule.mirrors} in the mod is the proxy's ${key} (${want})`);
+    }
+    if (rule.acts) assert.ok(s.includes(rule.acts), `the mod must act on proxy.${key}, not only read it`);
+  }
+  // the mod's own switch, which the proxy has no use for: the automatic clearing off, the command still there
+  assert.ok(policy.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
+  // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
+  assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
+  assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches proxy.js');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
