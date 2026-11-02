@@ -175,8 +175,12 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **The clearing policy: clear, freeze what was cleared, clear again when it pays (MANDATORY, 2026-11-02, the owner's call; `src/clearing.js`, `test/clearing.test.js`):**
 - A clear is an investment: one cache write now, of everything after the first result it drops, against a cache read
-  of what it dropped on every later call. At list a 1h write is ~2x an input token and a read ~2.5%, so a written token
-  needs ~80 later reads (`WRITE_1H`, `WRITE_5M`, `READ`). That is the whole policy. Four things follow from it, and
+  of what it dropped on every later call. At list a 1h write is 2x an input token and a read 10% of one, so a written token
+  needs 20 later reads (`WRITE_1H`, `WRITE_5M`, `READ`; the mod's `WRITE_RATIO` is their quotient, pinned by
+  `test/claude-clear.test.js`). Until 2026-11-02 evening `READ` was 0.025, a fourth of the list rate: every clear was
+  valued at a quarter of its saving, and the gauge stopped the first paired smoke session one call after its first
+  clear (a block the server moved from 12 to 11 results, 119k written, against 100k cleared read back over 40 calls
+  at 2.5%), after which the session ran unedited to a 400k context, +40% against bare. That is the whole policy. Four things follow from it, and
   nothing else is in the module:
   1. **The decision** (`decide`), at a turn boundary only (`turnId`: the count of the person's prompts). `clearable` is
      what sits before the turn by the proxy's count (`proxy.js:measureClearing`) less what the server reported cleared:
@@ -249,7 +253,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   holdout stays for that.
 
 **The clearing defaults, and what the replay said (2026-10-28, the owner's call; history of the policy above):**
-- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
+- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read 10%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
 - Judge any change to this by replaying transcripts and counting cache **write** tokens, never reads.
 - **A keep that grows within a turn rewrites the cache on every call (2026-11-02).** `turn` used to send the count of the

@@ -3,8 +3,9 @@
 //
 // A clear is an investment. It costs one cache write now, of everything that sits after the first result it drops,
 // and it pays back a cache read on every later call that no longer carries what was dropped. At list a 1h write is
-// ~2x an input token, a 5m write ~1.25x, a cache read ~2.5% of one, so a written token needs ~80 later reads to
-// break even (50 at the 5-minute rate). That is the whole policy; three rules follow from it.
+// ~2x an input token, a 5m write ~1.25x, a cache read 10% of one, so a written token needs 20 later reads to
+// break even (12.5 at the 5-minute rate). Until 2026-11-02 the read was priced at 2.5%, a fourth of its list rate,
+// so every clear was valued at a quarter of what it saves and the gauge gave sessions up after one moved block. That is the whole policy; three rules follow from it.
 //
 // 1. The edit changes only at a turn boundary, and only when clearing more pays (`decide`). Between changes the same
 //    edit goes on every call, byte for byte: that is the freeze. What was cleared stays cleared, a later clear only
@@ -21,7 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 // list-price ratios to an input token: what a cache write costs by its TTL, what a cache read costs
-export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.025;
+export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.1;
 export const writeRate = ttl => (ttl === '5m' ? WRITE_5M : WRITE_1H);
 // A clear asks for this share of what is clearable. An ask the API cannot meet is an edit it does not apply at all,
 // and a count by characters overshoots prose, so the ask stays under the estimate.

@@ -113,8 +113,9 @@ test('a clear is made when what it drops, read back over the calls left, outweig
   expect(clearPays(DEFAULTS, { dropped: 0, recache: 0, calls, idle: 0, cleared: false })).toBe(false)
   // the write is small beside the saving: pays
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 20000, calls, idle: 0, cleared: true })).toBe(true)
-  // the write is most of the context: does not pay over the calls a session this long has left
-  expect(clearPays(DEFAULTS, { dropped: 100000, recache: 100000, calls, idle: 0, cleared: true })).toBe(false)
+  // the write is three times what it drops (6M at the write rate against 4M read back): does not pay over the calls
+  // a session this long has left
+  expect(clearPays(DEFAULTS, { dropped: 100000, recache: 300000, calls, idle: 0, cleared: true })).toBe(false)
   // the line itself: remaining calls x dropped against WRITE_RATIO x recache
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO), calls, idle: 0, cleared: true })).toBe(true)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO) + 1, calls, idle: 0, cleared: true })).toBe(false)

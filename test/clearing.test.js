@@ -18,7 +18,8 @@ test('a clear is priced as the tail it writes against the reads it saves over th
   assert.equal(p.recache, 350000 - 10000 - 200000, 'what is written: the prompt after the prefix, less what is dropped');
   assert.equal(p.cost, p.recache * WRITE_1H);
   assert.equal(p.saving, 200000 * READ * remainingCalls(0));
-  assert.equal(p.pays, false, 'a 140k write is 80 reads of it: not repaid by 40 calls');
+  assert.equal(p.pays, true, 'a 140k write is 20 reads of it, 2.8M; 200k read back over 40 calls is 8M');
+  assert.equal(price(m(300000), 20000, { ttl: '1h', calls: 0 }).pays, false, 'a 320k write for 20k dropped: 6.4M against 800k');
   assert.equal(price(m(300000), 200000, { ttl: '5m' }).cost, p.recache * WRITE_5M, 'the write rate follows the cache TTL');
   // the same clear with the cached prefix covering most of the prompt: a small tail, and it pays
   assert.equal(price(m(300000, { prefix: 330000 }), 200000, { ttl: '1h' }).pays, true);
@@ -90,16 +91,18 @@ test('the record after an answer: the clear\'s own write is planned, a move is l
     // the server moved the block by one under the same edit, without a rewrite: logged, nothing else
     ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 300000, write: 2000, input: 2 }, { now: now + 2000 });
     assert.deepEqual(ev, [{ moved: true, from: 100, to: 101 }]); assert.equal(rec.written, 0); assert.equal(rec.moves, 1);
-    // the same, and this time the prefix was written over: the cost the clearing caused, and it outweighs what
-    // the clear saved and can still save over the calls left, so the session is stopped
+    // the same, and this time the prefix was written over: the cost the clearing caused. The prompt did not grow
+    // between the two answers (raw 514002 -> 482002), so all 250000 written is the prefix written again; one such
+    // rewrite (500k at the write rate) is still under what the clear saved and can save over the 40 calls left
     ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 20000, write: 250000, input: 2 }, { now: now + 3000 });
+    assert.deepEqual(ev, []); assert.equal(rec.written, 250000 * WRITE_1H); assert.equal(rec.stopped, null);
+    // a second rewrite of the same size outweighs it, so the session is stopped
+    ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 20000, write: 250000, input: 2 }, { now: now + 4000 });
     assert.equal(ev.length, 1); assert.equal(ev[0].stopped, 'uneconomic');
-    // the prompt did not grow between the last two answers (raw 514002 -> 482002), so all 250000 written is the
-    // prefix written again
     assert.equal(ev[0].again, 250000, 'what was written beyond the prompt\'s own growth');
-    assert.equal(ev[0].written, 250000 * WRITE_1H); assert.ok(ev[0].written > ev[0].saved + ev[0].ahead);
+    assert.equal(ev[0].written, 2 * 250000 * WRITE_1H); assert.ok(ev[0].written > ev[0].saved + ev[0].ahead);
     assert.equal(rec.stopped, 'uneconomic');
-    assert.deepEqual(response(rec, cfg, t(undefined, false, 210000), { cleared: 0, read: 1, write: 1 }, now + 4000), [], 'said once');
+    assert.deepEqual(response(rec, cfg, t(undefined, false, 210000), { cleared: 0, read: 1, write: 1 }, now + 5000), [], 'said once');
     // on disk, and a new store (a restarted proxy) reads the same
     s.write(rec);
     assert.equal(store(dir, cfg).read('x').stopped, 'uneconomic');

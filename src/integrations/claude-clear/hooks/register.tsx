@@ -30,7 +30,7 @@ export const MIN_CHARS = 200
 // cleared stays cleared: `clearOld` leaves a placeholder alone, so a later clear only takes what came after. A pause
 // past the cache's hour makes the next request write its context anyway, so a clear then costs nothing extra.
 export const COLD_MS = 65 * 60 * 1000
-export const WRITE_RATIO = 80
+export const WRITE_RATIO = 20 // WRITE_1H / READ of src/clearing.js: a 1h write is 2x an input token, a cache read a tenth
 export const REMAINING: [number, number][] = [[10, 40], [20, 40], [40, 68], [100, 90]]
 export const remainingCalls = (n: number) => (REMAINING.find(([at]) => n <= at) || [0, 90])[1]
 export const DELAY_MS = 1500

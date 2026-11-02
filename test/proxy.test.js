@@ -500,7 +500,7 @@ test('the gauge stops editing a session whose rewrites after a clear cost more t
   // own, every one after it is the server moving the block, and the first of those already outweighs what the
   // clear has saved and can still save over the calls a session this long has left (clearing.js:response)
   const sse = [
-    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":150000,"output_tokens":1}}}\n\n',
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":400000,"output_tokens":1}}}\n\n',
     'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":100,"cleared_input_tokens":140000}]}}\n\n',
     'event: message_stop\ndata: {"type":"message_stop"}\n\n',
   ];

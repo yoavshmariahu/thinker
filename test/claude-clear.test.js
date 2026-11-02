@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS } from '../src/clearing.js';
+import { COLD_MS, WRITE_1H, READ } from '../src/clearing.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -88,6 +88,9 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
   assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
   assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
+  // one price: the mod's reads-per-written-token is the proxy's write rate over its read rate (20 at list, not the
+  // 80 of a read priced at 2.5% that stopped the first paired smoke on 2026-11-02)
+  assert.equal(modConst(s, 'WRITE_RATIO'), WRITE_1H / READ, 'WRITE_RATIO is WRITE_1H / READ of clearing.js');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
