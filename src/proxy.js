@@ -68,7 +68,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true, clearEconomics: false };
 // The deep clear (`--clear-deep`, `proxy: { clearDeep: false }` turns it off; on by default from 0.2.19 at the owner's
 // decision, 2026-11-02, before the live week: the fixed ask it replaces was a known loss at list on every model, below):
 // clear once, deep, and hold the block. The API clears the oldest results first and only as much as `clear_at_least`
@@ -89,6 +89,83 @@ export const DEEP_MARGIN = 0.7;
 // text of their calls too (an ask that counted the results alone stopped the API half way, since the inputs it cleared
 // with them counted toward the ask: 296k of inputs beside 345k of results in one session here).
 export const clearableBeforeTurn = (cfg, messages) => resultsBeforeTurn(messages) + (cfg.clearInputs ? inputsBeforeTurn(messages) : 0);
+// Whether a clear pays for itself, decided before one is asked for (the owner's call, 2026-11-02).
+//
+// A clear costs one cache write now and saves a cache read on every later call. At list prices a 1h write is ~2x an
+// input token and a cache read ~2.5% of one, so one written token needs ~80 avoided reads to break even (~50 at the
+// 5-minute rate). Hence: clear when  remaining calls >= RATIO * recache / dropped.
+//
+// Backtested on this machine's proxy log, 711 sessions, the first clear of each (the decision reading only what the
+// proxy knew then, the outcome what the session went on to do): of 8 clears it would have kept, 6 paid, +2.67M
+// input-equivalents; of 18 it would have skipped, 5 paid, -1.18M. All 26 as they ran came to +1.49M, the kept ones
+// alone to +2.67M. The skipped clears needed a median of 121 further calls and had 53.
+export const CLEAR_WRITE_1H = 2.0, CLEAR_WRITE_5M = 1.25, CLEAR_READ = 0.025;
+export const clearRatio = ttl => (ttl === '5m' ? CLEAR_WRITE_5M : CLEAR_WRITE_1H) / CLEAR_READ;
+// median further calls a session makes, by the calls it has made, measured on this machine's 146 proxied sessions
+// (5 -> 47, 10 -> 47, 20 -> 40, 40 -> 68, 60 -> 90, 100 -> 92, 150 -> 68). Flat-ish and heavy-tailed, so the steps
+// are coarse on purpose: a curve fitted to 146 sessions would be false precision.
+export const REMAINING = [[10, 40], [20, 40], [40, 68], [100, 90]];
+export const remainingCalls = n => (REMAINING.find(([at]) => n <= at) || [0, 90])[1];
+
+// What a clear would drop and what it would cost to re-cache, estimated from the request the proxy already holds.
+// The re-cache is what REMAINS after the first dropped result, not what was there before: dropping 102,691 tokens
+// from a 137k context cost a 26,694-token write, because most of what followed the drop point was the dropped
+// material itself (measured 2026-11-02). So recache = (prompt - prefix before the drop point) - dropped.
+export function clearEconomics(cfg, j, ask) {
+  const txt = v => { try { return v == null ? 0 : JSON.stringify(v).length; } catch { return 0; } };
+  const tok = chars => Math.floor(chars * TOKENS_PER_CHAR);
+  const all = j.messages || [];
+  // Everything is weighed as it stood BEFORE the current turn, as the clearable amount and the deep ask already are
+  // (turnStart). Within a turn the request grows with every tool call, so a verdict that read the whole request
+  // would move from one call of the turn to the next -- and an edit that comes and goes rewrites the prefix itself,
+  // which is the cost this check exists to avoid (AGENTS.md, MANDATORY). Leaving the current turn out understates
+  // the re-cache, so the check errs towards clearing rather than towards withholding.
+  const messages = all.slice(0, turnStart(all));
+  const head = txt(j.system) + txt(j.tools);
+  const prompt = tok(head + txt(messages));
+  const clearable = clearableBeforeTurn(cfg, all);
+  const dropped = Math.min(ask, clearable);
+  // the cached prefix: the head plus whatever precedes the first result the API would drop
+  const i = messages.findIndex(m => Array.isArray(m?.content) && m.content.some(c => c?.type === 'tool_result'));
+  const before = tok(head + (i < 0 ? txt(messages) : txt(messages.slice(0, i))));
+  const recache = Math.max(0, prompt - before - dropped);
+  return { prompt, dropped, recache, clearable, before };
+}
+
+// The decision, and the numbers behind it so the log can carry them and the estimate can be checked against the
+// write that actually followed. A clear the API cannot meet drops nothing and costs nothing, so an unmet ask is
+// never refused here: `dropped` is what it would clear, and below the floor the API itself declines.
+export function clearPays(cfg, j, ask, { calls = 0, ttl = '1h' } = {}) {
+  const e = clearEconomics(cfg, j, ask);
+  if (!e.dropped) return { ...e, pays: true, need: 0, have: 0, why: 'nothing to drop' };
+  const need = Math.ceil(clearRatio(ttl) * e.recache / e.dropped);
+  const have = remainingCalls(calls);
+  return { ...e, need, have, pays: have >= need };
+}
+
+
+// One verdict per session, taken at the first call where a clear is possible and kept for the session's life.
+// It may not move between two calls of a turn: an edit that appears or disappears changes the prompt near its top
+// and writes the prefix over, which is the cost this check exists to avoid. Deciding once cannot move.
+export function payWatch() {
+  const of = new Map(), calls = new Map(), ttl = new Map();
+  return {
+    decisionFor: session => (session ? of.get(session) : undefined),
+    callsFor: session => (session ? calls.get(session) || 0 : 0),
+    ttlFor: session => (session ? ttl.get(session) || '1h' : '1h'),
+    saw(session, usage) {
+      if (!session) return;
+      calls.set(session, (calls.get(session) || 0) + 1);
+      // which TTL this account's writes are at, read from the answer rather than assumed
+      if (usage?.write5m > 0 && !(usage?.write1h > 0)) ttl.set(session, '5m');
+      else if (usage?.write1h > 0) ttl.set(session, '1h');
+    },
+    record(session, pays) { if (session && pays != null && !of.has(session)) of.set(session, !!pays); },
+  };
+}
+
+export function payWatchReset() { /* kept for tests that want a fresh map */ }
+
 export const deepAsk = (cfg, messages) => cfg.clearDeep ? Math.max(cfg.clearAtLeast, Math.floor(DEEP_MARGIN * clearableBeforeTurn(cfg, messages))) : cfg.clearAtLeast;
 // The frozen block: the API was seen to clear `tool uses before the turn - keep - FROZEN_OFFSET` results when keep was
 // what bound it (108 of 112 at keep 3, 61 at keep 50; 2026-10-29), so a keep of that many holds the cleared count where
@@ -135,7 +212,18 @@ export function deepWatch({ now = () => Date.now() } = {}) {
       const ctx = (usage?.input || 0) + (usage?.read || 0) + (usage?.write || 0);
       if (asked > cfg.clearAtLeast && usage?.editAcknowledged && !(usage.cleared > 0) && ctx >= cfg.trigger && !s.frozen) { s.refused = true; return 'refused'; }
       if (!(usage?.cleared > 0)) return false;
-      if (!s.frozen) { s.frozen = true; s.ask = asked; s.uses = usage.clearedUses || 0; const thawed = s.thawed; s.thawed = false; return thawed ? 'refrozen' : 'frozen'; }
+      // A floor-level ask is not a deep clear and must not be frozen as one. The first clear of a session nearly
+      // always lands mid-turn -- the agent is reading file after file and the context crosses the trigger while it
+      // works -- and `clearableBeforeTurn` is ~nothing then, so `deepAsk` comes out at the floor. Freezing that
+      // pinned the floor for the session's life, and the deep clear never deepened at the next turn boundary where
+      // the same formula would have asked for the lot. Measured 2026-11-02: `asked: 100000` on every clear of every
+      // benchmark run that day, while a real session whose first clear happened to land on a boundary asked 206k.
+      // So a clear at the floor leaves the session unfrozen, free to deepen at the next boundary; the block is
+      // frozen on the first clear that actually asked deep.
+      if (!s.frozen) {
+        if (!(asked > cfg.clearAtLeast)) { if (s.saidShallow) return false; s.saidShallow = true; return 'shallow'; }
+        s.frozen = true; s.ask = asked; s.uses = usage.clearedUses || 0; const thawed = s.thawed; s.thawed = false; return thawed ? 'refrozen' : 'frozen';
+      }
       const now_uses = usage.clearedUses || 0;
       if (now_uses !== s.uses) {
         const from = s.uses; s.uses = now_uses; s.moves = (s.moves || 0) + 1;
@@ -306,6 +394,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
   cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
+  cfg.clearEconomics = onOff('clear-economics', 'THINKER_PROXY_CLEAR_ECONOMICS', PROXY_DEFAULTS.clearEconomics);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -440,9 +529,15 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the API applies edits in order; the thinking edit Claude Code sends stays first, unless the proxy's own thinking edit
   // takes its place (thinkingEdit, `--clear-thinking`): then that one is first and the agent's goes
   const plan = deepPlan(cfg, j.messages, cfg.deepState), edit = clearEdit(cfg, j.messages, plan), thinking = thinkingEdit(cfg, j.messages);
+  // Whether this clear earns its own cache write back (clearPays). One verdict per session, taken here on the first
+  // call that could clear and then handed back through cfg.payDecision, because an edit that comes and goes between
+  // two calls of a turn rewrites the prefix itself.
+  const pays = cfg.clearEconomics === false ? null : clearPays(cfg, j, edit.clear_at_least.value, { calls: cfg.payCalls || 0, ttl: cfg.payTtl || '1h' });
+  const paysRow = pays ? { dropped: pays.dropped, recache: pays.recache, need: pays.need, have: pays.have } : null;
+  if (pays && !(cfg.payDecision === undefined ? pays.pays : cfg.payDecision)) return { body, reason: 'uneconomic', model: j.model, pays: paysRow, paid: false };
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(plan.deep ? { deep: plan.deep } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(plan.deep ? { deep: plan.deep } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}), ...(paysRow ? { pays: paysRow, paid: true } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -456,6 +551,13 @@ export function usageTap() {
   const take = ev => {
     const u = ev?.message?.usage || ev?.usage;
     if (u) for (const k of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens', 'output_tokens']) if (u[k] != null) seen[k] = u[k];
+    // Which TTL the write was at, because it is most of what a clear costs and the two prices differ by a third:
+    // a 1h write is ~2x an input token, a 5m write ~1.25x, against a cache read at ~2.5% of one. So the same clear
+    // is worth 80 avoided reads at 1h and 50 at 5m, and `clearPays` cannot judge a clear without knowing which.
+    if (u?.cache_creation) {
+      if (u.cache_creation.ephemeral_1h_input_tokens != null) seen.write1h = u.cache_creation.ephemeral_1h_input_tokens;
+      if (u.cache_creation.ephemeral_5m_input_tokens != null) seen.write5m = u.cache_creation.ephemeral_5m_input_tokens;
+    }
     const cm = ev?.context_management || ev?.message?.context_management || ev?.delta?.context_management;
     // Whether the answer spoke about the edit at all, apart from what it cleared. A gateway that passes the field
     // on reports `applied_edits`, even empty; one that strips it on the way sends nothing back, and the request
@@ -481,6 +583,7 @@ export function usageTap() {
       const cleared = (seen.applied || []).filter(e => e.type === EDIT_TYPE);
       return {
         input: seen.input_tokens, read: seen.cache_read_input_tokens, write: seen.cache_creation_input_tokens, out: seen.output_tokens,
+        write1h: seen.write1h, write5m: seen.write5m,
         cleared: cleared.reduce((a, e) => a + (e.cleared_input_tokens || 0), 0), clearedUses: cleared.reduce((a, e) => a + (e.cleared_tool_uses || 0), 0), editAcknowledged: !!seen.acknowledged,
       };
     },
@@ -509,7 +612,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
   let editRejected = false;
-  const cache = rewriteWatch(), deep = deepWatch();
+  const cache = rewriteWatch(), deep = deepWatch(), pay = payWatch();
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -537,7 +640,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
-      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, deep.cfgFor(sessionOf(req.headers), requestCfg)); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...deep.cfgFor(sessionOf(req.headers), requestCfg), payDecision: pay.decisionFor(sessionOf(req.headers)), payCalls: pay.callsFor(sessionOf(req.headers)), payTtl: pay.ttlFor(sessionOf(req.headers)) }); } catch { t = { body: raw, reason: 'error' }; }
       if (t.injected && cache.broken(sessionOf(req.headers))) t = { body: raw, reason: 'cache-broken', model: t.model };
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
@@ -622,14 +725,15 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             recorded = true;
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
+            if (tap) { pay.saw(sessionOf(req.headers), usage); if (t.pays?.dropped > 0) pay.record(sessionOf(req.headers), t.paid); }
             if (tap && t.injected && t.protocol !== 'responses') {
               const why = cache.response(sessionOf(req.headers), usage);
               if (why) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, why, ...(why === 'streak' ? { streak: REWRITE_STREAK } : cache.rateOf(sessionOf(req.headers))), read: usage.read, write: usage.write, cleared: usage.cleared });
             }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.deep ? { deep: t.deep, asked: t.asked } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
-            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d.unfroze ? 'proxy-deep-unfrozen' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved || d.unfroze ? { from: d.from, to: d.to, ...(d.unfroze ? { moves: d.moves, fell: d.fell } : {}) } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
+              injected: !!t.injected, ...(t.pays ? { pays: t.pays } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.deep ? { deep: t.deep, asked: t.asked } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d === 'shallow' ? 'proxy-deep-shallow' : d.unfroze ? 'proxy-deep-unfrozen' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved || d.unfroze ? { from: d.from, to: d.to, ...(d.unfroze ? { moves: d.moves, fell: d.fell } : {}) } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
