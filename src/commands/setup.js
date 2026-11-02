@@ -54,6 +54,7 @@ export function connectDevinCloud(ctx, clients) {
     out(r.snippet.replace(/^/gm, '  '));
   }
   out(`\n  Commit both files. A cloud session reads them from the clone when it starts, so they must be on the branch it checks out.`);
+  out(`  Then the snapshot needs thinker in it: press Build snapshot in Devin's environment settings once, or leave it, since Devin refreshes the environment by itself about once a day.`);
   if (!flags.cache) out(`  The cache a cloud session serves is whatever is committed under .thinker/; --cache <url> adds a restore step for a cache you publish with thinker export.`);
   out(`  Devin Cloud sessions are not this machine's: nothing here is wired by --cloud, and what the session learns stays on its own box.`);
 }

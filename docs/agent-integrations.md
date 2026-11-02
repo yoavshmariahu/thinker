@@ -120,8 +120,12 @@ It writes two files for you to **commit**:
   has something to run. A blueprint thinker did not write is never edited; the step is
   printed for you to paste, because a wrong edit there breaks every session's environment.
 
-Then build the environment once (Devin's Settings, or `devin cloud drs build`), so the
-snapshot carries thinker.
+**Nothing is run inside a cloud session.** The install happens once, when the environment
+snapshot is built, and from then on every session starts with thinker already there.
+Committing the blueprint does not itself trigger a build, so either press **Build
+snapshot** in Devin's environment settings once (immediate), or leave it: Devin refreshes
+the environment by itself roughly every 24 hours. `devin cloud drs build` does the same
+from a terminal, and the sync API covers CI.
 
 **The cache is the part you choose.** A clone arrives without the local notes under
 `.thinker/local/`, which are gitignored by design. A cloud session therefore serves what is
