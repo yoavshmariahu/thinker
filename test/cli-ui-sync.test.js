@@ -664,7 +664,7 @@ test('Devin is selectable through connect and is named consistently on the page'
   assert.ok(CLIENTS.includes('devin') && USER_SCOPE_CLIENTS.includes('devin'));
   assert.match(read('cli.js'), /opencode, devin and more/);
   // the cloud door is a repository file, so the flag and what it writes are named in the help (devin-cloud.js)
-  assert.match(read('cli.js'), /connect --clients devin --cloud/);
+  assert.match(read('cli.js'), /\[--cloud\] \[--cache <url>\]/);
   const cloud = await import('../src/devin-cloud.js');
   assert.deepEqual(Object.keys(cloud.cloudHooks()), ['UserPromptSubmit', 'PostToolUse', 'Stop', 'SessionEnd']);
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'agent-integrations.md'), 'utf8'), /connect --clients devin --cloud/);
