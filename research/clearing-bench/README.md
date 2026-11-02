@@ -40,6 +40,30 @@ the cost with the size of the **uncleared** prefix that every clear writes again
 `isRewrite` flagged a single call — the cost was in the write total (0.13M against 0.35M), not the
 rewrite rate, so a rate alone is not a cost measure.
 
+## What was measured (2026-11-02, evening, Opus 5.5, the one-policy clearing of #600 plus the exact gauge)
+
+Two reps per arm, the control arms shared with the morning runs where the workload is the same.
+
+| workload | clearing vs control (1h writes) | at 5m writes | server re-applications |
+|---|---|---|---|
+| 18 files read once, 20 `echo` calls (W1) | **−8.8%** | −22.6% | 3 |
+| the same, six files read back (W2, first gauge) | +3.4% | −10.3% | 5 |
+| the same, 52k instruction block above (W3, first gauge) | −18.0% | −27.8% | — |
+| 9 turns of two files and three echoes, trigger 60k, ask 30k (W4) | **−4.1%** | −17.8% | 16 |
+
+Read these beside the morning's: W1 came out **+21.3%** that morning on the same edit (the proxy sends keep 3,
+ask 100k, trigger 140k to a single-turn session in every version since #582), and W3 had been +20.6% the day
+before. Two reps do not settle a sign; what moves the number between runs is how many calls the model chose to
+make in each arm. The first version of #600's gauge stopped both W4 sessions on their second cleared call
+(+9.4%, a ratio heuristic taking a 21k file read into a 40k context for a rewrite); the exact gauge stopped nothing.
+
+**The server's rule**, from three single-rep W1 runs with the trigger at 100k, 140k and 180k, identical to the
+token: the API applies the edit only once at least `clear_at_least` of results have accumulated beyond what it
+already cleared, and then clears everything but the keep (5 of 8 results at a raw prompt of 192k, 10 of 13 at
+302k, 15 of 18 at 413k). The trigger plays no part once crossed; keep and trigger cannot hold the set;
+`clear_at_least` is the interval between applications, each a rewrite of the post-clear context (~70k here).
+Claude Code 2.1.316 sends no tool clearing of its own (captured: `clear_thinking keep: all` only).
+
 ## Caveats worth keeping
 
 - The first workload is a best case by construction: every token is a clearable tool result and

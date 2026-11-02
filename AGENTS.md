@@ -239,6 +239,12 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   read, cache write and cleared, added up), so the growth between two answers is known in the API's units, and
   what was written beyond that growth is the prefix written again, counted as it is. `isRewrite` stays for the
   report, over `LONG_CONTEXT` only.
+- **Measured with the exact gauge (2026-11-02, two reps, `research/clearing-bench/README.md`):** the 18-file
+  single-turn workload **−8.8%** at the 1h write rate (−22.6% at 5m), the nine-turn workload **−4.1%** (−17.8%),
+  nothing stopped, the server re-applying 3 and 16 times. The same single-turn edit had read +21.3% that morning:
+  two reps do not settle a sign, and the number moves with how many calls the model makes in each arm. What is
+  settled is the mechanism above; the live week on this machine, judged by `proxy-clearing-stopped` rows and the
+  rewrite line of `thinker proxy status`, is still what decides the default.
 - What the replay cannot see either way is the model reading again what it lost, fresh input at the full rate. The 15%
   holdout stays for that.
 
