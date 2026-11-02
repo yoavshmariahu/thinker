@@ -860,6 +860,7 @@ read any range: Read with offset and limit</span></pre>
               <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
               <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
               <tr><td>Cursor</td><td>Through prompt hooks and the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
+              <tr><td>Devin CLI and Devin Desktop's local agent</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
               <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
               <tr><td>Windsurf Cascade</td><td>A rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
               <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
@@ -877,6 +878,7 @@ read any range: Read with offset and limit</span></pre>
             <li><strong>Codex CLI:</strong> hooks in <code>~/.codex/hooks.json</code>, the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked trusted so Codex asks nothing before running them. The desktop app reads the same file.</li>
             <li><strong>Gemini CLI:</strong> prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
             <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result.</li>
+            <li><strong>Devin:</strong> hooks in <code>~/.config/devin/config.json</code>, the MCP server in <code>~/.config/devin/mcp_config.json</code>, and one permission entry so the background subagent that does the learning may call thinker's own tool. The same files serve the CLI and Devin Desktop's local agent. Devin refuses to run in a workspace you have not trusted, so run <code>devin</code> once in the repository and accept the prompt.</li>
             <li><strong>Pi, Windsurf Cascade, Copilot CLI, OpenCode:</strong> nothing machine-wide. The installer, given <code>--clients pi,windsurf,copilot,opencode</code>, writes an extension, a hook file or a rule. Restart the host agent afterwards.</li>
           </ul>
         </details>
