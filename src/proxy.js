@@ -371,7 +371,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // The edit this call sends: the session record's, decided at the turn boundary (clearing.js:decide) where the
   // proxy holds one (cfg.record), else the floor. Between decisions the same edit goes byte for byte.
   const rec = cfg.record, m = rec ? measureClearing(cfg, j, rec.clearedUses) : null;
-  const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
+  const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now, model: j.model }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
   const edit = clearEdit(cfg, j.messages, d.edit), thinking = thinkingEdit(cfg, j.messages);
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };

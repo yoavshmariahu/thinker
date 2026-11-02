@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { freshRecord, decide, price, response, store, remainingCalls, isRewrite, DEEP_MARGIN, COLD_MS, WRITE_1H, WRITE_5M, READ } from '../src/clearing.js';
+import { freshRecord, decide, price, response, store, remainingCalls, isRewrite, readRate, DEEP_MARGIN, COLD_MS, WRITE_1H, WRITE_5M, READ } from '../src/clearing.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, measureClearing, turnId, transformRequest, proxyConfig, EDIT_TYPE } from '../src/proxy.js';
 
 const cfg = { ...PROXY_DEFAULTS };
@@ -20,6 +20,11 @@ test('a clear is priced as the tail it writes against the reads it saves over th
   assert.equal(p.saving, 200000 * READ * remainingCalls(0));
   assert.equal(p.pays, true, 'a 140k write is 20 reads of it, 2.8M; 200k read back over 40 calls is 8M');
   assert.equal(price(m(300000), 20000, { ttl: '1h', calls: 0 }).pays, false, 'a 320k write for 20k dropped: 6.4M against 800k');
+  // the read is the model's: a twentieth of an input token on Opus 5.5, a fortieth on Fable, a tenth elsewhere
+  assert.deepEqual(['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'gpt-6-astra', null].map(readRate), [0.05, 0.025, 0.1, READ, READ]);
+  assert.equal(price(m(300000), 200000, { ttl: '1h', calls: 0, model: 'claude-opus-5-5' }).saving, 200000 * 0.05 * remainingCalls(0));
+  assert.equal(price(m(300000), 150000, { ttl: '1h', calls: 0 }).pays, true, 'a 190k write for 150k dropped pays at a tenth (600k against 380k)');
+  assert.equal(price(m(300000), 150000, { ttl: '1h', calls: 0, model: 'claude-opus-5-5' }).pays, false, 'and not on Opus 5.5 (300k against 380k)');
   assert.equal(price(m(300000), 200000, { ttl: '5m' }).cost, p.recache * WRITE_5M, 'the write rate follows the cache TTL');
   // the same clear with the cached prefix covering most of the prompt: a small tail, and it pays
   assert.equal(price(m(300000, { prefix: 330000 }), 200000, { ttl: '1h' }).pays, true);

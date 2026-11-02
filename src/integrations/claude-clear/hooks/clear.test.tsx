@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, remainingCalls, WRITE_RATIO, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, remainingCalls, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -116,9 +116,15 @@ test('a clear is made when what it drops, read back over the calls left, outweig
   // the write is three times what it drops (6M at the write rate against 4M read back): does not pay over the calls
   // a session this long has left
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 300000, calls, idle: 0, cleared: true })).toBe(false)
-  // the line itself: remaining calls x dropped against WRITE_RATIO x recache
-  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO), calls, idle: 0, cleared: true })).toBe(true)
-  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / WRITE_RATIO) + 1, calls, idle: 0, cleared: true })).toBe(false)
+  // the line itself: remaining calls x dropped against writeRatio(model) x recache; 20 where the model is unknown
+  expect(writeRatio('')).toBe(20)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / 20), calls, idle: 0, cleared: true })).toBe(true)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / 20) + 1, calls, idle: 0, cleared: true })).toBe(false)
+  // on Opus 5.5 a read is a twentieth of an input token, so a written token needs 40 reads: the same write does not pay
+  expect(writeRatio('claude-opus-5-5')).toBe(40)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / 20), calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(false)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: Math.floor(left * 80000 / 40), calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(true)
+  expect(writeRatio('claude-fable-5-1')).toBe(80)
   // a pause past the cache's hour: the request writes its context anyway, so the clear is free
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 100000, calls, idle: COLD_MS, cleared: true })).toBe(true)
   // the proxy's own key off: one clear a session

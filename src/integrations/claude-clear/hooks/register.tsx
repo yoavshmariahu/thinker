@@ -30,7 +30,11 @@ export const MIN_CHARS = 200
 // cleared stays cleared: `clearOld` leaves a placeholder alone, so a later clear only takes what came after. A pause
 // past the cache's hour makes the next request write its context anyway, so a clear then costs nothing extra.
 export const COLD_MS = 65 * 60 * 1000
-export const WRITE_RATIO = 20 // WRITE_1H / READ of src/clearing.js: a 1h write is 2x an input token, a cache read a tenth
+// reads a written token must save to repay itself: WRITE_1H / readRate of src/clearing.js, a 1h write being 2x an input
+// token and a cache read a tenth of one on most models, a twentieth on Opus 5.5, a fortieth on Fable (model-usage.js)
+export const READ_RATES: [RegExp, number][] = [[/fable|mythos/, 0.025], [/opus-5-5|opus-5\.5|^opus$/, 0.05], [/./, 0.1]]
+export const readRate = (model: string) => (READ_RATES.find(([re]) => re.test(String(model || '').toLowerCase())) || [null, 0.1])[1]
+export const writeRatio = (model: string) => 2 / readRate(model)
 export const REMAINING: [number, number][] = [[10, 40], [20, 40], [40, 68], [100, 90]]
 export const remainingCalls = (n: number) => (REMAINING.find(([at]) => n <= at) || [0, 90])[1]
 export const DELAY_MS = 1500
@@ -68,11 +72,11 @@ export function policyOf(config: any): Policy {
 // (`calls` made so far), outweighs the write after it (`recache`, the context after the first row it changes); free
 // after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
 // never held back.
-export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean }) => {
+export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, model = '' }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean; model?: string }) => {
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false
   if (idle >= COLD_MS) return true
-  return remainingCalls(calls) * dropped >= WRITE_RATIO * recache
+  return remainingCalls(calls) * dropped >= writeRatio(model) * recache
 }
 
 // a session is on one side of the holdout for its whole life (proxy.js:heldOut hashes the same id with
@@ -282,7 +286,8 @@ export const register: Register = (on) => {
           // the write a clear would make: the context after the first row it changes, less what it drops
           const recache = c ? Math.max(0, tokens - Math.round(c.prefixChars * TOKENS_PER_CHAR) - c.tokens) : 0
           // nothing worth clearing yet, or a write the session's remaining calls would not repay: say nothing
-          if (worthIt(c, policy, 'auto') && (!c || clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0 }))) schedule($, 'auto')
+          let model = ''; try { model = await $.session.model() } catch {}
+          if (worthIt(c, policy, 'auto') && (!c || clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model }))) schedule($, 'auto')
         }
       } catch {}
     }
