@@ -102,8 +102,9 @@ export const COLD_MS = 65 * 60 * 1000;
 // and the smallest keep. On, with a block frozen: the ask that made it and the keep that holds it.
 export function deepPlan(cfg, messages, state = null) {
   if (!cfg.clearDeep) return { ask: cfg.clearAtLeast, keep: keepValue(cfg, messages) };
-  if (state?.frozen) return { ask: state.ask, keep: Math.max(cfg.keepMin ?? 0, toolUsesBeforeTurn(messages) - FROZEN_OFFSET - state.uses), deep: 'frozen' };
-  return { ask: deepAsk(cfg, messages), keep: cfg.keepMin ?? 0, deep: 'deep' };
+  const keep = keepValue(cfg, messages); // a count the person set, or the constant turn minimum
+  if (state?.frozen) return { ask: state.ask, keep: Math.max(keep, toolUsesBeforeTurn(messages) - FROZEN_OFFSET - state.uses), deep: 'frozen' };
+  return { ask: deepAsk(cfg, messages), keep, deep: 'deep' };
 }
 // Per session: whether the deep ask was refused (back on the fixed ask for good), the frozen block (the ask that made it
 // and the API's count of cleared tool uses), and when the session last called (the cold cache).
@@ -592,10 +593,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
             if (tap && t.injected && t.protocol !== 'responses' && cache.response(sessionOf(req.headers), usage)) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, streak: REWRITE_STREAK, read: usage.read, write: usage.write, cleared: usage.cleared });
-            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved ? { from: d.from, to: d.to } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.deep ? { deep: t.deep, asked: t.asked } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved ? { from: d.from, to: d.to } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
