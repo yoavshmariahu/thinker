@@ -18,9 +18,25 @@ removes Thinker's entries and preserves other integrations.
 ## Devin
 
 Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
-`devin` executable or its user configuration directory. This adapter targets the
-current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer); the legacy Windsurf
-Cascade adapter remains separate.
+`devin` executable or its user configuration directory, so the installer
+(`npx @zerotimedev/thinker`) and `thinker update` wire Devin without being asked. This
+adapter targets the current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer);
+the legacy Windsurf Cascade adapter remains separate.
+
+**Trust the workspace first, or nothing runs.** Devin refuses to start in a workspace you
+have not trusted ("Refusing to run in an untrusted workspace"), and that refusal happens
+before any hook, so thinker serves nothing and the cause looks exactly like an empty
+cache. Trust is interactive only: no flag, no environment variable, nothing in
+`devin doctor`, and a `respect_workspace_trust` override in a config file did not waive it
+(verified 2026-11-02). Run `devin` once in the repository, accept the prompt, and quit; the
+answer is recorded in `~/.local/share/devin/cli/trusted_workspaces.json` as a list of
+`trusted_paths`.
+
+**Devin also executes Windsurf's wiring.** Thinker's Windsurf adapter writes
+`.windsurf/hooks.json` and `.devin/hooks.json`, and Devin reads those too, so a Devin hook
+can run from whichever copy of thinker owns the Windsurf entry. `thinker rewire` will not
+claim wiring another copy owns; the repair is `thinker connect --clients windsurf` from the
+copy you want.
 
 - Hooks are merged into `~/.config/devin/config.json`, and the MCP server into
   `~/.config/devin/mcp_config.json` (`%APPDATA%\devin` on Windows). Existing hooks,
@@ -94,13 +110,58 @@ The session model (SWE-1.6 Slow) answered every distillation request with no not
 assessments, where a Claude dry run on one of the same records returned a confirmed
 assessment: the loop runs, and what it learns from that model is an open question.
 
-Cloud Devin can launch a custom STDIO MCP server inside its session environment.
-Install Thinker there and register `thinker mcp`, with `THINKER_REPO` pointing at that
-session's checkout and `THINKER_SESSION_HOST=devin` for the learning queue. This is
-MCP connectivity only: it does not install cloud hooks, carry a local cache into the
-VM, or deliver cached notes by itself. Current Thinker MCP exposes its control and
-learning tools, not general note retrieval. Cloud automation needs separately
-verified hook delivery and cache persistence before it can be called supported.
+### Devin Cloud
+
+**Three steps, all on your own machine. Nothing is ever run inside a cloud session.**
+
+1. **Write the wiring**, in the repository your cloud sessions clone:
+
+   ```bash
+   thinker connect --clients devin --cloud
+   ```
+
+   To have cloud sessions start with a cache instead of an empty one, publish it first
+   with `thinker export cache.tgz`, put it somewhere the box can fetch, and name it:
+   `thinker connect --clients devin --cloud --cache https://…/cache.tgz`.
+
+2. **Commit the two files it wrote**, `.devin/hooks.v1.json` and `.devin/blueprint.yaml`,
+   and merge them to the branch your sessions check out (usually the default branch).
+   A session reads them from the clone when it starts, so they have to be there first.
+
+3. **Let the snapshot pick up thinker.** Press **Build snapshot** once in Devin's
+   environment settings, or do nothing: Devin refreshes the environment by itself about
+   once a day. `devin cloud drs build` does the same from a terminal.
+
+That is the whole of it. From then on every cloud session starts with thinker installed
+and the hooks in its checkout, and notes arrive on each prompt as they do locally.
+
+**What the two files are.** `.devin/hooks.v1.json` holds the four hooks; their commands
+carry no path from your machine and no `--repo`, since the box's paths are not yours, so
+they call the bare `thinker` from the snapshot's PATH and take the checkout from the
+hook's own working directory. `.devin/blueprint.yaml` holds one `initialize` step that
+installs thinker when the snapshot is built. Rerunning the command merges rather than
+overwrites: another project's hooks are kept, thinker's own are replaced, and a blueprint
+thinker did not write is never edited, only printed for you to paste.
+
+**Why it has to be in the repository.** A cloud session runs on Cognition's VM, so nothing
+`thinker connect` writes on your machine reaches it: the box has no Devin configuration of
+its own, and hooks placed in its home or user-config directories never fire. The
+repository's own file does, on every prompt, with the working directory set to the
+checkout, and its injected context reaches the model (verified 2026-11-02 against a
+`devin cloud drs sandbox-create` session, by a sentinel the agent repeated that existed
+nowhere on disk). Devin reads that file when the session starts and then caches it, which
+is the other reason it must be committed ahead of time: a file written or edited during a
+session does not take effect.
+
+**What a cloud session does not do.** It does not learn back into your cache. Notes it
+distills live on its own box and go when the box does, so treat cloud serving as
+read-only until that is built.
+
+MCP is a separate, weaker door: cloud Devin can launch a custom STDIO MCP server inside the
+session, so thinker installed there and registered as `thinker mcp` would connect, with
+`THINKER_REPO` pointing at the checkout and `THINKER_SESSION_HOST=devin` for the learning
+queue. That is connectivity only: thinker's MCP server exposes its control and learning
+tools, not note retrieval, so nothing would serve notes through it.
 
 Devin's `proxy` setting is an outbound HTTP/HTTPS proxy for CLI traffic. It is not
 a documented Anthropic/OpenAI model base URL, and a tunnel alone cannot edit an

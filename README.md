@@ -16,7 +16,7 @@ npx @zerotimedev/thinker
 The installer connects your coding agents and shows suggested savings from your recent sessions.
 Review them in your browser or terminal, then keep coding as usual.
 
-Works with Claude Code, Codex, Cursor, Gemini CLI and [more](docs/agent-integrations.md).
+Works with Claude Code, Codex, Cursor, Gemini CLI, Devin CLI and [more](docs/agent-integrations.md).
 Requires Node 20+, git and a supported agent. Free and open source.
 
 [See how it works](https://zerotime.dev/docs#overview) · [Setup guide](docs/setup.md)
@@ -40,7 +40,7 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | GitHub Copilot CLI, Copilot in VS Code | by hand (the CLI, with your own Anthropic key) | yes, one tool call late | | |
 | Cline | by hand: the Anthropic provider's custom base URL | yes (the CLI one tool call late) | | |
 | Kiro CLI | no: Kiro's own backend | notes on each prompt (V3 engine) | | |
-| Devin CLI / Local | not supported: its outbound proxy is not a model endpoint | prompt and file notes; session learning through MCP (CLI smoke-tested) | | |
+| Devin CLI and Devin Desktop's local agent | automatic: Devin's own compactor, set to the same 140k trigger the proxy uses (Devin exposes no model endpoint, so the proxy cannot sit in front of it) | yes: notes on each prompt and on the files being edited, learned from every session through Devin's own background subagent | | |
 | Windsurf Cascade | no: Windsurf's servers | no: its hooks only record, for learning | | |
 | Auggie | no: Augment's servers | notes on the files being edited | | |
 | Goose | by hand (`ANTHROPIC_HOST`) | no: its hooks only record, for learning | | |
