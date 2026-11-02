@@ -18,9 +18,25 @@ removes Thinker's entries and preserves other integrations.
 ## Devin
 
 Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
-`devin` executable or its user configuration directory. This adapter targets the
-current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer); the legacy Windsurf
-Cascade adapter remains separate.
+`devin` executable or its user configuration directory, so the installer
+(`npx @zerotimedev/thinker`) and `thinker update` wire Devin without being asked. This
+adapter targets the current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer);
+the legacy Windsurf Cascade adapter remains separate.
+
+**Trust the workspace first, or nothing runs.** Devin refuses to start in a workspace you
+have not trusted ("Refusing to run in an untrusted workspace"), and that refusal happens
+before any hook, so thinker serves nothing and the cause looks exactly like an empty
+cache. Trust is interactive only: no flag, no environment variable, nothing in
+`devin doctor`, and a `respect_workspace_trust` override in a config file did not waive it
+(verified 2026-11-02). Run `devin` once in the repository, accept the prompt, and quit; the
+answer is recorded in `~/.local/share/devin/cli/trusted_workspaces.json` as a list of
+`trusted_paths`.
+
+**Devin also executes Windsurf's wiring.** Thinker's Windsurf adapter writes
+`.windsurf/hooks.json` and `.devin/hooks.json`, and Devin reads those too, so a Devin hook
+can run from whichever copy of thinker owns the Windsurf entry. `thinker rewire` will not
+claim wiring another copy owns; the repair is `thinker connect --clients windsurf` from the
+copy you want.
 
 - Hooks are merged into `~/.config/devin/config.json`, and the MCP server into
   `~/.config/devin/mcp_config.json` (`%APPDATA%\devin` on Windows). Existing hooks,
