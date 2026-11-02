@@ -431,7 +431,21 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null } = {}) {
+  // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
+  // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
+  // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
+  // each a rewrite from the system prompt, and the log alone cannot say what in the request moved it). Never on by
+  // default: a request holds the whole conversation.
+  const dump = (session, t, usage) => {
+    if (!dumpDir || !session || !t?.body) return;
+    try {
+      const dir = path.join(dumpDir, String(session).replace(/[^\w.-]/g, '_'));
+      fs.mkdirSync(dir, { recursive: true });
+      let sent; try { sent = JSON.parse(t.body.toString('utf8')); } catch { sent = null; }
+      fs.writeFileSync(path.join(dir, `${Date.now()}.json`), JSON.stringify({ at: new Date().toISOString(), injected: !!t.injected, asked: t.asked, keep: t.keep, turn: t.turn, usage, sent }));
+    } catch { /* research output is never worth a failed request */ }
+  };
   const agents = new Map();
   const log = row => {
     if (!logFile) return;
@@ -569,6 +583,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.clear ? { clear: t.clear } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+            dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
             // gauge read; each event is a log line, and the record goes back to disk
             if (tap && rec && t.injected && t.protocol !== 'responses') {
