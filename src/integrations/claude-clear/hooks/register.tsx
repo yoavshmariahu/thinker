@@ -24,6 +24,16 @@ export const TOKENS_PER_CHAR = 1.44 / 4
 export const MIN_CHARS = 200
 // a skipped attempt is not made again until the context has grown this much
 export const RETRY_GROWTH = 20000
+// Clear once and hold, as the proxy does (proxy.js:DEEP_MARGIN, FROZEN_OFFSET, COLD_MS; on by default from 0.2.19,
+// the owner's decision 2026-11-02). There the depth is an ask the API meets and the block is the server's, which
+// extends it at every turn boundary, so the keep is frozen to pin it. Here there is no server-side block: `clearOld`
+// already takes everything before the newest turn, so a desktop clear is deep by construction -- what it lacked is
+// the holding. Each clear rewrites the conversation in place at a compaction boundary, and the whole prompt after it
+// is written to the cache again at the 1h rate; clearing again every RETRY_GROWTH of growth paid that rewrite over
+// and over, which is what the replay found a per-turn policy loses on (-24% to -50% at list, against +4% to +12%
+// for one clear held). So one automatic clear per cached stretch, and a pause past the cache's hour lets it go: that
+// request writes its context whatever this mod does, so the next clear is free. `/thinker-clear` is never held back.
+export const COLD_MS = 65 * 60 * 1000
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
 export const INTRODUCED = 'thinker-clear:introduced'
@@ -33,8 +43,8 @@ export const RECENT = 8
 export const placeholder = (chars: number) =>
   `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
 
-export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean }
-export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true }
+export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean }
+export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true }
 
 // THINKER_HOME/config.json's `proxy` block, as proxy-service.js:serviceArgs reads it; `desktop: false` keeps
 // the automatic clearing off here (the command still works), `holdout` 0 keeps every session in
@@ -50,8 +60,16 @@ export function policyOf(config: any): Policy {
     // on by default as the proxy's are (proxy-service.js:serviceArgs); false in the config keeps each off
     clearInputs: p.clearInputs !== false,
     clearThinking: p.clearThinking !== false,
+    // the same key the proxy reads (proxy.js:PROXY_DEFAULTS, on by default since 0.2.19): one clear, then held
+    clearDeep: p.clearDeep !== false,
   }
 }
+
+// Whether the block this session already cleared is still held: one automatic clear per cached stretch, let go
+// after a pause past the cache's hour (proxy.js:COLD_MS, where a cold request rewrites its context anyway).
+// `clearedAt` is 0 until the first clear of the session; `sinceTurn` is the gap before the turn just finished.
+export const holdsBlock = (p: Policy, { clearedAt, sinceTurn }: { clearedAt: number; sinceTurn: number }) =>
+  p.clearDeep && clearedAt > 0 && sinceTurn < COLD_MS
 
 // a session is on one side of the holdout for its whole life (proxy.js:heldOut hashes the same id with
 // sha256; this is FNV-1a, there being no crypto in a mod, so the sides differ but the share is the same)
@@ -140,6 +158,8 @@ let auto = false
 let pending = false
 let pendingFrom = ''
 let lastTried = 0
+let clearedAt = 0    // when this session last cleared; the block is held from then (holdsBlock)
+let lastTurnAt = 0   // the previous turn's end, to see a pause past the cache's hour
 let out = 0          // tokens out of the prompt now, added to `saved` on every request
 let before = 0       // the context as the API last reported it, taken as the clear is scheduled and again as it runs
 let settle = false   // the first request after a clear sizes it for real
@@ -240,6 +260,13 @@ export const register: Register = (on) => {
     const r = await next(e)
     if (!e.agentId && auto && !pending) {
       try {
+        const now = Date.now()
+        const sinceTurn = lastTurnAt ? now - lastTurnAt : 0
+        lastTurnAt = now
+        // this session has cleared and the cache is still warm: hold the block, and say nothing
+        if (holdsBlock(policy, { clearedAt, sinceTurn })) return r
+        // the cache went cold: that request writes its context anyway, so the block goes and a clear is free again
+        if (clearedAt && sinceTurn >= COLD_MS) { clearedAt = 0; lastTried = 0 }
         const tokens = (await $.session.usage()).context.tokens ?? 0
         if (tokens >= policy.trigger && tokens >= lastTried + RETRY_GROWTH) {
           lastTried = tokens
@@ -261,6 +288,7 @@ export const register: Register = (on) => {
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }
     }
     const now = Date.now()
+    clearedAt = now
     before = (await contextTokens($)) || before
     out = c.tokens; uses = c.cleared; settle = true
     const kinds: Kinds = { results: c.resultTokens, inputs: c.inputTokens, thinking: 0, total: c.tokens, measured: false }

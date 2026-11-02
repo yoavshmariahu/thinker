@@ -139,6 +139,17 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   saved 5.1% billed-equivalent and 1.6% at list; with the call text and the thinking 13.9% and 6.5%. A results-only
   clear at a 60k floor reached nearly every result the full clear does (5.8M of 5.9M) and still saved half as much:
   the rewrite is paid either way, and the inputs and the thinking ride on it for nothing.
+  **Clear once and hold the block** (`holdsBlock`, `COLD_MS`, the same `proxy: { clearDeep }` key, on by default
+  since 0.2.19): the proxy freezes its keep because the cleared block is the server's and the API extends it at
+  every turn boundary, each extension writing the cache again. Here there is no server-side block -- `clearOld`
+  already takes everything before the newest turn, so a desktop clear is deep by construction -- but each clear
+  rewrites the conversation in place and the whole prompt after it is written to the cache at the 1h rate, and the
+  mod cleared again every `RETRY_GROWTH` (20k) of growth, paying that rewrite over and over. So one automatic clear
+  per cached stretch, let go after a pause past the cache's hour (`COLD_MS`, as the proxy thaws), where the request
+  writes its context whatever the mod does. `/thinker-clear` is never held back. #588 turned the deep clear on in
+  `proxy.js` alone and the test above did not notice, the four constants being all it pinned, so the switch and the
+  cold pause are pinned there now too. The live week the proxy's policy owes covers this door: judge it by the
+  compression record against the 15% holdout, not by a replay.
 - It writes the proxy's own record (`compression.js:noteCompression`'s shape, `state/compression/<session>.json`),
   counting `saved` on every later model request (`turn.step`) as the proxy counts it per request, so the card, the Stop
   hook's line and `thinker proxy report` read it unchanged. The whole of a clear is measured, not estimated: the

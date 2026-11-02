@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
-import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR, COLD_MS } from '../src/proxy.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -41,6 +41,15 @@ test('the mod clears by the proxy\'s policy: same trigger, floor, kept results, 
   for (const key of ['clearInputs', 'clearThinking']) {
     assert.ok(s.includes(`p.${key} !== false`), `proxy.${key}: false switches it off here as in proxy-service.js:serviceArgs`);
   }
+  // Clear once and hold the block (proxy.js, on by default since 0.2.19). The proxy freezes the keep because the
+  // block is the server's; here each clear is a rewrite of the conversation, so the holding is the whole of it.
+  // #588 turned the deep clear on in proxy.js alone and this test did not notice, the four constants above being
+  // all it pinned -- so the switch and the cold pause are pinned here too.
+  assert.equal(PROXY_DEFAULTS.clearDeep, true, 'the proxy clears deep by default');
+  assert.ok(s.includes('p.clearDeep !== false'), 'proxy.clearDeep: false switches the holding off here too');
+  assert.ok(s.includes('holdsBlock(policy, { clearedAt, sinceTurn })'), 'turn.complete holds the block after a clear');
+  const cold = s.match(/export const COLD_MS = (.+)\n/);
+  assert.ok(cold && new Function(`return ${cold[1]}`)() === COLD_MS, 'the cache-cold pause matches proxy.js');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
