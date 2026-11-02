@@ -472,7 +472,12 @@ plugin on a machine without thinker does nothing.
   what a clear leaves: `turn`, the default, now the `--keep-min` (3) newest tool uses, a constant; until
   2026-11-02 it was the count of the request's current turn's tool uses, which grew by one a call, and every
   increment made the server restore one earlier result and write the cache again from the system prompt
-  (`src/proxy.js:keepValue`); or a count of the newest tool uses (`--keep 5`). Two more things a clear can take, off until an
+  (`src/proxy.js:keepValue`); or a count of the newest tool uses (`--keep 5`). Since 0.2.19 the first clear of a
+  session is deep and the block it made is then held: it asks for 70% of what sits before the current turn and from
+  then on sets the keep so the API's cleared count stays exactly where it was, because every extension of the block
+  rewrites the cache from the block's end at the 1h rate and the fixed ask lost on that at every turn boundary
+  (`src/proxy.js:deepPlan`; `--no-clear-deep`, `proxy: { clearDeep: false }`, `THINKER_PROXY_CLEAR_DEEP=off` goes
+  back to the fixed ask). Two more things a clear can take, off until an
   experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
   `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
   goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a

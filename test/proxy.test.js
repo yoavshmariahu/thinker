@@ -461,8 +461,9 @@ test('the deep clear asks for what sits before the turn, the same on every call 
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } }), tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
   const user = c => ({ role: 'user', content: typeof c === 'string' ? [{ type: 'text', text: c }] : c }), asst = c => ({ role: 'assistant', content: c });
   const cfg = proxyConfig({ 'clear-deep': true }, {});
-  assert.equal(proxyConfig({}, {}).clearDeep, false, 'off by default until a live week says otherwise');
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_DEEP: 'on' }).clearDeep, true);
+  assert.equal(proxyConfig({}, {}).clearDeep, true, 'on by default since 0.2.19: the fixed ask it replaces was a loss at list on every model');
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_DEEP: 'off' }).clearDeep, false);
+  assert.equal(proxyConfig({ 'clear-deep': false }, {}).clearDeep, false);
   const big = [user('first'), asst([tu('a')]), user([tr('a', 400000)]), asst([tu('b')]), user([tr('b', 400000)]), user('second')];
   const before = clearableBeforeTurn(cfg, big), ask = Math.floor(DEEP_MARGIN * before);
   assert.ok(before > resultsBeforeTurn(big), 'the calls\' text counts with the results it is cleared with');

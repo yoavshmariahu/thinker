@@ -68,8 +68,9 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: false };
-// The deep clear (`--clear-deep`, `proxy: { clearDeep: true }`; off until a live week against the holdout, 2026-11-02):
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
+// The deep clear (`--clear-deep`, `proxy: { clearDeep: false }` turns it off; on by default from 0.2.19 at the owner's
+// decision, 2026-11-02, before the live week: the fixed ask it replaces was a known loss at list on every model, below):
 // clear once, deep, and hold the block. The API clears the oldest results first and only as much as `clear_at_least`
 // asks, and once a block exists it extends it on its own at the next turn, by a result or three; every extension
 // writes the cache again from the block's end, at the 1h rate, and on this repository's sessions (turns of four calls,
