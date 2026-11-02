@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, holdsBlock, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -105,4 +105,18 @@ test('a clear that would be refused is never started: no compaction turn, so no 
   expect(worthIt(some, { ...DEFAULTS, clearAtLeast: 100 }, 'auto')).toBe(true)
   // the transcript could not be read: schedule as before and let the engine's skip stand
   expect(worthIt(null, DEFAULTS, 'auto')).toBe(true)
+})
+
+test('one clear per cached stretch: the block is held until a pause past the cache\'s hour lets it go', () => {
+  // before the first clear there is nothing to hold
+  expect(holdsBlock(DEFAULTS, { clearedAt: 0, sinceTurn: 1000 })).toBe(false)
+  // cleared, cache still warm: held, however much the context has grown since
+  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: 1000 })).toBe(true)
+  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: COLD_MS - 1 })).toBe(true)
+  // a pause past the hour: the request rewrites its context anyway, so the block goes
+  expect(holdsBlock(DEFAULTS, { clearedAt: 1, sinceTurn: COLD_MS })).toBe(false)
+  // the switch is the proxy's own key
+  expect(holdsBlock({ ...DEFAULTS, clearDeep: false }, { clearedAt: 1, sinceTurn: 1000 })).toBe(false)
+  expect(policyOf({ proxy: { clearDeep: false } }).clearDeep).toBe(false)
+  expect(policyOf(null).clearDeep).toBe(true)
 })
