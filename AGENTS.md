@@ -188,6 +188,13 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   rate and warns past 8% and three times the base (`rewriteWarning`). That rate, read from the proxy log beside the
   transcripts, is what judges a clearing policy; a replay that models an edit as cache-stable is not evidence, and
   `proxy-replay.js` still models `turn` as the growing keep it used to send.
+- **A streak is not the only shape a broken cache takes (2026-11-02).** `REWRITE_STREAK` needs three cleared calls
+  running; a paired synthetic run the same day (the freeze against the fixed ask, two reps of nine turns) had its
+  losing arm rewrite on 10 of 70 calls, never three in a row, so nothing tripped and it cost 152% of its control.
+  `rewriteWatch` now also gives a session up on a share: `REWRITE_RATE` (10%) of its cleared calls once there are
+  `REWRITE_MIN_CALLS` (20) of them, logged `proxy-cache-broken` with `why: 'rate'` and the count it judged. The
+  floors come from the two rates measured on this machine -- a held-out session rewrites on 1-2% of its calls, the
+  bad arm on 14% -- so the base rate never reaches it. Both limbs stop at the session; neither is a policy change.
 - Price a clear by the cache writes of every call after it in the session, not the clear request alone.
 
 **Clear once and hold the block, on by default from 0.2.19 (2026-11-02, the owner's call, an exception to the experiment rule: the fixed ask it replaces was a measured loss at list on every model, so waiting a live week would have kept a known-bad default on every machine; \`proxy: { clearDeep: false }\` / \`THINKER_PROXY_CLEAR_DEEP=off\` turns it off; the live week still runs on the owner's machine, judged by the rewrite line of \`thinker proxy status\` and \`proxy-deep-moved\` rows, and a default-off PR is the answer if it fails):**
@@ -211,6 +218,26 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   and \`asked\`. The turn-invariant test holds for it; the rewrite watch is the net.
 - What the replay cannot see is the risk of a deep block: the model reading again what it lost, fresh input at the full
   rate. The holdout is the measure, and \`thinker proxy status\` prints the rewrite rate after a clear beside it.
+- **The freeze gives up when the block it holds will not hold (2026-11-02).** \`FROZEN_OFFSET\` was read off one large
+  session, and it does not hold small. Measured the same day in a paired synthetic run with the floor lowered so the
+  deep path engaged at a 13-use block: the cleared count went 13, 13, 13, 12, 11, 9 as the keep chased it 3, 4, 5, 7 --
+  the freeze was raising the keep to pin the block and *un-clearing* results instead, six \`proxy-deep-moved\` rows,
+  14% of calls rewriting, 152% the cost of the fixed ask. Checked against this machine's own log the same hour, a real
+  session held a block of 230 at a constant keep of 169 over 88 calls, exactly as designed. So the freeze is right at
+  the scale it was read from and wrong below it. \`deepWatch.response\` now ends it for the session on the first fall,
+  or after \`DEEP_MOVES\` (2) moves in either direction: \`refused\` is set, so the rest of the session asks the fixed
+  amount with a constant keep, logged \`proxy-deep-unfrozen\` with \`from\`, \`to\`, \`moves\` and \`fell\`. A fall is
+  unambiguous -- it is the policy's own premise inverted -- so no threshold is guessed at.
+- **Measured, 2026-11-02, paired synthetic runs on Opus 5.5 through a test proxy (three reps unless said):** a
+  workload whose context is all clearable tool results and never re-reads them, **-10.5%** against its held-out arm;
+  the same with six cleared files read back, **-1.5%** (two reps); the same with a 52k instruction block above the
+  cleared region, **+20.6%** (two reps). One mechanism: the benefit scales with the clearable share of the context,
+  the cost with the size of the *uncleared* prefix that every clear writes again. In the losing arm \`isRewrite\`
+  flagged one call -- the cost was in the write total (0.13M held out against 0.35M), not the rewrite rate. Priced at
+  the 5-minute write rate the three read -16%, -3% and -2%, so the sign of the third turns on the cache TTL, which
+  the proxy log does not record. A single-turn session can never ask deep (\`clearableBeforeTurn\` counts what is
+  before the current turn, and a one-prompt session has nothing there), so \`-p\` and headless sessions get the fixed
+  ask whatever \`clearDeep\` says. Scripts under \`research/clearing-bench/\`.
 
 **The clearing policy: bigger cuts, less often (2026-10-28, the owner's call):**
 - `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.

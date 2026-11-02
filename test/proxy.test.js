@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { deepPlan, deepWatch, DEEP_MARGIN, FROZEN_OFFSET, COLD_MS, clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { deepPlan, deepWatch, DEEP_MOVES, REWRITE_RATE, REWRITE_MIN_CALLS, DEEP_MARGIN, FROZEN_OFFSET, COLD_MS, clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, rewriteWatch, isRewrite, REWRITE_STREAK, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
@@ -572,7 +572,7 @@ test('the rewrite watch gives a session up after REWRITE_STREAK cleared calls ru
   assert.equal(w.response('s1', rw), false); assert.equal(w.response('s1', rw), false);
   assert.equal(w.response('s1', { read: 200000, write: 3000, input: 2, cleared: 140000 }), false, 'a hit after a clear is the policy working');
   for (let i = 0; i < REWRITE_STREAK - 1; i++) assert.equal(w.response('s1', rw), false);
-  assert.equal(w.response('s1', rw), true, 'the streak');
+  assert.equal(w.response('s1', rw), 'streak', 'the streak');
   assert.equal(w.broken('s1'), true); assert.equal(w.broken('s2'), false); assert.equal(w.broken(null), false);
   assert.equal(w.response('s1', rw), false, 'said once');
 });
@@ -633,4 +633,55 @@ test('the report counts prefix rewrites after a clear beside the held-out rate, 
   // a few percent after a clear is a clear per new turn, the policy working: no warning without a base to beat
   const some = [...good]; for (let k = 0; k < 6; k++) some.push(rewrite('c0', i++));
   assert.equal(proxyReport(some).warning, undefined);
+});
+
+test('the rewrite watch also gives up on a rate that never makes a streak', () => {
+  // Measured 2026-11-02: the losing arm of a paired synthetic run rewrote on 10 of 70 calls, never three running,
+  // so the streak watch never tripped and it cost 152% of its control. A share over enough calls catches it.
+  const w = rewriteWatch();
+  const rw = { read: 31520, write: 150000, input: 2, cleared: 140000 }, hit = { read: 200000, write: 3000, input: 2, cleared: 140000 };
+  let why = false, call = 0;
+  while (!why && call < 70) { call++; why = w.response('s', call % 7 === 0 ? rw : hit); }
+  assert.equal(why, 'rate', 'given up on the share, not a streak');
+  assert.ok(call > REWRITE_STREAK, 'and never three in a row to trip the streak');
+  assert.ok(call >= REWRITE_MIN_CALLS, 'not before there are enough calls to judge');
+  const r = w.rateOf('s');
+  assert.ok(r.share > REWRITE_RATE && r.calls >= REWRITE_MIN_CALLS, `${r.rewrites} of ${r.calls}`);
+  assert.equal(w.broken('s'), true);
+  assert.equal(w.response('s', rw), false, 'said once');
+
+  // a session at the held-out base rate of 1-2% is never given up on
+  const q = rewriteWatch();
+  for (let i = 1; i <= 200; i++) assert.equal(q.response('q', i % 80 === 0 ? rw : hit), false, `call ${i}`);
+  assert.equal(q.broken('q'), false, 'a session rewriting at the base rate keeps its clearing');
+});
+
+test('the freeze gives up when the block it holds will not hold', () => {
+  const cfg = proxyConfig({ 'clear-deep': true }, {});
+  const clear = uses => ({ cleared: 500000, clearedUses: uses, editAcknowledged: true, input: 1, read: 200000, write: 1000 });
+
+  // a block that SHRANK is the freeze's premise inverted: it un-cleared results, and each one is a prefix rewrite
+  const fell = deepWatch();
+  fell.cfgFor('s', cfg);
+  assert.equal(fell.response('s', cfg.clearAtLeast + 1, cfg, clear(13)), 'frozen');
+  assert.equal(fell.response('s', cfg.clearAtLeast + 1, cfg, clear(13)), false, 'held, nothing to say');
+  const gone = fell.response('s', cfg.clearAtLeast + 1, cfg, clear(12));
+  assert.deepEqual({ ...gone }, { unfroze: true, from: 13, to: 12, moves: 1, fell: true });
+  assert.equal(fell.cfgFor('s', cfg).clearDeep, false, 'and asks the fixed amount from here on');
+
+  // a block the API extends is followed, until DEEP_MOVES of them
+  const moved = deepWatch();
+  moved.cfgFor('m', cfg);
+  assert.equal(moved.response('m', cfg.clearAtLeast + 1, cfg, clear(100)), 'frozen');
+  assert.deepEqual({ ...moved.response('m', cfg.clearAtLeast + 1, cfg, clear(101)) }, { moved: true, from: 100, to: 101 });
+  const up = moved.response('m', cfg.clearAtLeast + 1, cfg, clear(102));
+  assert.equal(up.unfroze, true); assert.equal(up.moves, DEEP_MOVES); assert.equal(up.fell, false);
+  assert.equal(moved.cfgFor('m', cfg).clearDeep, false);
+
+  // a block that holds is left alone however long the session runs
+  const held = deepWatch();
+  held.cfgFor('h', cfg);
+  assert.equal(held.response('h', cfg.clearAtLeast + 1, cfg, clear(230)), 'frozen');
+  for (let i = 0; i < 50; i++) assert.equal(held.response('h', cfg.clearAtLeast + 1, cfg, clear(230)), false);
+  assert.ok(held.cfgFor('h', cfg).deepState?.frozen, 'still frozen at a block that holds (a real session held 230)');
 });

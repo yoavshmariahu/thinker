@@ -1,0 +1,54 @@
+# Clearing bench: paired synthetic measurements of the context clearing
+
+Why it exists: `thinker proxy replay` cannot see the two costs that decide whether clearing pays —
+the model reading back what was cleared, and the cache writes a clear provokes on every later call.
+These runs measure both, live, against a held-out arm of the same workload.
+
+Each arm runs its own proxy on a reserved port with its own `THINKER_HOME` and log, reached through
+`ANTHROPIC_BASE_URL`. The machine's own service, settings and log are never touched. `claude -p`
+authenticates on whatever login is present; with no `ANTHROPIC_API_KEY` that is a subscription, so
+the runs spend quota rather than money and the prices below are list-price arithmetic on measured
+tokens, not a bill.
+
+## Running one
+
+```bash
+export THINKER_SRC=~/src/thinker OUT=/tmp/clearbench
+mkdir -p $OUT && (cd $OUT && python3 $THINKER_SRC/research/clearing-bench/gen-work.py work 18 34000)
+# write $OUT/prompt.txt naming each file by absolute path, one Read per file, then N echo calls
+PORT=$(~/.claude/bin/claude-port reserve thinker clearbench)
+PORT=$PORT ./run-arm.sh clearing 0 3 $OUT/prompt.txt
+PORT=$PORT ./run-arm.sh control  1 3 $OUT/prompt.txt
+python3 analyse.py $OUT/log-clearing.jsonl $OUT/log-control.jsonl
+~/.claude/bin/claude-port release thinker clearbench
+```
+
+Both arms must stay inside the context window: a control that auto-compacts is not a control.
+Check for `native-compaction` in the logs before believing a pairing.
+
+## What was measured (2026-11-02, Opus 5.5, 0.2.19)
+
+| workload | clearing vs control (1h writes) | at 5m writes |
+|---|---|---|
+| 18 files read once, 20 `echo` calls, nothing re-read (3 reps) | **−10.5%** | −16% |
+| the same, then 6 of the cleared files read back (2 reps) | −1.5% | −3% |
+| the same, with a 52k instruction block above the cleared region (2 reps) | **+20.6%** | −2% |
+| freeze against the fixed ask, both clearing, 13-use block, 9 turns (2 reps) | **+152%** | — |
+
+One mechanism covers the first three: the benefit scales with the **clearable** share of the context,
+the cost with the size of the **uncleared** prefix that every clear writes again. In the losing arm
+`isRewrite` flagged a single call — the cost was in the write total (0.13M against 0.35M), not the
+rewrite rate, so a rate alone is not a cost measure.
+
+## Caveats worth keeping
+
+- The first workload is a best case by construction: every token is a clearable tool result and
+  nothing is ever read again.
+- The re-read workload re-reads the **oldest** files, which no recency keep could protect, so it is
+  the worst case for re-reads rather than a typical one.
+- The sign of the instruction-heavy result turns on the cache TTL, which the proxy log does not
+  record. Treat the 1h column as the pessimistic bound.
+- A single-turn session can never ask deep: `clearableBeforeTurn` counts what sits before the current
+  turn, and a one-prompt session has nothing there. Forcing the deep path needs several turns
+  (`claude -p --continue`) and a floor low enough for `0.7 × clearable` to bind.
+- Two or three reps. The within-arm spread was small, but these are not powered samples.

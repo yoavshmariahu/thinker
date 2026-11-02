@@ -95,6 +95,8 @@ export const deepAsk = (cfg, messages) => cfg.clearDeep ? Math.max(cfg.clearAtLe
 // the first clear left it, the same for every call of a turn and one step at the next. The offset is observed, not
 // documented: a block that moves anyway is logged (`proxy-deep-moved`) and followed.
 export const FROZEN_OFFSET = 1;
+// how many times the API may move a frozen block before this session gives the freeze up (see deepWatch.response)
+export const DEEP_MOVES = 2;
 // a pause past the cache's hour: the next request writes its context again whatever the proxy does, so the block is
 // extended to the turn then, for nothing
 export const COLD_MS = 65 * 60 * 1000;
@@ -134,7 +136,19 @@ export function deepWatch({ now = () => Date.now() } = {}) {
       if (asked > cfg.clearAtLeast && usage?.editAcknowledged && !(usage.cleared > 0) && ctx >= cfg.trigger && !s.frozen) { s.refused = true; return 'refused'; }
       if (!(usage?.cleared > 0)) return false;
       if (!s.frozen) { s.frozen = true; s.ask = asked; s.uses = usage.clearedUses || 0; const thawed = s.thawed; s.thawed = false; return thawed ? 'refrozen' : 'frozen'; }
-      if ((usage.clearedUses || 0) !== s.uses) { const from = s.uses; s.uses = usage.clearedUses || 0; return { moved: true, from, to: s.uses }; }
+      const now_uses = usage.clearedUses || 0;
+      if (now_uses !== s.uses) {
+        const from = s.uses; s.uses = now_uses; s.moves = (s.moves || 0) + 1;
+        // A block that SHRANK is the freeze's own premise inverted: the keep was raised to hold the cleared count
+        // where it was, and results came back out of the block instead. Every one of those is a prompt that differs
+        // from the cached one near its top, so the prefix is written again. Measured 2026-11-02 at a 13-use block:
+        // 13, 13, 13, 12, 11, 9, keep chasing it 3, 4, 5, 7, six moved blocks, 14% of calls rewriting and 152% the
+        // cost of the fixed ask. FROZEN_OFFSET was read off one large session (a block of 230 holds there, checked
+        // the same day on this machine's log) and does not hold small. So one fall, or DEEP_MOVES moves in either
+        // direction, and this session gives the freeze up and asks the fixed amount with a constant keep for good.
+        if (from > now_uses || s.moves >= DEEP_MOVES) { s.refused = true; return { unfroze: true, from, to: now_uses, moves: s.moves, fell: from > now_uses }; }
+        return { moved: true, from, to: s.uses };
+      }
       return false;
     },
   };
@@ -190,22 +204,38 @@ export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthro
 // a clear beside the held-out one, which is the number that judges any change to the policy. A fresh subagent's
 // first calls write their prefix too, so a call counts only when it carried a clear.
 export const REWRITE_STREAK = 3;
+// A streak is not the only shape a broken cache takes. Measured 2026-11-02 on a paired synthetic run (freeze
+// against the fixed ask, two reps of nine turns each): the losing arm rewrote on 10 of 70 calls, never three in a
+// row, so the streak never tripped and it cost 152% more than its control. A share over enough cleared calls
+// catches a scattered rate the streak cannot. The floors: a held-out session rewrites on 1-2% of its calls, the
+// bad arm on 14%, so 10% over 20 cleared calls is well clear of the base and needs real evidence to reach.
+export const REWRITE_RATE = 0.1;
+export const REWRITE_MIN_CALLS = 20;
 // a call that wrote most of its context into the cache rather than reading it, on a context worth caching
 export const isRewrite = u => ((u?.write || 0) > 0.5 * ((u?.read || 0) + (u?.write || 0) + (u?.input || 0))) && ((u?.read || 0) + (u?.write || 0)) > 20000;
-export function rewriteWatch({ limit = REWRITE_STREAK } = {}) {
-  const streaks = new Map(), broken = new Set();
+export function rewriteWatch({ limit = REWRITE_STREAK, rate = REWRITE_RATE, minCalls = REWRITE_MIN_CALLS } = {}) {
+  const streaks = new Map(), seen = new Map(), rewrote = new Map(), broken = new Set();
+  const give = session => { broken.add(session); streaks.delete(session); };
   return {
     broken: session => !!session && broken.has(session),
-    // after an edited request was answered: true the once the session's clearing is given up on
+    // after an edited request was answered: 'streak' or 'rate' the once the session's clearing is given up on
     response: (session, usage) => {
       if (!session || broken.has(session)) return false;
-      if (!(usage?.cleared > 0) || !isRewrite(usage)) { streaks.delete(session); return false; }
-      const n = (streaks.get(session) || 0) + 1;
-      streaks.set(session, n);
-      if (n < limit) return false;
-      broken.add(session); streaks.delete(session);
-      return true;
+      if (!(usage?.cleared > 0)) { streaks.delete(session); return false; }
+      seen.set(session, (seen.get(session) || 0) + 1);
+      if (!isRewrite(usage)) { streaks.delete(session); }
+      else {
+        rewrote.set(session, (rewrote.get(session) || 0) + 1);
+        const n = (streaks.get(session) || 0) + 1;
+        streaks.set(session, n);
+        if (n >= limit) { give(session); return 'streak'; }
+      }
+      const calls = seen.get(session) || 0, bad = rewrote.get(session) || 0;
+      if (calls >= minCalls && bad / calls > rate) { give(session); return 'rate'; }
+      return false;
     },
+    // what the give-up was judged on, for the log line
+    rateOf: session => { const c = seen.get(session) || 0; return { calls: c, rewrites: rewrote.get(session) || 0, share: c ? (rewrote.get(session) || 0) / c : 0 }; },
   };
 }
 export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}) {
@@ -592,11 +622,14 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             recorded = true;
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
-            if (tap && t.injected && t.protocol !== 'responses' && cache.response(sessionOf(req.headers), usage)) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, streak: REWRITE_STREAK, read: usage.read, write: usage.write, cleared: usage.cleared });
+            if (tap && t.injected && t.protocol !== 'responses') {
+              const why = cache.response(sessionOf(req.headers), usage);
+              if (why) log({ at: new Date().toISOString(), op: 'proxy-cache-broken', session: sessionOf(req.headers), model: t.model, why, ...(why === 'streak' ? { streak: REWRITE_STREAK } : cache.rateOf(sessionOf(req.headers))), read: usage.read, write: usage.write, cleared: usage.cleared });
+            }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.deep ? { deep: t.deep, asked: t.asked } : {}), ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
-            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved ? { from: d.from, to: d.to } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
+            if (tap && t.injected && t.protocol !== 'responses') { const d = deep.response(sessionOf(req.headers), t.asked, requestCfg, usage); if (d) log({ at: new Date().toISOString(), op: d === 'refused' ? 'proxy-deep-refused' : d.unfroze ? 'proxy-deep-unfrozen' : d.moved ? 'proxy-deep-moved' : 'proxy-deep-frozen', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...(d.moved || d.unfroze ? { from: d.from, to: d.to, ...(d.unfroze ? { moves: d.moves, fell: d.fell } : {}) } : { uses: usage.clearedUses }), ...(d === 'refrozen' ? { afterPause: true } : {}), read: usage.read, write: usage.write, cleared: usage.cleared }); }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
