@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
-import { PROXY_DEFAULTS, TOKENS_PER_CHAR, COLD_MS } from '../src/proxy.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { COLD_MS } from '../src/clearing.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -43,9 +44,8 @@ const DESKTOP_POLICY = {
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
   clearInputs: { reads: 'p.clearInputs !== false' },
   clearThinking: { reads: 'p.clearThinking !== false' },
-  clearDeep: { reads: 'p.clearDeep !== false', acts: 'holdsBlock(policy, { clearedAt, sinceTurn })' },
+  clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(policy, {' },
   keep: { exempt: 'the API\'s own keep count, sent as an edit parameter; the mod keeps the newest turn itself in clearOld, so there is nothing to send and no value that could differ within a turn' },
-  clearEconomics: { exempt: 'Judges an ask the API may meet only in part: it refuses a clear that would drop a little from the top of a big conversation and leave the rest to be written again. A mod clears the conversation itself, in one rewrite, taking everything before the newest turn -- which is the favourable case the check exists to select for, so there is nothing here for it to withhold. Revisit if the desktop clear ever drops results in part.' },
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
 };
 
@@ -66,7 +66,7 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   for (const key of Object.keys(DESKTOP_POLICY)) {
     assert.ok(key in PROXY_DEFAULTS, `DESKTOP_POLICY names proxy.${key}, which PROXY_DEFAULTS no longer has`);
   }
-  const policy = s.slice(s.indexOf('export function policyOf'), s.indexOf('export const holdsBlock'));
+  const policy = s.slice(s.indexOf('export function policyOf'), s.indexOf('export const clearPays'));
   const shape = s.match(/export type Policy = \{(.+?)\}/s)?.[1] ?? '';
   const defaults = s.match(/export const DEFAULTS: Policy = \{(.+?)\}/s)?.[1] ?? '';
   for (const [key, rule] of Object.entries(DESKTOP_POLICY)) {
@@ -87,7 +87,7 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   assert.ok(policy.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
   // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
   assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
-  assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches proxy.js');
+  assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
@@ -95,7 +95,7 @@ test('an automatic clear that would be refused is never started, so the engine p
   // read the conversation first (reported 2026-11-02: "not compacted: thinker-clear: N tokens to clear,
   // under 100,000" under answer after answer in a desktop session, once the context passed the trigger)
   assert.ok(s.includes('$.session.messages()'), 'the mod reads the transcript before scheduling');
-  assert.ok(/if \(worthIt\(await wouldClear\(\$, policy\), policy, 'auto'\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn');
+  assert.ok(/if \(worthIt\(c, policy, 'auto'\) && \(!c \|\| clearPays\(policy, \{[^\n]*\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn, and one that pays');
   assert.ok(/worthIt\(await wouldClear\(\$, policy\), policy, 'manual'\)/.test(s), 'the command answers by itself instead of spending a turn');
 });
 
