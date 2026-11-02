@@ -96,46 +96,50 @@ assessment: the loop runs, and what it learns from that model is an open questio
 
 ### Devin Cloud
 
-A cloud session runs on Cognition's VM, not on your machine, so nothing `thinker connect`
-writes here reaches it: the box has no Devin configuration of its own, and hooks placed in
-its home or user-config directories never fire. What does fire is the **repository's own**
-`.devin/hooks.v1.json`, cloned with the code (verified 2026-11-02 against a
-`devin cloud drs sandbox-create` session: it ran on every prompt, with the working
-directory set to the checkout, and the agent repeated a sentinel that existed nowhere on
-disk, only in the injected context).
+**Three steps, all on your own machine. Nothing is ever run inside a cloud session.**
 
-Run this inside the repository the cloud sessions clone:
+1. **Write the wiring**, in the repository your cloud sessions clone:
 
-```bash
-thinker connect --clients devin --cloud
-```
+   ```bash
+   thinker connect --clients devin --cloud
+   ```
 
-It writes two files for you to **commit**:
+   To have cloud sessions start with a cache instead of an empty one, publish it first
+   with `thinker export cache.tgz`, put it somewhere the box can fetch, and name it:
+   `thinker connect --clients devin --cloud --cache https://…/cache.tgz`.
 
-- `.devin/hooks.v1.json`, the four hooks, with commands that carry no path from this
-  machine and no `--repo`: the bare `thinker` from the snapshot's PATH, taking the checkout
-  from its own working directory, since the box's paths are not yours. An existing file is
-  merged, so another project's hooks are kept and a rerun replaces only thinker's.
-- `.devin/blueprint.yaml`, a snapshot `initialize` step that installs thinker so the hook
-  has something to run. A blueprint thinker did not write is never edited; the step is
-  printed for you to paste, because a wrong edit there breaks every session's environment.
+2. **Commit the two files it wrote**, `.devin/hooks.v1.json` and `.devin/blueprint.yaml`,
+   and merge them to the branch your sessions check out (usually the default branch).
+   A session reads them from the clone when it starts, so they have to be there first.
 
-**Nothing is run inside a cloud session.** The install happens once, when the environment
-snapshot is built, and from then on every session starts with thinker already there.
-Committing the blueprint does not itself trigger a build, so either press **Build
-snapshot** in Devin's environment settings once (immediate), or leave it: Devin refreshes
-the environment by itself roughly every 24 hours. `devin cloud drs build` does the same
-from a terminal, and the sync API covers CI.
+3. **Let the snapshot pick up thinker.** Press **Build snapshot** once in Devin's
+   environment settings, or do nothing: Devin refreshes the environment by itself about
+   once a day. `devin cloud drs build` does the same from a terminal.
 
-**The cache is the part you choose.** A clone arrives without the local notes under
-`.thinker/local/`, which are gitignored by design. A cloud session therefore serves what is
-committed under `.thinker/`, unless you publish a cache with `thinker export` and pass
-`--cache <url>`, which adds a restore step to the snapshot. What a cloud session learns
-stays on its own box and goes when the box does.
+That is the whole of it. From then on every cloud session starts with thinker installed
+and the hooks in its checkout, and notes arrive on each prompt as they do locally.
 
-**It must be committed before the session starts.** Devin reads the hooks config when the
-session begins and then caches it, so a file written or edited mid-session does not take
-effect, and the cached copy keeps running even after the file changes.
+**What the two files are.** `.devin/hooks.v1.json` holds the four hooks; their commands
+carry no path from your machine and no `--repo`, since the box's paths are not yours, so
+they call the bare `thinker` from the snapshot's PATH and take the checkout from the
+hook's own working directory. `.devin/blueprint.yaml` holds one `initialize` step that
+installs thinker when the snapshot is built. Rerunning the command merges rather than
+overwrites: another project's hooks are kept, thinker's own are replaced, and a blueprint
+thinker did not write is never edited, only printed for you to paste.
+
+**Why it has to be in the repository.** A cloud session runs on Cognition's VM, so nothing
+`thinker connect` writes on your machine reaches it: the box has no Devin configuration of
+its own, and hooks placed in its home or user-config directories never fire. The
+repository's own file does, on every prompt, with the working directory set to the
+checkout, and its injected context reaches the model (verified 2026-11-02 against a
+`devin cloud drs sandbox-create` session, by a sentinel the agent repeated that existed
+nowhere on disk). Devin reads that file when the session starts and then caches it, which
+is the other reason it must be committed ahead of time: a file written or edited during a
+session does not take effect.
+
+**What a cloud session does not do.** It does not learn back into your cache. Notes it
+distills live on its own box and go when the box does, so treat cloud serving as
+read-only until that is built.
 
 MCP is a separate, weaker door: cloud Devin can launch a custom STDIO MCP server inside the
 session, so thinker installed there and registered as `thinker mcp` would connect, with
