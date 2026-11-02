@@ -45,6 +45,7 @@ const DESKTOP_POLICY = {
   clearThinking: { reads: 'p.clearThinking !== false' },
   clearDeep: { reads: 'p.clearDeep !== false', acts: 'holdsBlock(policy, { clearedAt, sinceTurn })' },
   keep: { exempt: 'the API\'s own keep count, sent as an edit parameter; the mod keeps the newest turn itself in clearOld, so there is nothing to send and no value that could differ within a turn' },
+  clearEconomics: { exempt: 'Judges an ask the API may meet only in part: it refuses a clear that would drop a little from the top of a big conversation and leave the rest to be written again. A mod clears the conversation itself, in one rewrite, taking everything before the newest turn -- which is the favourable case the check exists to select for, so there is nothing here for it to withhold. Revisit if the desktop clear ever drops results in part.' },
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
 };
 
