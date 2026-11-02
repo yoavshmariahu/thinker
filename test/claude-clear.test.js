@@ -43,6 +43,15 @@ test('the mod clears by the proxy\'s policy: same trigger, floor, kept results, 
   }
 });
 
+test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
+  const s = src();
+  // read the conversation first (reported 2026-11-02: "not compacted: thinker-clear: N tokens to clear,
+  // under 100,000" under answer after answer in a desktop session, once the context passed the trigger)
+  assert.ok(s.includes('$.session.messages()'), 'the mod reads the transcript before scheduling');
+  assert.ok(/if \(worthIt\(await wouldClear\(\$, policy\), policy, 'auto'\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn');
+  assert.ok(/worthIt\(await wouldClear\(\$, policy\), policy, 'manual'\)/.test(s), 'the command answers by itself instead of spending a turn');
+});
+
 test('the mod writes the record the proxy writes, where the card and the report read it', () => {
   const s = src();
   assert.ok(s.includes('state/compression/${id}.json'), 'same file as compression.js:fileFor');
