@@ -897,7 +897,7 @@ read any range: Read with offset and limit</span></pre>
         <ol>
           <li><strong>Write the wiring</strong> in the repository your cloud sessions clone: <code>thinker connect --clients devin --cloud</code>. Add <code>--cache &lt;url&gt;</code> to have sessions start from a cache you published with <code>thinker export</code>, instead of an empty one.</li>
           <li><strong>Commit the two files</strong> it writes, <code>.devin/hooks.v1.json</code> and <code>.devin/blueprint.yaml</code>, onto the branch your sessions check out. A session reads them from the clone as it starts, so they have to be there first.</li>
-          <li><strong>Let the snapshot pick up thinker.</strong> Press <strong>Build snapshot</strong> once in Devin's environment settings, or do nothing and let Devin's own refresh, about once a day, carry it.</li>
+          <li><strong>Sync the blueprint, then build the snapshot.</strong> Committing the file does not make Devin use it: it keeps its own stored copy, and a build uses that. In Devin's environment settings press <strong>Sync</strong>, then <strong>Build snapshot</strong>. Skipping the sync is silent, so the build succeeds having installed nothing.</li>
         </ol>
         <p>
           From then on every cloud session starts with thinker installed and the hooks in its checkout, and notes arrive on each prompt as they do locally. What a cloud session learns stays on its own machine, so treat cloud serving as read-only.
