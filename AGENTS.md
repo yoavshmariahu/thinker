@@ -21,6 +21,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - Page actions run the CLI with the flags a person would type.
 - Any new default or flag: add a line to `test/cli-ui-sync.test.js`.
 
+**The proxy and the desktop door hold one clearing policy (MANDATORY, 2026-11-02):**
+- `src/proxy.js` and `src/integrations/claude-clear` are two implementations of the clearing, never two
+  policies. The proxy asks the API to clear; the mod rewrites the conversation inside the session, because a
+  desktop session never reaches the proxy. Mechanism differs, policy does not.
+- Every key of `PROXY_DEFAULTS` must be honoured by the mod, or exempted with a written reason, in
+  `DESKTOP_POLICY` (`test/claude-clear.test.js`). The suite fails on a new key until one of the two is done,
+  and a changed default fails it until the mod's mirrored constant moves too. Editing `src/proxy.js` selects
+  that test, so `npm test` is enough.
+- Why it is a rule: PR #588 turned `clearDeep` on in `proxy.js` alone and the suite stayed green, because the
+  test pinned four constants by hand and knew nothing of a fifth key. Desktop sessions kept a policy the
+  replay had measured as a loss for a release, found only by reading the two files side by side (#590).
+- What the guard cannot check is that the two behave alike: it pins the policy surface, not the mechanism.
+  The mod's behaviour is `claude plugin test src/integrations/claude-clear`, and a policy change is judged on
+  both doors the same way -- by cache writes, against the 15% holdout, never by a replay alone.
+
 **Pull requests (MANDATORY):**
 - Thinker contributor workflow only. Setup must not install a repo policy guard or require PRs in user repos.
 - Push task branches, open a GitHub PR to `main`. Never push `main`, including fast-forward.
