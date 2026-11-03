@@ -175,8 +175,18 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **The clearing policy: clear, freeze what was cleared, clear again when it pays (MANDATORY, 2026-11-02, the owner's call; `src/clearing.js`, `test/clearing.test.js`):**
 - A clear is an investment: one cache write now, of everything after the first result it drops, against a cache read
-  of what it dropped on every later call. At list a 1h write is ~2x an input token and a read ~2.5%, so a written token
-  needs ~80 later reads (`WRITE_1H`, `WRITE_5M`, `READ`). That is the whole policy. Four things follow from it, and
+  of what it dropped on every later call. At list a 1h write is 2x an input token on every Anthropic model, and a read is a
+  tenth of one on most, a twentieth on Opus 5.5 and a fortieth on Fable (`model-usage.js:RATES`, what `prices.js` has
+  always priced from; Claude Code 2.1.316's own catalog agrees), so a written token needs 20, 40 or 80 later reads
+  (`WRITE_1H`, `WRITE_5M`, `readRate(model)`; the mod's `READ_RATES`/`writeRatio` from `$.session.model()`, pinned to it
+  by `test/claude-clear.test.js`). Until 2026-11-02 evening `READ` was 0.025 for every model: on Opus 5.5 every clear was
+  valued at half its saving, and the gauge stopped the first paired smoke session one call after its first clear (a
+  block the server moved from 12 to 11 results, 119k written, against 100k cleared read back over 40 calls), after which
+  the session ran unedited to a 400k context. Re-priced at Opus 5.5 list, the nine-prompt smoke of that day (mlflow
+  PR26265) is bare-direct $5.58, clearing $6.10, cache+clearing $6.73: reads fell from $2.14 to $0.66, writes rose from
+  $3.05 to $5.01, five of them the server moving its cleared set under a byte-identical edit (23, 22, 20, 19 results,
+  each a rewrite from the system prompt). On this model the clearing does not pay until those moves are understood;
+  `THINKER_PROXY_DUMP` keeps the requests that can show what moves them. That is the whole policy. Four things follow from it, and
   nothing else is in the module:
   1. **The decision** (`decide`), at a turn boundary only (`turnId`: the count of the person's prompts). `clearable` is
      what sits before the turn by the proxy's count (`proxy.js:measureClearing`) less what the server reported cleared:
@@ -219,18 +229,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   turn to the next") runs a long turn through `transformRequest` with a record and requires `context_management`
   byte-identical on every call for the default config; a new edit must pass it or stay off (the thinking edit is off for
   this reason). `measureClearing` counts only what sits before the turn, so the decision cannot move while the turn runs.
-- **The server's rule, measured (2026-11-02, `research/clearing-bench`, three single-rep runs of the 18-file
-  workload with the trigger at 100k, 140k and 180k, identical to the token).** The API applies `clear_tool_uses`
-  only once at least `clear_at_least` of results have accumulated beyond what it already cleared (the keep aside),
-  and when it applies, it clears everything but the keep: first at a raw prompt of 192k (5 of 8 results, 104k), then
-  at 302k (10 of 13), then at 413k (15 of 18), each a rewrite of the post-clear context (~70k there). The trigger
-  plays no part once crossed, and between applications the cleared set is held whatever the edit says. So the set
-  cannot be steered by keep or trigger (raising keep shrinks it at the next application, which is what the
-  keep-steered freeze was seeing as "the block moving"), `clear_at_least` is the interval between applications, and
-  each application costs the post-clear context at the write rate against `ask` fewer tokens read on the calls
-  until the next one. That is why clearing lost on this machine's long sessions (a post-clear context of 400-600k
-  of prompts and answers, written again every ~100k of results) and why the policy's ask only ever grows: a larger
-  ask is a rarer rewrite. Claude Code 2.1.316 sends no tool clearing of its own (captured the same day: its only
+- **The server's rule, read from the requests (2026-11-02/03, `THINKER_PROXY_DUMP`, mlflow PR26265 smoke6, Opus 5.5
+  1M; the earlier reading from `research/clearing-bench`'s uniform 20k results, "everything but the keep", was wrong).**
+  Claude Code's requests are append-only (only the cache_control marker moves), so what moves is the server's own
+  choice. When the input crosses the trigger the API clears the smallest oldest-first set whose tokens reach
+  `clear_at_least`, the newest `keep` aside (7 of 10 results, 108k at ask 100k); it holds that set on every later
+  call while the context stays under the trigger; once the post-clear context crosses the trigger again it clears
+  about 100k beyond what it held (108k to 219k, 7 to 12 of 15), which the bench's 5, 10, 15 of 18 also fit. A changed
+  ask is evaluated afresh (ask 255,717 cleared 32 of 39, 256,970 tokens). **An ask the server cannot meet applies
+  nothing at all**: the whole conversation comes back uncleared for that call (171k read, 73k written, smoke5), which
+  is why the kept results are left out of what is clearable. The shrinking of the cleared set seen in smoke5 (23, 22,
+  20, 19, each a rewrite from the system prompt) appeared only in sessions that had such an unmet ask; smoke6, without
+  one, went 0, 7, 12, 32, 34 and never shrank. Claude Code sets its cache breakpoints on the system prompt and the
+  newest messages, and the API finds a cached prefix only at a breakpoint or within about twenty blocks before one, so
+  any change of the cleared set mid-conversation reads the system prompt alone (12,707 tokens there) and writes the
+  whole post-clear context: a re-application is cheap only while that context is small (7 to 12: 9k written), and a
+  deeper ask that dropped 12-28k wrote 60k each time. Claude Code 2.1.316 sends no tool clearing of its own (its only
   edit is `clear_thinking keep: all`), so this is the API's answer to thinker's edit alone.
 - **The gauge is exact, not a ratio (2026-11-02).** The first gauge judged a rewrite by write over half the context,
   the report's heuristic, and on a 40k conversation a 21k file read is half the context: both sessions of the
@@ -249,7 +263,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   holdout stays for that.
 
 **The clearing defaults, and what the replay said (2026-10-28, the owner's call; history of the policy above):**
-- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read ~2.5%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
+- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read 10%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
 - `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
 - Judge any change to this by replaying transcripts and counting cache **write** tokens, never reads.
 - **A keep that grows within a turn rewrites the cache on every call (2026-11-02).** `turn` used to send the count of the

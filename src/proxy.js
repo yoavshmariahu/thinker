@@ -77,10 +77,30 @@ export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 
 // What a clear takes before the turn, as the API counts what it cleared: the results, and with `clearInputs` the
 // text of their calls too (an ask that counted the results alone stopped the API half way, since the inputs it cleared
 // with them counted toward the ask: 296k of inputs beside 345k of results in one session here).
-export const clearableBeforeTurn = (cfg, messages) => resultsBeforeTurn(messages) + (cfg.clearInputs ? inputsBeforeTurn(messages) : 0);
-// The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix up to the
-// first result a deeper ask would newly drop (the one after the `clearedUses` the server already holds, so the write
-// a deepening costs is the tail from there), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from
+// Less the newest `keep` tool uses before the turn, which the server never clears: counted in, they put the ask past
+// what the server can meet, and an ask it cannot meet is an edit it does not apply at all. On 2026-11-02 (smoke5,
+// mlflow PR26265) the policy asked 182k at a turn boundary with 120k cleared and 89k in the three kept results, the
+// server cleared nothing on that call and the whole conversation came back uncleared: 171k read and 73k written for
+// nothing, then the floor ask again the next call (`proxy-clear-unmet`).
+export function clearableBeforeTurn(cfg, messages) {
+  const keep = keepValue(cfg, messages);
+  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
+  const results = [], inputs = [];
+  for (const m of messages.slice(0, turnStart(messages))) {
+    if (!Array.isArray(m?.content)) continue;
+    if (m.role === 'user') for (const b of m.content) if (b?.type === 'tool_result') results.push(textLen(b.content));
+    if (m.role === 'assistant') for (const b of m.content) if (b?.type === 'tool_use') inputs.push(JSON.stringify(b.input ?? {}).length);
+  }
+  const sum = a => a.slice(0, Math.max(0, a.length - keep)).reduce((x, y) => x + y, 0);
+  return Math.round((sum(results) + (cfg.clearInputs ? sum(inputs) : 0)) * TOKENS_PER_CHAR);
+}
+// The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix a deeper ask
+// keeps (`prefix`: the system prompt and the tool definitions alone, so the write a deepening costs is everything
+// after them less what it drops. Claude Code sets its cache breakpoints on the system prompt and the newest messages,
+// and the API finds a cached prefix only at a breakpoint or within twenty blocks before one, so a prefix ending at
+// the first result a deeper ask drops, mid-conversation, is never found: measured 2026-11-02 (mlflow PR26265, smoke6),
+// two deeper asks read 12,707 tokens each, the system prompt, and wrote 60k, the whole post-clear context, where the
+// tail from the drop point was priced at 44-51k), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from
 // what sits before the turn: within a turn the request grows with every call, and a verdict that moved from one
 // call of a turn to the next would move the edit with it, which is the rewrite this exists to avoid.
 export function measureClearing(cfg, j, clearedUses = 0) {
@@ -89,15 +109,8 @@ export function measureClearing(cfg, j, clearedUses = 0) {
   const all = Array.isArray(j?.messages) ? j.messages : [];
   const messages = all.slice(0, turnStart(all));
   const head = txt(j?.system) + txt(j?.tools);
-  let seen = 0, at = -1;
-  for (let i = 0; i < messages.length && at < 0; i++) {
-    const m = messages[i];
-    if (m?.role !== 'user' || !Array.isArray(m.content)) continue;
-    for (const c of m.content) if (c?.type === 'tool_result' && seen++ === clearedUses) { at = i; break; }
-  }
   const prompt = tok(head + txt(messages));
-  const prefix = at < 0 ? prompt : tok(head + txt(messages.slice(0, at)));
-  return { prompt, prefix, before: clearableBeforeTurn(cfg, all), turn: turnId(all) };
+  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all), turn: turnId(all) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -355,7 +368,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // The edit this call sends: the session record's, decided at the turn boundary (clearing.js:decide) where the
   // proxy holds one (cfg.record), else the floor. Between decisions the same edit goes byte for byte.
   const rec = cfg.record, m = rec ? measureClearing(cfg, j, rec.clearedUses) : null;
-  const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
+  const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now, model: j.model }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
   const edit = clearEdit(cfg, j.messages, d.edit), thinking = thinkingEdit(cfg, j.messages);
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
@@ -415,7 +428,21 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null } = {}) {
+  // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
+  // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
+  // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
+  // each a rewrite from the system prompt, and the log alone cannot say what in the request moved it). Never on by
+  // default: a request holds the whole conversation.
+  const dump = (session, t, usage) => {
+    if (!dumpDir || !session || !t?.body) return;
+    try {
+      const dir = path.join(dumpDir, String(session).replace(/[^\w.-]/g, '_'));
+      fs.mkdirSync(dir, { recursive: true });
+      let sent; try { sent = JSON.parse(t.body.toString('utf8')); } catch { sent = null; }
+      fs.writeFileSync(path.join(dir, `${Date.now()}.json`), JSON.stringify({ at: new Date().toISOString(), injected: !!t.injected, asked: t.asked, keep: t.keep, turn: t.turn, usage, sent }));
+    } catch { /* research output is never worth a failed request */ }
+  };
   const agents = new Map();
   const log = row => {
     if (!logFile) return;
@@ -553,6 +580,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.clear ? { clear: t.clear } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+            dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
             // gauge read; each event is a log line, and the record goes back to disk
             if (tap && rec && t.injected && t.protocol !== 'responses') {

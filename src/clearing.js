@@ -3,8 +3,10 @@
 //
 // A clear is an investment. It costs one cache write now, of everything that sits after the first result it drops,
 // and it pays back a cache read on every later call that no longer carries what was dropped. At list a 1h write is
-// ~2x an input token, a 5m write ~1.25x, a cache read ~2.5% of one, so a written token needs ~80 later reads to
-// break even (50 at the 5-minute rate). That is the whole policy; three rules follow from it.
+// ~2x an input token, a 5m write ~1.25x, and a cache read 10% of one on most models, 5% on Opus 5.5 and 2.5% on Fable
+// (model-usage.js:RATES, `readRate`), so a written token needs 20, 40 or 80 later reads to break even. Until
+// 2026-11-02 the read was priced at 2.5% for every model, so on Opus 5.5 every clear was valued at half what it saves
+// and the gauge gave sessions up after one moved block; on the same day the list rate for Opus 5.5 was read as 10%. That is the whole policy; three rules follow from it.
 //
 // 1. The edit changes only at a turn boundary, and only when clearing more pays (`decide`). Between changes the same
 //    edit goes on every call, byte for byte: that is the freeze. What was cleared stays cleared, a later clear only
@@ -19,10 +21,13 @@
 // Nothing here reads a request: proxy.js measures the prompt (`measureClearing`) and hands the numbers in.
 import fs from 'node:fs';
 import path from 'node:path';
+import { relativeRate } from './model-usage.js';
 
-// list-price ratios to an input token: what a cache write costs by its TTL, what a cache read costs
-export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.025;
+// list-price ratios to an input token: what a cache write costs by its TTL (the same on every Anthropic model), what a
+// cache read costs by the model (READ where the model is not priced: Anthropic's usual tenth)
+export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.1;
 export const writeRate = ttl => (ttl === '5m' ? WRITE_5M : WRITE_1H);
+export const readRate = model => { const r = relativeRate(model); return r ? Math.round(r.cacheRead / r.input * 1000) / 1000 : READ; };
 // A clear asks for this share of what is clearable. An ask the API cannot meet is an edit it does not apply at all,
 // and a count by characters overshoots prose, so the ask stays under the estimate.
 export const DEEP_MARGIN = 0.7;
@@ -52,7 +57,7 @@ export const rawOf = u => (u?.input || 0) + (u?.read || 0) + (u?.write || 0) + (
 // the gauge's two sides in input-equivalent tokens; `stopped` the reason the session no longer clears, if any.
 export const freshRecord = (session, cfg) => ({
   session, edit: { keep: cfg.keepMin ?? 0, ask: cfg.clearAtLeast }, turn: -1, changedAt: 0, calls: 0, lastAt: 0,
-  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, raw: 0, unmet: false, stopped: null,
+  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, raw: 0, unmet: false, stopped: null, model: null,
 });
 
 // What is clearable: what sits before the turn by the proxy's count, less what the server already cleared. The
@@ -61,24 +66,25 @@ export const freshRecord = (session, cfg) => ({
 export const clearable = (rec, m) => Math.max(0, m.before - rec.cleared);
 
 // What clearing `dropped` more tokens would cost and save, from the request as proxy.js measured it (`m`: `prompt`
-// tokens before the turn, `prefix` tokens up to the first result the clear would newly drop). The write is the tail
-// after that drop point less what the clear takes out of it: dropping 102,691 tokens from a 137k context cost a
-// 26,694-token write, because most of what followed the drop point was the dropped material (measured 2026-11-02).
-// A deeper ask only ever extends the cleared region oldest-first, so the cached prefix up to the old drop point
-// survives and only the tail is written: that is why several clears a session are fine, each priced as its own tail.
-export function price(m, dropped, { ttl = '1h', cold = false, calls = 0 } = {}) {
+// tokens before the turn, `prefix` the cached head the clear keeps: the system prompt and the tools, proxy.js). The
+// write is everything after that less what the clear takes out: dropping 102,691 tokens from a 137k context cost a
+// 26,694-token write, because most of what followed was the dropped material (measured 2026-11-02). A deeper ask
+// extends the cleared region oldest-first, but the cached prefix up to the old drop point is not found again (it ends
+// mid-conversation, where no breakpoint is), so each deepening writes the whole post-clear context: on Opus 5.5 a
+// 60k write for 12-28k dropped (smoke6, 2026-11-02), which is why a deeper ask rarely pays there.
+export function price(m, dropped, { ttl = '1h', cold = false, calls = 0, model = null } = {}) {
   const recache = Math.max(0, m.prompt - m.prefix - dropped);
   const cost = cold ? 0 : recache * writeRate(ttl);
-  const have = remainingCalls(calls);
-  const saving = dropped * READ * have;
-  return { dropped, recache, cost, saving, have, pays: dropped > 0 && saving > cost, need: dropped ? Math.ceil(cost / (dropped * READ)) : 0 };
+  const have = remainingCalls(calls), read = readRate(model);
+  const saving = dropped * read * have;
+  return { dropped, recache, cost, saving, have, pays: dropped > 0 && saving > cost, need: dropped ? Math.ceil(cost / (dropped * read)) : 0 };
 }
 
 // The decision, at a turn boundary: the edit this turn sends. The same edit as last turn unless clearing more pays
 // for its own write. The ask is what is already cleared plus DEEP_MARGIN of what is clearable, so it only ever grows.
 // `turn` is the boundary's id (the count of the person's prompts); within a turn the edit in force is returned
 // untouched, so what the proxy adds is identical from one call of the turn to the next.
-export function decide(rec, cfg, m, { turn = m.turn, ttl = '1h', now = Date.now() } = {}) {
+export function decide(rec, cfg, m, { turn = m.turn, ttl = '1h', now = Date.now(), model = rec.model } = {}) {
   const same = { edit: rec.edit, clear: false };
   if (rec.stopped || turn === rec.turn) return same;
   const left = clearable(rec, m);
@@ -86,7 +92,7 @@ export function decide(rec, cfg, m, { turn = m.turn, ttl = '1h', now = Date.now(
   const ask = Math.max(cfg.clearAtLeast, rec.cleared + dropped);
   if (ask <= rec.edit.ask) return { ...same, turn, clearable: left };
   const cold = rec.lastAt > 0 && now - rec.lastAt > COLD_MS;
-  const p = price(m, ask - rec.cleared, { ttl, cold, calls: rec.calls });
+  const p = price(m, ask - rec.cleared, { ttl, cold, calls: rec.calls, model });
   // nothing applied yet: a deeper ask changes no cached prompt, and the first clear is cheaper the deeper it is,
   // since more of the tail it writes is the dropped material itself
   if (rec.cleared === 0 || p.pays) return { edit: { keep: rec.edit.keep, ask }, clear: true, turn, cold, clearable: left, ...p };
@@ -101,6 +107,8 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const events = [];
   const cold = rec.lastAt > 0 && now - rec.lastAt > COLD_MS;
   if (t.turn != null) rec.turn = t.turn;
+  if (t.model) rec.model = t.model;
+  const read = readRate(rec.model);
   if (t.changed) { rec.edit = { keep: t.keep, ask: t.asked }; rec.changedAt = now; events.push({ clear: true, ...(t.clear || {}) }); }
   rec.calls++;
   rec.lastAt = now;
@@ -118,7 +126,7 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
     if (planned) rec.clears++;
     else if (uses !== rec.clearedUses) { rec.moves++; events.push({ moved: true, from: rec.clearedUses, to: uses }); }
     rec.cleared = cleared; rec.clearedUses = uses;
-    rec.saved += cleared * READ;
+    rec.saved += cleared * read;
   } else if (t.asked > cfg.clearAtLeast && usage.editAcknowledged && ctx >= cfg.trigger && !rec.unmet) {
     // an ask the API could not meet is an edit it did not apply: back to the floor for the session
     rec.unmet = true; rec.edit = { ...rec.edit, ask: cfg.clearAtLeast };
@@ -134,7 +142,7 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
     const again = Math.max(0, (usage.write || 0) - grew);
     if (again > 0) {
       rec.written += again * writeRate(usage.write5m > 0 && !(usage.write1h > 0) ? '5m' : '1h');
-      const ahead = rec.cleared * READ * remainingCalls(rec.calls);
+      const ahead = rec.cleared * read * remainingCalls(rec.calls);
       if (rec.written > rec.saved + ahead) { rec.stopped = 'uneconomic'; events.push({ stopped: 'uneconomic', saved: Math.round(rec.saved), ahead: Math.round(ahead), written: Math.round(rec.written), again: Math.round(again) }); }
     }
   }

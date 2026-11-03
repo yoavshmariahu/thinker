@@ -32,10 +32,10 @@ function upstream() {
   return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, url: `http://127.0.0.1:${server.address().port}` })));
 }
 
-function proxyTo(url, cfg = {}) {
+function proxyTo(url, cfg = {}, opts = {}) {
   const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-')), 'proxy.jsonl');
   return new Promise(r => {
-    const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, ...cfg }, { logFile, onListen: a => r({ server, logFile, port: a.port }) });
+    const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, ...cfg }, { logFile, ...opts, onListen: a => r({ server, logFile, port: a.port }) });
   });
 }
 
@@ -500,7 +500,7 @@ test('the gauge stops editing a session whose rewrites after a clear cost more t
   // own, every one after it is the server moving the block, and the first of those already outweighs what the
   // clear has saved and can still save over the calls a session this long has left (clearing.js:response)
   const sse = [
-    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":150000,"output_tokens":1}}}\n\n',
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":400000,"output_tokens":1}}}\n\n',
     'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":100,"cleared_input_tokens":140000}]}}\n\n',
     'event: message_stop\ndata: {"type":"message_stop"}\n\n',
   ];
@@ -558,4 +558,24 @@ test('the report counts prefix rewrites after a clear beside the held-out rate, 
   // a few percent after a clear is a clear per new turn, the policy working: no warning without a base to beat
   const some = [...good]; for (let k = 0; k < 6; k++) some.push(rewrite('c0', i++));
   assert.equal(proxyReport(some).warning, undefined);
+});
+
+test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usage, one file a call under the session (research only)', async () => {
+  const dumpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dump-'));
+  const sse = [
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":1000,"cache_creation_input_tokens":500,"output_tokens":1}}}\n\n',
+    'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+  ];
+  const up = http.createServer((req, res) => { req.on('data', () => {}); req.on('end', () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of sse) res.write(s); res.end(); }); });
+  await new Promise(r => up.listen(0, '127.0.0.1', r));
+  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`, {}, { dumpDir });
+  try {
+    await send(port); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === 1);
+    await until(() => fs.existsSync(path.join(dumpDir, 's1')) && fs.readdirSync(path.join(dumpDir, 's1')).length === 1);
+    const d = JSON.parse(fs.readFileSync(path.join(dumpDir, 's1', fs.readdirSync(path.join(dumpDir, 's1'))[0]), 'utf8'));
+    assert.equal(d.injected, true); assert.equal(d.keep, PROXY_DEFAULTS.keepMin); assert.equal(d.asked, PROXY_DEFAULTS.clearAtLeast);
+    assert.equal(d.usage.read, 1000); assert.equal(d.usage.write, 500);
+    assert.ok(d.sent.context_management.edits.some(e => e.type === EDIT_TYPE), 'the body as it went up, edit included');
+    assert.ok(Array.isArray(d.sent.messages) && d.sent.messages.length > 0);
+  } finally { server.close(); up.close(); fs.rmSync(dumpDir, { recursive: true, force: true }); }
 });

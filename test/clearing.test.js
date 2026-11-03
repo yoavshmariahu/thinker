@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { freshRecord, decide, price, response, store, remainingCalls, isRewrite, DEEP_MARGIN, COLD_MS, WRITE_1H, WRITE_5M, READ } from '../src/clearing.js';
-import { PROXY_DEFAULTS, measureClearing, turnId, transformRequest, proxyConfig, EDIT_TYPE } from '../src/proxy.js';
+import { freshRecord, decide, price, response, store, remainingCalls, isRewrite, readRate, DEEP_MARGIN, COLD_MS, WRITE_1H, WRITE_5M, READ } from '../src/clearing.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR, measureClearing, turnId, transformRequest, proxyConfig, EDIT_TYPE } from '../src/proxy.js';
 
 const cfg = { ...PROXY_DEFAULTS };
 // a request measured before the turn: what sits before it, the prompt, and the cached prefix up to the first result
@@ -18,7 +18,13 @@ test('a clear is priced as the tail it writes against the reads it saves over th
   assert.equal(p.recache, 350000 - 10000 - 200000, 'what is written: the prompt after the prefix, less what is dropped');
   assert.equal(p.cost, p.recache * WRITE_1H);
   assert.equal(p.saving, 200000 * READ * remainingCalls(0));
-  assert.equal(p.pays, false, 'a 140k write is 80 reads of it: not repaid by 40 calls');
+  assert.equal(p.pays, true, 'a 140k write is 20 reads of it, 2.8M; 200k read back over 40 calls is 8M');
+  assert.equal(price(m(300000), 20000, { ttl: '1h', calls: 0 }).pays, false, 'a 320k write for 20k dropped: 6.4M against 800k');
+  // the read is the model's: a twentieth of an input token on Opus 5.5, a fortieth on Fable, a tenth elsewhere
+  assert.deepEqual(['claude-opus-5-5', 'claude-fable-5-1', 'claude-sonnet-5-5', 'gpt-6-astra', null].map(readRate), [0.05, 0.025, 0.1, READ, READ]);
+  assert.equal(price(m(300000), 200000, { ttl: '1h', calls: 0, model: 'claude-opus-5-5' }).saving, 200000 * 0.05 * remainingCalls(0));
+  assert.equal(price(m(300000), 150000, { ttl: '1h', calls: 0 }).pays, true, 'a 190k write for 150k dropped pays at a tenth (600k against 380k)');
+  assert.equal(price(m(300000), 150000, { ttl: '1h', calls: 0, model: 'claude-opus-5-5' }).pays, false, 'and not on Opus 5.5 (300k against 380k)');
   assert.equal(price(m(300000), 200000, { ttl: '5m' }).cost, p.recache * WRITE_5M, 'the write rate follows the cache TTL');
   // the same clear with the cached prefix covering most of the prompt: a small tail, and it pays
   assert.equal(price(m(300000, { prefix: 330000 }), 200000, { ttl: '1h' }).pays, true);
@@ -90,16 +96,18 @@ test('the record after an answer: the clear\'s own write is planned, a move is l
     // the server moved the block by one under the same edit, without a rewrite: logged, nothing else
     ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 300000, write: 2000, input: 2 }, { now: now + 2000 });
     assert.deepEqual(ev, [{ moved: true, from: 100, to: 101 }]); assert.equal(rec.written, 0); assert.equal(rec.moves, 1);
-    // the same, and this time the prefix was written over: the cost the clearing caused, and it outweighs what
-    // the clear saved and can still save over the calls left, so the session is stopped
+    // the same, and this time the prefix was written over: the cost the clearing caused. The prompt did not grow
+    // between the two answers (raw 514002 -> 482002), so all 250000 written is the prefix written again; one such
+    // rewrite (500k at the write rate) is still under what the clear saved and can save over the 40 calls left
     ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 20000, write: 250000, input: 2 }, { now: now + 3000 });
+    assert.deepEqual(ev, []); assert.equal(rec.written, 250000 * WRITE_1H); assert.equal(rec.stopped, null);
+    // a second rewrite of the same size outweighs it, so the session is stopped
+    ev = response(rec, cfg, t(undefined, false, 210000), { cleared: 212000, clearedUses: 101, read: 20000, write: 250000, input: 2 }, { now: now + 4000 });
     assert.equal(ev.length, 1); assert.equal(ev[0].stopped, 'uneconomic');
-    // the prompt did not grow between the last two answers (raw 514002 -> 482002), so all 250000 written is the
-    // prefix written again
     assert.equal(ev[0].again, 250000, 'what was written beyond the prompt\'s own growth');
-    assert.equal(ev[0].written, 250000 * WRITE_1H); assert.ok(ev[0].written > ev[0].saved + ev[0].ahead);
+    assert.equal(ev[0].written, 2 * 250000 * WRITE_1H); assert.ok(ev[0].written > ev[0].saved + ev[0].ahead);
     assert.equal(rec.stopped, 'uneconomic');
-    assert.deepEqual(response(rec, cfg, t(undefined, false, 210000), { cleared: 0, read: 1, write: 1 }, now + 4000), [], 'said once');
+    assert.deepEqual(response(rec, cfg, t(undefined, false, 210000), { cleared: 0, read: 1, write: 1 }, now + 5000), [], 'said once');
     // on disk, and a new store (a restarted proxy) reads the same
     s.write(rec);
     assert.equal(store(dir, cfg).read('x').stopped, 'uneconomic');
@@ -138,7 +146,7 @@ test('isRewrite: a call that wrote most of its context rather than reading it', 
   assert.equal(isRewrite({ read: 40000, write: 60000, input: 2 }), true, 'from LONG_CONTEXT up the same shape is a rewrite');
 });
 
-test('the request is measured before the turn: the prefix runs to the first result a deeper ask would newly drop', () => {
+test('the request is measured before the turn: the prefix a deeper ask keeps is the head, the system prompt and tools', () => {
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
   const messages = [{ role: 'user', content: 'first' }];
@@ -149,9 +157,18 @@ test('the request is measured before the turn: the prefix runs to the first resu
   assert.equal(turnId(messages), 2);
   const none = measureClearing(cfg, j, 0), two = measureClearing(cfg, j, 2);
   assert.equal(none.turn, 2);
-  assert.ok(none.prefix < two.prefix && two.prefix < two.prompt, 'the cached prefix grows with what the server already holds');
+  assert.equal(none.prefix, two.prefix, 'the head, whatever the server already holds: a prefix ending mid-conversation is not found');
+  assert.ok(two.prefix < two.prompt);
+  assert.equal(measureClearing(cfg, { ...j, system: 's'.repeat(4000), tools: [{ name: 't', description: 'd'.repeat(4000) }] }, 0).prefix, Math.floor((JSON.stringify('s'.repeat(4000)).length + JSON.stringify([{ name: 't', description: 'd'.repeat(4000) }]).length) * TOKENS_PER_CHAR));
   assert.equal(none.before, two.before, 'what sits before the turn is the same count either way');
   assert.ok(none.before > 0 && none.before < none.prompt);
+  // the newest keep results and their calls are never cleared, so they are not clearable: 6 results of 10000 chars
+  // before the turn and a keep of 3 leave 3 (smoke5, 2026-11-02: counted in, the ask passed what the server could
+  // meet and it applied nothing)
+  const results = 3 * 10000 * TOKENS_PER_CHAR, inputs = 3 * JSON.stringify({ command: 'ls' }).length * TOKENS_PER_CHAR;
+  assert.equal(none.before, Math.round(results + inputs));
+  assert.equal(measureClearing({ ...cfg, keepMin: 0 }, j, 0).before, Math.round(2 * results + 2 * inputs), 'with no keep, all six');
+  assert.equal(measureClearing({ ...cfg, keepMin: 9 }, j, 0).before, 0, 'a keep past the count leaves nothing clearable');
   // the current turn's results are not counted, so the measure does not move while the turn runs
   const longer = { model: 'm', messages: [...messages, { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c', 50000)] }] };
   assert.deepEqual(measureClearing(cfg, longer, 2), two);
