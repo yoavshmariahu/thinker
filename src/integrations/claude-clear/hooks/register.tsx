@@ -18,6 +18,10 @@ import type { Register, SessionMessage } from 'claude-code'
 export const TRIGGER = 140000
 export const CLEAR_AT_LEAST = 100000
 export const KEEP_MIN = 3
+// the proxy's keepTurns: the results of the last two turns are never cleared, however small the keep
+export const KEEP_TURNS = 2
+// the proxy's clearNotice: the carry-forward advice, which this door puts in the placeholder itself
+export const CLEAR_NOTICE = true
 export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4
 // a result under this is not worth a placeholder
@@ -43,11 +47,15 @@ export const INTRODUCED = 'thinker-clear:introduced'
 export const INTRO = 'thinker now clears old tool results, call text and earlier thinking in Claude Desktop sessions too, as it does in the terminal: the card under an answer shows what it saved. /thinker-clear runs one by hand.'
 export const TOP_TOOLS = 3
 export const RECENT = 8
+// The proxy's CLEAR_NOTICE (proxy.js) says this in the system prompt; here it rides the placeholder, which is
+// better placed still -- it sits exactly where the material went. Carry-forward, not re-read: B4
+// (research/clearing-bench) cost +81.4% in re-reads the model only stopped making once it started writing what
+// it needed into its own replies.
 export const placeholder = (chars: number) =>
-  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
+  `[tool result cleared by thinker to save context: ${chars} chars. Write values you will reuse into your reply as you work -- your own messages are never cleared. Read the file or run the command again if you need this one.]`
 
-export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean }
-export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true }
+export type Policy = { keepMin: number; keepTurns: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean; clearNotice: boolean }
+export const DEFAULTS: Policy = { keepMin: KEEP_MIN, keepTurns: KEEP_TURNS, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true, clearNotice: CLEAR_NOTICE }
 
 // THINKER_HOME/config.json's `proxy` block, as proxy-service.js:serviceArgs reads it; `desktop: false` keeps
 // the automatic clearing off here (the command still works), `holdout` 0 keeps every session in
@@ -56,6 +64,8 @@ export function policyOf(config: any): Policy {
   const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? v : d)
   return {
     keepMin: num(p.keepMin, KEEP_MIN),
+    keepTurns: num(p.keepTurns, KEEP_TURNS),
+    clearNotice: p.clearNotice !== false,
     clearAtLeast: num(p.clearAtLeast, CLEAR_AT_LEAST),
     trigger: num(p.trigger, TRIGGER),
     holdout: Math.min(1, Math.max(0, num(p.holdout, HOLDOUT))),
@@ -94,8 +104,8 @@ export const proxied = (baseUrl: string | undefined) => /^https?:\/\/(127\.0\.0\
 
 export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; resultTokens: number; inputTokens: number; rows: number; prefixChars: number; tools: { name: string; calls: number; tokens: number }[] }
 
-// The proxy's `keep: turn` (proxy.js): every result of the newest prompt's turn stays, and at least `keepMin`
-// results in all; every older result worth a placeholder is replaced. A user row that carries results is
+// The proxy's keep (proxy.js:keepForTurn): every result of the last `keepTurns` turns stays, and at least
+// `keepMin` results in all; every older result worth a placeholder is replaced. A user row that carries results is
 // rebuilt without its handle, so the engine builds it from the blocks. With `clearInputs` or `clearThinking`
 // the assistant rows before the newest turn are rebuilt too, once a result is cleared (the proxy's
 // piggyback): without a handle the row carries no thinking, and with `clearInputs` its tool calls carry no
@@ -103,11 +113,11 @@ export type Clear = { messages: SessionMessage[]; cleared: number; chars: number
 // requires of the turn in progress. `chars` and `tokens` estimate the results and the emptied call text, kept
 // apart as `resultTokens` and `inputTokens`; the thinking a rebuilt row sheds is not in a SessionMessage, so
 // its share is measured after the fact, from the context sizes the API reports (the `kinds` of the record).
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, clearInputs = true, clearThinking = true } = {}): Clear {
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, keepTurns = KEEP_TURNS, clearInputs = true, clearThinking = true } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
-  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true, firstChanged = -1
+  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true, turnsBack = 0, firstChanged = -1
   const out: SessionMessage[] = []
   const older: number[] = [], olderAt: number[] = []   // positions in `out` (and in `messages`) of assistant rows before the newest turn
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -115,14 +125,14 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
     const rs = m.role === 'user' ? m.toolResults ?? [] : []
     if (!rs.length) {
       // a prompt row ends the newest turn, seen from the end
-      if (m.role === 'user' && (m.text ?? '').trim()) inLatestTurn = false
+      if (m.role === 'user' && (m.text ?? '').trim()) { inLatestTurn = false; turnsBack++ }
       if (m.role === 'assistant' && !inLatestTurn && m.handle) { older.push(out.length); olderAt.push(i) }
       out.push(m); continue
     }
     let touched = false
     const toolResults = [...rs].reverse().map(r => {
       const text = r.text ?? ''
-      if (inLatestTurn || kept < keepMin) { kept++; return r }
+      if (turnsBack < Math.max(1, keepTurns) || kept < keepMin) { kept++; return r }
       if (text.length < MIN_CHARS) return r
       cleared++; chars += text.length; touched = true
       const name = nameOf.get(r.tool_use_id) ?? 'tool'

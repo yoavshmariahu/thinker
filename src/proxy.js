@@ -70,7 +70,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, keepTurns: 2, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true, clearNotice: true };
 // The clearing policy -- clear, freeze what was cleared, and clear again when it pays -- is clearing.js. What this
 // file does for it is measure the request (`measureClearing`) and send the edit it decides (`transformRequest`,
 // `cfg.record`). `clearDeep: false` (`--no-clear-deep`, `proxy: { clearDeep: false }`) keeps every ask at the floor.
@@ -232,6 +232,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
   cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
+  cfg.clearNotice = onOff('clear-notice', 'THINKER_PROXY_CLEAR_NOTICE', PROXY_DEFAULTS.clearNotice);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -271,7 +272,12 @@ export function turnStart(messages) {
 // 4 of 14 turns, and the model answered "I couldn't give the line count (its Read result was cleared
 // from my context)". The current turn's own count cannot be used: it grows with every call of the turn,
 // which is the rewrite of #585/#588. The previous turn's is settled, so a boundary can freeze it.
-export function previousTurnUses(messages) {
+// The tool uses of the last `turns` settled turns -- everything the model has fetched recently, which a clear
+// must not take. Only settled turns are counted: the turn in progress grows a use at a time, and a keep that
+// grows within a turn is what rewrote the cache on every call in #585/#588. Counting the last two turns rather
+// than one gives the turn in progress headroom of about its own size before its oldest results fall out of the
+// keep, and protects the turn before it outright, which is what a model still working on a task reaches back for.
+export function recentTurnUses(messages, turns = 2) {
   const starts = [];
   (Array.isArray(messages) ? messages : []).forEach((m, i) => {
     if (m?.role !== 'user') return;
@@ -279,15 +285,17 @@ export function previousTurnUses(messages) {
     if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) starts.push(i);
   });
   if (starts.length < 2) return 0;
+  // from the start of the oldest turn we still protect, up to the turn in progress
+  const from = starts[Math.max(0, starts.length - 1 - Math.max(1, turns))];
   let n = 0;
-  for (const m of messages.slice(starts[starts.length - 2], starts[starts.length - 1])) {
+  for (const m of messages.slice(from, starts[starts.length - 1])) {
     if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
   }
   return n;
 }
 // the keep a boundary decides: never fewer than the floor, never fewer than a turn of this session's shape
 export const keepForTurn = (cfg, messages) => cfg.keep === 'turn'
-  ? Math.max(cfg.keepMin ?? 0, previousTurnUses(messages))
+  ? Math.max(cfg.keepMin ?? 0, recentTurnUses(messages, cfg.keepTurns ?? 2))
   : cfg.keep;
 export function turnToolUses(messages) {
   let n = 0;
@@ -434,6 +442,34 @@ const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map
 const sessionOf = headers => headers['x-claude-code-session-id'] || null;
 
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
+// What the agent is told about the clearing, and the only advice that costs nothing to follow. The sentence is
+// one text block appended to the system prompt of a session the proxy is clearing (`clearNotice`), because a
+// prompt hook reaches neither a `-p` run nor a desktop session, and the block that did carry this
+// (compression.js:compressionDetail) is said once a session and only three turns after the first clear -- by
+// which time the turn that lost its reads has already answered.
+//
+// It says to carry values forward rather than to read again. B4 (research/clearing-bench, 2026-11-03) cost
+// +81.4% because the model re-read files whose results had been cleared, and on turn 5 it worked out the cheap
+// answer by itself -- "I wrote these lines down right after the reads, before the results were cleared" -- after
+// which its re-reads stopped. Four expensive turns to learn what a sentence can say. The old wording advised the
+// re-read, which is the costly half of the truth.
+//
+// Byte-identical on every call, as everything the proxy adds must be (test/proxy.test.js), and appended after
+// the system prompt's own cache breakpoint so it never rewrites the cached prefix.
+export const CLEAR_NOTICE = 'Older tool results in this conversation are removed from the prompt automatically, to save context. '
+  + 'So carry what you need forward: as you work, write values you will reuse -- a line number, a path, a short quotation -- '
+  + 'into your own reply, rather than relying on an older tool result still being there. Your own messages are never removed. '
+  + 'If you do need a file whose result is gone, read it again.';
+
+// Appended as its own block, never merged into the agent's own text: a string system prompt becomes two blocks.
+export function withClearNotice(j) {
+  const block = { type: 'text', text: CLEAR_NOTICE };
+  if (j.system == null) return { ...j, system: [block] };
+  if (typeof j.system === 'string') return { ...j, system: [{ type: 'text', text: j.system }, block] };
+  if (Array.isArray(j.system)) return { ...j, system: [...j.system, block] };
+  return j;
+}
+
 export function transformRequest(method, url, headers, body, cfg) {
   if (cfg.protocol === 'responses') return transformResponses(method, url, headers, body, cfg);
   if (method !== 'POST' || !/^\/v1\/messages(\?|$)/.test(url) || !body.length) return { body, reason: 'other' };
@@ -457,7 +493,12 @@ export function transformRequest(method, url, headers, body, cfg) {
   // a held edit (clearing.js:decide, nothing safe to clear yet) is not sent at all
   const hold = !!d.edit.hold, sent = [...(thinking ? [thinking] : []), ...kept, ...(hold ? [] : [edit])];
   if (sent.length) j.context_management = { ...cm, edits: sent };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, changed: !!d.clear, ...(hold ? { hold: true } : {}), ...(d.turn != null ? { turn: d.turn } : {}), ...(d.clear ? { clear: { dropped: d.dropped, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) } } : {}), ...(d.held ? { held: { dropped: d.held.dropped, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}), ...(d.clearable != null ? { clearable: d.clearable } : {}), addBeta: !betaOn(headers), actions: hold ? [] : clearedActions(j.messages, edit.keep.value), ...(rr.prints ? { prints: rr.prints } : {}), ...(rr.reread ? { reread: rr.reread } : {}), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  // The carry-forward notice goes with the edit and not before it: a held call clears nothing, so there is
+  // nothing to explain, and the prompt stays as the agent wrote it until the clearing actually starts. `hold`
+  // is decided at the boundary like everything else, so this is constant for the whole turn.
+  const notice = !hold && cfg.clearNotice !== false;
+  if (notice) j = withClearNotice(j);
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, changed: !!d.clear, ...(notice ? { notice: true } : {}), ...(hold ? { hold: true } : {}), ...(d.turn != null ? { turn: d.turn } : {}), ...(d.clear ? { clear: { dropped: d.dropped, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) } } : {}), ...(d.held ? { held: { dropped: d.held.dropped, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}), ...(d.clearable != null ? { clearable: d.clearable } : {}), addBeta: !betaOn(headers), actions: hold ? [] : clearedActions(j.messages, edit.keep.value), ...(rr.prints ? { prints: rr.prints } : {}), ...(rr.reread ? { reread: rr.reread } : {}), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
