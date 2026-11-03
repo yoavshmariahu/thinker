@@ -579,3 +579,30 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
     assert.ok(Array.isArray(d.sent.messages) && d.sent.messages.length > 0);
   } finally { server.close(); up.close(); fs.rmSync(dumpDir, { recursive: true, force: true }); }
 });
+
+test('a declined deepening is on the row, so the gate can be judged from the log', () => {
+  // The live log of 2026-11-03 could not tell a correct refusal from a blanket one: `clear` was on the row
+  // only when a clear went out, so a boundary that declined left no trace and `recache` was never visible.
+  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  const messages = [{ role: 'user', content: 'first request' }];
+  for (let i = 0; i < 12; i++) messages.push({ role: 'assistant', content: [tu(`a${i}`)] }, { role: 'user', content: [tr(`a${i}`, 40000)] });
+  messages.push({ role: 'user', content: [{ type: 'text', text: 'second request' }] });
+  const cfg = proxyConfig({ 'clear-deep': true }, {});
+  const call = record => transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA },
+    Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages })), { ...cfg, record });
+
+  // nothing cleared yet: the first clear is taken unpriced, and what was on the table is recorded
+  const first = call(freshRecord('s', cfg));
+  assert.ok(first.clearable > 0, 'the clearable tokens are on the row');
+  assert.equal(first.held, undefined, 'a decision that cleared carries no held figures');
+
+  // a session that has already cleared far more than the tail is worth: the ask grows, the price refuses it
+  const rec = { ...freshRecord('s', cfg), cleared: 120000, clearedUses: 2, clears: 1, calls: 30, turn: 0, model: 'claude-opus-5-5' };
+  const held = call(rec);
+  assert.equal(held.asked, cfg.clearAtLeast, 'the edit in force is unchanged');
+  assert.ok(held.held, 'the declined decision is on the row');
+  for (const k of ['dropped', 'recache', 'cost', 'saving', 'need', 'have']) assert.equal(typeof held.held[k], 'number', `held.${k}`);
+  assert.ok(held.held.cost > held.held.saving, 'it was declined because the write cost more than the reads it saves');
+  assert.ok(held.held.need > 0, 'how many reads it would have taken is recorded');
+});
