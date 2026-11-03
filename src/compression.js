@@ -136,7 +136,7 @@ export function compressionDetail(state, format, { turnsAfter = TURNS_AFTER } = 
   const recent = (state.recent || []).map(r => `${String(r.at).slice(11, 16)} ${format(r.cleared)} out, ${r.uses} results`);
   return ['<thinker-compression>',
     `The context proxy is clearing this session's older tool results on the API's side. What it has saved so far: ~${format(s.saved)} tokens left out of the prompt, added up over the ${s.requests} ${s.requests === 1 ? 'call' : 'calls'} it has cleared, ${s.uses} tool results in all.`,
-    tools ? `Out of the prompt right now, by the action that fetched it: ${tools}. Those results are gone from your context; read a file again if you need it rather than relying on remembering it.` : '',
+    tools ? `Out of the prompt right now, by the action that fetched it: ${tools}. Those results are gone from your context. Carry what you need forward: write values you will reuse into your own reply as you work, since your messages are never cleared. Read a file again where you need one whose result has gone.` : '',
     recent.length ? `The last ${recent.length} ${recent.length === 1 ? 'clear' : 'clears'}: ${recent.join('; ')}.` : '',
     'Told once a session. `thinker proxy report` has the figures for the machine; the saving is gross, and `thinker proxy replay` prices the cache rewrite a clear costs.',
     '</thinker-compression>'].filter(Boolean).join('\n');

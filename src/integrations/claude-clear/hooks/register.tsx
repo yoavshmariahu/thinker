@@ -20,6 +20,8 @@ export const CLEAR_AT_LEAST = 100000
 export const KEEP_MIN = 3
 // the proxy's keepTurns: the results of the last two turns are never cleared, however small the keep
 export const KEEP_TURNS = 2
+// the proxy's clearNotice: the carry-forward advice, which this door puts in the placeholder itself
+export const CLEAR_NOTICE = true
 export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4
 // a result under this is not worth a placeholder
@@ -45,11 +47,15 @@ export const INTRODUCED = 'thinker-clear:introduced'
 export const INTRO = 'thinker now clears old tool results, call text and earlier thinking in Claude Desktop sessions too, as it does in the terminal: the card under an answer shows what it saved. /thinker-clear runs one by hand.'
 export const TOP_TOOLS = 3
 export const RECENT = 8
+// The proxy's CLEAR_NOTICE (proxy.js) says this in the system prompt; here it rides the placeholder, which is
+// better placed still -- it sits exactly where the material went. Carry-forward, not re-read: B4
+// (research/clearing-bench) cost +81.4% in re-reads the model only stopped making once it started writing what
+// it needed into its own replies.
 export const placeholder = (chars: number) =>
-  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
+  `[tool result cleared by thinker to save context: ${chars} chars. Write values you will reuse into your reply as you work -- your own messages are never cleared. Read the file or run the command again if you need this one.]`
 
-export type Policy = { keepMin: number; keepTurns: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean }
-export const DEFAULTS: Policy = { keepMin: KEEP_MIN, keepTurns: KEEP_TURNS, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true }
+export type Policy = { keepMin: number; keepTurns: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean; clearNotice: boolean }
+export const DEFAULTS: Policy = { keepMin: KEEP_MIN, keepTurns: KEEP_TURNS, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true, clearNotice: CLEAR_NOTICE }
 
 // THINKER_HOME/config.json's `proxy` block, as proxy-service.js:serviceArgs reads it; `desktop: false` keeps
 // the automatic clearing off here (the command still works), `holdout` 0 keeps every session in
@@ -59,6 +65,7 @@ export function policyOf(config: any): Policy {
   return {
     keepMin: num(p.keepMin, KEEP_MIN),
     keepTurns: num(p.keepTurns, KEEP_TURNS),
+    clearNotice: p.clearNotice !== false,
     clearAtLeast: num(p.clearAtLeast, CLEAR_AT_LEAST),
     trigger: num(p.trigger, TRIGGER),
     holdout: Math.min(1, Math.max(0, num(p.holdout, HOLDOUT))),
