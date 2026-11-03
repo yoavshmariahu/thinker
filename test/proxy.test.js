@@ -56,7 +56,7 @@ const rows = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('
 
 test('appends the clearing edit after the agent\'s own and streams the answer through unchanged', async () => {
   const up = await upstream();
-  const px = await proxyTo(up.url);
+  const px = await proxyTo(up.url, { clearAtLeast: 0 });
   try {
     const r = await send(px.port);
     assert.equal(r.status, 200);
@@ -64,7 +64,7 @@ test('appends the clearing edit after the agent\'s own and streams the answer th
     const sent = JSON.parse(up.seen[0].body);
     assert.equal(sent.context_management.edits[0].type, 'clear_thinking_20251015');
     // clear_tool_inputs rides the same edit, on by default since 2026-10-28
-    assert.deepEqual(sent.context_management.edits[1], { type: EDIT_TYPE, trigger: { type: 'input_tokens', value: 140000 }, keep: { type: 'tool_uses', value: 3 }, clear_at_least: { type: 'input_tokens', value: 100000 }, clear_tool_inputs: true });
+    assert.deepEqual(sent.context_management.edits[1], { type: EDIT_TYPE, trigger: { type: 'input_tokens', value: 140000 }, keep: { type: 'tool_uses', value: 3 }, clear_at_least: { type: 'input_tokens', value: 0 }, clear_tool_inputs: true });
     assert.equal(up.seen[0].url, '/v1/messages?beta=true');
     assert.equal(up.seen[0].headers['anthropic-beta'], BETA);
     await until(() => rows(px.logFile).length);
@@ -131,7 +131,7 @@ test('forwards the bytes as they came when the edit cannot or should not be adde
 
 test('a client without the beta header gets it added upstream, with the edit', async () => {
   const up = await upstream();
-  const px = await proxyTo(up.url);
+  const px = await proxyTo(up.url, { clearAtLeast: 0 });
   try {
     assert.equal((await send(px.port, { headers: { 'anthropic-beta': 'oauth-2025-04-20' }, data: body({ context_management: undefined }) })).status, 200);
     assert.equal(up.seen[0].headers['anthropic-beta'], `oauth-2025-04-20,${EDIT_BETA}`);
@@ -568,12 +568,12 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
   ];
   const up = http.createServer((req, res) => { req.on('data', () => {}); req.on('end', () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of sse) res.write(s); res.end(); }); });
   await new Promise(r => up.listen(0, '127.0.0.1', r));
-  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`, {}, { dumpDir });
+  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`, { clearAtLeast: 0 }, { dumpDir });
   try {
     await send(port); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === 1);
     await until(() => fs.existsSync(path.join(dumpDir, 's1')) && fs.readdirSync(path.join(dumpDir, 's1')).length === 1);
     const d = JSON.parse(fs.readFileSync(path.join(dumpDir, 's1', fs.readdirSync(path.join(dumpDir, 's1'))[0]), 'utf8'));
-    assert.equal(d.injected, true); assert.equal(d.keep, PROXY_DEFAULTS.keepMin); assert.equal(d.asked, PROXY_DEFAULTS.clearAtLeast);
+    assert.equal(d.injected, true); assert.equal(d.keep, PROXY_DEFAULTS.keepMin); assert.equal(d.asked, 0);
     assert.equal(d.usage.read, 1000); assert.equal(d.usage.write, 500);
     assert.ok(d.sent.context_management.edits.some(e => e.type === EDIT_TYPE), 'the body as it went up, edit included');
     assert.ok(Array.isArray(d.sent.messages) && d.sent.messages.length > 0);

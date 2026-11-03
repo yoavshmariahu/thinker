@@ -228,7 +228,7 @@ test('the request is measured before the turn: the prefix a deeper ask keeps is 
   assert.deepEqual(measureClearing(cfg, longer, 2), two);
   // what transformRequest sends with a record is the record's edit, and the row says what it decided
   const rec = freshRecord('s', cfg);
-  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'context-management-2025-06-27' }, Buffer.from(JSON.stringify(j)), { ...proxyConfig({}, {}), record: rec, now });
+  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'context-management-2025-06-27' }, Buffer.from(JSON.stringify(j)), { ...proxyConfig({}, {}), clearAtLeast: 0, record: rec, now });
   assert.equal(t.injected, true); assert.equal(t.turn, 3); assert.equal(t.keep, 3, 'the previous turn made three tool calls, so three are kept');
   const edit = JSON.parse(t.body).context_management.edits.find(e => e.type === EDIT_TYPE);
   assert.equal(edit.clear_at_least.value, t.asked);

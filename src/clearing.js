@@ -98,8 +98,13 @@ export function decide(rec, cfg, m, { turn = m.turn, ttl = '1h', now = Date.now(
   // un-clears the whole conversation for that call. Before the first clear an unmet floor costs nothing,
   // so the floor still stands on its own and the clear simply waits for enough to accumulate.
   const reach = rec.cleared + left;
+  // Nothing cleared yet and less than the floor before the turn: the floor would be met out of the turn in
+  // progress (B7 rep 1, 2026-11-03: turn 1 had nothing before it, keep 3 against 5 tool calls, and the server
+  // cleared both reads the model was about to quote). Send no edit until a boundary has the floor behind it;
+  // before the first clear that changes nothing in the cached prompt.
+  if (rec.cleared === 0 && left < cfg.clearAtLeast) return { edit: { keep, ask: rec.edit.ask, hold: true }, clear: false, turn, clearable: left };
   const ask = Math.min(Math.max(cfg.clearAtLeast, rec.cleared + dropped), Math.max(cfg.clearAtLeast, reach));
-  if (ask <= rec.edit.ask && keep === rec.edit.keep) return { ...same, turn, clearable: left };
+  if (ask <= rec.edit.ask && keep === rec.edit.keep && !rec.edit.hold) return { ...same, turn, clearable: left };
   // a keep that has to grow to cover this turn is not a deepening and is not priced: it only ever holds
   // material back, and the alternative is the model losing work it is in the middle of using
   if (ask <= rec.edit.ask) return { edit: { keep, ask: rec.edit.ask }, clear: false, turn, clearable: left };
@@ -123,6 +128,11 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
   if (t.model) rec.model = t.model;
   const read = readRate(rec.model);
   if (t.changed) { rec.edit = { keep: t.keep, ask: t.asked }; rec.changedAt = now; events.push({ clear: true, ...(t.clear || {}) }); }
+  // A boundary that moved the keep, or held the edit back, without a clear is a decision too: the rest of the turn
+  // must send it. Kept only on `changed`, the keep a boundary grew went out on that one call and fell back to the
+  // floor for every later call of the turn, which cleared the turn's own reads (B7 rep 1, 2026-11-03: 0 of 18
+  // answers, and the cleared point moving on every call, a ~46k rewrite each turn).
+  else if (t.turn != null && t.keep != null) rec.edit = { keep: t.keep, ask: rec.edit.ask, ...(t.hold ? { hold: true } : {}) };
   rec.calls++;
   rec.lastAt = now;
   if (!usage) return events;
