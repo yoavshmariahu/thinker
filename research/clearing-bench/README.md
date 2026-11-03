@@ -145,3 +145,46 @@ re-reads the model chooses. The mechanism is, and it is visible call by call.
   turn, and a one-prompt session has nothing there. Forcing the deep path needs several turns
   (`claude -p --continue`) and a floor low enough for `0.7 × clearable` to bind.
 - Two or three reps. The within-arm spread was small, but these are not powered samples.
+
+## B6, the realistic pairing: shipped defaults, real source files (2026-11-03)
+
+B4 above ran at trigger 60k / ask 30k to force the deep path, which is not a setting anybody runs; its
++81.4% is a property of that trigger, not of the policy. B6 is the same question at the shipped
+`PROXY_DEFAULTS` -- trigger 140k, ask 100k, keep 3, no overrides -- over the repository's own `src` and
+`test` files rather than `gen-work.py`'s random words, which tokenize at about 2 chars/token against 3.5-4
+for code and so understate every figure above. 14 turns, 2 reps an arm, `claude -p --resume`, Opus 5.5.
+
+| | clearing | control |
+|---|---|---|
+| cost, 1h writes | $12.85 | $14.56 -> **-11.8%** |
+| cost, 5m writes | $8.47 | $10.54 -> **-19.6%** |
+| calls | 57 | 57 |
+| output tokens | 16,790 | 16,805 |
+| cache reads | 4.2M | 17.5M |
+| cache writes | 1.46M | 1.34M |
+| clears / rewrites / moves | 43 / 12 / 8 | - |
+| stopped, unmet | 0, 0 | - |
+
+Neither arm compacted natively, so the pairing is valid. At the settings that ship, the clearing pays:
+$2.66 of reads avoided against $0.94 of extra writes, with the call count and the output identical.
+
+**And it is quietly answering worse.** Every turn prompt asks for the last line number of the files it
+names. In the clearing arm the model answered 4 of 14 turns with the number missing and the reason given --
+"couldn't give the line count (its Read result was cleared from my context)" -- in both reps. The control
+did it in none. Over both runs and all four reps of each arm: 16 degraded turns against 0. B4 paid for the
+same fault in tokens, because there the model re-read the files instead (75% more calls); B6 pays for it in
+answers, at no extra cost at all, which no cost measurement can see. The 15% holdout is the only thing that
+can, and that is what it is for.
+
+## What the server does, read from the requests (`THINKER_PROXY_DUMP`, 6 turns, shipped defaults)
+
+20 dumped calls that carried a clear, each compared against its own request. For every call, the oldest-k
+tool uses by position (results plus the call text, both cleared) account for a **constant 0.84-0.85** of the
+tokens the API reported clearing, across the step from 6 uses cleared to 20. The constant is the estimator's
+own bias (`TOKENS_PER_CHAR` undercounts code); what matters is that it does not move. Taking the k largest
+results instead drifts from 0.85 to 1.41 over the same calls. **Oldest-first, and it stops when the ask is
+met** -- so an ask held inside what is older than the turn cannot reach the turn.
+
+**It does reach into the turn in progress.** On 3 of the 20 calls `cleared_tool_uses` exceeded the tool uses
+sitting before the turn, by exactly one each time. Directly observed, which is what `keep: 3` on a turn of
+four or more tool calls costs.
