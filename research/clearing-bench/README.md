@@ -26,6 +26,38 @@ python3 analyse.py $OUT/log-clearing.jsonl $OUT/log-control.jsonl
 Both arms must stay inside the context window: a control that auto-compacts is not a control.
 Check for `native-compaction` in the logs before believing a pairing.
 
+## Running a multi-turn one (the only shape that reaches the deep path)
+
+`clearable` counts what sits *before* the current turn, so a one-prompt session has nothing there and the
+ask never grows: a single-turn arm can only ever measure the floor. `run-turns.sh` resumes one Claude Code
+session across N turns (`--session-id` then `--resume`), which is what the proxy needs to see a turn
+boundary at all.
+
+```bash
+export THINKER_SRC=~/src/thinker OUT=/tmp/clearbench
+mkdir -p $OUT && python3 $THINKER_SRC/research/clearing-bench/gen-turns.py $OUT/turns 9 2 34000 3
+PORT=$(~/.claude/bin/claude-port reserve thinker clearbench)
+PORT=$PORT ./run-turns.sh clearing 0 2 $OUT/turns --trigger 60000 --clear-at-least 30000
+PORT=$PORT ./run-turns.sh control  1 2 $OUT/turns --trigger 60000 --clear-at-least 30000
+python3 analyse.py $OUT/log-clearing.jsonl $OUT/log-control.jsonl
+~/.claude/bin/claude-port release thinker clearbench
+```
+
+The trigger and the ask have to be low enough for `0.7 x clearable` to bind before the session ends;
+at the shipped 140k/100k a nine-turn arm of this size never reaches a second decision.
+
+Checked on the harness itself before spending on a pairing: one session id across every resumed turn,
+`turn` on the row incrementing at each boundary and absent within a turn.
+
+## Reading a refusal
+
+Since #604 a turn boundary that declined to deepen carries `held` on its row (`dropped`, `recache`,
+`cost`, `saving`, `need`, `have`), and every boundary carries `clearable`. `analyse.py` prints each
+refusal with the arithmetic behind it. A row with `clearable` and no `held` is a boundary where the ask
+would not have grown; one with `held` is a deepening the price refused. Before this, a log of refusals
+was indistinguishable from a log of a policy that never considered deepening at all -- which is exactly
+what the live log of 2026-11-03 could not resolve.
+
 ## What was measured (2026-11-02, Opus 5.5, 0.2.19)
 
 | workload | clearing vs control (1h writes) | at 5m writes |
