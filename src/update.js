@@ -343,7 +343,11 @@ export async function applyUpdate(opts = {}) {
   // Archive / production install (~/.thinker/app)
   const appDir = path.join(home, 'app');
   const binDir = path.join(home, 'bin');
-  const tmpBase = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-update-'));
+  // Under the home, not os.tmpdir(): the new app is renamed into place, and a rename cannot cross filesystems.
+  // On a machine with /home on its own disk every update failed with EXDEV at that rename, silently in the
+  // background, from 0.2.8 to 0.2.20 (2026-11-03).
+  fs.mkdirSync(path.join(home, 'tmp'), { recursive: true });
+  const tmpBase = fs.mkdtempSync(path.join(home, 'tmp', 'update-'));
   const tmpTar = path.join(tmpBase, 'thinker.tgz');
   const tmpApp = path.join(tmpBase, 'app');
 
@@ -488,9 +492,17 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
 // schedule. Daily until 2026-10-16; four hours brings a fix out the same working day.
 export const UPDATE_EVERY_MS = 4 * 3600_000;
 
+// The crontab is one per user, not per THINKER_HOME: a test or a benchmark with a home of its own must not
+// write or prune the machine's line (`uninstall` from such a run took the person's update line out with it).
+// A test that puts a fake crontab on PATH says so with THINKER_TEST_CRONTAB=1.
+const ownsCrontab = home => isTestMode() ? process.env.THINKER_TEST_CRONTAB === '1' : path.resolve(home) === path.resolve(os.homedir(), '.thinker');
+// `thinker update --unschedule` (or the installer's --no-auto-update) is an answer the background check keeps
+export const autoUpdateOffFile = (home = thinkerHome()) => path.join(home, 'state', 'auto-update-off');
+
 // The OS schedule at UPDATE_EVERY_MS (the name is older than the interval)
 export function scheduleDaily(opts = {}) {
   const home = opts.home || thinkerHome();
+  if (process.platform === 'linux' && !ownsCrontab(home)) return { type: 'invocation', reason: 'not the machine\'s own THINKER_HOME' };
   const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
   const nodeBinDir = path.dirname(process.execPath);
 
@@ -566,6 +578,7 @@ export function scheduleDaily(opts = {}) {
 // job that is reloading it.
 export function refreshSchedule(opts = {}) {
   const home = opts.home || thinkerHome();
+  if (process.platform === 'linux' && !ownsCrontab(home)) return null;
   if (!isScheduled(home, opts)) return null;
   try {
     if (process.platform === 'darwin') {
@@ -577,8 +590,18 @@ export function refreshSchedule(opts = {}) {
   } catch { return null; }
 }
 
+// A schedule that is gone is put back, from the update the CLI and MCP server start on use, unless the person
+// turned it off (`autoUpdateOffFile`). On this machine (2026-11-03) the installer's line was missing and nothing
+// noticed: the installer hides that step's errors, and nothing after it checked.
+export function ensureSchedule(opts = {}) {
+  const home = opts.home || thinkerHome();
+  if (fs.existsSync(autoUpdateOffFile(home)) || isScheduled(home, opts)) return null;
+  try { return scheduleDaily(opts); } catch { return null; }
+}
+
 export function unscheduleDaily(opts = {}) {
   const home = opts.home || thinkerHome();
+  if (process.platform === 'linux' && !ownsCrontab(home)) return { unscheduled: false, type: 'cron' };
 
   if (process.platform === 'darwin') {
     const plistPath = opts.plistPath || getLaunchAgentPath();

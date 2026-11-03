@@ -333,6 +333,9 @@ SHIM
 EOF
   if [ "$autoupdate" = 1 ]; then
     "$thinker" update --schedule --quiet 2>/dev/null || true
+  else
+    # recorded, so the background check does not put the schedule back (update.js:ensureSchedule)
+    "$thinker" update --unschedule --quiet >/dev/null 2>&1 || true
   fi
   local rcfile=""
   if [ "$modpath" = 1 ]; then rcfile="$(add_to_path "$home/bin")"; fi
