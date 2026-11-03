@@ -26,6 +26,38 @@ python3 analyse.py $OUT/log-clearing.jsonl $OUT/log-control.jsonl
 Both arms must stay inside the context window: a control that auto-compacts is not a control.
 Check for `native-compaction` in the logs before believing a pairing.
 
+## Running a multi-turn one (the only shape that reaches the deep path)
+
+`clearable` counts what sits *before* the current turn, so a one-prompt session has nothing there and the
+ask never grows: a single-turn arm can only ever measure the floor. `run-turns.sh` resumes one Claude Code
+session across N turns (`--session-id` then `--resume`), which is what the proxy needs to see a turn
+boundary at all.
+
+```bash
+export THINKER_SRC=~/src/thinker OUT=/tmp/clearbench
+mkdir -p $OUT && python3 $THINKER_SRC/research/clearing-bench/gen-turns.py $OUT/turns 9 2 34000 3
+PORT=$(~/.claude/bin/claude-port reserve thinker clearbench)
+PORT=$PORT ./run-turns.sh clearing 0 2 $OUT/turns --trigger 60000 --clear-at-least 30000
+PORT=$PORT ./run-turns.sh control  1 2 $OUT/turns --trigger 60000 --clear-at-least 30000
+python3 analyse.py $OUT/log-clearing.jsonl $OUT/log-control.jsonl
+~/.claude/bin/claude-port release thinker clearbench
+```
+
+The trigger and the ask have to be low enough for `0.7 x clearable` to bind before the session ends;
+at the shipped 140k/100k a nine-turn arm of this size never reaches a second decision.
+
+Checked on the harness itself before spending on a pairing: one session id across every resumed turn,
+`turn` on the row incrementing at each boundary and absent within a turn.
+
+## Reading a refusal
+
+Since #604 a turn boundary that declined to deepen carries `held` on its row (`dropped`, `recache`,
+`cost`, `saving`, `need`, `have`), and every boundary carries `clearable`. `analyse.py` prints each
+refusal with the arithmetic behind it. A row with `clearable` and no `held` is a boundary where the ask
+would not have grown; one with `held` is a deepening the price refused. Before this, a log of refusals
+was indistinguishable from a log of a policy that never considered deepening at all -- which is exactly
+what the live log of 2026-11-03 could not resolve.
+
 ## What was measured (2026-11-02, Opus 5.5, 0.2.19)
 
 | workload | clearing vs control (1h writes) | at 5m writes |
@@ -64,6 +96,43 @@ already cleared, and then clears everything but the keep (5 of 8 results at a ra
 `clear_at_least` is the interval between applications, each a rewrite of the post-clear context (~70k here).
 Claude Code 2.1.316 sends no tool clearing of its own (captured: `clear_thinking keep: all` only).
 
+## What was measured (2026-11-03, Opus 5.5, #603's read rate, the multi-turn runner)
+
+Nine turns of two reads and three echoes, trigger 60k, ask 30k, two reps an arm -- the README's W4
+shape, driven by `run-turns.sh` this time.
+
+| | clearing | control |
+|---|---|---|
+| cost at 1h writes | $13.04 | $7.19 (**+81.4%**; +63.8% at 5m) |
+| calls | 63 (34 and 29 a rep) | 36 (18 and 18) |
+| **cost per call** | **$0.2069** | **$0.1996** |
+| max context | 134k | 459k |
+| reads / writes | 2.9M / 1.52M | 8.1M / 0.67M |
+
+**Per call the two arms cost the same. The whole +81% is the clearing arm making 75% more model
+calls**, and the model said why: *"My first reads of these two files were cleared from context, so I
+read them again to quote the lines exactly"* -- six such admissions across the two reps. This is the
+cost `thinker proxy replay` cannot see and the holdout exists for, and here it is, measured.
+
+**The keep is a count, not a size.** Read call by call (session af769ed0): the model batches a turn's
+five tool calls in one assistant message, so at the next call five results stand; `keep: 3` keeps the
+newest three -- the three worthless echoes -- and clears the two Reads (35k), which is the content
+that turn needs to answer. `measureClearing` keeps the current turn out of the *decision*, but the
+API's `keep` knows nothing about turns, so the server clears the current turn's results anyway. Then
+the loop: cleared goes 35k, 118k, 204k, 292k, about 85k a turn where each turn reads 35k of new
+material, because every re-read is more material to clear. 18.2M cleared in a conversation of 460k.
+
+**The deep path never engaged, and the `held` rows say why**: all 18 boundaries refused with
+`dropped 0k`. The server's own oldest-first rule has already cleared everything but the keep, so
+there is no backlog for a deeper ask to take and every refusal is degenerate. The gate never made a
+real decision here.
+
+**The gauge is blind to it.** It counts unplanned rewrites -- write beyond the prompt's growth -- and
+the loss here is extra calls, which no term in `response()` sees. Neither session stopped.
+
+Against the same shape at -4.1% on 2026-11-02: the sign is not settled, it moves with how many
+re-reads the model chooses. The mechanism is, and it is visible call by call.
+
 ## Caveats worth keeping
 
 - The first workload is a best case by construction: every token is a clearable tool result and
@@ -76,3 +145,46 @@ Claude Code 2.1.316 sends no tool clearing of its own (captured: `clear_thinking
   turn, and a one-prompt session has nothing there. Forcing the deep path needs several turns
   (`claude -p --continue`) and a floor low enough for `0.7 × clearable` to bind.
 - Two or three reps. The within-arm spread was small, but these are not powered samples.
+
+## B6, the realistic pairing: shipped defaults, real source files (2026-11-03)
+
+B4 above ran at trigger 60k / ask 30k to force the deep path, which is not a setting anybody runs; its
++81.4% is a property of that trigger, not of the policy. B6 is the same question at the shipped
+`PROXY_DEFAULTS` -- trigger 140k, ask 100k, keep 3, no overrides -- over the repository's own `src` and
+`test` files rather than `gen-work.py`'s random words, which tokenize at about 2 chars/token against 3.5-4
+for code and so understate every figure above. 14 turns, 2 reps an arm, `claude -p --resume`, Opus 5.5.
+
+| | clearing | control |
+|---|---|---|
+| cost, 1h writes | $12.85 | $14.56 -> **-11.8%** |
+| cost, 5m writes | $8.47 | $10.54 -> **-19.6%** |
+| calls | 57 | 57 |
+| output tokens | 16,790 | 16,805 |
+| cache reads | 4.2M | 17.5M |
+| cache writes | 1.46M | 1.34M |
+| clears / rewrites / moves | 43 / 12 / 8 | - |
+| stopped, unmet | 0, 0 | - |
+
+Neither arm compacted natively, so the pairing is valid. At the settings that ship, the clearing pays:
+$2.66 of reads avoided against $0.94 of extra writes, with the call count and the output identical.
+
+**And it is quietly answering worse.** Every turn prompt asks for the last line number of the files it
+names. In the clearing arm the model answered 4 of 14 turns with the number missing and the reason given --
+"couldn't give the line count (its Read result was cleared from my context)" -- in both reps. The control
+did it in none. Over both runs and all four reps of each arm: 16 degraded turns against 0. B4 paid for the
+same fault in tokens, because there the model re-read the files instead (75% more calls); B6 pays for it in
+answers, at no extra cost at all, which no cost measurement can see. The 15% holdout is the only thing that
+can, and that is what it is for.
+
+## What the server does, read from the requests (`THINKER_PROXY_DUMP`, 6 turns, shipped defaults)
+
+20 dumped calls that carried a clear, each compared against its own request. For every call, the oldest-k
+tool uses by position (results plus the call text, both cleared) account for a **constant 0.84-0.85** of the
+tokens the API reported clearing, across the step from 6 uses cleared to 20. The constant is the estimator's
+own bias (`TOKENS_PER_CHAR` undercounts code); what matters is that it does not move. Taking the k largest
+results instead drifts from 0.85 to 1.41 over the same calls. **Oldest-first, and it stops when the ask is
+met** -- so an ask held inside what is older than the turn cannot reach the turn.
+
+**It does reach into the turn in progress.** On 3 of the 20 calls `cleared_tool_uses` exceeded the tool uses
+sitting before the turn, by exactly one each time. Directly observed, which is what `keep: 3` on a turn of
+four or more tool calls costs.

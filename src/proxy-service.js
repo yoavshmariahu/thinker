@@ -211,8 +211,15 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
   return { on: true, started: true, pid, listening };
 }
 
-const plistPath = home => path.join(isTestMode() ? path.join(home, 'LaunchAgents') : path.join(os.homedir(), 'Library', 'LaunchAgents'), `${PROXY_LABEL}.plist`);
-const unitPath = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user', 'thinker-proxy.service');
+// The service manager's entry is one per machine, and only the machine's own THINKER_HOME may write or restart it.
+// A benchmark or a scratch install runs with a THINKER_HOME of its own, and not always in test mode: on 2026-11-03 a
+// clearing-bench arm (THINKER_HOME under a scratchpad, its proxy started without THINKER_TEST) rewrote
+// ~/.config/systemd/user/thinker-proxy.service to point at its own port and restarted it, which killed the proxy the
+// person's Claude Code was talking through ("Connection lost mid-response", then ECONNREFUSED for 12 hours). Any
+// other home keeps its entry under itself and never touches launchctl or systemctl.
+const ownsService = home => !isTestMode() && path.resolve(home) === path.resolve(os.homedir(), '.thinker');
+const plistPath = home => path.join(ownsService(home) ? path.join(os.homedir(), 'Library', 'LaunchAgents') : path.join(home, 'LaunchAgents'), `${PROXY_LABEL}.plist`);
+const unitPath = home => ownsService(home) ? path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user', 'thinker-proxy.service') : path.join(home, 'systemd-user', 'thinker-proxy.service');
 const xml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export function plistText({ cli, home = thinkerHome(), args = serviceArgs(home) }) {
   const items = [process.execPath, cli, ...args].map(a => `        <string>${xml(a)}</string>`).join('\n');
@@ -268,6 +275,7 @@ const hasSystemd = () => process.platform === 'linux' && run('systemctl', ['--us
 
 // the service manager's entry: launchd on macOS, systemd on Linux with a user session; elsewhere the hook alone
 export function installService({ cli, home = thinkerHome(), manage = !isTestMode() } = {}) {
+  manage = manage && ownsService(home);
   const s = serviceState(home);
   if (!s.port) return { type: 'none' };
   if (process.platform === 'darwin') {
@@ -279,7 +287,7 @@ export function installService({ cli, home = thinkerHome(), manage = !isTestMode
     return { type: 'launchd', path: p };
   }
   if (hasSystemd()) {
-    const u = unitPath();
+    const u = unitPath(home);
     fs.mkdirSync(path.dirname(u), { recursive: true });
     fs.writeFileSync(u, unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(u, 0o600);
     if (manage) { run('systemctl', ['--user', 'daemon-reload']); if (!run('systemctl', ['--user', 'enable', '--now', 'thinker-proxy.service'])) return { type: 'hook', path: u, reason: 'systemctl refused the unit' }; }
@@ -288,10 +296,11 @@ export function installService({ cli, home = thinkerHome(), manage = !isTestMode
   return { type: 'hook' };
 }
 export function uninstallService({ home = thinkerHome(), manage = !isTestMode() } = {}) {
+  manage = manage && ownsService(home);
   const done = [];
   const p = plistPath(home);
   if (fs.existsSync(p)) { if (manage) run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]); fs.rmSync(p, { force: true }); done.push(p); }
-  const u = unitPath();
+  const u = unitPath(home);
   if (fs.existsSync(u)) { if (manage) { run('systemctl', ['--user', 'disable', '--now', 'thinker-proxy.service']); } fs.rmSync(u, { force: true }); if (manage) run('systemctl', ['--user', 'daemon-reload']); done.push(u); }
   const s = serviceState(home);
   if (s.pid && manage) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
@@ -299,6 +308,7 @@ export function uninstallService({ home = thinkerHome(), manage = !isTestMode() 
 }
 // after an update the service runs the old code until it is started again
 export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false } = {}) {
+  manage = manage && ownsService(home);
   const s = serviceState(home);
   if (!s.enabled || !manage) return false;
   if (process.platform === 'darwin' && fs.existsSync(plistPath(home))) {
@@ -310,8 +320,8 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
     const started = run('launchctl', ['bootstrap', `gui/${uid()}`, p]) || run('launchctl', ['load', p]);
     return managedOnly || started; // an installed manager must not race a detached fallback
   }
-  if (fs.existsSync(unitPath())) {
-    fs.writeFileSync(unitPath(), unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(unitPath(), 0o600);
+  if (fs.existsSync(unitPath(home))) {
+    fs.writeFileSync(unitPath(home), unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(unitPath(home), 0o600);
     run('systemctl', ['--user', 'daemon-reload']);
     const started = run('systemctl', ['--user', 'restart', 'thinker-proxy.service']);
     return managedOnly || started;
