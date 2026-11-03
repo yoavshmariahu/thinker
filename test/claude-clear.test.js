@@ -40,6 +40,7 @@ const DESKTOP_POLICY = {
   trigger: { reads: 'p.trigger,', mirrors: 'TRIGGER' },
   clearAtLeast: { reads: 'p.clearAtLeast,', mirrors: 'CLEAR_AT_LEAST' },
   keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
+  keepTurns: { reads: 'p.keepTurns,', mirrors: 'KEEP_TURNS' },
   // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
   clearInputs: { reads: 'p.clearInputs !== false' },

@@ -70,7 +70,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, keepTurns: 2, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
 // The clearing policy -- clear, freeze what was cleared, and clear again when it pays -- is clearing.js. What this
 // file does for it is measure the request (`measureClearing`) and send the edit it decides (`transformRequest`,
 // `cfg.record`). `clearDeep: false` (`--no-clear-deep`, `proxy: { clearDeep: false }`) keeps every ask at the floor.
@@ -271,7 +271,12 @@ export function turnStart(messages) {
 // 4 of 14 turns, and the model answered "I couldn't give the line count (its Read result was cleared
 // from my context)". The current turn's own count cannot be used: it grows with every call of the turn,
 // which is the rewrite of #585/#588. The previous turn's is settled, so a boundary can freeze it.
-export function previousTurnUses(messages) {
+// The tool uses of the last `turns` settled turns -- everything the model has fetched recently, which a clear
+// must not take. Only settled turns are counted: the turn in progress grows a use at a time, and a keep that
+// grows within a turn is what rewrote the cache on every call in #585/#588. Counting the last two turns rather
+// than one gives the turn in progress headroom of about its own size before its oldest results fall out of the
+// keep, and protects the turn before it outright, which is what a model still working on a task reaches back for.
+export function recentTurnUses(messages, turns = 2) {
   const starts = [];
   (Array.isArray(messages) ? messages : []).forEach((m, i) => {
     if (m?.role !== 'user') return;
@@ -279,15 +284,17 @@ export function previousTurnUses(messages) {
     if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) starts.push(i);
   });
   if (starts.length < 2) return 0;
+  // from the start of the oldest turn we still protect, up to the turn in progress
+  const from = starts[Math.max(0, starts.length - 1 - Math.max(1, turns))];
   let n = 0;
-  for (const m of messages.slice(starts[starts.length - 2], starts[starts.length - 1])) {
+  for (const m of messages.slice(from, starts[starts.length - 1])) {
     if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
   }
   return n;
 }
 // the keep a boundary decides: never fewer than the floor, never fewer than a turn of this session's shape
 export const keepForTurn = (cfg, messages) => cfg.keep === 'turn'
-  ? Math.max(cfg.keepMin ?? 0, previousTurnUses(messages))
+  ? Math.max(cfg.keepMin ?? 0, recentTurnUses(messages, cfg.keepTurns ?? 2))
   : cfg.keep;
 export function turnToolUses(messages) {
   let n = 0;
