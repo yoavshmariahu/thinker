@@ -82,8 +82,7 @@ export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 
 // mlflow PR26265) the policy asked 182k at a turn boundary with 120k cleared and 89k in the three kept results, the
 // server cleared nothing on that call and the whole conversation came back uncleared: 171k read and 73k written for
 // nothing, then the floor ask again the next call (`proxy-clear-unmet`).
-export function clearableBeforeTurn(cfg, messages) {
-  const keep = keepValue(cfg, messages);
+export function clearableBeforeTurn(cfg, messages, keep = keepValue(cfg, messages)) {
   const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
   const results = [], inputs = [];
   for (const m of messages.slice(0, turnStart(messages))) {
@@ -110,7 +109,8 @@ export function measureClearing(cfg, j, clearedUses = 0) {
   const messages = all.slice(0, turnStart(all));
   const head = txt(j?.system) + txt(j?.tools);
   const prompt = tok(head + txt(messages));
-  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all), turn: turnId(all) };
+  const keep = keepForTurn(cfg, all);
+  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all, keep), turn: turnId(all), keep };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -264,6 +264,31 @@ export function turnStart(messages) {
   });
   return start;
 }
+// How many tool uses the turn before this one made. `keep` is a count of the newest tool uses the API
+// holds back, and it knows nothing about turns, so a keep smaller than a turn's own tool calls lets the
+// server clear the results of the turn in progress -- the reads the model is about to answer from.
+// Measured 2026-11-03: a turn of 1 read + 1 grep + 2 echoes against `keep: 3` lost its read mid-turn in
+// 4 of 14 turns, and the model answered "I couldn't give the line count (its Read result was cleared
+// from my context)". The current turn's own count cannot be used: it grows with every call of the turn,
+// which is the rewrite of #585/#588. The previous turn's is settled, so a boundary can freeze it.
+export function previousTurnUses(messages) {
+  const starts = [];
+  (Array.isArray(messages) ? messages : []).forEach((m, i) => {
+    if (m?.role !== 'user') return;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
+    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) starts.push(i);
+  });
+  if (starts.length < 2) return 0;
+  let n = 0;
+  for (const m of messages.slice(starts[starts.length - 2], starts[starts.length - 1])) {
+    if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
+  }
+  return n;
+}
+// the keep a boundary decides: never fewer than the floor, never fewer than a turn of this session's shape
+export const keepForTurn = (cfg, messages) => cfg.keep === 'turn'
+  ? Math.max(cfg.keepMin ?? 0, previousTurnUses(messages))
+  : cfg.keep;
 export function turnToolUses(messages) {
   let n = 0;
   for (const m of messages.slice(turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
@@ -306,6 +331,62 @@ export function inputsBeforeTurn(messages) {
 // TOKENS_PER_CHAR. So the agent can be told what the saving was made of, which is the question the figure raises.
 // Aggregated by tool name, biggest first, and the breakdown describes the set cleared out of *this* prompt: it is
 // never added up across requests, since each request clears the same cumulative set again.
+// What the clearing cost that the gauge could not see: material that came back.
+//
+// The gauge (clearing.js:response) weighs the clears against the cache rewrites after them, and that is the
+// whole of the cost it knows. Measured 2026-11-03 (research/clearing-bench, B4): a session cost 81% more than
+// its held-out pair, every penny of it in 75% more model calls, because the model re-read the files whose
+// results had been cleared -- and the gauge never stopped it, because no term in it counts a call. B6, at the
+// shipped trigger, was worse: the model stopped re-reading and answered "I couldn't give the line count (its
+// Read result was cleared from my context)" instead, so the damage left the token figures altogether.
+//
+// A re-read is visible in the request, though: it is a tool use whose name and input repeat one whose result
+// the server has already cleared. `fingerprints` of the cleared uses go in the session record, and a use in
+// the newest turn that matches one is material the clear did not save -- it is back, as fresh input, at ten to
+// forty times what clearing it saves on a call. One rule, and it is the cost the two runs above were made of.
+export function toolPrint(name, input) {
+  const text = `${name}\u0000${(() => { try { return JSON.stringify(input ?? {}); } catch { return ''; } })()}`;
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (let i = 0; i < text.length; i++) {
+    h1 = (h1 ^ text.charCodeAt(i)) * 0x01000193 >>> 0;
+    h2 = (h2 + text.charCodeAt(i) * 0x85ebca6b) >>> 0;
+  }
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+// The cleared uses' prints, and any use of the newest turn that repeats one the record has already seen
+// cleared. `seen` is the record's list; the result's `prints` replaces it, capped, newest kept.
+export const REREAD_PRINTS = 400;
+export function rereadOfCleared(messages, keep, seen = []) {
+  const empty = { prints: Array.isArray(seen) ? seen : [], reread: null };
+  if (!Array.isArray(messages)) return empty;
+  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
+  const uses = [], sizes = new Map();
+  const start = turnStart(messages);
+  messages.forEach((m, i) => {
+    if (!Array.isArray(m?.content)) return;
+    for (const b of m.content) {
+      if (m.role === 'assistant' && b?.type === 'tool_use') uses.push({ id: b.id, name: String(b.name || 'tool'), print: toolPrint(b.name, b.input), fresh: i >= start });
+      if (m.role === 'user' && b?.type === 'tool_result') sizes.set(b.tool_use_id, (sizes.get(b.tool_use_id) || 0) + textLen(b.content));
+    }
+  });
+  const was = new Set(Array.isArray(seen) ? seen : []);
+  // a use of the turn in progress whose print the record saw cleared: the material is back
+  const by = new Map();
+  for (const u of uses) {
+    if (!u.fresh || !was.has(u.print)) continue;
+    const e = by.get(u.name) || { name: u.name, calls: 0, tokens: 0 };
+    e.calls++; e.tokens += Math.round((sizes.get(u.id) || 0) * TOKENS_PER_CHAR);
+    by.set(u.name, e);
+  }
+  const cleared = uses.slice(0, Math.max(0, uses.length - Math.max(0, keep | 0)));
+  const prints = [...was];
+  for (const u of cleared) if (!was.has(u.print)) prints.push(u.print);
+  const tools = [...by.values()].sort((a, b) => b.tokens - a.tokens);
+  return {
+    prints: prints.slice(-REREAD_PRINTS),
+    reread: tools.length ? { calls: tools.reduce((a, b) => a + b.calls, 0), tokens: tools.reduce((a, b) => a + b.tokens, 0), tools } : null,
+  };
+}
 export function clearedActions(messages, keep) {
   if (!Array.isArray(messages)) return [];
   const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
@@ -370,9 +451,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   const rec = cfg.record, m = rec ? measureClearing(cfg, j, rec.clearedUses) : null;
   const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now, model: j.model }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
   const edit = clearEdit(cfg, j.messages, d.edit), thinking = thinkingEdit(cfg, j.messages);
+  // material the clear did not save, because the model fetched it again (rereadOfCleared)
+  const rr = rec ? rereadOfCleared(j.messages, edit.keep.value, rec.seenCleared) : { prints: null, reread: null };
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   j.context_management = { ...cm, edits: [...(thinking ? [thinking] : []), ...kept, edit] };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, changed: !!d.clear, ...(d.turn != null ? { turn: d.turn } : {}), ...(d.clear ? { clear: { dropped: d.dropped, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) } } : {}), ...(d.held ? { held: { dropped: d.held.dropped, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}), ...(d.clearable != null ? { clearable: d.clearable } : {}), addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, changed: !!d.clear, ...(d.turn != null ? { turn: d.turn } : {}), ...(d.clear ? { clear: { dropped: d.dropped, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) } } : {}), ...(d.held ? { held: { dropped: d.held.dropped, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}), ...(d.clearable != null ? { clearable: d.clearable } : {}), addBeta: !betaOn(headers), actions: clearedActions(j.messages, edit.keep.value), ...(rr.prints ? { prints: rr.prints } : {}), ...(rr.reread ? { reread: rr.reread } : {}), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -579,12 +662,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.clearable != null ? { clearable: t.clearable } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.reread ? { reread: { calls: t.reread.calls, tokens: t.reread.tokens } } : {}), ...(t.clearable != null ? { clearable: t.clearable } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
             // gauge read; each event is a log line, and the record goes back to disk
             if (tap && rec && t.injected && t.protocol !== 'responses') {
-              for (const ev of clearingResponse(rec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: ev.stopped ? 'proxy-clearing-stopped' : ev.unmet ? 'proxy-clear-unmet' : ev.moved ? 'proxy-clear-moved' : 'proxy-clear', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...ev, read: usage.read, write: usage.write, cleared: usage.cleared, clearedUses: usage.clearedUses });
+              for (const ev of clearingResponse(rec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: ev.stopped ? 'proxy-clearing-stopped' : ev.unmet ? 'proxy-clear-unmet' : ev.moved ? 'proxy-clear-moved' : ev.reread ? 'proxy-clear-reread' : 'proxy-clear', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...ev, read: usage.read, write: usage.write, cleared: usage.cleared, clearedUses: usage.clearedUses });
               clearing.write(rec);
             }
           };

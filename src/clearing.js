@@ -57,7 +57,7 @@ export const rawOf = u => (u?.input || 0) + (u?.read || 0) + (u?.write || 0) + (
 // the gauge's two sides in input-equivalent tokens; `stopped` the reason the session no longer clears, if any.
 export const freshRecord = (session, cfg) => ({
   session, edit: { keep: cfg.keepMin ?? 0, ask: cfg.clearAtLeast }, turn: -1, changedAt: 0, calls: 0, lastAt: 0,
-  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, raw: 0, unmet: false, stopped: null, model: null,
+  cleared: 0, clearedUses: 0, clears: 0, moves: 0, saved: 0, written: 0, returned: 0, seenCleared: [], raw: 0, unmet: false, stopped: null, model: null,
 });
 
 // What is clearable: what sits before the turn by the proxy's count, less what the server already cleared. The
@@ -89,14 +89,26 @@ export function decide(rec, cfg, m, { turn = m.turn, ttl = '1h', now = Date.now(
   if (rec.stopped || turn === rec.turn) return same;
   const left = clearable(rec, m);
   const dropped = cfg.clearDeep === false || rec.unmet ? 0 : Math.floor(DEEP_MARGIN * left);
-  const ask = Math.max(cfg.clearAtLeast, rec.cleared + dropped);
-  if (ask <= rec.edit.ask) return { ...same, turn, clearable: left };
+  const keep = m.keep ?? rec.edit.keep;
+  // The ask may never exceed what is clearable before the turn. The server satisfies it oldest-first and
+  // stops, so an ask it cannot meet from earlier turns is met out of the turn in progress: at B6 turn 5
+  // (2026-11-03) ~54k sat before the turn, the ask in force was the 100k floor, and the server cleared
+  // 106k -- the missing ~52k being the reads the model was about to answer from. `reach` is also what
+  // keeps a raised ask meetable at all: an ask the API cannot meet applies nothing, which after a clear
+  // un-clears the whole conversation for that call. Before the first clear an unmet floor costs nothing,
+  // so the floor still stands on its own and the clear simply waits for enough to accumulate.
+  const reach = rec.cleared + left;
+  const ask = Math.min(Math.max(cfg.clearAtLeast, rec.cleared + dropped), Math.max(cfg.clearAtLeast, reach));
+  if (ask <= rec.edit.ask && keep === rec.edit.keep) return { ...same, turn, clearable: left };
+  // a keep that has to grow to cover this turn is not a deepening and is not priced: it only ever holds
+  // material back, and the alternative is the model losing work it is in the middle of using
+  if (ask <= rec.edit.ask) return { edit: { keep, ask: rec.edit.ask }, clear: false, turn, clearable: left };
   const cold = rec.lastAt > 0 && now - rec.lastAt > COLD_MS;
   const p = price(m, ask - rec.cleared, { ttl, cold, calls: rec.calls, model });
   // nothing applied yet: a deeper ask changes no cached prompt, and the first clear is cheaper the deeper it is,
   // since more of the tail it writes is the dropped material itself
-  if (rec.cleared === 0 || p.pays) return { edit: { keep: rec.edit.keep, ask }, clear: true, turn, cold, clearable: left, ...p };
-  return { ...same, turn, clearable: left, held: p };
+  if (rec.cleared === 0 || p.pays) return { edit: { keep, ask }, clear: true, turn, cold, clearable: left, ...p };
+  return { edit: { keep, ask: rec.edit.ask }, clear: false, turn, clearable: left, held: p };
 }
 
 // The record after an answer. `t` is what the request carried (`turn`, `changed`, `keep`, `asked`: the decision,
@@ -107,6 +119,7 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const events = [];
   const cold = rec.lastAt > 0 && now - rec.lastAt > COLD_MS;
   if (t.turn != null) rec.turn = t.turn;
+  if (Array.isArray(t.prints)) rec.seenCleared = t.prints;
   if (t.model) rec.model = t.model;
   const read = readRate(rec.model);
   if (t.changed) { rec.edit = { keep: t.keep, ask: t.asked }; rec.changedAt = now; events.push({ clear: true, ...(t.clear || {}) }); }
@@ -138,12 +151,26 @@ export function response(rec, cfg, t, usage, { now = Date.now() } = {}) {
   // or the clear itself not holding. The session stops once those writes cost more than the clears have saved plus
   // what they can still save over the calls the session likely has left: one 245k rewrite after a 100k clear needs
   // ~200 more calls to earn back, and the median session has 50 to 90.
+  // What the clear did not save, because the model fetched it again (proxy.js:rereadOfCleared). A cleared
+  // token is worth `read` on each later call; a token that comes back is fresh input at 1, ten to forty
+  // times that, and it is read on every call after it too. B4 (2026-11-03) lost 81% this way with nothing
+  // on the cost side of this gauge at all, since the loss was in model calls and the gauge counts rewrites.
+  if (rec.clears > 0 && t.reread?.tokens > 0) {
+    rec.returned = (rec.returned || 0) + t.reread.tokens;
+    events.push({ reread: true, calls: t.reread.calls, tokens: t.reread.tokens, returned: Math.round(rec.returned), tools: (t.reread.tools || []).slice(0, 3).map(x => x.name).join(',') });
+  }
+  let again = 0;
   if (rec.clears > 0 && !planned && !cold && grew != null) {
-    const again = Math.max(0, (usage.write || 0) - grew);
-    if (again > 0) {
-      rec.written += again * writeRate(usage.write5m > 0 && !(usage.write1h > 0) ? '5m' : '1h');
-      const ahead = rec.cleared * read * remainingCalls(rec.calls);
-      if (rec.written > rec.saved + ahead) { rec.stopped = 'uneconomic'; events.push({ stopped: 'uneconomic', saved: Math.round(rec.saved), ahead: Math.round(ahead), written: Math.round(rec.written), again: Math.round(again) }); }
+    again = Math.max(0, (usage.write || 0) - grew);
+    if (again > 0) rec.written += again * writeRate(usage.write5m > 0 && !(usage.write1h > 0) ? '5m' : '1h');
+  }
+  // one gauge, both costs: the rewrites the clears provoked and the material they failed to remove
+  const cost = rec.written + (rec.returned || 0);
+  if (rec.clears > 0 && !rec.stopped && cost > 0) {
+    const ahead = rec.cleared * read * remainingCalls(rec.calls);
+    if (cost > rec.saved + ahead) {
+      rec.stopped = 'uneconomic';
+      events.push({ stopped: 'uneconomic', saved: Math.round(rec.saved), ahead: Math.round(ahead), written: Math.round(rec.written), returned: Math.round(rec.returned || 0), ...(again > 0 ? { again: Math.round(again) } : {}) });
     }
   }
   return events;

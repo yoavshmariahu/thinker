@@ -585,9 +585,13 @@ test('a declined deepening is on the row, so the gate can be judged from the log
   // only when a clear went out, so a boundary that declined left no trace and `recache` was never visible.
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const messages = [{ role: 'user', content: 'first request' }];
-  for (let i = 0; i < 12; i++) messages.push({ role: 'assistant', content: [tu(`a${i}`)] }, { role: 'user', content: [tr(`a${i}`, 40000)] });
-  messages.push({ role: 'user', content: [{ type: 'text', text: 'second request' }] });
+  // several turns of four tool calls, so the keep a boundary decides (4) leaves earlier turns clearable
+  const messages = [];
+  for (let t = 0; t < 6; t++) {
+    messages.push({ role: 'user', content: [{ type: 'text', text: `request ${t}` }] });
+    for (let i = 0; i < 4; i++) messages.push({ role: 'assistant', content: [tu(`t${t}u${i}`)] }, { role: 'user', content: [tr(`t${t}u${i}`, 40000)] });
+  }
+  messages.push({ role: 'user', content: [{ type: 'text', text: 'newest request' }] });
   const cfg = proxyConfig({ 'clear-deep': true }, {});
   const call = record => transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA },
     Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages })), { ...cfg, record });
@@ -595,6 +599,7 @@ test('a declined deepening is on the row, so the gate can be judged from the log
   // nothing cleared yet: the first clear is taken unpriced, and what was on the table is recorded
   const first = call(freshRecord('s', cfg));
   assert.ok(first.clearable > 0, 'the clearable tokens are on the row');
+  assert.equal(first.keep, 4, 'the keep covers the previous turn, not the bare floor of 3');
   assert.equal(first.held, undefined, 'a decision that cleared carries no held figures');
 
   // a session that has already cleared far more than the tail is worth: the ask grows, the price refuses it
