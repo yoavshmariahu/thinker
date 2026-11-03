@@ -96,6 +96,43 @@ already cleared, and then clears everything but the keep (5 of 8 results at a ra
 `clear_at_least` is the interval between applications, each a rewrite of the post-clear context (~70k here).
 Claude Code 2.1.316 sends no tool clearing of its own (captured: `clear_thinking keep: all` only).
 
+## What was measured (2026-11-03, Opus 5.5, #603's read rate, the multi-turn runner)
+
+Nine turns of two reads and three echoes, trigger 60k, ask 30k, two reps an arm -- the README's W4
+shape, driven by `run-turns.sh` this time.
+
+| | clearing | control |
+|---|---|---|
+| cost at 1h writes | $13.04 | $7.19 (**+81.4%**; +63.8% at 5m) |
+| calls | 63 (34 and 29 a rep) | 36 (18 and 18) |
+| **cost per call** | **$0.2069** | **$0.1996** |
+| max context | 134k | 459k |
+| reads / writes | 2.9M / 1.52M | 8.1M / 0.67M |
+
+**Per call the two arms cost the same. The whole +81% is the clearing arm making 75% more model
+calls**, and the model said why: *"My first reads of these two files were cleared from context, so I
+read them again to quote the lines exactly"* -- six such admissions across the two reps. This is the
+cost `thinker proxy replay` cannot see and the holdout exists for, and here it is, measured.
+
+**The keep is a count, not a size.** Read call by call (session af769ed0): the model batches a turn's
+five tool calls in one assistant message, so at the next call five results stand; `keep: 3` keeps the
+newest three -- the three worthless echoes -- and clears the two Reads (35k), which is the content
+that turn needs to answer. `measureClearing` keeps the current turn out of the *decision*, but the
+API's `keep` knows nothing about turns, so the server clears the current turn's results anyway. Then
+the loop: cleared goes 35k, 118k, 204k, 292k, about 85k a turn where each turn reads 35k of new
+material, because every re-read is more material to clear. 18.2M cleared in a conversation of 460k.
+
+**The deep path never engaged, and the `held` rows say why**: all 18 boundaries refused with
+`dropped 0k`. The server's own oldest-first rule has already cleared everything but the keep, so
+there is no backlog for a deeper ask to take and every refusal is degenerate. The gate never made a
+real decision here.
+
+**The gauge is blind to it.** It counts unplanned rewrites -- write beyond the prompt's growth -- and
+the loss here is extra calls, which no term in `response()` sees. Neither session stopped.
+
+Against the same shape at -4.1% on 2026-11-02: the sign is not settled, it moves with how many
+re-reads the model chooses. The mechanism is, and it is visible call by call.
+
 ## Caveats worth keeping
 
 - The first workload is a best case by construction: every token is a clearable tool result and
