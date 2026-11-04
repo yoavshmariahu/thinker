@@ -11,7 +11,7 @@
     "id": "django-astra",
     "group": "django",
     "label": "Django \u00b7 Prefetch routing",
-    "description": "Astra high \u00b7 five judge criteria met",
+    "description": "Astra high \u00b7 historical per-request policy",
     "origin": "Artemis \u00b7 Django PR21834 \u00b7 14 prompts"
   }
 ]
