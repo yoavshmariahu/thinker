@@ -32,7 +32,7 @@ assert.match(node('#tiles').innerHTML,/five-minute/);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
 assert.match(node('#tiles').innerHTML,/10.2%/);
-assert.match(node('#tiles').innerHTML,/Minimum coding cost saved/);
+assert.match(node('#tiles').innerHTML,/At least <span>10.2% saved<\/span>/);
 assert.match(node('#session-label').innerHTML,/At least 10.2% saved/);
 assert.match(node('#caveats').innerHTML,/Historical per-request cutting policy/);
 assert.match(node('#judge-evidence').innerHTML,/Success criteria/);

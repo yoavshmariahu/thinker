@@ -227,6 +227,8 @@
     @media (max-width: 600px) { .session-picker { max-width: none; flex-basis: 100%; } .ttl-control { margin-left: auto; } .scrub { flex-wrap: wrap; min-width: 0; } .scrub input { min-width: 90px; } }
     .cost-range .pair { display: grid; gap: .3rem; }
     .cost-range b { white-space: nowrap; }
+    .tile .v.savings-headline { font-size: 1.4rem; line-height: 1.3; }
+    .savings-headline span { white-space: nowrap; }
   </style>
   <script src="/message.js" defer></script>
   <link rel="stylesheet" href="/nav.css">
@@ -387,7 +389,7 @@
       const ans = D().costBounds ? null : RUN().answers(D(), RUN());
       if (D().costBounds) {
         const v = D().savings, summary = RUN().summary;
-        $('#tiles').innerHTML = `<div class="tile"><div class="k">Minimum coding cost saved</div><div class="v good">${v.minPercent.toFixed(1)}%</div><div class="sub">At least ${usd(v.minDollars)} saved at standard API prices. Conservative bound; accounting details below.</div></div><div class="tile cost-range"><div class="k">Session cost range</div><div class="pair"><span>without <b>${usd(summary.control.cost5m)}–${usd(summary.control.cost1h)}</b></span><span>with <b>${usd(summary.cut.cost5m)}–${usd(summary.cut.cost1h)}</b></span></div><div class="sub">Missing cache-write counts; ranges are accounting bounds, not confidence intervals.</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cut events · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="pair"><span>without <b>5/5 criteria</b></span><span>with <b>5/5 criteria</b></span></div><div class="sub">Astra judge · each criterion must be met</div></div>`;
+        $('#tiles').innerHTML = `<div class="tile"><div class="k">Coding cost saved</div><div class="v good savings-headline">At least <span>${v.minPercent.toFixed(1)}% saved</span></div><div class="sub">At least ${usd(v.minDollars)} saved at standard API prices. Conservative bound; accounting details below.</div></div><div class="tile cost-range"><div class="k">Session cost range</div><div class="pair"><span>without <b>${usd(summary.control.cost5m)}–${usd(summary.control.cost1h)}</b></span><span>with <b>${usd(summary.cut.cost5m)}–${usd(summary.cut.cost1h)}</b></span></div><div class="sub">Missing cache-write counts; ranges are accounting bounds, not confidence intervals.</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cut events · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="pair"><span>without <b>5/5 criteria</b></span><span>with <b>5/5 criteria</b></span></div><div class="sub">Astra judge · each criterion must be met</div></div>`;
         return;
       }
       $('#tiles').innerHTML = `
