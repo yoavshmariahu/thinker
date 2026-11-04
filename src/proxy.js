@@ -232,6 +232,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
   cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
+  cfg.clientCut = onOff('client-cut', 'THINKER_PROXY_CLIENT_CUT', false);   // PROTOTYPE
   cfg.clearNotice = onOff('clear-notice', 'THINKER_PROXY_CLEAR_NOTICE', PROXY_DEFAULTS.clearNotice);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
@@ -277,6 +278,50 @@ export function turnStart(messages) {
 // grows within a turn is what rewrote the cache on every call in #585/#588. Counting the last two turns rather
 // than one gives the turn in progress headroom of about its own size before its oldest results fall out of the
 // keep, and protects the turn before it outright, which is what a model still working on a task reaches back for.
+
+// PROTOTYPE (agent/client-side-cut): thinker cuts the context itself, as the desktop mod does.
+// Why: the server-side edit has no state -- the API re-derives it per call, so there is nothing to
+// freeze. The server picks the set, re-applies on its own schedule (each a full prefix rewrite),
+// reaches into the turn in progress (3 of 20 dumped calls), and dropping the edit un-clears
+// everything at the price of one more rewrite. `keep` is a count, so cheap echoes evict a big read.
+// Cutting here makes each of those a choice: the newest turn is protected by a RULE, the cut is
+// stable because we choose it, and stopping means cutting nothing more.
+// The question this answers: October's breakage was "an in-place edit of the history with no
+// compaction boundary". So this touches tool_result CONTENT only -- thinking blocks and tool_use
+// inputs stay exactly as the agent wrote them.
+export const CUT_MIN_CHARS = 200;
+export const cutPlaceholder = (chars) =>
+  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`;
+
+// The mod's rule (register.tsx:clearOld): from the end, the newest turn is kept whole, then the
+// newest `keepMin` results, then anything too small to be worth a placeholder.
+export function cutOld(messages, { keepMin = 3 } = {}) {
+  let kept = 0, cut = 0, chars = 0, inLatestTurn = true, firstChanged = -1;
+  const out = new Array(messages.length);
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const blocks = Array.isArray(m?.content) ? m.content : null;
+    const results = blocks ? blocks.filter(b => b?.type === 'tool_result') : [];
+    if (!results.length) {
+      if (m?.role === 'user' && (!blocks || blocks.some(b => b?.type === 'text'))) inLatestTurn = false;
+      out[i] = m; continue;
+    }
+    let touched = false;
+    const content = blocks.map(b => {
+      if (b?.type !== 'tool_result') return b;
+      const text = typeof b.content === 'string' ? b.content
+        : Array.isArray(b.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('') : '';
+      if (inLatestTurn || kept < keepMin) { kept++; return b; }
+      if (text.length < CUT_MIN_CHARS) return b;
+      cut++; chars += text.length; touched = true;
+      return { ...b, content: cutPlaceholder(text.length) };
+    });
+    out[i] = touched ? { ...m, content } : m;
+    if (touched) firstChanged = i;
+  }
+  return { messages: out, cut, chars, firstChanged };
+}
+
 export function recentTurnUses(messages, turns = 2) {
   const starts = [];
   (Array.isArray(messages) ? messages : []).forEach((m, i) => {
@@ -491,6 +536,13 @@ export function transformRequest(method, url, headers, body, cfg) {
   const rr = rec ? rereadOfCleared(j.messages, edit.keep.value, rec.seenCleared) : { prints: null, reread: null };
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   // a held edit (clearing.js:decide, nothing safe to clear yet) is not sent at all
+  if (cfg.clientCut) {
+    const c = cutOld(j.messages, { keepMin: cfg.keepMin ?? 3 });
+    if (!c.cut) return { body, reason: 'nothing-to-cut', model: j.model };
+    j.messages = c.messages;
+    return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, asked: 0,
+      clientCut: { cut: c.cut, chars: c.chars, firstChanged: c.firstChanged }, addBeta: false, actions: [] };
+  }
   const hold = !!d.edit.hold, sent = [...(thinking ? [thinking] : []), ...kept, ...(hold ? [] : [edit])];
   if (sent.length) j.context_management = { ...cm, edits: sent };
   // The carry-forward notice goes with the edit and not before it: a held call clears nothing, so there is
@@ -705,7 +757,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.hold ? { hold: true } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.reread ? { reread: { calls: t.reread.calls, tokens: t.reread.tokens } } : {}), ...(t.clearable != null ? { clearable: t.clearable } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.hold ? { hold: true } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.reread ? { reread: { calls: t.reread.calls, tokens: t.reread.tokens } } : {}), ...(t.clearable != null ? { clearable: t.clearable } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
             // gauge read; each event is a log line, and the record goes back to disk
