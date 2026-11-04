@@ -337,20 +337,24 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
 });
 
 // ---- Pull requests on the Report: what was shipped here and how much of it thinker paid for ----
-const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, hours = 2, title = `PR ${n}` } = {}) => ({
+const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, hours = 2, usd = 0, rewrite = 0, title = `PR ${n}` } = {}) => ({
   number: n, title, url: `https://example.test/${n}`, mergedAt: merged, hoursToMerge: hours,
   sessions: Array.from({ length: sessions }, (_, i) => ({ id: `s${n}-${i}` })),
   tokens: { agent, prompts: 10, unknownSessions: 0, complete },
   saved: { cleared, reading: { calls: 0, tokens: reading, servings: 0 }, total: cleared + reading },
+  cost: { saved: usd, rewrite: rewrite, net: usd - rewrite, priced: usd || rewrite ? 1 : 0, unpriced: 0 },
 });
 const delivery = (prs, over) => {
   const merged = prs.filter(p => p.mergedAt && p.sessions.length);
   const sum = f => merged.reduce((a, p) => a + f(p), 0);
   const mean = xs => { const v = xs.filter(n => Number.isFinite(n)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const meanSigned = mean;
   return { prs, summary: {
     merged: merged.length, mergedSeen: prs.filter(p => p.mergedAt).length, mergedAssisted: merged.filter(p => p.saved.total > 0).length,
     open: 0, worked: prs.filter(p => p.sessions.length).length,
     saved: { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading.tokens), total: sum(p => p.saved.total) },
+    cost: { saved: sum(p => p.cost.saved), rewrite: sum(p => p.cost.rewrite), net: sum(p => p.cost.net), costed: merged.filter(p => p.cost.priced).length, basis: 'at list prices' },
+    meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)),
     tokens: { agent: sum(p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
     meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)), meanTokensPerMergedPr: mean(merged.map(p => p.tokens.agent)), meanHoursToMerge: mean(merged.map(p => p.hoursToMerge)),
     sessions: { linked: sum(p => p.sessions.length), unlinked: 4 },
@@ -381,18 +385,40 @@ test('the Report band counts only the pull requests a session here worked on, an
   assert.equal(band.days, 42);
 });
 
-test('the band is tokens in the cost view as much as the token view: a cleared token has no dollar figure here', t => {
+// Until 2026-11-04 this asserted the opposite: no dollar figure anywhere in the band, because pricing a cleared
+// token at the input rate read as thousands of dollars it never saved. The owner reversed it once the clearing's
+// own cost could be deducted -- a cleared token at the cache-read rate, less the cache writes the calls after the
+// clear paid for. The tokens stay beside it; what may not come back is a gross dollar figure.
+test('the band prices the saving net of the rewrites, and keeps the token figures beside it', t => {
   const { dir, store } = fixture(t);
   transcript(dir, 'a', { model: 'claude-opus-5-5', usage: OPUS, mtime: NOW - DAY });
   const v = reportView(store, { now: NOW });
-  v.prs = prSavings(null, { days: 42, delivery: delivery([pr(7, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000 })]) });
+  v.prs = prSavings(null, { days: 42, delivery: delivery([pr(7, {
+    merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000, usd: 12, rewrite: 4,
+  })]) });
   for (const cost of [true, false]) {
     const text = renderReport(v, { cost }).join('\n'), band = text.slice(text.indexOf('Pull requests ('));
     assert.ok(band.includes('250k'), `the saving is in tokens under ${cost ? 'cost' : 'tokens'}`);
-    assert.doesNotMatch(band, /\$/, 'no dollar figure is put on a cleared token: the clear rewrites the prompt cache');
     assert.ok(band.includes('tokens spent and saved on merged work'));
     assert.ok(/200k cleared \(measured\)/.test(band) && /50k reading avoided \(estimate\)/.test(band), 'measured and estimated are never silently added');
+    assert.match(band, /in dollars, netted\s+\$8/, 'the net is the saving less the rewrites, in both views');
+    assert.ok(band.includes('$4'), 'what the rewrites cost is shown beside it, never folded away');
+    assert.match(band, /\$8[.0]*\s*=\s*\$12/, 'the net leads and the gross is shown as its working, never on its own');
   }
+});
+
+test('a loss is reported as a loss, never averaged away to nothing', t => {
+  const { dir, store } = fixture(t);
+  transcript(dir, 'a', { model: 'claude-opus-5-5', usage: OPUS, mtime: NOW - DAY });
+  const v = reportView(store, { now: NOW });
+  v.prs = prSavings(null, { days: 42, delivery: delivery([
+    pr(8, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 500_000, usd: 3, rewrite: 40 }),
+  ]) });
+  assert.equal(v.prs.cost.net, -37, 'the net is signed: a clear that cost more than it saved reads as a loss');
+  assert.equal(v.prs.meanNet, -37, 'the average is signed too, or a loss filtered out as "not finite" reads as a win');
+  assert.ok(v.prs.saved.cleared > 0, 'the tokens were still cleared: the loss is in what the rewrite cost');
+  const text = renderReport(v, { cost: true }).join('\n');
+  assert.match(text, /-\$37|−\$37/, 'the command prints the loss rather than hiding it behind a zero');
 });
 
 test('All repositories adds the pull requests up and averages over all of them, never an average of averages', () => {

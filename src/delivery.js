@@ -385,8 +385,9 @@ export function renderDelivery(r, { detail = false } = {}) {
     L.push('', `#${p.number} ${p.title || ''} · ${p.state}`, p.url || '');
     L.push(`  saved      ${n(p.saved.total)} tokens = ${n(p.saved.cleared)} cleared + ${n(p.saved.reading.tokens)} reading avoided (${p.saved.reading.servings} ${p.saved.reading.servings === 1 ? 'serving' : 'servings'} acted on)`);
     L.push(`  cost       ${n(p.tokens.agent)} agent tokens over ${p.sessions.length} ${p.sessions.length === 1 ? 'session' : 'sessions'}${p.sessions.length && !p.tokens.complete ? ' · incomplete counters' : ''}`);
+    if (p.cost.priced) L.push(`  net        ${formatDollars(p.cost.net)} = ${formatDollars(p.cost.saved)} saved less ${formatDollars(p.cost.rewrite)} of cache writes after a clear${p.cost.unpriced ? ` (${p.cost.unpriced} ${p.cost.unpriced === 1 ? 'session' : 'sessions'} on an unpriced model)` : ''}`);
     L.push(`  notes      ${p.notes.served} served · ${p.notes.actedOn} acted on`);
-    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${n(x.reading)} reading · ${Math.round(x.share * 100)}% (${x.link})`);
+    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${n(x.reading)} reading · ${x.rewrites ? `${x.rewrites} ${x.rewrites === 1 ? 'rewrite' : 'rewrites'} after a clear · ` : ''}${Math.round(x.share * 100)}% (${x.link})`);
   }
   for (const w of r.warnings) L.push(`Warning: ${w}`);
   if (!r.prs.length) L.push('', 'No pull requests recorded yet. Run thinker prs sync to read them from GitHub.');

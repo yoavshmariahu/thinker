@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { TURNS_AFTER, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
+import { TURNS_AFTER, clearingCostBySession, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
 import { cutActions } from '../src/proxy.js';
 import { compressionNotice, formatTokens } from '../src/usage.js';
 
@@ -143,4 +143,50 @@ test('the cleared actions are the tool uses outside the kept window, biggest fir
   assert.deepEqual(cutActions(messages, []), [], 'nothing cut, nothing to show');
   assert.deepEqual(cutActions(null, ['a']), [{ name: 'tool', calls: 1, tokens: 0 }]);
   assert.deepEqual(cutActions([{ role: 'assistant', content: [{ type: 'tool_use', id: 'z' }] }], ['z']), [{ name: 'tool', calls: 1, tokens: 0 }], 'a use with no name or result still counts');
+});
+
+// The clearing's own cost: the calls after a clear write the prefix into the cache again, and until the figure
+// was netted the band showed the saving without it (the owner's call, 2026-11-04). A session is charged only
+// from its first clear onward, because the rewrites before one cannot be the clear's doing.
+test('a session is charged for the prefix rewrites of the calls after its first clear, never before it', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.log');
+  const call = (over = {}) => JSON.stringify({
+    at: '2026-11-04T10:00:00.000Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5',
+    cleared: 0, input: 0, read: 200_000, write: 0, ...over,
+  });
+  fs.writeFileSync(log, [
+    // a rewrite before any clear: real, but nothing to do with the clearing
+    call({ write: 150_000, read: 0 }),
+    // the clearing request itself, and the rewrite on the call after it. A rewrite is a call whose write is
+    // more than half its context (cutting.js:isRewrite), so these carry no cache read worth speaking of.
+    call({ cleared: 80_000, write: 120_000, read: 0 }),
+    call({ write: 100_000, read: 0 }),
+    // a cache read on a long prompt: not a rewrite, so not charged
+    call({ write: 0, read: 300_000 }),
+    // another session that was never cleared is charged nothing at all
+    call({ session: 's2', write: 180_000, read: 0 }),
+  ].join('\n') + '\n');
+
+  const costs = clearingCostBySession(log);
+  assert.equal(costs.has('s2'), false, 'a session with no clear has no clearing cost');
+  const s1 = costs.get('s1');
+  assert.equal(s1.rewrites, 2, 'the clearing call and the one after it, not the one before');
+  assert.equal(s1.write, 220_000);
+  // Opus 5.5: $4/M input, a 1h cache write at twice that. 220k x $8/M = $1.76
+  assert.ok(Math.abs(s1.usd - 1.76) < 0.01, `priced at the 1h write rate, got ${s1.usd}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the clearing cost honours the window, so a report of today never charges yesterday', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.log');
+  const call = (at, over = {}) => JSON.stringify({
+    at, op: 'proxy', session: 's1', model: 'claude-opus-5-5', cleared: 0, input: 0, read: 0, write: 0, ...over,
+  });
+  fs.writeFileSync(log, [
+    call('2026-11-01T10:00:00.000Z', { cleared: 80_000, write: 150_000 }),
+    call('2026-11-04T10:00:00.000Z', { cleared: 80_000, write: 100_000 }),
+  ].join('\n') + '\n');
+  assert.equal(clearingCostBySession(log).get('s1').write, 250_000, 'the whole log by default');
+  assert.equal(clearingCostBySession(log, { since: '2026-11-03T00:00:00.000Z' }).get('s1').write, 100_000);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

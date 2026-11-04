@@ -320,11 +320,11 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
-| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
+| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
-| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
+| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
@@ -547,13 +547,14 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   update the authenticated author's comment for this machine, leaving other authors and machines alone.
   Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
   estimated reading, state the window and session attribution, and publish no session IDs or note text.
-  At the owner's request, comments also show a gross API-cost estimate (`prices.js:grossSavingsCost`):
-  clearing at the session model's cache-read rate, reading at its input rate, honoring manual shares
-  and price overrides. Unknown prices stay unpriced. Rewrite and learning costs are not deducted;
-  this is not net savings or a bill reduction. The Report page's PR band remains in tokens.
+  Comments show the **netted** figure (2026-11-04; it was gross until then): clearing at the session model's
+  cache-read rate, reading at its input rate, honoring manual shares and price overrides, **less the cache
+  writes the calls after a clear paid for**. Unknown prices stay unpriced. Learning spend is still not
+  deducted. The Report band and the page carry the same figure, and the token columns stay beside it.
 - **Automatic posting** (`delivery-auto.js`) runs in the existing four-hour update job, even without
   a new release or after a failed update check. First pass establishes a start date (no backfill);
-  later passes post once per newly merged PR with local savings after 20 minutes of session quiet.
+  later passes post once per newly merged PR with local savings after 20 minutes of session quiet, and
+  never one whose netted dollars are a loss -- that is a bug report, not news for someone's pull request.
   Receipts live in `<THINKER_HOME>/state/pr-comments.json`; failed posts retry, at most 10 attempts
   per pass. `prComments: false` in machine or repository config disables it, as does disabling the
   repository. `prs auto --dry --json` inspects locally known candidates without GitHub. Test mode
@@ -1019,13 +1020,31 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   input + output tokens per PR. The cost mean uses only PRs with complete counters and exposes that count;
   missing counters never read as zero cost. Empty weeks have zero PRs and null averages. All repositories
   recomputes from all PR rows, never averages repository averages. The CLI prints the same weekly values.
-- **Tokens, under Cost as much as under Tokens, and no dollar figure anywhere in the band.** Only one of the
-  two savings converts: reading avoided is fresh input nobody paid for, but a cleared token was mostly being
-  read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice
-  it. Priced at the input rate this machine's 202M cleared tokens read as thousands of dollars, where
-  `thinker proxy replay` over 264 real sessions put the whole clearing at +7.3% of session cost. The band
-  keeps token figures; its former explanatory paragraph was removed at the owner's request. Do not add
-  a dollar column without replaying first.
+- **The dollars are netted, and that is the figure (2026-11-04, the owner's call; `compression.js:clearingCostBySession`).**
+  Tokens cannot answer "was it worth it", because the clearing's saving and the clearing's cost are not the
+  same kind of token: a cleared token saved a **cache read** at a fortieth of the input price, and the calls
+  after that clear wrote the prefix into the cache again at **twice** it. So one rule, in one sentence:
+  **cleared at the cache-read rate, plus reading avoided at the input rate, less what the calls after a clear
+  wrote into the cache again, at list prices.** `thinker prs`, the Report band, the page's Net column and the
+  posted comment all read that one computation in `delivery.js`; no door prices a token itself.
+  - The deduction is `isRewrite` over the proxy log, charged to a session only from its **first clear onward**:
+    a rewrite before one cannot be the clear's doing. It is deliberately conservative -- the held-out side
+    rewrites on 1-3% of long calls anyway, and those are charged to the clearing too.
+  - The token figures stay beside it, and `measured` (cleared) is never silently added to `estimate`
+    (reading avoided). What may not come back is a **gross** dollar figure: until this date the posted comment
+    showed one, and priced at the input rate this machine's 202M cleared tokens read as thousands of dollars
+    it never saved.
+  - A loss reads as a loss. `meanNetPerMergedPr` is a **signed** mean (`delivery.js:meanSigned`): the ordinary
+    `mean` filters on `n >= 0` for token counts, and it silently dropped every negative net, so a −$940
+    fortnight averaged to +$0.59 a pull request. The automatic pass never posts a pull request whose net is a
+    loss (`delivery-auto.js`); `thinker prs comment --pr n` still does, by hand, under a heading that says so.
+  - **What it said when it was first switched on**, over this repository's own merged work: the 14 days to
+    2026-11-04, mostly the API-side clearing, came to **−$940** on 75 merged pull requests, 7 of them net
+    positive -- the loss `thinker proxy report` was already warning about (prefix rewrites on 15% of long
+    calls after a clear against 2% held out). The window since the cut landed and the service restarted
+    (#610, #612, #615) came to **+$15**, with the rewrite rate at 3% after a clear against 3% before one.
+    Judge a change here the same way: cache **write** tokens, against the 15% holdout, over a window that
+    starts after the change.
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
 

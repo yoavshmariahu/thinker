@@ -82,6 +82,9 @@ export async function runAutomaticPrComments(store, {
         if (report.warnings.length) throw new Error(report.warnings.join('; '));
         const candidates = report.prs.filter(p => p.state === 'MERGED' && Date.parse(p.mergedAt) > Date.parse(state.startedAt)
           && Date.parse(p.mergedAt) <= now - PR_COMMENT_IDLE_MS && p.sessions.length && p.saved.total > 0
+          // never post a loss by itself: a clear whose rewrites cost more than they saved is a bug report,
+          // not news for someone else's pull request. `thinker prs comment --pr n` still posts it by hand.
+          && (!p.cost?.priced || p.cost.net > 0)
           && p.sessions.every(x => Date.parse(x.lastAt) <= now - PR_COMMENT_IDLE_MS) && !record.posted[p.number])
           .sort((a, b) => a.mergedAt.localeCompare(b.mergedAt));
         for (const p of candidates) {

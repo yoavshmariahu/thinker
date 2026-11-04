@@ -174,6 +174,21 @@ test('the per-pass limit counts failures too, so an unauthorized repo cannot flo
   assert.equal(r.errors.length, PR_COMMENT_LIMIT);
 });
 
+test('a pull request the clearing lost money on is not posted by itself', async t => {
+  // The comment says thinker saved you something. A clear whose rewrites cost more than they saved is a bug
+  // report, and posting it unasked on someone's merged work is not what the automatic pass is for.
+  const f = fixture(t);
+  await f.initialize();
+  const report = () => ({ warnings: [], prs: [
+    { number: 1, state: 'MERGED', mergedAt: at(-1), sessions: [{ lastAt: at(-1) }], saved: { total: 100 }, cost: { priced: 1, net: -4, saved: 1, rewrite: 5 } },
+    { number: 2, state: 'MERGED', mergedAt: at(-1), sessions: [{ lastAt: at(-1) }], saved: { total: 100 }, cost: { priced: 1, net: 3, saved: 4, rewrite: 1 } },
+    { number: 3, state: 'MERGED', mergedAt: at(-1), sessions: [{ lastAt: at(-1) }], saved: { total: 100 }, cost: { priced: 0, net: 0, saved: 0, rewrite: 0 } },
+  ] });
+  const posted = [];
+  await f.run({ fns: { ...f.fns, report, comment: (_s, { pr }) => { posted.push(pr); return { posted: true }; } } });
+  assert.deepEqual(posted.sort((a, b) => a - b), [2, 3], 'the loss is held back; an unpriced model is still posted');
+});
+
 test('a receipt lost after publication is recovered through the existing GitHub comment', async t => {
   const f = fixture(t);
   await f.initialize();
