@@ -36,6 +36,12 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   The mod's behaviour is `claude plugin test src/integrations/claude-clear`, and a policy change is judged on
   both doors the same way -- by cache writes, against the 15% holdout, never by a replay alone.
 
+**Codex and Claude share the cut policy (MANDATORY, 2026-11-04):**
+- `src/proxy-responses.js` adapts Responses tool outputs to `src/cutting.js:decideCut`, the same decision used by Claude's Messages proxy. Never rederive a new cut set on each Codex request.
+- Both paths reserve every turn-boundary decision, including a refusal, and persist the cut ids through the shared store. Within a turn, keep applying that exact set; a proxy restart must not restore old results or add new cuts. Protocol-specific serialization and token calibration may differ, policy does not.
+- `test/proxy-responses.test.js` checks candidate parity, payback/threshold decisions, within-turn stability, one-cut mode, and HTTP restart behavior. Missing session identity passes through: no session means no reliable ratchet.
+- The historical Django/Astra visualization used the earlier per-request policy (24 new cut events, 19 mid-turn); it is not evidence for this correction. Savings under the shared policy require a new matched Artemis experiment.
+
 **Pull requests (MANDATORY):**
 - Thinker contributor workflow only. Setup must not install a repo policy guard or require PRs in user repos.
 - Push task branches, open a GitHub PR to `main`. Never push `main`, including fast-forward.

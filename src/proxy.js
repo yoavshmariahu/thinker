@@ -369,7 +369,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
   const applied = applyCut(j.messages, d.cut);
-  if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model };
+  if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}) };
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
     cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
@@ -469,6 +469,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   let cutRejected = false;
   // the cut's record, one per session, on disk: a restarted proxy re-applies the same set (cutting.js)
   const cutting = cutStore(clearingDir);
+  const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -496,8 +497,15 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = cutRejected;
-      const cutRec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, cutRecord: cutRec }); } catch { t = { body: raw, reason: 'error' }; }
+      let cutRec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, cutRecord: cutRec, readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      // Reserve the boundary's decision before forwarding, including a decision not to cut.
+      // Retries and concurrent requests in this turn must reuse the same set, even when a
+      // later tool result would make a previously refused candidate profitable.
+      if (cutRec && Array.isArray(t.cut) && t.turn != null) {
+        cutRec.cut = t.cut; cutRec.turn = t.turn;
+        (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
+      }
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
@@ -589,9 +597,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
-            if (tap && cutRec && t.injected && t.protocol !== 'responses') {
-              for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
-              cutting.write(cutRec);
+            if (tap && cutRec && Array.isArray(t.cut) && ures.statusCode >= 200 && ures.statusCode < 300) {
+              for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
+              (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
             }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
