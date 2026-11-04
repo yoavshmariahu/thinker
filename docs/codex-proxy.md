@@ -116,6 +116,27 @@ removed, upstream errors, and reasons requests were left unchanged. Text reports
 show these too. Bytes removed are not billed-token savings, and the report does
 not apply Anthropic's cache-price weights to OpenAI usage. Logs contain counts,
 model and session identifiers, not credentials or request/response content.
+
+For Responses calls, the proxy also captures `input_tokens_details.cache_write_tokens`
+and its `cache_write_tokens_details` split (`ttl_30m_tokens`, `ttl_12h_tokens`).
+Per-request logs and optional `THINKER_PROXY_DUMP` files retain these as `write`,
+`write30m`, and `write12h`, alongside the provider's original usage fields in
+`apiUsage` and the response ID, model, status, and service tier when supplied.
+Ordinary input is `input - read - write`; both cache reads and writes are already
+included in Responses input, so neither is added to it again.
+
+Reports expose `cacheWrite`, `cacheWrite30m`, `cacheWrite12h`, and
+`writeCoverage` (requests with a reported total, missing totals, complete TTL
+splits, and inconsistent counters). A partial sum is labeled with its coverage;
+unknown counts are `null`, not zero. `freshInput` is only available when every
+request has consistent input/read/write counts. An explicit provider zero stays
+zero. Legacy Django captures cannot supply the missing write counts retroactively.
+The ChatGPT backend or a gateway may omit fields documented for the public API;
+that remains unknown, even with the new capture. Exact pricing requires the TTL
+split as well as the applicable model and service tier. The two TTL write counts
+are disjoint: price each at its own rate, without charging the total again.
+See [OpenAI cache accounting](https://developers.openai.com/api/docs/guides/prompt-caching).
+
 Codex closes SSE on the completion event, often before the HTTP response ends;
 the proxy records usage and clearing on that close too, exactly once.
 
