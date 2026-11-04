@@ -228,7 +228,6 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
           instructions: { ...v.instructions, sections: (v.instructions?.sections || []).map(x => ({ ...x, about: describePart({ kind: 'section', text: x.text }).about })) },
           skills: (v.skills || []).map(x => ({ ...x, about: describePart({ kind: 'skill', text: x.text }).about })),
           tools: (v.tools || []).map(x => ({ ...x, about: describePart({ kind: 'tool', name: x.name, toolKind: x.kind, builtin: x.group === 'builtin', text: x.text }).about })),
-          outputs: { ...v.outputs, tools: (v.outputs?.tools || []).map(x => ({ ...x, about: describePart({ kind: 'output', name: x.name, text: x.text }).about })) },
         });
         const d = Number(url.searchParams.get('days')) || 30;
         // the last report kept is shown at once, even one the code or the files it rests on have outgrown, and made again

@@ -26,10 +26,12 @@ const view = (over = {}) => ({
   ...over,
 });
 
-test('topChanges: the flagged parts by what they save, five at most, nothing off, low, unknown or already compressed', () => {
+test('topChanges: the flagged parts by what they save, five at most, nothing off, low or unknown; never a tool output', () => {
   const c = topChanges(view());
-  assert.deepEqual(c.map(x => x.title), ['AGENTS.md · Releases', 'Bash:pytest output'.replace('Bash:', ''), 'Workflow tool', 'deploy skill', 'AGENTS.md · Ports']);
-  assert.deepEqual(c.map(x => x.view), ['instructions', 'outputs', 'builtin', 'custom', 'instructions']);
+  // a tool's output is not a change anyone is offered (2026-11-04): the clearing compresses those, on by default
+  assert.deepEqual(c.map(x => x.title), ['AGENTS.md · Releases', 'Workflow tool', 'deploy skill', 'AGENTS.md · Ports']);
+  assert.deepEqual(c.map(x => x.view), ['instructions', 'builtin', 'custom', 'instructions']);
+  assert.equal(c.some(x => x.kind === 'output'), false);
   assert.equal(topChanges(view(), { max: 2 }).length, 2);
   assert.equal(topChanges(view({ instructions: { sections: [section('Tiny', 10)] }, skills: [], tools: [], outputs: { tools: [] } })).length, 0, 'a saving under minSaving is not worth a line');
   // What a change is worth over the window is the row's own figure (instruction-value.js: `wastedWindow`), never
@@ -40,9 +42,8 @@ test('topChanges: the flagged parts by what they save, five at most, nothing off
   assert.deepEqual([one({ wastedWindow: 9_000_000 }).saving, one({ wastedWindow: 9_000_000 }).total], [300, 9_000_000]);
   // a report kept by code that counted no window figure still ranks: the old reckoning is the fallback
   assert.deepEqual([one({}).saving, one({}).total], [300, 1_200_000]);
-  // an output's window figure is its own (tool-outputs.js: `saveModerateWindow`)
-  const out = topChanges(view({ instructions: { sections: [] }, skills: [], tools: [], outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveModerateWindow: 7_000_000, perPrompt: 100_000, perCall: 9000, prompts: 40 }] } }))[0];
-  assert.deepEqual([out.saving, out.total], [25_000, 7_000_000]);
+  // an output no longer ranks at all, whatever it would have saved
+  assert.deepEqual(topChanges(view({ instructions: { sections: [] }, skills: [], tools: [], outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 25_000, saveModerateWindow: 7_000_000, perPrompt: 100_000, perCall: 9000, prompts: 40 }] } })), []);
 });
 
 test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after enough sessions; off by config', async () => {
@@ -52,7 +53,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   // looked at daily until there is enough
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3600_000, view: view() }), null, 'not again the same day');
   const c = await scheduleContextSuggestion(store, { now: now + 86400_000, view: view() });
-  assert.equal(c.length, 5); assert.equal(contextSuggestPending(store), true);
+  assert.equal(c.length, 4); assert.equal(contextSuggestPending(store), true);
   const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
   assert.match(said, /^<thinker-context-suggestions>/);
   // the link says which door sent them, and the page opens with these very changes checked (`from=suggestion`)
@@ -60,7 +61,9 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.match(said, /these changes come already checked with the actions suggested below/);
   // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
   assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
-  assert.match(said, /together ~96k input tokens in every prompt here \(~3\.8M over those 30 days\)/);
+  assert.match(said, /found 4 changes to what loads into every session: ~71k input tokens in every prompt here, ~2\.8M over those 30 days\./);
+  // no report kept here to price an input token with, so the summary quotes tokens alone and invents no dollars
+  assert.doesNotMatch(said, /\$/);
   assert.match(said, /do not make any of these changes yourself/);
   // a question the agent must put to the person with its own tool, and an answer either way (2026-10-27)
   assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), with the page's address for the detail \(http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion\), and wait for their answer/, 'no question tool: in chat, with the link, and the line says whose question it is');
@@ -72,7 +75,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
 
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
-  assert.equal((await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view() })).length, 5);
+  assert.equal((await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view() })).length, 4);
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { contextSuggest: false } }));
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'off by config');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 30 * 86400_000, view: view() }), null);
@@ -104,9 +107,9 @@ test('ensureUi: reuses a running page, else starts one and waits for its address
 test('approveChanges: each approved change gets its suggested action; pickChanges reads numbers, keys or all', async () => {
   const { approveChanges, pickChanges } = await import('../src/context-suggest.js');
   const changes = topChanges(view());
-  assert.deepEqual(changes.map(c => c.default?.act), ['compress', 'compress', 'off', 'off', 'compress']);
+  assert.deepEqual(changes.map(c => c.default?.act), ['compress', 'off', 'off', 'compress']);
   assert.deepEqual(pickChanges(changes, '1, 3').map(c => c.title), [changes[0].title, changes[2].title]);
-  assert.equal(pickChanges(changes, 'all').length, 5);
+  assert.equal(pickChanges(changes, 'all').length, 4);
   assert.deepEqual(pickChanges(changes, changes[1].key), [changes[1]]);
   assert.equal(pickChanges(changes, '').length, 0);
   // A section goes to a background job whichever door approved it (startSectionJob), as the page's Apply does: no door
@@ -114,14 +117,13 @@ test('approveChanges: each approved change gets its suggested action; pickChange
   // in a config file, so it is made here and done.
   const store = repo(), spawned = [];
   const spawnFn = (cmd, args, opts) => { spawned.push(args); return { pid: process.pid, on() {}, unref() {} }; };
-  const said = await approveChanges(store, [changes[0], changes[1]], { pr: true, spawnFn, cliPath: '/x/cli.js' });
+  const said = await approveChanges(store, [changes[0], changes[2]], { pr: true, spawnFn, cliPath: '/x/cli.js' });
   assert.equal(spawned.length, 1);
   assert.deepEqual(spawned[0].slice(0, 5), ['/x/cli.js', 'instructions', '--compress', 'Releases', '--pr']);
   assert.match(said[0], /^Compressing 1 section in the background: a pull request opens with the change when the model is done\./);
-  assert.match(said[1], /Compressed from the next tool call/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools, { 'Bash:pytest': 'moderate' });
+  assert.match(said[1], /^deploy skill: /, 'the skill is a line in a config file: decided here and said at once');
   // one job per action, so the rows' own choices are kept (the page splits them the same way)
-  const two = await approveChanges(repo(), pickChanges(changes, '1:remove,5'), { pr: false, spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; }, cliPath: '/x/cli.js' });
+  const two = await approveChanges(repo(), pickChanges(changes, '1:remove,4'), { pr: false, spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; }, cliPath: '/x/cli.js' });
   assert.deepEqual(spawned.slice(1).map(a => a.slice(2, 5)), [['--compress', 'Ports', '--apply'], ['--remove', 'Releases', '--apply']]);
   assert.equal(two.length, 2);
 });
@@ -131,15 +133,14 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   const store = repo(), now = Date.now();
   const v = { ...view(), suggestions: topChanges(view(), { max: 20 }) };
   const top = currentChanges(store, v, { now });
-  assert.equal(top.length, 5);
+  assert.equal(top.length, 4);
   dismissChanges(store, [top[2]], { now });
-  await approveChanges(store, [top[1]], { now });
-  recordReviewed(store, top[4], 'Compressed it in AGENTS.md', { now });
+  await approveChanges(store, [top[0]], { now, pr: false, cliPath: '/x/cli.js', spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }) });
+  recordReviewed(store, top[3], 'Compressed it in AGENTS.md', { now });
   const h = changeHistory(store);
-  assert.deepEqual(h.map(e => e.decision), ['applied after review', 'approved', 'dismissed']);
-  assert.match(h[1].result, /^Compressed from the next tool call/);
-  assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[1], top[2], top[4]].some(t => t.key === k)), [], 'decided ones are left out');
-  assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 5, 'and come back after a month if still flagged');
+  assert.deepEqual(h.map(e => e.decision), ['applied after review', 'applied', 'dismissed']);
+  assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[3]].some(t => t.key === k)), [], 'decided ones are left out');
+  assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 4, 'and come back after a month if still flagged');
 });
 
 test('the answer comes back through thinker\'s own tool: numbers from the list it showed, or none', async () => {
@@ -168,8 +169,8 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   contextSuggestOffer(store, { now: now + 9 * 86400_000, env: {}, ui: () => null, client: 'claude' });
   const none = await answerContextSuggestion(store, 'none', { now: now + 9 * 86400_000, asked: 'chat' });
   assert.match(none, /left alone; thinker will not suggest them again for a month/);
-  // the three still on offer: the approved one is no longer suggested, and the built-in tool was never an option
-  assert.equal(changeHistory(store).filter(e => e.decision === 'dismissed').length, 3);
+  // the two still on offer: the approved one is no longer suggested, and the built-in tool was never an option
+  assert.equal(changeHistory(store).filter(e => e.decision === 'dismissed').length, 2);
   assert.equal(contextSuggestAwaiting(store, { now: now + 9 * 86400_000 }), false);
   // an answer naming none of the lines leaves the question waiting
   const other = repo();
@@ -208,7 +209,6 @@ test('the page checks the rows the question numbered, with the actions it sugges
   // tool the question could not offer is not checked for them either
   assert.deepEqual(offeredPicks(store, { now }), [
     { kind: 'section', key: 'section:AGENTS.md:Releases', repo: null, act: 'compress' },
-    { kind: 'output', key: 'output:Bash:pytest', repo: null, act: 'compress' },
     { kind: 'skill', key: 'claude:skill:deploy', repo: null, act: 'off' },
     { kind: 'section', key: 'section:AGENTS.md:Ports', repo: null, act: 'compress' },
   ]);
@@ -237,17 +237,16 @@ test('a reply to the weekly summary means the lines it showed, not the ranking a
 test('the door a decision came through is recorded on the log line and the entry', async () => {
   const { allChanges, approveChanges, dismissChanges, changeHistory, VIA } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.now();
-  const top = topChanges(view()), by = k => allChanges(view()).find(c => c.key === k);
+  const top = topChanges(view());
   const job = { pr: false, spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }), cliPath: '/x/cli.js' };
-  await approveChanges(store, [top[1]], { via: VIA.page });                                      // Find Savings
-  await approveChanges(store, [{ ...by('output:Read'), chosen: 'uncompress' }], { via: VIA.session }); // answered in the session
-  await approveChanges(store, [top[0]], { ...job, via: VIA.command });                           // someone typing the command
+  await approveChanges(store, [top[0]], { ...job, via: VIA.page });                              // Find Savings
+  dismissChanges(store, [top[1]], { now, via: VIA.session });                                    // answered in the session
+  await approveChanges(store, [top[3]], { ...job, via: VIA.command });                           // someone typing the command
   dismissChanges(store, [top[2]], { now, via: 'nonsense' });                                     // an unknown door is the command
   const log = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.deepEqual(log.filter(e => e.op === 'context-approve').map(e => e.via), ['page', 'session']);
   // a section's own approval is logged when its job finishes; the job it starts carries the door it came through
-  assert.deepEqual(log.filter(e => e.op === 'context-job').map(e => e.via), ['command']);
-  assert.deepEqual(log.filter(e => e.op === 'context-dismiss').map(e => e.via), ['command']);
+  assert.deepEqual(log.filter(e => e.op === 'context-job').map(e => e.via), ['page', 'command']);
+  assert.deepEqual(log.filter(e => e.op === 'context-dismiss').map(e => e.via), ['session', 'command']);
   // the entry keeps it too, so a decision's door survives the log being rotated or read elsewhere
   assert.deepEqual(changeHistory(store).map(e => e.via), ['command', 'command', 'session', 'page']);
 });
@@ -255,16 +254,17 @@ test('the door a decision came through is recorded on the log line and the entry
 test('the action picked instead of the suggestion: options, totals over the window, and n:act choices', async () => {
   const { approveChanges, pickChanges } = await import('../src/context-suggest.js');
   const cs = topChanges(view());
-  assert.deepEqual(cs.map(c => c.options.map(o => o.act)), [['compress', 'remove'], ['compress'], ['off'], ['off'], ['compress', 'remove']]);
+  assert.deepEqual(cs.map(c => c.options.map(o => o.act)), [['compress', 'remove'], ['off'], ['off'], ['compress', 'remove']]);
   assert.equal(cs[0].total, 30_000 * 40); assert.equal(cs[0].days, 30);
   assert.deepEqual(pickChanges(cs, '1:remove, 2').map(c => c.chosen ?? null), ['remove', null]);
   assert.equal(pickChanges(cs, '3:remove')[0].chosen, undefined, 'an action the change does not have is ignored');
   assert.equal(pickChanges(cs, cs[0].key, { [cs[0].key]: 'remove' })[0].chosen, 'remove');
   const store = repo(), spawned = [];
-  const said = await approveChanges(store, pickChanges(cs, '1:remove,2'), { pr: false, cliPath: '/x/cli.js', spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; } });
-  assert.deepEqual(spawned.length, 1);
-  assert.deepEqual(spawned[0].slice(0, 6), ['/x/cli.js', 'instructions', '--remove', 'Releases', '--apply', '--job']);
-  assert.match(said[0], /^Removing 1 section/); assert.match(said[1], /Compressed from the next tool call/);
+  const said = await approveChanges(store, pickChanges(cs, '1:remove,4'), { pr: false, cliPath: '/x/cli.js', spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; } });
+  assert.deepEqual(spawned.length, 2, 'one job an action');
+  assert.deepEqual(spawned[0].slice(0, 6), ['/x/cli.js', 'instructions', '--compress', 'Ports', '--apply', '--job']);
+  assert.deepEqual(spawned[1].slice(0, 6), ['/x/cli.js', 'instructions', '--remove', 'Releases', '--apply', '--job']);
+  assert.match(said[0], /^Compressing 1 section/); assert.match(said[1], /^Removing 1 section/);
 });
 
 test('compress: a rewrite over a third of the section is sent back once with the limit', async () => {
@@ -281,28 +281,18 @@ test('compress: a rewrite over a third of the section is sent back once with the
   assert.equal(asked.length, 1, 'no second call once within the limit');
 });
 
-test('an output change has one action, and its card says how much smaller compressing makes that tool\'s results here', () => {
-  const o = topChanges(view()).find(c => c.kind === 'output');
-  assert.deepEqual(o.options.map(x => x.text), ['Compress']);
-  assert.match(o.why, /compressed, ~25% smaller$/);
-});
-
-test('revert: an output\'s compression goes back off, a section\'s file is written back unless edited since, a dismissal is withdrawn', async () => {
+test('revert: a section\'s file is written back unless edited since, a dismissal is withdrawn', async () => {
   const { approveChanges, runSectionJob, dismissChanges, revertDecision, changeHistory, currentChanges } = await import('../src/context-suggest.js');
   const store = repo(), cs = topChanges(view());
   fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nlong text\n');
   const edit = { previewEdit: async () => ({ key: 'k', file: 'AGENTS.md', files: ['AGENTS.md'], tokensBefore: 2000, tokensAfter: 700 }), applyEdit: () => { fs.writeFileSync(path.join(store.repo, 'AGENTS.md'), '# A\n\n## Releases\n\nshort\n'); return { said: 'ok' }; } };
-  const said = await approveChanges(store, [cs[0], cs[1]], { pr: false, cliPath: '/x/cli.js', spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }) });
-  assert.deepEqual(said, ['Compressing 1 section in the background: the file in your working tree is rewritten when the model is done. Follow it under Recent activity.', 'pytest output: Compressed from the next tool call']);
+  const said = await approveChanges(store, [cs[0]], { pr: false, cliPath: '/x/cli.js', spawnFn: () => ({ pid: process.pid, on() {}, unref() {} }) });
+  assert.deepEqual(said, ['Compressing 1 section in the background: the file in your working tree is rewritten when the model is done. Follow it under Recent activity.']);
   // the job's own process writes the file and keeps it as it was for the Revert below
   await runSectionJob(store, { group: changeHistory(store).find(e => e.kind === 'section').group, ids: ['Releases'], action: 'compress', pr: false }, { edit });
   dismissChanges(store, [cs[2]]);
   let h = changeHistory(store);
   assert.ok(h.every(e => e.id && e.revertible));
-  const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
-  assert.equal(cfg()['Bash:pytest'], 'moderate');
-  assert.match((await revertDecision(store, h.find(e => e.kind === 'output').id)).said, /compression off/);
-  assert.equal(cfg()['Bash:pytest'], undefined);
   const sec = h.find(e => e.kind === 'section').id;
   fs.appendFileSync(path.join(store.repo, 'AGENTS.md'), 'my own edit\n');
   assert.match((await revertDecision(store, sec)).error, /changed since/);
@@ -327,57 +317,38 @@ test('history written before ids gets them, and an old switch-off can still be r
   assert.equal(JSON.parse(fs.readFileSync(f, 'utf8')).history[0].id, e.id, 'kept');
 });
 
-test('allChanges: every part as a row with its actions, whatever its waste; off ones turn back on, outputs take a level', async () => {
+test('allChanges: every part as a row with its actions, whatever its waste; off ones turn back on', async () => {
   const { allChanges, pickChanges } = await import('../src/context-suggest.js');
   const cs = allChanges(view());
-  assert.deepEqual(cs.map(c => c.key).sort(), ['claude:builtin:Workflow', 'claude:skill:deploy', 'claude:skill:x', 'output:Bash:pytest', 'output:Read', 'section:AGENTS.md:Ports', 'section:AGENTS.md:Releases', 'section:AGENTS.md:Tests', 'section:AGENTS.md:Unknown'].sort());
+  assert.deepEqual(cs.map(c => c.key).sort(), ['claude:builtin:Workflow', 'claude:skill:deploy', 'claude:skill:x', 'section:AGENTS.md:Ports', 'section:AGENTS.md:Releases', 'section:AGENTS.md:Tests', 'section:AGENTS.md:Unknown'].sort());
   const by = k => cs.find(c => c.key === k);
   assert.deepEqual(by('section:AGENTS.md:Unknown').options.map(o => o.act), ['compress', 'remove']); assert.equal(by('section:AGENTS.md:Unknown').saving, 0);
   assert.deepEqual(by('claude:skill:x').options.map(o => o.act), ['on'], 'switched off: back on');
-  // one level of compression (moderate): Compress, or No compression once compressed at any level; never High (the owner's
-  // call of 2026-10-22: a person cannot pick between two levels nothing has measured against each other)
-  assert.deepEqual(by('output:Bash:pytest').options.map(o => o.act), ['compress']);
-  assert.deepEqual(by('output:Read').options.map(o => o.act), ['uncompress'], 'already moderate');
-  assert.deepEqual(allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'Read', compressible: true, compression: 'high', saveModerate: 1 }] } })).find(c => c.key === 'output:Read').options.map(o => o.act), ['uncompress'], 'set high from the command line: still one way back');
-  assert.equal(cs.some(c => c.options.some(o => o.act === 'high')), false);
-  assert.equal(cs.some(c => c.key === 'output:mcp:x'), false, 'nothing thinker can compress is not a change');
+  assert.equal(cs.some(c => c.options.some(o => o.act === 'high' || o.act === 'uncompress')), false);
   // a built-in tool is switched off from its row like any tool (the page asks first), and is marked as built-in
   assert.deepEqual(by('claude:builtin:Workflow').options.map(o => o.act), ['off']); assert.equal(by('claude:builtin:Workflow').builtin, true);
-  // an MCP server: the same two states
-  const mcp = allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'mcp:y', compressible: true, compression: null, saveModerate: 1000, perSession: 5000 }, { name: 'mcp:z', compressible: true, compression: 'moderate', saveModerate: 1000, perSession: 5000 }] } }));
-  assert.deepEqual(mcp.filter(c => c.kind === 'output').map(c => [c.key, c.options.map(o => o.act)]), [['output:mcp:y', ['compress']], ['output:mcp:z', ['uncompress']]]);
-  // the page names a row by its key, as a list: `output:Read` is a key, not a choice with an action after its colon
-  assert.deepEqual(pickChanges(cs, ['output:Read'], { 'output:Read': 'uncompress' }).map(c => [c.key, c.chosen]), [['output:Read', 'uncompress']]);
-  assert.equal(pickChanges(cs, 'output:Read').length, 0, 'the string form reads it as output + Read');
+  // the page names a row by its key, as a list, and a choice may name an action after a colon
+  assert.deepEqual(pickChanges(cs, ['section:AGENTS.md:Ports'], { 'section:AGENTS.md:Ports': 'remove' }).map(c => [c.key, c.chosen]), [['section:AGENTS.md:Ports', 'remove']]);
 });
 
-test('approve from a row: turn back on, a compression level, and each reverted to what it was', async () => {
-  const { allChanges, approveChanges, revertDecision, changeHistory } = await import('../src/context-suggest.js');
-  const store = repo(), cs = allChanges(view()), by = k => cs.find(c => c.key === k);
-  const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
-  // pytest off: compressed (moderate), then reverted to off; Read moderate: compression off, reverted to moderate
+test('a tool output decided before the rows went is still taken back by Revert', async () => {
+  const { revertDecision, changeHistory } = await import('../src/context-suggest.js');
   const { setOutputCompression } = await import('../src/context-view.js');
-  setOutputCompression(store, ['Read'], 'moderate');
-  let said = await approveChanges(store, [{ ...by('output:Bash:pytest'), chosen: 'compress' }, { ...by('output:Read'), chosen: 'uncompress' }]);
-  assert.deepEqual(said, ['pytest output: Compressed from the next tool call', 'Read output: Compression off from the next tool call']);
+  // Output compression left the page and the suggestions on 2026-11-04, and what a person decided before that is still
+  // theirs: the entry stays in Recent activity and Revert sets the level back by its key (undoOf).
+  const store = repo();
+  setOutputCompression(store, ['Bash:pytest'], 'moderate');
+  const f = path.join(store.dir, 'state', 'context-suggest.json');
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.writeFileSync(f, JSON.stringify({ history: [{ id: 'a1', at: new Date().toISOString(), key: 'output:Bash:pytest', kind: 'output', title: 'pytest output', decision: 'approved', result: 'Compressed from the next tool call' }] }));
+  const cfg = () => JSON.parse(fs.readFileSync(path.join(store.dir, 'config.json'), 'utf8')).diet?.tools || {};
   assert.deepEqual(cfg(), { 'Bash:pytest': 'moderate' });
-  const h = changeHistory(store);
-  assert.match((await revertDecision(store, h.find(e => e.key === 'output:Read').id)).said, /moderate compression again/);
-  assert.match((await revertDecision(store, h.find(e => e.key === 'output:Bash:pytest').id)).said, /compression off/);
-  assert.deepEqual(cfg(), { Read: 'moderate' });
-  // a level the command line set (high) is kept by Revert as it was
-  setOutputCompression(store, ['Bash:pytest'], 'high');
-  const hi = allChanges(view({ outputs: { sessions: 40, tools: [{ name: 'Bash:pytest', compressible: true, compression: 'high', saveModerate: 1, perSession: 10 }] } })).find(c => c.key === 'output:Bash:pytest');
-  assert.deepEqual(hi.options.map(o => o.act), ['uncompress']);
-  await approveChanges(store, [hi]);
-  assert.deepEqual(cfg(), { Read: 'moderate' });
-  assert.match((await revertDecision(store, changeHistory(store)[0].id)).said, /high compression again/);
-  assert.deepEqual(cfg(), { Read: 'moderate', 'Bash:pytest': 'high' });
-  setOutputCompression(store, ['Bash:pytest'], null);
-  said = await approveChanges(store, [{ ...by('output:Read'), chosen: 'uncompress' }]);
-  assert.match(said[0], /Compression off from the next tool call/); assert.deepEqual(cfg(), {});
-  // nothing switched off here to turn back on: the harness says so, nothing is recorded
-  said = await approveChanges(store, [by('claude:skill:x')]);
+  assert.equal(changeHistory(store)[0].revertible, true);
+  assert.match((await revertDecision(store, 'a1')).said, /compression off/);
+  assert.deepEqual(cfg(), {});
+  // and nothing switched off here to turn back on: the harness says so, nothing is recorded
+  const { allChanges, approveChanges } = await import('../src/context-suggest.js');
+  const said = await approveChanges(store, [allChanges(view()).find(c => c.key === 'claude:skill:x')]);
   assert.equal(said.length, 1); assert.equal(changeHistory(store).filter(e => e.key === 'claude:skill:x').length, 0);
 });
 
@@ -446,15 +417,17 @@ test('a section job without a pull request: recorded running at once, the comman
   assert.equal(changeHistory(store2).length, 2);
 });
 
-test('an output measured under an earlier setting is a comparison, not a change; the current row counts its own sessions', async () => {
+test('a tool\'s output is no row and no suggestion, whatever its setting (2026-11-04)', async () => {
   const { allChanges } = await import('../src/context-suggest.js');
+  // the clearing is thinker's compression and it is on by default (cutting.js), so none of these is a choice anyone is
+  // put to: not an uncompressed tool, not one compressed from the command line, not a row from before a setting
   const v = view({ outputs: { sessions: 40, tools: [
     { name: 'Bash:sed', level: null, past: true, sessions: 30, compressible: true, compression: 'moderate', saveModerate: 50_000, perSession: 900_000, perCall: 1000 },
     { name: 'Bash:sed', level: 'moderate', past: false, sessions: 10, compressible: true, compression: 'moderate', saveModerate: 1000, perSession: 400_000, perCall: 600 },
+    { name: 'Bash:pytest', compressible: true, compression: null, saveModerate: 90_000, perPrompt: 100_000, perCall: 9000 },
   ] } });
-  const all = allChanges(v).filter(c => c.kind === 'output');
-  assert.deepEqual(all.map(c => [c.key, c.sessions, c.total, c.options.map(o => o.act)]), [['output:Bash:sed', 10, 10_000, ['uncompress']]]);
-  assert.equal(topChanges(v).some(c => c.kind === 'output'), false, 'nothing to compress: the past row is not offered, the current one is compressed');
+  assert.equal(allChanges(v).some(c => c.kind === 'output'), false);
+  assert.equal(topChanges(v).some(c => c.kind === 'output'), false);
 });
 
 test('a section job with a pull request: the decision is pending until merged; closed, it is rejected and suggested again; Close PR is its revert; a failed pull request is retried', async () => {
@@ -558,7 +531,7 @@ test('a section job with a pull request: the decision is pending until merged; c
 
 test('describePart: a built-in tool is told from a custom one, and the thing a decision changed gets one line of what it does', async () => {
   const { describePart } = await import('../src/part-describe.js');
-  const { allChanges, approveChanges, changeHistory } = await import('../src/context-suggest.js');
+  const { allChanges, dismissChanges, changeHistory } = await import('../src/context-suggest.js');
   assert.deepEqual(describePart({ kind: 'tool', name: 'Grep', builtin: true }), { what: 'Built-in tool', about: 'text search over files' });
   assert.deepEqual(describePart({ kind: 'tool', name: 'x', toolKind: 'mcp', text: 'Browser automation for Chrome. Clicks and reads pages.' }), { what: 'Custom tool · MCP server', about: 'Browser automation for Chrome.' });
   assert.deepEqual(describePart({ kind: 'tool', name: 'p', toolKind: 'plugin' }), { what: 'Custom tool · plugin', about: '' });
@@ -573,21 +546,20 @@ test('describePart: a built-in tool is told from a custom one, and the thing a d
   // the rows carry them, the decision keeps them
   const cs = allChanges(view()), by = k => cs.find(c => c.key === k);
   assert.deepEqual([by('claude:builtin:Workflow').what, by('claude:builtin:Workflow').about], ['Built-in tool', 'orchestrates subagents by a script']);
-  assert.deepEqual([by('output:Bash:pytest').what, by('output:Bash:pytest').about], ['Shell command output', 'runs the Python tests']);
-  assert.deepEqual([by('output:Read').what, by('output:Read').about], ['Built-in tool output', 'reads a file']);
   assert.equal(by('claude:skill:deploy').what, 'Custom tool · skill');
   assert.equal(by('section:AGENTS.md:Releases').what, 'Instruction section');
   const store = repo();
-  await approveChanges(store, [by('output:Bash:pytest')]);
+  dismissChanges(store, [by('claude:builtin:Workflow')]);
   const [e] = changeHistory(store);
-  assert.deepEqual([e.what, e.about], ['Shell command output', 'runs the Python tests']);
-  assert.deepEqual([JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'context-suggest.json'), 'utf8')).history[0].what], ['Shell command output'], 'kept on the entry');
+  assert.deepEqual([e.what, e.about], ['Built-in tool', 'orchestrates subagents by a script']);
+  assert.deepEqual([JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'context-suggest.json'), 'utf8')).history[0].what], ['Built-in tool'], 'kept on the entry');
   // an entry written before `what` and `about` were kept is described from its kind and key
   const f = path.join(store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(f, 'utf8'));
   st.history.push({ at: new Date().toISOString(), key: 'claude:builtin:Artifact', kind: 'tool', title: 'Artifact tool', decision: 'approved', result: 'Switched off' }, { at: new Date().toISOString(), key: 'claude:mcp:artemis', kind: 'tool', title: 'artemis MCP server', decision: 'approved', result: 'Switched off' }, { at: new Date().toISOString(), key: 'output:mcp:chrome', kind: 'output', title: 'chrome output', decision: 'approved' });
   fs.writeFileSync(f, JSON.stringify(st));
   const hs = changeHistory(store);
-  assert.deepEqual(hs.map(x => [x.what, x.about]), [['Shell command output', 'runs the Python tests'], ['Built-in tool', 'drafts a document or page'], ['Custom tool · MCP server', ''], ['Custom tool output · MCP server', '']]);
+  // a tool output is still described, for the decisions people made before the rows went (2026-11-04)
+  assert.deepEqual(hs.map(x => [x.what, x.about]), [['Built-in tool', 'orchestrates subagents by a script'], ['Built-in tool', 'drafts a document or page'], ['Custom tool · MCP server', ''], ['Custom tool output · MCP server', '']]);
 });
 
 test('a merged pull request from before the merge commit was kept: GitHub is asked for it once; a removal is unpulled while its section is still in the file', async () => {

@@ -331,6 +331,19 @@ export function actionEffect(e, sessionRows = [], now = Date.now(), { until = nu
 }
 // What a prompt costs on average over the view's measured sessions (`sessionRows`): their input over their prompts. Shown
 // over the Saved column of Recent activity, the size the savings are read against.
+// What an input token costs here, in dollars, at the list prices the Report runs on: the input side of the token-type
+// table (fresh input, cache reads, cache writes at their TTL's rate), its cost over its tokens. One rate, and the one
+// the Report already prices a part's share of the input with, so a saving quoted anywhere reads the same as the table.
+// A cache read is a tenth of an input token and a write twice it, and this blends them as the sessions actually ran,
+// which is why a context part may not be priced at the input rate: it is read from the cache nearly every call.
+// null when there is nothing to price, or when a model in the window has no list price -- its tokens are in the table
+// with no cost, so the rate would read low (prices.js: never count an unpriced model at zero).
+export function inputRate(view) {
+  if (!view || (view.unpriced || []).length) return null;
+  let tokens = 0, cost = 0;
+  for (const t of view.tokenTypes || []) if (t.key !== 'output') for (const c of t.cells || []) { tokens += c.tokens || 0; cost += c.cost || 0; }
+  return tokens > 0 && cost > 0 ? cost / tokens : null;
+}
 export function promptAverage(sessionRows = []) {
   const prompts = sessionRows.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0), tokens = sessionRows.reduce((a, r) => a + r.input, 0);
   return prompts ? { sessions: sessionRows.length, prompts, tokens, perPrompt: Math.round(tokens / prompts) } : null;

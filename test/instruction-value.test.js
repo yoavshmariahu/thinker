@@ -357,10 +357,9 @@ test('all repositories: a tool output measured under an earlier setting never me
   assert.deepEqual([now.window, now.past], [30_000, false]);
   // a live row's setting is its own level, so the action offered and the saving beside it are the same thing
   assert.deepEqual([live.compression, now.compression], [null, 'moderate']);
-  // the dead period is offered no action and counts towards no saving: before 2026-10-26 `every` made this row live,
-  // and the machine's top output suggestion was the 2M of a tool already compressed, to be uncompressed
-  const changes = allChanges(v).filter(c => c.kind === 'output' && c.title.startsWith('cat'));
-  assert.deepEqual(changes.map(c => [c.default?.act, c.total]), [[ 'compress', 300_000 ], [ 'uncompress', 1_000 ]]);
+  // the rows are measurement, not a decision: an output is offered nowhere since 2026-11-04 (the clearing compresses
+  // them, on by default), so none of these three is a change anyone is asked about
+  assert.deepEqual(allChanges(v).filter(c => c.kind === 'output'), []);
 });
 
 test('all repositories: the timeline joined, sections tagged with their repository, a tool merged by name', async () => {

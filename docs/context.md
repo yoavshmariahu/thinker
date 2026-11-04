@@ -21,12 +21,12 @@ parts the agent reads on every model call:
 | Instruction files | `AGENTS.md`, or `CLAUDE.md` where there is no `AGENTS.md`, section by section | Claude Code, Codex, Cursor and Gemini CLI sessions |
 | Custom tools | the skills listed in every session, MCP servers and plugins, with their descriptions and tool definitions | Claude Code in full; Codex's skill catalog and MCP namespaces; Cursor's MCP servers |
 | Built-in tools | the agent's own tool definitions, re-sent with every call | Claude Code |
-| Tool outputs | what each tool's results added to the conversation, re-read by every call after them | Claude Code |
+| Tool outputs | what each tool's results added to the conversation, re-read by every call after them; reported, never a row to decide on -- the clearing takes those out (see below) | Claude Code |
 
 One rule: a part sits in the prompt, so it costs its size in every model call that carries it. **Per
 prompt** is that size — a prompt being one call to the model, as the Report counts it. **Needed** is the
 share of those prompts where the agent acted on it: called the tool, invoked the skill, touched the files,
-commands or code the section names, read the output again before moving on. **Over N days** is per prompt
+commands or code the section names. **Over N days** is per prompt
 times every prompt that carried it in the window, what the page sorts by. **Wasted** is that times the share
 of prompts that did not need it, the most that cutting the part could save. These are input tokens read: a
 definition at the stable front of the prompt is served from the prompt cache on most calls, at a tenth or
@@ -45,13 +45,9 @@ less of the input price, and the Report prices the token types as the model repo
   column header says how each kind is counted. A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one
   broke them without reading it. A tool is *used* when a session called it.
-- *Wasted*: what the part cost in the sessions that did not use it. For a tool output, what its
-  results cost after the agent last used them: the last call of the same turn that edited with text
-  copied from the result or touched the same file, an estimate from the transcript. High waste from 5%
-  of what its kind costs, medium from 2%. For a section, skill or tool that is what cutting it would save
-  at most; a session that needed it would go without. For an output it is the size of the problem, not
-  of the saving: compression cuts only the part of a result past its cap, and the row's detail says how
-  much that is.
+- *Wasted*: what the part cost in the sessions that did not use it -- what cutting it would save at
+  most; a session that needed it would go without. High waste from 5% of what its kind costs, medium
+  from 2%.
 
 **All repositories** merges every repository's report: the timeline side by side, tools merged by
 name, each cost summed over the repositories and read against all their prompts together.
@@ -66,17 +62,19 @@ Every action shows what it will do before it does it, and each one can be undone
 | Drop an instruction section | pick sections, **Remove**, Apply: a pull request opens with the change in a moment | close the unmerged PR; revert a merged change |
 | Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | **Turn back on** |
 | Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | **Turn back on**, or **Revert** under Recent activity |
-| Compress tool outputs | per tool, **Compress** or **No compression**: a whole-file read becomes the lines around what the session searched for, a test run its counts and distinct failures, a big search its hits per file, long output cut to a cap of about 3k tokens; Claude Code only, through its tool hook | **No compression** |
 
-A tool whose compression you set is measured afresh from that moment: its row counts the sessions since
-the setting alone, and says so (*moderate compression since Oct 22, 15 sessions*). Its measurement from
-before stays as a second, muted row (*measured with no compression, 203 sessions*), with no action, sorted
-after every current row whatever the order, so a tool is never ranked by what it cost before it was
-compressed. Each row's detail compares the two: tokens a call and a prompt under each setting. The
-settings' dates come from the log of every setting made (`diet-settings`), so a setting the log never saw
-(a config edited by hand) counts from the last one it did.
+**Tool outputs are not on this list, and that is the point.** thinker compresses them itself, on every
+machine, with no setting to find: the clearing replaces the results the agent has finished with before the
+request leaves for the model (`src/cutting.js`), which is where the cost actually is -- 88% of what output
+costs a session is reading results again after the agent's last use of them. Per-tool compression
+(`src/diet.js`) only shrinks what is still live: the moderate cap took 7.5% of output cost over 38 real
+sessions here, and the one arm measured in agent sessions saved nothing at all, because an agent fetches
+again what was trimmed from under it. So there is no **Compress** row, no question about one, and nothing
+for anyone to switch: what each tool's output costs is still measured and still on the Report, under Cost
+by context. `thinker context --output-compression <tools> [--level high]` still sets the diet by hand, for
+an experiment arm.
 
-Each view opens with a **Potential savings** card: for sections, skills and tools, what the flagged rows cost in the sessions that did not use them (at most); for outputs, what the cap alone would have cut (at least); All sums them.
+Each view opens with a **Potential savings** card: what the flagged rows cost in the sessions that did not use them (at most); All sums them.
 
 Compress and Remove run in the background and make a pull request: Apply records the decision and
 starts the work detached, so nothing holds your attention while the model works; the change is one commit on a branch of its own, built from the default branch and pushed
@@ -93,8 +91,8 @@ complete: a change still running, one that **Failed** (the reason is in the row,
 command again), and a pull request **PR pending** until you merge it (**Close PR** closes it and deletes
 its branch; closed without merging, the decision is **Rejected** and the sections are suggested again,
 since nothing was followed through on). A card at the top names what needs you. **Revert** is there too:
-a switched-off skill or tool back on, an output's compression back, a section's file written back as it
-was. Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes
+a switched-off skill or tool back on, a section's file written back as it was (and an output's compression
+back, for a decision made before those rows went). Sections changed together are a row each but one change: a Retry, Revert or Close PR on one takes
 the others with it.
 
 ## What the numbers are

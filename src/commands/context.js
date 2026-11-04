@@ -9,10 +9,11 @@
 // installer's question: browser or terminal, and in the terminal the suggestions to pick from (setup/context-ask.js).
 // --cards is the Save page's card view here: what each part is, why you would change it and what you would lose
 // (part-explain.js), the same parts in the same order as the table, with the words `thinker explain` wrote.
-import { historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
+import { historyEffects, promptAverageHere, keptRows, inputRateHere } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
+import { formatDollars } from '../prices.js';
 import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
 import { approveChanges, dismissChanges, revertDecision, retryJob, pickChanges, currentChanges, changeHistory, refreshPrStates, offeredChanges } from '../context-suggest.js';
@@ -40,7 +41,8 @@ async function contextCommand({ store, flags, out }) {
     for (const l of renderMachineReport(r, recs)) out(l);
     return;
   }
-  // the tab's actions: switch tools off or back on, set a tool's output compression
+  // the tab's actions: switch tools off or back on. --output-compression is not one of the page's rows since
+  // 2026-11-04 (the clearing compresses outputs, on by default): it stays here to set the diet for an experiment arm.
   const list = v => String(v).split(',').map(x => x.trim()).filter(Boolean);
   if (typeof flags['switch-off'] === 'string') { out(switchSources(store, { labels: list(flags['switch-off']), builtin: !!flags.builtin })); return; }
   if (typeof flags['switch-on'] === 'string') { out(switchSources(store, { keys: list(flags['switch-on']), on: true })); return; }
@@ -114,7 +116,7 @@ async function contextCommand({ store, flags, out }) {
     const have = readExplains(), all = viewParts(v);
     // as many as the tables print, and --verbose for the rest: the page pages through them, a terminal would scroll
     const parts = flags.verbose ? all : all.slice(0, 12);
-    const KINDS = { section: 'instruction section', skill: 'skill', output: 'tool output', tool: 'tool' };
+    const KINDS = { section: 'instruction section', skill: 'skill', tool: 'tool' };
     const wrap = (label, text, w = 94) => {
       const lines = []; let line = `      ${label}${label ? ' ' : ''}`;
       for (const word of String(text).split(' ')) {
@@ -128,7 +130,7 @@ async function contextCommand({ store, flags, out }) {
     parts.forEach((x, i) => {
       const e = have[x.key];
       if (!e) missing++;
-      out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} ${x.kind === 'output' ? 'a result' : 'a prompt'}${x.wastedWindow ? `, ~${formatTokens(x.wastedWindow)} wasted over ${days} days` : ''}`);
+      out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} a prompt${x.wastedWindow ? `, ~${formatTokens(x.wastedWindow)} wasted over ${days} days` : ''}`);
       if (x.about) for (const l of wrap('', x.about)) out(l);
       if (e) {
         for (const l of wrap('What this is:', e.what)) out(l);
@@ -150,10 +152,14 @@ async function contextCommand({ store, flags, out }) {
   out(`  custom tools      ~${formatTokens(t.custom.perPrompt)} a prompt (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call that loads them)`);
   out(`  built-in tools    ~${formatTokens(t.builtin.perPrompt)} a prompt (~${formatTokens(t.builtin.tokens)} in every call that loads them)`);
   out(`  tool outputs      ~${formatTokens(t.outputs.perPrompt)} a prompt (each result read again by the calls after it${t.outputs.wasted != null ? `; ~${formatTokens(t.outputs.wasted)} of it after the agent last used the result` : ''}; an estimate)\n`);
-  // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them
+  // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them,
+  // with what they are worth in money where the report kept here can price an input token (report.js:inputRate): the
+  // same figure the session's question quotes, so the two doors say one thing
+  const rate = inputRateHere(store), money = n => rate && n > 0 ? ` (about ${formatDollars(n * rate)} at list prices)` : '';
   if (top.length) {
-    out(`Top changes (up to ~${formatTokens(top.reduce((a, c) => a + c.total, 0))} input tokens over the last ${days} days together):`);
-    top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
+    const sum = top.reduce((a, c) => a + c.total, 0);
+    out(`Top changes (up to ~${formatTokens(sum)} input tokens over the last ${days} days together${money(sum)}):`);
+    top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days${money(c.total)}; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
     out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, All); --history lists the decisions.\n');
   }
   if (iv.file) {
@@ -172,16 +178,6 @@ async function contextCommand({ store, flags, out }) {
       const o = s.outcome;
       out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(formatTokens(s.wastedWindow || 0), 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
     }
-    out('');
-  }
-  if (v.outputs.tools.length) {
-    // a tool compressed since a date is measured over the sessions since, as its own row; its row from before (`past`) is
-    // listed after every current row, marked, for the comparison (tool-outputs.js:aggregateOutputs)
-    const day = t => new Date(t).toISOString().slice(0, 10), level = l => l ? `${l} compression` : 'no compression';
-    const note = o => o.past ? `  (measured with ${level(o.level)}, ${o.sessions} sessions${o.from ? ` ${day(o.from)} to ${day(o.to)}` : ''}; the setting has changed since)` : o.level ? `  (${level(o.level)} since ${day(o.since || o.from)}, ${o.sessions} sessions)` : (o.others || []).length ? `  (before compression, ${o.sessions} sessions)` : '';
-    out(`Tool outputs: tokens per result, needed (% of the re-reads before the agent last used it), ${days}d (every re-read), wasted (the re-reads after), calls a session.`);
-    const rows = [...v.outputs.tools.filter(o => !o.past), ...v.outputs.tools.filter(o => o.past)];
-    for (const o of rows.slice(0, flags.verbose ? undefined : 12)) out(`  ${pad(formatTokens(o.perCall), 6)} ${pad(pct(o.needed), 7)} ${pad(formatTokens(o.window), 7)} ${pad(o.wastedWindow == null ? '-' : formatTokens(o.wastedWindow), 7)} ${pad(o.calls.toFixed(1), 6)} calls  ${o.name}${note(o)}`);
     out('');
   }
   if (v.tools.length) {

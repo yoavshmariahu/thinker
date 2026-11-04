@@ -38,11 +38,12 @@ test('a part is keyed by what it is, so a tool is explained once for the machine
 
 test('every part of a view is listed, heaviest waste first, each seeded with what it is', () => {
   const ps = viewParts(VIEW);
-  assert.deepEqual(ps.map(p => p.name), ['Artifact', 'Bash:sed', 'Releases', 'dataviz']);
-  // a tool output carries no text of its own: the one-clause gloss (part-describe.js) stands in, so the
-  // model is never asked to explain a bare name and never answers "no description was given"
-  assert.equal(ps.find(p => p.name === 'Bash:sed').about, 'edits or prints lines of a file');
-  assert.ok(ps.find(p => p.name === 'Bash:sed').text);
+  // the parts a person decides on: sections, skills, tools. A tool's output is not one of them since 2026-11-04 --
+  // the clearing compresses those, on by default -- so no card is written for one and no row asks about it.
+  assert.deepEqual(ps.map(p => p.name), ['Artifact', 'Releases', 'dataviz']);
+  assert.equal(ps.some(p => p.kind === 'output'), false);
+  // the key of an output still exists, for the explanations a machine kept before that
+  assert.equal(partKey({ kind: 'output', name: 'Bash:sed' }), 'output:Bash:sed');
 });
 
 test('the suite never reads or writes the developer’s own explanations unless it names a home', () => {
@@ -58,15 +59,14 @@ test('explanations are written in batches, kept for the machine, and put back on
     seen.push(parts.map(p => p.name));
     return { explains: Object.fromEntries(parts.map(p => [p.key, { what: `what ${p.name} is`, why: `why ${p.name}`, keep: `lose ${p.name}`, name: p.name, kind: p.kind }])), tokens: 10 };
   };
-  const r = await explainParts(store(), viewParts(VIEW), { per: 3, conc: 1, batchFn });
-  assert.equal(r.saved, 4);
-  assert.deepEqual(seen, [['Artifact', 'Bash:sed', 'Releases'], ['dataviz']]);
+  const r = await explainParts(store(), viewParts(VIEW), { per: 2, conc: 1, batchFn });
+  assert.equal(r.saved, 3);
+  assert.deepEqual(seen, [['Artifact', 'Releases'], ['dataviz']]);
   // kept for the machine, so the next page visit and every other repository read them without spending again
   const have = readExplains();
-  assert.equal(Object.keys(have).length, 4);
+  assert.equal(Object.keys(have).length, 3);
   const v = attachExplains(VIEW, have);
   assert.equal(v.tools[0].explain.what, 'what Artifact is');
-  assert.equal(v.outputs.tools[0].explain.why, 'why Bash:sed');
   assert.equal(v.instructions.sections[0].explain.keep, 'lose Releases');
   assert.equal(v.skills[0].explain.what, 'what dataviz is');
   // nothing is asked for twice
@@ -88,9 +88,9 @@ test('a batch that fails costs its own parts only, and half an answer is never s
   let calls = 0;
   const batchFn = async (_s, g) => { calls++; if (g.some(p => p.name === 'dataviz')) throw new Error('model said no'); return { explains: Object.fromEntries(g.map(p => [p.key, { what: 'a'.repeat(20), why: 'b'.repeat(20), keep: 'c' }])), tokens: 1 }; };
   const r = await explainParts(store(), viewParts(VIEW), { per: 1, conc: 1, batchFn });
-  assert.equal(calls, 4);
+  assert.equal(calls, 3);
   assert.equal(r.failed, 1);
-  assert.equal(r.saved, 3); // the three that answered are kept
+  assert.equal(r.saved, 2); // the two that answered are kept
 });
 
 // Desktop apps (AGENTS.md, MANDATORY): in Claude Desktop, the Codex app or Cursor the hooks have no agent CLI
@@ -117,7 +117,7 @@ test('with no agent CLI signed in, explaining is queued for the app session inst
   const ran = [];
   await commands.explain({ store: st, flags: { quiet: true }, out: s => said.push(s),
     availableFn: () => ['claude'], explainFn: async (_s, parts) => { ran.push(parts.length); return { saved: parts.length, failed: 0, tokens: 1 }; } });
-  assert.deepEqual(ran, [4]);
+  assert.deepEqual(ran, [3]);
 
   // the day's budget stops it rather than spending past the cap
   const stopped = [];

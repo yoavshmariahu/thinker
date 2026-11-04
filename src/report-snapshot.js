@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { reportView, withEffects, REPORT_WEEKS, promptAverage } from './report.js';
+import { reportView, withEffects, REPORT_WEEKS, promptAverage, inputRate } from './report.js';
 
 export const REFRESH_MS = 10 * 60_000;
 const LOCK_MS = 5 * 60_000;
@@ -93,4 +93,11 @@ export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Dat
 // What a prompt costs on average here (report.js:promptAverage), over the report kept here; null without one of this code's.
 export function promptAverageHere(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
   return promptAverage(keptRows(store, { weeks, now }).rows);
+}
+
+// What an input token costs here (report.js:inputRate), from the report kept in this checkout -- a file read, never a
+// measurement made now, so anything may ask for it. null when there is no kept report, or no price for this window's
+// models: then a figure is quoted in tokens alone rather than guessed at.
+export function inputRateHere(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
+  try { return inputRate(readReport(store, weeks, { now })?.view); } catch { return null; }
 }
