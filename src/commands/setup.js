@@ -13,7 +13,7 @@ import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
 import { unscheduleTelemetry, sendUninstallFeedback, sendTelemetry, sendTelemetryAfterUpdate } from '../telemetry.js';
 import readlinePromises from 'node:readline/promises';
-import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, isScheduled, getLaunchAgentPath } from '../update.js';
+import { thinkerHome, detectInstall, checkUpdate, applyUpdate, scheduleDaily, unscheduleDaily, refreshSchedule, ensureSchedule, autoUpdateOffFile, isScheduled, getLaunchAgentPath } from '../update.js';
 import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { runAutomaticPrComments } from '../delivery-auto.js';
@@ -288,6 +288,7 @@ async function updateInstallCommand(ctx) {
 
   if (flags.schedule || flags.daily) {
     try {
+      fs.rmSync(autoUpdateOffFile(home), { force: true });
       const res = scheduleDaily({ home, binPath: install.binPath });
       if (res.type === 'invocation') {
         out(`Daily OS scheduling unavailable (${res.reason}); thinker will check for updates when invoked, at most once a day, unless auto-updates are disabled.`);
@@ -302,6 +303,7 @@ async function updateInstallCommand(ctx) {
   }
 
   if (flags.unschedule) {
+    try { fs.mkdirSync(path.dirname(autoUpdateOffFile(home)), { recursive: true }); fs.writeFileSync(autoUpdateOffFile(home), new Date().toISOString()); } catch {}
     const res = unscheduleDaily({ home });
     if (res.unscheduled) out('Removed scheduled auto-updates for thinker.');
     else out('No scheduled auto-update was found.');
@@ -316,7 +318,7 @@ async function updateInstallCommand(ctx) {
     fs.mkdirSync(path.dirname(lock), { recursive: true });
     fs.writeFileSync(lock, String(process.pid));
     // an earlier version's daily schedule moves to the current interval (update.js:refreshSchedule)
-    if (install.type !== 'git') try { refreshSchedule({ home, binPath: install.binPath }); } catch {}
+    if (install.type !== 'git') try { refreshSchedule({ home, binPath: install.binPath }); ensureSchedule({ home, binPath: install.binPath }); } catch {}
     try {
       const chk = await checkUpdate({ home, install });
       let updated = false;
@@ -334,7 +336,11 @@ async function updateInstallCommand(ctx) {
       // no update: the wiring is checked all the same, since hooks that are gone cannot run the prompt hook's
       // refresh, and an agent installed after thinker is wired in only here (clients.js:connectDetected)
       if (!updated) rewireAfterUpdate(path.join(HERE, 'cli.js'), { quiet: true });
-    } catch (e) { process.stderr.write(`${e.message}\n`); process.exitCode = 1; }
+    } catch (e) {
+      // the background run's output goes nowhere, so a failure is logged or it is never seen (EXDEV, 2026-11-03)
+      try { store.log({ op: 'update-failed', error: String(e.message).slice(0, 300), auto: true }); } catch {}
+      process.stderr.write(`${e.message}\n`); process.exitCode = 1;
+    }
     finally {
       try { fs.rmSync(lock, { force: true }); } catch {}
     }

@@ -430,7 +430,7 @@ function runLinuxSchedule(tmp) {
     await import(${JSON.stringify(CLI)});
   `], {
     encoding: 'utf8', cwd: tmp,
-    env: { ...process.env, PATH: tmp, THINKER_HOME: tmp, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off' },
+    env: { ...process.env, PATH: tmp, THINKER_HOME: tmp, THINKER_TELEMETRY: 'off', THINKER_LOG: 'off', THINKER_TEST_CRONTAB: '1' },
   });
 }
 
