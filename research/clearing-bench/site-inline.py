@@ -20,7 +20,7 @@ def summary(d):
     out['cuts'] = len(cuts); out['cutTokens'] = sum(x['tokens'] for x in cuts)
     out['refused'] = sum(1 for x in d['cut']['calls'] if x.get('held') and not x.get('cut'))
     out['rereads'] = len([n for n in d['cut']['notes'] if n['kind'] == 'reread'])
-    if d.get('costBounds'): out['savings'] = d['savings']
+    if d.get('savings'): out['savings'] = d['savings']
     return out
 assert len({m['group'] for m in manifest}) == len(manifest), 'one example per workload'
 index, data, default = [], {}, None

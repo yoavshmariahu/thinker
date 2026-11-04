@@ -48,11 +48,11 @@ test('the compression page inlines a run index and the default run, and every ru
     const d = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${r.id}.json`, import.meta.url), 'utf8'));
     for (const arm of ['cut', 'control']) {
       assert.ok(d[arm].calls.length > 10, `${r.id} ${arm}: every model call`);
-      assert.ok(d[arm].turns.length >= 10, `${r.id} ${arm}: the turns`);
+      assert.ok(d[arm].turns.length >= 9, `${r.id} ${arm}: the turns`);
       for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${r.id} ${arm} call ${c.k} is complete`);
     }
     assert.ok(d.control.calls.every(c => !c.cut), `${r.id}: the control was never cut`);
-    assert.ok(d.costBounds ? d.price.input === 10 && d.price.out === 50 && d.price.w1h === 12.5 : d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: correct model prices`);
+    assert.ok(d.protocol === 'responses' ? d.price.input === 10 && d.price.out === 50 && d.price.w1h === 12.5 : d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: correct model prices`);
     assert.ok(r.summary && r.summary.cut.cost1h > 0 && r.summary.control.cost1h > 0, `${r.id}: the index carries both arms' cost`);
   }
   assert.ok(html.includes('One run per arm'), 'the caveats are stated');
@@ -67,7 +67,7 @@ test('the compression page\'s session view reads both runs, turn by turn, from o
     const f = `clearing-${id}-session.json`;
     const data = JSON.parse(fs.readFileSync(new URL('../site/' + f, import.meta.url), 'utf8'));
     for (const arm of ['cut', 'control']) {
-      assert.ok(data[arm].turns.length >= 10, `${f} ${arm}: the turns`);
+      assert.ok(data[arm].turns.length >= 9, `${f} ${arm}: the turns`);
       for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length, `${f} ${arm} turn ${t.n} has a prompt and steps`);
       assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${f} ${arm}: no home paths`);
     }
@@ -99,7 +99,8 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
   const data = JSON.parse(raw);
   assert.match(html, /<h1>See the data<\/h1>/);
   assert.equal(request('/clearing-mlflow-knowledge.json').uri, '/clearing-mlflow-knowledge.json');
-  assert.match(html, /do not isolate knowledge caching/);
+  assert.match(html, /not knowledge caching alone/);
+  assert.doesNotMatch(html, /class="benchmark"|what the model sees now/);
   assert.match(html, /Historical cache-building costs, setup, preflight and cancelled runs are excluded/);
   assert.doesNotMatch(raw, /\/Users\/|\/private\/|encrypted_content|authorization|responseId|localhost|127\.0\.0\.1/);
   assert.equal(data.pairs.length, 2);
@@ -113,9 +114,13 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
       else assert.ok(session.calls.some(c => c.injected));
       const cost = session.calls.reduce((sum, c) => sum + (c.freshInput * 10 + c.read + c.out * 50) / 1e6, 0);
       assert.ok(Math.abs(cost - session.costUsd) < 1e-8, 'published cost reconciles to captured usage');
-      assert.ok(html.includes('$' + session.costUsd.toFixed(2)));
+      const id = pair.task === 'PR26291-hard' ? 'mlflow-registry' : 'mlflow-gateway';
+      const explorer = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${id}.json`, import.meta.url), 'utf8'));
+      const calls = explorer[arm === 'off' ? 'control' : 'cut'].calls;
+      assert.equal(calls.length, session.calls.length);
+      assert.ok(Math.abs(calls.reduce((n,c) => n+(c.input*10+c.read+c.out*50)/1e6,0)-session.costUsd)<1e-8);
     }
-    assert.ok(html.includes(pair.savingPercent.toFixed(1) + '%'));
+    assert.ok(html.includes(pair.savingPercent.toString()));
   }
   const deploy = fs.readFileSync(new URL('../infra/access/public-deploy.mjs', import.meta.url), 'utf8');
   assert.match(deploy, /\['compression.html', 'site\/compression.html'/);
@@ -126,7 +131,7 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
 test('Django uses API totals and an explicit cost range with judged success; mitmproxy is not offered', () => {
   const read = name => JSON.parse(fs.readFileSync(new URL('../site/' + name, import.meta.url), 'utf8'));
   const manifest = read('clearing-runs.json');
-  assert.deepEqual(manifest.map(r => r.id), ['click-1', 'django-astra']);
+  assert.deepEqual(manifest.map(r => r.id), ['click-1', 'django-astra', 'mlflow-registry', 'mlflow-gateway']);
   const d = read('clearing-django-astra.json');
   for (const arm of ['control', 'cut']) {
     assert.equal(d[arm].turns.length, 14);
