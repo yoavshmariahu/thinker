@@ -162,7 +162,7 @@ test('approveChanges: each approved change gets its suggested action; pickChange
   assert.equal(two.length, 2);
 });
 
-test('decisions: approved and dismissed changes are kept as the history and not suggested again for a month', async () => {
+test('decisions are kept as the history: a dismissal holds a week, something acted on a month', async () => {
   const { approveChanges, dismissChanges, recordReviewed, currentChanges, changeHistory } = await import('../src/context-suggest.js');
   const store = repo(), now = Date.now();
   const v = { ...view(), suggestions: topChanges(view(), { max: 20 }) };
@@ -174,7 +174,12 @@ test('decisions: approved and dismissed changes are kept as the history and not 
   const h = changeHistory(store);
   assert.deepEqual(h.map(e => e.decision), ['applied after review', 'applied', 'dismissed']);
   assert.deepEqual(currentChanges(store, v, { now }).map(c => c.key).filter(k => [top[0], top[2], top[3]].some(t => t.key === k)), [], 'decided ones are left out');
-  assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 4, 'and come back after a month if still flagged');
+  // a change left alone comes back in the next weekly summary -- the hold is one day under the cadence, so it can
+  // never skip a week (2026-11-04, the owner's call; a month until then)
+  const week = now + (SUGGEST.dismissedDays + 0.5) * 86400_000;
+  assert.deepEqual(currentChanges(store, v, { now: week }).map(c => c.key).filter(k => k === top[2].key), [top[2].key], 'dismissed: back next week');
+  assert.deepEqual(currentChanges(store, v, { now: week }).map(c => c.key).filter(k => [top[0], top[3]].some(t => t.key === k)), [], 'acted on: still held');
+  assert.equal(currentChanges(store, v, { now: now + 31 * 86400_000 }).length, 4, 'and those come back after a month if still flagged');
 });
 
 test('the answer comes back through thinker\'s own tool: numbers from the list it showed, or none', async () => {
@@ -198,11 +203,11 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   assert.deepEqual(changeHistory(store).map(e => [e.decision, e.via, e.running]), [['pull request', 'session', true]]);
   assert.equal(contextSuggestAwaiting(store), false, 'answered once');
   assert.match(await answerContextSuggestion(store, '1', { now }), /no thinker suggestion waiting/);
-  // none is an answer too: every change left alone for a month, recorded as a dismissal
+  // none is an answer too: every change left alone until the next summary, recorded as a dismissal
   await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view(), force: true });
   contextSuggestOffer(store, { now: now + 9 * 86400_000, env: {}, ui: () => null, client: 'claude' });
   const none = await answerContextSuggestion(store, 'none', { now: now + 9 * 86400_000, asked: 'chat' });
-  assert.match(none, /left alone; thinker will not suggest them again for a month/);
+  assert.match(none, /left alone; thinker will suggest them again next week/);
   // the two still on offer: the approved one is no longer suggested, and the built-in tool was never an option
   assert.equal(changeHistory(store).filter(e => e.decision === 'dismissed').length, 2);
   assert.equal(contextSuggestAwaiting(store, { now: now + 9 * 86400_000 }), false);
@@ -411,7 +416,7 @@ test('a section job without a pull request: recorded running at once, the comman
   assert.equal(done.said, 'Compressed 2 sections in AGENTS.md');
   hs = changeHistory(store, { now });
   for (const e of hs) { assert.equal(e.running, false); assert.equal(e.failed, false); assert.equal(e.attention, null); assert.equal(e.revertible, true); assert.equal(e.job.state, 'done'); assert.equal(e.job.tokens, 1234); assert.equal(e.job.finishedAt, '2026-10-24T10:00:09.000Z'); assert.equal(e.result, 'Compressed 2 sections in AGENTS.md'); assert.equal(e.days, 30); }
-  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Ports'), false, 'decided: not suggested for a month');
+  assert.equal(currentChanges(store, view(), { now }).some(c => c.key === 'section:AGENTS.md:Ports'), false, 'acted on: not suggested for a month');
   // reverting either row writes the file back, which takes the other section with it: both are marked reverted
   const r2 = await revertDecision(store, hs[1].id);
   assert.match(r2.said, /written back as it was, with the other section of the same change \(/);
@@ -421,7 +426,7 @@ test('a section job without a pull request: recorded running at once, the comman
   // a group the page never recorded: no job
   assert.match((await runSectionJob(store, { group: 'nope', ids: ['Releases'], action: 'compress' })).error, /no job nope/);
   // a job whose process is gone before it finished is failed, once it is read, and the section is suggested again (in a
-  // repository where nothing was decided on it before: a reverted edit still counts as decided for a month)
+  // repository where nothing was decided on it before: a reverted edit still counts as acted on for a month)
   const store2 = repo(), f2 = path.join(store2.repo, 'AGENTS.md'); fs.writeFileSync(f2, 'x\n');
   const dead = startSectionJob(store2, [picked[0]], 'compress', { pr: false, now, spawnFn: () => ({ pid: 2 ** 22 - 1, on() {}, unref() {} }), cliPath: '/x/cli.js' });
   const [d] = changeHistory(store2, { now });

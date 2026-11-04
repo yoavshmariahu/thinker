@@ -57,10 +57,16 @@ export const SUGGEST = {
   // address, with nothing to answer: the page is where the detail was all along.
   minAsk: 2,          // changes a question must carry
   askSaving: 1000,    // and input tokens in every prompt they must save together (real summaries here: 8.7k-36k)
+  // How long a dismissal holds (2026-11-04, the owner's call: a month was too long). A change left alone comes back
+  // in the next weekly summary, so this is one day under `everyDays` and not equal to it: the hold runs from the
+  // moment the person answered, which is some time *after* the summary they answered was built, so a 7-day hold
+  // would outlive the next summary and the change would skip a week. Short of the cadence, it always expires first.
+  // It is not 0 either: `thinker context` typed an hour after a dismissal would print what was just dismissed.
+  dismissedDays: 6,
   uiWaitMs: 3000,     // how long the hook waits for the page to start
 };
 const DAY = 86_400_000;
-const DECIDED_DAYS = 30; // a change approved or dismissed is not suggested again for this long
+const DECIDED_DAYS = 30; // a change approved is not suggested again for this long (a dismissal: SUGGEST.dismissedDays)
 const HISTORY_KEPT = 200;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const stateFile = store => path.join(store.dir, 'state', 'context-suggest.json');
@@ -254,19 +260,23 @@ const entriesOf = (store, changes, decision, result, now, undo) => {
   if (undo) writeJson(undoFile(store, group), undo);
   return changes.map(c => entryOf(store, c, decision, result, now, undo, { group }));
 };
-// The view's changes less the ones decided in the last month, the five largest: what the page, the session's summary
+// The view's changes less the ones lately decided (a dismissal holds a week, an action a month), the five largest:
+// what the page, the session's summary
 // and `thinker context` offer
 export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.max } = {}) {
   // a dismissal taken back makes its change a suggestion again, and so does a pull request closed without merging:
   // nothing was followed through on
   // a job that failed decided nothing either
-  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
+  // A change left alone is offered again in the next weekly summary (`SUGGEST.dismissedDays`); one that was acted on
+  // waits a month, since what was done to it has to have time to show in the figures.
+  const held = h => (h.decision === 'dismissed' ? SUGGEST.dismissedDays : DECIDED_DAYS) * DAY;
+  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < held(h) && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
   return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
 }
 export function dismissChanges(store, changes, { now = Date.now(), via = VIA.command } = {}) {
   record(store, changes.map(c => entryOf(store, c, 'dismissed', null, now, null, { via: viaOf(via) })));
   store.log({ op: 'context-dismiss', changes: changes.length, via: viaOf(via) });
-  return changes.map(c => `${c.title}: dismissed; not suggested again for a month`);
+  return changes.map(c => `${c.title}: left alone; suggested again next week`);
 }
 // a section compressed on the page after its diff was read: the edit applied there, recorded here
 export function recordReviewed(store, change, result, { now = Date.now(), undo = null } = {}) { record(store, [entryOf(store, change, 'applied after review', result, now, undo)]); }
@@ -407,7 +417,7 @@ export async function answerContextSuggestion(store, choice, { now = Date.now(),
   if (/^(none|no)$/i.test(raw) || !raw) {
     const said = dismissChanges(store, offered, { now, via: VIA.session });
     clear();
-    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will not suggest ${said.length === 1 ? 'it' : 'them'} again for a month. Go on with the task.`;
+    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will suggest ${said.length === 1 ? 'it' : 'them'} again next week. Go on with the task.`;
   }
   const picked = pickChanges(offered, raw);
   // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
@@ -530,7 +540,7 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const cmd = `thinker context --days ${p.days} --via session`;
   const after = MCP_CLIENTS.has(client)
     ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line opening "${SIGNATURE}:". Then go on with the task.`
-    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
+    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker leaves them alone and offers them again next week. Then go on with the task.`;
   return `<thinker-context-suggestions>
 ${lead}
 ${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
