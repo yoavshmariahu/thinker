@@ -4,6 +4,41 @@ This document tracks hypotheses, research proposals, and future experimental dir
 
 ---
 
+## Selective section compaction
+
+**Status:** Deferred for later exploration, 2026-11-04. The owner wants larger chunks and summaries of selected sections, without reaching far back into history and causing large cache rewrites. This records a direction, not an implementation or authorization to run an experiment.
+
+### Proposed policy
+
+- Select one contiguous section of completed work, roughly 100k–200k tokens, aligned to complete turns and tool interactions. Preserve the current turn and about 20k tokens of recent work.
+- Summarize only that section into roughly 5k–8k tokens, subject to accuracy. Preserve exact constraints, decisions, unresolved questions, and references to immutable original outputs.
+- Leave the older prefix unchanged. Insert the summary in place and freeze it; later sections move forward rather than revising earlier summaries. Skip sections that require reaching beyond the bounded recent window.
+- Target at most 40k tokens rewritten after replacement. Price everything from the last reusable cache boundary through the new tail, not just the summary. Scattered edits inherit the rewrite boundary of the earliest edit.
+- Establish a reusable cache boundary before the selected section as it grows. Unchanged text alone does not establish a cache hit. If the boundary is missing or expired, skip or price the larger rewrite; include the cost of establishing boundaries too.
+
+Example: `[200k older prefix][200k selected section][20k recent work]` becomes `[same 200k prefix][8k frozen summary][same 20k recent work]`. The intended rewrite is 28k tokens, conditional on a usable cached prefix.
+
+### Illustrative economics
+
+Assume Sonnet 5.5 summarizes the full selected 200k tokens at $2/M input and $10/M output; Opus 5.5 continues at $0.20/M cached input and $8/M one-hour writes. These are list-price assumptions checked on 2026-11-04, not measured Thinker results; recheck before use ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)).
+
+- Summary call: $0.48. First 28k-token cache write: $0.224.
+- Remove 192k tokens: save $0.0384 per later cached model request, including tool-loop steps.
+- Break-even: about 19 requests, accounting for the cached read replaced on the rewrite request. If the older 200k prefix also rewrites, about 59 requests.
+- Formula: `net = N * removed * read_rate - summary_cost - rewritten * (write_rate - read_rate) - extra_work_cost`, with rates per token. Assumes subsequent cache hits, equal task performance, and otherwise equal work. Include extra reasoning/output tokens, retrieval, retries, and boundary setup in actual accounting.
+- Compare against shipped deterministic clearing, not only the untouched transcript. If clearing removes most of the same content, the incremental summary may not repay.
+
+### Questions to resolve when resumed
+
+1. Can the provider and harness retain the intended prefix in actual sent requests? Verify API cache-read/write usage and request bytes. Claude uses previously written prefix entries and bounded lookup; adding a marker does not prove reuse ([caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)).
+2. Can a middle section be replaced without breaking tool pairs, role structure, or retained thinking? Native prefix compaction is not proof of arbitrary section support; validate provider-specific constraints ([Claude preserved thinking](https://platform.claude.com/docs/en/build-with-claude/compaction-thinking-blocks)).
+3. Can selection reduce the summarizer's input without dropping needed facts? Compare a separate call with a call that reuses the working model's cache; a cheaper model can lose on uncached input.
+4. Measure missed constraints, exact-answer correctness, rereads, total billed cost, and latency against shipped clearing in matched sessions. Future experiments use Artemis with approved plans; any strategy starts off by default. Cover desktop sessions without CLI login as well as proxy/CLI paths.
+
+Bounded forward compaction delays context exhaustion; it does not eliminate eventual window pressure from retained older history and accumulated summaries.
+
+---
+
 ## 1. Cache Bootstrapping and Distillation with Claude Opus
 
 **Status:** Proposed / Backlog  
