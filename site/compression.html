@@ -227,6 +227,8 @@
     .parts-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 0.3rem; vertical-align: -1px; background: var(--fg); }
     table.ptab { margin-top: 0.75rem; }
     table.ptab td.d.good { color: var(--thk); } table.ptab td.d.bad { color: var(--flag); }
+    table.ptab .compaction-cost td { border-top: 1px dashed var(--line); }
+    table.ptab .compaction-cost small { display: block; color: var(--muted); font-weight: 400; }
 
     /* ---- run selector, refusals ---- */
     .runsel { display: flex; align-items: center; gap: 0.6rem; margin: 1.4rem 0 0; flex-wrap: wrap; }
@@ -514,6 +516,12 @@
       $('#parts').innerHTML = `<div class="parts"><div class="lab"><span class="arm ctl"><i></i>without thinker</span><small>${usd(pb.total)}</small></div>${bar(pb, 'var(--ctl)')}<div class="lab"><span class="arm thk"><i></i>with thinker</span><small>${usd(pa.total)}</small></div>${bar(pa, 'var(--thk)')}</div><div class="parts-legend">${defs.map(([k, name], i) => `<span${D().costBounds && k === 'write' ? ' class="unavailable" title="Write counts were not recorded; their possible cost is included in the uncached-input estimate."' : ''}><i style="opacity:${alpha[i]}"></i>${name}</span>`).join('')}<span>bars share one scale; each arm's hue, darkest first</span></div>`;
       $('#ptab').innerHTML = `<tr><th>At list price</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
         defs.concat([['total', 'total']]).map(([k, name]) => D().costBounds && k === 'write' ? '<tr><td>cache writes</td><td>Not recorded</td><td>Not recorded</td><td>—</td></tr>' : `<tr><td>${name}</td><td>${usd(pb[k])}</td><td>${usd(pa[k])}</td><td class="d ${pa[k] < pb[k] ? 'good' : pa[k] > pb[k] ? 'bad' : ''}">${pb[k] ? pct(pa[k], pb[k]) : ''}</td></tr>`).join('');
+      const compactions = arm => series(arm).filter(c => c.compacted);
+      const cb = compactions('control'), ca = compactions('cut');
+      if (D().recordedWrites || cb.length || ca.length) {
+        const sum = calls => calls.reduce((total, c) => total + c.own, 0);
+        $('#ptab').innerHTML += `<tr class="compaction-cost"><td>Native compaction <small>Included in total · model calls only</small></td><td>${usd(sum(cb))}<small>${cb.length} call${cb.length === 1 ? '' : 's'}</small></td><td>${usd(sum(ca))}<small>${ca.length} call${ca.length === 1 ? '' : 's'}</small></td><td>Already counted above</td></tr>`;
+      }
     }
 
     // ---- tracks ----

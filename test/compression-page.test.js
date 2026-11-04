@@ -112,7 +112,7 @@ assert.equal(tabs[0].tabindex,'-1');
 assert.match(node('#timeline').innerHTML,/Turn 14/);
 assert.ok(!node('#timeline').innerHTML.includes('NaN'), 'no unrecorded fields rendered as numbers');
 assert.match(node('#sess-note').textContent,/API usage/);
-for (const [id, saving, control, treatment] of [['mlflow-registry','20.9%','15.08','11.92'],['mlflow-gateway','31.5%','16.94','11.61']]) {
+for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36']]) {
  await click('#sessions',{dataset:{run:id}});
  assert.match(node('#session-label').innerHTML,/knowledge cache \+ compression/);
  assert.ok(node('#tiles').innerHTML.includes(saving));
@@ -121,6 +121,11 @@ for (const [id, saving, control, treatment] of [['mlflow-registry','20.9%','15.0
  assert.match(node('#pricing-explainer').innerHTML,/explicitly reported zero/);
  assert.ok(node('#stats').innerHTML.includes(control));assert.ok(node('#stats').innerHTML.includes(treatment));
  assert.match(node('#stats').innerHTML,/Native compactions/);
+ const breakdown = node('#ptab').innerHTML;
+ assert.ok(breakdown.includes(`<td>$${compaction}<small>1 call</small>`), 'native compaction is itemized using its recorded request cost');
+ assert.match(breakdown,/<td>\$0\.00<small>0 calls<\/small>/);
+ assert.match(breakdown,/Included in total · model calls only/);
+ assert.ok(breakdown.includes(`<td>total</td><td>$${control}</td><td>$${treatment}</td>`), 'compaction is not added to the total twice');
  assert.match(node('#events').innerHTML,/Codex compacted the control/);
  assert.doesNotMatch(node('#events').innerHTML,/Cache-write counts were not recorded|Claude Code/);
  assert.match(node('#caveats').innerHTML,/not knowledge caching alone/);
@@ -135,6 +140,7 @@ await click('#sessions',{dataset:{run:'click-1'}});
 assert.match(node('#timeline').innerHTML,/Turn 16/);
 assert.doesNotMatch(node('#timeline').innerHTML,/what the model sees now/);
 assert.equal(node('#ttl').hidden,false);
+assert.doesNotMatch(node('#ptab').innerHTML,/Native compaction/, 'switching runs clears the compaction subtotal');
 assert.deepEqual(headings(node('#tiles').innerHTML),expectedHeadings);
 assert.match(node('#session-label').innerHTML,/Claude Opus 5.5/);
 assert.doesNotMatch(node('#timeline').innerHTML,/Turn 24|NaN/);
