@@ -35,8 +35,8 @@ export const COLD_MS = 65 * 60 * 1000
 export const READ_RATES: [RegExp, number][] = [[/fable|mythos/, 0.025], [/opus-5-5|opus-5\.5|^opus$/, 0.05], [/./, 0.1]]
 export const readRate = (model: string) => (READ_RATES.find(([re]) => re.test(String(model || '').toLowerCase())) || [null, 0.1])[1]
 export const writeRatio = (model: string) => 2 / readRate(model)
-export const REMAINING: [number, number][] = [[10, 40], [20, 40], [40, 68], [100, 90]]
-export const remainingCalls = (n: number) => (REMAINING.find(([at]) => n <= at) || [0, 90])[1]
+// A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK).
+export const PAYBACK = 20
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
 export const INTRODUCED = 'thinker-clear:introduced'
@@ -46,8 +46,8 @@ export const RECENT = 8
 export const placeholder = (chars: number) =>
   `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
 
-export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearInputs: boolean; clearThinking: boolean; clearDeep: boolean }
-export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearInputs: true, clearThinking: true, clearDeep: true }
+export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearDeep: boolean }
+export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearDeep: true }
 
 // THINKER_HOME/config.json's `proxy` block, as proxy-service.js:serviceArgs reads it; `desktop: false` keeps
 // the automatic clearing off here (the command still works), `holdout` 0 keeps every session in
@@ -60,9 +60,6 @@ export function policyOf(config: any): Policy {
     trigger: num(p.trigger, TRIGGER),
     holdout: Math.min(1, Math.max(0, num(p.holdout, HOLDOUT))),
     auto: p.desktop !== false,
-    // on by default as the proxy's are (proxy-service.js:serviceArgs); false in the config keeps each off
-    clearInputs: p.clearInputs !== false,
-    clearThinking: p.clearThinking !== false,
     // the same key the proxy reads (proxy.js:PROXY_DEFAULTS, on by default since 0.2.19): one clear, then held
     clearDeep: p.clearDeep !== false,
   }
@@ -76,7 +73,7 @@ export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, m
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false
   if (idle >= COLD_MS) return true
-  return remainingCalls(calls) * dropped >= writeRatio(model) * recache
+  return dropped > 0 && writeRatio(model) * recache <= PAYBACK * dropped
 }
 
 // a session is on one side of the holdout for its whole life (proxy.js:heldOut hashes the same id with
@@ -94,16 +91,18 @@ export const proxied = (baseUrl: string | undefined) => /^https?:\/\/(127\.0\.0\
 
 export type Clear = { messages: SessionMessage[]; cleared: number; chars: number; tokens: number; resultTokens: number; inputTokens: number; rows: number; prefixChars: number; tools: { name: string; calls: number; tokens: number }[] }
 
-// The proxy's `keep: turn` (proxy.js): every result of the newest prompt's turn stays, and at least `keepMin`
-// results in all; every older result worth a placeholder is replaced. A user row that carries results is
-// rebuilt without its handle, so the engine builds it from the blocks. With `clearInputs` or `clearThinking`
-// the assistant rows before the newest turn are rebuilt too, once a result is cleared (the proxy's
-// piggyback): without a handle the row carries no thinking, and with `clearInputs` its tool calls carry no
-// arguments. The newest turn stands as the engine has it, its thinking included, which is what the API
-// requires of the turn in progress. `chars` and `tokens` estimate the results and the emptied call text, kept
-// apart as `resultTokens` and `inputTokens`; the thinking a rebuilt row sheds is not in a SessionMessage, so
-// its share is measured after the fact, from the context sizes the API reports (the `kinds` of the record).
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, clearInputs = true, clearThinking = true } = {}): Clear {
+// Every result of the newest prompt's turn stays, and at least `keepMin` results in all; every older result
+// worth a placeholder is replaced, and nothing else is touched. A user row that carries results is rebuilt
+// without its handle, so the engine builds it from the blocks. The newest turn stands as the engine has it,
+// its thinking included, which the API requires of the turn in progress.
+//
+// Until 2026-11-04 this also emptied the call text of the older assistant rows and shed their thinking, as
+// the proxy did. Both are gone from both doors: measured in a seven-turn session the results held 487,332
+// chars against 2,800 in the tool_use inputs and none at all in the thinking (Claude Code asks for
+// `display: omitted`, so only a signature comes back), and in a 28-turn run the model read its own blanked
+// calls, said it had been "making the tool calls without file paths", and began doing so. 0.6% of the
+// saving for a false history of itself. `chars` and `tokens` are the results; `inputTokens` stays 0.
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
@@ -133,21 +132,9 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
     out.push(touched ? { role: 'user', text: m.text, toolUses: [], toolResults } : m)
     if (touched) firstChanged = i
   }
-  if (cleared && (clearInputs || clearThinking)) {
-    for (const at of older) {
-      const m = out[at]
-      rows++
-      const toolUses = (m.toolUses ?? []).map(u => {
-        if (!clearInputs) return { tool_use_id: u.tool_use_id, tool: u.tool, input: u.input }
-        inputChars += JSON.stringify(u.input ?? {}).length
-        return { tool_use_id: u.tool_use_id, tool: u.tool, input: {} }
-      })
-      out[at] = { role: 'assistant', text: m.text, toolUses } as SessionMessage
-    }
-  }
   out.reverse()
   // the rows before the first one a clear changes keep their place in the cache; what follows is written again
-  const changedAt = cleared && (clearInputs || clearThinking) && olderAt.length ? Math.min(firstChanged < 0 ? Infinity : firstChanged, ...olderAt) : firstChanged
+  const changedAt = firstChanged : firstChanged
   const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
   const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))

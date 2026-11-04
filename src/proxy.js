@@ -70,7 +70,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: true, clearDeep: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 100000, holdout: 0, clearDeep: true };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -184,8 +184,6 @@ export function proxyConfig(flags = {}, env = process.env) {
     if (/^(0|off|false|no)$/i.test(s)) return false;
     return dflt;
   };
-  cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
-  cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
@@ -200,7 +198,6 @@ export function proxyConfig(flags = {}, env = process.env) {
       const value = flags[flag] ?? env[variable];
       if (value != null && (typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)))) throw new Error(`--${flag} needs a number`);
     }
-    if (cfg.keep !== 'turn') throw new Error('--protocol responses requires --keep turn; the current turn is always preserved');
     for (const k of ['trigger', 'clearAtLeast', 'keepMin']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' ? 'non-negative' : 'positive'} integer`);
     if (!Number.isFinite(cfg.holdout) || cfg.holdout < 0 || cfg.holdout > 1) throw new Error('--holdout must be between 0 and 1');
   }
@@ -280,48 +277,33 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 //
 // Three operations, the same three the desktop mod performs (`register.tsx:clearOld`), so the two
 // doors do the same thing and not merely hold the same config keys: an old result becomes a
-// placeholder; an assistant row before the newest turn has its call text emptied (`clearInputs`);
-// and the same row loses its thinking (`clearThinking`). The mod sheds thinking as a side effect of
-// rebuilding the row -- here it is explicit, so either can be switched off on its own.
-export function applyCut(messages, cut, { clearInputs = true, clearThinking = true } = {}) {
-  const ids = new Set(cut);
-  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, thinking: 0, firstChanged: -1 };
-  let n = 0, chars = 0, inputChars = 0, thinking = 0, firstChanged = -1;
-  // the newest turn is where the model is working: its call text and thinking are never touched
-  let turnStart = messages.length;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
-    if (m?.role === 'user' && (!blocks || blocks.some(b => b?.type === 'text'))) { turnStart = i; break; }
-  }
+// placeholder, and nothing else is touched. Measured 2026-11-04 in the final request of a seven-turn
+// session: the tool results held 487,332 chars, the tool_use inputs 2,800 (a file path each) and the
+// thinking no text at all, Claude Code asking for `display: omitted` so only a signature comes back.
+// So emptying the calls bought 0.6% of what the results buy, and in a 28-turn run the model read its
+// own blanked calls, reported that it had been "making the tool calls without file paths", and began
+// doing so -- a false history of itself that it then copied. Dropping thinking bought nothing and was
+// the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
+export function applyCut(messages, cut) {
+  const ids = cut instanceof Set ? cut : new Set(cut || []);
+  if (!ids.size) return { messages, cut: 0, chars: 0, firstChanged: -1 };
+  let n = 0, chars = 0, firstChanged = -1;
   const out = messages.map((m, i) => {
-    const blocks = Array.isArray(m?.content) ? m.content : null;
-    if (!blocks) return m;
-    if (m.role === 'assistant') {
-      if (i >= turnStart || !(clearInputs || clearThinking)) return m;
-      let touched = false;
-      const content = blocks.flatMap(b => {
-        if (b?.type === 'thinking' && clearThinking) { thinking++; touched = true; return []; }
-        if (b?.type === 'tool_use' && clearInputs && Object.keys(b.input || {}).length) {
-          inputChars += JSON.stringify(b.input).length; touched = true;
-          return [{ ...b, input: {} }];
-        }
-        return [b];
-      });
-      if (!touched || !content.length) return m;
-      firstChanged = firstChanged < 0 || i < firstChanged ? i : firstChanged;
-      return { ...m, content };
-    }
-    if (!blocks.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) return m;
-    firstChanged = firstChanged < 0 || i < firstChanged ? i : firstChanged;
-    return { ...m, content: blocks.map(b => {
+    const c = m?.content;
+    if (!Array.isArray(c)) return m;
+    let touched = false;
+    const blocks = c.map(b => {
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b);
-      if (text.startsWith('[tool result cleared by thinker')) return b;
-      n++; chars += text.length;
-      return { ...b, content: cutPlaceholder(text.length) };
-    }) };
+      if (text.length < CUT_MIN_CHARS) return b;
+      n++; chars += text.length; touched = true;
+      return { ...b, content: [{ type: 'text', text: cutPlaceholder(text.length) }] };
+    });
+    if (!touched) return m;
+    if (firstChanged < 0) firstChanged = i;
+    return { ...m, content: blocks };
   });
-  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), inputChars, thinking, firstChanged };
+  return { messages: out, cut: n, chars, firstChanged };
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
@@ -376,13 +358,12 @@ export function transformRequest(method, url, headers, body, cfg) {
   const m = measureClearing(cfg, j);
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
-  const applied = applyCut(j.messages, d.cut, { clearInputs: cfg.clearInputs, clearThinking: cfg.clearThinking });
+  const applied = applyCut(j.messages, d.cut);
   if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model };
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
     cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, inputChars: applied.inputChars, thinking: applied.thinking, firstChanged: applied.firstChanged },
-    ...(cfg.clearInputs ? { inputs: true } : {}),
     ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
     ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),

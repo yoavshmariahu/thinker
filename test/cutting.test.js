@@ -80,33 +80,30 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
-test('the three operations are the desktop mod\'s three, and each is switchable', () => {
-  // register.tsx:clearOld does the same three outside the newest turn: the result becomes a placeholder,
-  // the call text is emptied, the row's thinking goes. Checked live 2026-11-04 that the API takes a
-  // tool_result-only edit (6 and 8 placeholders beside 3 untouched thinking blocks, every call 200).
-  const ms = session(4);
-  const ids = ms.filter(m => m.content?.[0]?.type === 'tool_result').map(m => m.content[0].tool_use_id);
-  const think = m => (m.content || []).filter(b => b.type === 'thinking');
-  const uses = m => (m.content || []).filter(b => b.type === 'tool_use');
-
-  // with both off, only the results move: the narrowest edit, the one proven live
-  const narrow = applyCut(ms, ids, { clearInputs: false, clearThinking: false }).messages;
-  for (let i = 0; i < ms.length; i++) {
-    assert.deepEqual(think(narrow[i]), think(ms[i]), 'thinking untouched when clearThinking is off');
-    assert.deepEqual(uses(narrow[i]), uses(ms[i]), 'call text untouched when clearInputs is off');
-  }
-  assert.ok(narrow.flatMap(m => (m.content || []).filter(b => b.type === 'tool_result'))
-    .some(b => b.content.startsWith('[tool result cleared by thinker')), 'results did change');
-
-  // with both on, as they ship: the newest turn keeps everything, the turns before it lose both
-  const full = applyCut(ms, ids, { clearInputs: true, clearThinking: true });
-  const live = full.messages.length - 1;       // the turn in progress: nothing of it is ever touched
-  assert.deepEqual(think(full.messages[live]), think(ms[live]), 'the newest turn keeps its thinking');
-  assert.ok(full.thinking > 0, 'earlier thinking was dropped');
-  assert.ok(full.inputChars > 0, 'earlier call text was emptied');
-  const earlier = full.messages.slice(0, live).filter(m => m.role === 'assistant');
-  assert.equal(earlier.flatMap(think).length, 0, 'no thinking survives before the newest turn');
-  assert.ok(earlier.flatMap(uses).every(u => Object.keys(u.input || {}).length === 0), 'and no call text');
+test('the cut replaces results and touches nothing else: one operation, not three', () => {
+  const think = { type: 'thinking', thinking: 'T', signature: 'sig' };
+  const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: '/p/' + id } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  const ms = [
+    { role: 'user', content: 'go' },
+    { role: 'assistant', content: [think, tu('a')] }, { role: 'user', content: [tr('a', 9000)] },
+    { role: 'assistant', content: [think, tu('b')] }, { role: 'user', content: [tr('b', 9000)] },
+    { role: 'user', content: [{ type: 'text', text: 'next' }] },
+    { role: 'assistant', content: [think, tu('c')] }, { role: 'user', content: [tr('c', 9000)] },
+  ];
+  const out = applyCut(ms, new Set(['a', 'b'])).messages;
+  const blocks = out.flatMap(m => Array.isArray(m.content) ? m.content : []);
+  const cleared = blocks.filter(b => b.type === 'tool_result' && String(b.content?.[0]?.text || '').includes('cleared'));
+  assert.equal(cleared.length, 2, 'the two older results are replaced');
+  // Why this holds the piggybacks out. The call text is a file path, 86 chars against a 25k result; in a
+  // 28-turn run the model read its own blanked calls, reported it had been making them without file paths,
+  // and then did so. Thinking carries no text at all from Claude Code (display: omitted), and dropping it
+  // is the edit that broke the API in October. Measured: 487,332 chars of results, 2,800 of inputs, 0 of
+  // thinking. The results are the feature.
+  assert.equal(blocks.filter(b => b.type === 'thinking').length, 3, 'every thinking block is left alone');
+  assert.equal(blocks.filter(b => b.type === 'tool_use' && Object.keys(b.input || {}).length).length, 3,
+    'every tool call keeps its arguments');
+  assert.equal(out[7].content[0].content, 'x'.repeat(9000), 'the newest turn keeps its own result');
 });
 
 test('stopping is free: applying the set and cutting nothing more leaves the prefix alone', () => {

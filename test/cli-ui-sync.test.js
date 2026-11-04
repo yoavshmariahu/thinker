@@ -42,9 +42,8 @@ test('Codex proxy is wired by the default service and shares the existing thresh
   assert.equal(proxyConfig({}, {}).protocol, 'anthropic');
   // the three clears are one default, wherever the service is started from, and the help names how to go back
   // inputs on; the thinking edit off since 2026-11-02 (proxy.js: its growing keep rewrote the cache)
-  assert.equal(PROXY_DEFAULTS.clearInputs, true); assert.equal(proxyConfig({}, {}).clearInputs, true);
-  assert.equal(PROXY_DEFAULTS.clearThinking, false); assert.equal(proxyConfig({}, {}).clearThinking, false);
-  assert.match(read('cli.js'), /--no-clear-inputs\] \[--no-clear-thinking/);
+  // results only since 2026-11-04: the call text and the thinking are never touched, by either door
+  assert.equal(PROXY_DEFAULTS.clearInputs, undefined); assert.equal(PROXY_DEFAULTS.clearThinking, undefined);
   assert.match(read('cli.js'), /--protocol anthropic\|responses/);
   assert.match(read('commands/proxy.js'), /cfg\.protocol === 'responses'/);
   // The page has no separate proxy controls or implementation; setup uses the shared service.

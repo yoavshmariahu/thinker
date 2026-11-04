@@ -42,8 +42,6 @@ const DESKTOP_POLICY = {
   keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
   // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
-  clearInputs: { reads: 'p.clearInputs !== false' },
-  clearThinking: { reads: 'p.clearThinking !== false' },
   clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(policy, {' },
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
 };
