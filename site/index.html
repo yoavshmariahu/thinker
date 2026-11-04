@@ -1135,39 +1135,39 @@
               <span><i style="background:#b4b4bb"></i>Tool results</span>
               <span><i style="background:#d9d9de"></i>Call text and thinking</span>
             </div>
-            <div class="brace" id="brace"><i id="brace-t">old results · 106k · read again on every call</i></div>
+            <div class="brace" id="brace"><i id="brace-t">old results · 106k tokens · read again on every call</i></div>
             <div class="bill" id="bill">
-              <div class="lbl"><span>The bill, call by call <span>priced as input tokens; answers left out, they cost the same either way</span></span></div>
+              <div class="lbl"><span>The bill, call by call <span>Claude Opus 5.5 list prices; answers left out, they cost the same either way</span></span></div>
               <div class="cols" id="cols"></div>
               <div class="mark" id="mark"><i>write repaid · call 17</i></div>
               <div class="x"><span>call 1</span><span>call 49</span></div>
             </div>
             <div class="blegend" id="blegend">
-              <span><i style="background:#dc2626"></i>Written to the cache · new tokens · ×2</span>
-              <span><i style="background:#444"></i>Read again from the cache · everything before · ×0.1</span>
+              <span><i style="background:#dc2626"></i>Written · new tokens · $8/M</span>
+              <span><i style="background:#444"></i>Read again · everything before · $0.20/M</span>
               <span id="lg-ghost"><i class="ghost"></i>Without the cut</span>
             </div>
             <div class="receipt" id="receipt">
               <div class="lbl"><span>This call</span><b id="callno">call 1</b></div>
-              <div class="row w"><span>Written<i id="rc-wn">33k new × 2</i></span><b id="rc-w">66k</b></div>
-              <div class="row r" id="rc-rrow"><span>Read again<i id="rc-rn">0k × 0.1</i></span><b id="rc-r">0</b></div>
-              <div class="row sum"><span>This call</span><b id="rc-sum">66k</b></div>
-              <div class="big"><div class="k" id="rc-cumk">Read so far</div><div class="n" id="rc-cum">0</div><div class="d">re-reading the same context, added up</div></div>
+              <div class="row w"><span>Written<i id="rc-wn">33k new × $8/M</i></span><b id="rc-w">$0.26</b></div>
+              <div class="row r" id="rc-rrow"><span>Read again<i id="rc-rn">0k × $0.20/M</i></span><b id="rc-r">$0</b></div>
+              <div class="row sum"><span>This call</span><b id="rc-sum">$0.26</b></div>
+              <div class="big"><div class="k" id="rc-cumk">Spent on re-reading so far</div><div class="n" id="rc-cum">$0</div><div class="d">the same context, read again call after call</div></div>
             </div>
             <div class="trade" id="trade">
               <div class="lbl">The trade</div>
-              <div class="row cost" id="tr-hit"><span>Write, paid once<small>the 40k after the cut, at ×2</small></span><b>−81k</b></div>
-              <div class="row" id="tr-pay"><span>Repaid by<small>10.6k less read on every call after</small></span><b>call 17</b></div>
-              <div class="row net" id="tr-net"><span>Net so far<small id="tr-roi"></small></span><b id="tr-netv">−66k</b></div>
+              <div class="row cost" id="tr-hit"><span>Write, paid once<small></small></span><b></b></div>
+              <div class="row" id="tr-pay"><span>Repaid by<small></small></span><b></b></div>
+              <div class="row net" id="tr-net"><span>Net so far<small id="tr-roi"></small></span><b id="tr-netv"></b></div>
             </div>
-            <div class="cap" id="cap-b1">Every call sends the whole conversation. New tokens are <b>written</b> into the prompt cache once, at twice an input token; everything before them is <b>read again</b>, at a tenth.</div>
-            <div class="cap" id="cap-b2">A tenth sounds cheap. But the context grows with every tool result and every call reads all of it, so the read line <b>grows on every call</b> while the write line stays flat.</div>
-            <div class="cap" id="cap-b3">Nine calls in, re-reading costs 16k a call. Forty calls on it is 41k a call, and <span class="r">1.3M</span> has gone on reading the same context again.</div>
+            <div class="cap" id="cap-b1">Every call sends the whole conversation. New tokens are <b>written</b> into the prompt cache once; everything before them is <b>read again</b>. At Claude Opus 5.5 list prices a write is $8 a million tokens, a read 20¢.</div>
+            <div class="cap" id="cap-b2">Twenty cents a million sounds cheap. But the context grows with every tool result and every call reads all of it, so the read line <b>grows on every call</b> while the write line stays flat.</div>
+            <div class="cap" id="cap-b3">Nine calls in, re-reading costs 3¢ a call. Forty calls on it is 8¢, more than the new tokens cost, and <span class="r">$2.53</span> has gone on reading the same context again.</div>
             <div class="cap" id="cap-c1">thinker prices every turn: dropping the old results would make every later read smaller, but the prompt after the cut has to be <b>written again</b>. It cuts when that write pays for itself within 20 calls.</div>
-            <div class="cap" id="cap-c2">The old results become a one-line placeholder in the request thinker forwards. The newest turn and the last three results stay; prompts, call text and thinking are never touched.</div>
-            <div class="cap" id="cap-c3">Call 10 <b>takes the hit</b>: 40k written again at twice an input token, 81k on top of the call. The uncut call is the outline behind it.</div>
-            <div class="cap" id="cap-c4">Every call after reads 106k less: 10.6k off each one. The write is <b>repaid by call 17</b>, and from there every call is net saving.</div>
-            <div class="cap" id="cap-c5">By call 49 the cut has returned <span class="g">four times its cost</span>: 348k less on these forty calls, a fifth of their context bill in this example. What a real session saved is in thinker proxy report.</div>
+            <div class="cap" id="cap-c2">The old results are <b>trimmed</b> from the conversation thinker forwards. The newest turn and the last three results stay; prompts, call text and thinking are never touched.</div>
+            <div class="cap" id="cap-c3">Call 10 <b>takes the hit</b>: the 40k after the cut is written again at $8 a million, 32¢ on top of the call. The uncut call is the outline behind it.</div>
+            <div class="cap" id="cap-c4">Every call after reads 106k less: 2¢ off each one. The write is <b>repaid by call 24</b>, and from there every call is net saving.</div>
+            <div class="cap" id="cap-c5">By call 49 the cut has returned <span class="g">1.7× its cost</span>: 53¢ less on these forty calls, an eighth of their context bill at list prices in this example. What a real session saved is in thinker proxy report.</div>
           </section>
 
           <!-- 3 · Knowledge cache -->
@@ -1421,7 +1421,10 @@
   const fmtBig = (v) => v >= 1000 ? (v / 1000).toFixed(2) + 'M' : Math.round(v) + 'k';
 
   // ---- The bill: what each call costs, in input tokens' worth (relative list rates; no currency anywhere on this site) ----
-  const RATE = { read: 0.1, write: 2.0, out: 5 };    // cache read, cache write (1h), output, per input token
+  // Dollars per thousand tokens at Claude Opus 5.5 list prices (src/prices.js: $4 a million input tokens; a cache read a
+  // twentieth of that, a one-hour cache write twice). The site shows list prices and says so; nothing here is a measurement.
+  const RATE = { read: 0.2 / 1000, write: 8 / 1000 };
+  const money = (v) => v >= 1 ? `$${v.toFixed(2)}` : `${(v * 100).toFixed(1)}¢`;
   const NEW = 6;                                     // a later call brings 6k new tokens; answers are left out, the same either way
   const CUT = 106.1, TAIL = 40.3;                    // the five old results; the kept three plus call text, rewritten by the cut
   // calls 1..9: what each brings (call 1 the system prompt and AGENTS.md; call 9 also the call text and thinking)
@@ -1438,7 +1441,7 @@
     bill.push({ uncut, cut });
   }
   const sum = (c) => c.w + (c.hit || 0) + c.r;
-  const SY = 1.5;                                    // px per k in the chart
+  const SY = 420;                                    // px per dollar in the chart
   const colsEl = $('#cols');
   const stack = (cls, parts) => {
     const st = document.createElement('div'); st.className = 'st ' + cls;
@@ -1458,13 +1461,13 @@
     cumRead += c.r;
     const cum = cumRead;
     tl.set('#callno', { textContent: `call ${call}` }, at);
-    tl.set('#rc-wn', { textContent: c.hit ? `${k1(c.n - TAIL)} new + ${k1(TAIL)} rewritten × 2` : `${k1(c.n)} new × 2` }, at);
-    tl.set('#rc-w', { textContent: k1(c.w + (c.hit || 0)) }, at);
-    tl.set('#rc-rn', { textContent: `${k1(c.ctx)} × 0.1` }, at);
-    tl.set('#rc-r', { textContent: c.ctx ? k1(c.r) : '0' }, at);
+    tl.set('#rc-wn', { textContent: c.hit ? `${k1(c.n - TAIL)} new + ${k1(TAIL)} rewritten × $8/M` : `${k1(c.n)} new × $8/M` }, at);
+    tl.set('#rc-w', { textContent: money(c.w + (c.hit || 0)) }, at);
+    tl.set('#rc-rn', { textContent: `${k1(c.ctx)} × $0.20/M` }, at);
+    tl.set('#rc-r', { textContent: c.ctx ? money(c.r) : '$0' }, at);
     tl.set('#rc-rrow', { className: 'row r' + (hot ? ' hot' : '') }, at);
-    tl.set('#rc-sum', { textContent: k1(sum(c)) }, at);
-    tl.set('#rc-cum', { textContent: cum >= 1000 ? (cum / 1000).toFixed(1) + 'M' : Math.round(cum) + 'k' }, at);
+    tl.set('#rc-sum', { textContent: money(sum(c)) }, at);
+    tl.set('#rc-cum', { textContent: money(cum) }, at);
   };
 
 
@@ -1531,7 +1534,7 @@
     tl.to(count, { v: BASE - CUT, duration: 0.7, onUpdate: writeCount }, 27.1);
     tl.to('#counter', { color: '#15803d', duration: 0.3 }, 27.4);
     tl.to(brace, { width: 30, duration: 0.7, ease: 'power3.inOut' }, 27.0);
-    tl.set('#brace-t', { textContent: `[tool result removed by thinker after use: ${Math.round(CUT * 4)}k chars. You saw it in full at the time; read it again if you need it now.]` }, 27.9);
+    tl.set('#brace-t', { textContent: 'old results trimmed · 106k fewer tokens on every call' }, 27.9);
   }
   // the bill from call 10, both ways: the uncut columns become outlines, the cut path is drawn inside them
   for (let i = 9; i < 49; i++) {
@@ -1546,6 +1549,9 @@
     let diff = 0, marked = false;
     const STEP = 0.125;
     const hit = bill[9].cut.hit;
+    $('#tr-hit b').textContent = '−' + money(hit);
+    $('#tr-pay small').textContent = `${money(CUT * RATE.read)} less read on every call after`;
+    $('#tr-hit small').textContent = `the ${k1(TAIL)} after the cut, at $8/M`;
     for (let i = 9; i < 49; i++) {
       const at = i === 9 ? 29.0 : 30.4 + (i - 10) * STEP;
       const b = bill[i];
@@ -1553,15 +1559,15 @@
       tl.set(b.c, { opacity: 1 }, at);
       tl.to(b.c, { scaleY: 1, duration: i === 9 ? 0.5 : 0.25, ease: 'power2.out' }, at);
       diff += sum(b.uncut) - sum(b.cut);
-      const d = Math.round(diff);
-      const roi = diff >= 0 ? `${(diff / hit).toFixed(1)}× the write back` : `${Math.round(-diff)}k still to repay`;
-      tl.set('#tr-netv', { textContent: (d < 0 ? '−' : '+') + Math.abs(d) + 'k' }, at + 0.1);
+      const roi = diff >= 0 ? `${(diff / hit).toFixed(1)}× the write back` : `${money(-diff)} still to repay`;
+      tl.set('#tr-netv', { textContent: (diff < 0 ? '−' : '+') + money(Math.abs(diff)) }, at + 0.1);
       tl.set('#tr-roi', { textContent: roi }, at + 0.1);
-      tl.set('#tr-net', { className: 'row net' + (d >= 0 ? ' up' : '') }, at + 0.1);
+      tl.set('#tr-net', { className: 'row net' + (diff >= 0 ? ' up' : '') }, at + 0.1);
       if (i === 9) { tl.to('#tr-hit', { opacity: 1, duration: 0.3 }, at + 0.2); tl.to('#tr-net', { opacity: 1, duration: 0.3 }, at + 0.3); }
       if (!marked && diff >= 0) {
         marked = true;
-        const mark = $('#mark'); mark.style.left = ((i + 1) / 49 * 100) + '%';
+        const mark = $('#mark'); mark.style.left = ((i + 1) / 49 * 100) + '%'; mark.querySelector('i').textContent = `write repaid · call ${i + 1}`;
+        $('#tr-pay b').textContent = `call ${i + 1}`;
         tl.to(mark, { opacity: 1, duration: 0.3 }, at + 0.1);
         tl.to('#tr-pay', { opacity: 1, duration: 0.3 }, at + 0.1);
       }
