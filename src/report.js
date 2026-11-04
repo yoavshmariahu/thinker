@@ -246,7 +246,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     days, merged: s.merged, mergedSeen: s.mergedSeen, mergedAssisted: s.mergedAssisted, worked: s.worked, open: s.open,
     saved: { cleared: s.saved.cleared, reading: s.saved.reading, total: s.saved.total },
     agent: s.tokens.agent, complete: s.tokens.complete,
-    medianSaved: s.medianSavedPerMergedPr, medianAgent: s.medianTokensPerMergedPr, medianHours: s.medianHoursToMerge,
+    meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
     // The share of what those pull requests cost that never had to sit in a prompt. Both sides are the same
     // shape -- every prompt and every answer of their sessions, added up -- so the ratio means something.
     share: s.tokens.agent ? s.saved.total / s.tokens.agent : null,
@@ -256,6 +256,8 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       sessions: p.sessions.length, prompts: p.tokens.prompts, complete: p.tokens.complete,
       agent: p.tokens.agent, cleared: p.saved.cleared, reading: p.saved.reading.tokens, saved: p.saved.total,
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
+      // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
+      hours: p.hoursToMerge ?? null,
     })),
   };
 }
@@ -437,9 +439,11 @@ export function mergeReports(list) {
 }
 
 // All repositories: the counts and the tokens add, since a pull request belongs to one repository and a
-// session to one pull request, so nothing is counted twice. The medians do not add and are not averaged into
-// a median of medians: they are recomputed over every merged pull request of every repository. Each row
-// carries the repository it came from, because two repositories number their pull requests from 1.
+// session to one pull request, so nothing is counted twice. The averages do not add and are never an average
+// of averages, which would weigh a repository with one pull request like one with fifty: they are recomputed
+// over every merged pull request of every repository, the hours included (each row carries its own, which is
+// why `hours` is on a row at all). Each row carries the repository it came from, because two repositories
+// number their pull requests from 1.
 function mergePrSavings(list) {
   const parts = list.map(x => ({ p: x.view.prs, repo: x.repo, name: x.name })).filter(x => x.p);
   if (!parts.length) return null;
@@ -451,15 +455,15 @@ function mergePrSavings(list) {
   return {
     days: parts[0].p.days, merged: sum(p => p.merged), mergedSeen: sum(p => p.mergedSeen), mergedAssisted: sum(p => p.mergedAssisted),
     worked: sum(p => p.worked), open: sum(p => p.open), saved, agent, complete: sum(p => p.complete),
-    medianSaved: median(rows.map(r => r.saved)), medianAgent: median(rows.filter(r => r.complete).map(r => r.agent)),
-    medianHours: median(parts.map(x => x.p.medianHours).filter(h => h != null)),
+    meanSaved: mean(rows.map(r => r.saved)), meanAgent: mean(rows.filter(r => r.complete).map(r => r.agent)),
+    meanHours: mean(rows.map(r => r.hours)),
     share: agent ? saved.total / agent : null,
     sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
     rows,
   };
 }
 
-const median = xs => { const v = xs.filter(x => Number.isFinite(x)).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2); };
+const mean = xs => { const v = xs.filter(x => Number.isFinite(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 
 // The report as the command prints it: the three tables with their totals, the cache's numbers. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
@@ -532,7 +536,7 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
       `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
-      `  on the median one      ${formatTokens(pr.medianSaved || 0)} saved, ${pr.medianAgent == null ? '–' : formatTokens(pr.medianAgent)} spent${pr.medianHours == null ? '' : `, ${pr.medianHours < 10 ? pr.medianHours.toFixed(1) : Math.round(pr.medianHours)}h open to merged`}`,
+      `  on the average one     ${formatTokens(pr.meanSaved || 0)} saved, ${pr.meanAgent == null ? '–' : formatTokens(pr.meanAgent)} spent${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
