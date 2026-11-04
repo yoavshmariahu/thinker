@@ -337,8 +337,8 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
 });
 
 // ---- Pull requests on the Report: what was shipped here and how much of it thinker paid for ----
-const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, title = `PR ${n}` } = {}) => ({
-  number: n, title, url: `https://example.test/${n}`, mergedAt: merged,
+const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, hours = 2, title = `PR ${n}` } = {}) => ({
+  number: n, title, url: `https://example.test/${n}`, mergedAt: merged, hoursToMerge: hours,
   sessions: Array.from({ length: sessions }, (_, i) => ({ id: `s${n}-${i}` })),
   tokens: { agent, prompts: 10, unknownSessions: 0, complete },
   saved: { cleared, reading: { calls: 0, tokens: reading, servings: 0 }, total: cleared + reading },
@@ -346,13 +346,13 @@ const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, comp
 const delivery = (prs, over) => {
   const merged = prs.filter(p => p.mergedAt && p.sessions.length);
   const sum = f => merged.reduce((a, p) => a + f(p), 0);
-  const mid = xs => { const v = xs.slice().sort((a, b) => a - b); return v.length ? v[v.length >> 1] : null; };
+  const mean = xs => { const v = xs.filter(n => Number.isFinite(n)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
   return { prs, summary: {
     merged: merged.length, mergedSeen: prs.filter(p => p.mergedAt).length, mergedAssisted: merged.filter(p => p.saved.total > 0).length,
     open: 0, worked: prs.filter(p => p.sessions.length).length,
     saved: { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading.tokens), total: sum(p => p.saved.total) },
     tokens: { agent: sum(p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
-    medianSavedPerMergedPr: mid(merged.map(p => p.saved.total)), medianTokensPerMergedPr: mid(merged.map(p => p.tokens.agent)), medianHoursToMerge: 2,
+    meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)), meanTokensPerMergedPr: mean(merged.map(p => p.tokens.agent)), meanHoursToMerge: mean(merged.map(p => p.hoursToMerge)),
     sessions: { linked: sum(p => p.sessions.length), unlinked: 4 },
     ...over,
   } };
@@ -395,27 +395,32 @@ test('the band is tokens in the cost view as much as the token view: a cleared t
   }
 });
 
-test('All repositories adds the pull requests up and takes the median over all of them, never a median of medians', () => {
+test('All repositories adds the pull requests up and averages over all of them, never an average of averages', () => {
   // The weeks are the person's own (report.js:weekStart reads local dates), so a merge time written as UTC
   // midnight falls in the week before this one wherever the machine is behind UTC: '2026-10-19T00:00:00Z' is
   // Sunday the 18th in Los Angeles, outside the window, and this read 2 of 3 there while passing in UTC.
   // Local noon is the same week in every zone.
   const at = (day) => new Date(2026, 9, day, 12).toISOString();
-  const a = prSavings(null, { days: 30, delivery: delivery([pr(1, { merged: at(20), agent: 1_000_000, cleared: 100_000 })]) });
+  const a = prSavings(null, { days: 30, delivery: delivery([pr(1, { merged: at(20), agent: 1_000_000, cleared: 100_000, hours: 1 })]) });
   const b = prSavings(null, { days: 30, delivery: delivery([
-    pr(1, { merged: at(21), agent: 2_000_000, cleared: 900_000 }),
-    pr(2, { merged: at(19), agent: 2_000_000, cleared: 500_000 }),
+    pr(1, { merged: at(21), agent: 2_000_000, cleared: 900_000, hours: 4 }),
+    pr(2, { merged: at(19), agent: 2_000_000, cleared: 200_000, hours: 4 }),
   ]) });
   const view = v => ({ to: new Date(2026, 9, 30).getTime(), columns: weekColumns(new Date(2026, 9, 30).getTime(), 2), models: [], unpriced: [], parts: [], totals: [], sessionTotals: [], actions: [], cache: {}, prs: v });
   const m = mergeReports([{ repo: 'a', name: 'A', view: view(a) }, { repo: 'b', name: 'B', view: view(b) }]);
   assert.equal(m.prs.merged, 3);
-  assert.equal(m.prs.saved.cleared, 1_500_000);
+  assert.equal(m.prs.saved.cleared, 1_200_000);
   assert.equal(m.prs.agent, 5_000_000);
   assert.equal(m.prWeekly[0].merged, 3);
-  assert.equal(m.prWeekly[0].savedPerPr, 500_000, 'average all PRs, not repository averages');
+  assert.equal(m.prWeekly[0].savedPerPr, 400_000, 'average all PRs, not repository averages');
   near(m.prWeekly[0].tokensPerPr, 5_000_000 / 3);
-  // the three savings are 100k, 900k and 500k: the median is 500k, not the mean of each repository's own median
-  assert.equal(m.prs.medianSaved, 500_000);
+  // the three savings are 100k, 900k and 200k: the mean over all three is 400k, where the mean of each
+  // repository's own mean is 300k and the median is 200k. The figures tell the three apart on purpose.
+  assert.equal(m.prs.meanSaved, 400_000);
+  near(m.prs.meanAgent, 5_000_000 / 3);
+  // every pull request's own hours, never a repository's average of them: 1h on A's one pull request and 4h
+  // on each of B's two is 3h over the three, where averaging the two repositories' averages would say 2.5h
+  assert.equal(m.prs.meanHours, 3);
   // two repositories both number from 1, so a row says which it came from
   assert.deepEqual(m.prs.rows.map(r => `${r.repoName}#${r.number}`), ['B#1', 'A#1', 'B#2']);
   assert.equal(mergeReports([{ repo: 'a', name: 'A', view: { ...view(null) } }]).prs, null, 'a report from before this has no band, not an empty one');

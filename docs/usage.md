@@ -96,12 +96,12 @@ Still open: 3
 Saved on those 22 merged pull requests
   cleared         197M tokens the API left out of their prompts (measured)
   reading avoided 177k tokens of files the notes meant nobody read (estimate)
-  together        197.2M tokens · 25k on the median one
+  together        197.2M tokens · 9.0M on the average one
 
 What they cost
   agent tokens    865.4M over 29 linked sessions: every prompt and every answer added up,
                   the same way the saving is
-  median merged   23.5M tokens · 0.7h from opened to merged · 22/22 with complete counters
+  average merged  39.3M tokens · 0.7h from opened to merged · 22/22 with complete counters
 ```
 
 `--detail` adds a block per pull request, with its sessions; `--pr <n>` takes one; `--json` is the

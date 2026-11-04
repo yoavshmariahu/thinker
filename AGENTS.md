@@ -972,7 +972,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 **Pull request savings (2026-10-30)**
 - View Report keeps four PR summary cards under the cache cards: merged with work here, tokens saved,
-  share of their cost, and the median one. Both sets of cards show labels and values, without descriptions.
+  share of their cost, and the average one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
   The report leads with **Pull request stats**, followed by **Cost by context** and **Cache/compression effectiveness**; **By model** and **By token type** are collapsed under **See more metrics**. The page defaults to Total and displays savings as a weekly table without a graph. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
   It reads the same `/api/report` data and lists merged PRs newest first: number, title, sessions, cost,
@@ -980,9 +980,22 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.
 - `report.js:prSavings` folds `delivery.js:deliveryReport` into the view as `prs`, so both doors read one
   computation and the page recomputes nothing on a visit. `mergePrSavings` is All repositories: counts and
-  tokens add (a pull request belongs to one repository, a session to one pull request), medians are taken
-  again over every row rather than averaged, and each row carries its repository, since two repositories
-  both number from 1.
+  tokens add (a pull request belongs to one repository, a session to one pull request), the averages are
+  taken again over every row rather than averaged into an average of averages, and each row carries its
+  repository, since two repositories both number from 1.
+- **The typical pull request is the average one, not the median one** (2026-11-04, the owner's call;
+  `delivery.js:mean`, `summary.meanSavedPerMergedPr`, `meanTokensPerMergedPr`, `meanHoursToMerge`, carried
+  to the doors as `prSavings`'s `meanSaved`/`meanAgent`/`meanHours`). On this repository's last 14 days 32
+  of 77 merged pull requests had any saving at all -- the rest had no clearing and no note acted on -- so
+  the median landed on a zero and every door said `0 on the median one` under a window total of 541M
+  tokens. The denominator is unchanged: every pull request merged in the window that a session here worked
+  on, zero-saving ones included, which is the same set the total is summed over and the same one
+  `weeklyPrStats` has always averaged (`savedPerPr`, `tokensPerPr`). What the average hides is the spread --
+  five pull requests were 336M of that 541M -- and the per-PR rows are where that shows.
+- A row of `prSavings` carries its own `hours`, so All repositories averages the time to merge over every
+  pull request. Before this it took a median of each repository's median, which weighed a repository with
+  one pull request like one with fifty; `test/report.test.js` pins the three figures apart (1h on one
+  repository's single pull request and 4h on each of another's two is 3h, never 2.5h).
 - **Pull request stats** is a weekly table matching the other Report tables, with metrics as rows and weeks
   as columns; no graphs. It leads the Report, above **Cost by context** and **Cache/compression effectiveness**,
   and stays outside **See more metrics**. `report.js:weeklyPrStats` groups the

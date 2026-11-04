@@ -26,7 +26,11 @@ export const SAVED_BUCKETS = [10_000, 50_000, 200_000, 1_000_000, null];
 export const MAX_PAGES = 20;
 
 const finite = n => typeof n === 'number' && Number.isFinite(n) && n >= 0;
-const median = xs => { const a = xs.filter(finite).sort((x, y) => x - y); return a.length ? (a[Math.floor(a.length / 2)] + a[Math.floor((a.length - 1) / 2)]) / 2 : null; };
+// The average, not the median (2026-11-04, the owner's call). Half of the merged pull requests a session
+// here worked on had no clearing and no note acted on, so the median landed on a zero and read as thinker
+// saving nothing on the typical one, while the same window's total was 541M tokens. The mean says what the
+// total says, divided by the pull requests it is spread over.
+const mean = xs => { const a = xs.filter(finite); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; };
 const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.parse(from)) / 3600_000) : null;
 
 // ---------------------------------------------------------------------------
@@ -207,9 +211,9 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
         basis: 'cleared is measured; reading avoided is an estimate',
       },
       tokens: { agent: sum(merged, p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
-      medianSavedPerMergedPr: median(merged.map(p => p.saved.total)),
-      medianTokensPerMergedPr: median(merged.filter(p => p.tokens.complete).map(p => p.tokens.agent)),
-      medianHoursToMerge: median(merged.map(p => p.hoursToMerge)),
+      meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)),
+      meanTokensPerMergedPr: mean(merged.filter(p => p.tokens.complete).map(p => p.tokens.agent)),
+      meanHoursToMerge: mean(merged.map(p => p.hoursToMerge)),
       sessions: { linked: sum(selected, p => p.sessions.length), unlinked: unlinked.length },
     },
     unlinkedSessions: unlinked.sort((a, b) => String(b.lastAt).localeCompare(String(a.lastAt))),
@@ -313,10 +317,10 @@ export function renderDelivery(r, { detail = false } = {}) {
   L.push('', `Saved on those ${s.merged} merged pull ${s.merged === 1 ? 'request' : 'requests'}`);
   L.push(`  cleared         ${n(s.saved.cleared)} tokens the API left out of their prompts (measured)`);
   L.push(`  reading avoided ${n(s.saved.reading)} tokens of files the notes meant nobody read (estimate)`);
-  L.push(`  together        ${n(s.saved.total)} tokens${s.merged ? ` · ${n(s.medianSavedPerMergedPr)} on the median one` : ''}`);
+  L.push(`  together        ${n(s.saved.total)} tokens${s.merged ? ` · ${n(s.meanSavedPerMergedPr)} on the average one` : ''}`);
   L.push('', 'What they cost');
   L.push(`  agent tokens    ${n(s.tokens.agent)} over ${s.sessions.linked} linked ${s.sessions.linked === 1 ? 'session' : 'sessions'}: every prompt and every answer added up, the same way the saving is`);
-  L.push(`  median merged   ${n(s.medianTokensPerMergedPr)} tokens · ${s.medianHoursToMerge == null ? 'unknown' : s.medianHoursToMerge.toFixed(1) + 'h'} from opened to merged · ${s.tokens.complete}/${s.merged} with complete counters`);
+  L.push(`  average merged  ${n(s.meanTokensPerMergedPr)} tokens · ${s.meanHoursToMerge == null ? 'unknown' : s.meanHoursToMerge.toFixed(1) + 'h'} from opened to merged · ${s.tokens.complete}/${s.merged} with complete counters`);
   if (s.sessions.unlinked) L.push('', `${s.sessions.unlinked} ${s.sessions.unlinked === 1 ? 'session belongs' : 'sessions belong'} to no pull request yet. thinker prs sync reads them from GitHub; thinker prs link --session <id> --pr <n> says so by hand.`);
   // Only the pull requests some session here worked on: the repository's others have nothing to say.
   if (detail) for (const p of r.prs.filter(p => p.sessions.length || r.prs.length === 1)) {

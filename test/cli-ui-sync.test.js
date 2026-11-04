@@ -600,7 +600,7 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   assert.match(page, /v\.savings \|\| \[\]/);
   assert.match(page, /See more metrics/);
   assert.match(page, /RMORE = false/);
-  for (const phrase of ['merged with work here', 'share of their cost', 'on the median one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
+  for (const phrase of ['merged with work here', 'share of their cost', 'on the average one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
   // the same seven columns, in the same order
   for (const c of ['Sessions', 'Its cost', 'Cleared', 'Reading avoided', 'Saved', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
   // the command's columns are 11 characters wide, so the same six are abbreviated, in the same order
