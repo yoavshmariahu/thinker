@@ -3,8 +3,18 @@ function handler(event) {
     var request = event.request;
     var uri = request.uri;
     if (/[\\%]/.test(uri) || uri.indexOf('//') !== -1 || /\/(?:\.|\.\.)(?:\/|$)/.test(uri)) return { statusCode: 400 };
-    if (request.headers.host && request.headers.host.value === 'www.zerotime.dev') {
-        return { statusCode: 302, headers: { location: { value: 'https://zerotime.dev' + uri } } };
+    var host = request.headers.host && request.headers.host.value;
+    var dataPage = /^\/(?:see-the-data|compression|clearing)(?:\.html|\/)?$/.test(uri);
+    var canonicalUri = dataPage ? '/see-the-data' : uri;
+    if (host === 'zerotime.dev' || host === 'www.zerotime.dev' || host === 'www.thinker.sh' || canonicalUri !== uri) {
+        // CloudFront supplies encoded query names/values; keep them and repeated keys intact.
+        var query = request.querystring || {};
+        var parts = [];
+        Object.keys(query).forEach(function (key) {
+            var values = query[key].multiValue || [query[key]];
+            values.forEach(function (entry) { parts.push(key + '=' + entry.value); });
+        });
+        return { statusCode: 301, headers: { location: { value: 'https://thinker.sh' + canonicalUri + (parts.length ? '?' + parts.join('&') : '') } } };
     }
     if (request.method !== 'GET' && request.method !== 'HEAD') return { statusCode: 405 };
     // Old installed clients retain these distribution URLs. Downloads are now public.
@@ -14,7 +24,7 @@ function handler(event) {
         'content-type': { value: 'application/json' }, 'cache-control': { value: 'no-store' }
     }, body: request.method === 'HEAD' ? '' : JSON.stringify({ installCommand: 'curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash' }) };
     if (/^\/docs(?:\.html|\/index\.html|\/)?$/.test(uri)) { request.uri = '/docs.html'; return request; }
-    if (/^\/(?:compression|clearing)(?:\.html|\/)?$/.test(uri)) { request.uri = '/compression.html'; return request; }
+    if (uri === '/see-the-data') { request.uri = '/compression.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
     if (uri === '/' || uri === '/index.html' || uri === '/nav.css' || /^\/clearing-[a-z0-9-]+\.json$/.test(uri) || /^\/message\.(js|css)$/.test(uri) ||
         /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) ||

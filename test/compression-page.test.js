@@ -19,7 +19,7 @@ const tabs=['metrics','session'].map(v=>{const e=new Element(v);e.dataset.view=v
 const ttls=['1h','5m'].map(v=>{const e=new Element(v);e.dataset.v=v;return e;});
 const documentListeners={};
 const document={querySelector:node,querySelectorAll:s=>s==='.tabs button'?tabs:s==='#ttl button'?ttls:[],body:node('body'),addEventListener(k,fn){(documentListeners[k] ||= []).push(fn);}};
-const context=vm.createContext({document,window:{addEventListener(){}},location:{pathname:'/compression.html',search:'',hash:''},history:{replaceState(){}},URLSearchParams,setTimeout,clearTimeout,fetch:async f=>({ok:true,json:async()=>JSON.parse(fs.readFileSync('site/'+f))}),console});
+const context=vm.createContext({document,window:{addEventListener(){}},location:{pathname:'/see-the-data',search:'',hash:''},history:{replaceState(){}},URLSearchParams,setTimeout,clearTimeout,fetch:async f=>({ok:true,json:async()=>JSON.parse(fs.readFileSync('site/'+f))}),console});
 const html=fs.readFileSync('site/compression.html','utf8');
 for(const match of html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g))vm.runInContext(match[1],context);
 const click=async (selector,target)=>{node(selector).listeners.click({target:{closest:()=>target}});await new Promise(r=>setTimeout(r,10));};
