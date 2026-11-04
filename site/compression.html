@@ -252,8 +252,7 @@
     .picker-note, #load-status { font-size: .78rem; color: var(--muted); line-height: 1.5; margin-top: .6rem; }
     .chart-heading { margin-top: .8rem; }
     @media (max-width: 600px) { .session-picker { max-width: none; flex-basis: 100%; } .scrub { flex-wrap: wrap; min-width: 0; } .scrub input { min-width: 90px; } }
-    .cost-range .pair { display: grid; gap: .3rem; }
-    .cost-range b { white-space: nowrap; }
+    .cache-writes .v { font-size: 1.4rem; color: var(--muted); }
     .tile .v.savings-headline { font-size: 1.4rem; line-height: 1.3; }
     .savings-headline span { white-space: nowrap; }
   </style>
@@ -435,7 +434,7 @@
       const ans = D().costBounds ? null : RUN().answers(D(), RUN());
       if (D().costBounds) {
         const v = D().savings;
-        $('#tiles').innerHTML = `<div class="tile"><div class="k">Coding cost saved</div><div class="v good savings-headline"><span>${v.minPercent.toFixed(1)}% saved</span></div><div class="sub">${usd(v.minDollars)} saved</div></div><div class="tile cost-range"><div class="k">Session cost</div><div class="pair"><span>without <b>${usd(cb)}</b></span><span>with <b>${usd(ca)}</b></span></div><div class="sub">${state.ttl === '1h' ? '30m cache pricing' : 'Standard input pricing'}</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cuts · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="sub">Astra judge · 5/5 criteria</div></div>`;
+        $('#tiles').innerHTML = `<div class="tile"><div class="k">Coding cost saved</div><div class="v good savings-headline"><span>${v.minPercent.toFixed(1)}% saved</span></div><div class="sub">${usd(v.minDollars)} saved</div></div><div class="tile cache-writes"><div class="k">Cache writes</div><div class="v">Not recorded</div><div class="sub">Counts missing in this run</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cuts · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="sub">Astra judge · 5/5 criteria</div></div>`;
         return;
       }
       $('#tiles').innerHTML = `
