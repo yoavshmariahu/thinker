@@ -320,11 +320,11 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/guard.js` | anchoring guard |
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
-| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
+| `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
-| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
+| `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
@@ -547,13 +547,14 @@ ship, how much of it did thinker pay for. Nothing here calls a model or spends a
   update the authenticated author's comment for this machine, leaving other authors and machines alone.
   Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
   estimated reading, state the window and session attribution, and publish no session IDs or note text.
-  At the owner's request, comments also show a gross API-cost estimate (`prices.js:grossSavingsCost`):
-  clearing at the session model's cache-read rate, reading at its input rate, honoring manual shares
-  and price overrides. Unknown prices stay unpriced. Rewrite and learning costs are not deducted;
-  this is not net savings or a bill reduction. The Report page's PR band remains in tokens.
+  Comments show the **netted** figure (2026-11-04; it was gross until then): clearing at the session model's
+  cache-read rate, reading at its input rate, honoring manual shares and price overrides, **less the cache
+  writes the calls after a clear paid for**. Unknown prices stay unpriced. Learning spend is still not
+  deducted. The Report band and the page carry the same figure, and the token columns stay beside it.
 - **Automatic posting** (`delivery-auto.js`) runs in the existing four-hour update job, even without
   a new release or after a failed update check. First pass establishes a start date (no backfill);
-  later passes post once per newly merged PR with local savings after 20 minutes of session quiet.
+  later passes post once per newly merged PR with local savings after 20 minutes of session quiet, and
+  never one whose netted dollars are a loss -- that is a bug report, not news for someone's pull request.
   Receipts live in `<THINKER_HOME>/state/pr-comments.json`; failed posts retry, at most 10 attempts
   per pass. `prComments: false` in machine or repository config disables it, as does disabling the
   repository. `prs auto --dry --json` inspects locally known candidates without GitHub. Test mode
@@ -958,6 +959,22 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   - `instructions` attachment, when present, is exact (replaces estimate).
 - Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
 
+**A tool's output is nobody's choice (MANDATORY, 2026-11-04, the owner's call):**
+- The clearing is thinker's compression and it is on by default (`src/cutting.js`, applied by `proxy.js` on every
+  request, and the desktop mod beside it). It takes out the results the agent has finished with, which is where the
+  cost is: 88% of what output costs a session is re-reads past the agent's last use of the result.
+- So per-tool compression (`diet.js`) is offered nowhere a person can see it: no row on Find Savings (the **Tool
+  outputs** view is gone), no line in the weekly question, no option in the installer's picker, no `ACTS` entry, no
+  `output` change out of `partChanges`, no card out of `part-explain.js:viewParts`. It only shrank what was still
+  live -- the moderate cap took 7.5% of output cost over this machine's 38 most recent sessions, and the one arm
+  measured in agent sessions (a 4k cap, PostHog/Opus, 2026-10-28) saved nothing, because the agent fetches again
+  what was trimmed. A row asking for that decision cost a person a decision and bought what the clearing already had.
+- What stays: the measurement (`tool-outputs.js`, the Report's parts table and `totals.outputs`), the diet itself as
+  `thinker context --output-compression <tools> [--level high]` for an experiment arm, `describePart({kind:'output'})`
+  and the `output` branch of `undoOf`, so a decision someone made before this is still theirs to Revert.
+- What set it off: on 2026-11-04 a Claude Desktop session was interrupted mid-answer with a picker reading
+  "1 -- compress repeated tool output, or none?" -- the thinnest question thinker has ever put to anyone.
+
 **Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
 - A part sits in the prompt, so it costs its size in every model call that carries it. The table's four numbers are four readings of that, each with a **?** under forty words (the owner: if it needs more, the calculation is wrong).
 - **Per prompt** (`tokens`): its size, what it adds to every prompt that carries it. **Needed** (`usedShare`): of those prompts, the share the agent acted on it in. **Over N days** (`window`): per prompt × every prompt that carried it (`prompts`). **Wasted** (`wastedWindow`; `wasted` a prompt): window × (1 − needed). The savings card leads with the window figure. `perPrompt` (window ÷ every prompt of the window) stays in the data for the tab strip, the totals and `wasteLevel`, not in the table.
@@ -972,7 +989,7 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
 
 **Pull request savings (2026-10-30)**
 - View Report keeps four PR summary cards under the cache cards: merged with work here, tokens saved,
-  share of their cost, and the median one. Both sets of cards show labels and values, without descriptions.
+  share of their cost, and the average one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
   The report leads with **Pull request stats**, followed by **Cost by context** and **Cache/compression effectiveness**; **By model** and **By token type** are collapsed under **See more metrics**. The page defaults to Total and displays savings as a weekly table without a graph. Weekly savings (`report-savings.js`) follow request dates and the report toggles: cache estimates subtract note context; compression dollars are gross avoided cache reads at the model's price, before cache rewrite costs. A request belongs to the last repository its session hooks named, so All repositories counts it once.
   It reads the same `/api/report` data and lists merged PRs newest first: number, title, sessions, cost,
@@ -980,9 +997,22 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   12 rows on the page behind *Show all*, 10 in the command, which points at `thinker prs` for the rest.
 - `report.js:prSavings` folds `delivery.js:deliveryReport` into the view as `prs`, so both doors read one
   computation and the page recomputes nothing on a visit. `mergePrSavings` is All repositories: counts and
-  tokens add (a pull request belongs to one repository, a session to one pull request), medians are taken
-  again over every row rather than averaged, and each row carries its repository, since two repositories
-  both number from 1.
+  tokens add (a pull request belongs to one repository, a session to one pull request), the averages are
+  taken again over every row rather than averaged into an average of averages, and each row carries its
+  repository, since two repositories both number from 1.
+- **The typical pull request is the average one, not the median one** (2026-11-04, the owner's call;
+  `delivery.js:mean`, `summary.meanSavedPerMergedPr`, `meanTokensPerMergedPr`, `meanHoursToMerge`, carried
+  to the doors as `prSavings`'s `meanSaved`/`meanAgent`/`meanHours`). On this repository's last 14 days 32
+  of 77 merged pull requests had any saving at all -- the rest had no clearing and no note acted on -- so
+  the median landed on a zero and every door said `0 on the median one` under a window total of 541M
+  tokens. The denominator is unchanged: every pull request merged in the window that a session here worked
+  on, zero-saving ones included, which is the same set the total is summed over and the same one
+  `weeklyPrStats` has always averaged (`savedPerPr`, `tokensPerPr`). What the average hides is the spread --
+  five pull requests were 336M of that 541M -- and the per-PR rows are where that shows.
+- A row of `prSavings` carries its own `hours`, so All repositories averages the time to merge over every
+  pull request. Before this it took a median of each repository's median, which weighed a repository with
+  one pull request like one with fifty; `test/report.test.js` pins the three figures apart (1h on one
+  repository's single pull request and 4h on each of another's two is 3h, never 2.5h).
 - **Pull request stats** is a weekly table matching the other Report tables, with metrics as rows and weeks
   as columns; no graphs. It leads the Report, above **Cost by context** and **Cache/compression effectiveness**,
   and stays outside **See more metrics**. `report.js:weeklyPrStats` groups the
@@ -990,13 +1020,31 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   input + output tokens per PR. The cost mean uses only PRs with complete counters and exposes that count;
   missing counters never read as zero cost. Empty weeks have zero PRs and null averages. All repositories
   recomputes from all PR rows, never averages repository averages. The CLI prints the same weekly values.
-- **Tokens, under Cost as much as under Tokens, and no dollar figure anywhere in the band.** Only one of the
-  two savings converts: reading avoided is fresh input nobody paid for, but a cleared token was mostly being
-  read from the prompt cache at a fortieth of the input price, and the clear writes that cache again at twice
-  it. Priced at the input rate this machine's 202M cleared tokens read as thousands of dollars, where
-  `thinker proxy replay` over 264 real sessions put the whole clearing at +7.3% of session cost. The band
-  keeps token figures; its former explanatory paragraph was removed at the owner's request. Do not add
-  a dollar column without replaying first.
+- **The dollars are netted, and that is the figure (2026-11-04, the owner's call; `compression.js:clearingCostBySession`).**
+  Tokens cannot answer "was it worth it", because the clearing's saving and the clearing's cost are not the
+  same kind of token: a cleared token saved a **cache read** at a fortieth of the input price, and the calls
+  after that clear wrote the prefix into the cache again at **twice** it. So one rule, in one sentence:
+  **cleared at the cache-read rate, plus reading avoided at the input rate, less what the calls after a clear
+  wrote into the cache again, at list prices.** `thinker prs`, the Report band, the page's Net column and the
+  posted comment all read that one computation in `delivery.js`; no door prices a token itself.
+  - The deduction is `isRewrite` over the proxy log, charged to a session only from its **first clear onward**:
+    a rewrite before one cannot be the clear's doing. It is deliberately conservative -- the held-out side
+    rewrites on 1-3% of long calls anyway, and those are charged to the clearing too.
+  - The token figures stay beside it, and `measured` (cleared) is never silently added to `estimate`
+    (reading avoided). What may not come back is a **gross** dollar figure: until this date the posted comment
+    showed one, and priced at the input rate this machine's 202M cleared tokens read as thousands of dollars
+    it never saved.
+  - A loss reads as a loss. `meanNetPerMergedPr` is a **signed** mean (`delivery.js:meanSigned`): the ordinary
+    `mean` filters on `n >= 0` for token counts, and it silently dropped every negative net, so a −$940
+    fortnight averaged to +$0.59 a pull request. The automatic pass never posts a pull request whose net is a
+    loss (`delivery-auto.js`); `thinker prs comment --pr n` still does, by hand, under a heading that says so.
+  - **What it said when it was first switched on**, over this repository's own merged work: the 14 days to
+    2026-11-04, mostly the API-side clearing, came to **−$940** on 75 merged pull requests, 7 of them net
+    positive -- the loss `thinker proxy report` was already warning about (prefix rewrites on 15% of long
+    calls after a clear against 2% held out). The window since the cut landed and the service restarted
+    (#610, #612, #615) came to **+$15**, with the rewrite rate at 3% after a clear against 3% before one.
+    Judge a change here the same way: cache **write** tokens, against the 15% holdout, over a window that
+    starts after the change.
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
 
@@ -1218,6 +1266,22 @@ against each other by tokens saved, which is why the other two prompt questions 
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
 
+**And it only interrupts when it is worth it, and says what it is worth (2026-11-04, the owner's ask).**
+- **A thin list is not a question** (`SUGGEST.minAsk` = 2 changes, `SUGGEST.askSaving` = 1,000 input tokens a prompt
+  together, both in `contextSuggestOffer` as `thin`). Below either floor the block is the lines and the page's
+  address with no question at all, said in one line of the agent's own answer. A single change is never a question:
+  "1 -- compress repeated tool output, or none?" is what one desktop session was asked in the middle of its own
+  work. `minSaving` (15 a prompt) is what makes a line worth printing; these are what make it worth stopping for.
+- **Every figure is also money, where this repository can price one.** `report.js:inputRate` is the dollars an input
+  token cost here -- the input side of the Report's token-type table, its cost over its tokens, so cache reads count
+  at their own rate and not at the input rate -- read off the kept report by `report-snapshot.js:inputRateHere` (a
+  file read, no measurement made) and kept with the summary as `pending.rate`. The lead, each line, and the question
+  itself carry it (`thinker context`'s Top changes too, the same rate). No kept report, or a model in the window
+  with no list price, means no dollar figure anywhere in the message rather than a guessed one.
+- Why: a suggestion nobody can value is one nobody acts on, and "34M tokens over 7 days" is not a figure a person
+  can place. It is the only place outside the Report and PR comments where thinker says dollars; `prices.js` is
+  still where they come from, and the message says they are list prices and that a subscription bills none of it.
+
 **The one exception (2026-10-28, owner-approved): the offer to turn the context proxy back on** (`proxy-offer.js`).
 A one-off repair of a fault thinker caused, not a recurring suggestion: the machines whose harness the proxy broke
 turned it off, `off` is durable by design, and the hint a stand-down prints is said once to someone whose session is
@@ -1249,7 +1313,9 @@ reached them". The answer comes back through thinker's own MCP tool, `context` (
 agent hands in the numbers the person chose and thinker resolves them against the list it showed and makes the
 changes, so nothing depends on the agent composing a command line, and a desktop app answers the same way. The
 command (`--via session --approve|--dismiss all`) is the fallback where the client speaks no MCP, and the typed door.
-Both answers are recorded: numbers approve, none dismisses for a month, and `context-answer` keeps whether they
+Both answers are recorded: numbers approve, none leaves them alone until the next weekly summary
+(`SUGGEST.dismissedDays` = 6 days, one under the cadence so a dismissed change never skips a week; a month until
+2026-11-04, the owner's call), and `context-answer` keeps whether they
 answered through their agent's question tool or in chat (`actions.answers` in telemetry), so the funnel has a
 denominator, a no, and evidence the question was put as one. Built-in tools are named with the page link and never offered as options
 (the rule of 2026-10-22, PR #441: a picker's line has no room for what denying one costs), and with nothing else to

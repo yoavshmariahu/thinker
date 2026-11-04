@@ -15,16 +15,21 @@ export const commentMarker = (home = thinkerHome()) => `<!-- thinker-pr-savings:
 
 export function renderSavingsComment(report, pr, marker, { config } = {}) {
   const cost = grossSavingsCost(pr.sessions, { config });
-  const estimate = cost.total === null
+  // Net, not gross (the owner's call, 2026-11-04). A cleared token saved a cache read; the calls after that clear
+  // wrote the prefix again at twenty times that rate, so the gross figure was the saving without its own cost.
+  const net = pr.cost && pr.cost.priced ? pr.cost.net : null;
+  const estimate = net === null
     ? 'Cost estimate unavailable: model prices unknown.'
-    : `**~${formatDollars(cost.total)} USD estimated gross API value avoided${cost.unpricedTokens ? ' (partial)' : ''}.**`;
+    : `**~${formatDollars(net)} USD${net < 0 ? ' net cost' : ' net saved'} at list prices${cost.unpricedTokens ? ' (partial)' : ''}.**`
+      + `\n\n${formatDollars(pr.cost.saved)} of cache reads and fresh input avoided, less ${formatDollars(pr.cost.rewrite)}`
+      + ` the calls after a clear paid to write the prefix into the cache again.`;
   const savings = [
     ...(pr.saved.cleared ? [`**${formatTokens(pr.saved.cleared)} tokens cleared** (measured)`] : []),
     ...(pr.saved.reading.tokens ? [`**${formatTokens(pr.saved.reading.tokens)} tokens of reading avoided** (estimated)`] : []),
   ];
   return [
     marker,
-    '### 🧠 thinker saved you some tokens!',
+    net !== null && net < 0 ? '### 🧠 thinker: what the clearing cost on this one' : '### 🧠 thinker saved you some tokens!',
     '',
     savings.join(' · '),
     '',
@@ -33,7 +38,7 @@ export function renderSavingsComment(report, pr, marker, { config } = {}) {
     '',
     `From ${pr.sessions.length} linked ${pr.sessions.length === 1 ? 'session' : 'sessions'} on this machine · ${report.since.slice(0, 10)}–${report.generatedAt.slice(0, 10)} UTC.`,
     '',
-    '*Session totals, not PR-only savings. Cost excludes rewrite and learning overhead; not a measured bill reduction.*',
+    '*Session totals, not PR-only savings. Cache rewrites after a clear are deducted; learning spend is not. List prices, not a subscription bill.*',
   ].join('\n');
 }
 

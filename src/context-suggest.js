@@ -5,9 +5,9 @@ import { readScopedState, writeScopedState, machineUndoDir } from './scoped-stat
 // own question tool, and to record their answer either way (contextSuggestOffer; prose the agent was asked to relay
 // until 2026-10-27). The link goes to the Context tab's All, where every part of the context is a row with the actions
 // that can be taken on it (allChanges):
-// a section compressed or removed after its diff is read, a skill or tool switched off or back on, an output's
-// compression set; the person picks one in the row and applies it, and every decision is kept as the page's Recent
-// activity with a Revert. `thinker context --approve|--dismiss|--history` is the same over the top five.
+// a section compressed or removed after its diff is read, a skill or tool switched off or back on; the person picks
+// one in the row and applies it, and every decision is kept as the page's Recent activity with a Revert.
+// `thinker context --approve|--dismiss|--history` is the same over the top five.
 // Nothing is changed until the person chooses. Ranking and scheduling make no model call; compressing a section does,
 // and that call happens in a job of its own whichever door the person answered through (approveChanges), so none of
 // them -- the session, the command, the installer -- waits it out or writes the file without a pull request.
@@ -34,8 +34,9 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { thinkerHome } from './update.js';
 import { formatTokens } from './model-usage.js';
+import { formatDollars } from './prices.js';
 import { SIGNATURE } from './harness.js';
-import { WASTE, sections, sectionId } from './instruction-value.js';
+import { sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
 import { defaultBranch, prAvailable } from './instruction-pr.js';
 import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
@@ -48,40 +49,50 @@ export const SUGGEST = {
   answerDays: 3,      // a summary not passed on in this long (no prompt here) is dropped
   minSaving: 15,      // a change saving fewer input tokens on an average prompt is not worth a line (500 a session
                       // until 2026-10-25, when the unit became a prompt: about 15 of them at this machine's median calls)
+  // What a question must carry before it interrupts anyone (2026-11-04). A line is worth printing at `minSaving`; a
+  // question stops a person in the middle of their own task, and has to be worth more than that. Both floors: a single
+  // change is never a question -- "1 -- compress repeated tool output, or none?" is what a desktop session was asked
+  // mid-answer on 2026-11-04, a picker with one option and no room to say what it meant -- and two changes worth a
+  // rounding error are not one either. Below them the summary is still put in the prompt, as a line and the page's
+  // address, with nothing to answer: the page is where the detail was all along.
+  minAsk: 2,          // changes a question must carry
+  askSaving: 1000,    // and input tokens in every prompt they must save together (real summaries here: 8.7k-36k)
+  // How long a dismissal holds (2026-11-04, the owner's call: a month was too long). A change left alone comes back
+  // in the next weekly summary, so this is one day under `everyDays` and not equal to it: the hold runs from the
+  // moment the person answered, which is some time *after* the summary they answered was built, so a 7-day hold
+  // would outlive the next summary and the change would skip a week. Short of the cadence, it always expires first.
+  // It is not 0 either: `thinker context` typed an hour after a dismissal would print what was just dismissed.
+  dismissedDays: 6,
   uiWaitMs: 3000,     // how long the hook waits for the page to start
 };
 const DAY = 86_400_000;
-const DECIDED_DAYS = 30; // a change approved or dismissed is not suggested again for this long
+const DECIDED_DAYS = 30; // a change approved is not suggested again for this long (a dismissal: SUGGEST.dismissedDays)
 const HISTORY_KEPT = 200;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), 'cli.js');
 const stateFile = store => path.join(store.dir, 'state', 'context-suggest.json');
 const readJson = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
 const writeJson = (f, v) => { fs.mkdirSync(path.dirname(f), { recursive: true }); const tmp = `${f}.thinker-${process.pid}`; fs.writeFileSync(tmp, JSON.stringify(v) + '\n'); fs.renameSync(tmp, f); };
-// What can be done with each kind of change, the suggested action first. One level of compression each, so the person
-// is not asked to choose one nothing has measured against the other: a section as the Context tab compresses it (high,
-// instruction-edit.js), an output at the diet's default level (moderate). The diet's high level has run in no agent
-// session and is set from the command line alone (`thinker context --output-compression <tools> --level high`), for an
-// experiment arm; the rows offered it for a day on 2026-10-22 and that was taken back, the owner's call.
+// What can be done with each kind of change, the suggested action first. One level of compression, so the person is
+// not asked to choose one nothing has measured against the other: a section as the Context tab compresses it (high,
+// instruction-edit.js). A tool's output is not here at all: the clearing compresses those, on by default and asked
+// about nowhere (partChanges).
 export const ACTS = {
   compress: { act: 'compress', text: 'Compress' },
   remove: { act: 'remove', text: 'Remove' },
   off: { act: 'off', text: 'Switch off' },
   on: { act: 'on', text: 'Turn back on' },
-  uncompress: { act: 'uncompress', text: 'No compression' },
 };
-const pctLess = (cut, of) => { const p = of ? 100 * cut / of : 0; return p < 1 ? '<1% smaller' : `~${Math.round(p)}% smaller`; };
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
 
 // Every change the report flags, by what it saves over the window, the five largest. A section, skill or tool is flagged
-// when its cost in the sessions that did not use it is a share of its kind's (instruction-value.js:wasteLevel), and saves at most its cost
-// in the sessions that did not use it; an output thinker can compress and does not, what moderate compression's cap
-// alone would have cut from it (tool-outputs.js).
+// when its cost in the sessions that did not use it is a share of its kind's (instruction-value.js:wasteLevel), and saves
+// at most its cost in the sessions that did not use it.
 export function topChanges(view, { max = SUGGEST.max, minSaving = SUGGEST.minSaving } = {}) {
   return partChanges(view).filter(c => c.saving >= minSaving).sort((a, b) => b.total - a.total || b.saving - a.saving).slice(0, max);
 }
 // Every part of the report as a change with what can be done to it, by its total: the Context tab's rows. A section
-// can be compressed or removed; a skill or tool switched off, or back on when thinker switched it off; an output
-// thinker can compress compressed (moderate), or set back to none. Nothing is filtered by waste.
+// can be compressed or removed; a skill or tool switched off, or back on when thinker switched it off. Nothing is
+// filtered by waste.
 export function allChanges(view) {
   return partChanges(view, { all: true }).sort((a, b) => b.total - a.total || b.saving - a.saving);
 }
@@ -107,26 +118,17 @@ function partChanges(view, { all = false } = {}) {
     why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: 'switch it off here',
     builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
-  // what an output's tool is, from the tool's own row (its definition's text): a built-in tool by its name, an MCP server by its key
-  const toolText = n => (view.tools || []).find(s => n.startsWith('mcp:') ? s.kind === 'mcp' && (s.key === n || s.name === n.slice(4)) : s.group === 'builtin' && s.name === n)?.text || '';
-  // the summary ranks an output by what compressing it would cut, as a share of what every tool's output costs a
-  // session, since that is what its action saves; the page's Wasted column shows the output's reads after its last
-  // use (tool-outputs.js:sessionOutputs), which no cap recovers
-  const outCost = view.totals?.outputs?.perPrompt || (view.outputs?.tools || []).reduce((a, t) => a + (t.perPrompt || 0), 0);
-  const outWaste = cut => { const sh = outCost ? cut / outCost : 0; return sh >= WASTE.high ? 'high' : sh >= WASTE.medium ? 'medium' : 'low'; };
-  // one level (moderate, diet.js): Compress, or No compression once the output is compressed at any level (the
-  // command line can set high)
-  const levelOpts = t => t.compression ? [ACTS.uncompress] : [ACTS.compress];
-  // a row measured under an earlier setting (tool-outputs.js:aggregateOutputs, `past`) is a comparison, not a change:
-  // the tool's current row is the one acted on, measured over the sessions since the setting (its `sessions`)
-  for (const t of view.outputs?.tools || []) if (!t.past && (all ? t.compressible : (t.compressible && !t.compression && t.saveModerate > 0))) out.push({
-    kind: 'output', view: 'outputs', waste: outWaste(t.saveModerate), key: `output:${t.name}`, name: t.name, repo: t.repo, compression: t.compression || null,
-    title: `${t.name.replace(/^Bash:/, '')} output`, saving: t.saveModerate, windowSaving: t.saveModerateWindow,
-    // how much smaller compressing makes this tool's results here: the part past the length cap, from these
-    // transcripts (tool-outputs.js); trimming reads and searches round what the agent looked for cuts more
-    why: `~${formatTokens(t.perCall)} tokens a call, read again by every call after it${t.wasted != null ? ` (~${formatTokens(t.wasted)} a prompt after the agent last used the result)` : ''}; compressed, ${pctLess(t.saveModerate, t.perPrompt)}`, action: 'compress its output (Claude Code)',
-    sessions: t.sessions ?? view.outputs?.sessions ?? 0, prompts: t.prompts || 0, options: levelOpts(t), ...describePart({ kind: 'output', name: t.name, text: toolText(t.name) }),
-  });
+  // A tool's output is not a change anyone is offered (2026-11-04, the owner's call). The clearing is thinker's
+  // compression and it is on by default (cutting.js, applied by proxy.js on every request): it takes out the results
+  // the agent is done with, which is where the cost is -- 88% of what output costs a session is re-reads past the
+  // agent's last use of the result (tool-outputs.js). Per-tool compression (diet.js) only shrinks what is still live:
+  // the moderate cap took 7.5% of output cost over this machine's 38 most recent sessions, and the one arm measured in
+  // agent sessions (a 4k cap on PostHog/Opus, 2026-10-28) saved nothing at all, because an agent fetches again what
+  // was trimmed. So a row asking a person to choose it cost them a decision and bought what the clearing already has.
+  // The diet stays as a command-line switch for an experiment arm (`thinker context --output-compression <tools>`);
+  // what outputs cost is still measured and reported (context-view.js, the Report's parts table), just never asked
+  // about. The tool outputs the page listed were also the thinnest question thinker ever put to anyone: on 2026-11-04
+  // a desktop session was interrupted mid-answer with "1 -- compress repeated tool output, or none?".
   // the first option is the suggestion; `total` is what it could have saved over the report's window, and it is the
   // row's own figure (instruction-value.js, context-view.js: `wastedWindow`, an output's `saveModerateWindow`) -- its
   // size in every model call that carried it, times the share of prompts that did not need it. Not recomputed from
@@ -258,19 +260,23 @@ const entriesOf = (store, changes, decision, result, now, undo) => {
   if (undo) writeJson(undoFile(store, group), undo);
   return changes.map(c => entryOf(store, c, decision, result, now, undo, { group }));
 };
-// The view's changes less the ones decided in the last month, the five largest: what the page, the session's summary
+// The view's changes less the ones lately decided (a dismissal holds a week, an action a month), the five largest:
+// what the page, the session's summary
 // and `thinker context` offer
 export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.max } = {}) {
   // a dismissal taken back makes its change a suggestion again, and so does a pull request closed without merging:
   // nothing was followed through on
   // a job that failed decided nothing either
-  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < DECIDED_DAYS * DAY && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
+  // A change left alone is offered again in the next weekly summary (`SUGGEST.dismissedDays`); one that was acted on
+  // waits a month, since what was done to it has to have time to show in the figures.
+  const held = h => (h.decision === 'dismissed' ? SUGGEST.dismissedDays : DECIDED_DAYS) * DAY;
+  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < held(h) && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
   return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
 }
 export function dismissChanges(store, changes, { now = Date.now(), via = VIA.command } = {}) {
   record(store, changes.map(c => entryOf(store, c, 'dismissed', null, now, null, { via: viaOf(via) })));
   store.log({ op: 'context-dismiss', changes: changes.length, via: viaOf(via) });
-  return changes.map(c => `${c.title}: dismissed; not suggested again for a month`);
+  return changes.map(c => `${c.title}: left alone; suggested again next week`);
 }
 // a section compressed on the page after its diff was read: the edit applied there, recorded here
 export function recordReviewed(store, change, result, { now = Date.now(), undo = null } = {}) { record(store, [entryOf(store, change, 'applied after review', result, now, undo)]); }
@@ -379,7 +385,11 @@ export async function scheduleContextSuggestion(store, { now = Date.now(), view,
   st.firstAt ||= st.checkedAt;
   const changes = currentChanges(store, view, { now });
   if (changes.length) {
-    st.pending = { at: st.checkedAt, days: view.days, sessions: view.sessions, changes };
+    // what an input token costs here, kept with the summary so the question can say what the changes are worth in
+    // money and not in tokens alone (report-snapshot.js:inputRateHere, a read of the kept report; null without one,
+    // and then the summary quotes tokens alone rather than a figure nothing measured)
+    const rate = await (async () => { try { return (await import('./report-snapshot.js')).inputRateHere(store); } catch { return null; } })();
+    st.pending = { at: st.checkedAt, days: view.days, sessions: view.sessions, changes, ...(rate ? { rate } : {}) };
     store.log({ op: 'context-suggest', changes: changes.length, saving: changes.reduce((a, c) => a + c.saving, 0) });
   }
   writeState(store, st);
@@ -407,7 +417,7 @@ export async function answerContextSuggestion(store, choice, { now = Date.now(),
   if (/^(none|no)$/i.test(raw) || !raw) {
     const said = dismissChanges(store, offered, { now, via: VIA.session });
     clear();
-    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will not suggest ${said.length === 1 ? 'it' : 'them'} again for a month. Go on with the task.`;
+    return `${said.length} change${said.length === 1 ? '' : 's'} left alone; thinker will suggest ${said.length === 1 ? 'it' : 'them'} again next week. Go on with the task.`;
   }
   const picked = pickChanges(offered, raw);
   // an answer that names none of the lines is not an answer: the question stays, and the agent is told what to pass
@@ -492,8 +502,17 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   // can place (a week of a 25k-token file across 7,600 calls is ~190M, true and useless).
   const perPrompt = p.changes.reduce((a, c) => a + (c.saving || 0), 0);
   const total = p.changes.reduce((a, c) => a + (c.total ?? c.saving ?? 0), 0);
-  store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, ui: Boolean(url) });
-  const lines = asked.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
+  // worth stopping someone for, or only worth saying (SUGGEST.minAsk, askSaving)
+  const thin = asked.length < SUGGEST.minAsk || asked.reduce((a, c) => a + (c.saving || 0), 0) < SUGGEST.askSaving;
+  store.log({ op: 'context-offer', changes: p.changes.length, saving: total, perPrompt, ui: Boolean(url), asked: !thin });
+  // What the saving is worth in money, where this repository's own report can price it (scheduleContextSuggestion
+  // keeps the rate). Nobody reads a question about 34M tokens and knows whether to care; "$42 a week" they do, and a
+  // suggestion nobody can value is one nobody acts on. One rule for the figure, the Report's own: these tokens at the
+  // list prices, cache reads at their own rate -- which is what a part of the context is read from on nearly every
+  // call, so it is far under the input rate and still worth saying.
+  const money = n => p.rate && n > 0 ? formatDollars(n * p.rate) : null;
+  const windowCost = money(total), per = c => { const m = money(c.total ?? c.saving ?? 0); return m ? `, about ${m}` : ''; };
+  const lines = asked.map((c, i) => `${i + 1}. ${c.title}: ~${formatTokens(c.saving || 0)} input tokens in every prompt (~${formatTokens(c.total ?? c.saving ?? 0)} over the last ${p.days} days${per(c)}); ${c.why}. Suggested: ${c.default ? c.default.text : 'dismiss, or change it by hand'}${c.options?.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`).join('\n');
   // The page is where the detail is, so its address goes in the question itself and not only in the block: what the
   // person is asked is which of five lines to act on, and a line is a title, a figure and a share -- not the section's
   // text, the skill's description or the diff a compression would make. The link opens on the very changes they were
@@ -501,16 +520,17 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   // is the same decision made with the detail in front of them rather than a second hunt through the rows.
   const page = url ? suggestionsUrl(url, repoId, { from: 'suggestion' }) : null;
   const where = page ? `at ${page} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
-  const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session, together ~${formatTokens(perPrompt)} input tokens in every prompt here (~${formatTokens(total)} over those ${p.days} days).`;
+  const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session${windowCost ? `, together worth about ${windowCost} over those ${p.days} days` : ''}: ~${formatTokens(perPrompt)} input tokens in every prompt here, ~${formatTokens(total)} over those ${p.days} days.${windowCost && !thin ? ` The dollars are those tokens at the providers' list prices, cache reads at their own rate, as thinker's Report prices them; a subscription bills none of it by the token.` : ''}`;
   const pageLine = `Every part of the context is a row ${where}, where these changes come already checked with the actions suggested below: each one can be reviewed in full -- a section's diff before it is written -- and nothing is applied until Apply is pressed${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: switching a built-in tool off takes a capability with it, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
-  // nothing a picker may offer: the page link alone, and no question
-  if (!asked.length) return `<thinker-context-suggestions>\n${lead}\n${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not make any of these changes yourself.\n</thinker-context-suggestions>`;
+  // Nothing a picker may offer, or too little to interrupt for: the lines and the page link, and no question. The
+  // person hears it once, in one line of their agent's own answer, and the page is there when they want it.
+  if (thin) return `<thinker-context-suggestions>\n${lead}\n${lines ? `${lines}\n` : ''}${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not ask them about it as a question, and do not make any of these changes yourself.\n</thinker-context-suggestions>`;
   const tool = QUESTION_TOOLS[client];
   // The question says it is thinker's (askThrough, and the name in the question text for the chat fallback, which
   // has no header): this is the question that cuts what the person loads into every session, and until 2026-10-29
   // it was the only one of the four that never said who was asking. It carries the page's address too, since the
   // picker is all of this block the person ever sees.
-  const question = `thinker found these changes to what loads into every session here. Make any?${page ? ` To see each one in full first, with its diff: ${page}` : ''}`;
+  const question = `thinker found these changes to what loads into every session here${windowCost ? `, worth about ${windowCost} over the last ${p.days} days at list prices` : ''}. Make any?${page ? ` To see each one in full first, with its diff: ${page}` : ''}`;
   const ask = tool && client !== 'codex'
     ? `Before you start on the request, ${askThrough(tool, question)}: one question whose options are the changes below, in this order, each option labelled with its own number and name as written below ("2. AGENTS.md · Releases") and taking the rest of its line as the description; let them choose more than one where your tool allows it. The numbers are how you hand their answer back, so keep them on the options rather than working them out again. Add a last option "None of these" so saying no is an answer like any other, and keep the whole question to the options your tool allows: where that leaves room for fewer changes than there are, offer the highest ones and say the rest are on the page (Claude Code's AskUserQuestion takes four, so three changes and the none).`
     : `Before you start on the request, ${askInChat(`which of these changes to make (any of them, or none), with the page's address for the detail${page ? ` (${page})` : ''}, and wait for their answer.`)}`;
@@ -520,7 +540,7 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const cmd = `thinker context --days ${p.days} --via session`;
   const after = MCP_CLIENTS.has(client)
     ? `Then call thinker's \`context\` tool with choice set to the numbers they chose, comma-separated (a number may take another action after a colon, e.g. 3:remove), or none, and asked "${tool && client !== 'codex' ? 'picker' : 'chat'}"; if that tool is not offered, run \`${cmd} --approve <those numbers>\`, or \`${cmd} --dismiss all\` for none. thinker makes the changes and tells you what it did; pass that on in one line opening "${SIGNATURE}:". Then go on with the task.`
-    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker does not suggest these again for a month. Then go on with the task.`;
+    : `Then run \`${cmd} --approve <the numbers they chose, comma-separated; a number may take another action after a colon, e.g. 3:remove>\` and tell them in one line opening "${SIGNATURE}:" what it did. If they choose none, run \`${cmd} --dismiss all\`: thinker leaves them alone and offers them again next week. Then go on with the task.`;
   return `<thinker-context-suggestions>
 ${lead}
 ${ask} Do not decide for them, do not make any of these changes yourself, and do not open the files to check them.
@@ -532,8 +552,8 @@ ${after}
 
 // The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve, the answer to the weekly
 // suggestion, the installer's picks): each one's default, made as the Context tab makes it. A skill or tool is switched
-// off for this repository, `thinker harness --undo` turning it back on (context-view.js:switchSources); an output gets
-// moderate compression (diet.js). Both are a line in a config file, so they are made here and done.
+// off for this repository, `thinker harness --undo` turning it back on (context-view.js:switchSources). That is a line
+// in a config file, so it is made here and done.
 //
 // A section is neither: it takes a model call to compress and it edits a file people read, so it goes to the background
 // as a job and becomes a pull request (startSectionJob), whichever door the person answered through -- the owner's rule
@@ -549,7 +569,7 @@ ${after}
 export async function approveChanges(store, changes, { via = VIA.command, pr, spawnFn = spawn, cliPath = CLI, now = Date.now() } = {}) {
   // a change may carry the action the person picked (`chosen`, one of its options); else its suggestion
   changes = changes.map(c => ({ ...c, ...(c.kind === 'tool' ? { scope: 'machine' } : {}), default: c.options?.find(o => o.act === c.chosen) || c.default }));
-  const { switchSources, setOutputCompression } = await import('./context-view.js');
+  const { switchSources } = await import('./context-view.js');
   const said = [], at = now;
   // the sections to the background, one job per action (the rows' dropdowns may differ), a pull request where one can be
   // opened here; `pr` is given by a caller that knows already, and by the tests
@@ -568,13 +588,6 @@ export async function approveChanges(store, changes, { via = VIA.command, pr, sp
   // each change made returns what it did, in a line, and how to take it back (revertDecision); a failure is said, not kept
   const make = async c => {
     if (!c.default) return { error: 'nothing switches it off' };
-    if (c.kind === 'output') {
-      // Compress is moderate (the diet's default, and the page's only level); the undo sets the level back to what it was
-      const level = c.default.act === 'uncompress' ? 'off' : 'moderate';
-      const r = setOutputCompression(store, [c.name], level);
-      const ok = level === 'off' ? /^Compression off for/.test(r) : /^Moderate compression for/.test(r);
-      return ok ? { result: level === 'off' ? 'Compression off from the next tool call' : 'Compressed from the next tool call', undo: { kind: 'output', name: c.name, level: c.compression || 'off' } } : { error: r };
-    }
     if (c.default.act === 'on') {
       const r = switchSources(store, { keys: [c.sourceKey || c.name], on: true });
       return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin), global: c.kind === 'tool' } : null } : { error: r };

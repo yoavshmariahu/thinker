@@ -80,17 +80,17 @@ const KIND_WORD = {
 const ACTION_WORD = {
   section: 'shortening the section, or taking it out of the instruction file altogether',
   skill: 'switching it off, so new sessions here stop loading it (it can still be run by name)',
-  output: 'compressing these results: they are trimmed down to the part the agent searched for before it reads them, and the tool itself goes on working exactly as before',
   tool: 'switching the tool off, so the agent has no definition of it and cannot call it at all',
 };
 
-// Every part of a context view, heaviest waste first, as the page lists them.
+// Every part of a context view, heaviest waste first, as the page lists them. A tool's output is not one of them
+// since 2026-11-04: the clearing compresses those and nobody is asked about them, so there is no decision to explain
+// (context-suggest.js:partChanges).
 export function viewParts(view) {
   const xs = [];
   for (const s of view?.instructions?.sections || []) xs.push({ kind: 'section', name: s.title, file: s.file, text: s.text, tokens: s.tokens, wastedWindow: s.wastedWindow, host: null });
   for (const s of view?.skills || []) xs.push({ kind: 'skill', name: s.name, text: s.text, tokens: s.tokens, wastedWindow: s.wastedWindow, host: s.client });
   for (const s of view?.tools || []) xs.push({ kind: 'tool', name: s.name, toolKind: s.kind, builtin: s.group === 'builtin', text: s.text, tokens: s.tokens, wastedWindow: s.wastedWindow, host: s.client });
-  for (const s of view?.outputs?.tools || []) xs.push({ kind: 'output', name: s.name, text: s.text, tokens: s.perCall, wastedWindow: s.wastedWindow, host: null });
   return xs.map(p => {
     const about = describePart({ kind: p.kind, name: p.name, toolKind: p.toolKind, builtin: p.builtin, text: p.text }).about;
     return { ...p, about, text: p.text || about || '', key: partKey(p) };
@@ -192,6 +192,5 @@ export function attachExplains(view, have = readExplains()) {
     instructions: { ...view.instructions, sections: (view.instructions?.sections || []).map(x => ({ ...x, ...put({ kind: 'section', name: x.title, file: x.file, text: x.text }) })) },
     skills: (view.skills || []).map(x => ({ ...x, ...put({ kind: 'skill', name: x.name, text: x.text }) })),
     tools: (view.tools || []).map(x => ({ ...x, ...put({ kind: 'tool', name: x.name, toolKind: x.kind, builtin: x.group === 'builtin' }) })),
-    outputs: { ...view.outputs, tools: (view.outputs?.tools || []).map(x => ({ ...x, ...put({ kind: 'output', name: x.name }) })) },
   };
 }

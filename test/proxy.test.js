@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';

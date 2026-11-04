@@ -150,6 +150,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // without a measured input they cannot sit in the three tables that add up to one whole (2026-10-25)
   const estCols = cols.map(() => ({ sessions: 0, prompts: 0 })), byEst = Object.fromEntries(PARTS.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
+  // the window's input cost over its input tokens, priced sessions only (inputRate)
+  let pricedInput = 0, pricedInputCost = 0;
   // one row a measured session (sessionRows): its input, the four parts as estimated, and the things it cost (above), so
   // each action can be measured as tokens a prompt before and since it (actionEffect), live over a kept report
   const sessionRows = [];
@@ -170,6 +172,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0) * cal, system: (c.system || 0) * cal, custom: (p.custom || 0) * cal, builtin: (p.builtin || 0) * cal, outputs: (p.outputs || 0) * cal, agentCalls: (c.agentCalls || 0) * cal, thinking: c.thinking || 0, prompts: ((c.prompts || 0) + (c.agentText || 0)) * cal, notes: (c.notes || 0) * cal };
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
+    if (inCost != null) { pricedInput += input; pricedInputCost += input * inCost; }
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }
     sessionRows.push({ t: r.t, input, prompts, parts: Object.fromEntries(PARTS.map(([k]) => [k, Math.round(est[k] * scale)])), ...(items.get(r.session) || { calls: 0, files: [], sources: {}, outputs: {} }) });
     const other = Math.max(0, input - sum * scale);
@@ -215,6 +218,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
+    inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
     tokenTypes,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, otherInput, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
@@ -246,7 +250,8 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     days, merged: s.merged, mergedSeen: s.mergedSeen, mergedAssisted: s.mergedAssisted, worked: s.worked, open: s.open,
     saved: { cleared: s.saved.cleared, reading: s.saved.reading, total: s.saved.total },
     agent: s.tokens.agent, complete: s.tokens.complete,
-    medianSaved: s.medianSavedPerMergedPr, medianAgent: s.medianTokensPerMergedPr, medianHours: s.medianHoursToMerge,
+    meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
+    cost: s.cost, meanNet: s.meanNetPerMergedPr,
     // The share of what those pull requests cost that never had to sit in a prompt. Both sides are the same
     // shape -- every prompt and every answer of their sessions, added up -- so the ratio means something.
     share: s.tokens.agent ? s.saved.total / s.tokens.agent : null,
@@ -256,6 +261,9 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       sessions: p.sessions.length, prompts: p.tokens.prompts, complete: p.tokens.complete,
       agent: p.tokens.agent, cleared: p.saved.cleared, reading: p.saved.reading.tokens, saved: p.saved.total,
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
+      // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
+      hours: p.hoursToMerge ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.saved ?? null, rewriteUsd: p.cost?.rewrite ?? null,
     })),
   };
 }
@@ -331,6 +339,13 @@ export function actionEffect(e, sessionRows = [], now = Date.now(), { until = nu
 }
 // What a prompt costs on average over the view's measured sessions (`sessionRows`): their input over their prompts. Shown
 // over the Saved column of Recent activity, the size the savings are read against.
+// What an input token cost here, in dollars at the list prices: the window's input cost over its input tokens, over
+// the priced sessions alone (`inCost` is each session's own, cache reads at a tenth of input and writes at twice it,
+// so the blend is how the sessions actually ran). It is the rate the Report already prices a part's share of the
+// input with, so a saving quoted anywhere -- the weekly question, `thinker context` -- reads the same as the table.
+// An unpriced model is left out rather than counted at zero (prices.js), and a window with no priced session has no
+// rate at all: then a figure is quoted in tokens alone rather than guessed at. Measured by reportView, read back here.
+export const inputRate = view => view?.inputRate ?? null;
 export function promptAverage(sessionRows = []) {
   const prompts = sessionRows.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0), tokens = sessionRows.reduce((a, r) => a + r.input, 0);
   return prompts ? { sessions: sessionRows.length, prompts, tokens, perPrompt: Math.round(tokens / prompts) } : null;
@@ -437,9 +452,11 @@ export function mergeReports(list) {
 }
 
 // All repositories: the counts and the tokens add, since a pull request belongs to one repository and a
-// session to one pull request, so nothing is counted twice. The medians do not add and are not averaged into
-// a median of medians: they are recomputed over every merged pull request of every repository. Each row
-// carries the repository it came from, because two repositories number their pull requests from 1.
+// session to one pull request, so nothing is counted twice. The averages do not add and are never an average
+// of averages, which would weigh a repository with one pull request like one with fifty: they are recomputed
+// over every merged pull request of every repository, the hours included (each row carries its own, which is
+// why `hours` is on a row at all). Each row carries the repository it came from, because two repositories
+// number their pull requests from 1.
 function mergePrSavings(list) {
   const parts = list.map(x => ({ p: x.view.prs, repo: x.repo, name: x.name })).filter(x => x.p);
   if (!parts.length) return null;
@@ -451,15 +468,21 @@ function mergePrSavings(list) {
   return {
     days: parts[0].p.days, merged: sum(p => p.merged), mergedSeen: sum(p => p.mergedSeen), mergedAssisted: sum(p => p.mergedAssisted),
     worked: sum(p => p.worked), open: sum(p => p.open), saved, agent, complete: sum(p => p.complete),
-    medianSaved: median(rows.map(r => r.saved)), medianAgent: median(rows.filter(r => r.complete).map(r => r.agent)),
-    medianHours: median(parts.map(x => x.p.medianHours).filter(h => h != null)),
+    meanSaved: mean(rows.map(r => r.saved)), meanAgent: mean(rows.filter(r => r.complete).map(r => r.agent)),
+    meanHours: mean(rows.map(r => r.hours)),
+    // the dollars add like the tokens; the mean is signed, since a net can be a loss (delivery.js:meanSigned)
+    cost: {
+      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), net: sum(p => p.cost?.net),
+      costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
+    },
+    meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
     share: agent ? saved.total / agent : null,
     sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
     rows,
   };
 }
 
-const median = xs => { const v = xs.filter(x => Number.isFinite(x)).sort((a, b) => a - b); if (!v.length) return null; const m = v.length >> 1; return v.length % 2 ? v[m] : Math.round((v[m - 1] + v[m]) / 2); };
+const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.isFinite(x) && (signed || x >= 0)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 
 // The report as the command prints it: the three tables with their totals, the cache's numbers. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
@@ -532,14 +555,20 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
       `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
-      `  on the median one      ${formatTokens(pr.medianSaved || 0)} saved, ${pr.medianAgent == null ? '–' : formatTokens(pr.medianAgent)} spent${pr.medianHours == null ? '' : `, ${pr.medianHours < 10 ? pr.medianHours.toFixed(1) : Math.round(pr.medianHours)}h open to merged`}`,
+      `  on the average one     ${formatTokens(pr.meanSaved || 0)} saved, ${pr.meanAgent == null ? '–' : formatTokens(pr.meanAgent)} spent${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
+      // The dollars are netted, and they are the only place a saving and its cost are the same unit: a cleared
+      // token saved a cache read, the rewrite after the clear paid for a cache write, and the two prices differ
+      // twentyfold. The band stays in tokens; this line says what they came to (delivery.js, prices.js).
+      ...(pr.cost && (pr.cost.saved || pr.cost.rewrite) ? [
+        `  in dollars, netted     ${formatDollars(pr.cost.net)} = ${formatDollars(pr.cost.saved)} saved less ${formatDollars(pr.cost.rewrite)} of cache writes after a clear${pr.meanNet == null ? '' : `, ${formatDollars(pr.meanNet)} on the average one`}`,
+      ] : []),
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
-      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}`);
+      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}${'net'.padStart(10)}`);
       for (const r of pr.rows.slice(0, n)) {
         const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}`);
+        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(10)}`);
       }
       if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
       if (pr.rows.slice(0, n).some(r => !r.complete)) L.push('  * a session of that pull request reported no counters, so its cost is partial.');

@@ -28,7 +28,7 @@ function fixture(t) {
   const initial = git(repo, 'rev-parse', 'HEAD');
   // A caller on an old dirty checkout must never package these uncommitted bytes.
   fs.appendFileSync(path.join(repo, 'README.md'), '\nUSER EDIT\n');
-  const state = { calls: [], pr: null, releases: {}, npm: new Set(), login: true, npmLatest: null, failPublish: false, failTests: false, failUpload: false, staleLatest: false, registryError: false, latestTag: null };
+  const state = { calls: [], pr: null, releases: {}, npm: new Set(), login: true, npmLatest: null, failPublish: false, failTests: false, failModTests: false, failUpload: false, staleLatest: false, registryError: false, latestTag: null };
   const ok = stdout => ({ status: 0, stdout: typeof stdout === 'string' ? stdout : JSON.stringify(stdout ?? ''), stderr: '' });
   const fail = stderr => ({ status: 1, stdout: '', stderr });
   const merge = () => {
@@ -74,6 +74,11 @@ function fixture(t) {
         if (args[args.indexOf('--tag') + 1] === 'latest') state.npmLatest = p.version;
         return ok();
       }
+    }
+    // The desktop mod has its own runner; a release must stop when it does not compile (scripts/release.mjs:test).
+    if (cmd === 'claude') {
+      assert.deepEqual(args, ['plugin', 'test', 'src/integrations/claude-clear']);
+      return state.failModTests ? fail('mod tests failed') : ok();
     }
     if (cmd === 'gh') {
       if (args[0] === 'auth') return ok();
@@ -261,7 +266,10 @@ test('failed tests, registry errors, expired auth and stale download URLs stop b
   const f = fixture(t); f.state.failTests = true;
   await assert.rejects(f.invoke(), /tests failed/);
   assert.equal(f.state.pr, null); f.assertUntouched();
-  f.state.failTests = false; await f.invoke(); f.merge();
+  f.state.failTests = false; f.state.failModTests = true;
+  await assert.rejects(f.invoke(), /mod tests failed/);
+  assert.equal(f.state.pr, null); f.assertUntouched();
+  f.state.failModTests = false; await f.invoke(); f.merge();
   f.state.registryError = true;
   await assert.rejects(f.invoke(), /E503/);
   f.state.registryError = false; f.state.login = false;
