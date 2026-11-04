@@ -173,56 +173,40 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
   cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
 
-**The clearing: thinker cuts the context itself, and it is the only mechanism (MANDATORY, 2026-11-04, the owner's call; `src/cutting.js`, `src/proxy.js:cutCandidates`/`applyCut`, `test/cutting.test.js`):**
-- The API's own edit (`context_management`, `clear_tool_uses_20250919`) is gone, with `clearing.js` entire. It had no
-  state: the server re-derived the clearing from the edit on every call, so the proxy could never hold the cleared
-  point still. It asked, the server chose oldest-first, re-applied on its own schedule, and every move rewrote the
-  prefix -- 3 moves in one 9-turn run, 5 in a 14-turn one, 15 in a week of this machine's log, each a write nobody
-  chose. `keep` was a count, so three cheap echoes evicted the 25k-token read a turn was about to answer from and the
-  model omitted the value on 4 of 14 turns at the shipped trigger. And the exit was a rewrite too: dropping the edit
-  un-cleared the conversation, 351,929 tokens in one session, 74% of the damage the gauge had stopped over, to land
-  43% costlier per call than carrying on. #585-#600 spent five patches chasing a freeze with nothing to freeze.
-- A cut is a set of `tool_use` ids thinker keeps. The agent re-sends the whole conversation every call, so applying
-  the same ids gives the same bytes, call after call and across a restart. Three properties follow, and they are the
-  whole module: **the newest turn is kept by a rule** whatever its shape (a ten-call turn keeps all ten);
-  **the ratchet** -- a cut result stays cut, so the prefix never moves and every call of a turn is byte-identical,
-  which is the invariant above held by construction rather than by asking; and **stopping is free**, so there is no
-  uneconomic stop to get wrong and no gauge pricing its own exit at zero.
-- **One decision, at a turn boundary, priced exactly** (`decideCut`, `priceCut`). A cut costs the whole post-cut
-  prompt less the system prompt, because that is the only cache breakpoint a mid-conversation edit leaves usable:
-  measured over four cuts on 2026-11-04, `write == post-cut prompt - 12,895` every time, and 12,895 was that call's
-  entire cache read. Pricing it as the tail from the first changed result underpriced cuts 2, 3 and 4 by 2.3x, 3.0x
-  and 3.8x. The saving is the dropped tokens read back over the calls the session likely has left.
-- **The same three operations as the desktop door** (`register.tsx:clearOld`), which is what "one policy" means here:
-  the old result becomes a placeholder, an assistant row before the newest turn has its call text emptied
-  (`clearInputs`), and that row loses its thinking (`clearThinking`). Both default on, as the mod has always had
-  them -- the proxy kept `clearThinking` off because the server-side thinking edit's keep grew within a turn and
-  rewrote the cache, which a set decided at a boundary cannot do. `clearDeep` keeps the mod's meaning: without it,
-  one cut a session. `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keepMin` 3, `clearInputs`,
-  `clearThinking`, `clearDeep`; `keep` is gone, because a count is what the rule replaces.
-- October's breakage was an in-place edit of the history, so the edit stays narrow: thinking blocks and `tool_use`
-  inputs outside the turn are rewritten, nothing else is, and a `tool_result`-only edit is proven live (2026-11-04,
-  6 and 8 placeholders beside 3 untouched thinking blocks, every call 200, no compaction boundary). **The wider
-  edit, with the thinking dropped, has not been through a live call.** A 400 on a request the proxy cut is read
-  before anything reaches the agent (`refusesEdit`): a rejection sends the agent's own bytes and stops cutting for
-  the life of the process (`proxy-cut-rejected`, counted as `sessionsRejected`). The edit is the proxy's own now, so
-  a history the API will not take is the proxy's fault and the only safe answer is to stop editing.
-- Measured, one rep, realistic 14-turn workload at the shipped trigger and floor, against an unedited control
-  charged the cold start it skipped: **-2.8% at the 1h write rate, -12.1% at 5m**. All 14 turns answered, 9
-  identical to the control and 5 off by one line (both arms read the total from the Read tool's truncation notice),
-  **0 values omitted**, against 4 turns that omitted a value server-side. Per call the read is 91,811 against
-  371,995, because the control's context grows without bound (46k to 804k) while the cut's stays bounded, so the
-  saving per call grows with the length of the session while a cut's write does not.
-- What it does not fix: at the 1h write rate the clearing is near break-even whoever does the cutting, and the
-  model, having lost the raw results, **disowns answers that are correct** ("the line counts I gave in turns 9-11
-  were made up") on 4 of 14 turns, with the values matching the control exactly. No cost measurement sees that.
-- `src/proxy-replay.js` still models the API-side edit, so `thinker proxy replay`'s figures are about a mechanism
-  that no longer ships. Its history: the replay over 264 sessions put results alone at 100k/80k at -0.2% and the
-  full edit at 140k/100k at +7.3%, which is what the 140k/100k floor was chosen on. Judge a change here by cache
-  writes against the 15% holdout, in agent sessions, never by that replay.
-- **Bench flaw to avoid** (`research/clearing-bench`): the arms share a system prompt and tool list, so whichever
-  runs second inherits the first's cache inside the 1h TTL. The control wrote 0 on its first two calls where the cut
-  arm wrote 39,026. Run both orders, or discount the first calls.
+**The clearing: thinker cuts the context itself (MANDATORY, 2026-11-04; `src/cutting.js`, `src/proxy.js:applyCut`):**
+- The proxy replaces older tool results with a placeholder in the request it forwards. Nothing is asked of the
+  API, and nothing else in the prompt is touched: not the call text, not the thinking, not the person's prompts,
+  not the agent's own words. Measured composition of one real request (642,444 chars): older results 60.7%, the
+  live turn's results 17.9%, prompts 7.0%, agent text 5.4%, tool definitions 4.7%, system prompt 1.1%, call text
+  0.8%. The results are the only part worth reaching.
+- **A cut costs the tail, not the prompt** (`cutCandidates`). The rewrite is the messages from the first replaced
+  result onward, as they will be sent -- placeholders, not the full results the agent resent. Pricing it as the
+  whole prompt over-stated the cost 3.1x, 7.9x and 14.9x on the second, third and fourth cut of a 28-turn
+  session, because every result cut earlier was still counted at full size; the policy then refused cuts whose
+  real paybacks were 10, 8 and 6 calls. The API's own writes on those calls were 47k, 58k, 56k, 52k -- flat,
+  because the band runs to the protection boundary and everything between is itself replaced.
+- **The decision is at a turn boundary, and that is also the cheapest moment** (`decideCut`). Before the turn has
+  made a tool call there is nothing protected in the tail: measured over one session, a cut priced at the first
+  call of a turn has a tail of 3k-14k and repays in 3-7 calls, where the same cut one call later carries the
+  turn's own results in its tail (44k-58k) and repays in 18-94. The sweet spot is not a tuning knob; it falls
+  out of pricing the tail honestly.
+- **A cut must repay inside `PAYBACK` (20) later calls**, and nothing is assumed about how long the session runs.
+  The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
+  so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
+  the saving it would have made, a wrong one pays a full prefix rewrite up front.
+- **The ratchet.** A cut is a set of `tool_use` ids kept per session on disk (`cutStore`). The agent resends the
+  whole conversation on every request and knows nothing of this, so the set is re-applied to each one -- 1.9 ms
+  on a 1 MB body, no tokens, and no rewrite, because the same ids give the same bytes. Within a turn the set
+  never moves, which is what keeps the prompt cache. Stopping is free: keep applying the set and cut no more.
+- Proven live (2026-11-04): 16 of 16 calls answered 200 with a conversation thinker had edited, thinking
+  included and no compaction boundary, so the October 2026 breakage does not reproduce. The ratchet held 26
+  turns with 0 mid-turn moves and 0 refusals. On the realistic 14-turn pairing, 0 of 95 requested values were
+  omitted, where the API-side path omitted 5 of 47.
+- Not settled: the 28-turn pairing measured +38% against its control, and the cuts' own writes account for 213k
+  of a 1.32M excess. The cut arm writes on 89% of calls against the control's 44%, and the proxy's own output is
+  byte-consistent (consecutive requests of a session differ only where Claude Code moves its own `cache_control`
+  marker), so the cause is not yet known. Judge any change here by cache **write** tokens, against the 15%
+  holdout, and dump both arms (`THINKER_PROXY_DUMP`) before trusting a figure.
 
 **One summary, not a line a turn (2026-11-01, the owner's call):**
 - thinker said something at the end of nearly every turn: the notes served in it, what the clearing
