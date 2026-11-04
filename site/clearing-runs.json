@@ -1,13 +1,63 @@
 [
-  {"id": "click-1", "label": "Click bug fix · pair 1", "group": "click", "when": "2026-11-04", "default": true},
-  {"id": "click-2", "label": "Click bug fix · pair 2", "group": "click", "when": "2026-11-04"},
-  {"id": "click-3", "label": "Click bug fix · pair 3", "group": "click", "when": "2026-11-04"},
-  {"id": "click-4", "label": "Click bug fix · pair 4", "group": "click", "when": "2026-11-04"},
-  {"id": "click-5", "label": "Click bug fix · pair 5", "group": "click", "when": "2026-11-04"},
-  {"id": "click-6", "label": "Click bug fix · pair 6", "group": "click", "when": "2026-11-04"},
-  {"id": "click-7", "label": "Click bug fix · pair 7", "group": "click", "when": "2026-11-04"},
-  {"id": "click-8", "label": "Click bug fix · pair 8", "group": "click", "when": "2026-11-04"},
-  {"id": "click-9", "label": "Click bug fix · pair 9", "group": "click", "when": "2026-11-04"},
-  {"id": "click-10", "label": "Click bug fix · pair 10", "group": "click", "when": "2026-11-04"},
-  {"id": "synthetic", "label": "Controlled reads · 14 turns", "group": "synthetic", "when": "2026-11-03"}
+  {
+    "id": "click-1",
+    "label": "Click bug fix \u00b7 pair 1",
+    "group": "click",
+    "when": "2026-11-04",
+    "default": true
+  },
+  {
+    "id": "click-2",
+    "label": "Click bug fix \u00b7 pair 2",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-3",
+    "label": "Click bug fix \u00b7 pair 3",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-4",
+    "label": "Click bug fix \u00b7 pair 4",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-5",
+    "label": "Click bug fix \u00b7 pair 5",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-6",
+    "label": "Click bug fix \u00b7 pair 6",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-7",
+    "label": "Click bug fix \u00b7 pair 7",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-8",
+    "label": "Click bug fix \u00b7 pair 8",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-9",
+    "label": "Click bug fix \u00b7 pair 9",
+    "group": "click",
+    "when": "2026-11-04"
+  },
+  {
+    "id": "click-10",
+    "label": "Click bug fix \u00b7 pair 10",
+    "group": "click",
+    "when": "2026-11-04"
+  }
 ]

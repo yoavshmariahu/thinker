@@ -8,7 +8,7 @@ const request = (uri, method = 'GET') => context.handler({ request: { uri, metho
 test('public website serves docs, messages and current/legacy downloads without authorization', () => {
   for (const uri of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) assert.equal(request(uri).uri, '/docs.html');
   for (const uri of ['/clearing', '/clearing/', '/clearing.html']) assert.equal(request(uri).uri, '/clearing.html');
-  for (const f of ['/clearing-click-1.json', '/clearing-click-1-session.json', '/clearing-synthetic.json', '/clearing-runs.json']) assert.equal(request(f).uri, f);
+  for (const f of ['/clearing-click-1.json', '/clearing-click-1-session.json', '/clearing-click-2.json', '/clearing-runs.json']) assert.equal(request(f).uri, f);
   for (const uri of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
     assert.equal(request(uri).uri, uri); assert.equal(request(uri, 'HEAD').uri, uri);
   }
@@ -38,7 +38,6 @@ test('the clearing page inlines a run index and the default run, and every run f
   const ix = html.match(/const RUN_INDEX = \/\*RUN_INDEX\*\/(\[.*?\]);\n/s);
   assert.ok(ix, 'the run index is inlined');
   const index = JSON.parse(ix[1]);
-  assert.ok(index.some(r => r.id === 'synthetic'), 'the controlled run is there');
   assert.ok(index.some(r => r.group === 'click'), 'the real session is there');
   const m = html.match(/const RUN_DATA = \/\*RUN_DATA\*\/(\{.*?\});\n/s);
   assert.ok(m, 'the default run is inlined');
