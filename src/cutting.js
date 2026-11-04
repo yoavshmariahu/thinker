@@ -41,8 +41,6 @@ export const COLD_MS = 65 * 60 * 1000;
 // median further calls a session makes, by the calls it has made, measured on this machine's 146 proxied sessions
 // (5 -> 47, 10 -> 47, 20 -> 40, 40 -> 68, 60 -> 90, 100 -> 92, 150 -> 68). Flat-ish and heavy-tailed, so the steps
 // are coarse on purpose: a curve fitted to 146 sessions would be false precision.
-export const REMAINING = [[10, 40], [20, 40], [40, 68], [100, 90]];
-export const remainingCalls = n => (REMAINING.find(([at]) => n <= at) || [0, 90])[1];
 
 // For the report: a call that wrote most of its context into the cache rather than reading it, on a context long
 // enough for that to be a rewrite. A heuristic, and the gauge does not use it: under LONG_CONTEXT the newest result
@@ -56,6 +54,16 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // again. No estimate, no margin.
 
 // A cut result's content, from the original length, so the bytes are the same every call.
+// A cut must repay its rewrite inside this many later calls, and nothing is assumed about how long the
+// session will run. The horizon it replaces (REMAINING, 40 rising to 90 with calls made) was wrong in the
+// one direction that costs: it grew the longer a session had run, so the latest cuts -- which rewrite the
+// largest post-cut context -- were valued the most generously. Measured 2026-11-04 on a 28-turn session,
+// the four cuts needed 14, 32, 66 and 82 calls to repay and the horizon granted them 40, 40, 68 and 90;
+// the last spent 1,542,268 tokens to save 168,646, and the two late cuts were the whole of a +38% loss.
+// The floor is deliberately tight because the two errors are not symmetric: a cut refused costs nothing
+// but the saving it would have made, while a cut taken wrongly pays a full prefix rewrite up front.
+export const PAYBACK = 20;
+
 export const MIN_CHARS = 200;
 export const placeholder = chars =>
   `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`;
@@ -76,12 +84,13 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, calls = 0, model = null } = {}) {
-  const read = readRate(model), have = remainingCalls(calls);
+export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {}) {
+  const read = readRate(model);
   const recache = Math.max(0, (m.prompt || cand.recache) - cand.tokens - (m.system || 0));
   const cost = cold ? 0 : recache * writeRate(ttl);
-  const saving = cand.tokens * read * have;
-  return { tokens: cand.tokens, recache, cost, saving, have, need: read > 0 ? Math.ceil(recache * writeRate(ttl) / (cand.tokens * read)) : 0, pays: cand.tokens > 0 && saving > cost };
+  // How many later calls until the cut has paid for its rewrite. No horizon is guessed: see PAYBACK.
+  const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
+  return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes

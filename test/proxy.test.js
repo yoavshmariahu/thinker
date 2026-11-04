@@ -256,7 +256,6 @@ test('flags win over the environment, the environment over the defaults', () => 
   // and keepMin is only a floor for a short turn. The count was what let three echoes evict a 25k read.
   assert.equal(PROXY_DEFAULTS.keep, undefined);
   assert.equal(proxyConfig({}, {}).keepMin, 3);
-  assert.equal(proxyConfig({}, {}).clearThinking, true, 'as the mod has always had it');
 });
 
 test('a plain JSON answer is read too', () => {
@@ -389,17 +388,17 @@ test('what the proxy adds to a request is identical from one call of a turn to t
     return out;
   };
   const TURN2 = 22;                      // messages[21] is 'second request'; its first call carries 22
-  const seen = turnOf(proxyConfig({}, {}), TURN2, messages.length);
+  const seen = turnOf({ ...proxyConfig({}, {}), ...CUTS }, TURN2, messages.length);
   for (let i = 1; i < seen.length; i++) assert.equal(seen[i], seen[0], `call ${TURN2 + i} of the turn sends what the first did`);
   // with clearDeep off the set is decided once a session, so the bytes hold across turns too
-  const once = turnOf(proxyConfig({ 'clear-deep': false }, {}), TURN2, messages.length);
+  const once = turnOf({ ...proxyConfig({ 'clear-deep': false }, {}), ...CUTS }, TURN2, messages.length);
   for (let i = 1; i < once.length; i++) assert.equal(once[i], once[0], 'one cut a session holds as well');
-  // Everything the proxy does is in the bytes above: there is no edit whose parameter could drift, which
-  // is what the old `clear_thinking` keep did (it counted the turn's assistant messages, so it grew a call
-  // and rewrote the prefix; that is why clearThinking shipped off here while the mod had it on). The
-  // defaults carry all three operations, so the comparison above is the whole guarantee.
-  assert.equal(PROXY_DEFAULTS.clearInputs, true);
-  assert.equal(PROXY_DEFAULTS.clearThinking, true);
+  // Everything the proxy does is in the bytes above: it replaces results and touches nothing else, so there
+  // is no edit whose parameter could drift. The two piggybacks that could -- emptying the older call text
+  // and shedding their thinking -- are gone from both doors (2026-11-04): worth 0.6% and nothing, and the
+  // first taught the model it called tools without arguments.
+  assert.equal(PROXY_DEFAULTS.clearInputs, undefined, 'the call text is never emptied');
+  assert.equal(PROXY_DEFAULTS.clearThinking, undefined, 'thinking is never dropped');
 });
 
 
