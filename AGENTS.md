@@ -158,7 +158,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   pinned by `test/claude-clear.test.js`; the same `proxy: { clearDeep }` key): a clear here rewrites the conversation in
   place, so the write it costs is the context after the first row it changes (`clearOld` returns `prefixChars`) less
   what it drops, and it is made at `turn.complete` when the reads it saves over the session's likely remaining requests
-  repay that write, as the proxy decides (`src/clearing.js`, the section below). What was cleared stays cleared: a
+  repay that write, as the proxy decides (`src/cutting.js`, the section below). What was cleared stays cleared: a
   placeholder is never touched again, so a later clear only takes what came after. The pause that makes a clear free is
   measured from the end of the last turn to the first request of this one, not from one turn's end to the next, which
   made a turn longer than the cache's hour look like a cold pause. `/thinker-clear` is never held back. Until
@@ -173,159 +173,56 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
   cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
 
-**The clearing policy: clear, freeze what was cleared, clear again when it pays (MANDATORY, 2026-11-02, the owner's call; `src/clearing.js`, `test/clearing.test.js`):**
-- A clear is an investment: one cache write now, of everything after the first result it drops, against a cache read
-  of what it dropped on every later call. At list a 1h write is 2x an input token on every Anthropic model, and a read is a
-  tenth of one on most, a twentieth on Opus 5.5 and a fortieth on Fable (`model-usage.js:RATES`, what `prices.js` has
-  always priced from; Claude Code 2.1.316's own catalog agrees), so a written token needs 20, 40 or 80 later reads
-  (`WRITE_1H`, `WRITE_5M`, `readRate(model)`; the mod's `READ_RATES`/`writeRatio` from `$.session.model()`, pinned to it
-  by `test/claude-clear.test.js`). Until 2026-11-02 evening `READ` was 0.025 for every model: on Opus 5.5 every clear was
-  valued at half its saving, and the gauge stopped the first paired smoke session one call after its first clear (a
-  block the server moved from 12 to 11 results, 119k written, against 100k cleared read back over 40 calls), after which
-  the session ran unedited to a 400k context. Re-priced at Opus 5.5 list, the nine-prompt smoke of that day (mlflow
-  PR26265) is bare-direct $5.58, clearing $6.10, cache+clearing $6.73: reads fell from $2.14 to $0.66, writes rose from
-  $3.05 to $5.01, five of them the server moving its cleared set under a byte-identical edit (23, 22, 20, 19 results,
-  each a rewrite from the system prompt). On this model the clearing does not pay until those moves are understood;
-  `THINKER_PROXY_DUMP` keeps the requests that can show what moves them. That is the whole policy. Four things follow from it, and
-  nothing else is in the module:
-  1. **The decision** (`decide`), at a turn boundary only (`turnId`: the count of the person's prompts). `clearable` is
-     what sits before the turn by the proxy's count (`proxy.js:measureClearing`) less what the server reported cleared:
-     the proxy sees the agent's whole request, cleared results included, and what is already cleared is never
-     considered again. The candidate ask is cleared plus `DEEP_MARGIN` (0.7) of clearable, so the ask only ever grows.
-     It is sent when the saving -- the dropped tokens, read back over the calls the session likely has left
-     (`remainingCalls`) -- exceeds the write (`price`: the prompt after the cached prefix up to the first newly dropped
-     result, less what is dropped; zero after a pause past `COLD_MS`, when the request writes its context anyway).
-     Before the first clear the deeper ask is taken as is: nothing cleared is cached yet, and the first clear is cheaper
-     the deeper it is, since more of the tail it writes is the dropped material (measured 2026-11-02: dropping 102,691
-     tokens from a 137k context cost a 26,694-token write). `clearDeep: false` keeps every ask at the floor. The row
-     carries `turn`, `asked`, and on a deliberate clear `clear: { cost, saving, dropped, recache, cold }`, so the estimate
-     can be read beside what the API then wrote.
-  2. **The freeze.** Between decisions every call sends the same edit, byte for byte, and `keep` is `keepMin`, constant
-     (`proxy.js:keepValue`). The server clears oldest-first, so a deeper ask is a superset of the last and the cached
-     prefix up to the old boundary survives. The proxy never steers the server's count with the keep: that was the
-     freeze of #585/#588 (`FROZEN_OFFSET`), which chased the block instead of holding it (keep 7 took one session's
-     block from 526 to 443, keep 95 to 263, 460k and 600k written, on 2026-11-02) and needed the unfreeze of #596 to
-     notice.
-  3. **The record on disk** (`store`, `<log dir>/clearing/<session>.json`), read on every request and written after
-     every answer: the edit in force, the server's count, what the clears saved and what the rewrites cost. A restarted
-     proxy sends the same edit. On 2026-11-02 the proxy started ten times in four hours (hooks from five worktrees
-     racing `ensureProxy`, a crash loop on a missing dependency while the update swapped the app), and each start re-did
-     a deep clear from nothing, 400-600k tokens written apiece, because the freeze lived in the process.
-  4. **The gauge** (`response`). A rewrite the policy did not plan -- not the session's first clear, not a call carrying
-     a changed edit, not the first application of an ask raised ahead of the trigger, not after a cold pause -- counts
-     against the session at the write rate; when `written` exceeds `saved` plus what the cleared tokens can still save
-     over the calls left, the session stops clearing (`reason: 'uneconomic'`, logged `proxy-clearing-stopped` once with
-     `saved`, `ahead`, `written`; the status line counts `sessionsStopped`). A block the server moves on its own
-     (`proxy-clear-moved`, `from`/`to`) is not a special case: if it rewrites, it lands on the cost side. An ask past
-     the trigger the server did not meet puts the session on the floor for good (`proxy-clear-unmet`).
-- Gone with it: `FROZEN_OFFSET`, `DEEP_MOVES`, the thaw as a state of its own, the unfreeze, the shallow and refused
-  flags, the rewrite streak and rate (`rewriteWatch`), and the once-per-session economics gate (`clearEconomics`,
-  `payWatch`). Each was a patch on the one before, five of them existed only to correct the freeze, and none shared
-  state. `clearPays` survives as `price`.
-- **What the proxy adds to a request is the same on every call of a turn (MANDATORY).** The server edits the
-  conversation afresh on every call, so a parameter that moves within a turn makes the edited prompt differ from the
-  cached one near its top and every call writes the prefix over: the keep that grew with the turn cost −$801 at list
-  in a week on one machine, and no test, replay or card noticed. `test/proxy.test.js` ("identical from one call of a
-  turn to the next") runs a long turn through `transformRequest` with a record and requires `context_management`
-  byte-identical on every call for the default config; a new edit must pass it or stay off (the thinking edit is off for
-  this reason). `measureClearing` counts only what sits before the turn, so the decision cannot move while the turn runs.
-- **The server's rule, read from the requests (2026-11-02/03, `THINKER_PROXY_DUMP`, mlflow PR26265 smoke6, Opus 5.5
-  1M; the earlier reading from `research/clearing-bench`'s uniform 20k results, "everything but the keep", was wrong).**
-  Claude Code's requests are append-only (only the cache_control marker moves), so what moves is the server's own
-  choice. When the input crosses the trigger the API clears the smallest oldest-first set whose tokens reach
-  `clear_at_least`, the newest `keep` aside (7 of 10 results, 108k at ask 100k); it holds that set on every later
-  call while the context stays under the trigger; once the post-clear context crosses the trigger again it clears
-  about 100k beyond what it held (108k to 219k, 7 to 12 of 15), which the bench's 5, 10, 15 of 18 also fit. A changed
-  ask is evaluated afresh (ask 255,717 cleared 32 of 39, 256,970 tokens). **An ask the server cannot meet applies
-  nothing at all**: the whole conversation comes back uncleared for that call (171k read, 73k written, smoke5), which
-  is why the kept results are left out of what is clearable. The shrinking of the cleared set seen in smoke5 (23, 22,
-  20, 19, each a rewrite from the system prompt) appeared only in sessions that had such an unmet ask; smoke6, without
-  one, went 0, 7, 12, 32, 34 and never shrank. Claude Code sets its cache breakpoints on the system prompt and the
-  newest messages, and the API finds a cached prefix only at a breakpoint or within about twenty blocks before one, so
-  any change of the cleared set mid-conversation reads the system prompt alone (12,707 tokens there) and writes the
-  whole post-clear context: a re-application is cheap only while that context is small (7 to 12: 9k written), and a
-  deeper ask that dropped 12-28k wrote 60k each time. Claude Code 2.1.316 sends no tool clearing of its own (its only
-  edit is `clear_thinking keep: all`), so this is the API's answer to thinker's edit alone.
-- **The gauge is exact, not a ratio (2026-11-02).** The first gauge judged a rewrite by write over half the context,
-  the report's heuristic, and on a 40k conversation a 21k file read is half the context: both sessions of the
-  multi-turn paired run were stopped on their second cleared call and passed through unedited after, +9.4%. The
-  gauge now reads the prompt's size from the API's own usage on every answer (`clearing.js:rawOf`: input, cache
-  read, cache write and cleared, added up), so the growth between two answers is known in the API's units, and
-  what was written beyond that growth is the prefix written again, counted as it is. `isRewrite` stays for the
-  report, over `LONG_CONTEXT` only.
-- **Measured with the exact gauge (2026-11-02, two reps, `research/clearing-bench/README.md`):** the 18-file
-  single-turn workload **−8.8%** at the 1h write rate (−22.6% at 5m), the nine-turn workload **−4.1%** (−17.8%),
-  nothing stopped, the server re-applying 3 and 16 times. The same single-turn edit had read +21.3% that morning:
-  two reps do not settle a sign, and the number moves with how many calls the model makes in each arm. What is
-  settled is the mechanism above; the live week on this machine, judged by `proxy-clearing-stopped` rows and the
-  rewrite line of `thinker proxy status`, is still what decides the default.
-- What the replay cannot see either way is the model reading again what it lost, fresh input at the full rate. The 15%
-  holdout stays for that.
-
-**Thinker cuts the context itself (2026-11-04, off behind `--client-cut`; `src/cutting.js`, `test/cutting.test.js`):**
-- The server-side edit has no state. The API re-derives the clearing from it on every call, so the proxy could
-  never hold the cleared point still: it asked, the server chose oldest-first, re-applied on its own schedule,
-  and every move rewrote the prefix -- 3 moves in one 9-turn run, 5 in a 14-turn one, 15 in a week of this
-  machine's log, each a write nobody chose. #585-#600 spent five patches chasing a freeze with nothing to freeze.
-- What it cost, measured: `keep` is a count, so three cheap echoes evicted the 25k-token read a turn was about
-  to answer from, and the model omitted the value on 4 of 14 turns at the shipped trigger; the server reached
-  into the turn in progress on 3 of 20 dumped calls; and the exit was a rewrite too -- dropping the edit
-  un-cleared the conversation for 351,929 tokens of write, 74% of the damage the gauge had stopped over,
-  landing 43% costlier per call than carrying on. The gauge's rule is a sunk-cost one and prices its exit at zero.
-- A cut here is a set of `tool_use` ids thinker keeps. The agent always re-sends the whole conversation, so
-  applying the same ids gives the same bytes, call after call and across a restart. Three properties follow:
-  the newest turn is kept by a **rule** whatever its shape (a ten-call turn keeps all ten); **the ratchet** --
-  a cut result stays cut, so the prefix never moves and every call of a turn is byte-identical, which is the
-  MANDATORY invariant above held by construction rather than by asking; and **stopping is free**, so there is
-  no uneconomic stop to get wrong. The decision is priced exactly, since we know which results we would
-  replace and where the first sits: the rewrite is the prompt from there on.
-- Thinking blocks and `tool_use` inputs are untouched. October's breakage was an in-place edit of the history;
-  a `tool_result`-only edit is accepted, checked live on 2026-11-04 (6 and 8 placeholders beside 3 untouched
-  thinking blocks, every call 200, no compaction boundary).
-- Measured, one rep, realistic 14-turn workload at the shipped trigger and floor, against an unedited control:
-  **-2.8% at the 1h write rate, -12.1% at 5m** once the control is charged the cold start it skipped
-  (below); every one of the 14 turns answered, 9 identical to the control
-  and 5 off by one line (both arms read the total from the Read tool's truncation notice), **0 values omitted**.
-  Per call the read is 91,811 against the control's 371,995, because the control's context grows without bound
-  (46k to 588k) where the cut's stays bounded, so the saving per call grows with the length of the session
-  while a cut's write does not. On the 9-turn 60k/30k workload that cost the server-side path +82% and stopped
-  itself, the cut matches the control's own call count (18 against 31.5), so the re-read loop is gone; its
-  dollar figure is not a pairing (different batch, different day, warm-started) and is not quoted.
-- What it does not fix: at the 1h write rate the clearing is near break-even on this workload whoever does the
-  cutting, and the model, having lost the raw results, disowns answers that are correct ("the line counts I
-  gave in turns 9-11 were made up") on 4 of 14 turns. No cost measurement sees that.
-- **A cut costs the whole post-cut prompt, less the system prompt** (`cutting.js:priceCut`, `measureClearing`'s
-  `system`). Claude Code sets its breakpoints on the system prompt and the newest messages and the API finds a
-  cached prefix only at one, so an edit in the middle leaves the system prompt as the only reusable part.
-  Measured over four cuts on 2026-11-04: `write == post-cut prompt - 12,895` each time, and 12,895 was that
-  call's whole cache read. Pricing it as the tail from the first changed result underpriced cuts 2, 3 and 4 by
-  2.3x, 3.0x and 3.8x; the corrected form predicts three of the four to within 2 tokens and over-prices the
-  first (23,229 against 11,467, where more than the system prompt was still cached), which is the safe way to
-  be wrong. All four still pay, needing 8 to 17 calls.
-- The 4x gap between 54,909 predicted and 214,592 measured was that plus a flaw in the bench: the arms share a
-  system prompt and tool list, so whichever runs second inherits the first's cache inside the 1h TTL. The
-  control wrote 0 on its first two calls where the cut arm wrote 39,026. Run the arms in both orders, or
-  discount the first calls.
-
-**The clearing defaults, and what the replay said (2026-10-28, the owner's call; history of the policy above):**
-- `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keep: 'turn'`/`keepMin` 3, with `clearInputs` on and `clearThinking` off (since 2026-11-02, below). A clear rewrites the prompt cache from the first result it removes (1h write ~200% of an input token, read 10%), so the rewrite is what a clear costs and every later read of what it took is what it saves.
-- `thinker proxy replay`, 264 Claude Code sessions, 1.05B billed-equivalent tokens, $3,750 at list: results alone at 100k/80k **−0.2%** (−0.8% under 60 requests, −3.6% at 60–119, +0.7% at 120+, 21 sessions costlier); with the call text and the thinking at 100k/80k **+7.8%** (12 costlier); at **140k/100k +7.3%** (−0.1%, +0.5%, +10.2%, 6 costlier, no long session among them); at 180k/140k +5.8%. 140k gives up half a point to halve the sessions it can cost.
-- Judge any change to this by replaying transcripts and counting cache **write** tokens, never reads.
-- **A keep that grows within a turn rewrites the cache on every call (2026-11-02).** `turn` used to send the count of the
-  turn's tool uses, one more each call. Read from this machine's proxy log beside Claude Code's own transcripts: each
-  increment un-cleared one earlier result on the server (`cleared_tool_uses` 108, 107, 106 … as keep rose 3, 4, 5 …), so
-  the edited prompt differed from the cached one near its top and everything after the system prompt was written
-  again, 152 calls running in one session at 100k-236k tokens each. Long sessions rewrote their prefix on 1.2% of calls
-  before the first clear and 1.4% held out, on 23.6% after; 95% of calls where the cleared set moved rewrote, 4% where
-  it stayed, 5% where keep was unchanged. The week to 2026-11-01 at list: $194 of reads avoided, $1,061 of rewrites
-  after the first clear, −$801 on the 16 sessions that cleared (4 ahead). So `turn` now sends `keepMin`, constant
-  (`proxy.js:keepValue`), and the thinking edit, whose keep grew the same way (45% rewrite where it was sent, 6%
-  without), is off by default. The replay never saw it: it models a growing keep as cache-stable (`proxy-replay.js`),
-  and the holdout had 2 long sessions. Judge the fix by the rewrite rate after the first clear in the proxy log, which
-  should return to the held-out 1-2%. Not known: the server's exact rule for a growing keep (in another session the
-  cleared count held at 82 while keep rose), and whether `thinking_turns` counts messages or exchanges.
-- The 15% holdout stays: the model reading again what was cleared is what the replay cannot see.
-- A running proxy keeps the flags and the code it started with, so `ensureProxy` replaces it when `serviceArgs` or the installed version no longer match what the state records (`args`, `version`), at the prompt hook, between turns. Without it a new policy, a `--gateway` upstream or a new route reaches nobody until the process dies: this machine ran a proxy from 2026-10-24 on 0.2.11's flags for four days, with no `/codex` route, so every Codex model call answered 404.
+**The clearing: thinker cuts the context itself, and it is the only mechanism (MANDATORY, 2026-11-04, the owner's call; `src/cutting.js`, `src/proxy.js:cutCandidates`/`applyCut`, `test/cutting.test.js`):**
+- The API's own edit (`context_management`, `clear_tool_uses_20250919`) is gone, with `clearing.js` entire. It had no
+  state: the server re-derived the clearing from the edit on every call, so the proxy could never hold the cleared
+  point still. It asked, the server chose oldest-first, re-applied on its own schedule, and every move rewrote the
+  prefix -- 3 moves in one 9-turn run, 5 in a 14-turn one, 15 in a week of this machine's log, each a write nobody
+  chose. `keep` was a count, so three cheap echoes evicted the 25k-token read a turn was about to answer from and the
+  model omitted the value on 4 of 14 turns at the shipped trigger. And the exit was a rewrite too: dropping the edit
+  un-cleared the conversation, 351,929 tokens in one session, 74% of the damage the gauge had stopped over, to land
+  43% costlier per call than carrying on. #585-#600 spent five patches chasing a freeze with nothing to freeze.
+- A cut is a set of `tool_use` ids thinker keeps. The agent re-sends the whole conversation every call, so applying
+  the same ids gives the same bytes, call after call and across a restart. Three properties follow, and they are the
+  whole module: **the newest turn is kept by a rule** whatever its shape (a ten-call turn keeps all ten);
+  **the ratchet** -- a cut result stays cut, so the prefix never moves and every call of a turn is byte-identical,
+  which is the invariant above held by construction rather than by asking; and **stopping is free**, so there is no
+  uneconomic stop to get wrong and no gauge pricing its own exit at zero.
+- **One decision, at a turn boundary, priced exactly** (`decideCut`, `priceCut`). A cut costs the whole post-cut
+  prompt less the system prompt, because that is the only cache breakpoint a mid-conversation edit leaves usable:
+  measured over four cuts on 2026-11-04, `write == post-cut prompt - 12,895` every time, and 12,895 was that call's
+  entire cache read. Pricing it as the tail from the first changed result underpriced cuts 2, 3 and 4 by 2.3x, 3.0x
+  and 3.8x. The saving is the dropped tokens read back over the calls the session likely has left.
+- **The same three operations as the desktop door** (`register.tsx:clearOld`), which is what "one policy" means here:
+  the old result becomes a placeholder, an assistant row before the newest turn has its call text emptied
+  (`clearInputs`), and that row loses its thinking (`clearThinking`). Both default on, as the mod has always had
+  them -- the proxy kept `clearThinking` off because the server-side thinking edit's keep grew within a turn and
+  rewrote the cache, which a set decided at a boundary cannot do. `clearDeep` keeps the mod's meaning: without it,
+  one cut a session. `PROXY_DEFAULTS` is `trigger` 140k, `clearAtLeast` 100k, `keepMin` 3, `clearInputs`,
+  `clearThinking`, `clearDeep`; `keep` is gone, because a count is what the rule replaces.
+- October's breakage was an in-place edit of the history, so the edit stays narrow: thinking blocks and `tool_use`
+  inputs outside the turn are rewritten, nothing else is, and a `tool_result`-only edit is proven live (2026-11-04,
+  6 and 8 placeholders beside 3 untouched thinking blocks, every call 200, no compaction boundary). **The wider
+  edit, with the thinking dropped, has not been through a live call.** A 400 on a request the proxy cut is read
+  before anything reaches the agent (`refusesEdit`): a rejection sends the agent's own bytes and stops cutting for
+  the life of the process (`proxy-cut-rejected`, counted as `sessionsRejected`). The edit is the proxy's own now, so
+  a history the API will not take is the proxy's fault and the only safe answer is to stop editing.
+- Measured, one rep, realistic 14-turn workload at the shipped trigger and floor, against an unedited control
+  charged the cold start it skipped: **-2.8% at the 1h write rate, -12.1% at 5m**. All 14 turns answered, 9
+  identical to the control and 5 off by one line (both arms read the total from the Read tool's truncation notice),
+  **0 values omitted**, against 4 turns that omitted a value server-side. Per call the read is 91,811 against
+  371,995, because the control's context grows without bound (46k to 804k) while the cut's stays bounded, so the
+  saving per call grows with the length of the session while a cut's write does not.
+- What it does not fix: at the 1h write rate the clearing is near break-even whoever does the cutting, and the
+  model, having lost the raw results, **disowns answers that are correct** ("the line counts I gave in turns 9-11
+  were made up") on 4 of 14 turns, with the values matching the control exactly. No cost measurement sees that.
+- `src/proxy-replay.js` still models the API-side edit, so `thinker proxy replay`'s figures are about a mechanism
+  that no longer ships. Its history: the replay over 264 sessions put results alone at 100k/80k at -0.2% and the
+  full edit at 140k/100k at +7.3%, which is what the 140k/100k floor was chosen on. Judge a change here by cache
+  writes against the 15% holdout, in agent sessions, never by that replay.
+- **Bench flaw to avoid** (`research/clearing-bench`): the arms share a system prompt and tool list, so whichever
+  runs second inherits the first's cache inside the 1h TTL. The control wrote 0 on its first two calls where the cut
+  arm wrote 39,026. Run both orders, or discount the first calls.
 
 **One summary, not a line a turn (2026-11-01, the owner's call):**
 - thinker said something at the end of nearly every turn: the notes served in it, what the clearing
@@ -442,8 +339,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
-| `src/clearing.js` | the clearing policy: the decision at a turn boundary, the session record on disk, the gauge |
-| `src/cutting.js` | the clearing done here instead of asked of the API: the cut set, the ratchet, the priced decision (`--client-cut`, off) |
+| `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
