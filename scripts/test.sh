@@ -25,4 +25,9 @@ export THINKER_MODELS_DIR="${THINKER_MODELS_DIR:-$HOME/.thinker/models}"
 # Run from a desktop app's agent (Claude Desktop, Cursor), the shell carries the app's marker: every test
 # then took itself for an app session (2026-10-17: two failures on main, only when run from Claude Desktop).
 unset CLAUDE_CODE_ENTRYPOINT CURSOR_AGENT
-TMPDIR="$run" THINKER_TEST=1 node --test "${files[@]}"
+# --test-force-exit: node --test has no timeout and gives each file its own process, so a file that
+# leaves a handle open (an http server closed on the test's last line, which a failing assertion never
+# reaches) never exits, the runner waits for it for ever, and its buffered diagnostics are never
+# printed. Three stale proxy assertions sat on main exactly that way: every run hung with no failure
+# named, and `bash scripts/release.sh` hung with it, since it runs the whole suite in its temp worktree.
+TMPDIR="$run" THINKER_TEST=1 node --test --test-force-exit "${files[@]}"
