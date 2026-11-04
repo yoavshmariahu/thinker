@@ -256,12 +256,14 @@
       const a = series('cut'), b = series('control');
       const n = Math.max(a.length, b.length);
       const val = kind === 'carried' ? x => x.carried : x => x.cost;
-      const ymax = Math.max(...a.map(val), ...b.map(val)) * 1.08;
+      const raw = Math.max(...a.map(val), ...b.map(val)) * 1.08;
+      const mag = Math.pow(10, Math.floor(Math.log10(raw / 4)));
+      const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st * 4 >= raw);
+      const ymax = step * 4;
       const X = k => M.l + (k - 1) / (n - 1) * (W - M.l - M.r);
       const Y = v => H - M.b - v / ymax * (H - M.t - M.b);
       const path = s => s.map((x, i) => (i ? 'L' : 'M') + X(x.k).toFixed(1) + ',' + Y(val(x)).toFixed(1)).join(' ');
-      const ticks = 4, yt = [];
-      for (let i = 0; i <= ticks; i++) yt.push(ymax / ticks * i);
+      const yt = [0, 1, 2, 3, 4].map(i => step * i);
       const ylab = v => kind === 'carried' ? fmt(v) : usd(v);
       let g = `<g class="grid">${yt.map(v => `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('')}</g>`;
       g += `<g class="axis">${yt.map(v => `<text x="${M.l - 8}" y="${Y(v) + 4}" text-anchor="end">${ylab(v)}</text>`).join('')}`;
