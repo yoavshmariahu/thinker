@@ -9,7 +9,7 @@
 # GitHub release (https://github.com/yoavshmariahu/thinker/releases: a tag vX.Y.Z carrying
 # thinker.tgz, version.json and install.sh), verified against the sha256 in version.json.
 #
-#   npx @zerotimedev/thinker
+#   npx thinkersh
 #
 # The npm package of that name carries this file and runs it with the arguments passed through.
 #

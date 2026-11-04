@@ -55,10 +55,11 @@ function fixture(t) {
       if (args[0] === 'test') return state.failTests ? fail('tests failed') : ok();
       if (args[0] === 'whoami') return state.login ? ok('owner') : fail('E401 Unauthorized');
       if (args[0] === 'login') { state.login = true; return ok(); }
-      if (args[0] === 'dist-tag') { assert.equal(args[1], 'add'); if (args[3] === 'latest') state.npmLatest = args[2].split('@')[2]; return ok(); }
+      if (args[0] === 'dist-tag') { assert.equal(args[1], 'add'); if (args[3] === 'latest') state.npmLatest = args[2].slice(args[2].lastIndexOf('@') + 1); return ok(); }
       if (args[0] === 'view') {
         if (state.registryError) return fail('E503 registry unavailable');
-        const version = args[1].split('@')[2];
+        const at = args[1].lastIndexOf('@');
+        const version = at > 0 ? args[1].slice(at + 1) : null;
         return version ? state.npm.has(version) ? ok(JSON.stringify(version)) : fail('E404 version not found') : state.npmLatest ? ok(JSON.stringify(state.npmLatest)) : fail('E404 package not found');
       }
       if (args[0] === 'pack') {

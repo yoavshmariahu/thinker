@@ -1,4 +1,4 @@
-// The pi package (`pi install npm:@zerotimedev/thinker`): a pointer to the thinker installed on this
+// The pi package (`pi install npm:thinkersh`): a pointer to the thinker installed on this
 // machine, loaded when pi starts. Nothing of thinker runs from the package: the hooks, the learning and
 // the notes come from the installed copy (THINKER_HOME/app, by default ~/.thinker/app), through the same
 // extension module `thinker connect` wires for pi (src/integrations/pi.js), in every checkout.
@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 
 const home = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
 const piDir = () => process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent');
-export const INSTALL_HINT = 'thinker is not installed on this machine: run `npx @zerotimedev/thinker` (the pi package only points at the installed copy).';
+export const INSTALL_HINT = 'thinker is not installed on this machine: run `npx thinkersh` (the pi package only points at the installed copy).';
 
 // the installed command line: THINKER_CLI names one (tests), else the install under THINKER_HOME
 export function findCli(env = process.env) {

@@ -9,7 +9,7 @@ bash scripts/release.sh 0.1.44
 You need Node 20+, npm, Git, GitHub CLI (`gh`), Bash, tar and curl. Log in to
 GitHub with `gh auth login`; your account needs permission to push branches and
 tags and create releases. Your npm account needs publishing access to
-`@zerotimedev/thinker`. The runner checks npm login before publishing; in a
+`thinkersh`. The runner checks npm login before publishing; in a
 terminal it starts `npm login --auth-type=web` if necessary. Complete any browser
 login or 2FA prompts from npm.
 
@@ -52,14 +52,14 @@ the GitHub release is a pre-release and is not marked latest, the runner checks
 the release's own download URL instead of the latest one, and npm gets the version
 under the `next` tag, not `latest`. Everything that follows latest stays where it is:
 `thinker update`, the daily background update, the installer's default and
-`npx @zerotimedev/thinker`.
+`npx thinkersh`.
 
 To install a held release by name:
 
 ```bash
 thinker update v0.1.44                  # an installed thinker
 bash install.sh --ref v0.1.44           # a fresh install
-npx @zerotimedev/thinker@next           # through npm
+npx thinkersh@next                     # through npm
 ```
 
 `thinker update v0.1.44` pins that machine to the tag: its background updates check
@@ -82,6 +82,18 @@ A held release resumed without `--hold` stays held: the runner reads the
 pre-release flag back from GitHub, and only `--promote` makes it latest. A later
 version released normally becomes latest as usual, whether or not the held one was
 promoted.
+
+## npm package name
+
+`thinkersh` is the canonical npm installer package, configured in `npm/package.json`.
+The release runner reads that name from the release commit. The previous package,
+`@zerotimedev/thinker`, remains available for old install commands; future releases
+publish to `thinkersh`. Existing installations need no migration: both installers
+put the CLI in `~/.thinker`, and `thinker update` plus automatic updates continue
+to read the same GitHub release assets. npm distributes the installer; GitHub
+releases remain the source for the installed CLI and its updates.
+
+Resuming an older tagged release still uses the package name recorded in that tag.
 
 ## Retrying or finishing an existing release
 

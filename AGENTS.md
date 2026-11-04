@@ -294,7 +294,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **Releases:**
 - Release = GitHub release on tag `vX.Y.Z` on a `main` commit, assets `thinker.tgz`, `version.json` (version, commit, archive sha256), `install.sh`.
-- `install.sh` (`npx @zerotimedev/thinker`) and `thinker update` (`src/update.js`) read `releases/latest/download/version.json`. `thinker update vX.Y.Z` pins.
+- `install.sh` (`npx thinkersh`) and `thinker update` (`src/update.js`) read `releases/latest/download/version.json`. `thinker update vX.Y.Z` pins.
 - Cut: `bash scripts/release.sh X.Y.Z`. `scripts/release.mjs` tests a version-only bump in a temp worktree, opens a PR, waits for the user to merge. Never merges or pushes `main`.
 - After merge: `scripts/pack.sh` packages the merged commit; runner tags, publishes release and three assets, verifies public download, publishes npm installer at same version.
 - Rerun resumes from the exact tag. Never overwrite public assets or npm versions. No version = resume current `origin/main` version.

@@ -1,6 +1,6 @@
 # Coding agent compatibility
 
-Thinker supports sixteen clients. The installer (`npx @zerotimedev/thinker`) wires the ones it finds on the
+Thinker supports sixteen clients. The installer (`npx thinkersh`) wires the ones it finds on the
 machine; its `--clients` option takes `all` or a comma-separated selection
 (`devin,droid,qwen,kiro,cline,kilo,augment,goose` for the newer adapters). This page is the reference for how each
 host is reached; nothing on it needs running by hand.
@@ -19,7 +19,7 @@ removes Thinker's entries and preserves other integrations.
 
 Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
 `devin` executable or its user configuration directory, so the installer
-(`npx @zerotimedev/thinker`) and `thinker update` wire Devin without being asked. This
+(`npx thinkersh`) and `thinker update` wire Devin without being asked. This
 adapter targets the current Devin Local/CLI contracts (Local 3.6 / v3000.3 or newer);
 the legacy Windsurf Cascade adapter remains separate.
 
@@ -443,7 +443,7 @@ learning when enabled. There is no claim of a visible stop notice in those hosts
 ## Plugins, the pi package and the proxy
 
 Three more doors to the same hooks, each a pointer to the thinker installed on the machine
-(`npx @zerotimedev/thinker`, in `~/.thinker/app`); nothing of thinker runs from any of them, and a
+(`npx thinkersh`, in `~/.thinker/app`); nothing of thinker runs from any of them, and a
 plugin on a machine without thinker does nothing.
 
 - **Host plugins** (`plugins/`, since 2026-10-22): one per host. Claude Code's (`plugins/claude-code`,
@@ -457,7 +457,7 @@ plugin on a machine without thinker does nothing.
   <event> --client <host> --user --plugin`. The hooks are for the cache and nothing else (the owner's rule, 2026-10-22): without an
   installed thinker they do nothing. Installing is the plugin's command, run by the person (`/thinker:install`
   in Claude Code, the `thinker-install` skill in Codex, Cursor's `install` command), which runs
-  `npx -y @zerotimedev/thinker --clients <host> --no-modify-path --no-ui --yes`: that host alone is wired, no
+  `npx -y thinkersh --clients <host> --no-modify-path --no-ui --yes`: that host alone is wired, no
   shell file is edited. The installer writes the host's settings hooks, so from the next
   session the plugin yields and the installed copy does the work. A plugin's hooks run beside the host's own settings hooks (Claude
   Code collapses duplicates between its settings files only), so `--plugin` yields where the settings already
@@ -468,8 +468,8 @@ plugin on a machine without thinker does nothing.
   yoavshmariahu/thinker` works for anyone (run live on 2026-10-22: added and installed; the plugin yields
   only once the installed copy carries `--plugin`, from the release after 0.2.0). The listing icon the
   directories want is `icon.png` beside each manifest (the site's mark, three circles, 1024 px).
-- **The pi package** (`npm/pi/thinker.js`, shipped in `@zerotimedev/thinker` through its `pi` field):
-  `pi install npm:@zerotimedev/thinker` adds an extension that loads the installed copy's
+- **The pi package** (`npm/pi/thinker.js`, shipped in `thinkersh` through its `pi` field):
+  `pi install npm:thinkersh` adds an extension that loads the installed copy's
   `src/integrations/pi.js` on the first event and serves every checkout as `thinker connect`'s extension
   does. Where that extension is in place (`~/.pi/agent/extensions/thinker.js`) the package stays quiet;
   without an installed thinker it says so once a session through pi's own notice.

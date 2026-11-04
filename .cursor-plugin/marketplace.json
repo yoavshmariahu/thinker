@@ -2,6 +2,6 @@
   "name": "thinker",
   "owner": { "name": "zerotime" },
   "plugins": [
-    { "name": "thinker", "source": "./plugins/cursor", "description": "Notes about the repository from earlier sessions, with each prompt and as files are opened; needs thinker installed (npx @zerotimedev/thinker)." }
+    { "name": "thinker", "source": "./plugins/cursor", "description": "Notes about the repository from earlier sessions, with each prompt and as files are opened; needs thinker installed (npx thinkersh)." }
   ]
 }

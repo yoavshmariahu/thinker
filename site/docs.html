@@ -487,13 +487,13 @@
           <li><strong><a href="#notes">Knowledge cache.</a></strong> Reuse what previous sessions learned, so the next task needs fewer searches and file reads.</li>
         </ol>
         <p>The saving adds up across model calls. Your token bill also depends on prompt-cache pricing and rewrites; Thinker reports tokens and costs so you can track the effect on your own work.</p>
-        <pre><code>npx @zerotimedev/thinker</code></pre>
+        <pre><code>npx thinkersh</code></pre>
         <p>Connect your agents and keep coding. <a href="#install">Installation details</a>.</p>
       </section>
 
       <section id="install">
         <h2>Install and connect your agents</h2>
-        <pre><code>npx @zerotimedev/thinker</code></pre>
+        <pre><code>npx thinkersh</code></pre>
         <p>Requires Node 20+, git, curl, tar and a <a href="#supported-agents">supported coding agent</a>. The installer connects your agents and shows where their context goes. Choose the browser or terminal to review suggested cuts.</p>
         <ol>
           <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the knowledge cache learns as you work.</li>
@@ -825,7 +825,7 @@ read any range: Read with offset and limit</span></pre>
         </details>
         <h3 id="devin-setup">Setting up Devin</h3>
         <p>
-          The installer finds Devin on its own, so there is usually nothing to do beyond <code>npx @zerotimedev/thinker</code> and restarting Devin. If you installed thinker before Devin, or skipped it, wire it by hand:
+          The installer finds Devin on its own, so there is usually nothing to do beyond <code>npx thinkersh</code> and restarting Devin. If you installed thinker before Devin, or skipped it, wire it by hand:
         </p>
         <pre><code>thinker connect --clients devin</code></pre>
         <p>

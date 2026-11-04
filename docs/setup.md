@@ -5,7 +5,7 @@ The details behind the install line in the [README](../README.md).
 ## Install and start
 
 ```bash
-npx @zerotimedev/thinker
+npx thinkersh
 ```
 
 The installer connects your coding agents and shows suggested savings from recent sessions.
