@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Turn one paired clearing run into the two data files site/clearing.html reads.
+"""Turn one paired clearing run into the two data files site/compression.html reads.
 
 A run is two Claude Code sessions over the same prompts, one through thinker's cut (`cut`) and one held
 out (`control`), each behind its own proxy. For each arm this reads:
@@ -83,6 +83,9 @@ def transcript(arm, cwd, sid):
         if t == 'user':
             c = rec['message']['content']
             if isinstance(c, str):
+                if c.startswith('Your response above was stopped by a safety classifier') and turns:
+                    turns[-1]['steps'].append(dict(kind='user', text=scrub(c)))
+                    continue  # the harness continues the same user turn
                 turns.append(dict(n=len(turns) + 1, prompt=scrub(c), steps=[], calls=[], tools={})); continue
             for p in c:
                 if p.get('type') == 'tool_result':

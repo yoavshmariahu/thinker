@@ -1,63 +1,17 @@
 [
   {
     "id": "click-1",
-    "label": "Click bug fix \u00b7 pair 1",
+    "label": "Click \u00b7 CLI bug fix",
     "group": "click",
     "when": "2026-11-04",
-    "default": true
-  },
-  {
-    "id": "click-2",
-    "label": "Click bug fix \u00b7 pair 2",
-    "group": "click",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "click-3",
-    "label": "Click bug fix \u00b7 pair 3",
-    "group": "click",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "click-4",
-    "label": "Click bug fix \u00b7 pair 4",
-    "group": "click",
-    "when": "2026-11-04"
+    "default": true,
+    "description": "Environment-variable help text"
   },
   {
     "id": "mitm-1",
-    "label": "mitmproxy filter fix \u00b7 pair 1",
+    "label": "mitmproxy \u00b7 Two bug fixes",
     "group": "mitm",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "mitm-2",
-    "label": "mitmproxy filter fix \u00b7 pair 2",
-    "group": "mitm",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "mitm-3",
-    "label": "mitmproxy filter fix \u00b7 pair 3",
-    "group": "mitm",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "express-1",
-    "label": "Express ETag fix \u00b7 pair 1",
-    "group": "express",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "express-2",
-    "label": "Express ETag fix \u00b7 pair 2",
-    "group": "express",
-    "when": "2026-11-04"
-  },
-  {
-    "id": "express-3",
-    "label": "Express ETag fix \u00b7 pair 3",
-    "group": "express",
-    "when": "2026-11-04"
+    "when": "2026-11-04",
+    "description": "Filter parsing and HAR output paths"
   }
 ]
