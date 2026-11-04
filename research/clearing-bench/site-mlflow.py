@@ -16,6 +16,8 @@ p.add_argument('--records', required=True)
 p.add_argument('--reconciliation', required=True)
 p.add_argument('--knowledge', required=True, help='Artemis knowledge-events report from recorded deliveries and source sizes')
 p.add_argument('--out', required=True)
+p.add_argument('--task', action='append', help='PR number:explorer id; defaults to the original two examples')
+p.add_argument('--cost-data', help='Optional public accounting JSON filename')
 a = p.parse_args()
 records, out = pathlib.Path(a.records), pathlib.Path(a.out)
 tasks = json.loads((records / 'tasks.json').read_text())['tasks']
@@ -45,7 +47,10 @@ def matchable(s):
     return re.sub(r'\S*(?:bench-venv|mlflow-venv)/bin/python', '<python>', scrub(s)).strip()
 
 
-for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
+selected = [item.split(':', 1) for item in a.task] if a.task else [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]
+accounting_pairs = []
+for pr, ident in selected:
+    assert re.fullmatch(r'\d+', pr) and re.fullmatch(r'[a-z0-9-]+', ident)
     task = next(t for t in tasks if t['id'] == f'PR{pr}-hard')
     prompts = [task['prompt']] + task['turns']
     pair = next(p for p in reconciliation['pairs'] if p['task'] == task['id'])
@@ -55,6 +60,11 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
                     savings=dict(minPercent=pair['savedPercent']['min'], maxPercent=pair['savedPercent']['max'],
                                  minDollars=pair['saved']['min'], maxDollars=pair['saved']['max']))
     small, full, blobs = dict(metadata), dict(metadata), {}
+    if a.cost_data:
+        assert re.fullmatch(r'clearing-[a-z0-9-]+\.json', a.cost_data)
+        small['costData'] = full['costData'] = a.cost_data
+    accounting = dict(task=task['id'], pr=pr, savingPercent=pair['savedPercent']['min'],
+                      inputReductionPercent=pair['inputReductionPercent'], sessions={})
 
     def keep(body):
         key = hashlib.sha256(body.encode()).hexdigest()[:16]
@@ -64,6 +74,12 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
     for arm, side in [('control', 'off'), ('cut', 'on')]:
         rec = json.loads((records / f'{pr}-{side}.json').read_text())
         report = rec['raw']['armReport']
+        cost_session = next(s for s in reconciliation['sessions'] if s['id'] == rec['row']['id'])
+        assert cost_session['cost']['exact']
+        public_fields = ['status', 'model', 'responseModel', 'serviceTier', 'responseStatus', 'input', 'read', 'write', 'freshInput', 'out', 'reason', 'injected']
+        accounting['sessions'][side] = dict(passed=bool(rec['row']['pass']), elapsedMs=rec['row']['wall_ms'],
+            costUsd=cost_session['cost']['max'], usage=cost_session['usage'],
+            calls=[{k: c[k] for k in public_fields if k in c} for c in report['apiRequests']])
         knowledge_report = next(s for s in knowledge['sessions'] if s['id'] == rec['row']['id'])
         knowledge_events = knowledge_report['events']
         assert sum(e['hits'] for e in knowledge_events) == report['hookServed']
@@ -167,3 +183,12 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
         assert not re.search(r'/Users/|/private/var/folders/|gAAAAAB', contents)
         dest.write_text(contents)
         print(dest)
+    accounting_pairs.append(accounting)
+
+if a.cost_data:
+    public = dict(experiment=reconciliation['experiment'], model='gpt-6-astra', effort='medium',
+                  thinkerCommit='912b18753bd629b60255502cdf1d979fd2659ece',
+                  pricing=reconciliation['pricing'], basis=reconciliation['basis'],
+                  limitations=[reconciliation['caveat'], 'API-equivalent estimates from provider-reported usage, not invoices. Reported zero cache-write tokens do not prove the cache was not populated.'],
+                  pairs=accounting_pairs)
+    (out / a.cost_data).write_text(json.dumps(public, separators=(',', ':')) + '\n')

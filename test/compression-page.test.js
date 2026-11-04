@@ -112,7 +112,7 @@ assert.equal(tabs[0].tabindex,'-1');
 assert.match(node('#timeline').innerHTML,/Turn 14/);
 assert.ok(!node('#timeline').innerHTML.includes('NaN'), 'no unrecorded fields rendered as numbers');
 assert.match(node('#sess-note').textContent,/API usage/);
-for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36']]) {
+for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36'],['mlflow-span','16.6%','13.22','11.02','0.36']]) {
  await click('#sessions',{dataset:{run:id}});
  assert.match(node('#session-label').innerHTML,/knowledge cache \+ compression/);
  assert.ok(node('#tiles').innerHTML.includes(saving));
@@ -140,6 +140,7 @@ for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','
  assert.match(node('#events').innerHTML,/Codex compacted the control/);
  assert.doesNotMatch(node('#events').innerHTML,/Cache-write counts were not recorded|Claude Code/);
  assert.match(node('#caveats').innerHTML,/not knowledge caching alone/);
+ if (id === 'mlflow-span') assert.match(node('#caveats').innerHTML,/clearing-mlflow-span-costs\.json/);
  assert.match(node('#judge-evidence').innerHTML,/PR-test output/);
  assert.match(node('#timeline').innerHTML,/Turn 9/);
  assert.match(node('#timeline').innerHTML,/Knowledge note served/);

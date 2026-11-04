@@ -27,5 +27,12 @@
     "label": "MLflow \u00b7 Gemini tool choice",
     "description": "Astra medium \u00b7 knowledge cache + compression",
     "when": "2026-11-04"
+  },
+  {
+    "id": "mlflow-span",
+    "group": "mlflow-span",
+    "label": "MLflow \u00b7 Span serialization",
+    "description": "Astra medium \u00b7 knowledge cache + compression",
+    "when": "2026-11-04"
   }
 ]
