@@ -70,27 +70,6 @@
       background: #f5f5f5;
     }
 
-    .btn-benchmark {
-      background: transparent;
-      border: 1px solid #e5e5e5;
-      color: #111111;
-      font-family: inherit;
-      font-size: 0.85rem;
-      font-weight: 500;
-      padding: 0.45rem 0.85rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      letter-spacing: -0.01em;
-      display: inline-flex;
-      align-items: center;
-      line-height: 1.2;
-    }
-
-    .btn-benchmark:hover {
-      border-color: #111111;
-      background: #fafafa;
-    }
 
     /* Layout */
     .docs-container {
@@ -369,168 +348,6 @@
 
     details.fold p:last-child { margin-bottom: 0.25rem; }
 
-    /* Modal (same as the landing page) */
-    .modal-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.35);
-      backdrop-filter: blur(4px);
-      display: none;
-      justify-content: center;
-      align-items: center;
-      padding: 1.5rem;
-      z-index: 100;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .modal-overlay.active { display: flex; opacity: 1; }
-
-    .modal-card {
-      background: #ffffff;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 760px;
-      max-height: 92vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15);
-      overflow: hidden;
-      animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      text-align: left;
-    }
-
-    @keyframes modalIn {
-      from { transform: scale(0.97) translateY(8px); opacity: 0; }
-      to { transform: scale(1) translateY(0); opacity: 1; }
-    }
-
-    .modal-header {
-      padding: 1.1rem 1.5rem;
-      border-bottom: 1px solid #f0f0f0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-    }
-
-    .modal-title { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.02em; color: #111111; }
-
-    .modal-subtitle { font-size: 0.8rem; color: #6b7280; margin-top: 0.15rem; }
-
-    .btn-close {
-      background: transparent;
-      border: none;
-      font-size: 1.35rem;
-      color: #666666;
-      cursor: pointer;
-      line-height: 1;
-      padding: 0.2rem 0.4rem;
-      border-radius: 4px;
-    }
-
-    .btn-close:hover { color: #000000; background: #f5f5f5; }
-
-    .modal-body { padding: 0 1.5rem 1.5rem; overflow-y: auto; }
-
-    .bench-section { padding: 1.5rem 0 1.35rem; }
-
-    .bench-section + .bench-section { border-top: 1px solid #f0f0f0; }
-
-    @media (min-width: 960px) {
-      .bench-row { grid-template-columns: 118px minmax(0, 1fr) 104px; gap: 0 0.75rem; }
-      .bench-headline { font-size: 1rem; }
-    }
-
-
-    .bench-kicker {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #6b7280;
-      margin-bottom: 0.3rem;
-    }
-
-    .bench-headline {
-      font-size: 1.05rem;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-      color: #111111;
-      line-height: 1.35;
-      margin: 0 0 0.3rem;
-      padding: 0;
-      border: none;
-    }
-
-    .bench-headline .gain { font-weight: 700; }
-
-    .bench-lede { font-size: 0.85rem; color: #6b7280; line-height: 1.5; margin-bottom: 1.1rem; }
-
-    .bench-rows + .bench-lede { margin-top: 1rem; }
-
-    .bench-legend { display: flex; gap: 1.1rem; font-size: 0.74rem; color: #6b7280; margin-bottom: 0.75rem; }
-
-    .bench-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
-
-    .swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; background: #111111; }
-
-    .swatch.before { background: #b4b4bb; }
-
-    .bench-rows { display: flex; flex-direction: column; gap: 0.9rem; }
-
-    .bench-row {
-      display: grid;
-      grid-template-columns: 150px minmax(0, 1fr) 120px;
-      gap: 0 1rem;
-      align-items: center;
-    }
-
-    .bench-model { min-width: 0; }
-
-    .bench-model-name { font-size: 0.86rem; font-weight: 600; color: #111111; letter-spacing: -0.01em; }
-
-    .bench-model-sub { font-size: 0.72rem; color: #9ca3af; margin-top: 0.1rem; }
-
-    .bench-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-
-    .bar {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 3.4rem;
-      align-items: center;
-      gap: 0.5rem;
-      height: 16px;
-      font-size: 0.74rem;
-      color: #444444;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-
-    .bar i {
-      display: block;
-      height: 10px;
-      width: var(--w);
-      max-width: 100%;
-      border-radius: 0 4px 4px 0;
-      background: #111111;
-      flex: none;
-    }
-
-    .bar.before i { background: #b4b4bb; }
-
-    .bar.after { color: #111111; font-weight: 600; }
-
-    .bench-delta {
-      text-align: right;
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      color: #15803d;
-      font-variant-numeric: tabular-nums;
-      white-space: nowrap;
-    }
-
     .gain { color: #15803d; font-weight: 600; }
 
     /* Responsive */
@@ -545,11 +362,6 @@
     @media (max-width: 600px) {
       header { flex-wrap: wrap; gap: 0.75rem; }
       .nav-links { margin-left: auto; }
-      .modal-overlay { padding: 0.75rem; }
-      .modal-header, .modal-body { padding-left: 1.1rem; padding-right: 1.1rem; }
-      .bench-row { grid-template-columns: minmax(0, 1fr) 104px; row-gap: 0.35rem; }
-      .bench-model { grid-column: 1 / -1; }
-      .bench-delta { font-size: 0.85rem; }
     }
     /* Context page figures (dummy data, labelled as examples) */
     .ctx-figure { margin: 1.25rem 0 1.75rem; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
@@ -600,7 +412,6 @@
     <div class="site-nav-right" aria-label="Main navigation">
       <a href="docs.html" class="site-nav-link">Docs</a>
       <a href="compression.html" class="site-nav-link">Compression</a>
-      <a href="index.html#benchmarks" class="site-nav-link site-nav-benchmark">Benchmarks</a>
       <a href="https://github.com/yoavshmariahu/thinker" class="site-nav-link">GitHub</a>
     </div>
   </header>
@@ -849,7 +660,7 @@ read any range: Read with offset and limit</span></pre>
           <li><strong>You can undo a cut.</strong> Close an unmerged instruction PR or revert a merged change; use <strong>Turn back on</strong> for anything switched off. Recent activity tracks your changes. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
         </ul>
         <p>
-          <strong>What the numbers are.</strong> Tokens are counted from the transcripts at about four characters a token, times the model calls the transcript records. A tool output's cost is its tokens times the calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags are measurements of use, not a promise: whether the agent then misses a cut section is what <em>followed</em> and <em>missed</em> are there to show, on your own sessions. No benchmark is claimed for the cuts; the <a href="#overview" onclick="openModal(); return false;">benchmarks</a> are about the cache.
+          <strong>What the numbers are.</strong> Tokens are counted from the transcripts at about four characters a token, times the model calls the transcript records. A tool output's cost is its tokens times the calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags are measurements of use, not a promise: whether the agent then misses a cut section is what <em>followed</em> and <em>missed</em> are there to show, on your own sessions. No benchmark is claimed for the cuts; the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">benchmarks</a> are about the cache.
         </p>
       </section>
 
@@ -933,7 +744,7 @@ read any range: Read with offset and limit</span></pre>
           <li><strong>Periodic summaries</strong> show which notes were served. View Report tracks whether the agent acted on them and what learning cost.</li>
         </ul>
         <p>
-          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
+          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">See the numbers</a>.
         </p>
       </section>
 
@@ -964,7 +775,7 @@ read any range: Read with offset and limit</span></pre>
             <div class="outcome-cta">Measure it on your own sessions &rarr;</div>
           </a>
         </div>
-        <p class="outcomes-caption">Knowledge-cache benchmarks: one run per arm, different task sets per model. These results do not measure the Find Savings cuts. <button type="button" onclick="openModal()">See the benchmarks</button> or read the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">method and limitations</a>.</p>
+        <p class="outcomes-caption">Knowledge-cache benchmarks: one run per arm, different task sets per model. These results do not measure the Find Savings cuts. Read the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">method and limitations</a>.</p>
         <p>
           View Report on the <a href="#local-page">local page</a> shows how the cache has been used, for one repository or every repository on the machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. Where the context itself goes is the <a href="#context">Find Savings view</a>.
         </p>
@@ -1192,117 +1003,7 @@ export THINKER_TELEMETRY=off
     </main>
   </div>
 
-  <div class="modal-overlay" id="modal-overlay" onclick="handleBackdrop(event)">
-    <div class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal-header">
-        <div>
-          <div class="modal-title" id="modal-title">Benchmarks</div>
-          <div class="modal-subtitle">Same model and task in each comparison, with and without thinker, on real changes from open-source repositories.</div>
-        </div>
-        <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
-      </div>
-      <div class="modal-body">
-
-        <section class="bench-section" aria-labelledby="bench-tokens">
-          <div class="bench-kicker">Tokens</div>
-          <h3 class="bench-headline" id="bench-tokens">Every model used <span class="gain">18% fewer tokens</span> per task.</h3>
-          <p class="bench-lede">Input tokens per coding task, cached context included:</p>
-          <div class="bench-legend" aria-hidden="true">
-            <span><i class="swatch before"></i> without thinker</span>
-            <span><i class="swatch"></i> with thinker</span>
-          </div>
-          <div class="bench-rows">
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>1.25M</div>
-                <div class="bar after"><i style="--w: 82%"></i>1.02M</div>
-              </div>
-              <div class="bench-delta">&minus;18% tokens</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>16.6M</div>
-                <div class="bar after"><i style="--w: 81%"></i>13.4M</div>
-              </div>
-              <div class="bench-delta">&minus;19% tokens</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>473k</div>
-                <div class="bar after"><i style="--w: 81%"></i>384k</div>
-              </div>
-              <div class="bench-delta">&minus;19% tokens</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="bench-section" aria-labelledby="bench-time">
-          <div class="bench-kicker">Wall time</div>
-          <h3 class="bench-headline" id="bench-time">Every model finished sooner: <span class="gain">10% less wall time</span> per task.</h3>
-          <p class="bench-lede">Wall time per coding task, from the request to the finished change:</p>
-          <div class="bench-legend" aria-hidden="true">
-            <span><i class="swatch before"></i> without thinker</span>
-            <span><i class="swatch"></i> with thinker</span>
-          </div>
-          <div class="bench-rows">
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Claude Fable</div><div class="bench-model-sub">20 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>2.7 min</div>
-                <div class="bar after"><i style="--w: 85%"></i>2.3 min</div>
-              </div>
-              <div class="bench-delta">&minus;14% time</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">Gemini 3.8 Flash</div><div class="bench-model-sub">14 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>13.1 min</div>
-                <div class="bar after"><i style="--w: 91%"></i>11.9 min</div>
-              </div>
-              <div class="bench-delta">&minus;8.5% time</div>
-            </div>
-            <div class="bench-row">
-              <div class="bench-model"><div class="bench-model-name">GPT-6 Astra</div><div class="bench-model-sub">21 tasks</div></div>
-              <div class="bench-bars">
-                <div class="bar before"><i style="--w: 100%"></i>152 s</div>
-                <div class="bar after"><i style="--w: 93%"></i>141 s</div>
-              </div>
-              <div class="bench-delta">&minus;7% time</div>
-            </div>
-          </div>
-        </section>
-
-      </div>
-    </div>
-  </div>
-
   <script>
-    function openModal(sectionId) {
-      const modal = document.getElementById('modal-overlay');
-      modal.classList.add('active');
-      const body = modal.querySelector('.modal-body');
-      body.scrollTop = 0;
-      if (sectionId) {
-        const section = document.getElementById(sectionId).closest('.bench-section');
-        if (section) body.scrollTop = section.offsetTop - body.offsetTop;
-      }
-    }
-
-    function closeModal() {
-      document.getElementById('modal-overlay').classList.remove('active');
-    }
-
-    function handleBackdrop(e) {
-      if (e.target.id === 'modal-overlay') closeModal();
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeModal();
-    });
-
     // Sidebar follows the section in view.
     (function () {
       const links = Array.from(document.querySelectorAll('.sidebar-item a'));
