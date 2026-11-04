@@ -134,8 +134,8 @@ for arm, cwd, sid, log in (('cut', A.cwd_cut, A.sid_cut, A.log_cut), ('control',
                 if st['kind'] == 'call': k_now = st['k']
                 if st['kind'] == 'tool' and st['name'] == 'Read':
                     f = st['input'].get('file_path')
-                    if f in cutFiles and cutFiles[f] <= k_now:
-                        notes.append(dict(kind='reread', k=k_now, turn=t['n'], file=f, cutAt=cutFiles[f]))
+                    if f in cutFiles and cutFiles[f] <= k_now and not any(n['turn'] == t['n'] and n['file'] == f for n in notes):
+                        notes.append(dict(kind='reread', k=k_now, turn=t['n'], file=f, cutAt=cutFiles[f]))   # one note per file and turn
     # small file: per call, results, notes
     out_small[arm] = dict(sid=sid, calls=[{**{x: c[x] for x in ('k', 't', 'read', 'write', 'input', 'out')}, **({'cut': c['cut']} if 'cut' in c else {}), **({'held': c['held']} if 'held' in c else {}), **({'compacted': True} if c.get('compacted') else {})} for c in calls],
                           results=[{x: r[x] for x in ('c', 'at', 't', 'cut')} for r in results], notes=notes,
