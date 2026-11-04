@@ -13,6 +13,7 @@ import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
 import { compressionHeader } from '../compression.js';
+import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
@@ -80,12 +81,27 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     return proxyCommand({ pos, flags, out, repo, HERE });
   }
   if (sub === 'report') {
-    const rows = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : [];
+    let malformed = 0;
+    const rows = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { malformed++; return null; } }).filter(Boolean) : [];
     const since = flags.days ? new Date(Date.now() - Number(flags.days) * 864e5).toISOString() : undefined;
     const sides = proxyReport(rows, { since });
+    if (flags['verify-usage']) {
+      sides.apiRequests = responsesUsageRecords(rows, { since });
+      try {
+        if (malformed) throw Error(`${malformed} malformed proxy log records`);
+        if (rows.some(r => r.op === 'proxy-error' && (!since || r.at >= since))) throw Error('Proxy transport errors: request accounting may be incomplete');
+        sides.usageValidation = verifyResponsesUsage(rows, { since });
+      } catch (error) {
+        sides.usageValidation = { complete: false, error: error.message };
+        process.exitCode = 1;
+      }
+    }
     const recentDays = Math.min(REWRITE_DAYS, Number(flags.days) || REWRITE_DAYS);
     const recent = recentDays === Number(flags.days) ? sides : proxyReport(rows, { since: new Date(Date.now() - recentDays * 864e5).toISOString() });
     if (flags.json) { out(JSON.stringify(sides, null, 2)); return; }
+    if (sides.usageValidation) out(sides.usageValidation.complete
+      ? `Responses usage verified: ${sides.usageValidation.requests} requests, complete provider counters, unique responses.`
+      : `Responses usage verification failed: ${sides.usageValidation.error}.`);
     if (!Object.keys(sides).length) {
       // Requests the proxy passed on without the edit are in neither side of the holdout, so they were reported
       // as nothing at all -- which read as "no requests yet" for a gateway that refuses the edit (seen in the
@@ -102,7 +118,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       return;
     }
     for (const [side, s] of Object.entries(sides)) {
-      if (side === 'warning') continue;
+      if (side === 'warning' || side === 'usageValidation' || side === 'apiRequests') continue;
       if (side === 'responses') {
         for (const [name, r] of Object.entries(s)) {
           const writes = r.cacheWrite == null ? 'cache writes not reported' : `${formatTokens(r.cacheWrite)} cache-write tokens` +
@@ -145,7 +161,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     out(renderReplay(r, formatTokens));
     return;
   }
-  if (sub !== 'serve') { out('usage: thinker proxy on [--gateway] [--upstream url] | off | status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
+  if (sub !== 'serve') { out('usage: thinker proxy on [--gateway] [--upstream url] | off | status | thinker proxy [serve] --port n | thinker proxy report [--days n] [--json] [--verify-usage] | thinker proxy replay [--days n] [--policies spec] [--json]'); process.exitCode = 2; return; }
   let cfg;
   try { cfg = proxyConfig(flags); } catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
