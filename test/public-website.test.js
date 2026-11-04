@@ -4,10 +4,10 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const context = vm.createContext({});
 vm.runInContext(fs.readFileSync(new URL('../infra/access/public-gateway.js', import.meta.url), 'utf8'), context);
-const request = (uri, method = 'GET') => context.handler({ request: { uri, method, headers: {}, cookies: {} } });
+const request = (uri, method = 'GET', host = 'thinker.sh', querystring = {}) => context.handler({ request: { uri, method, headers: { host: { value: host } }, querystring, cookies: {} } });
 test('public website serves docs, messages and current/legacy downloads without authorization', () => {
   for (const uri of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) assert.equal(request(uri).uri, '/docs.html');
-  for (const uri of ['/clearing', '/clearing/', '/clearing.html', '/compression', '/compression/', '/compression.html']) assert.equal(request(uri).uri, '/compression.html');
+  assert.equal(request('/see-the-data').uri, '/compression.html');
   for (const f of ['/clearing-click-1.json', '/clearing-click-1-session.json', '/clearing-click-2.json', '/clearing-runs.json']) assert.equal(request(f).uri, f);
   for (const uri of ['/nav.css', '/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
     assert.equal(request(uri).uri, uri); assert.equal(request(uri, 'HEAD').uri, uri);
@@ -18,6 +18,27 @@ test('public website serves docs, messages and current/legacy downloads without 
   assert.equal(request('/private/secret.json').statusCode, 404);
   assert.equal(request('/docs/../secret').statusCode, 400);
   assert.equal(request('/docs.html', 'POST').statusCode, 405);
+});
+test('old domains and data URLs redirect directly to thinker.sh, retaining encoded and repeated query values', () => {
+  const query = { run: { value: 'click-1' }, tag: { value: 'a%2Fb', multiValue: [{ value: 'a%2Fb' }, { value: 'c+d' }] }, empty: { value: '' } };
+  const suffix = '?run=click-1&tag=a%2Fb&tag=c+d&empty=';
+  for (const host of ['thinker.sh', 'zerotime.dev', 'www.zerotime.dev', 'www.thinker.sh']) {
+    for (const uri of ['/clearing', '/clearing/', '/clearing.html', '/compression', '/compression/', '/compression.html', '/see-the-data/', '/see-the-data.html']) {
+      for (const method of ['GET', 'HEAD']) {
+        const response = request(uri, method, host, query);
+        assert.equal(response.statusCode, 301);
+        assert.equal(response.headers.location.value, 'https://thinker.sh/see-the-data' + suffix);
+      }
+    }
+    if (host === 'thinker.sh') continue;
+    for (const uri of ['/', '/docs.html', '/see-the-data', '/dist/version.json', '/gokce-bday/']) {
+      const response = request(uri, 'GET', host, query);
+      assert.equal(response.statusCode, 301);
+      assert.equal(response.headers.location.value, 'https://thinker.sh' + uri + suffix);
+    }
+  }
+  assert.equal(request('/').uri, '/', 'canonical homepage does not loop');
+  assert.equal(request('/see-the-data', 'HEAD').uri, '/compression.html');
 });
 test('homepage installs publicly and both pages expose repository and message widget', () => {
   const home = fs.readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
@@ -85,12 +106,13 @@ test('the public pages share navigation and Compression keeps legacy links and e
     assert.equal(nav(page), nav(pages[0]));
     assert.match(page, /href="\/nav.css"/);
     assert.match(nav(page), />See the data<\/a>/);
+    assert.match(nav(page), /href="\/see-the-data"/);
   }
   const compression = pages[2];
   assert.doesNotMatch(compression, /id="play"|id="pairs-sec"|<select id="runsel"/);
   assert.ok(compression.indexOf('id="pos"') < compression.indexOf('<h2 class="chart-heading">Context window size over calls'));
   assert.match(compression, /session-saving/);
-  assert.match(fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8'), /compression.html.*location.search.*location.hash/);
+  assert.match(fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8'), /\/see-the-data.*location.search.*location.hash/);
 });
 
 test('See the data publishes the combined MLflow comparison with complete, sanitized usage', () => {

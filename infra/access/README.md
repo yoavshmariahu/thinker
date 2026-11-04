@@ -3,6 +3,10 @@
 The site and docs are public. `production.json` sets
 `publicSite: true`; `deploy.mjs` uses `public-deploy.mjs` and `public-gateway.js`.
 The homepage and docs include a GitHub link and the shared message widget.
+The canonical domain is `thinker.sh`; `zerotime.dev`, `www.zerotime.dev`, and
+`www.thinker.sh` redirect permanently to it, preserving paths and query parameters.
+“See the data” lives at `/see-the-data`; legacy `/compression` and `/clearing`
+URLs (including `.html` and trailing-slash variants) redirect there in one hop.
 Since 0.1.35 the installer and releases live on GitHub (tags `vX.Y.Z` with the
 archive, `version.json` and `install.sh` attached; `scripts/release.sh`). The
 `/dist` paths and the old signed distribution URLs still resolve so that clients

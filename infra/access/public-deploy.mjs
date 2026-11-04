@@ -41,14 +41,21 @@ if (mode === 'prepare') {
   const prepared = call(['cloudfront', 'update-function', '--name', config.functionName, '--if-match', existing.ETag,
     '--function-config', 'file://' + save('public-function-config.json', { Comment: 'Public Thinker website and downloads', Runtime: 'cloudfront-js-2.0' }),
     '--function-code', 'fileb://' + path.join(root, 'infra/access/public-gateway.js')]);
-  for (const [uri, expected] of [['/docs', '/docs.html'], ['/docs/', '/docs.html'], ['/docs.html', '/docs.html'], ['/dist/thinker.tgz', '/dist/thinker.tgz'], ['/message.js', '/message.js']]) {
+  const cases = [['/docs', '/docs.html'], ['/docs/', '/docs.html'], ['/docs.html', '/docs.html'], ['/see-the-data', '/compression.html'], ['/dist/thinker.tgz', '/dist/thinker.tgz'], ['/message.js', '/message.js']]
+    .map(([uri, expected]) => ({ uri, expected, host: 'thinker.sh' }));
+  for (const host of ['thinker.sh', 'zerotime.dev', 'www.zerotime.dev', 'www.thinker.sh']) {
+    cases.push({ host, uri: '/compression.html', location: 'https://thinker.sh/see-the-data?run=click-1&tag=a%2Fb&tag=c' });
+    if (host !== 'thinker.sh') cases.push({ host, uri: '/docs.html', location: 'https://thinker.sh/docs.html?run=click-1&tag=a%2Fb&tag=c' });
+  }
+  for (const { uri, expected, host, location } of cases) {
     const event = { version: '1.0', context: { eventType: 'viewer-request' }, viewer: { ip: '192.0.2.1' },
-      request: { method: 'GET', uri, querystring: {}, headers: { host: { value: 'zerotime.dev' } }, cookies: {} } };
+      request: { method: 'GET', uri, querystring: location ? { run: { value: 'click-1' }, tag: { value: 'a%2Fb', multiValue: [{ value: 'a%2Fb' }, { value: 'c' }] } } : {}, headers: { host: { value: host } }, cookies: {} } };
     const result = call(['cloudfront', 'test-function', '--name', config.functionName, '--if-match', prepared.ETag,
       '--stage', 'DEVELOPMENT', '--event-object', 'fileb://' + save('public-test-event.json', event)]).TestResult;
     const parsed = JSON.parse(result.FunctionOutput || '{}');
-    if (result.FunctionErrorMessage || (parsed.request || parsed).uri !== expected) throw new Error('Edge test failed: ' + uri);
-    console.log('Edge runtime passed:', uri);
+    const output = parsed.response || parsed.request || parsed;
+    if (result.FunctionErrorMessage || (location ? output.statusCode !== 301 || output.headers?.location?.value !== location : output.uri !== expected)) throw new Error('Edge test failed: ' + host + uri);
+    console.log('Edge runtime passed:', host + uri);
   }
   save('public-plan.json', { distributionEtag: snapshot.ETag, functionEtag: prepared.ETag,
     hashes: Object.fromEntries([...assets.map(([, file]) => file), 'infra/access/public-gateway.js'].map(file => [file, hash(file)])) });
@@ -67,7 +74,7 @@ if (mode === 'prepare') {
     '--body', path.join(root, file), '--content-type', type, '--cache-control', 'no-cache'], config.bucketRegion);
   call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
   const invalidation = call(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
-    '--paths', '/', '/index.html', '/docs*', '/compression*', '/clearing*', '/nav.css', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
+    '--paths', '/', '/index.html', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
   save('public-invalidation.json', invalidation);
   console.log('Public site deployed; invalidation:', invalidation.Invalidation.Id);
 } else throw new Error('Usage: node infra/access/deploy.mjs prepare|apply');
