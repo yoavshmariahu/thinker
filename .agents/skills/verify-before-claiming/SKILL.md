@@ -46,8 +46,19 @@ costs the money **and** produces a number you will misread.
   over the model's prose, and never the model's own account of itself (see the traps).
 - **How many calls does a session have?** Count them. Do not model them.
 
+**Picking the oracle is itself a decision that can be wrong.** A deterministic check is only ground
+truth if it answers *the question that was asked*. Asked for a file's "last line number", `wc -l` says
+690 and the Read tool shows a line 691, because it numbers a trailing empty line
+(`printf 'a\nb\nc\n'` reads as 1, 2, 3, 4). On 2026-11-04 I used `wc -l`, concluded the clearing arm
+was right 143 times out of 143 and the control wrong 19 times, and had it exactly backwards: the
+clearing had cost 19 values, which is the quality regression the run existed to find. The oracle was
+one `Read` call away and free. Before trusting a check, read the question and confirm the check answers
+*it*.
+
 ## Traps, each of which has produced a wrong published number here
 
+- **A control arm is not an oracle.** It tells you two arms differ, never which is right. Where a
+  deterministic check exists, use it -- and check that it answers the question asked (above).
 - **The model's self-report is not evidence.** It has declared answers "made up" that matched the
   control exactly, and explained a guess by a clearing that had not yet happened. Compare values.
 - **A regex over prose misses the phrasing it is counting.** "was a guess, because that read's result
