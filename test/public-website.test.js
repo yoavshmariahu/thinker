@@ -7,7 +7,9 @@ vm.runInContext(fs.readFileSync(new URL('../infra/access/public-gateway.js', imp
 const request = (uri, method = 'GET') => context.handler({ request: { uri, method, headers: {}, cookies: {} } });
 test('public website serves docs, messages and current/legacy downloads without authorization', () => {
   for (const uri of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) assert.equal(request(uri).uri, '/docs.html');
-  for (const uri of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
+  for (const uri of ['/clearing', '/clearing/', '/clearing.html', '/compression', '/compression/', '/compression.html']) assert.equal(request(uri).uri, '/compression.html');
+  for (const f of ['/clearing-click-1.json', '/clearing-click-1-session.json', '/clearing-click-2.json', '/clearing-runs.json']) assert.equal(request(f).uri, f);
+  for (const uri of ['/nav.css', '/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
     assert.equal(request(uri).uri, uri); assert.equal(request(uri, 'HEAD').uri, uri);
   }
   const legacy = '/access/download/' + 'a'.repeat(64);
@@ -25,9 +27,67 @@ test('homepage installs publicly and both pages expose repository and message wi
   assert.ok(!home.includes('Enter access code'));
   assert.ok(!home.includes('Join waitlist'));
   assert.ok(!home.includes("fetch('/access/session'"));
-  for (const file of ['index.html', 'docs.html']) {
+  for (const file of ['index.html', 'docs.html', 'compression.html']) {
     const html = fs.readFileSync(new URL('../site/' + file, import.meta.url), 'utf8');
     assert.match(html, /href="https:\/\/github.com\/yoavshmariahu\/thinker"/);
     assert.match(html, /src="\/message.js" defer/);
   }
+});
+test('the compression page inlines a run index and the default run, and every run file is complete', () => {
+  const html = fs.readFileSync(new URL('../site/compression.html', import.meta.url), 'utf8');
+  const ix = html.match(/const RUN_INDEX = \/\*RUN_INDEX\*\/(\[.*?\]);\n/s);
+  assert.ok(ix, 'the run index is inlined');
+  const index = JSON.parse(ix[1]);
+  assert.ok(index.some(r => r.group === 'click'), 'the real session is there');
+  assert.equal(new Set(index.map(r => r.group)).size, index.length, 'one example per workload');
+  const m = html.match(/const RUN_DATA = \/\*RUN_DATA\*\/(\{.*?\});\n/s);
+  assert.ok(m, 'the default run is inlined');
+  const inlined = JSON.parse(m[1]);
+  assert.equal(Object.keys(inlined).length, 1, 'one run inlined, the rest fetched');
+  for (const r of index) {
+    const d = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${r.id}.json`, import.meta.url), 'utf8'));
+    for (const arm of ['cut', 'control']) {
+      assert.ok(d[arm].calls.length > 10, `${r.id} ${arm}: every model call`);
+      assert.ok(d[arm].turns.length >= 10, `${r.id} ${arm}: the turns`);
+      for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${r.id} ${arm} call ${c.k} is complete`);
+    }
+    assert.ok(d.control.calls.every(c => !c.cut), `${r.id}: the control was never cut`);
+    assert.ok(d.price && d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: Opus 5.5 list prices`);
+    assert.ok(r.summary && r.summary.cut.cost1h > 0 && r.summary.control.cost1h > 0, `${r.id}: the index carries both arms' cost`);
+  }
+  assert.ok(html.includes('One run per arm'), 'the caveats are stated');
+  assert.ok(html.includes('list prices'), 'the price basis is stated');
+});
+
+test('the compression page\'s session view reads both runs, turn by turn, from one data file per run', () => {
+  const html = fs.readFileSync(new URL('../site/compression.html', import.meta.url), 'utf8');
+  assert.match(html, /clearing-\$\{id\}-session\.json/);
+  assert.match(html, /id="view-session"/);
+  for (const { id } of JSON.parse(fs.readFileSync(new URL('../site/clearing-runs.json', import.meta.url), 'utf8'))) {
+    const f = `clearing-${id}-session.json`;
+    const data = JSON.parse(fs.readFileSync(new URL('../site/' + f, import.meta.url), 'utf8'));
+    for (const arm of ['cut', 'control']) {
+      assert.ok(data[arm].turns.length >= 10, `${f} ${arm}: the turns`);
+      for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length, `${f} ${arm} turn ${t.n} has a prompt and steps`);
+      assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${f} ${arm}: no home paths`);
+    }
+    assert.deepEqual(data.cut.turns.map(t => t.prompt), data.control.turns.map(t => t.prompt), `${f}: compare the same user turn`);
+    const cutResults = data.cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt);
+    assert.ok(cutResults.length > 0, `${f}: the cut results are marked`);
+    for (const r of cutResults) assert.ok(data.blobs[r.blob], `${f}: a cut result keeps its original text`);
+  }
+});
+
+test('the public pages share navigation and Compression keeps legacy links and exploration controls', () => {
+  const pages = ['index', 'docs', 'compression'].map(name => fs.readFileSync(new URL(`../site/${name}.html`, import.meta.url), 'utf8'));
+  const nav = html => html.match(/<div class="site-nav-right"[^>]*>[\s\S]*?<\/div>/)[0];
+  for (const page of pages) {
+    assert.equal(nav(page), nav(pages[0]));
+    assert.match(page, /href="\/nav.css"/);
+  }
+  const compression = pages[2];
+  assert.doesNotMatch(compression, /id="play"|id="pairs-sec"|<select id="runsel"/);
+  assert.ok(compression.indexOf('id="pos"') < compression.indexOf('<h2 class="chart-heading">Context window size over calls'));
+  assert.match(compression, /session-saving/);
+  assert.match(fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8'), /compression.html.*location.search.*location.hash/);
 });

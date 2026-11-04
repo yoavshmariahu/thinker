@@ -1029,15 +1029,17 @@
   <link rel="stylesheet" href="/message.css">
   <script src="/message.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+  <link rel="stylesheet" href="/nav.css">
 </head>
 <body>
 
   <nav>
     <a href="index.html" class="nav-brand">thinker</a>
-    <div class="nav-right">
-      <a href="docs.html" class="nav-link">Docs</a>
-      <button class="btn-benchmark" onclick="openModal()">Benchmarks</button>
-      <a href="https://github.com/yoavshmariahu/thinker" class="nav-link">GitHub</a>
+    <div class="site-nav-right" aria-label="Main navigation">
+      <a href="docs.html" class="site-nav-link">Docs</a>
+      <a href="compression.html" class="site-nav-link">Compression</a>
+      <a href="index.html#benchmarks" class="site-nav-link site-nav-benchmark">Benchmarks</a>
+      <a href="https://github.com/yoavshmariahu/thinker" class="site-nav-link">GitHub</a>
     </div>
   </nav>
 
@@ -1620,6 +1622,12 @@
     })();
     });
 
+  </script>
+<script>
+    function openLinkedBenchmarks() { if (location.hash === '#benchmarks') openModal(); }
+    document.querySelector('.site-nav-benchmark').addEventListener('click', event => { event.preventDefault(); openModal(); });
+    window.addEventListener('hashchange', openLinkedBenchmarks);
+    openLinkedBenchmarks();
   </script>
 </body>
 </html>

@@ -14,8 +14,9 @@ function handler(event) {
         'content-type': { value: 'application/json' }, 'cache-control': { value: 'no-store' }
     }, body: request.method === 'HEAD' ? '' : JSON.stringify({ installCommand: 'curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash' }) };
     if (/^\/docs(?:\.html|\/index\.html|\/)?$/.test(uri)) { request.uri = '/docs.html'; return request; }
+    if (/^\/(?:compression|clearing)(?:\.html|\/)?$/.test(uri)) { request.uri = '/compression.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
-    if (uri === '/' || uri === '/index.html' || /^\/message\.(js|css)$/.test(uri) ||
+    if (uri === '/' || uri === '/index.html' || uri === '/nav.css' || /^\/clearing-[a-z0-9-]+\.json$/.test(uri) || /^\/message\.(js|css)$/.test(uri) ||
         /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) ||
         /^\/(favicon(?:-16x16|-32x32)?\.(?:ico|png|svg)|apple-touch-icon.png)$/.test(uri)) return request;
     if (uri === '/gokce-bday' || uri.indexOf('/gokce-bday/') === 0) {

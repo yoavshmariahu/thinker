@@ -1,0 +1,17 @@
+[
+  {
+    "id": "click-1",
+    "label": "Click \u00b7 CLI bug fix",
+    "group": "click",
+    "when": "2026-11-04",
+    "default": true,
+    "description": "Environment-variable help text"
+  },
+  {
+    "id": "mitm-1",
+    "label": "mitmproxy \u00b7 Two bug fixes",
+    "group": "mitm",
+    "when": "2026-11-04",
+    "description": "Filter parsing and HAR output paths"
+  }
+]
