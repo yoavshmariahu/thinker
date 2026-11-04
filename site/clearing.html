@@ -202,6 +202,14 @@
     .parts-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 0.3rem; vertical-align: -1px; background: var(--fg); }
     table.ptab { margin-top: 0.75rem; }
     table.ptab td.d.good { color: var(--thk); } table.ptab td.d.bad { color: var(--flag); }
+
+    /* ---- run selector, refusals ---- */
+    .runsel { display: flex; align-items: center; gap: 0.6rem; margin: 1.4rem 0 0; flex-wrap: wrap; }
+    .runsel .seg button { font-size: 0.82rem; }
+    .legend i.heldmark { width: 0; height: 12px; border-top: 0; border-left: 2px dashed var(--muted); }
+    .heldline { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 2 2; }
+    .tag.held { background: var(--line-2); color: var(--muted); }
+    .note.held { color: var(--muted); }
   </style>
   <script src="/message.js" defer></script>
 </head>
@@ -217,27 +225,27 @@
   <main>
     <div class="kicker">Context clearing · measured, call by call</div>
     <h1>One session, run twice.</h1>
-    <p class="lede">The same 14 prompts, the same model (Claude Opus 5.5 in Claude Code), the same repository. Once <span class="arm ctl"><i></i>straight to the API</span>, once <span class="arm thk"><i></i>through thinker</span>, which takes old tool results out of the conversation once they have been used. Every model call of both runs is below, with what it carried, what it cost at list prices, and where thinker stepped in.</p>
+    <p class="lede" id="lede"></p>
+
+    <div class="runsel" role="radiogroup" aria-label="Which run"><span class="ctl-lbl">Run</span><span class="seg" id="runsel"></span></div>
 
     <div class="tabs" role="tablist"><button type="button" class="on" data-view="metrics" role="tab">Metrics</button><button type="button" data-view="session" role="tab">Session, turn by turn</button></div>
     <div class="controls">
       <span><span class="ctl-lbl">Cache writes priced at</span><span class="seg" id="ttl"><button data-v="1h" class="on">1-hour TTL</button><button data-v="5m">5-minute TTL</button></span></span>
-      <label class="chk"><input type="checkbox" id="cold" checked> Charge the control the cold start it skipped</label>
+      <label class="chk" id="cold-wrap"><input type="checkbox" id="cold" checked> Charge the control the cold start it skipped</label>
       <div class="scrub"><button id="play" type="button" aria-label="Play">▶</button><input type="range" id="pos" min="1" max="30" value="30" aria-label="Model call"><span class="pos" id="pos-lbl"></span></div>
     </div>
 
     <div id="view-metrics">
     <div class="tiles" id="tiles"></div>
 
-
     <h2>What each call carried</h2>
-    <p class="sub">Tokens in the prompt of every model call: the system prompt, the conversation so far and the tool results in it. Without thinker it only grows. Each dashed line is a cut, where thinker replaced the results the model had already used with a one-line placeholder.</p>
-    <div class="legend"><span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span><span><i class="flagmark"></i>answer flagged a figure as unverified</span></div>
+    <p class="sub">Tokens in the prompt of every model call: the system prompt, the conversation so far and the tool results in it. Without thinker it only grows. Each dashed line is a cut, where thinker replaced the results the model had already used with a one-line placeholder; a hollow tick is a cut it priced and refused.</p>
+    <div class="legend" id="legend1"></div>
     <figure><div class="chart" id="c1"></div></figure>
 
-    <h2>What it cost, added up</h2>
-    <p class="sub">Cumulative cost at Anthropic's list prices for Claude Opus 5.5. A cut makes every later call cheaper to read, but writes the rest of the conversation into the prompt cache again. Whether it pays depends on the write price, so pick the cache TTL above.</p>
-    <div class="legend"><span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span></div>
+    <h2>What it cost, call by call</h2>
+    <p class="sub">Cumulative cost at list prices: fresh input, prompt-cache reads, cache writes and output, each at its own rate. A cut saves reads on every later call and pays a cache write once, so the green line dips below the blue only after the write has been repaid.</p>
     <figure><div class="chart" id="c2"></div></figure>
 
     <h2>Where the dollars go</h2>
@@ -245,33 +253,22 @@
     <div id="parts"></div>
     <div class="tbl-wrap"><table id="ptab" class="ptab"></table></div>
 
-    <h2>The context window, side by side</h2>
-    <p class="sub">What each run's prompt held at the selected call. Drag the slider or press play. Every block is one tool result, in the order it arrived; a hollow slot is a result thinker cut.</p>
+    <h2>The two context windows at this call</h2>
+    <p class="sub">Each run's prompt at the selected call, apportioned by the size of the results in its own transcript. Solid blocks are results the model can read; hollow ones are placeholders thinker left behind. Drag the scrubber above, or press play.</p>
     <div class="tracks">
       <div class="track-card ctl" id="tr-ctl"></div>
       <div class="track-card thk" id="tr-thk"></div>
     </div>
-    <div class="tlegend"><span><i style="background:#111"></i>system prompt and instructions</span><span><i style="background:#b4b4bb"></i>tool result</span><span><i style="background:#8b8b93"></i>this turn's results</span><span><i style="background:#fff;border:1px dashed #c7c7cc"></i>cut by thinker</span></div>
 
     <h2>Where thinker stepped in</h2>
-    <p class="sub">Four cuts, each at the start of a turn, each priced before it was taken: the tokens dropped against the prompt-cache write it would provoke. And the four moments the model, having lost a raw result, said so in its answer.</p>
+    <p class="sub">Every decision the proxy made, in the order it made them, and every place the model went back for something that had been cleared. Click one to jump the scrubber there.</p>
     <ul class="events" id="events"></ul>
 
     <h2>The two runs, side by side</h2>
     <div class="tbl-wrap"><table id="stats"></table></div>
     <details><summary>Every model call as a table</summary><div class="tbl-wrap"><table id="calls"></table></div></details>
 
-    <div class="caveats" id="caveats">
-      <b>Read this before the numbers.</b>
-      <ul>
-        <li><b>One run per arm.</b> This is a paired measurement, not a powered sample. The sign at the one-hour write rate is within what one more run could move.</li>
-        <li><b>The workload is reading.</b> Each turn reads two to seven source files of a Node.js repository and runs a few commands, then answers a question about them. It is what the clearing is for, and a best case by construction: nothing is edited.</li>
-        <li><b>Prices are list prices</b> for Claude Opus 5.5 on a metered API key, per million tokens: input $4, output $20, cache read $0.20, cache write $8 at the one-hour TTL and $5 at five minutes. Claude Code writes with the one-hour TTL. A subscription pays none of this.</li>
-        <li><b>The control ran second</b> and inherited the first run's prompt cache, so it skipped the 39k tokens of cache write that a cold session pays on its first two calls. The checkbox above charges it those; unchecking shows the control exactly as billed.</li>
-        <li><b>What a cost cannot see.</b> In four turns the thinker run's answer flagged line counts it had already given as unverified, because the raw file was gone from its context. The figures it flagged matched the control's. The control's answers never said so. Nine of fourteen answers were identical in both runs, five differed by one line in both directions, none left a value out.</li>
-        <li>Tokens are what the API reported on each call. The track view apportions each run's measured prompt by the character counts of the results in thinker's own request bodies, so it is an illustration of the same measured total.</li>
-      </ul>
-    </div>
+    <div class="caveats" id="caveats"></div>
     </div>
 
     <div id="view-session" hidden>
@@ -281,195 +278,193 @@
   </main>
 
   <script>
-  const DATA = {"cut":[{"i":2,"r":12895,"w":15518,"w5":0,"o":88,"t":0},{"i":2,"r":28413,"w":23508,"w5":0,"o":630,"t":1},{"i":2,"r":51921,"w":72161,"w5":0,"o":7,"t":1},{"i":2,"r":124082,"w":652,"w5":0,"o":390,"t":2},{"i":2,"r":124734,"w":54541,"w5":0,"o":7,"t":2},{"i":2,"r":24655,"w":11467,"w5":0,"o":506,"cut":{"tokens":116615,"recache":10983,"cost":21966,"saving":233230},"t":3},{"i":2,"r":36122,"w":24064,"w5":0,"o":122,"t":3},{"i":2,"r":60186,"w":837,"w5":0,"o":499,"t":4},{"i":2,"r":61023,"w":71173,"w5":0,"o":43,"t":4},{"i":2,"r":132196,"w":766,"w5":0,"o":508,"t":5},{"i":2,"r":132962,"w":51550,"w5":0,"o":45,"t":5},{"i":2,"r":12895,"w":33888,"w5":0,"o":587,"cut":{"tokens":115671,"recache":14432,"cost":28864,"saving":231342},"t":6},{"i":2,"r":46783,"w":49474,"w5":0,"o":289,"t":6},{"i":2,"r":96257,"w":1002,"w5":0,"o":496,"t":7},{"i":2,"r":97259,"w":50789,"w5":0,"o":10,"t":7},{"i":2,"r":148048,"w":798,"w5":0,"o":611,"t":8},{"i":2,"r":148846,"w":71734,"w5":0,"o":64,"t":8},{"i":2,"r":12895,"w":44827,"w5":0,"o":687,"cut":{"tokens":136996,"recache":14851,"cost":29702,"saving":273992},"t":9},{"i":2,"r":57722,"w":59294,"w5":0,"o":268,"t":9},{"i":2,"r":117016,"w":1067,"w5":0,"o":627,"t":10},{"i":2,"r":118083,"w":58011,"w5":0,"o":64,"t":10},{"i":2,"r":176094,"w":851,"w5":0,"o":613,"t":11},{"i":2,"r":176945,"w":49391,"w5":0,"o":12,"t":11},{"i":2,"r":12895,"w":56024,"w5":0,"o":657,"cut":{"tokens":134455,"recache":14643,"cost":29286,"saving":268910},"t":12},{"i":2,"r":68919,"w":52171,"w5":0,"o":444,"t":12},{"i":4,"r":121090,"w":811,"w5":0,"o":615,"t":13},{"i":2,"r":121901,"w":47498,"w5":0,"o":12,"t":13},{"i":2,"r":169399,"w":872,"w5":0,"o":724,"t":14},{"i":2,"r":170271,"w":62242,"w5":0,"o":1196,"t":14}],"control":[{"i":2,"r":28413,"w":0,"w5":0,"o":88,"t":0},{"i":2,"r":51921,"w":0,"w5":0,"o":557,"t":1},{"i":2,"r":51921,"w":72088,"w5":0,"o":7,"t":1},{"i":2,"r":124009,"w":652,"w5":0,"o":368,"t":2},{"i":2,"r":124661,"w":25720,"w5":0,"o":176,"t":2},{"i":2,"r":150381,"w":21847,"w5":0,"o":195,"t":2},{"i":2,"r":172228,"w":840,"w5":0,"o":368,"t":3},{"i":2,"r":173068,"w":23926,"w5":0,"o":91,"t":3},{"i":2,"r":196994,"w":806,"w5":0,"o":453,"t":4},{"i":2,"r":197800,"w":47811,"w5":0,"o":69,"t":4},{"i":2,"r":245611,"w":792,"w5":0,"o":462,"t":5},{"i":2,"r":246403,"w":48673,"w5":0,"o":55,"t":5},{"i":2,"r":295076,"w":779,"w5":0,"o":465,"t":6},{"i":2,"r":295855,"w":49352,"w5":0,"o":120,"t":6},{"i":2,"r":345207,"w":833,"w5":0,"o":450,"t":7},{"i":2,"r":346040,"w":50743,"w5":0,"o":159,"t":7},{"i":2,"r":396783,"w":947,"w5":0,"o":541,"t":8},{"i":2,"r":397730,"w":71664,"w5":0,"o":12,"t":8},{"i":2,"r":469394,"w":802,"w5":0,"o":545,"t":9},{"i":2,"r":470196,"w":59152,"w5":0,"o":12,"t":9},{"i":2,"r":529348,"w":811,"w5":0,"o":557,"t":10},{"i":2,"r":530159,"w":57941,"w5":0,"o":12,"t":10},{"i":2,"r":588100,"w":799,"w5":0,"o":543,"t":11},{"i":2,"r":588899,"w":49321,"w5":0,"o":12,"t":11},{"i":2,"r":638220,"w":798,"w5":0,"o":541,"t":12},{"i":2,"r":639018,"w":52055,"w5":0,"o":13,"t":12},{"i":2,"r":691073,"w":804,"w5":0,"o":545,"t":13},{"i":2,"r":691877,"w":49413,"w5":0,"o":12,"t":13},{"i":2,"r":741290,"w":872,"w5":0,"o":630,"t":14},{"i":2,"r":742162,"w":62148,"w5":0,"o":15,"t":14}],"results":[{"c":46072,"at":2,"cut":6},{"c":162113,"at":3,"cut":6},{"c":1,"at":3,"cut":null},{"c":11,"at":3,"cut":null},{"c":11,"at":3,"cut":null},{"c":115745,"at":5,"cut":6},{"c":2,"at":5,"cut":null},{"c":11,"at":5,"cut":null},{"c":11,"at":5,"cut":null},{"c":52138,"at":7,"cut":12},{"c":2,"at":7,"cut":null},{"c":11,"at":7,"cut":null},{"c":11,"at":7,"cut":null},{"c":76764,"at":9,"cut":12},{"c":75831,"at":9,"cut":12},{"c":2,"at":9,"cut":null},{"c":11,"at":9,"cut":null},{"c":11,"at":9,"cut":null},{"c":67412,"at":11,"cut":12},{"c":49155,"at":11,"cut":12},{"c":11,"at":11,"cut":null},{"c":11,"at":11,"cut":null},{"c":2,"at":11,"cut":null},{"c":63742,"at":13,"cut":18},{"c":50108,"at":13,"cut":18},{"c":2,"at":13,"cut":null},{"c":11,"at":13,"cut":null},{"c":11,"at":13,"cut":null},{"c":56966,"at":15,"cut":18},{"c":55690,"at":15,"cut":18},{"c":2,"at":15,"cut":null},{"c":11,"at":15,"cut":null},{"c":11,"at":15,"cut":null},{"c":52370,"at":17,"cut":18},{"c":53346,"at":17,"cut":18},{"c":48315,"at":17,"cut":18},{"c":11,"at":17,"cut":null},{"c":11,"at":17,"cut":null},{"c":2,"at":17,"cut":null},{"c":44013,"at":19,"cut":24},{"c":43113,"at":19,"cut":24},{"c":43211,"at":19,"cut":24},{"c":2,"at":19,"cut":null},{"c":11,"at":19,"cut":null},{"c":11,"at":19,"cut":null},{"c":42936,"at":21,"cut":24},{"c":42726,"at":21,"cut":24},{"c":40507,"at":21,"cut":24},{"c":12,"at":21,"cut":null},{"c":12,"at":21,"cut":null},{"c":1,"at":21,"cut":null},{"c":40156,"at":23,"cut":24},{"c":39400,"at":23,"cut":24},{"c":37423,"at":23,"cut":24},{"c":12,"at":23,"cut":null},{"c":12,"at":23,"cut":null},{"c":2,"at":23,"cut":null},{"c":38703,"at":25,"cut":null},{"c":36997,"at":25,"cut":null},{"c":35161,"at":25,"cut":null},{"c":1,"at":25,"cut":null},{"c":12,"at":25,"cut":null},{"c":12,"at":25,"cut":null},{"c":36117,"at":27,"cut":null},{"c":34933,"at":27,"cut":null},{"c":34713,"at":27,"cut":null},{"c":12,"at":27,"cut":null},{"c":12,"at":27,"cut":null},{"c":1,"at":27,"cut":null},{"c":34370,"at":29,"cut":null},{"c":34035,"at":29,"cut":null},{"c":33289,"at":29,"cut":null},{"c":32867,"at":29,"cut":null},{"c":12,"at":29,"cut":null},{"c":12,"at":29,"cut":null},{"c":2,"at":29,"cut":null}],"work":{"1":{"reads":2,"cmds":3},"2":{"reads":2,"cmds":6},"3":{"reads":2,"cmds":6},"4":{"reads":3,"cmds":6},"5":{"reads":4,"cmds":6},"6":{"reads":4,"cmds":6},"7":{"reads":4,"cmds":6},"8":{"reads":5,"cmds":6},"9":{"reads":6,"cmds":6},"10":{"reads":6,"cmds":6},"11":{"reads":6,"cmds":6},"12":{"reads":6,"cmds":6},"13":{"reads":6,"cmds":6},"14":{"reads":7,"cmds":6}}};
+  const RUN_DATA = /*RUN_DATA*/{"synthetic":{"id":"synthetic","price":{"input":4.0,"out":20.0,"read":0.2,"w1h":8.0,"w5m":5.0},"cold":39026,"cut":{"sid":"fba8189e-d3f3-47e8-ac05-98281a646337","calls":[{"k":1,"t":1,"read":12895,"write":15518,"input":2,"out":88},{"k":2,"t":1,"read":28413,"write":23508,"input":2,"out":630},{"k":3,"t":1,"read":51921,"write":72161,"input":2,"out":7},{"k":4,"t":2,"read":124082,"write":652,"input":2,"out":390},{"k":5,"t":2,"read":124734,"write":54541,"input":2,"out":7},{"k":6,"t":3,"read":24655,"write":11467,"input":2,"out":506,"cut":{"tokens":116615,"recache":10983,"cost":21966,"saving":233230,"results":3,"uses":null}},{"k":7,"t":3,"read":36122,"write":24064,"input":2,"out":122},{"k":8,"t":4,"read":60186,"write":837,"input":2,"out":499},{"k":9,"t":4,"read":61023,"write":71173,"input":2,"out":43},{"k":10,"t":5,"read":132196,"write":766,"input":2,"out":508},{"k":11,"t":5,"read":132962,"write":51550,"input":2,"out":45},{"k":12,"t":6,"read":12895,"write":33888,"input":2,"out":587,"cut":{"tokens":115671,"recache":14432,"cost":28864,"saving":231342,"results":8,"uses":null}},{"k":13,"t":6,"read":46783,"write":49474,"input":2,"out":289},{"k":14,"t":7,"read":96257,"write":1002,"input":2,"out":496},{"k":15,"t":7,"read":97259,"write":50789,"input":2,"out":10},{"k":16,"t":8,"read":148048,"write":798,"input":2,"out":611},{"k":17,"t":8,"read":148846,"write":71734,"input":2,"out":64},{"k":18,"t":9,"read":12895,"write":44827,"input":2,"out":687,"cut":{"tokens":136996,"recache":14851,"cost":29702,"saving":273992,"results":15,"uses":null}},{"k":19,"t":9,"read":57722,"write":59294,"input":2,"out":268},{"k":20,"t":10,"read":117016,"write":1067,"input":2,"out":627},{"k":21,"t":10,"read":118083,"write":58011,"input":2,"out":64},{"k":22,"t":11,"read":176094,"write":851,"input":2,"out":613},{"k":23,"t":11,"read":176945,"write":49391,"input":2,"out":12},{"k":24,"t":12,"read":12895,"write":56024,"input":2,"out":657,"cut":{"tokens":134455,"recache":14643,"cost":29286,"saving":268910,"results":24,"uses":null}},{"k":25,"t":12,"read":68919,"write":52171,"input":2,"out":444},{"k":26,"t":13,"read":121090,"write":811,"input":4,"out":615},{"k":27,"t":13,"read":121901,"write":47498,"input":2,"out":12},{"k":28,"t":14,"read":169399,"write":872,"input":2,"out":724},{"k":29,"t":14,"read":170271,"write":62242,"input":2,"out":1196}],"results":[{"c":46072,"at":2,"t":1,"cut":6},{"c":162113,"at":3,"t":1,"cut":6},{"c":1,"at":3,"t":1,"cut":null},{"c":11,"at":3,"t":1,"cut":null},{"c":11,"at":3,"t":1,"cut":null},{"c":115745,"at":5,"t":2,"cut":6},{"c":2,"at":5,"t":2,"cut":null},{"c":11,"at":5,"t":2,"cut":null},{"c":11,"at":5,"t":2,"cut":null},{"c":52138,"at":7,"t":3,"cut":12},{"c":2,"at":7,"t":3,"cut":null},{"c":11,"at":7,"t":3,"cut":null},{"c":11,"at":7,"t":3,"cut":null},{"c":76764,"at":9,"t":4,"cut":12},{"c":75812,"at":9,"t":4,"cut":12},{"c":2,"at":9,"t":4,"cut":null},{"c":11,"at":9,"t":4,"cut":null},{"c":11,"at":9,"t":4,"cut":null},{"c":67412,"at":11,"t":5,"cut":12},{"c":49155,"at":11,"t":5,"cut":12},{"c":11,"at":11,"t":5,"cut":null},{"c":11,"at":11,"t":5,"cut":null},{"c":2,"at":11,"t":5,"cut":null},{"c":63742,"at":13,"t":6,"cut":18},{"c":50108,"at":13,"t":6,"cut":18},{"c":2,"at":13,"t":6,"cut":null},{"c":11,"at":13,"t":6,"cut":null},{"c":11,"at":13,"t":6,"cut":null},{"c":56966,"at":15,"t":7,"cut":18},{"c":55690,"at":15,"t":7,"cut":18},{"c":2,"at":15,"t":7,"cut":null},{"c":11,"at":15,"t":7,"cut":null},{"c":11,"at":15,"t":7,"cut":null},{"c":52370,"at":17,"t":8,"cut":18},{"c":53346,"at":17,"t":8,"cut":18},{"c":48315,"at":17,"t":8,"cut":18},{"c":11,"at":17,"t":8,"cut":null},{"c":11,"at":17,"t":8,"cut":null},{"c":2,"at":17,"t":8,"cut":null},{"c":44013,"at":19,"t":9,"cut":24},{"c":43113,"at":19,"t":9,"cut":24},{"c":43211,"at":19,"t":9,"cut":24},{"c":2,"at":19,"t":9,"cut":null},{"c":11,"at":19,"t":9,"cut":null},{"c":11,"at":19,"t":9,"cut":null},{"c":42936,"at":21,"t":10,"cut":24},{"c":42726,"at":21,"t":10,"cut":24},{"c":40507,"at":21,"t":10,"cut":24},{"c":12,"at":21,"t":10,"cut":null},{"c":12,"at":21,"t":10,"cut":null},{"c":1,"at":21,"t":10,"cut":null},{"c":40156,"at":23,"t":11,"cut":24},{"c":39400,"at":23,"t":11,"cut":24},{"c":37423,"at":23,"t":11,"cut":24},{"c":12,"at":23,"t":11,"cut":null},{"c":12,"at":23,"t":11,"cut":null},{"c":2,"at":23,"t":11,"cut":null},{"c":38703,"at":25,"t":12,"cut":null},{"c":36997,"at":25,"t":12,"cut":null},{"c":35161,"at":25,"t":12,"cut":null},{"c":1,"at":25,"t":12,"cut":null},{"c":12,"at":25,"t":12,"cut":null},{"c":12,"at":25,"t":12,"cut":null},{"c":36117,"at":27,"t":13,"cut":null},{"c":34933,"at":27,"t":13,"cut":null},{"c":34713,"at":27,"t":13,"cut":null},{"c":12,"at":27,"t":13,"cut":null},{"c":12,"at":27,"t":13,"cut":null},{"c":1,"at":27,"t":13,"cut":null},{"c":34370,"at":29,"t":14,"cut":null},{"c":34035,"at":29,"t":14,"cut":null},{"c":33289,"at":29,"t":14,"cut":null},{"c":32867,"at":29,"t":14,"cut":null},{"c":12,"at":29,"t":14,"cut":null},{"c":12,"at":29,"t":14,"cut":null},{"c":2,"at":29,"t":14,"cut":null}],"notes":[],"turns":[{"n":1,"tools":{"Read":2,"Bash":3},"calls":[1,2,3]},{"n":2,"tools":{"Read":1,"Bash":3},"calls":[4,5]},{"n":3,"tools":{"Read":1,"Bash":3},"calls":[6,7]},{"n":4,"tools":{"Read":2,"Bash":3},"calls":[8,9]},{"n":5,"tools":{"Read":2,"Bash":3},"calls":[10,11]},{"n":6,"tools":{"Read":2,"Bash":3},"calls":[12,13]},{"n":7,"tools":{"Read":2,"Bash":3},"calls":[14,15]},{"n":8,"tools":{"Read":3,"Bash":3},"calls":[16,17]},{"n":9,"tools":{"Read":3,"Bash":3},"calls":[18,19]},{"n":10,"tools":{"Read":3,"Bash":3},"calls":[20,21]},{"n":11,"tools":{"Read":3,"Bash":3},"calls":[22,23]},{"n":12,"tools":{"Read":3,"Bash":3},"calls":[24,25]},{"n":13,"tools":{"Read":3,"Bash":3},"calls":[26,27]},{"n":14,"tools":{"Read":4,"Bash":3},"calls":[28,29]}]},"control":{"sid":"c2fcb0e6-b834-47a7-adbc-7ba071b54dd2","calls":[{"k":1,"t":1,"read":28413,"write":0,"input":2,"out":88},{"k":2,"t":1,"read":51921,"write":0,"input":2,"out":557},{"k":3,"t":1,"read":51921,"write":72088,"input":2,"out":7},{"k":4,"t":2,"read":124009,"write":652,"input":2,"out":368},{"k":5,"t":2,"read":124661,"write":25720,"input":2,"out":176},{"k":6,"t":2,"read":150381,"write":21847,"input":2,"out":195},{"k":7,"t":3,"read":172228,"write":840,"input":2,"out":368},{"k":8,"t":3,"read":173068,"write":23926,"input":2,"out":91},{"k":9,"t":4,"read":196994,"write":806,"input":2,"out":453},{"k":10,"t":4,"read":197800,"write":47811,"input":2,"out":69},{"k":11,"t":5,"read":245611,"write":792,"input":2,"out":462},{"k":12,"t":5,"read":246403,"write":48673,"input":2,"out":55},{"k":13,"t":6,"read":295076,"write":779,"input":2,"out":465},{"k":14,"t":6,"read":295855,"write":49352,"input":2,"out":120},{"k":15,"t":7,"read":345207,"write":833,"input":2,"out":450},{"k":16,"t":7,"read":346040,"write":50743,"input":2,"out":159},{"k":17,"t":8,"read":396783,"write":947,"input":2,"out":541},{"k":18,"t":8,"read":397730,"write":71664,"input":2,"out":12},{"k":19,"t":9,"read":469394,"write":802,"input":2,"out":545},{"k":20,"t":9,"read":470196,"write":59152,"input":2,"out":12},{"k":21,"t":10,"read":529348,"write":811,"input":2,"out":557},{"k":22,"t":10,"read":530159,"write":57941,"input":2,"out":12},{"k":23,"t":11,"read":588100,"write":799,"input":2,"out":543},{"k":24,"t":11,"read":588899,"write":49321,"input":2,"out":12},{"k":25,"t":12,"read":638220,"write":798,"input":2,"out":541},{"k":26,"t":12,"read":639018,"write":52055,"input":2,"out":13},{"k":27,"t":13,"read":691073,"write":804,"input":2,"out":545},{"k":28,"t":13,"read":691877,"write":49413,"input":2,"out":12},{"k":29,"t":14,"read":741290,"write":872,"input":2,"out":630},{"k":30,"t":14,"read":742162,"write":62148,"input":2,"out":15}],"results":[{"c":46072,"at":2,"t":1,"cut":null},{"c":162113,"at":3,"t":1,"cut":null},{"c":1,"at":3,"t":1,"cut":null},{"c":11,"at":3,"t":1,"cut":null},{"c":11,"at":3,"t":1,"cut":null},{"c":51633,"at":5,"t":2,"cut":null},{"c":2,"at":5,"t":2,"cut":null},{"c":11,"at":5,"t":2,"cut":null},{"c":11,"at":5,"t":2,"cut":null},{"c":48272,"at":6,"t":2,"cut":null},{"c":52138,"at":8,"t":3,"cut":null},{"c":2,"at":8,"t":3,"cut":null},{"c":11,"at":8,"t":3,"cut":null},{"c":11,"at":8,"t":3,"cut":null},{"c":50985,"at":10,"t":4,"cut":null},{"c":48556,"at":10,"t":4,"cut":null},{"c":2,"at":10,"t":4,"cut":null},{"c":11,"at":10,"t":4,"cut":null},{"c":11,"at":10,"t":4,"cut":null},{"c":55881,"at":12,"t":5,"cut":null},{"c":52899,"at":12,"t":5,"cut":null},{"c":11,"at":12,"t":5,"cut":null},{"c":2,"at":12,"t":5,"cut":null},{"c":11,"at":12,"t":5,"cut":null},{"c":63742,"at":14,"t":6,"cut":null},{"c":50108,"at":14,"t":6,"cut":null},{"c":2,"at":14,"t":6,"cut":null},{"c":11,"at":14,"t":6,"cut":null},{"c":11,"at":14,"t":6,"cut":null},{"c":56966,"at":16,"t":7,"cut":null},{"c":55690,"at":16,"t":7,"cut":null},{"c":11,"at":16,"t":7,"cut":null},{"c":2,"at":16,"t":7,"cut":null},{"c":11,"at":16,"t":7,"cut":null},{"c":52370,"at":18,"t":8,"cut":null},{"c":53346,"at":18,"t":8,"cut":null},{"c":48315,"at":18,"t":8,"cut":null},{"c":11,"at":18,"t":8,"cut":null},{"c":11,"at":18,"t":8,"cut":null},{"c":2,"at":18,"t":8,"cut":null},{"c":44013,"at":20,"t":9,"cut":null},{"c":43113,"at":20,"t":9,"cut":null},{"c":43211,"at":20,"t":9,"cut":null},{"c":11,"at":20,"t":9,"cut":null},{"c":2,"at":20,"t":9,"cut":null},{"c":11,"at":20,"t":9,"cut":null},{"c":42936,"at":22,"t":10,"cut":null},{"c":42726,"at":22,"t":10,"cut":null},{"c":40507,"at":22,"t":10,"cut":null},{"c":1,"at":22,"t":10,"cut":null},{"c":12,"at":22,"t":10,"cut":null},{"c":12,"at":22,"t":10,"cut":null},{"c":40156,"at":24,"t":11,"cut":null},{"c":39400,"at":24,"t":11,"cut":null},{"c":37423,"at":24,"t":11,"cut":null},{"c":12,"at":24,"t":11,"cut":null},{"c":2,"at":24,"t":11,"cut":null},{"c":12,"at":24,"t":11,"cut":null},{"c":38703,"at":26,"t":12,"cut":null},{"c":36997,"at":26,"t":12,"cut":null},{"c":35161,"at":26,"t":12,"cut":null},{"c":12,"at":26,"t":12,"cut":null},{"c":1,"at":26,"t":12,"cut":null},{"c":12,"at":26,"t":12,"cut":null},{"c":36117,"at":28,"t":13,"cut":null},{"c":34933,"at":28,"t":13,"cut":null},{"c":34713,"at":28,"t":13,"cut":null},{"c":12,"at":28,"t":13,"cut":null},{"c":1,"at":28,"t":13,"cut":null},{"c":12,"at":28,"t":13,"cut":null},{"c":34370,"at":30,"t":14,"cut":null},{"c":34035,"at":30,"t":14,"cut":null},{"c":33289,"at":30,"t":14,"cut":null},{"c":32867,"at":30,"t":14,"cut":null},{"c":12,"at":30,"t":14,"cut":null},{"c":2,"at":30,"t":14,"cut":null},{"c":12,"at":30,"t":14,"cut":null}],"notes":[],"turns":[{"n":1,"tools":{"Read":2,"Bash":3},"calls":[1,2,3]},{"n":2,"tools":{"Read":2,"Bash":3},"calls":[4,5,6]},{"n":3,"tools":{"Read":1,"Bash":3},"calls":[7,8]},{"n":4,"tools":{"Read":2,"Bash":3},"calls":[9,10]},{"n":5,"tools":{"Read":2,"Bash":3},"calls":[11,12]},{"n":6,"tools":{"Read":2,"Bash":3},"calls":[13,14]},{"n":7,"tools":{"Read":2,"Bash":3},"calls":[15,16]},{"n":8,"tools":{"Read":3,"Bash":3},"calls":[17,18]},{"n":9,"tools":{"Read":3,"Bash":3},"calls":[19,20]},{"n":10,"tools":{"Read":3,"Bash":3},"calls":[21,22]},{"n":11,"tools":{"Read":3,"Bash":3},"calls":[23,24]},{"n":12,"tools":{"Read":3,"Bash":3},"calls":[25,26]},{"n":13,"tools":{"Read":3,"Bash":3},"calls":[27,28]},{"n":14,"tools":{"Read":4,"Bash":3},"calls":[29,30]}]}}};
+  const RUNS = [
+    { id: 'real', label: 'A real session: fixing a bug in Click', when: '2026-11-04',
+      lede: `Twelve prompts a developer would type, from <b>"I'm new to this codebase"</b> to the final diff: a tour of Click's help rendering, a user's bug report about <code>show_envvar</code>, the reproduction, the root cause, the fix, regression tests, the full test suite, a changelog entry, a maintainer's review. The same prompts twice, in two fresh clones of <a href="https://github.com/pallets/click">pallets/click</a> at the commit before the real fix, with the same model (Claude Opus 5.5 in Claude Code). Once <span class="arm ctl"><i></i>straight to the API</span>, once <span class="arm thk"><i></i>through thinker</span>, which takes old tool results out of the conversation once they have been used. Every model call of both runs is below, with what it carried, what it cost at list prices, and where thinker stepped in.`,
+      answers: d => {
+        const cut = d.cut.turns.length, ctl = d.control.turns.length;
+        return { v: `${Math.min(cut, ctl)}<small>of ${Math.max(cut, ctl)} turns in both</small>`, why: `${d.cut.notes.filter(n => n.kind === 'reread').length} re-read${d.cut.notes.filter(n => n.kind === 'reread').length === 1 ? '' : 's'} of a cleared file in the thinker run; both runs' diffs and test results are on the Session tab` };
+      },
+      caveats: [
+        ['One run per arm.', 'This is a paired measurement, not a powered sample; the model takes a different path each time, and the two runs are not the same session with one change but two sessions given the same prompts.'],
+        ['The workload is a real one.', 'A real bug (fixed upstream in Click #3884), real tests, real edits, in a clone at the commit before the fix. The agent could run anything the repository can; nothing was scripted beyond the twelve prompts.'],
+        ['Prices are list prices', 'for Claude Opus 5.5 on a metered API key, per million tokens: input $4, output $20, cache read $0.20, cache write $8 at the one-hour TTL and $5 at five minutes. Claude Code writes with the one-hour TTL. A subscription pays none of this.'],
+        ['The two arms ran at the same time', 'in separate clones, so neither inherited the other\'s prompt cache and no cold-start adjustment is needed.'],
+        ['Tokens are what the API reported on each call,', 'read from each session\'s own Claude Code transcript, which matches the proxy\'s log to the token. The track view apportions each run\'s measured prompt by the character counts of the results in its own transcript, so it is an illustration of the same measured total.'],
+      ] },
+    { id: 'synthetic', label: 'The controlled run: 14 turns of reads', when: '2026-11-03',
+      lede: `The same 14 prompts, the same model (Claude Opus 5.5 in Claude Code), the same repository: each turn reads a few source files in full and answers a question about them, which is the shape the clearing is for and a best case by construction. Once <span class="arm ctl"><i></i>straight to the API</span>, once <span class="arm thk"><i></i>through thinker</span>. Every model call of both runs is below.`,
+      answers: () => ({ v: `14<small>of 14 turns</small>`, why: 'no value left out in either run; 4 turns of the thinker run flagged earlier figures as unverified, and they matched the control\'s' }),
+      caveats: [
+        ['One run per arm.', 'This is a paired measurement, not a powered sample. The sign at the one-hour write rate is within what one more run could move.'],
+        ['The workload is reading.', 'Each turn reads two to seven source files of a Node.js repository and runs a few commands, then answers a question about them. It is what the clearing is for, and a best case by construction: nothing is edited.'],
+        ['Prices are list prices', 'for Claude Opus 5.5 on a metered API key, per million tokens: input $4, output $20, cache read $0.20, cache write $8 at the one-hour TTL and $5 at five minutes. Claude Code writes with the one-hour TTL. A subscription pays none of this.'],
+        ['The control ran second', 'and inherited the first run\'s prompt cache, so it skipped the 39k tokens of cache write that a cold session pays on its first two calls. The checkbox above charges it those; unchecking shows the control exactly as billed.'],
+        ['What a cost cannot see.', 'In four turns the thinker run\'s answer flagged line counts it had already given as unverified, because the raw file was gone from its context. The figures it flagged matched the control\'s. The control\'s answers never said so. Nine of fourteen answers were identical in both runs, five differed by one line in both directions, none left a value out.'],
+      ] },
+  ].filter(r => RUN_DATA[r.id]);
   (function () {
-    const P = { input: 4, output: 20, read: 0.2, w1h: 8, w5m: 5 };
-    const COLD = DATA.cut[0].w + DATA.cut[1].w;
-    const BASE = DATA.cut[0].r;
-    const FLAGS = { 3: 1, 6: 3, 9: 5, 12: 9 };
     const $ = s => document.querySelector(s);
+    const state = { run: RUNS[0].id, ttl: '1h', cold: true, pos: 1, playing: false };
+    const D = () => RUN_DATA[state.run];
+    const RUN = () => RUNS.find(r => r.id === state.run);
+    const P = () => D().price;
     const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
     const fmtN = n => Math.round(n).toLocaleString('en-US');
     const usd = n => '$' + n.toFixed(2);
     const pct = (a, b) => { const d = (a / b - 1) * 100; return (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + '%'; };
-    const state = { ttl: '1h', cold: true, pos: 30, playing: false };
-
-    function callCost(c, extraWrite) {
-      const w = c.w + (extraWrite || 0);
-      return (c.i * P.input + c.o * P.output + c.r * P.read + w * (state.ttl === '1h' ? P.w1h : P.w5m) + c.w5 * P.w5m) / 1e6;
-    }
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const base = f => f ? f.split('/').pop() : '';
+    const N = () => Math.max(D().cut.calls.length, D().control.calls.length);
+    const TURNS = () => Math.max(D().cut.turns.length, D().control.turns.length);
+    const coldW = (arm, i) => arm === 'control' && state.cold && i === 0 ? D().cold : 0;
+    const wrate = () => state.ttl === '1h' ? P().w1h : P().w5m;
+    function callCost(c, extraWrite) { return (c.input * P().input + c.out * P().out + c.read * P().read + (c.write + (extraWrite || 0)) * wrate()) / 1e6; }
     function series(arm) {
-      const cs = DATA[arm]; let cum = 0;
-      return cs.map((c, k) => {
-        const extra = arm === 'control' && state.cold && k === 0 ? COLD : 0;
-        cum += callCost(c, extra);
-        return { k: k + 1, t: c.t, carried: c.i + c.r + c.w, read: c.r, write: c.w + extra, out: c.o, cost: cum, cut: c.cut || null, first: k === 0 || cs[k - 1].t !== c.t };
-      });
+      let cum = 0;
+      return D()[arm].calls.map((c, i) => { const cost = callCost(c, coldW(arm, i)); cum += cost; return { ...c, carried: c.read + c.write + c.input + coldW(arm, i), cost: cum, own: cost }; });
     }
-    const answerCall = (arm, turn) => { const cs = DATA[arm]; let last = -1; cs.forEach((c, k) => { if (c.t === turn) last = k + 1; }); return last; };
+    const answerCall = (arm, t) => { const tt = D()[arm].turns[t - 1]; return tt && tt.calls.length ? tt.calls[tt.calls.length - 1] : null; };
+    const firstCall = (arm, t) => { const tt = D()[arm].turns[t - 1]; return tt && tt.calls.length ? tt.calls[0] : null; };
+    const rereads = () => D().cut.notes.filter(n => n.kind === 'reread');
+    const cutsOf = () => D().cut.calls.filter(c => c.cut);
+    const heldOf = () => D().cut.calls.filter(c => c.held && !c.cut);
+
+    // ---- header ----
+    function header() {
+      $('#lede').innerHTML = RUN().lede;
+      $('#runsel').innerHTML = RUNS.map(r => `<button data-v="${r.id}" class="${r.id === state.run ? 'on' : ''}" role="radio" aria-checked="${r.id === state.run}">${r.label}</button>`).join('');
+      $('#cold-wrap').hidden = !D().cold;
+      $('#pos').max = N();
+      $('#legend1').innerHTML = `<span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span>${heldOf().length ? '<span><i class="heldmark"></i>cut refused</span>' : ''}${rereads().length ? '<span><i class="flagmark"></i>re-read of a cleared file</span>' : ''}`;
+    }
 
     // ---- tiles ----
     function tiles() {
       const a = series('cut'), b = series('control');
-      const ta = a[a.length - 1].cost, tb = b[b.length - 1].cost;
-      const rpc = arm => DATA[arm].reduce((s, c) => s + c.r, 0) / DATA[arm].length;
-      const d = ta / tb - 1;
+      const ca = a[a.length - 1].cost, cb = b[b.length - 1].cost;
+      const avg = s => s.reduce((n, x) => n + x.read, 0) / s.length;
+      const big = s => Math.max(...s.map(x => x.carried));
+      const ans = RUN().answers(D());
       $('#tiles').innerHTML = `
-        <div class="tile"><div class="k">Cost at list, whole session</div><div class="v" style="color:${d < 0 ? 'var(--thk)' : 'var(--flag)'}">${pct(ta, tb)}</div>
-          <div class="pair"><span class="arm ctl"><i></i><b>${usd(tb)}</b></span><span class="arm thk"><i></i><b>${usd(ta)}</b></span></div><div class="why">${state.ttl === '1h' ? 'one-hour' : 'five-minute'} cache writes${state.cold ? ', control charged its cold start' : ''}</div></div>
-        <div class="tile"><div class="k">Tokens read per call</div><div class="v">${pct(rpc('cut'), rpc('control'))}</div>
-          <div class="pair"><span class="arm ctl"><i></i><b>${fmt(rpc('control'))}</b></span><span class="arm thk"><i></i><b>${fmt(rpc('cut'))}</b></span></div><div class="why">prompt-cache reads, averaged over the run's calls</div></div>
-        <div class="tile"><div class="k">Largest prompt</div><div class="v">${pct(Math.max(...a.map(x => x.carried)), Math.max(...b.map(x => x.carried)))}</div>
-          <div class="pair"><span class="arm ctl"><i></i><b>${fmt(Math.max(...b.map(x => x.carried)))}</b></span><span class="arm thk"><i></i><b>${fmt(Math.max(...a.map(x => x.carried)))}</b></span></div><div class="why">tokens in the biggest single call</div></div>
-        <div class="tile"><div class="k">Answers</div><div class="v">14<small>of 14 turns</small></div>
-          <div class="pair"><span>no value left out in either run</span></div><div class="why">4 turns of the thinker run flagged earlier figures as unverified; they matched the control's</div></div>`;
+        <div class="tile"><div class="k">Cost at list, whole session</div><div class="v ${ca < cb ? 'good' : 'bad'}">${pct(ca, cb)}</div><div class="pair"><span class="arm ctl"><i></i><b>${usd(cb)}</b></span><span class="arm thk"><i></i><b>${usd(ca)}</b></span></div><div class="why">${state.ttl === '1h' ? 'one-hour' : 'five-minute'} cache writes${D().cold && state.cold ? ', control charged its cold start' : ''}</div></div>
+        <div class="tile"><div class="k">Tokens read per call</div><div class="v">${pct(avg(a), avg(b))}</div><div class="pair"><span class="arm ctl"><i></i><b>${fmt(avg(b))}</b></span><span class="arm thk"><i></i><b>${fmt(avg(a))}</b></span></div><div class="why">prompt-cache reads, averaged over the run's calls</div></div>
+        <div class="tile"><div class="k">Largest prompt</div><div class="v">${pct(big(a), big(b))}</div><div class="pair"><span class="arm ctl"><i></i><b>${fmt(big(b))}</b></span><span class="arm thk"><i></i><b>${fmt(big(a))}</b></span></div><div class="why">tokens in the biggest single call</div></div>
+        <div class="tile"><div class="k">Answers</div><div class="v">${ans.v}</div><div class="why">${ans.why}</div></div>`;
     }
 
     // ---- charts ----
-    const W = 900, H = 300, M = { l: 54, r: 20, t: 28, b: 34 };
+    const M = { t: 28, r: 20, b: 34, l: 54 };
+    const niceTicks = (max, n) => { const raw = max / n, p = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw); const out = []; for (let v = 0; v <= max + 1e-9; v += step) out.push(v); return out; };
     function chart(el, kind) {
       const a = series('cut'), b = series('control');
-      const n = Math.max(a.length, b.length);
-      const val = kind === 'carried' ? x => x.carried : x => x.cost;
-      const raw = Math.max(...a.map(val), ...b.map(val)) * 1.08;
-      const mag = Math.pow(10, Math.floor(Math.log10(raw / 4)));
-      const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st * 4 >= raw);
-      const ymax = step * 4;
-      const X = k => M.l + (k - 1) / (n - 1) * (W - M.l - M.r);
-      const Y = v => H - M.b - v / ymax * (H - M.t - M.b);
-      const path = s => s.map((x, i) => (i ? 'L' : 'M') + X(x.k).toFixed(1) + ',' + Y(val(x)).toFixed(1)).join(' ');
-      const yt = [0, 1, 2, 3, 4].map(i => step * i);
-      const ylab = v => kind === 'carried' ? fmt(v) : usd(v);
-      let g = `<g class="grid">${yt.map(v => `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('')}</g>`;
-      g += `<g class="axis">${yt.map(v => `<text x="${M.l - 8}" y="${Y(v) + 4}" text-anchor="end">${ylab(v)}</text>`).join('')}`;
-      for (let t = 2; t <= 14; t += 2) { const k = answerCall('control', t); g += `<text x="${X(k)}" y="${H - M.b + 18}" text-anchor="middle">turn ${t}</text>`; }
-      g += `<line x1="${M.l}" x2="${W - M.r}" y1="${H - M.b}" y2="${H - M.b}"/></g>`;
-      // cuts
-      a.forEach(x => { if (x.cut) {
-        const px = X(x.k); const lbl = kind === 'carried' ? `cut −${fmt(x.cut.tokens)}` : `rewrite ${fmt(x.cut.recache)}`;
-        const w = lbl.length * 6.2 + 12;
-        g += `<g class="cut"><line x1="${px}" x2="${px}" y1="${M.t - 6}" y2="${H - M.b}"/><rect x="${px - w / 2}" y="${M.t - 22}" width="${w}" height="16" rx="4"/><text x="${px}" y="${M.t - 10.5}" text-anchor="middle">${lbl}</text></g>`;
-      } });
+      const W = Math.max(320, el.clientWidth || 860), H = 300, n = N();
+      const val = x => kind === 'carried' ? x.carried : x.cost;
+      const max = Math.max(...a.map(val), ...b.map(val)) * 1.08;
+      const X = k => M.l + (k - 1) / Math.max(1, n - 1) * (W - M.l - M.r), Y = v => H - M.b - v / max * (H - M.t - M.b);
+      const path = s => s.map((x, i) => `${i ? 'L' : 'M'}${X(x.k).toFixed(1)},${Y(val(x)).toFixed(1)}`).join('');
+      let g = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${kind === 'carried' ? 'Tokens carried per model call' : 'Cumulative cost per model call'}">`;
+      g += '<g class="grid">'; niceTicks(max, 4).forEach(v => { g += `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(v)}" y2="${Y(v)}"/>`; }); g += '</g><g class="axis">';
+      niceTicks(max, 4).forEach(v => { g += `<text x="${M.l - 6}" y="${Y(v) + 4}" text-anchor="end">${kind === 'carried' ? fmt(v) : usd(v)}</text>`; });
+      const step = TURNS() > 16 ? 3 : TURNS() > 8 ? 2 : 1;
+      for (let t = 1; t <= TURNS(); t++) { const k = firstCall('control', t) || firstCall('cut', t); if (!k) continue; if ((t - 1) % step === 0) g += `<text x="${X(k)}" y="${H - M.b + 18}" text-anchor="middle">turn ${t}</text>`; }
+      g += '</g><g class="cut">';
+      cutsOf().forEach(x => { g += `<line x1="${X(x.k)}" x2="${X(x.k)}" y1="${M.t}" y2="${H - M.b}"/>`; if (kind === 'carried') g += `<g transform="translate(${X(x.k)},${M.t - 14})"><rect x="-28" y="-10" width="56" height="16" rx="4"/><text y="2" text-anchor="middle">cut −${fmt(x.cut.tokens)}</text></g>`; });
+      g += '</g>';
+      heldOf().forEach(x => { g += `<line class="heldline" x1="${X(x.k)}" x2="${X(x.k)}" y1="${H - M.b - 14}" y2="${H - M.b}"/>`; });
       g += `<path class="ln ctl" d="${path(b)}"/><path class="ln thk" d="${path(a)}"/>`;
-      // flags
-      if (kind === 'carried') Object.keys(FLAGS).forEach(t => { const k = answerCall('cut', +t); const x = a[k - 1]; const px = X(k), py = Y(val(x)) - 9; g += `<g class="flag"><path d="M${px},${py - 6} L${px + 6},${py + 4} L${px - 6},${py + 4} Z"/></g>`; });
-      // direct labels at the end
-      const la = a[a.length - 1], lb = b[b.length - 1];
-      g += `<text class="dl ctl" x="${X(lb.k) + 4}" y="${Y(val(lb)) + 4}">${ylab(val(lb))}</text>`;
-      g += `<text class="dl thk" x="${X(la.k) + 4}" y="${Y(val(la)) + 4 + (Math.abs(Y(val(la)) - Y(val(lb))) < 14 ? 14 : 0)}">${ylab(val(la))}</text>`;
-      g += `<g class="cursor" id="${el.id}-cur"></g><rect class="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}"/>`;
-      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${kind === 'carried' ? 'Prompt tokens per model call, with and without thinker' : 'Cumulative cost per model call, with and without thinker'}">${g}</svg><div class="tip"></div>`;
-      const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
-      const place = (k, show) => {
-        const cur = $('#' + el.id + '-cur');
-        const xa = a[Math.min(k, a.length) - 1], xb = b[Math.min(k, b.length) - 1];
-        const px = X(k);
-        cur.innerHTML = `<line x1="${px}" x2="${px}" y1="${M.t}" y2="${H - M.b}"/>` +
-          (k <= b.length ? `<circle class="ctl" cx="${px}" cy="${Y(val(xb))}" r="5"/>` : '') +
-          (k <= a.length ? `<circle class="thk" cx="${px}" cy="${Y(val(xa))}" r="5"/>` : '');
-        if (!show) { tip.style.display = 'none'; return; }
-        const r = svg.getBoundingClientRect(); const sx = r.width / W;
-        const row = (cls, name, x) => x ? `<div class="r"><span class="arm ${cls}"><i></i>${name}</span><span>${kind === 'carried' ? fmtN(x.carried) + ' tokens' : usd(x.cost)}</span></div>` : '';
-        const det = (x) => x ? `<div class="r"><span>read · written · output</span><span>${fmt(x.read)} · ${fmt(x.write)} · ${fmtN(x.out)}</span></div>` : '';
+      if (kind === 'carried') rereads().forEach(r => { const x = a[r.k - 1]; if (!x) return; const px = X(r.k), py = Y(val(x)) - 9; g += `<g class="flag"><path d="M${px},${py - 6} L${px + 6},${py + 4} L${px - 6},${py + 4} Z"/></g>`; });
+      const lb = b[b.length - 1], la = a[a.length - 1];
+      g += `<text class="dl ctl" x="${Math.min(X(lb.k) + 4, W - 2)}" y="${Y(val(lb)) + 4}">${kind === 'carried' ? fmt(val(lb)) : usd(val(lb))}</text><text class="dl thk" x="${Math.min(X(la.k) + 4, W - 2)}" y="${Y(val(la)) + 4 + (Math.abs(Y(val(la)) - Y(val(lb))) < 12 ? 12 : 0)}">${kind === 'carried' ? fmt(val(la)) : usd(val(la))}</text>`;
+      g += `<g class="cursor" id="${el.id}-cur"></g><rect class="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}"/></svg><div class="tip" id="${el.id}-tip" hidden></div>`;
+      el.innerHTML = g;
+      const svg = el.querySelector('svg'), tip = el.querySelector('.tip'), cur = el.querySelector('.cursor');
+      el.place = (k, show) => {
+        const xa = a[k - 1], xb = b[k - 1];
+        cur.innerHTML = `<line x1="${X(k)}" x2="${X(k)}" y1="${M.t}" y2="${H - M.b}"/>${xb ? `<circle class="ctl" cx="${X(k)}" cy="${Y(val(xb))}" r="4.5"/>` : ''}${xa ? `<circle class="thk" cx="${X(k)}" cy="${Y(val(xa))}" r="4.5"/>` : ''}`;
+        if (!show) { tip.hidden = true; return; }
+        const t = (xa || xb).t;
+        const row = (x, cls, name) => x ? `<div class="r"><span class="arm ${cls}"><i></i>${name}</span><span>${kind === 'carried' ? `carried <b>${fmt(x.carried)}</b> · read ${fmt(x.read)} · wrote ${fmt(x.write)} · out ${x.out}` : `so far <b>${usd(x.cost)}</b> · this call ${usd(x.own)}`}</span></div>` : '';
         let note = '';
-        if (xa && xa.cut && k <= a.length) note = `<div class="note">thinker cut ${fmtN(xa.cut.tokens)} tokens of used results here, pricing the rewrite at ${fmtN(xa.cut.recache)} tokens.</div>`;
-        const ft = Object.keys(FLAGS).find(t => answerCall('cut', +t) === k);
-        if (ft) note += `<div class="note flag">The answer flagged ${FLAGS[ft]} earlier figure${FLAGS[ft] > 1 ? 's' : ''} as unverified: the raw result had been cut.</div>`;
-        tip.innerHTML = `<div class="h">Call ${k} · turn ${xa ? xa.t : xb.t}${(xa || xb).first ? ' · the model plans its tool calls' : ' · the model answers from the results'}</div>${row('ctl', 'without', xb)}${k <= b.length ? det(xb) : ''}${row('thk', 'with thinker', xa)}${k <= a.length ? det(xa) : ''}${note}`;
-        tip.style.display = 'block';
-        const left = px * sx + 14 + tip.offsetWidth > r.width ? px * sx - tip.offsetWidth - 14 : px * sx + 14;
-        tip.style.left = left + 'px'; tip.style.top = Math.max(0, M.t * sx) + 'px';
+        if (xa && xa.cut) note += `<div class="note cut">thinker cut ${fmt(xa.cut.tokens)} tokens before this call: ${D().cut.results.filter(r => r.cut === k).length} results replaced, rewrite ${fmt(xa.cut.recache)} tokens</div>`;
+        if (xa && xa.held && !xa.cut) note += `<div class="note held">thinker priced a cut here and refused it: ${fmt(xa.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(xa.held.cost || 0)} against ${fmt(xa.held.saving || 0)} saved</div>`;
+        rereads().filter(r => r.k === k).forEach(r => { note += `<div class="note flag">the model re-read ${esc(base(r.file))}, cleared at call ${r.cutAt}</div>`; });
+        tip.innerHTML = `<div class="h">Call ${k} · turn ${t}</div>${row(xb, 'ctl', 'without thinker')}${row(xa, 'thk', 'with thinker')}${note}`;
+        tip.hidden = false;
+        const rect = el.getBoundingClientRect(), px = X(k) / W * rect.width;
+        tip.style.left = Math.min(Math.max(px - tip.offsetWidth / 2, 0), rect.width - tip.offsetWidth) + 'px';
       };
-      el.place = place;
       const hit = el.querySelector('.hit');
-      const kAt = ev => { const r = svg.getBoundingClientRect(); const x = (ev.clientX - r.left) * (W / r.width); return Math.max(1, Math.min(n, Math.round((x - M.l) / (W - M.l - M.r) * (n - 1) + 1))); };
-      hit.addEventListener('mousemove', ev => { place(kAt(ev), true); });
-      hit.addEventListener('mouseleave', () => place(state.pos, false));
-      hit.addEventListener('click', ev => { setPos(kAt(ev)); });
-      place(state.pos, false);
+      const kAt = ev => { const r = svg.getBoundingClientRect(); const x = (ev.clientX - r.left) / r.width * W; return Math.max(1, Math.min(n, Math.round((x - M.l) / (W - M.l - M.r) * (n - 1) + 1))); };
+      hit.addEventListener('mousemove', ev => el.place(kAt(ev), true));
+      hit.addEventListener('mouseleave', () => el.place(state.pos, false));
+      hit.addEventListener('click', ev => setPos(kAt(ev)));
+    }
+
+    // ---- cost by token type ----
+    const PART_DEFS = [['read', 'cache reads'], ['write', 'cache writes'], ['output', 'output'], ['input', 'fresh input']];
+    function costParts(arm) {
+      const out = { read: 0, write: 0, output: 0, input: 0 };
+      D()[arm].calls.forEach((c, i) => { out.read += c.read * P().read / 1e6; out.write += (c.write + coldW(arm, i)) * wrate() / 1e6; out.output += c.out * P().out / 1e6; out.input += c.input * P().input / 1e6; });
+      out.total = out.read + out.write + out.output + out.input; return out;
+    }
+    function costBreakdown() {
+      const pb = costParts('control'), pa = costParts('cut'), max = Math.max(pb.total, pa.total), alpha = [1, 0.72, 0.46, 0.24];
+      const bar = (parts, hue) => `<div class="pbar">${PART_DEFS.map(([k, name], i) => { const w = parts[k] / max * 100; return `<span style="flex:0 0 ${w.toFixed(2)}%;background:${hue};opacity:${alpha[i]}" class="${i >= 2 ? 'lo' : ''}" title="${name}: ${usd(parts[k])}">${w > 9 ? usd(parts[k]) : ''}</span>`; }).join('')}</div>`;
+      $('#parts').innerHTML = `<div class="parts"><div class="lab"><span class="arm ctl"><i></i>without thinker</span><small>${usd(pb.total)}</small></div>${bar(pb, 'var(--ctl)')}<div class="lab"><span class="arm thk"><i></i>with thinker</span><small>${usd(pa.total)}</small></div>${bar(pa, 'var(--thk)')}</div><div class="parts-legend">${PART_DEFS.map(([k, name], i) => `<span><i style="opacity:${alpha[i]}"></i>${name}</span>`).join('')}<span>bars share one scale; each arm's hue, darkest first</span></div>`;
+      $('#ptab').innerHTML = `<tr><th>At list price</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
+        PART_DEFS.concat([['total', 'total']]).map(([k, name]) => `<tr><td>${name}</td><td>${usd(pb[k])}</td><td>${usd(pa[k])}</td><td class="d ${pa[k] < pb[k] ? 'good' : pa[k] > pb[k] ? 'bad' : ''}">${pb[k] ? pct(pa[k], pb[k]) : ''}</td></tr>`).join('');
     }
 
     // ---- tracks ----
     function tracks() {
-      const a = series('cut'), b = series('control');
-      const k = state.pos;
-      const scale = Math.max(...b.map(x => x.carried));
-      const build = (arm, s, cls, name) => {
-        const x = s[Math.min(k, s.length) - 1];
-        const live = x.t;
-        const present = DATA.results.filter(r => r.at <= Math.min(k, DATA.cut.length));
-        const chars = present.reduce((n, r) => n + r.c, 0) || 1;
-        const budget = Math.max(0, x.carried - BASE);
-        let segs = `<div class="sg base" style="width:${(BASE / scale * 100).toFixed(2)}%" title="system prompt and instructions, ${fmtN(BASE)} tokens"></div>`;
-        present.forEach(r => {
-          const gone = arm === 'cut' && r.cut && r.cut <= k;
-          const w = gone ? 0.35 : r.c / chars * budget / scale * 100;
-          const isLive = DATA.cut[r.at - 1] && DATA.cut[r.at - 1].t === live;
-          segs += `<div class="sg ${gone ? 'gone' : 'res' + (isLive ? ' live' : '')}" style="width:${Math.max(w, 0.12).toFixed(2)}%" title="${gone ? 'cut by thinker: ' : ''}${fmtN(r.c)} chars, arrived at call ${r.at}"></div>`;
-        });
-        const cutN = arm === 'cut' ? DATA.results.filter(r => r.cut && r.cut <= k).length : 0;
-        $('#tr-' + cls).innerHTML = `<div class="track-head"><span class="arm ${cls}"><i></i>${name}</span><span class="n">${fmtN(x.carried)}<small>tokens in call ${Math.min(k, s.length)}</small></span></div>
-          <div class="track">${segs}</div>
-          <div class="track-foot"><span><b>${present.length - cutN}</b> results in the prompt${cutN ? `, <b>${cutN}</b> cut` : ''}</span><span>so far: read <b>${fmt(x.read)}</b> · written <b>${fmt(x.write)}</b> this call · <b>${usd(x.cost)}</b></span></div>`;
+      const k = state.pos, a = series('cut'), b = series('control');
+      const scale = Math.max(...a.map(x => x.carried), ...b.map(x => x.carried));
+      const draw = (arm, s, el, name) => {
+        const kk = Math.min(k, s.length), x = s[kk - 1]; if (!x) { el.innerHTML = ''; return; }
+        const present = D()[arm].results.filter(r => r.at <= kk);
+        const baseTok = Math.min(s[0].carried, x.carried * 0.9);
+        const liveChars = present.reduce((n, r) => n + (r.cut && r.cut <= kk ? 0 : r.c), 0) || 1;
+        const live = x.t, cutN = present.filter(r => r.cut && r.cut <= kk).length;
+        const resTok = Math.max(0, x.carried - baseTok);
+        const segs = present.map(r => { const gone = r.cut && r.cut <= kk; const w = gone ? 0.3 : Math.max(0.3, r.c / liveChars * resTok / x.carried * 100); return `<i class="sg ${gone ? 'gone' : 'res' + (r.t === live ? ' live' : '')}" style="width:${w.toFixed(2)}%" title="${gone ? 'placeholder, cleared at call ' + r.cut : fmt(r.c) + ' chars, turn ' + r.t}"></i>`; }).join('');
+        el.innerHTML = `<div class="track-head"><span class="arm ${arm === 'cut' ? 'thk' : 'ctl'}"><i></i>${name}</span><span class="n">${fmt(x.carried)}<small>tokens in the prompt at call ${kk}</small></span></div>
+          <div class="track" style="width:${(x.carried / scale * 100).toFixed(1)}%"><i class="sg base" style="width:${(baseTok / x.carried * 100).toFixed(1)}%" title="system prompt, tools and the first prompt: ${fmt(baseTok)} tokens"></i>${segs}</div>
+          <div class="track-foot"><span>${present.length - cutN} result${present.length - cutN === 1 ? '' : 's'} the model can read${cutN ? `, <b>${cutN}</b> placeholder${cutN > 1 ? 's' : ''}` : ''}</span><span>turn ${live}</span></div>`;
       };
-      build('control', b, 'ctl', 'without thinker');
-      build('cut', a, 'thk', 'with thinker');
+      draw('control', b, $('#tr-ctl'), 'without thinker'); draw('cut', a, $('#tr-thk'), 'with thinker');
     }
 
     // ---- events ----
     function events() {
-      const a = series('cut');
       const items = [];
-      a.forEach(x => { if (x.cut) {
-        const n = DATA.results.filter(r => r.cut === x.k).length;
-        const after = a[x.k] ? a[x.k].write : 0;
-        items.push({ k: x.k, html: `<span class="tag cut">cut ${items.filter(i => i.cut).length + 1}</span>Turn ${x.t} begins: ${n} used results out, ${fmtN(x.cut.tokens)} tokens`, cut: true,
-          how: `Priced before it was taken: dropping <b>${fmtN(x.cut.tokens)}</b> tokens from every later call against a prompt-cache rewrite of <b>${fmtN(x.cut.recache)}</b> tokens, charged at twice the input rate. The API then wrote <b>${fmtN(x.write)}</b> tokens on this call. The next call read <b>${fmtN(a[x.k] ? a[x.k].read : 0)}</b> tokens where the control read <b>${fmtN(series('control')[x.k] ? series('control')[x.k].read : 0)}</b>.` });
-      } });
-      Object.keys(FLAGS).forEach(t => { const k = answerCall('cut', +t); items.push({ k, html: `<span class="tag flag">flagged</span>Turn ${t} answers: ${FLAGS[t]} earlier figure${FLAGS[t] > 1 ? 's' : ''} called unverified`,
-        how: `The model had given these line counts in earlier turns, then found the raw file gone from its context and said the figures were guesses. They matched the control's. A cost measurement cannot see this; the thinker run's answers are longer by exactly these sentences.` }); });
+      cutsOf().forEach(x => { const n = D().cut.results.filter(r => r.cut === x.k).length; items.push({ k: x.k, html: `<span class="tag cut">cut</span>Before call ${x.k} (turn ${x.t}) thinker replaced <b>${n} result${n > 1 ? 's' : ''}</b> with placeholders: <b>${fmt(x.cut.tokens)}</b> tokens out of the prompt. The rewrite cost ${fmt(x.cut.recache)} tokens of cache write; priced over the next 20 calls it saves ${fmt(x.cut.saving)} tokens of reads.${D().cut.calls[x.k] ? ` The API then wrote ${fmt(D().cut.calls[x.k - 1].write)} on this call.` : ''}` }); });
+      heldOf().forEach(x => { items.push({ k: x.k, html: `<span class="tag held">refused</span>At call ${x.k} (turn ${x.t}) thinker priced a cut and held back: ${fmt(x.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(x.held.cost || 0)} against ${fmt(x.held.saving || 0)} of reads saved over the next 20 calls.` }); });
+      rereads().forEach(r => { items.push({ k: r.k, html: `<span class="tag flag">re-read</span>At call ${r.k} (turn ${r.turn}) the model read <code>${esc(r.file)}</code> again; its earlier result had been cleared at call ${r.cutAt}.` }); });
+      D().cut.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>Claude Code compacted the thinker run's conversation itself at call ${c.k}.` }));
+      D().control.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>Claude Code compacted the control's conversation itself at call ${c.k}, so the control is no longer a plain baseline from here.` }));
       items.sort((p, q) => p.k - q.k);
-      $('#events').innerHTML = items.map(i => `<li class="ev" data-k="${i.k}"><span class="when">call ${i.k}</span><span class="what">${i.html}</span><span class="how">${i.how}</span></li>`).join('');
-      document.querySelectorAll('.ev').forEach(li => li.addEventListener('click', () => setPos(+li.dataset.k)));
+      $('#events').innerHTML = items.length ? items.map(it => `<li class="ev" data-k="${it.k}"><span class="k">call ${it.k}</span><div>${it.html}</div></li>`).join('') : '<li class="ev"><div>thinker made no cut in this run: the context never crossed its trigger.</div></li>';
+      document.querySelectorAll('.ev[data-k]').forEach(li => li.addEventListener('click', () => setPos(+li.dataset.k)));
     }
 
     // ---- tables ----
-    const PART_DEFS = [['read', 'cache reads'], ['write', 'cache writes'], ['output', 'output'], ['input', 'fresh input']];
-    function costParts(arm) {
-      const wr = state.ttl === '1h' ? P.w1h : P.w5m;
-      const out = { read: 0, write: 0, output: 0, input: 0 };
-      DATA[arm].forEach((c, i) => {
-        const w = c.w + (arm === 'control' && state.cold && i === 0 ? 39026 : 0);
-        out.read += c.r * P.read / 1e6; out.write += (w * wr + c.w5 * P.w5m) / 1e6; out.output += c.o * P.output / 1e6; out.input += c.i * P.input / 1e6;
-      });
-      out.total = out.read + out.write + out.output + out.input;
-      return out;
-    }
-    function costBreakdown() {
-      const pb = costParts('control'), pa = costParts('cut');
-      const max = Math.max(pb.total, pa.total);
-      const alpha = [1, 0.72, 0.46, 0.24];
-      const bar = (parts, hue) => `<div class="pbar">${PART_DEFS.map(([k, name], i) => { const w = parts[k] / max * 100; return `<span style="flex:0 0 ${w.toFixed(2)}%;background:${hue};opacity:${alpha[i]}" class="${i >= 2 ? 'lo' : ''}" title="${name}: ${usd(parts[k])}">${w > 9 ? usd(parts[k]) : ''}</span>`; }).join('')}</div>`;
-      $('#parts').innerHTML = `<div class="parts">
-        <div class="lab"><span class="arm ctl"><i></i>without thinker</span><small>${usd(pb.total)}</small></div>${bar(pb, 'var(--ctl)')}
-        <div class="lab"><span class="arm thk"><i></i>with thinker</span><small>${usd(pa.total)}</small></div>${bar(pa, 'var(--thk)')}
-      </div><div class="parts-legend">${PART_DEFS.map(([k, name], i) => `<span><i style="opacity:${alpha[i]}"></i>${name}</span>`).join('')}<span>bars share one scale; each arm's hue, darkest first</span></div>`;
-      $('#ptab').innerHTML = `<tr><th>At list price</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
-        PART_DEFS.concat([['total', 'total']]).map(([k, name]) => `<tr><td>${name}</td><td>${usd(pb[k])}</td><td>${usd(pa[k])}</td><td class="d ${pa[k] < pb[k] ? 'good' : pa[k] > pb[k] ? 'bad' : ''}">${pb[k] ? pct(pa[k], pb[k]) : ''}</td></tr>`).join('');
-    }
     function stats() {
       const a = series('cut'), b = series('control');
       const sum = (s, f) => s.reduce((n, x) => n + f(x), 0);
       const pb = costParts('control'), pa = costParts('cut');
       const rows = [
         ['Model calls', b.length, a.length, false],
-        ['Turns answered', 14, 14, false],
+        ['Turns', D().control.turns.length, D().cut.turns.length, false],
         ['Prompt-cache reads, tokens', sum(b, x => x.read), sum(a, x => x.read), true],
-        ['Prompt-cache writes, tokens', sum(b, x => x.write), sum(a, x => x.write), true],
+        ['Prompt-cache writes, tokens', sum(b, x => x.write + 0), sum(a, x => x.write), true],
         ['Output tokens', sum(b, x => x.out), sum(a, x => x.out), true],
         ['Largest prompt, tokens', Math.max(...b.map(x => x.carried)), Math.max(...a.map(x => x.carried)), true],
-        ['Cuts taken', 0, a.filter(x => x.cut).length, false],
-        ['Results cut', 0, DATA.results.filter(r => r.cut).length, false],
+        ['Cuts taken', 0, cutsOf().length, false],
+        ['Cuts refused', 0, heldOf().length, false],
+        ['Results cut', 0, D().cut.results.filter(r => r.cut).length, false],
+        ['Re-reads of a cleared file', 0, rereads().length, false],
         ['Cost of cache reads, at list', pb.read, pa.read, true, true],
         [`Cost of cache writes, ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL`, pb.write, pa.write, true, true],
         ['Cost of output', pb.output, pa.output, true, true],
@@ -478,93 +473,95 @@
       ];
       $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
         rows.map(([name, vb, va, diff, money]) => `<tr><td>${name}</td><td>${money ? usd(vb) : fmtN(vb)}</td><td>${money ? usd(va) : fmtN(va)}</td><td class="d ${diff ? (va < vb ? 'good' : va > vb ? 'bad' : '') : ''}">${diff && vb ? pct(va, vb) : ''}</td></tr>`).join('');
-      const n = Math.max(a.length, b.length); let h = `<tr><th>Call</th><th>Turn</th><th>Without: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>With thinker: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>Note</th></tr>`;
-      for (let k = 1; k <= n; k++) {
+      let h = `<tr><th>Call</th><th>Turn</th><th>Without: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>With thinker: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>Note</th></tr>`;
+      for (let k = 1; k <= N(); k++) {
         const xb = b[k - 1], xa = a[k - 1];
         const cell = x => x ? `<td>${fmtN(x.carried)}</td><td>${fmtN(x.read)}</td><td>${fmtN(x.write)}</td><td>${fmtN(x.out)}</td><td>${usd(x.cost)}</td>` : '<td></td><td></td><td></td><td></td><td></td>';
-        const ft = Object.keys(FLAGS).find(t => answerCall('cut', +t) === k);
-        h += `<tr><td>${k}</td><td>${(xa || xb).t}</td>${cell(xb)}${cell(xa)}<td style="text-align:left">${xa && xa.cut ? 'cut −' + fmtN(xa.cut.tokens) : ft ? FLAGS[ft] + ' figures flagged' : ''}</td></tr>`;
+        const notes = [];
+        if (xa && xa.cut) notes.push('cut −' + fmtN(xa.cut.tokens));
+        if (xa && xa.held && !xa.cut) notes.push('cut refused');
+        rereads().filter(r => r.k === k).forEach(r => notes.push('re-read ' + esc(base(r.file))));
+        h += `<tr><td>${k}</td><td>${xb ? xb.t : ''}${xa && xb && xa.t !== xb.t ? ' / ' + xa.t : ''}</td>${cell(xb)}${cell(xa)}<td style="text-align:left">${notes.join('; ')}</td></tr>`;
       }
       $('#calls').innerHTML = h;
+      $('#caveats').innerHTML = `<b>Read this before the numbers.</b><ul>${RUN().caveats.map(([b, t]) => `<li><b>${b}</b> ${t}</li>`).join('')}</ul>`;
     }
 
     // ---- state ----
     function setPos(k) {
-      state.pos = Math.max(1, Math.min(30, k));
+      state.pos = Math.max(1, Math.min(N(), k));
       $('#pos').value = state.pos;
-      const t = (DATA.cut[Math.min(state.pos, DATA.cut.length) - 1] || DATA.control[state.pos - 1]).t;
-      $('#pos-lbl').textContent = `call ${state.pos} · turn ${t}`;
+      const x = D().cut.calls[Math.min(state.pos, D().cut.calls.length) - 1] || D().control.calls[state.pos - 1];
+      $('#pos-lbl').textContent = `call ${state.pos} · turn ${x.t}`;
       ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false));
       tracks();
       document.querySelectorAll('.ev').forEach(li => li.classList.toggle('on', +li.dataset.k === state.pos));
     }
-    function renderAll() { tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); costBreakdown(); events(); stats(); setPos(state.pos); }
+    function renderAll() { header(); tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); costBreakdown(); events(); stats(); setPos(state.pos); }
     $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => x.classList.toggle('on', x === b)); renderAll(); renderSession(); });
     $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); renderSession(); });
     $('#pos').addEventListener('input', ev => setPos(+ev.target.value));
+    $('#runsel').addEventListener('click', ev => { const b = ev.target.closest('button[data-v]'); if (!b || b.dataset.v === state.run) return; stop(); state.run = b.dataset.v; state.pos = N(); SESSION = SESSIONS[state.run] || null; renderAll(); if (!$('#view-session').hidden) { if (SESSION) renderSession(); else loadSession(); } history.replaceState(null, '', `${location.pathname}?run=${state.run}${$('#view-session').hidden ? '' : '#session'}`); });
     let timer = null;
     function stop() { state.playing = false; clearInterval(timer); timer = null; $('#play').textContent = '▶'; $('#play').setAttribute('aria-label', 'Play'); }
     $('#play').addEventListener('click', () => {
       if (state.playing) { stop(); return; }
       state.playing = true; $('#play').textContent = '❚❚'; $('#play').setAttribute('aria-label', 'Pause');
-      if (state.pos >= 30) setPos(1);
-      timer = setInterval(() => { if (state.pos >= 30) { stop(); return; } setPos(state.pos + 1); }, 450);
+      if (state.pos >= N()) setPos(1);
+      timer = setInterval(() => { if (state.pos >= N()) { stop(); return; } setPos(state.pos + 1); }, 450);
     });
     window.addEventListener('resize', () => ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false)));
 
     // ---- session view ----
-    let SESSION = null, sessionLoading = false;
-    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const SESSIONS = {}; let SESSION = null, sessionLoading = false;
     function toolLine(t) {
       const inp = t.input || {};
       if (t.name === 'Read') return `<code>Read ${esc(inp.file_path || '')}</code>${inp.offset || inp.limit ? `<span class="m">lines ${inp.offset || 1}–${(inp.offset || 1) + (inp.limit || 0) - 1}</span>` : ''}`;
       if (t.name === 'Bash') return `<code>$ ${esc(inp.command || '')}</code>`;
       if (t.name === 'Grep') return `<code>Grep ${esc(inp.pattern || '')}</code><span class="m">${esc(inp.path || inp.glob || '')}</span>`;
       if (t.name === 'Glob') return `<code>Glob ${esc(inp.pattern || '')}</code>`;
+      if (t.name === 'Edit') return `<code>Edit ${esc(inp.file_path || '')}</code><span class="m">${esc((inp.old_string || '').split('\n')[0]).slice(0, 60)} → ${esc((inp.new_string || '').split('\n')[0]).slice(0, 60)}</span>`;
+      if (t.name === 'Write') return `<code>Write ${esc(inp.file_path || '')}</code><span class="m">${(inp.content || '').length.toLocaleString()} chars</span>`;
       return `<code>${esc(t.name)}</code> <span class="m">${esc(JSON.stringify(inp)).slice(0, 120)}</span>`;
     }
     function turnOfCall(arm, k) { const t = arm.turns.find(t => t.calls.includes(k)); return t ? t.n : null; }
-    function sessionCost(arm, call, isControl) {
-      const w = call.write + (isControl && state.cold && call.k === 1 ? 39026 : 0);
-      const P = SESSION.price;
-      return (call.input * P.input + call.out * P.out + call.read * P.read + w * (state.ttl === '1h' ? P.w1h : P.w5m)) / 1e6;
-    }
     function renderSession() {
-      if (!SESSION) return;
-      const ctl = SESSION.control, cut = SESSION.cut;
+      if (!SESSION || $('#view-session').hidden) return;
+      const ctl = SESSION.control, cut = SESSION.cut, d = D();
       const byK = arm => Object.fromEntries(arm.calls.map(c => [c.k, c]));
       const kc = byK(ctl), kt = byK(cut);
-      let runC = 0, runT = 0, rdC = 0, rdT = 0, rcC = 0, rcT = 0, wcC = 0, wcT = 0;
+      const cutByK = Object.fromEntries(d.cut.calls.filter(c => c.cut).map(c => [c.k, c.cut]));
+      let runC = 0, runT = 0, rcC = 0, rcT = 0, wcC = 0, wcT = 0;
       const money = v => '$' + v.toFixed(2);
-      const delta = (a, b, fmt) => { const d = a - b; if (Math.abs(d) < 0.005) return ''; return `<span class="d ${d < 0 ? 'save' : 'cost'}">${d < 0 ? '−' : '+'}${fmt(Math.abs(d))}</span>`; };
-      const pct = (a, b) => b ? `${a < b ? '−' : '+'}${Math.round(Math.abs(a - b) / b * 100)}%` : '';
+      const delta = (a, b, f) => { const x = a - b; if (Math.abs(x) < 0.005) return ''; return `<span class="d ${x < 0 ? 'save' : 'cost'}">${x < 0 ? '−' : '+'}${f(Math.abs(x))}</span>`; };
+      const pc = (a, b) => b ? `${a < b ? '−' : '+'}${Math.round(Math.abs(a - b) / b * 100)}%` : '';
+      const cost = (c, isCtl) => { const w = c.write + (isCtl && state.cold && c.k === 1 ? SESSION.cold : 0); return (c.input * SESSION.price.input + c.out * SESSION.price.out + c.read * SESSION.price.read + w * wrate()) / 1e6; };
+      const sum = (t, km, isCtl) => t.calls.reduce((a, k) => { const c = km[k]; const w = c.write + (isCtl && state.cold && k === 1 ? SESSION.cold : 0); a.read += c.read; a.write += w; a.out += c.out; a.cost += cost(c, isCtl); a.readCost += c.read * SESSION.price.read / 1e6; a.writeCost += w * wrate() / 1e6; return a; }, { calls: t.calls.length, read: 0, write: 0, out: 0, cost: 0, readCost: 0, writeCost: 0, carried: t.calls.length ? km[t.calls[0]].read + km[t.calls[0]].write + km[t.calls[0]].input : 0 });
+      const empty = { calls: 0, read: 0, write: 0, out: 0, cost: 0, readCost: 0, writeCost: 0, carried: 0 };
       let html = '';
-      for (let n = 1; n <= 14; n++) {
+      const nT = Math.max(ctl.turns.length, cut.turns.length);
+      for (let n = 1; n <= nT; n++) {
         const tc = ctl.turns[n - 1], tt = cut.turns[n - 1];
-        const wr = state.ttl === '1h' ? SESSION.price.w1h : SESSION.price.w5m;
-        const sum = (t, km) => t.calls.reduce((a, k) => { const c = km[k]; const w = c.write + (km === kc && state.cold && k === 1 ? 39026 : 0); a.read += c.read; a.write += w; a.out += c.out; a.cost += sessionCost(c, c, km === kc); a.readCost += c.read * SESSION.price.read / 1e6; a.writeCost += w * wr / 1e6; return a; }, { read: 0, write: 0, out: 0, cost: 0, readCost: 0, writeCost: 0, carried: km[t.calls[0]].read + km[t.calls[0]].write + km[t.calls[0]].input });
-        const sc = sum(tc, kc), st = sum(tt, kt);
-        runC += sc.cost; runT += st.cost; rdC += sc.read; rdT += st.read; rcC += sc.readCost; rcT += st.readCost; wcC += sc.writeCost; wcT += st.writeCost;
-        const cutsHere = SESSION.cuts.filter(c => c.turn === n);
-        const banner = cutsHere.map(c => {
-          const removed = cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt === c.k);
-          const turns = [...new Set(removed.map(r => turnOfCall(cut, r.k)).filter(Boolean))];
-          const fromTurns = [...new Set(cut.turns.filter(t => t.steps.some(s => s.kind === 'result' && s.cutAt === c.k)).map(t => t.n))];
-          return `<div class="cutban"><b>thinker stepped in</b> before this turn's first call: it replaced <b>${removed.length}</b> tool result${removed.length === 1 ? '' : 's'} from turn${fromTurns.length === 1 ? '' : 's'} ${fromTurns.join(', ')} with one-line placeholders, <b>${fmt(c.tokens)} tokens</b> out of the prompt. Rewriting the prompt cache behind the first placeholder cost <b>${fmt(c.recache)}</b> tokens of cache write (priced ×2 as a one-hour write, ${fmt(c.cost)}); priced against the reads it saves over 20 calls, thinker expected <b>${fmt(c.saving)}</b> read-tokens avoided.</div>`;
+        const sc = tc ? sum(tc, kc, true) : empty, st = tt ? sum(tt, kt, false) : empty;
+        runC += sc.cost; runT += st.cost; rcC += sc.readCost; rcT += st.readCost; wcC += sc.writeCost; wcT += st.writeCost;
+        const banner = (tt ? tt.calls : []).filter(k => cutByK[k]).map(k => {
+          const c = cutByK[k]; const removed = cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt === k);
+          const fromTurns = [...new Set(cut.turns.filter(t => t.steps.some(s => s.kind === 'result' && s.cutAt === k)).map(t => t.n))];
+          return `<div class="cutban"><b>thinker stepped in</b> before call ${k}: it replaced <b>${removed.length}</b> tool result${removed.length === 1 ? '' : 's'} from turn${fromTurns.length === 1 ? '' : 's'} ${fromTurns.join(', ')} with one-line placeholders, <b>${fmt(c.tokens)} tokens</b> out of the prompt. Rewriting the prompt cache behind the first placeholder cost <b>${fmt(c.recache)}</b> tokens of cache write (priced ×2 as a one-hour write, ${fmt(c.cost)}); priced against the reads it saves over 20 calls, thinker expected <b>${fmt(c.saving)}</b> read-tokens avoided.</div>`;
         }).join('');
-        const steps = (t, arm, isCut) => t.steps.map(s => {
+        const steps = (t, isCut) => t ? t.steps.map(s => {
           if (s.kind === 'user') return '';
           if (s.kind === 'call') { const c = (isCut ? kt : kc)[s.k]; return `<div class="step"><span class="ic">call ${s.k}</span><div class="bd"><span class="m" style="margin:0">carried ${fmt(c.read + c.write + c.input)} tokens · read ${fmt(c.read)} · wrote ${fmt(c.write)} · answered ${c.out}</span></div></div>`; }
           if (s.kind === 'thinking') return `<div class="step"><span class="ic">thought</span><div class="bd"><span class="m" style="margin:0">${s.chars ? s.chars.toLocaleString() + ' chars, ' : ''}a thinking block the API keeps in the prompt; neither run clears it</span></div></div>`;
           if (s.kind === 'say') { const long = s.text.length > 320; return `<div class="step say"><span class="ic">${t.steps.indexOf(s) === t.steps.length - 1 ? 'answer' : 'says'}</span><div class="bd${long ? ' clip' : ''}">${esc(s.text)}</div>${long ? '<button type="button" class="x" data-x="say">more</button>' : ''}</div>`; }
-          if (s.kind === 'tool') return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}</div></div>`;
+          if (s.kind === 'tool') { const rr = isCut && s.name === 'Read' && d.cut.notes.some(r => r.kind === 'reread' && r.file === s.input.file_path && r.turn === t.n); return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}${rr ? '<span class="tag flag">re-read: this file had been cleared</span>' : ''}</div></div>`; }
           if (s.kind === 'result') {
             const cutTurn = s.cutAt ? turnOfCall(cut, s.cutAt) : null;
             return `<div class="step res${s.cutAt ? ' cut' : ''}"><span class="ic">result</span><div class="bd"><span class="t">${s.lines.toLocaleString()} lines, ${s.chars.toLocaleString()} chars</span>${s.error ? '<span class="tag err">error</span>' : ''}${s.cutAt ? `<span class="tag cut">cleared by thinker before turn ${cutTurn}</span>` : ''}${s.placeholder && s.cutAt ? `<div class="m" style="margin:0.15rem 0 0;white-space:normal">what the model sees now: <code>${esc(s.placeholder)}</code></div>` : ''}<div class="blob" hidden data-blob="${s.blob}"></div></div><button type="button" class="x" data-x="blob">show</button></div>`;
           }
           return '';
-        }).join('');
-        const stat = (sx, sy, isCut, run, runOther, rd) => `<div class="tstats">
+        }).join('') : '<div class="step"><div class="bd"><span class="m" style="margin:0">this run had no such turn</span></div></div>';
+        const stat = (sx, sy, isCut, run, runOther) => `<div class="tstats">
           <div>calls<b>${sx.calls}</b></div>
           <div>carried into the turn<b>${fmt(sx.carried)}${isCut ? delta(sx.carried, sy.carried, fmt) : ''}</b></div>
           <div>read from cache<b>${fmt(sx.read)}${isCut ? delta(sx.read, sy.read, fmt) : ''}</b></div>
@@ -572,55 +569,47 @@
           <div>reads at list<b>${money(sx.readCost)}${isCut ? delta(sx.readCost, sy.readCost, money) : ''}</b></div>
           <div>writes at list<b>${money(sx.writeCost)}${isCut ? delta(sx.writeCost, sy.writeCost, money) : ''}</b></div>
           <div>this turn at list<b>${money(sx.cost)}${isCut ? delta(sx.cost, sy.cost, money) : ''}</b></div>
-          <div class="spend">spent so far<b>${money(run)}${isCut ? delta(run, runOther, money) + ` <span class="d ${run < runOther ? 'save' : 'cost'}">${pct(run, runOther)}</span>` : ''}</b></div>
+          <div class="spend">spent so far<b>${money(run)}${isCut ? delta(run, runOther, money) + ` <span class="d ${run < runOther ? 'save' : 'cost'}">${pc(run, runOther)}</span>` : ''}</b></div>
         </div>`;
-        sc.calls = tc.calls.length; st.calls = tt.calls.length;
+        const prompt = (tc || tt).prompt;
         html += `<section class="turn" id="turn-${n}">
-          <div class="turn-h"><span class="n">Turn ${n}</span><div class="prompt${tc.prompt.length > 160 ? ' clip' : ''}">${esc(tc.prompt)}</div>${tc.prompt.length > 160 ? '<button type="button" data-x="prompt">full prompt</button>' : ''}</div>
-          <div class="cols">
-            <div class="col ctl">${steps(tc, ctl, false)}${stat(sc, st, false, runC, runT, rdC)}</div>
-            <div class="col thk">${banner}${steps(tt, cut, true)}${stat(st, sc, true, runT, runC, rdT)}</div>
-          </div>
+          <div class="turn-h"><span class="n">Turn ${n}</span><div class="prompt${prompt.length > 160 ? ' clip' : ''}">${esc(prompt)}</div>${prompt.length > 160 ? '<button type="button" data-x="prompt">full prompt</button>' : ''}</div>
+          <div class="cols"><div class="col ctl">${steps(tc, false)}${stat(sc, st, false, runC, runT)}</div><div class="col thk">${banner}${steps(tt, true)}${stat(st, sc, true, runT, runC)}</div></div>
         </section>`;
       }
-      const head = `<div class="sess-head"><div class="col-h ctl"><span class="arm ctl"><i></i>straight to the API</span><span class="run" id="run-ctl"></span></div><div class="col-h thk"><span class="arm thk"><i></i>through thinker</span><span class="run" id="run-thk"></span></div></div>`;
+      const head = `<div class="sess-head"><div class="col-h ctl"><span class="arm ctl"><i></i>straight to the API</span><span class="run">${money(runC)}: reads ${money(rcC)}, writes ${money(wcC)}</span></div><div class="col-h thk"><span class="arm thk"><i></i>through thinker</span><span class="run">${money(runT)} (${pc(runT, runC)}): reads ${money(rcT)}, writes ${money(wcT)}</span></div></div>`;
       const end = `<div class="sess-end">
         <div class="tile"><div class="k">The whole session, straight to the API</div><div class="v">${money(runC)}</div><div class="pair"><span>reads <b>${money(rcC)}</b></span><span>writes <b>${money(wcC)}</b></span><span>${ctl.calls.length} calls</span></div></div>
-        <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pct(runT, runC)}</small></div><div class="pair"><span>reads <b>${money(rcT)}</b> (${pct(rcT, rcC)})</span><span>writes <b>${money(wcT)}</b> (${pct(wcT, wcC)})</span><span>${cut.calls.length} calls · 4 cuts</span></div></div>
+        <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pc(runT, runC)}</small></div><div class="pair"><span>reads <b>${money(rcT)}</b> (${pc(rcT, rcC)})</span><span>writes <b>${money(wcT)}</b> (${pc(wcT, wcC)})</span><span>${cut.calls.length} calls · ${cutsOf().length} cut${cutsOf().length === 1 ? '' : 's'}</span></div></div>
       </div>`;
       $('#timeline').innerHTML = head + html + end;
-      $('#run-ctl').textContent = `${money(runC)}: reads ${money(rcC)}, writes ${money(wcC)}`;
-      $('#run-thk').textContent = `${money(runT)} (${pct(runT, runC)}): reads ${money(rcT)}, writes ${money(wcT)}`;
-      $('#sess-note').textContent = `Both runs from their own Claude Code transcripts; every call's tokens are what the API reported (they match the proxy log to the token). Prices at list, cache writes at the ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL${state.cold ? ', the control charged its skipped cold start' : ''}. Expand any result to read exactly what the model was shown; a struck-through result is one thinker had cleared by then.`;
+      $('#sess-note').textContent = `Both runs from their own Claude Code transcripts; every call's tokens are what the API reported (they match the proxy log to the token). Prices at list, cache writes at the ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL${SESSION.cold && state.cold ? ', the control charged its skipped cold start' : ''}. Expand any result to read exactly what the model was shown; a struck-through result is one thinker had cleared by then.`;
     }
     $('#timeline').addEventListener('click', ev => {
       const b = ev.target.closest('button[data-x]'); if (!b) return;
       if (b.dataset.x === 'prompt') { const p = b.parentElement.querySelector('.prompt'); p.classList.toggle('clip'); b.textContent = p.classList.contains('clip') ? 'full prompt' : 'less'; }
       if (b.dataset.x === 'say') { const d = b.parentElement.querySelector('.bd'); d.classList.toggle('clip'); b.textContent = d.classList.contains('clip') ? 'more' : 'less'; }
-      if (b.dataset.x === 'blob') {
-        const pre = b.parentElement.querySelector('.blob');
-        if (pre.hidden && !pre.textContent) pre.textContent = SESSION.blobs[pre.dataset.blob] || '(not kept)';
-        pre.hidden = !pre.hidden; b.textContent = pre.hidden ? 'show' : 'hide';
-      }
+      if (b.dataset.x === 'blob') { const pre = b.parentElement.querySelector('.blob'); if (pre.hidden && !pre.textContent) pre.textContent = SESSION.blobs[pre.dataset.blob] || '(not kept)'; pre.hidden = !pre.hidden; b.textContent = pre.hidden ? 'show' : 'hide'; }
     });
     function showView(v) {
       document.body.classList.toggle('session', v === 'session');
-      $('#view-metrics').hidden = v === 'session';
-      $('#view-session').hidden = v !== 'session';
+      $('#view-metrics').hidden = v === 'session'; $('#view-session').hidden = v !== 'session';
       document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.view === v); b.setAttribute('aria-selected', b.dataset.view === v); });
-      if (v === 'session') { history.replaceState(null, '', '#session'); if (!SESSION && !sessionLoading) loadSession(); }
-      else { history.replaceState(null, '', location.pathname); stop(); }
+      history.replaceState(null, '', `${location.pathname}?run=${state.run}${v === 'session' ? '#session' : ''}`);
+      if (v === 'session') { if (SESSION) renderSession(); else if (!sessionLoading) loadSession(); } else stop();
     }
     function loadSession() {
-      sessionLoading = true;
-      fetch('clearing-session.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-        .then(d => { SESSION = d; renderSession(); })
+      const id = state.run; sessionLoading = true; $('#sess-note').textContent = 'Loading the session…'; $('#timeline').innerHTML = '';
+      fetch(`clearing-${id}-session.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => { SESSIONS[id] = d; if (state.run === id) { SESSION = d; renderSession(); } })
         .catch(e => { $('#sess-note').textContent = `The session data did not load (${e.message}).`; })
         .finally(() => { sessionLoading = false; });
     }
     $('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-view]'); if (b) showView(b.dataset.view); });
-    if (location.hash === '#session') showView('session');
+    const q = new URLSearchParams(location.search).get('run'); if (q && RUN_DATA[q]) state.run = q;
+    state.pos = N();
     renderAll();
+    if (location.hash === '#session') showView('session');
   })();
   </script>
 </body>

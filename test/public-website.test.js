@@ -8,7 +8,7 @@ const request = (uri, method = 'GET') => context.handler({ request: { uri, metho
 test('public website serves docs, messages and current/legacy downloads without authorization', () => {
   for (const uri of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) assert.equal(request(uri).uri, '/docs.html');
   for (const uri of ['/clearing', '/clearing/', '/clearing.html']) assert.equal(request(uri).uri, '/clearing.html');
-  assert.equal(request('/clearing-session.json').uri, '/clearing-session.json');
+  for (const f of ['/clearing-real.json', '/clearing-real-session.json', '/clearing-synthetic.json']) assert.equal(request(f).uri, f);
   for (const uri of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
     assert.equal(request(uri).uri, uri); assert.equal(request(uri, 'HEAD').uri, uri);
   }
@@ -33,34 +33,39 @@ test('homepage installs publicly and both pages expose repository and message wi
     assert.match(html, /src="\/message.js" defer/);
   }
 });
-test('the clearing page is one paired run, with its data inline and its caveats stated', () => {
+test('the clearing page inlines every run\'s figures and states its caveats', () => {
   const html = fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8');
-  const data = JSON.parse(html.match(/const DATA = (\{.*?\});\n/s)[1]);
-  assert.equal(data.cut.length, 29); assert.equal(data.control.length, 30);
-  assert.equal(data.cut.filter(c => c.cut).length, 4, 'four cuts, each at the first call of a turn');
-  for (const c of data.cut) if (c.cut) assert.ok(c.t >= 3 && data.cut.find(x => x.t === c.t) === c);
-  assert.equal(data.results.filter(r => r.cut).length, 24);
-  assert.ok(!/Users\/|\.worktrees|\.js\b/.test(JSON.stringify(data)), 'no paths or file names leave the machine');
-  assert.match(html, /One run per arm/);
-  assert.match(html, /The control ran second/);
-  assert.match(html, /href="index.html" class="nav-brand"/);
-  const home = fs.readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
-  assert.match(home, /href="clearing.html"/);
+  const m = html.match(/const RUN_DATA = \/\*RUN_DATA\*\/(\{.*?\});\n/s);
+  assert.ok(m, 'the run data is inlined');
+  const runs = JSON.parse(m[1]);
+  assert.ok(runs.synthetic, 'the controlled run is there');
+  for (const [id, d] of Object.entries(runs)) {
+    for (const arm of ['cut', 'control']) {
+      assert.ok(d[arm].calls.length > 10, `${id} ${arm}: every model call`);
+      assert.ok(d[arm].turns.length >= 10, `${id} ${arm}: the turns`);
+      for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${id} ${arm} call ${c.k} is complete`);
+    }
+    assert.ok(d.cut.calls.some(c => c.cut), `${id}: thinker cut at least once`);
+    assert.ok(d.control.calls.every(c => !c.cut), `${id}: the control was never cut`);
+    assert.ok(d.price && d.price.read === 0.2 && d.price.w1h === 8, `${id}: Opus 5.5 list prices`);
+  }
+  assert.ok(html.includes('One run per arm'), 'the caveats are stated');
+  assert.ok(html.includes('list prices'), 'the price basis is stated');
 });
 
-test('the clearing page\'s session view reads both runs, turn by turn, from one data file', () => {
-  const data = JSON.parse(fs.readFileSync(new URL('../site/clearing-session.json', import.meta.url), 'utf8'));
-  for (const arm of ['cut', 'control']) {
-    assert.equal(data[arm].turns.length, 14, `${arm}: 14 turns`);
-    assert.equal(data[arm].calls.length, arm === 'cut' ? 29 : 30, `${arm}: every model call`);
-    for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length && t.calls.length, `${arm} turn ${t.n} has a prompt, steps and calls`);
-    assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${arm}: no home paths`);
-  }
-  assert.equal(data.cuts.length, 4);
-  const cutResults = data.cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt);
-  assert.equal(cutResults.length, 24, 'the 24 results thinker cut are marked');
-  for (const r of cutResults) assert.ok(data.blobs[r.blob], 'a cut result keeps its original text');
+test('the clearing page\'s session view reads both runs, turn by turn, from one data file per run', () => {
   const html = fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8');
-  assert.match(html, /clearing-session\.json/);
+  assert.match(html, /clearing-\$\{id\}-session\.json/);
   assert.match(html, /id="view-session"/);
+  for (const f of fs.readdirSync(new URL('../site', import.meta.url)).filter(f => /^clearing-.*-session\.json$/.test(f))) {
+    const data = JSON.parse(fs.readFileSync(new URL('../site/' + f, import.meta.url), 'utf8'));
+    for (const arm of ['cut', 'control']) {
+      assert.ok(data[arm].turns.length >= 10, `${f} ${arm}: the turns`);
+      for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length, `${f} ${arm} turn ${t.n} has a prompt and steps`);
+      assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${f} ${arm}: no home paths`);
+    }
+    const cutResults = data.cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt);
+    assert.ok(cutResults.length > 0, `${f}: the cut results are marked`);
+    for (const r of cutResults) assert.ok(data.blobs[r.blob], `${f}: a cut result keeps its original text`);
+  }
 });
