@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>thinker · one session, run twice</title>
+  <meta name="description" content="The same 14-turn coding session run twice with Claude Opus 5.5: once through thinker, which cuts old tool results out of the context, and once straight to the API. Every model call of both runs, what it carried, what it cost, and where thinker stepped in.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/message.css">
+  <style>
+    :root {
+      --fg: #111111; --fg-2: #333333; --muted: #666666; --faint: #9a9a9a;
+      --line: #e5e7eb; --line-2: #f0f0f2; --card: #ffffff; --card-2: #fafafa;
+      --ctl: #2563eb; --ctl-soft: #dbe4ff; --thk: #15803d; --thk-soft: #d7efdf;
+      --flag: #b45309; --flag-soft: #fde9cf;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #fff; color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; }
+    nav { padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    .nav-brand { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.03em; text-decoration: none; }
+    .nav-right { display: flex; align-items: center; gap: 0.6rem; }
+    .nav-link { color: #444; text-decoration: none; font-size: 0.85rem; font-weight: 500; padding: 0.45rem 0.75rem; border-radius: 6px; }
+    .nav-link:hover { color: #000; background: #f5f5f5; }
+    main { max-width: 980px; margin: 0 auto; padding: 1.5rem 1rem 5rem; }
+    .kicker { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+    h1 { font-size: 2.6rem; font-weight: 700; letter-spacing: -0.045em; line-height: 1.05; margin: 0.5rem 0 0.9rem; }
+    .lede { font-size: 1.05rem; line-height: 1.55; color: var(--fg-2); max-width: 44rem; }
+    .lede b { color: var(--fg); font-weight: 600; }
+    .arm { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 600; white-space: nowrap; }
+    .arm i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+    .arm.ctl i { background: var(--ctl); } .arm.thk i { background: var(--thk); }
+
+    .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; margin: 2rem 0 0; }
+    .tile { border: 1px solid var(--line); border-radius: 10px; padding: 0.9rem 1rem; background: var(--card); }
+    .tile .k { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .tile .v { font-size: 1.7rem; font-weight: 700; letter-spacing: -0.03em; margin-top: 0.25rem; font-variant-numeric: tabular-nums; }
+    .tile .v small { font-size: 0.8rem; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 0.3rem; }
+    .tile .pair { display: flex; gap: 0.9rem; margin-top: 0.35rem; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .tile .pair span b { color: var(--fg); font-weight: 600; }
+    .tile .why { margin-top: 0.45rem; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
+
+    .controls { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,0.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin: 2.2rem -1rem 1.5rem; padding: 0.7rem 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 1.4rem; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+    .seg button { background: #fff; border: 0; padding: 0.38rem 0.7rem; font: inherit; font-size: 0.82rem; font-weight: 500; color: var(--fg-2); cursor: pointer; }
+    .seg button + button { border-left: 1px solid var(--line); }
+    .seg button.on { background: var(--fg); color: #fff; }
+    .ctl-lbl { font-size: 0.78rem; color: var(--muted); font-weight: 500; margin-right: 0.4rem; }
+    label.chk { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--fg-2); cursor: pointer; }
+    .scrub { display: flex; align-items: center; gap: 0.6rem; flex: 1 1 260px; min-width: 240px; }
+    .scrub input[type=range] { flex: 1; accent-color: var(--fg); }
+    .scrub .pos { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); white-space: nowrap; min-width: 7.5rem; font-variant-numeric: tabular-nums; }
+    .scrub button { background: #fff; border: 1px solid var(--line); border-radius: 999px; width: 30px; height: 30px; cursor: pointer; font-size: 0.8rem; color: var(--fg); }
+    .scrub button:hover { border-color: var(--fg); }
+
+    h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.025em; margin: 2.4rem 0 0.25rem; }
+    .sub { font-size: 0.9rem; color: var(--muted); line-height: 1.5; max-width: 44rem; }
+    figure { margin: 1rem 0 0; }
+    .legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.78rem; color: var(--muted); font-weight: 500; margin: 0.6rem 0 0.2rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+    .legend i.ctl { border-color: var(--ctl); } .legend i.thk { border-color: var(--thk); }
+    .legend i.cutmark { width: 0; height: 12px; border-top: 0; border-left: 2px dashed var(--fg-2); }
+    .legend i.flagmark { width: 9px; height: 9px; border: 0; background: var(--flag); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+    .chart { position: relative; }
+    .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .chart .grid line { stroke: var(--line-2); stroke-width: 1; }
+    .chart .axis text { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+    .chart .axis line { stroke: var(--line); }
+    .chart .ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+    .chart .ln.ctl { stroke: var(--ctl); } .chart .ln.thk { stroke: var(--thk); }
+    .chart .dl { font-size: 11px; font-weight: 600; }
+    .chart .dl.ctl { fill: var(--ctl); } .chart .dl.thk { fill: var(--thk); }
+    .chart .cut line { stroke: var(--fg-2); stroke-width: 1.5; stroke-dasharray: 4 3; }
+    .chart .cut rect { fill: var(--fg); }
+    .chart .cut text { font-size: 10.5px; font-weight: 600; fill: #fff; }
+    .chart .flag path { fill: var(--flag); stroke: #fff; stroke-width: 1.5; }
+    .chart .cursor line { stroke: var(--fg); stroke-width: 1; }
+    .chart .cursor circle { stroke: #fff; stroke-width: 2; }
+    .chart .cursor circle.ctl { fill: var(--ctl); } .chart .cursor circle.thk { fill: var(--thk); }
+    .chart .hit { fill: transparent; cursor: crosshair; }
+    .tip { position: absolute; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.7rem; font-size: 0.78rem; line-height: 1.45; box-shadow: 0 4px 14px rgba(0,0,0,0.07); min-width: 220px; display: none; z-index: 3; }
+    .tip .h { font-weight: 600; margin-bottom: 0.25rem; }
+    .tip .r { display: flex; justify-content: space-between; gap: 1rem; font-variant-numeric: tabular-nums; }
+    .tip .r span:first-child { color: var(--muted); }
+    .tip .note { margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--line-2); color: var(--fg-2); }
+    .tip .note.flag { color: var(--flag); }
+
+    .tracks { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-top: 1rem; }
+    .track-card { border: 1px solid var(--line); border-radius: 10px; padding: 0.85rem 1rem; }
+    .track-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+    .track-head .n { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .track-head .n small { font-size: 0.78rem; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 0.3rem; }
+    .track { position: relative; height: 34px; border: 1px solid var(--line); border-radius: 6px; background: var(--card-2); margin-top: 0.6rem; overflow: hidden; display: flex; }
+    .track .sg { height: 100%; border-right: 2px solid #fff; flex: 0 0 auto; }
+    .track .sg.base { background: #111; }
+    .track .sg.res { background: #b4b4bb; }
+    .track .sg.res.live { background: #8b8b93; }
+    .track .sg.gone { background: #fff; border-right: 1px dashed #c7c7cc; }
+    .track-card.thk .track .sg.res { background: var(--thk); opacity: 0.55; }
+    .track-card.thk .track .sg.res.live { opacity: 0.85; }
+    .track-card.ctl .track .sg.res { background: var(--ctl); opacity: 0.45; }
+    .track-card.ctl .track .sg.res.live { opacity: 0.75; }
+    .track-foot { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--muted); margin-top: 0.45rem; }
+    .track-foot b { color: var(--fg); font-weight: 600; }
+    .tlegend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--muted); margin-top: 0.6rem; }
+    .tlegend i { display: inline-block; width: 12px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 0.3rem; }
+
+    .events { list-style: none; margin-top: 1rem; display: grid; gap: 0.5rem; }
+    .ev { border: 1px solid var(--line); border-radius: 10px; padding: 0.75rem 0.95rem; display: grid; grid-template-columns: 5.2rem 1fr; gap: 0.2rem 1rem; cursor: pointer; transition: border-color 0.15s; }
+    .ev:hover, .ev.on { border-color: var(--fg); }
+    .ev .when { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); padding-top: 0.15rem; }
+    .ev .what { font-size: 0.9rem; font-weight: 600; }
+    .ev .what .tag { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.1rem 0.4rem; border-radius: 4px; margin-right: 0.4rem; vertical-align: 1px; }
+    .ev .tag.cut { background: var(--thk-soft); color: var(--thk); }
+    .ev .tag.flag { background: var(--flag-soft); color: var(--flag); }
+    .ev .how { grid-column: 2; font-size: 0.82rem; color: var(--fg-2); line-height: 1.5; }
+    .ev .how b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+
+    table { border-collapse: collapse; width: 100%; margin-top: 1rem; font-size: 0.86rem; }
+    th, td { text-align: right; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    th { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    th:first-child, td:first-child { text-align: left; white-space: normal; }
+    td.d { font-weight: 600; }
+    td.d.good { color: var(--thk); }
+    td.d.bad { color: var(--flag); }
+    details { margin-top: 1rem; }
+    summary { cursor: pointer; font-size: 0.86rem; font-weight: 600; color: var(--fg-2); }
+    .tbl-wrap { overflow-x: auto; }
+    .caveats { margin-top: 2.4rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); font-size: 0.85rem; line-height: 1.55; color: var(--fg-2); }
+    .caveats ul { padding-left: 1.1rem; margin-top: 0.4rem; }
+    .caveats li + li { margin-top: 0.25rem; }
+    @media (max-width: 760px) {
+      h1 { font-size: 2rem; }
+      .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ev { grid-template-columns: 1fr; }
+      .ev .how { grid-column: 1; }
+      nav { padding: 1.2rem 1rem; }
+    }
+  </style>
+  <script src="/message.js" defer></script>
+</head>
+<body>
+  <nav>
+    <a href="index.html" class="nav-brand">thinker</a>
+    <div class="nav-right">
+      <a href="docs.html" class="nav-link">Docs</a>
+      <a href="https://github.com/yoavshmariahu/thinker" class="nav-link">GitHub</a>
+    </div>
+  </nav>
+
+  <main>
+    <div class="kicker">Context clearing · measured, call by call</div>
+    <h1>One session, run twice.</h1>
+    <p class="lede">The same 14 prompts, the same model (Claude Opus 5.5 in Claude Code), the same repository. Once <span class="arm ctl"><i></i>straight to the API</span>, once <span class="arm thk"><i></i>through thinker</span>, which takes old tool results out of the conversation once they have been used. Every model call of both runs is below, with what it carried, what it cost at list prices, and where thinker stepped in.</p>
+
+    <div class="tiles" id="tiles"></div>
+
+    <div class="controls">
+      <span><span class="ctl-lbl">Cache writes priced at</span><span class="seg" id="ttl"><button data-v="1h" class="on">1-hour TTL</button><button data-v="5m">5-minute TTL</button></span></span>
+      <label class="chk"><input type="checkbox" id="cold" checked> Charge the control the cold start it skipped</label>
+      <div class="scrub"><button id="play" type="button" aria-label="Play">▶</button><input type="range" id="pos" min="1" max="30" value="30" aria-label="Model call"><span class="pos" id="pos-lbl"></span></div>
+    </div>
+
+    <h2>What each call carried</h2>
+    <p class="sub">Tokens in the prompt of every model call: the system prompt, the conversation so far and the tool results in it. Without thinker it only grows. Each dashed line is a cut, where thinker replaced the results the model had already used with a one-line placeholder.</p>
+    <div class="legend"><span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span><span><i class="flagmark"></i>answer flagged a figure as unverified</span></div>
+    <figure><div class="chart" id="c1"></div></figure>
+
+    <h2>What it cost, added up</h2>
+    <p class="sub">Cumulative cost at Anthropic's list prices for Claude Opus 5.5. A cut makes every later call cheaper to read, but writes the rest of the conversation into the prompt cache again. Whether it pays depends on the write price, so pick the cache TTL above.</p>
+    <div class="legend"><span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span></div>
+    <figure><div class="chart" id="c2"></div></figure>
+
+    <h2>The context window, side by side</h2>
+    <p class="sub">What each run's prompt held at the selected call. Drag the slider or press play. Every block is one tool result, in the order it arrived; a hollow slot is a result thinker cut.</p>
+    <div class="tracks">
+      <div class="track-card ctl" id="tr-ctl"></div>
+      <div class="track-card thk" id="tr-thk"></div>
+    </div>
+    <div class="tlegend"><span><i style="background:#111"></i>system prompt and instructions</span><span><i style="background:#b4b4bb"></i>tool result</span><span><i style="background:#8b8b93"></i>this turn's results</span><span><i style="background:#fff;border:1px dashed #c7c7cc"></i>cut by thinker</span></div>
+
+    <h2>Where thinker stepped in</h2>
+    <p class="sub">Four cuts, each at the start of a turn, each priced before it was taken: the tokens dropped against the prompt-cache write it would provoke. And the four moments the model, having lost a raw result, said so in its answer.</p>
+    <ul class="events" id="events"></ul>
+
+    <h2>The two runs, side by side</h2>
+    <div class="tbl-wrap"><table id="stats"></table></div>
+    <details><summary>Every model call as a table</summary><div class="tbl-wrap"><table id="calls"></table></div></details>
+
+    <div class="caveats" id="caveats">
+      <b>Read this before the numbers.</b>
+      <ul>
+        <li><b>One run per arm.</b> This is a paired measurement, not a powered sample. The sign at the one-hour write rate is within what one more run could move.</li>
+        <li><b>The workload is reading.</b> Each turn reads two to seven source files of a Node.js repository and runs a few commands, then answers a question about them. It is what the clearing is for, and a best case by construction: nothing is edited.</li>
+        <li><b>Prices are list prices</b> for Claude Opus 5.5 on a metered API key, per million tokens: input $4, output $20, cache read $0.20, cache write $8 at the one-hour TTL and $5 at five minutes. Claude Code writes with the one-hour TTL. A subscription pays none of this.</li>
+        <li><b>The control ran second</b> and inherited the first run's prompt cache, so it skipped the 39k tokens of cache write that a cold session pays on its first two calls. The checkbox above charges it those; unchecking shows the control exactly as billed.</li>
+        <li><b>What a cost cannot see.</b> In four turns the thinker run's answer flagged line counts it had already given as unverified, because the raw file was gone from its context. The figures it flagged matched the control's. The control's answers never said so. Nine of fourteen answers were identical in both runs, five differed by one line in both directions, none left a value out.</li>
+        <li>Tokens are what the API reported on each call. The track view apportions each run's measured prompt by the character counts of the results in thinker's own request bodies, so it is an illustration of the same measured total.</li>
+      </ul>
+    </div>
+  </main>
+
+  <script>
+  const DATA = {"cut":[{"i":2,"r":12895,"w":15518,"w5":0,"o":88,"t":0},{"i":2,"r":28413,"w":23508,"w5":0,"o":630,"t":1},{"i":2,"r":51921,"w":72161,"w5":0,"o":7,"t":1},{"i":2,"r":124082,"w":652,"w5":0,"o":390,"t":2},{"i":2,"r":124734,"w":54541,"w5":0,"o":7,"t":2},{"i":2,"r":24655,"w":11467,"w5":0,"o":506,"cut":{"tokens":116615,"recache":10983,"cost":21966,"saving":233230},"t":3},{"i":2,"r":36122,"w":24064,"w5":0,"o":122,"t":3},{"i":2,"r":60186,"w":837,"w5":0,"o":499,"t":4},{"i":2,"r":61023,"w":71173,"w5":0,"o":43,"t":4},{"i":2,"r":132196,"w":766,"w5":0,"o":508,"t":5},{"i":2,"r":132962,"w":51550,"w5":0,"o":45,"t":5},{"i":2,"r":12895,"w":33888,"w5":0,"o":587,"cut":{"tokens":115671,"recache":14432,"cost":28864,"saving":231342},"t":6},{"i":2,"r":46783,"w":49474,"w5":0,"o":289,"t":6},{"i":2,"r":96257,"w":1002,"w5":0,"o":496,"t":7},{"i":2,"r":97259,"w":50789,"w5":0,"o":10,"t":7},{"i":2,"r":148048,"w":798,"w5":0,"o":611,"t":8},{"i":2,"r":148846,"w":71734,"w5":0,"o":64,"t":8},{"i":2,"r":12895,"w":44827,"w5":0,"o":687,"cut":{"tokens":136996,"recache":14851,"cost":29702,"saving":273992},"t":9},{"i":2,"r":57722,"w":59294,"w5":0,"o":268,"t":9},{"i":2,"r":117016,"w":1067,"w5":0,"o":627,"t":10},{"i":2,"r":118083,"w":58011,"w5":0,"o":64,"t":10},{"i":2,"r":176094,"w":851,"w5":0,"o":613,"t":11},{"i":2,"r":176945,"w":49391,"w5":0,"o":12,"t":11},{"i":2,"r":12895,"w":56024,"w5":0,"o":657,"cut":{"tokens":134455,"recache":14643,"cost":29286,"saving":268910},"t":12},{"i":2,"r":68919,"w":52171,"w5":0,"o":444,"t":12},{"i":4,"r":121090,"w":811,"w5":0,"o":615,"t":13},{"i":2,"r":121901,"w":47498,"w5":0,"o":12,"t":13},{"i":2,"r":169399,"w":872,"w5":0,"o":724,"t":14},{"i":2,"r":170271,"w":62242,"w5":0,"o":1196,"t":14}],"control":[{"i":2,"r":28413,"w":0,"w5":0,"o":88,"t":0},{"i":2,"r":51921,"w":0,"w5":0,"o":557,"t":1},{"i":2,"r":51921,"w":72088,"w5":0,"o":7,"t":1},{"i":2,"r":124009,"w":652,"w5":0,"o":368,"t":2},{"i":2,"r":124661,"w":25720,"w5":0,"o":176,"t":2},{"i":2,"r":150381,"w":21847,"w5":0,"o":195,"t":2},{"i":2,"r":172228,"w":840,"w5":0,"o":368,"t":3},{"i":2,"r":173068,"w":23926,"w5":0,"o":91,"t":3},{"i":2,"r":196994,"w":806,"w5":0,"o":453,"t":4},{"i":2,"r":197800,"w":47811,"w5":0,"o":69,"t":4},{"i":2,"r":245611,"w":792,"w5":0,"o":462,"t":5},{"i":2,"r":246403,"w":48673,"w5":0,"o":55,"t":5},{"i":2,"r":295076,"w":779,"w5":0,"o":465,"t":6},{"i":2,"r":295855,"w":49352,"w5":0,"o":120,"t":6},{"i":2,"r":345207,"w":833,"w5":0,"o":450,"t":7},{"i":2,"r":346040,"w":50743,"w5":0,"o":159,"t":7},{"i":2,"r":396783,"w":947,"w5":0,"o":541,"t":8},{"i":2,"r":397730,"w":71664,"w5":0,"o":12,"t":8},{"i":2,"r":469394,"w":802,"w5":0,"o":545,"t":9},{"i":2,"r":470196,"w":59152,"w5":0,"o":12,"t":9},{"i":2,"r":529348,"w":811,"w5":0,"o":557,"t":10},{"i":2,"r":530159,"w":57941,"w5":0,"o":12,"t":10},{"i":2,"r":588100,"w":799,"w5":0,"o":543,"t":11},{"i":2,"r":588899,"w":49321,"w5":0,"o":12,"t":11},{"i":2,"r":638220,"w":798,"w5":0,"o":541,"t":12},{"i":2,"r":639018,"w":52055,"w5":0,"o":13,"t":12},{"i":2,"r":691073,"w":804,"w5":0,"o":545,"t":13},{"i":2,"r":691877,"w":49413,"w5":0,"o":12,"t":13},{"i":2,"r":741290,"w":872,"w5":0,"o":630,"t":14},{"i":2,"r":742162,"w":62148,"w5":0,"o":15,"t":14}],"results":[{"c":46072,"at":2,"cut":6},{"c":162113,"at":3,"cut":6},{"c":1,"at":3,"cut":null},{"c":11,"at":3,"cut":null},{"c":11,"at":3,"cut":null},{"c":115745,"at":5,"cut":6},{"c":2,"at":5,"cut":null},{"c":11,"at":5,"cut":null},{"c":11,"at":5,"cut":null},{"c":52138,"at":7,"cut":12},{"c":2,"at":7,"cut":null},{"c":11,"at":7,"cut":null},{"c":11,"at":7,"cut":null},{"c":76764,"at":9,"cut":12},{"c":75831,"at":9,"cut":12},{"c":2,"at":9,"cut":null},{"c":11,"at":9,"cut":null},{"c":11,"at":9,"cut":null},{"c":67412,"at":11,"cut":12},{"c":49155,"at":11,"cut":12},{"c":11,"at":11,"cut":null},{"c":11,"at":11,"cut":null},{"c":2,"at":11,"cut":null},{"c":63742,"at":13,"cut":18},{"c":50108,"at":13,"cut":18},{"c":2,"at":13,"cut":null},{"c":11,"at":13,"cut":null},{"c":11,"at":13,"cut":null},{"c":56966,"at":15,"cut":18},{"c":55690,"at":15,"cut":18},{"c":2,"at":15,"cut":null},{"c":11,"at":15,"cut":null},{"c":11,"at":15,"cut":null},{"c":52370,"at":17,"cut":18},{"c":53346,"at":17,"cut":18},{"c":48315,"at":17,"cut":18},{"c":11,"at":17,"cut":null},{"c":11,"at":17,"cut":null},{"c":2,"at":17,"cut":null},{"c":44013,"at":19,"cut":24},{"c":43113,"at":19,"cut":24},{"c":43211,"at":19,"cut":24},{"c":2,"at":19,"cut":null},{"c":11,"at":19,"cut":null},{"c":11,"at":19,"cut":null},{"c":42936,"at":21,"cut":24},{"c":42726,"at":21,"cut":24},{"c":40507,"at":21,"cut":24},{"c":12,"at":21,"cut":null},{"c":12,"at":21,"cut":null},{"c":1,"at":21,"cut":null},{"c":40156,"at":23,"cut":24},{"c":39400,"at":23,"cut":24},{"c":37423,"at":23,"cut":24},{"c":12,"at":23,"cut":null},{"c":12,"at":23,"cut":null},{"c":2,"at":23,"cut":null},{"c":38703,"at":25,"cut":null},{"c":36997,"at":25,"cut":null},{"c":35161,"at":25,"cut":null},{"c":1,"at":25,"cut":null},{"c":12,"at":25,"cut":null},{"c":12,"at":25,"cut":null},{"c":36117,"at":27,"cut":null},{"c":34933,"at":27,"cut":null},{"c":34713,"at":27,"cut":null},{"c":12,"at":27,"cut":null},{"c":12,"at":27,"cut":null},{"c":1,"at":27,"cut":null},{"c":34370,"at":29,"cut":null},{"c":34035,"at":29,"cut":null},{"c":33289,"at":29,"cut":null},{"c":32867,"at":29,"cut":null},{"c":12,"at":29,"cut":null},{"c":12,"at":29,"cut":null},{"c":2,"at":29,"cut":null}],"work":{"1":{"reads":2,"cmds":3},"2":{"reads":2,"cmds":6},"3":{"reads":2,"cmds":6},"4":{"reads":3,"cmds":6},"5":{"reads":4,"cmds":6},"6":{"reads":4,"cmds":6},"7":{"reads":4,"cmds":6},"8":{"reads":5,"cmds":6},"9":{"reads":6,"cmds":6},"10":{"reads":6,"cmds":6},"11":{"reads":6,"cmds":6},"12":{"reads":6,"cmds":6},"13":{"reads":6,"cmds":6},"14":{"reads":7,"cmds":6}}};
+  (function () {
+    const P = { input: 4, output: 20, read: 0.2, w1h: 8, w5m: 5 };
+    const COLD = DATA.cut[0].w + DATA.cut[1].w;
+    const BASE = DATA.cut[0].r;
+    const FLAGS = { 3: 1, 6: 3, 9: 5, 12: 9 };
+    const $ = s => document.querySelector(s);
+    const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+    const fmtN = n => Math.round(n).toLocaleString('en-US');
+    const usd = n => '$' + n.toFixed(2);
+    const pct = (a, b) => { const d = (a / b - 1) * 100; return (d > 0 ? '+' : '−') + Math.abs(d).toFixed(1) + '%'; };
+    const state = { ttl: '1h', cold: true, pos: 30, playing: false };
+
+    function callCost(c, extraWrite) {
+      const w = c.w + (extraWrite || 0);
+      return (c.i * P.input + c.o * P.output + c.r * P.read + w * (state.ttl === '1h' ? P.w1h : P.w5m) + c.w5 * P.w5m) / 1e6;
+    }
+    function series(arm) {
+      const cs = DATA[arm]; let cum = 0;
+      return cs.map((c, k) => {
+        const extra = arm === 'control' && state.cold && k === 0 ? COLD : 0;
+        cum += callCost(c, extra);
+        return { k: k + 1, t: c.t, carried: c.i + c.r + c.w, read: c.r, write: c.w + extra, out: c.o, cost: cum, cut: c.cut || null, first: k === 0 || cs[k - 1].t !== c.t };
+      });
+    }
+    const answerCall = (arm, turn) => { const cs = DATA[arm]; let last = -1; cs.forEach((c, k) => { if (c.t === turn) last = k + 1; }); return last; };
+
+    // ---- tiles ----
+    function tiles() {
+      const a = series('cut'), b = series('control');
+      const ta = a[a.length - 1].cost, tb = b[b.length - 1].cost;
+      const rpc = arm => DATA[arm].reduce((s, c) => s + c.r, 0) / DATA[arm].length;
+      const d = ta / tb - 1;
+      $('#tiles').innerHTML = `
+        <div class="tile"><div class="k">Cost at list, whole session</div><div class="v" style="color:${d < 0 ? 'var(--thk)' : 'var(--flag)'}">${pct(ta, tb)}</div>
+          <div class="pair"><span class="arm ctl"><i></i><b>${usd(tb)}</b></span><span class="arm thk"><i></i><b>${usd(ta)}</b></span></div><div class="why">${state.ttl === '1h' ? 'one-hour' : 'five-minute'} cache writes${state.cold ? ', control charged its cold start' : ''}</div></div>
+        <div class="tile"><div class="k">Tokens read per call</div><div class="v">${pct(rpc('cut'), rpc('control'))}</div>
+          <div class="pair"><span class="arm ctl"><i></i><b>${fmt(rpc('control'))}</b></span><span class="arm thk"><i></i><b>${fmt(rpc('cut'))}</b></span></div><div class="why">prompt-cache reads, averaged over the run's calls</div></div>
+        <div class="tile"><div class="k">Largest prompt</div><div class="v">${pct(Math.max(...a.map(x => x.carried)), Math.max(...b.map(x => x.carried)))}</div>
+          <div class="pair"><span class="arm ctl"><i></i><b>${fmt(Math.max(...b.map(x => x.carried)))}</b></span><span class="arm thk"><i></i><b>${fmt(Math.max(...a.map(x => x.carried)))}</b></span></div><div class="why">tokens in the biggest single call</div></div>
+        <div class="tile"><div class="k">Answers</div><div class="v">14<small>of 14 turns</small></div>
+          <div class="pair"><span>no value left out in either run</span></div><div class="why">4 turns of the thinker run flagged earlier figures as unverified; they matched the control's</div></div>`;
+    }
+
+    // ---- charts ----
+    const W = 900, H = 300, M = { l: 54, r: 20, t: 28, b: 34 };
+    function chart(el, kind) {
+      const a = series('cut'), b = series('control');
+      const n = Math.max(a.length, b.length);
+      const val = kind === 'carried' ? x => x.carried : x => x.cost;
+      const ymax = Math.max(...a.map(val), ...b.map(val)) * 1.08;
+      const X = k => M.l + (k - 1) / (n - 1) * (W - M.l - M.r);
+      const Y = v => H - M.b - v / ymax * (H - M.t - M.b);
+      const path = s => s.map((x, i) => (i ? 'L' : 'M') + X(x.k).toFixed(1) + ',' + Y(val(x)).toFixed(1)).join(' ');
+      const ticks = 4, yt = [];
+      for (let i = 0; i <= ticks; i++) yt.push(ymax / ticks * i);
+      const ylab = v => kind === 'carried' ? fmt(v) : usd(v);
+      let g = `<g class="grid">${yt.map(v => `<line x1="${M.l}" x2="${W - M.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('')}</g>`;
+      g += `<g class="axis">${yt.map(v => `<text x="${M.l - 8}" y="${Y(v) + 4}" text-anchor="end">${ylab(v)}</text>`).join('')}`;
+      for (let t = 2; t <= 14; t += 2) { const k = answerCall('control', t); g += `<text x="${X(k)}" y="${H - M.b + 18}" text-anchor="middle">turn ${t}</text>`; }
+      g += `<line x1="${M.l}" x2="${W - M.r}" y1="${H - M.b}" y2="${H - M.b}"/></g>`;
+      // cuts
+      a.forEach(x => { if (x.cut) {
+        const px = X(x.k); const lbl = kind === 'carried' ? `cut −${fmt(x.cut.tokens)}` : `rewrite ${fmt(x.cut.recache)}`;
+        const w = lbl.length * 6.2 + 12;
+        g += `<g class="cut"><line x1="${px}" x2="${px}" y1="${M.t - 6}" y2="${H - M.b}"/><rect x="${px - w / 2}" y="${M.t - 22}" width="${w}" height="16" rx="4"/><text x="${px}" y="${M.t - 10.5}" text-anchor="middle">${lbl}</text></g>`;
+      } });
+      g += `<path class="ln ctl" d="${path(b)}"/><path class="ln thk" d="${path(a)}"/>`;
+      // flags
+      if (kind === 'carried') Object.keys(FLAGS).forEach(t => { const k = answerCall('cut', +t); const x = a[k - 1]; const px = X(k), py = Y(val(x)) - 9; g += `<g class="flag"><path d="M${px},${py - 6} L${px + 6},${py + 4} L${px - 6},${py + 4} Z"/></g>`; });
+      // direct labels at the end
+      const la = a[a.length - 1], lb = b[b.length - 1];
+      g += `<text class="dl ctl" x="${X(lb.k) + 4}" y="${Y(val(lb)) + 4}">${ylab(val(lb))}</text>`;
+      g += `<text class="dl thk" x="${X(la.k) + 4}" y="${Y(val(la)) + 4 + (Math.abs(Y(val(la)) - Y(val(lb))) < 14 ? 14 : 0)}">${ylab(val(la))}</text>`;
+      g += `<g class="cursor" id="${el.id}-cur"></g><rect class="hit" x="${M.l}" y="${M.t}" width="${W - M.l - M.r}" height="${H - M.t - M.b}"/>`;
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${kind === 'carried' ? 'Prompt tokens per model call, with and without thinker' : 'Cumulative cost per model call, with and without thinker'}">${g}</svg><div class="tip"></div>`;
+      const svg = el.querySelector('svg'), tip = el.querySelector('.tip');
+      const place = (k, show) => {
+        const cur = $('#' + el.id + '-cur');
+        const xa = a[Math.min(k, a.length) - 1], xb = b[Math.min(k, b.length) - 1];
+        const px = X(k);
+        cur.innerHTML = `<line x1="${px}" x2="${px}" y1="${M.t}" y2="${H - M.b}"/>` +
+          (k <= b.length ? `<circle class="ctl" cx="${px}" cy="${Y(val(xb))}" r="5"/>` : '') +
+          (k <= a.length ? `<circle class="thk" cx="${px}" cy="${Y(val(xa))}" r="5"/>` : '');
+        if (!show) { tip.style.display = 'none'; return; }
+        const r = svg.getBoundingClientRect(); const sx = r.width / W;
+        const row = (cls, name, x) => x ? `<div class="r"><span class="arm ${cls}"><i></i>${name}</span><span>${kind === 'carried' ? fmtN(x.carried) + ' tokens' : usd(x.cost)}</span></div>` : '';
+        const det = (x) => x ? `<div class="r"><span>read · written · output</span><span>${fmt(x.read)} · ${fmt(x.write)} · ${fmtN(x.out)}</span></div>` : '';
+        let note = '';
+        if (xa && xa.cut && k <= a.length) note = `<div class="note">thinker cut ${fmtN(xa.cut.tokens)} tokens of used results here, pricing the rewrite at ${fmtN(xa.cut.recache)} tokens.</div>`;
+        const ft = Object.keys(FLAGS).find(t => answerCall('cut', +t) === k);
+        if (ft) note += `<div class="note flag">The answer flagged ${FLAGS[ft]} earlier figure${FLAGS[ft] > 1 ? 's' : ''} as unverified: the raw result had been cut.</div>`;
+        tip.innerHTML = `<div class="h">Call ${k} · turn ${xa ? xa.t : xb.t}${(xa || xb).first ? ' · the model plans its tool calls' : ' · the model answers from the results'}</div>${row('ctl', 'without', xb)}${k <= b.length ? det(xb) : ''}${row('thk', 'with thinker', xa)}${k <= a.length ? det(xa) : ''}${note}`;
+        tip.style.display = 'block';
+        const left = px * sx + 14 + tip.offsetWidth > r.width ? px * sx - tip.offsetWidth - 14 : px * sx + 14;
+        tip.style.left = left + 'px'; tip.style.top = Math.max(0, M.t * sx) + 'px';
+      };
+      el.place = place;
+      const hit = el.querySelector('.hit');
+      const kAt = ev => { const r = svg.getBoundingClientRect(); const x = (ev.clientX - r.left) * (W / r.width); return Math.max(1, Math.min(n, Math.round((x - M.l) / (W - M.l - M.r) * (n - 1) + 1))); };
+      hit.addEventListener('mousemove', ev => { place(kAt(ev), true); });
+      hit.addEventListener('mouseleave', () => place(state.pos, false));
+      hit.addEventListener('click', ev => { setPos(kAt(ev)); });
+      place(state.pos, false);
+    }
+
+    // ---- tracks ----
+    function tracks() {
+      const a = series('cut'), b = series('control');
+      const k = state.pos;
+      const scale = Math.max(...b.map(x => x.carried));
+      const build = (arm, s, cls, name) => {
+        const x = s[Math.min(k, s.length) - 1];
+        const live = x.t;
+        const present = DATA.results.filter(r => r.at <= Math.min(k, DATA.cut.length));
+        const chars = present.reduce((n, r) => n + r.c, 0) || 1;
+        const budget = Math.max(0, x.carried - BASE);
+        let segs = `<div class="sg base" style="width:${(BASE / scale * 100).toFixed(2)}%" title="system prompt and instructions, ${fmtN(BASE)} tokens"></div>`;
+        present.forEach(r => {
+          const gone = arm === 'cut' && r.cut && r.cut <= k;
+          const w = gone ? 0.35 : r.c / chars * budget / scale * 100;
+          const isLive = DATA.cut[r.at - 1] && DATA.cut[r.at - 1].t === live;
+          segs += `<div class="sg ${gone ? 'gone' : 'res' + (isLive ? ' live' : '')}" style="width:${Math.max(w, 0.12).toFixed(2)}%" title="${gone ? 'cut by thinker: ' : ''}${fmtN(r.c)} chars, arrived at call ${r.at}"></div>`;
+        });
+        const cutN = arm === 'cut' ? DATA.results.filter(r => r.cut && r.cut <= k).length : 0;
+        $('#tr-' + cls).innerHTML = `<div class="track-head"><span class="arm ${cls}"><i></i>${name}</span><span class="n">${fmtN(x.carried)}<small>tokens in call ${Math.min(k, s.length)}</small></span></div>
+          <div class="track">${segs}</div>
+          <div class="track-foot"><span><b>${present.length - cutN}</b> results in the prompt${cutN ? `, <b>${cutN}</b> cut` : ''}</span><span>so far: read <b>${fmt(x.read)}</b> · written <b>${fmt(x.write)}</b> this call · <b>${usd(x.cost)}</b></span></div>`;
+      };
+      build('control', b, 'ctl', 'without thinker');
+      build('cut', a, 'thk', 'with thinker');
+    }
+
+    // ---- events ----
+    function events() {
+      const a = series('cut');
+      const items = [];
+      a.forEach(x => { if (x.cut) {
+        const n = DATA.results.filter(r => r.cut === x.k).length;
+        const after = a[x.k] ? a[x.k].write : 0;
+        items.push({ k: x.k, html: `<span class="tag cut">cut ${items.filter(i => i.cut).length + 1}</span>Turn ${x.t} begins: ${n} used results out, ${fmtN(x.cut.tokens)} tokens`, cut: true,
+          how: `Priced before it was taken: dropping <b>${fmtN(x.cut.tokens)}</b> tokens from every later call against a prompt-cache rewrite of <b>${fmtN(x.cut.recache)}</b> tokens, charged at twice the input rate. The API then wrote <b>${fmtN(x.write)}</b> tokens on this call. The next call read <b>${fmtN(a[x.k] ? a[x.k].read : 0)}</b> tokens where the control read <b>${fmtN(series('control')[x.k] ? series('control')[x.k].read : 0)}</b>.` });
+      } });
+      Object.keys(FLAGS).forEach(t => { const k = answerCall('cut', +t); items.push({ k, html: `<span class="tag flag">flagged</span>Turn ${t} answers: ${FLAGS[t]} earlier figure${FLAGS[t] > 1 ? 's' : ''} called unverified`,
+        how: `The model had given these line counts in earlier turns, then found the raw file gone from its context and said the figures were guesses. They matched the control's. A cost measurement cannot see this; the thinker run's answers are longer by exactly these sentences.` }); });
+      items.sort((p, q) => p.k - q.k);
+      $('#events').innerHTML = items.map(i => `<li class="ev" data-k="${i.k}"><span class="when">call ${i.k}</span><span class="what">${i.html}</span><span class="how">${i.how}</span></li>`).join('');
+      document.querySelectorAll('.ev').forEach(li => li.addEventListener('click', () => setPos(+li.dataset.k)));
+    }
+
+    // ---- tables ----
+    function stats() {
+      const a = series('cut'), b = series('control');
+      const sum = (s, f) => s.reduce((n, x) => n + f(x), 0);
+      const rows = [
+        ['Model calls', b.length, a.length, false],
+        ['Turns answered', 14, 14, false],
+        ['Prompt-cache reads, tokens', sum(b, x => x.read), sum(a, x => x.read), true],
+        ['Prompt-cache writes, tokens', sum(b, x => x.write), sum(a, x => x.write), true],
+        ['Output tokens', sum(b, x => x.out), sum(a, x => x.out), true],
+        ['Largest prompt, tokens', Math.max(...b.map(x => x.carried)), Math.max(...a.map(x => x.carried)), true],
+        ['Cuts taken', 0, a.filter(x => x.cut).length, false],
+        ['Results cut', 0, DATA.results.filter(r => r.cut).length, false],
+        [`Cost at list, ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} writes`, b[b.length - 1].cost, a[a.length - 1].cost, true, true],
+      ];
+      $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
+        rows.map(([name, vb, va, diff, money]) => `<tr><td>${name}</td><td>${money ? usd(vb) : fmtN(vb)}</td><td>${money ? usd(va) : fmtN(va)}</td><td class="d ${diff ? (va < vb ? 'good' : va > vb ? 'bad' : '') : ''}">${diff && vb ? pct(va, vb) : ''}</td></tr>`).join('');
+      const n = Math.max(a.length, b.length); let h = `<tr><th>Call</th><th>Turn</th><th>Without: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>With thinker: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>Note</th></tr>`;
+      for (let k = 1; k <= n; k++) {
+        const xb = b[k - 1], xa = a[k - 1];
+        const cell = x => x ? `<td>${fmtN(x.carried)}</td><td>${fmtN(x.read)}</td><td>${fmtN(x.write)}</td><td>${fmtN(x.out)}</td><td>${usd(x.cost)}</td>` : '<td></td><td></td><td></td><td></td><td></td>';
+        const ft = Object.keys(FLAGS).find(t => answerCall('cut', +t) === k);
+        h += `<tr><td>${k}</td><td>${(xa || xb).t}</td>${cell(xb)}${cell(xa)}<td style="text-align:left">${xa && xa.cut ? 'cut −' + fmtN(xa.cut.tokens) : ft ? FLAGS[ft] + ' figures flagged' : ''}</td></tr>`;
+      }
+      $('#calls').innerHTML = h;
+    }
+
+    // ---- state ----
+    function setPos(k) {
+      state.pos = Math.max(1, Math.min(30, k));
+      $('#pos').value = state.pos;
+      const t = (DATA.cut[Math.min(state.pos, DATA.cut.length) - 1] || DATA.control[state.pos - 1]).t;
+      $('#pos-lbl').textContent = `call ${state.pos} · turn ${t}`;
+      ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false));
+      tracks();
+      document.querySelectorAll('.ev').forEach(li => li.classList.toggle('on', +li.dataset.k === state.pos));
+    }
+    function renderAll() { tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); events(); stats(); setPos(state.pos); }
+    $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => x.classList.toggle('on', x === b)); renderAll(); });
+    $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); });
+    $('#pos').addEventListener('input', ev => setPos(+ev.target.value));
+    let timer = null;
+    function stop() { state.playing = false; clearInterval(timer); timer = null; $('#play').textContent = '▶'; $('#play').setAttribute('aria-label', 'Play'); }
+    $('#play').addEventListener('click', () => {
+      if (state.playing) { stop(); return; }
+      state.playing = true; $('#play').textContent = '❚❚'; $('#play').setAttribute('aria-label', 'Pause');
+      if (state.pos >= 30) setPos(1);
+      timer = setInterval(() => { if (state.pos >= 30) { stop(); return; } setPos(state.pos + 1); }, 450);
+    });
+    window.addEventListener('resize', () => ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false)));
+    renderAll();
+  })();
+  </script>
+</body>
+</html>
