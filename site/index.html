@@ -695,11 +695,14 @@
     .walk .lane .who b { font-variant-numeric: tabular-nums; color: var(--fg); }
     .walk .lane .bar { height: 18px; border-radius: 4px; background: var(--card-2); border: 1px solid var(--line); display: flex; overflow: hidden; }
     .walk .lane .fill { height: 100%; width: 0; background: #444; flex: none; }
+    .walk .lane .fill.same { background: #c4c4cb; }
     .walk .lane.b .fill { background: var(--gain); }
     .walk .lane .hit { height: 100%; width: 0; flex: none; background: repeating-linear-gradient(135deg, #7f1d1d 0 4px, #dc2626 4px 7px); }
     .walk .race .mark { position: absolute; top: 24px; height: 78px; width: 0; border-left: 2px dashed #111; opacity: 0; }
     .walk .race .mark i { position: absolute; left: 5px; top: 100%; margin-top: 2px; font-style: normal; font-size: 0.64rem; font-weight: 600; color: var(--fg); white-space: nowrap; }
-    .walk .race .unit { font-size: 0.64rem; color: var(--faint); margin-top: 6px; }
+    .walk .race .unit { font-size: 0.62rem; color: var(--faint); margin-top: 6px; line-height: 1.5; }
+    .walk .race .unit i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 3px 0 6px; vertical-align: -1px; }
+    .walk .race .unit i.hatch { background: repeating-linear-gradient(135deg, #7f1d1d 0 2px, #dc2626 2px 4px); }
 
     /* Cache scene */
     .walk .col-h { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
@@ -1118,7 +1121,6 @@
               <div class="counter"><span id="counter">0</span><small>tokens per call</small></div>
             </div>
             <div class="track" id="track"></div>
-            <div class="trigger" id="trigger"><i>140k · clearing trigger</i></div>
             <div class="legend">
               <span><i style="background:#111"></i>System prompt</span>
               <span><i style="background:#444"></i>Instruction files</span>
@@ -1128,16 +1130,16 @@
             <div class="saved" id="saved">−106k tokens on every later call</div>
             <div class="brace" id="brace"><i>old results · 106k · read already, carried on every call since</i></div>
             <div class="race" id="paid">
-              <div class="lbl"><span>Paid so far <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">every call re-reads the whole context</span></span><b id="callno">call 1</b></div>
+              <div class="lbl"><span>Re-read so far <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">every call reads the whole context again</span></span><b id="callno">call 1</b></div>
               <div class="lane a" id="lane-p"><div class="who"><span>This session</span><b id="end-p">0</b></div><div class="bar"><div class="fill" id="fill-p"></div></div></div>
-              <div class="unit">counted in cache reads</div>
+              <div class="unit">tokens read from the prompt cache, added up over the calls</div>
             </div>
             <div class="race" id="race">
-              <div class="lbl"><span>The next forty calls <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">paid with the cut, and without</span></span><b id="callno2">call 10</b></div>
-              <div class="lane a" id="lane-a"><div class="who"><span>Without a cut</span><b id="end-a">0</b></div><div class="bar"><div class="fill" id="fill-a"></div></div></div>
-              <div class="lane b" id="lane-b"><div class="who"><span>With thinker's cut</span><b id="end-b">0</b></div><div class="bar"><div class="hit" id="hit-b"></div><div class="fill" id="fill-b"></div></div></div>
+              <div class="lbl"><span>The next forty calls <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">what they cost with the cut, and without</span></span><b id="callno2">call 10</b></div>
+              <div class="lane a" id="lane-a"><div class="who"><span>Without a cut</span><b id="end-a">0</b></div><div class="bar"><div class="fill same" id="same-a"></div><div class="fill" id="fill-a"></div></div></div>
+              <div class="lane b" id="lane-b"><div class="who"><span>With thinker's cut</span><b id="end-b">0</b></div><div class="bar"><div class="hit" id="hit-b"></div><div class="fill same" id="same-b"></div><div class="fill" id="fill-b"></div></div></div>
               <div class="mark" id="mark"><i>paid back · call 17</i></div>
-              <div class="unit">counted in cache reads · a cache write counts as twenty</div>
+              <div class="unit"><i style="background:#c4c4cb"></i>new tokens and the answer, the same either way <i style="background:#444"></i>re-reads without the cut <i style="background:var(--gain)"></i>with it <i class="hatch"></i>the one write · as input tokens: a cache read a tenth, a write twice, an answer token five</div>
             </div>
             <div class="calls" id="calls"></div>
             <div class="flow" id="flow">
@@ -1149,11 +1151,11 @@
             </div>
             <div class="cap" id="cap-b1">Every model call carries the whole context again. A tool result is paid for once when it arrives, then <b>on every call after it</b>.</div>
             <div class="cap" id="cap-b2">Nine calls in: <span class="r">179k tokens</span> a call, nearly a million read already, and the next call pays for all of it again.</div>
-            <div class="cap" id="cap-c1">thinker sits between the agent and the API. Past 140k, at the next turn, it <b>replaces the old tool results with a one-line placeholder</b> in the request it forwards. The API is asked nothing.</div>
+            <div class="cap" id="cap-c1">thinker sits between the agent and the API and prices every turn: when cutting the context would pay for itself, it <b>replaces the old tool results with a one-line placeholder</b> in the request it forwards. The API is asked nothing.</div>
             <div class="cap" id="cap-c2">The newest turn and the last three results stay. Your prompts, the call text and the agent's thinking are <b>never touched</b>.</div>
-            <div class="cap" id="cap-c3">The cut is <b>paid once</b>: the prompt after it is written to the cache again, at about twenty times a read. A hit up front, then every later call reads 106k less.</div>
-            <div class="cap" id="cap-c4">By <b>call 17 the hit is repaid</b>. thinker only cuts when that happens within 20 calls, and what was cut stays cut, so the prompt cache holds.</div>
-            <div class="cap" id="cap-c5">Forty calls later: <span class="g">3.4M reads' worth</span> less paid, from one decision at a turn boundary.</div>
+            <div class="cap" id="cap-c3">The cut is <b>paid once</b>: the prompt after it is written to the cache again, at twenty times a read. A hit up front; then every later call re-reads 106k less.</div>
+            <div class="cap" id="cap-c4">The new tokens each call brings, and its answer, cost the same either way. The cut touches <b>only the re-reads</b>, and by <b>call 17 the hit is repaid</b>; thinker only cuts when that happens within 20 calls.</div>
+            <div class="cap" id="cap-c5">Forty calls later the gap is the saving: <span class="g">the re-reads spared, less the one write</span>. thinker reports it per session; the rest of the bill is untouched.</div>
           </section>
 
           <!-- 2 · Why the saving compounds -->
@@ -1378,7 +1380,7 @@
 
   // ---- Context window data (1k tokens = 4.4px on an 880px track for 200k) ----
   const PX = 4.4;
-  // The cut is the proxy's own default: past 140k, at a turn boundary, every result outside the newest turn and
+  // The cut is the proxy's own policy: at a turn boundary, when it repays within 20 calls, every result outside the newest turn and
   // the newest three goes, when that is at least 100k (src/proxy.js:PROXY_DEFAULTS). Here the old five are 106k.
   const items = [
     { kind: 'sys',   label: 'sys',       tk: 9.0 },
@@ -1408,7 +1410,6 @@
   }
   items.forEach(mkSeg);
   items.filter(i => i.kind === 'res').forEach(mkCall);
-  const trig = $('#trigger'); trig.style.left = (40 + 140 * PX) + 'px';
 
   const count = { v: 0 };
   const counterEl = $('#counter');
@@ -1470,7 +1471,6 @@
   // t ≈ 11.7, acc = 179.4, cum ≈ 965k over nine calls
   cap('#cap-b1', 6.6, 3.2);
   cap('#cap-b2', 10.4, 3.1);
-  tl.fromTo(trig, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 11.2);
   tl.to('#counter', { color: '#dc2626', duration: 0.3 }, 11.4);
 
   // 2 · The cut (14–26)
@@ -1515,11 +1515,16 @@
   cap('#cap-c3', 23.6, 3.4);
   // The race: the same forty calls, paid once with the cut and once without. The cut call writes the tail
   // (the prompt after the first replaced result) into the cache again at twenty reads a token: the hit.
-  const TAIL = results.slice(-3).reduce((n, it) => n + it.tk, 0) + 7.0;  // 40.3k
-  const HIT = TAIL * 20;                                                  // 806k reads' worth
-  const PAYBACK = Math.ceil(HIT / CUT);                                   // 8 calls → call 18
+  // Priced as input tokens (list rates, relative): a cache read 0.1, a cache write 2.0 (the 1h cache), an answer token 5.
+  // A call writes what is new in it to the cache (the result it brought, ~16k here) and pays for its answer (~1k) with or
+  // without the cut; the cut changes only how much the call reads back.
+  const READ = 0.1, WRITE = 2.0, OUT = 5;
+  const TAIL = results.slice(-3).reduce((n, it) => n + it.tk, 0) + 7.0;  // 40.3k: the prompt after the cut
+  const HIT = TAIL * WRITE;                                               // 80.6k: written once
+  const FIXED = 16 * WRITE + 1 * OUT;                                     // 37k a call, the same either way
+  const PAYBACK = Math.ceil(HIT / (CUT * READ));                          // 8 calls → call 17
   const CALLS = 40, GROW = 1.5, STEP = 0.14;                              // calls 10–49; the prompt keeps growing 1.5k a call
-  const RACE_MAX = 8600, SC = 420 / RACE_MAX;                            // the uncut session reaches 8.3M over those forty calls
+  const RACE_MAX = 2350, SC = 420 / RACE_MAX;                            // the uncut session reaches ~2.3M over those forty calls
   tl.to('#paid', { opacity: 0, duration: 0.3 }, 21.2);
   tl.set(paid, { a: 0, b: 0, call: call + 1 }, 21.4); tl.call(writePaid, null, 21.4);
   tl.to('#race', { opacity: 1, duration: 0.4 }, 21.6);
@@ -1528,12 +1533,15 @@
   tl.to('#hit-b', { width: HIT * SC, duration: 0.6, ease: 'power2.out' }, 22.0);
   tl.to(paid, { b: HIT, duration: 0.6, onUpdate: writePaid }, 22.0);
   cap('#cap-c3', 22.2, 3.8);
-  let ra = 0, rb = HIT, t2 = 23.0;
+  let ra = 0, rb = HIT, same = 0, reA = 0, reB = 0, t2 = 23.0;
   for (let i = 0; i < CALLS; i++) {
-    ra += acc + GROW * i; rb += (acc - CUT) + GROW * i;
+    same += FIXED; reA += (acc + GROW * i) * READ; reB += (acc - CUT + GROW * i) * READ;
+    ra = same + reA; rb = HIT + same + reB;
     const at = t2 + i * STEP;
-    tl.to('#fill-a', { width: ra * SC, duration: 0.3 }, at);
-    tl.to('#fill-b', { width: (rb - HIT) * SC, duration: 0.3 }, at);
+    tl.to('#same-a', { width: same * SC, duration: 0.3 }, at);
+    tl.to('#same-b', { width: same * SC, duration: 0.3 }, at);
+    tl.to('#fill-a', { width: reA * SC, duration: 0.3 }, at);
+    tl.to('#fill-b', { width: reB * SC, duration: 0.3 }, at);
     tl.to(paid, { a: ra, b: rb, call: call + 1 + i, duration: 0.3, onUpdate: writePaid }, at);
     if (i === PAYBACK - 1) {
       // the uncut session has now paid more: the hit is repaid, every call from here is saving
