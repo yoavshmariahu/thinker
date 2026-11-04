@@ -44,9 +44,16 @@ export const freshCut = session => ({
 // the end: that is what a changed prefix makes the API write again, and we know it exactly because we
 // choose the result. `saving` is the tokens we take out, read back over the calls the session likely
 // has left. A pause past COLD_MS writes the context anyway, so the rewrite is free then.
+// A cut costs the WHOLE post-cut prompt, less the system prompt. Claude Code sets its cache
+// breakpoints on the system prompt and the newest messages, and the API finds a cached prefix only
+// at a breakpoint, so an edit in the middle leaves the system prompt as the only reusable part and
+// everything after it is written again. Measured on four cuts, 2026-11-04: the write was the
+// post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
+// as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
+// by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
 export function priceCut(m, cand, { ttl = '1h', cold = false, calls = 0, model = null } = {}) {
   const read = readRate(model), have = remainingCalls(calls);
-  const recache = Math.max(0, cand.recache - cand.tokens);
+  const recache = Math.max(0, (m.prompt || cand.recache) - cand.tokens - (m.system || 0));
   const cost = cold ? 0 : recache * writeRate(ttl);
   const saving = cand.tokens * read * have;
   return { tokens: cand.tokens, recache, cost, saving, have, need: read > 0 ? Math.ceil(recache * writeRate(ttl) / (cand.tokens * read)) : 0, pays: cand.tokens > 0 && saving > cost };

@@ -111,7 +111,10 @@ export function measureClearing(cfg, j, clearedUses = 0) {
   const head = txt(j?.system) + txt(j?.tools);
   const prompt = tok(head + txt(messages));
   const keep = keepForTurn(cfg, all);
-  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all, keep), turn: turnId(all), keep };
+  // the system prompt is the one cache breakpoint a mid-conversation edit leaves usable, so it is the
+  // only part of the prompt a cut does not pay to write again (measured 2026-11-04: on each of four
+  // cuts, write == post-cut prompt - 12,895, and 12,895 was exactly that call's cache read)
+  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all, keep), turn: turnId(all), keep, system: tok(j?.system) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
