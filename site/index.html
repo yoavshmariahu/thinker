@@ -842,7 +842,7 @@
     <p class="subtitle">Think ahead. Save tokens.</p>
 
     <section class="economics" id="economics" aria-label="How Thinker makes your tokens go further">
-      <div class="econ-topline"><span class="econ-eyebrow">Make your tokens go further</span><span class="econ-example">38 seconds · illustrative example</span></div>
+      <div class="econ-topline"><span class="econ-eyebrow">Make your tokens go further</span><span class="econ-example">36 seconds · illustrative example</span></div>
       <div class="econ-scenes">
         <section class="econ-scene" data-scene="0" aria-labelledby="econ-title-0">
           <div class="econ-heading"><span class="econ-step">01 / Agent billing</span><h2 id="econ-title-0">How agent billing works.</h2></div>
@@ -889,7 +889,7 @@
           <p class="econ-limit-foot">Illustrative token budget. Actual usage and plan limits vary.</p>
         </section>
       </div>
-      <div class="econ-player"><div class="econ-player-top"><button type="button" class="econ-play" id="econ-play">Play 38-second tour</button><label class="econ-scrub-label" for="econ-scrub"><span class="sr-only">Walkthrough position in seconds</span><input id="econ-scrub" type="range" min="0" max="38" step="0.1" value="0" aria-valuetext="0 seconds of 38 seconds"></label><span class="econ-time" id="econ-time">0:00 / 0:38</span><button type="button" class="econ-replay" id="econ-replay" aria-label="Replay walkthrough from the beginning">Replay</button></div><div class="econ-chapters" aria-label="Walkthrough chapters"><button type="button" data-chapter="0" aria-current="step">Agent billing</button><button type="button" data-chapter="1">Repeated cost</button><button type="button" data-chapter="2">Compression</button><button type="button" data-chapter="3">The payoff</button><button type="button" data-chapter="4">Trim</button><button type="button" data-chapter="5">Knowledge cache</button><button type="button" data-chapter="6">More runway</button></div></div>
+      <div class="econ-player"><div class="econ-player-top"><button type="button" class="econ-play" id="econ-play">Play 36-second tour</button><label class="econ-scrub-label" for="econ-scrub"><span class="sr-only">Walkthrough position in seconds</span><input id="econ-scrub" type="range" min="0" max="36" step="0.1" value="0" aria-valuetext="0 seconds of 36 seconds"></label><span class="econ-time" id="econ-time">0:00 / 0:36</span><button type="button" class="econ-replay" id="econ-replay" aria-label="Replay walkthrough from the beginning">Replay</button></div><div class="econ-chapters" aria-label="Walkthrough chapters"><button type="button" data-chapter="0" aria-current="step">Agent billing</button><button type="button" data-chapter="1">Repeated cost</button><button type="button" data-chapter="2">Compression</button><button type="button" data-chapter="3">The payoff</button><button type="button" data-chapter="4">Trim</button><button type="button" data-chapter="5">Knowledge cache</button><button type="button" data-chapter="6">More runway</button></div></div>
       <div class="econ-status sr-only" id="econ-status" aria-live="polite"></div>
       <details class="econ-assumptions"><summary>Illustrative economics, not measured savings <span>Model, rates &amp; assumptions</span></summary><p>USD at <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noreferrer">Claude Opus 5.5 API list prices</a>: fresh input $4, one-hour cache writes $8, cache reads $0.20, output $20 per million tokens. Checked November 4, 2026. Subscription allowances are not dollar bills.</p><p>The compression example starts with 200k cached tokens, removes 120k net of placeholders, and assumes 40k retained tokens need rewriting. Each call adds the same $0.060 of fresh input, new writes, and output in both cases. The example isolates this context’s lifetime: it assumes a warm cache, no further cuts, no extra rereads, and identical work. Actual write size depends on reusable cache boundaries; recovery depends on later calls. Instruction and knowledge examples are separate illustrations and are not added to compression savings. Trimming 8k instruction tokens avoids 160k context-read tokens over 20 later calls in the same session; dollar savings depend on fresh input, writes, and reads. The knowledge example replaces 40k exploration tokens with a 2k note pack: 38k less context carried into each later call. Over 20 later calls in the same session, that avoids 760k context-read tokens. Both examples assume the removed context would otherwise remain in every later request, with no intervening compression. The knowledge example assumes the notes answer the same questions without extra exploration. Figures exclude the initial exploration difference and learning or verification costs; they are illustrative read-token reductions, not measured outcomes or net dollar savings.</p><p>The final runway visual is conceptual: reducing repeated context can leave more of a token budget available for useful work. It does not specify an increase in tasks, subscription allowance, or session length. Rewrites, learning and verification also consume tokens; actual results depend on the workload and agent.</p><p>Compression availability depends on the agent. Instruction trimming and the knowledge cache are separate features. <a href="docs.html">See how Thinker works with your agent →</a></p></details>
     </section>
@@ -1074,7 +1074,7 @@
       const $ = id => root.querySelector('#' + id);
       const scenes = [...root.querySelectorAll('[data-scene]')];
       const chapters = [...root.querySelectorAll('[data-chapter]')];
-      const starts = [0, 6, 10, 15, 24, 28, 32], end = 38;
+      const starts = [0, 4, 8, 13, 22, 26, 30], end = 36;
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
       const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
       const smooth = n => { n = clamp(n); return n * n * (3 - 2 * n); };
@@ -1204,9 +1204,9 @@
           $('econ-limit-finish').style.transform = 'translateY(' + (8 * (1 - finish)) + 'px)';
         }
         $('econ-scrub').value = time;
-        $('econ-scrub').setAttribute('aria-valuetext', Math.floor(time) + ' seconds of 38 seconds, ' + chapters[active].textContent);
-        $('econ-time').textContent = fmtTime(time) + ' / 0:38';
-        $('econ-play').textContent = playing ? 'Pause' : time >= end ? 'Play again' : time === 0 ? 'Play 38-second tour' : 'Play';
+        $('econ-scrub').setAttribute('aria-valuetext', Math.floor(time) + ' seconds of 36 seconds, ' + chapters[active].textContent);
+        $('econ-time').textContent = fmtTime(time) + ' / 0:36';
+        $('econ-play').textContent = playing ? 'Pause' : time >= end ? 'Play again' : time === 0 ? 'Play 36-second tour' : 'Play';
       }
       function tick(now) {
         if (!playing) return;
