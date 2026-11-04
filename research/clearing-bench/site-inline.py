@@ -14,12 +14,13 @@ def summary(d):
         tot = lambda k: sum(x[k] for x in c)
         base = tot('input') * P['input'] + tot('out') * P['out'] + tot('read') * P['read']
         out[arm] = dict(calls=len(c), reads=tot('read'), writes=tot('write') + cold, out=tot('out'), max=max(x['read'] + x['write'] + x['input'] for x in c) + (cold if False else 0),
-                        cost1h=(base + (tot('write') + cold) * P['w1h']) / 1e6, cost5m=(base + (tot('write') + cold) * P['w5m']) / 1e6, outcome=d[arm].get('outcome'))
+                        cost1h=(base + (tot('input') * (P['w1h'] - P['input']) if d.get('costBounds') else 0) + (tot('write') + cold) * P['w1h']) / 1e6, cost5m=(base + (tot('write') + cold) * P['w5m']) / 1e6, outcome=d[arm].get('outcome'))
     cuts = [x['cut'] for x in d['cut']['calls'] if x.get('cut')]
     out['coldCost'] = {'1h': d['cold'] * P['w1h'] / 1e6, '5m': d['cold'] * P['w5m'] / 1e6}
     out['cuts'] = len(cuts); out['cutTokens'] = sum(x['tokens'] for x in cuts)
     out['refused'] = sum(1 for x in d['cut']['calls'] if x.get('held') and not x.get('cut'))
     out['rereads'] = len([n for n in d['cut']['notes'] if n['kind'] == 'reread'])
+    if d.get('costBounds'): out['savings'] = d['savings']
     return out
 assert len({m['group'] for m in manifest}) == len(manifest), 'one example per workload'
 index, data, default = [], {}, None
