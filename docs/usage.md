@@ -139,12 +139,20 @@ without writing to GitHub. `--json` returns the action, body and comment URL. Th
 30 days, as for `thinker prs`; use `--days 90` for older work. Missing sessions or zero recorded savings
 stop the post. Session totals are attributed to a PR, not divided into per-commit measurements.
 
-The comment includes an **estimated gross API cost avoided** in USD, using the last recorded model
-for each linked session and Thinker's shared price table (including repository `prices` overrides).
-Cleared tokens use the cache-read price; avoided reading uses the input price. Manual PR allocation
-shares apply to both. Unknown models are explicitly unpriced, with partial totals labelled. This is
-an API-price equivalent before cache-rewrite and learning costs, not net savings or a measured change
-to a subscription bill.
+The comment includes a **net dollar figure** in USD, using the last recorded model for each linked
+session and Thinker's shared price table (including repository `prices` overrides). Cleared tokens use
+the cache-read price; avoided reading uses the input price; and from that total Thinker **deducts what
+the calls after a clear paid to write the prompt prefix into the cache again**, at the one-hour write
+rate. Those three rates differ twentyfold, which is why the figure was misleading while it was gross.
+Manual PR allocation shares apply throughout. Unknown models are explicitly unpriced, with partial
+totals labelled. Learning spend is not deducted, and these are list prices, not a measured change to a
+subscription bill.
+
+The deduction counts only the prefix rewrites of calls from a session's **first clear onward**: a
+rewrite before any clear cannot be the clearing's doing. It is deliberately conservative, since a
+held-out session rewrites on a few percent of its long calls anyway and those are charged here too. If
+the net comes out negative, Thinker says so rather than reporting a zero, and the automatic pass holds
+that PR back — a clear that costs more than it saves is a bug to chase, not news for someone's PR.
 
 **Automatic comments** run as part of the existing four-hour update job, including when no update is
 available or the update check fails. Both the OS schedule (`thinker update --quiet`) and the detached

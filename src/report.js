@@ -251,6 +251,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     saved: { cleared: s.saved.cleared, reading: s.saved.reading, total: s.saved.total },
     agent: s.tokens.agent, complete: s.tokens.complete,
     meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
+    cost: s.cost, meanNet: s.meanNetPerMergedPr,
     // The share of what those pull requests cost that never had to sit in a prompt. Both sides are the same
     // shape -- every prompt and every answer of their sessions, added up -- so the ratio means something.
     share: s.tokens.agent ? s.saved.total / s.tokens.agent : null,
@@ -262,6 +263,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.saved ?? null, rewriteUsd: p.cost?.rewrite ?? null,
     })),
   };
 }
@@ -468,13 +470,19 @@ function mergePrSavings(list) {
     worked: sum(p => p.worked), open: sum(p => p.open), saved, agent, complete: sum(p => p.complete),
     meanSaved: mean(rows.map(r => r.saved)), meanAgent: mean(rows.filter(r => r.complete).map(r => r.agent)),
     meanHours: mean(rows.map(r => r.hours)),
+    // the dollars add like the tokens; the mean is signed, since a net can be a loss (delivery.js:meanSigned)
+    cost: {
+      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), net: sum(p => p.cost?.net),
+      costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
+    },
+    meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
     share: agent ? saved.total / agent : null,
     sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
     rows,
   };
 }
 
-const mean = xs => { const v = xs.filter(x => Number.isFinite(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.isFinite(x) && (signed || x >= 0)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 
 // The report as the command prints it: the three tables with their totals, the cache's numbers. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
@@ -548,13 +556,19 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
       `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
       `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
       `  on the average one     ${formatTokens(pr.meanSaved || 0)} saved, ${pr.meanAgent == null ? '–' : formatTokens(pr.meanAgent)} spent${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
+      // The dollars are netted, and they are the only place a saving and its cost are the same unit: a cleared
+      // token saved a cache read, the rewrite after the clear paid for a cache write, and the two prices differ
+      // twentyfold. The band stays in tokens; this line says what they came to (delivery.js, prices.js).
+      ...(pr.cost && (pr.cost.saved || pr.cost.rewrite) ? [
+        `  in dollars, netted     ${formatDollars(pr.cost.net)} = ${formatDollars(pr.cost.saved)} saved less ${formatDollars(pr.cost.rewrite)} of cache writes after a clear${pr.meanNet == null ? '' : `, ${formatDollars(pr.meanNet)} on the average one`}`,
+      ] : []),
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
-      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}`);
+      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}${'net'.padStart(10)}`);
       for (const r of pr.rows.slice(0, n)) {
         const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}`);
+        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(10)}`);
       }
       if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
       if (pr.rows.slice(0, n).some(r => !r.complete)) L.push('  * a session of that pull request reported no counters, so its cost is partial.');

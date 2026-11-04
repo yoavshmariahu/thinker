@@ -598,6 +598,28 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
 });
 
+// The netted dollars are the figure the owner asked for (2026-11-04), and the page and the command must put the
+// same number on the same pull request: one computation in delivery.js, read by both. A door that priced it
+// itself is how the band came to show a gross saving for a fortnight.
+test('the netted dollars are one computation, shown by both doors', () => {
+  // The command's summary line and its table column.
+  assert.match(read('report.js'), /in dollars, netted/);
+  assert.match(read('report.js'), /'net'\.padStart/);
+  // The page's own column reads the same fields off the row the report sends; it computes no dollars.
+  const page = read('ui/page.html');
+  assert.match(page, /<th class="num" title="[^"]*">Net<\/th>/, 'the page column explains itself in a hover');
+  assert.match(page, /money\(r\.net\)/);
+  assert.doesNotMatch(page, /cacheWrite1h|cacheRead \*/, 'the page never prices a token itself');
+  // One place the rewrite cost is worked out, and the deduction is named wherever the figure is shown.
+  assert.match(read('delivery.js'), /clearingCostBySession/);
+  assert.match(read('compression.js'), /export function clearingCostBySession/);
+  for (const f of ['report.js', 'delivery.js', 'delivery-comment.js']) {
+    assert.match(read(f), /after a clear/, `${f} says what was deducted`);
+  }
+  // A loss is never posted on someone's pull request by the automatic pass.
+  assert.match(read('delivery-auto.js'), /p\.cost\?\.priced \|\| p\.cost\.net > 0/);
+});
+
 test('automatic PR comments reuse the update cadence and expose their defaults and opt-out', async () => {
   const { AUTO_PR_COMMENTS, PR_COMMENT_IDLE_MS, PR_COMMENT_LIMIT } = await import('../src/delivery-auto.js');
   const { UPDATE_EVERY_MS } = await import('../src/update.js');

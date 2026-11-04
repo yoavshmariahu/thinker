@@ -55,9 +55,9 @@ test('preview refreshes the PR but publishes nothing, and discloses evidence wit
   assert.match(result.body, /9k tokens of reading avoided.*estimated/);
   assert.match(result.body, /1 linked session on this machine/);
   assert.match(result.body, /Session totals, not PR-only savings/);
-  assert.match(result.body, /Cost excludes rewrite and learning overhead/);
+  assert.match(result.body, /Cache rewrites after a clear are deducted; learning spend is not/);
   assert.ok(result.body.includes(`~${formatDollars(120000 * 0.5 / 1e6 + 9000 * 5 / 1e6)} USD`));
-  assert.match(result.body, /not a measured bill reduction/);
+  assert.match(result.body, /List prices, not a subscription bill/);
   for (const secret of [f.dir, os.hostname(), 'private-session-id', 'private-note', 'commit1']) assert.ok(!result.body.includes(secret), secret);
 });
 
@@ -94,7 +94,7 @@ test('preview identifies unavailable and partial pricing rather than reporting m
   f.store.log({ op: 'orient', t: at(0), session: 'second-session', branch: 'fix', served: ['n2'], est: [[1, 10000]] });
   f.store.log({ op: 'attest', t: at(0), session: 'second-session', model: 'claude-opus-5', applied: [{ id: 'n2', verdict: 'confirmed' }] });
   const partial = await commentOnPr(f.store, { ...f.options, dry: true });
-  assert.match(partial.body, /~\$0\.05 USD estimated gross API value avoided \(partial\)/);
+  assert.match(partial.body, /~\$0\.05 USD net saved at list prices \(partial\)/);
   assert.match(partial.body, /129k tokens excluded from pricing/);
 });
 
