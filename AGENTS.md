@@ -1294,7 +1294,9 @@ reached them". The answer comes back through thinker's own MCP tool, `context` (
 agent hands in the numbers the person chose and thinker resolves them against the list it showed and makes the
 changes, so nothing depends on the agent composing a command line, and a desktop app answers the same way. The
 command (`--via session --approve|--dismiss all`) is the fallback where the client speaks no MCP, and the typed door.
-Both answers are recorded: numbers approve, none dismisses for a month, and `context-answer` keeps whether they
+Both answers are recorded: numbers approve, none leaves them alone until the next weekly summary
+(`SUGGEST.dismissedDays` = 6 days, one under the cadence so a dismissed change never skips a week; a month until
+2026-11-04, the owner's call), and `context-answer` keeps whether they
 answered through their agent's question tool or in chat (`actions.answers` in telemetry), so the funnel has a
 denominator, a no, and evidence the question was put as one. Built-in tools are named with the page link and never offered as options
 (the rule of 2026-10-22, PR #441: a picker's line has no room for what denying one costs), and with nothing else to
