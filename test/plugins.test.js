@@ -59,7 +59,7 @@ test('installing is the plugin command, for the one host, never a hook', () => {
   for (const [client, f] of Object.entries(files)) {
     const text = fs.readFileSync(path.join(root, f), 'utf8');
     assert.match(text, /^---\n/);
-    assert.ok(text.includes(`npx -y @zerotimedev/thinker --clients ${client} --no-modify-path --no-ui --yes`), `${f} installs for ${client} alone`);
+    assert.ok(text.includes(`npx -y thinkersh --clients ${client} --no-modify-path --no-ui --yes`), `${f} installs for ${client} alone`);
     assert.doesNotMatch(text, /--clients (all|auto)/);
   }
   assert.equal(JSON.parse(fs.readFileSync(path.join(root, 'cursor/.cursor-plugin/plugin.json'), 'utf8')).commands, './commands');

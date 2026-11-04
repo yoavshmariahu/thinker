@@ -1,7 +1,7 @@
 # Setting up Thinker
 
 ```bash
-npx @zerotimedev/thinker
+npx thinkersh
 ```
 
 Run the installer anywhere. It wires your agents, asking nothing, then reads

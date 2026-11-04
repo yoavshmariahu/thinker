@@ -22,7 +22,7 @@ test('public website serves docs, messages and current/legacy downloads without 
 test('homepage installs publicly and both pages expose repository and message widget', () => {
   const home = fs.readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
   assert.ok(!home.includes('| bash'), 'the site offers the npx install only');
-  assert.match(home, /<code id="cmd">npx @zerotimedev\/thinker<\/code>/);
+  assert.match(home, /<code id="cmd">npx thinkersh<\/code>/);
   assert.ok(!home.includes('zerotime.dev/dist'), 'the site no longer installs from zerotime.dev');
   assert.ok(!home.includes('Enter access code'));
   assert.ok(!home.includes('Join waitlist'));

@@ -10,7 +10,7 @@ review what to cut, and reuse what it learns about your code.
 ## Install
 
 ```bash
-npx @zerotimedev/thinker
+npx thinkersh
 ```
 
 The installer connects your coding agents and shows suggested savings from your recent sessions.
