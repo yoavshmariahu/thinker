@@ -156,6 +156,40 @@ export function responsesUsageTap() {
   };
 }
 
+// Opt-in gate for experiments: the summary is not evidence unless every request's
+// normalized counters agree with preserved provider usage. Never interrupt serving.
+export function verifyResponsesUsage(rows, { since } = {}) {
+  const requests = rows.filter(r => r.op === 'proxy' && r.protocol === 'responses' && (!since || r.at >= since));
+  if (!requests.length) throw Error('No Responses requests to verify');
+  const ids = new Set();
+  for (const [i, row] of requests.entries()) {
+    const fail = reason => { throw Error(`Responses request ${i + 1}: ${reason}`); };
+    if (row.status !== 200 || row.truncated || row.usageCaptureLimited || row.usageInconsistent) fail('failed, truncated, or inconsistent capture');
+    if (!row.apiUsage) fail('raw provider usage missing');
+    const usage = responsesUsage(row.apiUsage);
+    if (usage.usageInconsistent) fail('provider counters are inconsistent');
+    for (const field of ['input', 'read', 'write', 'out', 'freshInput']) {
+      if (!tokenCount(usage[field])) fail(`${field} counter missing or invalid`);
+      if (row[field] !== usage[field]) fail(`${field} differs from provider usage`);
+    }
+    // Zero writes need no lifetime assumption. Positive writes must be priceable.
+    if ((usage.write > 0 || usage.write30m != null || usage.write12h != null) && (!tokenCount(usage.write30m) || !tokenCount(usage.write12h))) fail('cache writes lack their complete lifetime breakdown');
+    for (const field of ['write30m', 'write12h']) if (row[field] !== usage[field]) fail(`${field} differs from provider usage`);
+    if (!row.responseId || ids.has(row.responseId)) fail('response ID missing or duplicated');
+    ids.add(row.responseId);
+    if (!row.model || !row.responseModel || !row.serviceTier || row.responseStatus !== 'completed') fail('model, service tier, or completed response status missing');
+  }
+  return { complete: true, requests: requests.length, rawUsageVerified: true, uniqueResponses: true };
+}
+
+export function responsesUsageRecords(rows, { since } = {}) {
+  const fields = ['at', 'status', 'model', 'responseModel', 'responseId', 'serviceTier', 'responseStatus',
+    'input', 'read', 'write', 'write30m', 'write12h', 'freshInput', 'out', 'apiUsage',
+    'usageInconsistent', 'usageCaptureLimited', 'truncated', 'reason', 'injected'];
+  return rows.filter(r => r.op === 'proxy' && r.protocol === 'responses' && (!since || r.at >= since))
+    .map(r => Object.fromEntries(fields.filter(k => Object.hasOwn(r, k)).map(k => [k, r[k]])));
+}
+
 export function responsesReport(rows, { since } = {}) {
   const sides = {};
   for (const r of rows) {
