@@ -84,12 +84,43 @@ test('the public pages share navigation and Compression keeps legacy links and e
   for (const page of pages) {
     assert.equal(nav(page), nav(pages[0]));
     assert.match(page, /href="\/nav.css"/);
+    assert.match(nav(page), />See the data<\/a>/);
   }
   const compression = pages[2];
   assert.doesNotMatch(compression, /id="play"|id="pairs-sec"|<select id="runsel"/);
   assert.ok(compression.indexOf('id="pos"') < compression.indexOf('<h2 class="chart-heading">Context window size over calls'));
   assert.match(compression, /session-saving/);
   assert.match(fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8'), /compression.html.*location.search.*location.hash/);
+});
+
+test('See the data publishes the combined MLflow comparison with complete, sanitized usage', () => {
+  const html = fs.readFileSync(new URL('../site/compression.html', import.meta.url), 'utf8');
+  const raw = fs.readFileSync(new URL('../site/clearing-mlflow-knowledge.json', import.meta.url), 'utf8');
+  const data = JSON.parse(raw);
+  assert.match(html, /<h1>See the data<\/h1>/);
+  assert.equal(request('/clearing-mlflow-knowledge.json').uri, '/clearing-mlflow-knowledge.json');
+  assert.match(html, /do not isolate knowledge caching/);
+  assert.match(html, /Historical cache-building costs, setup, preflight and cancelled runs are excluded/);
+  assert.doesNotMatch(raw, /\/Users\/|\/private\/|encrypted_content|authorization|responseId|localhost|127\.0\.0\.1/);
+  assert.equal(data.pairs.length, 2);
+  for (const pair of data.pairs) {
+    for (const [arm, session] of Object.entries(pair.sessions)) {
+      assert.equal(session.passed, true);
+      assert.equal(session.calls.length, session.usage.requests);
+      assert.ok(session.calls.every(c => c.write === 0 && c.serviceTier === 'default' && c.status === 200));
+      assert.ok(session.calls.every(c => c.input === c.read + c.freshInput));
+      if (arm === 'off') assert.ok(session.calls.every(c => !c.injected));
+      else assert.ok(session.calls.some(c => c.injected));
+      const cost = session.calls.reduce((sum, c) => sum + (c.freshInput * 10 + c.read + c.out * 50) / 1e6, 0);
+      assert.ok(Math.abs(cost - session.costUsd) < 1e-8, 'published cost reconciles to captured usage');
+      assert.ok(html.includes('$' + session.costUsd.toFixed(2)));
+    }
+    assert.ok(html.includes(pair.savingPercent.toFixed(1) + '%'));
+  }
+  const deploy = fs.readFileSync(new URL('../infra/access/public-deploy.mjs', import.meta.url), 'utf8');
+  assert.match(deploy, /\['compression.html', 'site\/compression.html'/);
+  assert.match(deploy, /readdirSync/);
+  assert.match(deploy, /'\/compression\*', '\/clearing\*'/);
 });
 
 test('Django uses API totals and an explicit cost range with judged success; mitmproxy is not offered', () => {
