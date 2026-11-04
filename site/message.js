@@ -4,10 +4,7 @@
   widget.innerHTML = `
     <div class="contact-actions">
       <button type="button" class="message-launcher" aria-haspopup="dialog">Send us a message</button>
-      <span class="call-booking">
-        <a class="call-launcher" href="${bookingUrl}" target="_blank" rel="noopener">Book a call</a>
-        <span class="call-target"></span>
-      </span>
+      <a class="call-launcher" href="${bookingUrl}" target="_blank" rel="noopener" aria-haspopup="dialog">Book a call</a>
     </div>
     <dialog class="message-dialog" aria-labelledby="message-title">
       <button type="button" class="message-close" aria-label="Close message form">×</button>
@@ -21,9 +18,23 @@
         <p class="message-status" role="status" aria-live="polite"></p>
         <button type="submit" class="message-send">Send message</button>
       </form>
+    </dialog>
+    <dialog class="booking-dialog" aria-labelledby="booking-title">
+      <div class="booking-header">
+        <h2 id="booking-title">Book a call</h2>
+        <button type="button" class="booking-close" aria-label="Close booking calendar" autofocus>×</button>
+      </div>
+      <div class="booking-content">
+        <p class="booking-loading" role="status">Loading available times…</p>
+        <iframe class="booking-frame" title="Book a 30-minute call with Yoav"></iframe>
+      </div>
+      <div class="booking-footer">
+        <span>Powered by Google Calendar</span>
+        <a href="${bookingUrl}" target="_blank" rel="noopener">Open in a new tab ↗</a>
+      </div>
     </dialog>`;
   document.body.append(widget);
-  const dialog = widget.querySelector('dialog');
+  const dialog = widget.querySelector('.message-dialog');
   const launcher = widget.querySelector('.message-launcher');
   const form = widget.querySelector('form');
   const message = widget.querySelector('textarea');
@@ -74,21 +85,26 @@
       send.textContent = 'Send message';
     }
   });
-  // Keep the direct booking link usable if Google's embed cannot load.
-  const bookingStyles = document.createElement('link');
-  bookingStyles.rel = 'stylesheet';
-  bookingStyles.href = 'https://calendar.google.com/calendar/scheduling-button-script.css';
-  const bookingScript = document.createElement('script');
-  bookingScript.src = 'https://calendar.google.com/calendar/scheduling-button-script.js';
-  bookingScript.async = true;
-  bookingScript.addEventListener('load', () => {
-    if (!window.calendar?.schedulingButton) return;
-    window.calendar.schedulingButton.load({
-      url: bookingUrl,
-      color: '#039BE5',
-      label: 'Book a call',
-      target: widget.querySelector('.call-target'),
-    });
+  const booking = widget.querySelector('.booking-dialog');
+  const book = widget.querySelector('.call-launcher');
+  const frame = widget.querySelector('.booking-frame');
+  const loading = widget.querySelector('.booking-loading');
+  book.addEventListener('click', event => {
+    // Preserve opening the direct link in a new tab with a modifier key.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || typeof booking.showModal !== 'function') return;
+    event.preventDefault();
+    booking.showModal();
+    // Load only on first open, and preserve the visitor's selection on reopen.
+    if (!frame.getAttribute('src')) frame.src = bookingUrl;
   });
-  document.head.append(bookingStyles, bookingScript);
+  frame.addEventListener('load', () => {
+    if (frame.getAttribute('src')) loading.hidden = true;
+  });
+  widget.querySelector('.booking-close').addEventListener('click', () => booking.close());
+  booking.addEventListener('close', () => book.focus());
+  booking.addEventListener('click', event => {
+    if (event.target !== booking) return;
+    const rect = booking.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) booking.close();
+  });
 })();

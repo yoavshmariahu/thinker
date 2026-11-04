@@ -42,7 +42,9 @@ test('message HTTP route only acknowledges persistence and does not write teleme
 function widget(fetch) {
   const elements = new Map();
   function element(key) {
-    if (!elements.has(key)) elements.set(key, { value: '', events: {}, addEventListener(name, fn) { this.events[name] = fn; }, focus() {},
+    if (!elements.has(key)) elements.set(key, { value: '', events: {}, addEventListener(name, fn) { this.events[name] = fn; }, focus() { this.focused = true; },
+      getAttribute(name) { return this[name] ?? null; }, showModal() { this.open = true; }, close() { this.open = false; this.events.close?.(); },
+      getBoundingClientRect() { return { left: 10, right: 100, top: 10, bottom: 100 }; },
       reset() { element('textarea').value = ''; element('input').value = ''; } });
     return elements.get(key);
   }
@@ -70,6 +72,30 @@ test('message form preserves text on failure, reuses the retry ID, and clears on
   page.element('textarea').value = 'Second message';
   await page.submit();
   assert.notEqual(requests[1].id, requests[2].id);
+});
+
+test('booking loads on demand, preserves the calendar on reopen, and restores focus on dismissal', () => {
+  const page = widget(() => assert.fail('booking must not send a message'));
+  const book = page.element('.call-launcher'), dialog = page.element('.booking-dialog'), frame = page.element('.booking-frame');
+  assert.equal(frame.src, undefined);
+  book.events.click({ ctrlKey: true, preventDefault() { assert.fail('modified click should follow the link'); } });
+  assert.equal(dialog.open, undefined);
+  book.events.click({ preventDefault() {} });
+  assert.equal(dialog.open, true);
+  assert.match(frame.src, /^https:\/\/calendar.google.com\/calendar\/appointments\/schedules\//);
+  frame.events.load();
+  assert.equal(page.element('.booking-loading').hidden, true);
+  page.element('.booking-close').events.click();
+  assert.equal(dialog.open, false);
+  assert.equal(book.focused, true);
+  // Reopening must not reload an already-started booking.
+  const loadedUrl = frame.src;
+  Object.defineProperty(frame, 'src', { get: () => loadedUrl, set() { assert.fail('calendar reloaded'); } });
+  book.events.click({ preventDefault() {} });
+  dialog.events.click({ target: dialog, clientX: 50, clientY: 50 });
+  assert.equal(dialog.open, true);
+  dialog.events.click({ target: dialog, clientX: 0, clientY: 0 });
+  assert.equal(dialog.open, false);
 });
 
 test('pending message submission cannot be sent twice', async () => {
