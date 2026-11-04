@@ -30,9 +30,9 @@ import { transformResponses, responsesUsageTap, responsesReport } from './proxy-
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { noteCompression } from './compression.js';
-import { isRewrite } from './cutting.js';
+import { isRewrite, LONG_CONTEXT } from './cutting.js';
 import { decideCut, cutResponse, cutStore, freshCut, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
-export { isRewrite };
+export { isRewrite, LONG_CONTEXT };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
 // `keep`: how many of the newest tool uses a clear leaves, a count or `turn` (2026-10-22): the tool uses of the
@@ -689,7 +689,7 @@ export function proxyReport(rows, { since } = {}) {
   return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}) };
 }
 // a call this long is one where a rewrite is a cost worth noticing and a clear can have happened
-export const LONG_CONTEXT = 100000;
+// LONG_CONTEXT is cutting.js's, re-exported above: it was declared here too, at the same 100000.
 // how far back `thinker proxy status` reads the rewrite rates: a verdict on the policy running now, not on the month
 // behind it (a fault fixed on 2026-11-02 would otherwise have kept the warning up for a month)
 export const REWRITE_DAYS = 7;

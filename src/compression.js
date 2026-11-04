@@ -20,6 +20,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { isRewrite } from './cutting.js';
+import { listPrice } from './prices.js';
 
 // Turns after the first clear of a session before the saving is shown. Three: enough that the figure is the
 // clearing's return and not its cost, few enough that it still lands in the session that paid for it.
@@ -178,6 +180,37 @@ export function compressionRecords(file) {
     if (!line) continue;
     let r; try { r = JSON.parse(line); } catch { continue; }
     if (r.op === 'proxy' && r.session) out.push(r);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// What a clear cost, per session: the cache writes on the calls from the clear onwards.
+//
+// A cleared token is not worth an input token. It was being read from the prompt cache at a tenth of the
+// input price, and the clear writes that cache again at twice it, so the saving is only ever the difference.
+// Priced at the input rate this machine's cleared tokens read as thousands of dollars a month, where the
+// clearing was in fact losing money for most of its life: on the old API-side path the calls after a clear
+// rewrote their prefix on 15% of the calls over LONG_CONTEXT against 1% before one, which is $1.4k of writes
+// against $354 of saving over seven days here. `thinker proxy report` says the same in rates and warns on it.
+//
+// So the figure is netted: what the calls after a clear wrote into the cache again, charged against what the
+// clearing saved. Deliberately the conservative reading -- a rewrite the clearing did not cause is charged to
+// it anyway, and 1% to 3% of long calls rewrite their prefix on the held-out side where nothing is cleared --
+// because a saving figure that flatters itself is worth nothing to the person reading it. The clearing
+// request itself counts as after the clear, as in `proxyReport`: it is the request that carries the edit.
+export function clearingCostBySession(file, { since = '', config } = {}) {
+  const out = new Map(), cleared = new Set();
+  for (const r of compressionRecords(file)) {
+    if (since && r.at && r.at < since) continue;
+    if (r.cleared > 0) cleared.add(r.session);
+    if (!cleared.has(r.session) || !isRewrite(r)) continue;
+    const price = listPrice(r.model, { config });
+    const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
+    x.rewrites++; x.write += r.write || 0;
+    // a write after a clear is a one-hour write for the agents the proxy serves, as proxy-replay.js prices it
+    if (price) x.usd += (r.write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6; else x.unpriced++;
+    out.set(r.session, x);
   }
   return out;
 }
