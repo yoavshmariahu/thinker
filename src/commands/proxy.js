@@ -104,8 +104,16 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     for (const [side, s] of Object.entries(sides)) {
       if (side === 'warning') continue;
       if (side === 'responses') {
-        for (const [name, r] of Object.entries(s)) out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
-          (Object.keys(r.reasons).length ? `; ${Object.entries(r.reasons).map(([k, n]) => `${k}: ${n}`).join(', ')}` : '') + '.');
+        for (const [name, r] of Object.entries(s)) {
+          const writes = r.cacheWrite == null ? 'cache writes not reported' : `${formatTokens(r.cacheWrite)} cache-write tokens` +
+            (r.writeCoverage.missing ? ` reported on ${r.writeCoverage.reported}/${r.requests} requests (${r.writeCoverage.missing} missing)` : '') +
+            (r.cacheWrite30m != null || r.cacheWrite12h != null ? `; 30m ${r.cacheWrite30m == null ? 'unknown' : formatTokens(r.cacheWrite30m)}, 12h ${r.cacheWrite12h == null ? 'unknown' : formatTokens(r.cacheWrite12h)} (TTL split on ${r.writeCoverage.ttlReported}/${r.requests} requests)` : '; write lifetimes not reported');
+          out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${writes}` +
+            (r.freshInput != null ? `; ${formatTokens(r.freshInput)} ordinary input tokens` : '') +
+            (r.writeCoverage.inconsistent ? `; ${r.writeCoverage.inconsistent} inconsistent usage records` : '') +
+            `; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
+            (Object.keys(r.reasons).length ? `; ${Object.entries(r.reasons).map(([k, n]) => `${k}: ${n}`).join(', ')}` : '') + '.');
+        }
         continue;
       }
       out(`${side}: ${s.requests} requests in ${s.sessions} sessions, ${formatTokens(s.billedInput)} billed-equivalent input` +

@@ -5,8 +5,10 @@ import net from 'node:net';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { proxyConfig, startProxy, transformRequest, proxyReport, cutCandidates } from '../src/proxy.js';
-import { CLEARED_OUTPUT, responsesUsageTap, responsesCandidates, applyResponsesCut } from '../src/proxy-responses.js';
+import { CLEARED_OUTPUT, responsesUsage, responsesUsageTap, responsesReport, responsesCandidates, applyResponsesCut } from '../src/proxy-responses.js';
 
 import { placeholder, freshCut, cutResponse, cutStore, decideCut } from '../src/cutting.js';
 
@@ -64,13 +66,13 @@ test('size gates, newest-output floor, first turn and session holdouts are conse
   assert.equal(transform(body, cfg({ holdout: 0 })).injected, true);
 });
 
-const usage = { input_tokens: 250, input_tokens_details: { cached_tokens: 200 }, output_tokens: 7 };
+const usage = { input_tokens: 250, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 40, cache_write_tokens_details: { ttl_30m_tokens: 10, ttl_12h_tokens: 30 } }, output_tokens: 7 };
 const answer = `event: response.completed\ndata: ${JSON.stringify({ type: 'response.completed', response: { id: 'r1', usage, output: [] } })}\n\n`;
 test('Responses usage reads split SSE and JSON without Anthropic cache weights', () => {
   for (const data of [answer, JSON.stringify({ usage })]) {
     const tap = responsesUsageTap();
     for (let i = 0; i < data.length; i += 3) tap.push(Buffer.from(data.slice(i, i + 3)));
-    assert.deepEqual(tap.result(), { input: 250, read: 200, out: 7 });
+    assert.deepEqual(tap.result(), { input: 250, read: 200, write: 40, write30m: 10, write12h: 30, freshInput: 10, out: 7, apiUsage: usage, ...(data === answer ? { responseId: 'r1' } : {}) });
   }
   const r = proxyReport([{ op: 'proxy', protocol: 'responses', injected: true, input: 250, read: 200, out: 7, removedBytes: 400, status: 200 }, { op: 'proxy', protocol: 'responses', reason: 'encoded-request', status: 200 }]);
   assert.deepEqual(Object.keys(r), ['responses']);
@@ -92,7 +94,7 @@ test('HTTP transport preserves auth, streaming, errors and compact requests with
   await new Promise(r => upstream.listen(0, '127.0.0.1', r));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-responses-'));
   const logFile = path.join(dir, 'proxy.jsonl');
-  const proxy = startProxy({ ...cfg(), upstream: `http://127.0.0.1:${upstream.address().port}/v1` }, { logFile });
+  const proxy = startProxy({ ...cfg(), upstream: `http://127.0.0.1:${upstream.address().port}/v1` }, { logFile, dumpDir: path.join(dir, 'dumps') });
   await new Promise(r => proxy.once('listening', r));
   t.after(() => { proxy.close(); upstream.close(); fs.rmSync(dir, { recursive: true, force: true }); });
   const send = async endpoint => {
@@ -113,6 +115,13 @@ test('HTTP transport preserves auth, streaming, errors and compact requests with
   assert.doesNotMatch(log, /mock-only|fixture-account|old file contents|opaque/);
   const rows = log.trim().split('\n').map(JSON.parse);
   assert.equal(rows[0].session, 'session-test'); assert.equal(rows[0].input, 250);
+  assert.deepEqual([rows[0].write, rows[0].write30m, rows[0].write12h, rows[0].freshInput], [40, 10, 30, 10]);
+  assert.deepEqual(rows[0].apiUsage, usage);
+  const dumpDir = path.join(dir, 'dumps', 'session-test');
+  const dumps = fs.readdirSync(dumpDir).map(f => JSON.parse(fs.readFileSync(path.join(dumpDir, f))));
+  assert.ok(dumps.length);
+  assert.ok(dumps.every(d => d.usage.write === 40 && d.usage.write30m === 10 && d.usage.write12h === 30));
+  assert.deepEqual(dumps[0].usage.apiUsage, usage);
   const upgrade = await new Promise((resolve, reject) => {
     const socket = net.connect(proxy.address().port, '127.0.0.1', () => socket.write('GET /responses HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n'));
     let output = ''; socket.on('data', c => output += c); socket.on('end', () => resolve(output)); socket.on('error', reject);
@@ -149,7 +158,7 @@ test('Codex closing SSE on response.completed still logs clearing and usage once
   assert.equal(rows.length, 1);
   assert.equal(rows[0].injected, true);
   assert.ok(rows[0].removedBytes > 0);
-  assert.deepEqual([rows[0].input, rows[0].read, rows[0].out], [250, 200, 7]);
+  assert.deepEqual([rows[0].input, rows[0].read, rows[0].write, rows[0].write30m, rows[0].write12h, rows[0].out], [250, 200, 40, 10, 30, 7]);
   assert.equal(rows[0].status, 200);
 });
 
@@ -296,4 +305,86 @@ test('failed persistence still holds the in-process reservation', () => {
   try {const file=path.join(dir,'not-a-directory');fs.writeFileSync(file,'x');const store=cutStore(file);
     store.write({...freshCut('s'),turn:3,cut:['a']});assert.deepEqual(store.read('s').cut,['a']);assert.equal(store.read('s').turn,3);
   }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+
+test('Responses cache usage distinguishes absence, zero, and inconsistent provider counts', () => {
+  for (const value of [undefined, null, -1, '40', 1.5]) {
+    const got = responsesUsage({ input_tokens: 250, input_tokens_details: { cached_tokens: 200, cache_write_tokens: value } });
+    assert.equal(got.write, undefined); assert.equal(got.freshInput, undefined);
+  }
+  const zero = responsesUsage({ input_tokens: 250, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 0 } });
+  assert.equal(zero.write, 0); assert.equal(zero.freshInput, 50);
+  assert.equal(zero.write30m, undefined, 'do not guess lifetimes from the total');
+  const invalid = responsesUsage({ ...usage, input_tokens: 220 });
+  assert.equal(invalid.usageInconsistent, true); assert.equal(invalid.freshInput, undefined);
+  const badSplit = responsesUsage({ ...usage, input_tokens_details: { ...usage.input_tokens_details, cache_write_tokens: 39 } });
+  assert.equal(badSplit.usageInconsistent, true);
+});
+
+test('large JSON and SSE completions retain usage, UTF-8 metadata, and unfinished final lines', () => {
+  const response = { id: 'response-🧪', model: 'gpt-test', service_tier: 'default', status: 'completed', output: 'x'.repeat(1100000), usage };
+  const json = JSON.stringify(response);
+  const event = JSON.stringify({ type: 'response.completed', response });
+  const multiline = event.replace(',"response":', ',\ndata: "response":');
+  for (const text of [json, 'event: response.completed\r\ndata: ' + event, 'data: ' + multiline + '\n\n']) {
+    const bytes = Buffer.from(text), tap = responsesUsageTap();
+    for (let i = 0; i < bytes.length; i += 8191) tap.push(bytes.subarray(i, i + 8191));
+    const got = tap.result();
+    assert.equal(got.write, 40); assert.equal(got.write12h, 30);
+    assert.equal(got.responseId, response.id); assert.equal(got.responseModel, 'gpt-test');
+    assert.equal(got.serviceTier, 'default'); assert.equal(got.responseStatus, 'completed');
+    assert.deepEqual(got.apiUsage, usage); assert.equal(got.output, undefined);
+    assert.deepEqual(tap.result(), got, 'reading twice does not duplicate a final data line');
+  }
+  const tap = responsesUsageTap(), bytes = Buffer.from(JSON.stringify({ id: '🧪', usage }));
+  for (const byte of bytes) tap.push(Buffer.from([byte]));
+  assert.equal(tap.result().responseId, '🧪');
+});
+
+test('oversized events report missing capture and permit a later usage event', () => {
+  const oversized = 'data: ' + JSON.stringify({ output: 'x'.repeat(9 * 1024 * 1024) }) + '\n\n';
+  const tap = responsesUsageTap(); tap.push(Buffer.from(oversized));
+  assert.deepEqual(tap.result(), { usageCaptureLimited: true });
+  const recovered = responsesUsageTap();
+  for (let i = 0; i < oversized.length; i += 32768) recovered.push(Buffer.from(oversized.slice(i, i + 32768)));
+  recovered.push(Buffer.from(answer)); assert.equal(recovered.result().write, 40);
+});
+
+test('Responses reports expose partial write coverage without manufacturing fresh input', () => {
+  const row = { op: 'proxy', protocol: 'responses', status: 200, ...responsesUsage(usage) };
+  const complete = responsesReport([row, row]).unchanged;
+  assert.equal(complete.input, 500); assert.equal(complete.cachedInput, 400);
+  assert.equal(complete.cacheWrite, 80); assert.equal(complete.cacheWrite30m, 20); assert.equal(complete.cacheWrite12h, 60);
+  assert.equal(complete.freshInput, 20);
+  assert.deepEqual(complete.writeCoverage, { reported: 2, missing: 0, ttlReported: 2, inconsistent: 0 });
+  const legacy = { op: 'proxy', protocol: 'responses', input: 250, read: 200, out: 7 };
+  const mixed = responsesReport([row, legacy]).unchanged;
+  assert.equal(mixed.cacheWrite, 40); assert.equal(mixed.freshInput, null);
+  assert.deepEqual(mixed.writeCoverage, { reported: 1, missing: 1, ttlReported: 1, inconsistent: 0 });
+  assert.equal(responsesReport([legacy]).unchanged.cacheWrite, null);
+  assert.equal(responsesReport([{ ...legacy, write: 0 }]).unchanged.cacheWrite, 0);
+  const inconsistent = responsesReport([{ ...row, input: 100 }]).unchanged;
+  assert.equal(inconsistent.writeCoverage.inconsistent, 1); assert.equal(inconsistent.freshInput, null);
+});
+
+test('proxy report exports cache-write coverage in JSON and labels partial text totals', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'responses-report-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const log = path.join(dir, 'proxy.jsonl');
+  const measured = { op: 'proxy', protocol: 'responses', status: 200, ...responsesUsage(usage) };
+  const old = { op: 'proxy', protocol: 'responses', reason: 'holdout', input: 250, read: 200, out: 7 };
+  fs.writeFileSync(log, [measured, { ...old, reason: 'below-trigger' }, old].map(JSON.stringify).join('\n'));
+  const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
+  const run = (...args) => execFileSync(process.execPath, [cli, 'proxy', 'report', ...args], {
+    cwd: dir, env: { ...process.env, THINKER_TEST: '1', THINKER_HOME: dir, THINKER_PROXY_LOG: log }, encoding: 'utf8' });
+  const report = JSON.parse(run('--json'));
+  assert.equal(report.responses.unchanged.cacheWrite, 40);
+  assert.equal(report.responses.unchanged.writeCoverage.missing, 1);
+  assert.equal(report.responses.holdout.cacheWrite, null);
+  const text = run();
+  assert.match(text, /40 cache-write tokens reported on 1\/2 requests \(1 missing\)/);
+  assert.match(text, /30m 10, 12h 30 \(TTL split on 1\/2 requests\)/);
+  assert.match(text, /cache writes not reported/);
+  assert.doesNotMatch(text, /ordinary input tokens/);
 });

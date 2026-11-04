@@ -4,6 +4,7 @@
 // Use Claude’s shared cut policy at turn boundaries; reapply the persisted set on every request.
 // Never touch linked server-side histories or Codex's own compaction requests.
 import crypto from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
 import { decideCut, freshCut, MIN_CHARS, placeholder } from './cutting.js';
 
 export const CLEARED_OUTPUT = '[thinker: an older turn\'s tool output was cleared. Run the tool again if you need it.]';
@@ -89,25 +90,68 @@ export function transformResponses(method, url, headers, body, cfg) {
 
 }
 
-// Usage stays in raw provider token units. Never apply Anthropic cache-price weights.
+// Usage stays in raw provider token units: Responses input includes both reads and writes.
+// https://developers.openai.com/api/docs/guides/prompt-caching#monitor-cache-performance
+const tokenCount = n => Number.isSafeInteger(n) && n >= 0;
+export function responsesUsage(usage) {
+  const details = usage?.input_tokens_details, ttl = details?.cache_write_tokens_details;
+  const values = { input: usage?.input_tokens, read: details?.cached_tokens, write: details?.cache_write_tokens,
+    write30m: ttl?.ttl_30m_tokens, write12h: ttl?.ttl_12h_tokens, out: usage?.output_tokens };
+  const out = Object.fromEntries(Object.entries(values).filter(([, n]) => tokenCount(n)));
+  // Preserve the provider's usage fields beside normalization, never response output or credentials.
+  if (usage && typeof usage === 'object' && !Array.isArray(usage)) {
+    out.apiUsage = Object.fromEntries(['input_tokens', 'input_tokens_details', 'output_tokens', 'output_tokens_details', 'total_tokens']
+      .filter(k => Object.hasOwn(usage, k)).map(k => [k, structuredClone(usage[k])]));
+  }
+  if (tokenCount(out.input) && tokenCount(out.read) && tokenCount(out.write)) {
+    if (out.read + out.write <= out.input) out.freshInput = out.input - out.read - out.write;
+    else out.usageInconsistent = true;
+  }
+  if (tokenCount(out.write) && tokenCount(out.write30m) && tokenCount(out.write12h) && out.write30m + out.write12h !== out.write) out.usageInconsistent = true;
+  if (out.usageInconsistent) delete out.freshInput;
+  return out;
+}
+
 export function responsesUsageTap() {
-  let tail = '', whole = '', usage;
-  const take = event => { const u = event?.response?.usage || event?.usage; if (u) usage = u; };
+  const limit = 8 * 1024 * 1024, decoder = new StringDecoder('utf8');
+  let tail = '', whole = '', usage, meta = {}, eventData = [], eventSize = 0, sse = false, limited = false, skipLine = false, final;
+  const take = event => {
+    const response = event?.response || event, u = response?.usage;
+    if (!u || typeof u !== 'object' || Array.isArray(u)) return;
+    usage = u;
+    meta = Object.fromEntries([['responseId', response.id], ['responseModel', response.model], ['serviceTier', response.service_tier], ['responseStatus', response.status]]
+      .filter(([, v]) => typeof v === 'string'));
+  };
+  const parse = text => { try { take(JSON.parse(text)); } catch {} };
+  const line = value => {
+    if (value.startsWith('data:')) {
+      sse = true; whole = '';
+      const data = value.slice(5).trimStart(); eventSize += data.length;
+      if (eventSize > limit) { eventData = []; limited = true; }
+      else { eventData.push(data); parse(eventData.join('\n')); } // Codex may close immediately at response.completed.
+    } else if (!value.trim()) { if (eventData.length) parse(eventData.join('\n')); eventData = []; eventSize = 0; }
+    else if (value.startsWith('event:')) { sse = true; whole = ''; }
+  };
+  const consume = text => {
+    if (!sse) { if (whole !== null && whole.length + text.length <= limit) whole += text; else { whole = null; limited = true; } }
+    tail += text;
+    let end;
+    while ((end = tail.indexOf('\n')) >= 0) {
+      const value = tail.slice(0, end).replace(/\r$/, ''); tail = tail.slice(end + 1);
+      if (!skipLine && value.length <= limit) line(value);
+      else { limited = true; skipLine = false; eventData = []; eventSize = 0; }
+    }
+    if (tail.length > limit) { tail = ''; skipLine = true; limited = true; }
+  };
   return {
-    push(chunk) {
-      const text = chunk.toString('utf8');
-      if (whole.length < 65536) whole += text;
-      tail += text;
-      let end;
-      while ((end = tail.indexOf('\n')) >= 0) {
-        const line = tail.slice(0, end).trim(); tail = tail.slice(end + 1);
-        if (line.startsWith('data:')) { try { take(JSON.parse(line.slice(5))); } catch {} }
-      }
-      if (tail.length > 1024 * 1024) tail = ''; // a giant output line is not a usage event
-    },
+    push(chunk) { consume(decoder.write(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))); },
     result() {
-      if (!usage) { try { take(JSON.parse(whole)); } catch {} }
-      return { input: usage?.input_tokens, read: usage?.input_tokens_details?.cached_tokens, out: usage?.output_tokens };
+      if (final) return final;
+      consume(decoder.end());
+      if (!skipLine && tail.trim()) { if (sse || tail.startsWith('data:')) line(tail); }
+      if (eventData.length) parse(eventData.join('\n'));
+      if (!usage && whole) parse(whole);
+      return final = { ...responsesUsage(usage), ...meta, ...(!usage && limited ? { usageCaptureLimited: true } : {}) };
     },
   };
 }
@@ -117,14 +161,31 @@ export function responsesReport(rows, { since } = {}) {
   for (const r of rows) {
     if (r.op !== 'proxy' || r.protocol !== 'responses' || (since && r.at < since)) continue;
     const key = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'unchanged';
-    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, errors: 0, truncated: 0, reasons: {} };
+    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, errors: 0, truncated: 0, reasons: {},
+      cacheWrite: null, cacheWrite30m: null, cacheWrite12h: null, freshInput: null,
+      writeCoverage: { reported: 0, missing: 0, ttlReported: 0, inconsistent: 0 }, freshInputRequests: 0 };
     s.requests++; s.input += r.input || 0; s.cachedInput += r.read || 0; s.output += r.out || 0;
+    for (const [field, key] of [['write','cacheWrite'],['write30m','cacheWrite30m'],['write12h','cacheWrite12h']]) {
+      if (tokenCount(r[field])) s[key] = (s[key] ?? 0) + r[field];
+    }
+    if (tokenCount(r.write)) s.writeCoverage.reported++; else s.writeCoverage.missing++;
+    if (tokenCount(r.write30m) && tokenCount(r.write12h) && tokenCount(r.write) && r.write30m + r.write12h === r.write) s.writeCoverage.ttlReported++;
+    const inconsistent = r.usageInconsistent || (tokenCount(r.input) && tokenCount(r.read) && tokenCount(r.write) && r.read + r.write > r.input)
+      || (tokenCount(r.write) && tokenCount(r.write30m) && tokenCount(r.write12h) && r.write30m + r.write12h !== r.write);
+    if (inconsistent) s.writeCoverage.inconsistent++;
+    if (!inconsistent && [r.input, r.read, r.write].every(tokenCount)) {
+      s.freshInput = (s.freshInput ?? 0) + r.input - r.read - r.write; s.freshInputRequests++;
+    }
     s.removedBytes += r.removedBytes || 0;
     // `errors` is what the API answered; an answer that stopped partway answered 200 and then broke,
     // so it is counted here rather than left out of both.
     if (r.status >= 400) s.errors++;
     if (r.truncated) s.truncated++;
     if (r.reason) s.reasons[r.reason] = (s.reasons[r.reason] || 0) + 1;
+  }
+  for (const s of Object.values(sides)) {
+    // A partial sum must not masquerade as the whole session's ordinary input.
+    if (s.freshInputRequests !== s.requests) s.freshInput = null;
   }
   return sides;
 }

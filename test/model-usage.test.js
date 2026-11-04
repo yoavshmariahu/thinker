@@ -256,3 +256,13 @@ process.stdin.resume(); process.stdin.on('end', () => {
   await assert.rejects(complete({ prompt: 'test' }), /claude -p exited 1/);
   assert.equal(calls(), 3, 'unexplained exits get at most two retries');
 });
+
+
+test('OpenAI nested cache writes stay inside total input and missing writes stay unknown', () => {
+  const usage = { input_tokens: 250, input_tokens_details: { cached_tokens: 200, cache_write_tokens: 40 }, output_tokens: 7 };
+  assert.deepEqual(normalizeModelUsage('codex', usage), { inputTokens: 250, outputTokens: 7, cacheReadTokens: 200, cacheWriteTokens: 40, totalTokens: 257 });
+  assert.equal(normalizeModelUsage('codex', { ...usage, input_tokens_details: { cached_tokens: 200 } }).cacheWriteTokens, null);
+  assert.equal(normalizeModelUsage('codex', { ...usage, input_tokens_details: { cache_write_tokens: 0 } }).cacheWriteTokens, 0);
+  assert.equal(normalizeModelUsage('codex', [usage, usage]).cacheWriteTokens, 80);
+  assert.equal(normalizeModelUsage('codex', [usage, { input_tokens: 100 }]).cacheWriteTokens, null);
+});
