@@ -5,16 +5,18 @@ import net from 'node:net';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { proxyConfig, startProxy, transformRequest, proxyReport } from '../src/proxy.js';
-import { CLEARED_OUTPUT, responsesUsageTap } from '../src/proxy-responses.js';
+import { proxyConfig, startProxy, transformRequest, proxyReport, cutCandidates } from '../src/proxy.js';
+import { CLEARED_OUTPUT, responsesUsageTap, responsesCandidates, applyResponsesCut } from '../src/proxy-responses.js';
+
+import { placeholder, freshCut, cutResponse, cutStore, decideCut } from '../src/cutting.js';
 
 const cfg = extra => proxyConfig({ protocol: 'responses', upstream: 'http://127.0.0.1:1/v1', trigger: '1', 'clear-at-least': '1', 'keep-min': '1', ...extra }, {});
 const user = text => ({ role: 'user', content: [{ type: 'input_text', text }] });
 const call = id => ({ type: 'function_call', call_id: id, name: 'exec_command', arguments: '{}' });
 const result = (id, output = 'old file contents '.repeat(200)) => ({ type: 'function_call_output', call_id: id, output });
-const history = () => [user('first task'), call('a'), result('a'), { type: 'reasoning', encrypted_content: 'opaque' }, user('second task'), call('b'), result('b')];
+const history = () => [user('first task'), call('a'), result('a', 'old file contents '.repeat(4000)), { type: 'reasoning', encrypted_content: 'opaque' }, user('second task'), call('b'), result('b')];
 const raw = (input = history(), extra = {}) => Buffer.from(JSON.stringify({ model: 'test-model', input, stream: true, store: false, ...extra }));
-const transform = (body = raw(), config = cfg(), headers = {}) => transformRequest('POST', '/responses', headers, body, config);
+const transform = (body = raw(), config = cfg(), headers = { session_id: 'unit-session' }) => transformRequest('POST', '/responses', headers, body, config);
 
 test('Responses clearing is opt-in and validates its routing and thresholds', () => {
   const body = raw();
@@ -34,7 +36,7 @@ test('only old text outputs change; current turn, IDs, calls, instructions and r
   assert.equal(t.injected, true);
   assert.equal(t.clearedUses, 2);
   assert.ok(t.removedBytes > 4000);
-  assert.deepEqual(sent, { ...before, input: before.input.map((item, i) => i === 2 ? { ...item, output: CLEARED_OUTPUT } : i === 3 ? { ...item, output: [{ type: 'input_text', text: CLEARED_OUTPUT }] } : item) });
+  assert.deepEqual(sent, { ...before, input: before.input.map((item, i) => i === 2 ? { ...item, output: placeholder(item.output.length) } : i === 3 ? { ...item, output: [{ type: 'input_text', text: placeholder(4000) }] } : item) });
   assert.equal(transform(t.body).body, t.body, 'idempotent if a client sends the shortened history');
   assert.deepEqual(transform(original).body, t.body, 'retries reconstruct exactly the same prefix without session state');
   const next = transform(raw([...input, call('c'), result('c')]));
@@ -46,7 +48,7 @@ test('native compaction, linked histories, unknown shapes and encoded bodies pas
   for (const endpoint of ['/responses/compact', '/v1/responses/compact', '/models', '/v1/messages']) { const body = raw(); assert.equal(transformRequest('POST', endpoint, {}, body, cfg()).body, body); }
   const body = raw();
   assert.equal(transform(body, cfg(), { 'content-encoding': 'zstd' }).reason, 'encoded-request');
-  assert.equal(transformRequest('POST', '/v1/responses?x=y', {}, body, cfg()).injected, true);
+  assert.equal(transformRequest('POST', '/v1/responses?x=y', { session_id: 'unit-session' }, body, cfg()).injected, true);
 });
 
 test('size gates, newest-output floor, first turn and session holdouts are conservative', () => {
@@ -57,7 +59,7 @@ test('size gates, newest-output floor, first turn and session holdouts are conse
   assert.equal(transform(raw(history().slice(0, 4)), cfg({ 'keep-min': 0 })).injected, undefined, 'never clears the current turn even with a zero floor');
   assert.equal(transform(raw([call('a'), result('a')])).reason, 'no-user-turn');
   assert.equal(transform(body, cfg({ holdout: 1 }), { session_id: 's1' }).reason, 'holdout');
-  assert.equal(transform(body, cfg({ holdout: 1 })).reason, 'missing-session');
+  assert.equal(transform(body, cfg({ holdout: 1 }), {}).reason, 'missing-session');
   assert.equal(transform(raw(history(), { prompt_cache_key: 's2' }), cfg({ holdout: 1 })).reason, 'holdout');
   assert.equal(transform(body, cfg({ holdout: 0 })).injected, true);
 });
@@ -105,7 +107,7 @@ test('HTTP transport preserves auth, streaming, errors and compact requests with
   assert.equal(seen[0].headers.authorization, 'Bearer mock-only');
   assert.equal(seen[0].headers['chatgpt-account-id'], 'fixture-account');
   assert.equal(seen[0].headers['anthropic-beta'], undefined);
-  assert.equal(JSON.parse(seen[0].body).input[2].output, CLEARED_OUTPUT);
+  assert.equal(JSON.parse(seen[0].body).input[2].output, placeholder(history()[2].output.length));
   assert.equal(seen[2].body, raw().toString());
   const log = fs.readFileSync(logFile, 'utf8');
   assert.doesNotMatch(log, /mock-only|fixture-account|old file contents|opaque/);
@@ -132,7 +134,7 @@ test('Codex closing SSE on response.completed still logs clearing and usage once
   await new Promise(r => proxy.once('listening', r));
   t.after(() => { proxy.closeAllConnections(); proxy.close(); upstream.closeAllConnections(); upstream.close(); fs.rmSync(dir, { recursive: true, force: true }); });
   await new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port: proxy.address().port, path: '/responses', method: 'POST' }, res => {
+    const req = http.request({ host: '127.0.0.1', port: proxy.address().port, path: '/responses', method: 'POST', headers: { session_id: 'close-session' } }, res => {
       let text = '';
       res.on('data', chunk => { text += chunk; if (text.includes('\n\n')) res.destroy(); });
       res.on('close', resolve);
@@ -141,7 +143,9 @@ test('Codex closing SSE on response.completed still logs clearing and usage once
   });
   const deadline = Date.now() + 2000;
   while (!fs.existsSync(logFile) && Date.now() < deadline) await new Promise(r => setTimeout(r, 10));
-  const rows = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(JSON.parse);
+  const all = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(JSON.parse);
+  const rows = all.filter(r => r.op === 'proxy');
+  assert.equal(all.filter(r => r.op === 'proxy-cut').length, 1);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].injected, true);
   assert.ok(rows[0].removedBytes > 0);
@@ -166,7 +170,7 @@ test('managed service routes Codex by its existing auth without changing the Ant
   await new Promise(r => proxy.once('listening', r));
   t.after(() => { proxy.closeAllConnections(); proxy.close(); });
   const send = async (endpoint, headers = {}, data = raw()) => {
-    const res = await fetch(`http://127.0.0.1:${proxy.address().port}${endpoint}`, { method: 'POST', headers: { authorization: 'Bearer fixture', ...headers }, body: data });
+    const res = await fetch(`http://127.0.0.1:${proxy.address().port}${endpoint}`, { method: 'POST', headers: { authorization: 'Bearer fixture', session_id: 'managed-session', ...headers }, body: data });
     assert.equal(res.status, 200); await res.text();
   };
   await send('/codex/responses', { 'chatgpt-account-id': 'fixture-account' });
@@ -176,7 +180,7 @@ test('managed service routes Codex by its existing auth without changing the Ant
   assert.equal(seen.chatgpt[0].path, '/backend-api/codex/responses');
   assert.equal(seen.api[0].path, '/v1/responses');
   for (const name of ['chatgpt', 'api']) {
-    assert.equal(JSON.parse(seen[name][0].body).input[2].output, CLEARED_OUTPUT);
+    assert.equal(JSON.parse(seen[name][0].body).input[2].output, placeholder(history()[2].output.length));
     assert.equal(seen[name][0].auth, 'Bearer fixture');
     assert.equal(seen[name][0].beta, undefined);
   }
@@ -187,4 +191,109 @@ test('managed service routes Codex by its existing auth without changing the Ant
   // itself and asks the API for nothing, so no context_management is added (it carried edits before).
   assert.equal(seen.anthropic[0].body, JSON.stringify({ model: 'claude', messages: [{ role: 'user', content: 'hello' }] }));
   assert.equal(JSON.parse(seen.anthropic[0].body).context_management, undefined);
+});
+
+test('Codex uses the shared turn-boundary policy and freezes both cuts and refusals', () => {
+  const input = history();
+  const rec = freshCut('ratchet');
+  const config = { ...cfg(), cutRecord: rec };
+  const first = transform(raw(input), config);
+  assert.equal(first.clear.payback <= 20, true);
+  cutResponse(rec, config, first, { input: 200, read: 100, out: 1 });
+  const originalPrefix = JSON.parse(first.body).input;
+  // In the old Codex path, every new result released another old result below keepMin.
+  for (let i = 0; i < 5; i++) {
+    input.push(call('new'+i), result('new'+i, 'x'.repeat(40000)));
+    const next = transform(raw(input), config);
+    assert.deepEqual(next.cut, first.cut);
+    assert.equal(next.clear, undefined);
+    assert.deepEqual(JSON.parse(next.body).input.slice(0, originalPrefix.length), originalPrefix);
+  }
+  const boundary = transform(raw([...input, user('next turn')]), config);
+  assert.ok(boundary.cut.length > rec.cut.length, 'a new user turn can add a batch');
+  const frozen = { ...rec, turn: boundary.turn, cut: boundary.cut };
+  const stopped = transform(raw([...input, user('next turn'),call('more'),result('more')]), { ...config, clearAtLeast: 1e9, cutRecord: frozen });
+  assert.deepEqual(stopped.cut, boundary.cut, 'stopping preserves all prior placeholders');
+  const refusal = freshCut('refused');
+  const no = transform(raw(history()), { ...config, clearAtLeast: 1e9, cutRecord: refusal });
+  cutResponse(refusal, config, no, {});
+  const later = transform(raw([...history(),call('huge'),result('huge','x'.repeat(500000))]), { ...config, cutRecord: refusal });
+  assert.deepEqual(later.cut, [], 'a declined boundary is frozen for the turn too');
+});
+
+test('Codex candidates price only new cuts and the rewritten tail, using shared gates', () => {
+  const input = history();
+  const first = responsesCandidates(input, {keepMin:1});
+  const rec = freshCut('policy');
+  for (const opts of [{trigger:1,clearAtLeast:1},{trigger:1e9,clearAtLeast:1},{trigger:1,clearAtLeast:1e9}]) {
+    const config={...cfg(),...opts,cutRecord:rec};
+    const actual=transform(raw(input),config);
+    const expected=decideCut(rec,config,{prompt:raw(input).length/4,turn:2},{cand:first,model:'test-model',ttl:config.ttl});
+    assert.deepEqual(actual.cut, expected.cut);
+    assert.equal(!!actual.clear,expected.clear);
+  }
+  const small=responsesCandidates(input,{keepMin:0,cut:first.ids});
+  assert.equal(small.tokens,0,'already-cut results cannot satisfy the next batch floor');
+  const expensive=[user('old'),call('small'),result('small','x'.repeat(400)),user('next'),{role:'assistant',content:[{type:'output_text',text:'x'.repeat(40000)}]}];
+  const held=transform(raw(expensive),{...cfg({'keep-min':0})});
+  assert.equal(held.reason,'payback');assert.ok(held.held.payback>20);
+  assert.equal(transform(raw(),cfg(),{}).reason,'missing-session','cannot promise a ratchet without a session');
+});
+
+test('Codex applies one cut per session when clearDeep is disabled and preserves opaque content', () => {
+  const base=history(),first=transform(raw(base));
+  const rec={...freshCut('one'),cut:first.cut,turn:first.turn};
+  const next=transform(raw([...base,user('new')]),{...cfg(),clearDeep:false,cutRecord:rec});
+  assert.deepEqual(next.cut,first.cut);assert.equal(next.clear,undefined);
+  const opaque={type:'custom_tool_call_output',call_id:'image',output:[{type:'input_image',image_url:'data:image/png;base64,AAAA'}]};
+  assert.deepEqual(applyResponsesCut([opaque],['image']).input,[opaque]);
+});
+
+test('the shared cut store keeps state without a log and persists across restarts', () => {
+  const memory=cutStore(null),rec={...freshCut('s'),cut:['a'],turn:2};memory.write(rec);
+  const got=memory.read('s');assert.deepEqual(got.cut,['a']);got.cut.push('other');assert.deepEqual(memory.read('s').cut,['a']);
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'responses-ratchet-'));
+  try {cutStore(dir).write(rec);assert.deepEqual(cutStore(dir).read('s').cut,['a']);}finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('HTTP Codex requests retain the cut set across growing turns and a proxy restart', async t => {
+  const seen=[];
+  const upstream=http.createServer((req,res)=>{let body='';req.on('data',c=>body+=c);req.on('end',()=>{seen.push(JSON.parse(body));res.writeHead(200,{'content-type':'text/event-stream'});res.end(answer);});});
+  await new Promise(r=>upstream.listen(0,'127.0.0.1',r));
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'codex-shared-policy-')),logFile=path.join(dir,'proxy.jsonl');
+  let proxy;
+  const open=async()=>{proxy=startProxy({...cfg(),upstream:`http://127.0.0.1:${upstream.address().port}`},{logFile});await new Promise(r=>proxy.once('listening',r));};
+  const close=async()=>{proxy.closeAllConnections();await new Promise(r=>proxy.close(r));};
+  t.after(async()=>{await close();upstream.closeAllConnections();await new Promise(r=>upstream.close(r));fs.rmSync(dir,{recursive:true,force:true});});
+  const send=async input=>{const r=await fetch(`http://127.0.0.1:${proxy.address().port}/responses`,{method:'POST',headers:{session_id:'persisted'},body:raw(input)});assert.equal(r.status,200);await r.text();return seen.at(-1).input;};
+  await open();let input=history(),first=await send(input);
+  for(let i=0;i<3;i++){input=[...input,call('later'+i),result('later'+i,'x'.repeat(30000))];const next=await send(input);assert.deepEqual(next.slice(0,first.length),first);}
+  await close();await open();const resumed=await send(input);assert.deepEqual(resumed.slice(0,first.length),first,'restart does not restore or newly clear old results');
+  const before=resumed;const next=await send([...input,user('next request')]);assert.notDeepEqual(next.slice(0,before.length),before,'a boundary can add a batch');
+  const rows=fs.readFileSync(logFile,'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(rows.filter(r=>r.op==='proxy-cut').length,2,'only the two boundaries trigger new cut events');
+});
+
+test('Claude and Codex protect the same results for each turn, keep floor, and prior cut set', () => {
+  const messages=[], input=[];
+  for(let turn=0;turn<3;turn++) {
+    messages.push({role:'user',content:'prompt '+turn});input.push(user('prompt '+turn));
+    for(let n=0;n<4;n++) {const id=turn+'.'+n, output='x'.repeat(n?10000:100);
+      messages.push({role:'user',content:[{type:'tool_result',tool_use_id:id,content:output}]});input.push(result(id,output));
+    }
+  }
+  for(const keepMin of [0,1,3,10])for(const cut of [[],['0.1','0.2']]) {
+    const claude=cutCandidates(messages,{keepMin,cut}),codex=responsesCandidates(input,{keepMin,cut});
+    assert.deepEqual(codex.ids,claude.ids);assert.equal(codex.chars,claude.chars);
+    // Provider-specific character calibration differs; thresholds still use tokens.
+    assert.equal(codex.tokens,codex.chars/4);
+    assert.ok(codex.ids.every(id=>!id.startsWith('2.')),'protect the whole newest turn');
+  }
+});
+
+test('failed persistence still holds the in-process reservation', () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cut-memory-fallback-'));
+  try {const file=path.join(dir,'not-a-directory');fs.writeFileSync(file,'x');const store=cutStore(file);
+    store.write({...freshCut('s'),turn:3,cut:['a']});assert.deepEqual(store.read('s').cut,['a']);assert.equal(store.read('s').turn,3);
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });

@@ -153,21 +153,21 @@
     .turn { margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
     .turn-h { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.7rem 0.9rem; background: var(--card-2); border-bottom: 1px solid var(--line); }
     .turn-h .n { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
-    .turn-h .prompt { font-size: 0.86rem; line-height: 1.45; color: var(--fg-2); white-space: pre-wrap; }
+    .turn-h .prompt { min-width: 0; overflow-wrap: anywhere; font-size: 0.86rem; line-height: 1.45; color: var(--fg-2); white-space: pre-wrap; }
     .turn-h .prompt.clip { max-height: 2.9em; overflow: hidden; }
     .turn-h button { font: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; margin-left: auto; }
-    .cols { display: grid; grid-template-columns: 1fr 1fr; }
-    .col { padding: 0.6rem 0.75rem 0.75rem; min-width: 0; display: flex; flex-direction: column; }
+    .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .col { max-width: 100%; overflow-wrap: anywhere; padding: 0.6rem 0.75rem 0.75rem; min-width: 0; display: flex; flex-direction: column; }
     .col .tstats { margin-top: auto; padding-top: 0.5rem; }
     .col + .col { border-left: 1px solid var(--line); }
     .cutban { font-size: 0.8rem; line-height: 1.45; border-left: 3px solid var(--thk); background: var(--thk-soft); padding: 0.45rem 0.6rem; border-radius: 0 6px 6px 0; margin: 0.1rem 0 0.5rem; }
     .cutban b { font-variant-numeric: tabular-nums; }
     .step { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.8rem; line-height: 1.4; padding: 0.22rem 0; border-top: 1px solid var(--line-2); min-width: 0; }
     .step:first-child { border-top: 0; }
-    .step .ic { flex: 0 0 4.4rem; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 0.15em; }
-    .step .bd { flex: 1 1 auto; min-width: 0; }
+    .step .ic { flex: 0 0 4.4rem; max-width: 4.4rem; overflow-wrap: anywhere; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 0.15em; }
+    .step .bd { flex: 1 1 auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
     .step .bd code { font-family: var(--mono); font-size: 0.76rem; word-break: break-all; }
-    .step .m { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 0.4rem; white-space: nowrap; }
+    .step .m { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 0.4rem; white-space: normal; overflow-wrap: anywhere; }
     .step.say .bd { white-space: pre-wrap; color: var(--fg-2); }
     .step.say .bd.clip { max-height: 4.2em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
     .step .x { font: inherit; font-size: 0.74rem; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; }
@@ -175,7 +175,7 @@
     .tag { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.08rem 0.4rem; border-radius: 999px; margin-left: 0.4rem; vertical-align: 0.1em; white-space: nowrap; }
     .tag.cut { background: var(--thk-soft); color: var(--thk); }
     .tag.err { background: var(--flag-soft); color: var(--flag); }
-    .blob { font-family: var(--mono); font-size: 0.7rem; line-height: 1.4; white-space: pre; overflow: auto; max-height: 24rem; background: var(--card-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.6rem; margin: 0.3rem 0 0.2rem; }
+    .blob { font-family: var(--mono); font-size: 0.7rem; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-width: 100%; max-height: 24rem; background: var(--card-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.6rem; margin: 0.3rem 0 0.2rem; }
     .tstats { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.5rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem 0.6rem; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
     .tstats div { color: var(--muted); }
     .tstats div b { display: block; color: var(--fg); font-weight: 600; font-size: 0.86rem; }
@@ -365,7 +365,7 @@
       const row = r => {
         const a = r.summary.cut[key], b = r.summary.control[key] - (!state.cold ? r.summary.coldCost?.[state.ttl] || 0 : 0);
         const saved = b - a;
-        if (r.summary.savings) { const v = r.summary.savings; return `<span class="session-copy"><b>${esc(r.label)}</b><small>${esc(r.description)}</small></span><span class="session-saving good"><b>${v.minPercent.toFixed(1)}–${v.maxPercent.toFixed(1)}% saved</b><small>${usd(v.minDollars)}–${usd(v.maxDollars)} less at list</small></span>`; }
+        if (r.summary.savings) { const v = r.summary.savings; return `<span class="session-copy"><b>${esc(r.label)}</b><small>${esc(r.description)}</small></span><span class="session-saving good"><b>At least ${v.minPercent.toFixed(1)}% saved</b><small>At least ${usd(v.minDollars)} less at list</small></span>`; }
         return `<span class="session-copy"><b>${esc(r.label)}</b><small>${esc(r.description || '')}</small></span><span class="session-saving ${saved >= 0 ? 'good' : 'bad'}"><b>${Math.abs(saved / b * 100).toFixed(1)}% ${saved >= 0 ? 'saved' : 'more'}</b><small>${usd(Math.abs(saved))} ${saved >= 0 ? 'less' : 'more'} at list</small></span>`;
       };
       $('#session-label').innerHTML = row(RUN()) + '<span class="chevron" aria-hidden="true">⌄</span>';
@@ -373,7 +373,7 @@
       $('#ttl-label').textContent = D().costBounds ? 'Cost assumption' : 'Cache TTL';
       document.querySelector('#ttl [data-v="1h"]').textContent = D().costBounds ? '30m write bound' : '1 hour';
       document.querySelector('#ttl [data-v="5m"]').textContent = D().costBounds ? 'Input bound' : '5 minutes';
-      $('#cost-note').textContent = D().costBounds ? `Scenario: ${costLabel()}. Cache reads and output are recorded; unknown cache writes are bounded. The savings range covers both arms’ possible costs.` : 'At list prices: input, cache reads, cache writes, output.';
+      $('#cost-note').textContent = D().costBounds ? `Scenario: ${costLabel()}. Cache reads and output are recorded; unknown cache writes are bounded. The headline is the minimum saving across both arms’ possible costs.` : 'At list prices: input, cache reads, cache writes, output.';
       $('#cold-wrap').style.display = D().cold ? '' : 'none';
       $('#pos').max = N();
       $('#legend1').innerHTML = `<span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span>${heldOf().length ? '<span><i class="heldmark"></i>cut refused</span>' : ''}${rereads().length ? '<span><i class="flagmark"></i>re-read of a cleared file</span>' : ''}`;
@@ -388,7 +388,7 @@
       const ans = D().costBounds ? null : RUN().answers(D(), RUN());
       if (D().costBounds) {
         const v = D().savings, summary = RUN().summary;
-        $('#tiles').innerHTML = `<div class="tile"><div class="k">Coding cost saved</div><div class="v good">${v.minPercent.toFixed(1)}–${v.maxPercent.toFixed(1)}%</div><div class="sub">${usd(v.minDollars)}–${usd(v.maxDollars)} saved at standard API prices</div></div><div class="tile cost-range"><div class="k">Session cost range</div><div class="pair"><span>without <b>${usd(summary.control.cost5m)}–${usd(summary.control.cost1h)}</b></span><span>with <b>${usd(summary.cut.cost5m)}–${usd(summary.cut.cost1h)}</b></span></div><div class="sub">Missing cache-write counts; ranges are accounting bounds, not confidence intervals.</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cut events · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="pair"><span>without <b>5/5 criteria</b></span><span>with <b>5/5 criteria</b></span></div><div class="sub">Astra judge · each criterion must be met</div></div>`;
+        $('#tiles').innerHTML = `<div class="tile"><div class="k">Minimum coding cost saved</div><div class="v good">${v.minPercent.toFixed(1)}%</div><div class="sub">At least ${usd(v.minDollars)} saved at standard API prices. Conservative bound; accounting details below.</div></div><div class="tile cost-range"><div class="k">Session cost range</div><div class="pair"><span>without <b>${usd(summary.control.cost5m)}–${usd(summary.control.cost1h)}</b></span><span>with <b>${usd(summary.cut.cost5m)}–${usd(summary.cut.cost1h)}</b></span></div><div class="sub">Missing cache-write counts; ranges are accounting bounds, not confidence intervals.</div></div><div class="tile"><div class="k">Input tokens</div><div class="v good">${pct(a.reduce((n,x)=>n+x.carried,0),b.reduce((n,x)=>n+x.carried,0))}</div><div class="sub">${cutsOf().length} cut events · ${a.length} vs ${b.length} calls</div></div><div class="tile"><div class="k">LLM-judged success</div><div class="v good">Both passed</div><div class="pair"><span>without <b>5/5 criteria</b></span><span>with <b>5/5 criteria</b></span></div><div class="sub">Astra judge · each criterion must be met</div></div>`;
         return;
       }
       $('#tiles').innerHTML = `
@@ -533,7 +533,7 @@
       }
       $('#calls').innerHTML = h;
       $('#judge-evidence').innerHTML = D().costBounds ? `<h2>Success criteria</h2><p class="sub">Astra judged both final patches against the same five essential criteria. Every criterion was met in both arms. Tests are supporting evidence.</p><div class="tbl-wrap"><table class="ptab"><tr><th>Criterion</th><th>Without thinker</th><th>With thinker</th></tr>${D().cut.judgment.criteria.map(c => `<tr><td>${esc(c.behavior)}</td>${['control','cut'].map(arm => { const v = D()[arm].judgment.verdicts.find(v => v.id === c.id); return `<td><details><summary>Met</summary>${esc(v.evidence)}</details></td>`; }).join('')}</tr>`).join('')}</table></div>` : '';
-      if (D().costBounds) { $('#caveats').innerHTML = `<p>Django PR21834, one pair with fourteen fixed prompts, Astra at high effort in both arms. Both patches met all five criteria under the same Astra judge. This selected example is not evidence of a general effect.</p><p>Costs use the API’s per-request input, cached-input and output tokens. Original Codex resumed-turn counters were cumulative; they are not used here. Cache-write counts were not recorded, so every uncached token is priced between ordinary input ($10/M) and the default 30-minute write rate ($12.50/M). Cached input is $1/M; output is $50/M. All requests stayed below the long-context threshold and used the default service tier and cache settings. The scenario selector changes the charts, while the headline always shows the full savings range.</p><p>These are standard API-equivalent coding costs, not an invoice. Judge, setup and cancelled attempts are excluded. Tool-result widths and removed-token counts are character estimates; request input and usage are API measurements. <a href="https://developers.openai.com/api/docs/models/gpt-6-astra">Astra prices</a> · <a href="https://developers.openai.com/api/docs/guides/prompt-caching">Cache accounting</a>.</p>`; return; }
+      if (D().costBounds) { $('#caveats').innerHTML = `<p><b>Historical per-request cutting policy.</b> This Codex run predates the shared turn-boundary policy; its small within-turn cuts are shown as recorded. It is not a measurement of batched cutting.</p><p>Django PR21834, one pair with fourteen fixed prompts, Astra at high effort in both arms. Both patches met all five criteria under the same Astra judge. This selected example is not evidence of a general effect.</p><p>Costs use the API’s per-request input, cached-input and output tokens. Original Codex resumed-turn counters were cumulative; they are not used here. Cache-write counts were not recorded, so every uncached token is priced between ordinary input ($10/M) and the default 30-minute write rate ($12.50/M). Cached input is $1/M; output is $50/M. All requests stayed below the long-context threshold and used the default service tier and cache settings. The scenario selector changes the charts, while the headline always shows the conservative minimum saving.</p><p>These are standard API-equivalent coding costs, not an invoice. Judge, setup and cancelled attempts are excluded. Tool-result widths and removed-token counts are character estimates; request input and usage are API measurements. <a href="https://developers.openai.com/api/docs/models/gpt-6-astra">Astra prices</a> · <a href="https://developers.openai.com/api/docs/guides/prompt-caching">Cache accounting</a>.</p>`; return; }
       $('#caveats').innerHTML = `<b>Notes</b><ul>${RUN().caveats.map(([b, t]) => `<li><b>${b}</b> ${t}</li>`).join('')}</ul>`;
     }
 
@@ -651,7 +651,7 @@
         <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pc(runT, runC)}</small></div><div class="pair"><span>reads <b>${money(rcT)}</b> (${pc(rcT, rcC)})</span><span>writes <b>${D().costBounds ? 'not recorded' : money(wcT)}</b>${D().costBounds ? '' : ' ('+pc(wcT,wcC)+')'}</span><span>${cut.calls.length} calls · ${cutsOf().length} cut${cutsOf().length === 1 ? '' : 's'}</span></div></div>
       </div>`;
       $('#timeline').innerHTML = head + html + end;
-      if (D().costBounds) { $('#sess-note').textContent = `Both Codex sessions, with API usage matched to the request dumps. Costs below use the ${costLabel()} scenario; the main Metrics view shows the full savings range and all five judge verdicts. Cache-write counts are unknown. Expand a tool result to read its original text; struck-through results had been replaced by placeholders. Only final-patch criteria determine success.`; return; }
+      if (D().costBounds) { $('#sess-note').textContent = `Both Codex sessions, with API usage matched to the request dumps. Costs below use the ${costLabel()} scenario; the main Metrics view shows the minimum saving, accounting bounds, and all five judge verdicts. Cache-write counts are unknown. Expand a tool result to read its original text; struck-through results had been replaced by placeholders. Only final-patch criteria determine success.`; return; }
       $('#sess-note').textContent = `Both runs from their own Claude Code transcripts; every call's tokens are what the API reported (they match the proxy log to the token). Prices at list, cache writes at the ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL${SESSION.cold && state.cold ? ', the control charged its skipped cold start' : ''}. Expand any result to read exactly what the model was shown; a struck-through result is one thinker had cleared by then.`;
     }
     $('#timeline').addEventListener('click', ev => {

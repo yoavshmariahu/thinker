@@ -141,14 +141,22 @@ export const KEEP_FILES = 400, KEEP_DAYS = 2;
 export function cutStore(dir) {
   const file = session => path.join(dir, `${String(session).replace(/[^\w.-]/g, '_')}.json`);
   let writes = 0;
+  const memory = new Map();
   return {
     read(session) {
-      if (!dir || !session) return freshCut(session);
+      if (!session) return freshCut(session);
+      if (memory.has(session)) return structuredClone(memory.get(session));
+      if (!dir) return freshCut(session);
       try { const r = JSON.parse(fs.readFileSync(file(session), 'utf8')); if (r && Array.isArray(r.cut)) return { ...freshCut(session), ...r }; } catch { /* no record yet */ }
       return freshCut(session);
     },
     write(rec) {
-      if (!dir || !rec?.session) return;
+      if (!rec?.session) return;
+      // Also hold the reservation in memory: a missing/unwritable log must not let
+      // the cut set drift within this process. Disk provides restart continuity.
+      memory.delete(rec.session); memory.set(rec.session, structuredClone(rec));
+      if (memory.size > KEEP_FILES) memory.delete(memory.keys().next().value);
+      if (!dir) return;
       try {
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(file(rec.session), JSON.stringify(rec));
