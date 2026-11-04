@@ -86,9 +86,12 @@ export const freshCut = session => ({
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
 export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {}) {
   const read = readRate(model);
-  const recache = Math.max(0, (m.prompt || cand.recache) - cand.tokens - (m.system || 0));
+  // `cand.recache` is the tail as it will be sent (proxy.js:cutCandidates), which is what the API writes
+  // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
+  // place in the cache, and not the system prompt, which is not in the messages at all.
+  const recache = Math.max(0, cand.recache || 0);
   const cost = cold ? 0 : recache * writeRate(ttl);
-  // How many later calls until the cut has paid for its rewrite. No horizon is guessed: see PAYBACK.
+  // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
   const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
   return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }

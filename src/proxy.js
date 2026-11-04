@@ -78,7 +78,7 @@ export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 
 // prompt's own size, and the turn's id. All of it from what sits before the turn: within a turn the request grows
 // with every call, and a verdict that moved from one call of a turn to the next would move the cut with it, which
 // is the rewrite this exists to avoid.
-export function measureClearing(cfg, j) {
+export function measurePrompt(cfg, j) {
   const txt = v => { try { return v == null ? 0 : JSON.stringify(v).length; } catch { return 0; } };
   const tok = chars => Math.floor(chars * TOKENS_PER_CHAR);
   const all = Array.isArray(j?.messages) ? j.messages : [];
@@ -86,10 +86,11 @@ export function measureClearing(cfg, j) {
   const head = txt(j?.system) + txt(j?.tools);
   const prompt = tok(head + txt(messages));
 
-  // the system prompt is the one cache breakpoint a mid-conversation edit leaves usable, so it is the
-  // only part of the prompt a cut does not pay to write again (measured 2026-11-04: on each of four
-  // cuts, write == post-cut prompt - 12,895, and 12,895 was exactly that call's cache read)
-  return { prompt, prefix: Math.min(prompt, tok(head)), turn: turnId(all), system: tok(j?.system) };
+  // `prompt` is the whole request less the turn in progress, and it exists for one thing: the trigger.
+  // What a cut costs is not here -- it is the tail from the first replaced result, which only the
+  // candidate walk can know (cutCandidates). `prefix` and `system` were read by the old cost model and
+  // are gone with it.
+  return { prompt, turn: turnId(all) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -266,9 +267,18 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     if (text.length < minChars) return;
     ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
   });
-  // the tail the rewrite pays for: every message from the first replaced one onward
+  // What the rewrite actually pays for: the messages from the first replaced one onward, AS THEY WILL BE
+  // SENT -- the new placeholders and the ones already in the set, not the full results the agent resent.
+  // Measured on the original messages instead, this over-stated the cost by 3.1x, 7.9x and 14.9x on the
+  // second, third and fourth cut of a 28-turn session (2026-11-04), because every result cut earlier was
+  // still counted at full size. The API's own writes on those four calls were 47k, 58k, 56k and 52k --
+  // flat, because the band runs up to the protection boundary, so everything between the first replaced
+  // result and the live turn is itself replaced and the tail is only the part that survives.
   let tail = 0;
-  if (firstChanged >= 0) tail = JSON.stringify(messages.slice(firstChanged)).length * TOKENS_PER_CHAR;
+  if (firstChanged >= 0) {
+    const sent = applyCut(messages.slice(firstChanged), new Set([...have, ...ids])).messages;
+    tail = JSON.stringify(sent).length * TOKENS_PER_CHAR;
+  }
   return { ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), recache: Math.round(tail), firstChanged };
 }
 
@@ -355,7 +365,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Thinker cuts the context itself (cutting.js): one decision at a turn boundary, then the same set
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
   const rec = cfg.cutRecord || freshCut('');
-  const m = measureClearing(cfg, j);
+  const m = measurePrompt(cfg, j);
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
   const applied = applyCut(j.messages, d.cut);
