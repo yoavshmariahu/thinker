@@ -20,7 +20,7 @@ test('Responses clearing is opt-in and validates its routing and thresholds', ()
   const body = raw();
   assert.equal(transform(body, proxyConfig({}, {})).body, body);
   assert.throws(() => proxyConfig({ protocol: 'responses' }, {}), /explicit --upstream/);
-  for (const flags of [{ protocol: 'bogus' }, { keep: 2 }, { trigger: -1 }, { trigger: true }, { trigger: 'bad' }, { 'keep-min': -1 }, { 'clear-at-least': 0 }, { holdout: 2 }, { upstream: 'file:///tmp/no' }]) assert.throws(() => cfg(flags));
+  for (const flags of [{ protocol: 'bogus' }, { trigger: -1 }, { trigger: true }, { trigger: 'bad' }, { 'keep-min': -1 }, { 'clear-at-least': 0 }, { holdout: 2 }, { upstream: 'file:///tmp/no' }]) assert.throws(() => cfg(flags));
   assert.equal(proxyConfig({}, { THINKER_PROXY_PROTOCOL: 'responses', THINKER_PROXY_UPSTREAM: 'https://api.openai.com/v1' }).protocol, 'responses');
 });
 
@@ -183,5 +183,8 @@ test('managed service routes Codex by its existing auth without changing the Ant
   assert.equal(seen.chatgpt[1].path, '/backend-api/codex/responses/compact');
   assert.equal(seen.chatgpt[1].body, raw().toString());
   assert.equal(seen.anthropic[0].path, '/v1/messages');
-  assert.ok(JSON.parse(seen.anthropic[0].body).context_management.edits.length);
+  // The Anthropic route is passed through as the agent wrote it: since #610 the proxy cuts the context
+  // itself and asks the API for nothing, so no context_management is added (it carried edits before).
+  assert.equal(seen.anthropic[0].body, JSON.stringify({ model: 'claude', messages: [{ role: 'user', content: 'hello' }] }));
+  assert.equal(JSON.parse(seen.anthropic[0].body).context_management, undefined);
 });
