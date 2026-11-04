@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Thinker helps your coding agent use fewer tokens. Find wasted context, review what to cut, and reuse what it learns about your code.">
+  <meta name="description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -612,11 +612,16 @@
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#overview">Overview</a></li>
           <li class="sidebar-item"><a href="#install">Install and set up</a></li>
-          <li class="sidebar-item"><a href="#supported-agents">Supported agents</a></li>
         </ul>
       </div>
       <div class="sidebar-group">
-        <div class="sidebar-heading">Where the context goes</div>
+        <div class="sidebar-heading">Context compression</div>
+        <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#compression">Less history per call</a></li>
+        </ul>
+      </div>
+      <div class="sidebar-group">
+        <div class="sidebar-heading">Instruction file analysis</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#context">Find Savings</a></li>
           <li class="sidebar-item"><a href="#cuts">What you can cut</a></li>
@@ -647,6 +652,7 @@
       <div class="sidebar-group">
         <div class="sidebar-heading">Reference</div>
         <ul class="sidebar-nav">
+          <li class="sidebar-item"><a href="#supported-agents">Supported agents</a></li>
           <li class="sidebar-item"><a href="#local-page">The local page</a></li>
           <li class="sidebar-item"><a href="#configuration">Configuration</a></li>
           <li class="sidebar-item"><a href="#telemetry">Privacy and telemetry</a></li>
@@ -662,20 +668,56 @@
 
     <main>
       <section id="overview">
-        <h1 class="headline">Cut wasted context.</h1>
-        <p class="lead">Thinker helps your coding agent use fewer tokens. Find what it loads but rarely uses, review what to cut, and reuse what it learns about your code.</p>
+        <h1 class="headline">Spend fewer tokens on repeated context.</h1>
+        <p class="lead">Thinker works with your coding agent to reduce the context you pay to send again and again: old tool results, oversized instructions and code the agent has already explored.</p>
+        <ol>
+          <li><strong><a href="#compression">Context compression.</a></strong> Clear older tool results so later calls carry less history.</li>
+          <li><strong><a href="#context">Instruction file analysis.</a></strong> See which rules earn their place in every prompt, then review cuts to the rest.</li>
+          <li><strong><a href="#notes">Knowledge cache.</a></strong> Reuse what previous sessions learned, so the next task needs fewer searches and file reads.</li>
+        </ol>
+        <p>The saving adds up across model calls. Your token bill also depends on prompt-cache pricing and rewrites; Thinker reports tokens and costs so you can track the effect on your own work.</p>
         <pre><code>npx @zerotimedev/thinker</code></pre>
-        <p>Connect your agents, see suggested savings from recent sessions, and keep coding. <a href="#install">Installation details</a>.</p>
-        <figure class="ctx-figure" id="savings-preview">
-          <figcaption><b>Find Savings: see which instructions earn their place</b> <span class="ctx-example">example</span> <span class="ctx-sub">48 sessions, 2,500 prompts · 5,320 tokens per call · 13.3M input tokens on the file, 10.9M of it wasted</span><span class="ctx-capact"><span class="ctx-sub">3 sections picked · 3,660 tokens per call, 9.2M this week</span><span class="ctx-btn">Apply</span></span></figcaption>
-          <div class="table-scroll" tabindex="0" role="region" aria-label="Example instruction savings"><table class="ctx-table">
-            <thead><tr><th>Section</th><th class="num">Per prompt</th><th class="num">Needed</th><th class="num">This week</th><th class="num">Wasted</th><th></th></tr></thead>
-            <tbody><tr><td><input type="checkbox" aria-label="Pick Repository layout"> Repository layout</td><td class="num">420</td><td class="num">92%</td><td class="num">1.1M</td><td class="num">88k</td><td></td></tr><tr><td><input type="checkbox" aria-label="Pick Running the tests"> Running the tests</td><td class="num">310</td><td class="num">71%</td><td class="num">0.78M</td><td class="num">0.23M</td><td></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Release process" checked> Release process</td><td class="num">1,460</td><td class="num">4%</td><td class="num">3.6M</td><td class="num">3.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Deploy to staging" checked> Deploy to staging</td><td class="num">980</td><td class="num">0%</td><td class="num">2.5M</td><td class="num">2.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Legacy API notes" checked> Legacy API notes</td><td class="num">1,220</td><td class="num">3%</td><td class="num">3M</td><td class="num">2.9M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr><td><input type="checkbox" aria-label="Pick Commit conventions"> Commit conventions</td><td class="num">240</td><td class="num">58%</td><td class="num">0.6M</td><td class="num">0.25M</td><td></td></tr><tr class="ctx-medium"><td><input type="checkbox" aria-label="Pick Database migrations"> Database migrations</td><td class="num">690</td><td class="num">19%</td><td class="num">1.7M</td><td class="num">1.4M</td><td><span class="ctx-pill medium">medium waste</span></td></tr></tbody>
-          </table></div>
-          <p class="ctx-note">Pick sections to shorten or remove, review the diff, then open a pull request. <a href="#cuts">How to make a cut</a>.</p>
+        <p>Connect your agents and keep coding. <a href="#install">Installation details</a>.</p>
+      </section>
+
+      <section id="install">
+        <h2>Install and connect your agents</h2>
+        <pre><code>npx @zerotimedev/thinker</code></pre>
+        <p>Requires Node 20+, git, curl, tar and a <a href="#supported-agents">supported coding agent</a>. The installer connects your agents and shows where their context goes. Choose the browser or terminal to review suggested cuts.</p>
+        <ol>
+          <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the knowledge cache learns as you work.</li>
+          <li><strong>Find Savings:</strong> review the suggested instructions, skills and tools to shorten or switch off.</li>
+          <li><strong>Apply your choices:</strong> preview instruction changes as a diff; in the browser, open a pull request to review and merge.</li>
+          <li><strong>View Report:</strong> track tokens and costs week by week as you keep working.</li>
+        </ol>
+        <p>Keep working as usual. Thinker learns and checks notes in the background, and periodically suggests instruction and tool changes for you to review. Open <code>thinker ui</code> whenever you want to see savings or reports.</p>
+        <details class="fold">
+          <summary>What installation changes</summary>
+          <p>Thinker installs under <code>~/.thinker</code> and connects your agents in their own settings. Its first report reads the last 30 days of sessions in your five most active repositories; generating that report needs no model call. In the browser, suggestions arrive checked for review. Instruction files and tool settings change only when you apply your choices. Context compression runs automatically where supported.</p>
+          <p>Each repository's cache starts empty and grows from your sessions. Notes are stored locally under <code>.thinker/</code>. Learning and verification use your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
+          <p>Use <code>--no-ui</code> to stay in the terminal. With <code>--yes</code> or no terminal, the installer prints the report.</p>
+        </details>
+      </section>
+
+      <div class="part-label">Context compression</div>
+
+      <section id="compression">
+        <h2>Stop carrying old tool results into every call.</h2>
+        <p>A file read or test log can stay in context long after the agent used it. Every later model call carries it again. Thinker automatically clears older results in supported agents, reducing the input tokens those calls need.</p>
+        <figure class="ctx-figure">
+          <figcaption><b>What one session sends, call by call</b> <span class="ctx-example">example</span> <span class="ctx-sub">12 model calls · 377k input tokens in all, 57% of them the fixed part</span></figcaption>
+          <div class="ctx-legend"><span><i style="background:#2a78d6"></i>Instruction files</span><span><i style="background:#eb6834"></i>Custom tools</span><span><i style="background:#1baf7a"></i>Built-in tools</span><span><i style="background:#eda100"></i>Tool outputs so far</span></div>
+          <svg class="ctx-chart" viewBox="0 0 720 236" role="img" aria-labelledby="ctx-mult-title" aria-describedby="ctx-mult-desc"><title id="ctx-mult-title">Example: the context sent on each model call of one session</title><desc id="ctx-mult-desc">Twelve columns, one per model call. The lowest three bands, the instruction files, custom tools and built-in tools, are the same 18k tokens on every call; the tool outputs above them grow from nothing to 25k as results accumulate. The session sends 377k input tokens in all.</desc><line x1="52" y1="149.5" x2="712" y2="149.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="153.5" text-anchor="end" class="ctx-tick">12k</text><line x1="52" y1="103.0" x2="712" y2="103.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="107.0" text-anchor="end" class="ctx-tick">24k</text><line x1="52" y1="56.5" x2="712" y2="56.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="60.5" text-anchor="end" class="ctx-tick">36k</text><line x1="52" y1="10.0" x2="712" y2="10.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="14.0" text-anchor="end" class="ctx-tick">48k</text><line x1="52" y1="196" x2="712" y2="196" stroke="#d1d5db" stroke-width="1"/><rect x="62.0" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 1 · Instruction files: 6.4k tokens</title></rect><rect x="62.0" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 1 · Custom tools: 9.8k tokens</title></rect><rect x="62.0" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 1 · Built-in tools: 1.8k tokens</title></rect><text x="84.1" y="121.2" text-anchor="middle" class="ctx-total">18k</text><text x="84.1" y="214" text-anchor="middle" class="ctx-tick">1</text><rect x="116.2" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 2 · Instruction files: 6.4k tokens</title></rect><rect x="116.2" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 2 · Custom tools: 9.8k tokens</title></rect><rect x="116.2" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 2 · Built-in tools: 1.8k tokens</title></rect><rect x="116.2" y="119.3" width="44.2" height="7.0" fill="#eda100"><title>Call 2 · Tool outputs so far: 1.8k tokens</title></rect><text x="138.3" y="114.3" text-anchor="middle" class="ctx-total">20k</text><text x="138.3" y="214" text-anchor="middle" class="ctx-tick">2</text><rect x="170.3" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 3 · Instruction files: 6.4k tokens</title></rect><rect x="170.3" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 3 · Custom tools: 9.8k tokens</title></rect><rect x="170.3" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 3 · Built-in tools: 1.8k tokens</title></rect><rect x="170.3" y="116.2" width="44.2" height="10.1" fill="#eda100"><title>Call 3 · Tool outputs so far: 2.6k tokens</title></rect><text x="192.4" y="111.2" text-anchor="middle" class="ctx-total">21k</text><text x="192.4" y="214" text-anchor="middle" class="ctx-tick">3</text><rect x="224.5" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 4 · Instruction files: 6.4k tokens</title></rect><rect x="224.5" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 4 · Custom tools: 9.8k tokens</title></rect><rect x="224.5" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 4 · Built-in tools: 1.8k tokens</title></rect><rect x="224.5" y="88.7" width="44.2" height="37.6" fill="#eda100"><title>Call 4 · Tool outputs so far: 9.7k tokens</title></rect><text x="246.6" y="83.7" text-anchor="middle" class="ctx-total">28k</text><text x="246.6" y="214" text-anchor="middle" class="ctx-tick">4</text><rect x="278.7" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 5 · Instruction files: 6.4k tokens</title></rect><rect x="278.7" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 5 · Custom tools: 9.8k tokens</title></rect><rect x="278.7" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 5 · Built-in tools: 1.8k tokens</title></rect><rect x="278.7" y="84.0" width="44.2" height="42.2" fill="#eda100"><title>Call 5 · Tool outputs so far: 10.9k tokens</title></rect><text x="300.7" y="79.0" text-anchor="middle" class="ctx-total">29k</text><text x="300.7" y="214" text-anchor="middle" class="ctx-tick">5</text><rect x="332.8" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 6 · Instruction files: 6.4k tokens</title></rect><rect x="332.8" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 6 · Custom tools: 9.8k tokens</title></rect><rect x="332.8" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 6 · Built-in tools: 1.8k tokens</title></rect><rect x="332.8" y="79.4" width="44.2" height="46.9" fill="#eda100"><title>Call 6 · Tool outputs so far: 12.1k tokens</title></rect><text x="354.9" y="74.4" text-anchor="middle" class="ctx-total">30k</text><text x="354.9" y="214" text-anchor="middle" class="ctx-tick">6</text><rect x="387.0" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 7 · Instruction files: 6.4k tokens</title></rect><rect x="387.0" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 7 · Custom tools: 9.8k tokens</title></rect><rect x="387.0" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 7 · Built-in tools: 1.8k tokens</title></rect><rect x="387.0" y="70.4" width="44.2" height="55.8" fill="#eda100"><title>Call 7 · Tool outputs so far: 14.4k tokens</title></rect><text x="409.1" y="65.4" text-anchor="middle" class="ctx-total">32k</text><text x="409.1" y="214" text-anchor="middle" class="ctx-tick">7</text><rect x="441.2" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 8 · Instruction files: 6.4k tokens</title></rect><rect x="441.2" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 8 · Custom tools: 9.8k tokens</title></rect><rect x="441.2" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 8 · Built-in tools: 1.8k tokens</title></rect><rect x="441.2" y="68.1" width="44.2" height="58.1" fill="#eda100"><title>Call 8 · Tool outputs so far: 15k tokens</title></rect><text x="463.2" y="63.1" text-anchor="middle" class="ctx-total">33k</text><text x="463.2" y="214" text-anchor="middle" class="ctx-tick">8</text><rect x="495.3" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 9 · Instruction files: 6.4k tokens</title></rect><rect x="495.3" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 9 · Custom tools: 9.8k tokens</title></rect><rect x="495.3" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 9 · Built-in tools: 1.8k tokens</title></rect><rect x="495.3" y="39.8" width="44.2" height="86.4" fill="#eda100"><title>Call 9 · Tool outputs so far: 22.3k tokens</title></rect><text x="517.4" y="34.8" text-anchor="middle" class="ctx-total">40k</text><text x="517.4" y="214" text-anchor="middle" class="ctx-tick">9</text><rect x="549.5" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 10 · Instruction files: 6.4k tokens</title></rect><rect x="549.5" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 10 · Custom tools: 9.8k tokens</title></rect><rect x="549.5" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 10 · Built-in tools: 1.8k tokens</title></rect><rect x="549.5" y="36.7" width="44.2" height="89.5" fill="#eda100"><title>Call 10 · Tool outputs so far: 23.1k tokens</title></rect><text x="571.6" y="31.7" text-anchor="middle" class="ctx-total">41k</text><text x="571.6" y="214" text-anchor="middle" class="ctx-tick">10</text><rect x="603.7" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 11 · Instruction files: 6.4k tokens</title></rect><rect x="603.7" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 11 · Custom tools: 9.8k tokens</title></rect><rect x="603.7" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 11 · Built-in tools: 1.8k tokens</title></rect><rect x="603.7" y="33.3" width="44.2" height="93.0" fill="#eda100"><title>Call 11 · Tool outputs so far: 24k tokens</title></rect><text x="625.8" y="28.3" text-anchor="middle" class="ctx-total">42k</text><text x="625.8" y="214" text-anchor="middle" class="ctx-tick">11</text><rect x="657.8" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 12 · Instruction files: 6.4k tokens</title></rect><rect x="657.8" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 12 · Custom tools: 9.8k tokens</title></rect><rect x="657.8" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 12 · Built-in tools: 1.8k tokens</title></rect><rect x="657.8" y="28.6" width="44.2" height="97.6" fill="#eda100"><title>Call 12 · Tool outputs so far: 25.2k tokens</title></rect><text x="679.9" y="23.6" text-anchor="middle" class="ctx-total">43k</text><text x="679.9" y="214" text-anchor="middle" class="ctx-tick">12</text></svg>
+          <p class="ctx-note">The three lower bands are the same on every call: 18k tokens here, paid twelve times. The top band is every tool result so far, paid on every call after the one that read it.</p>
         </figure>
+        <p>In Claude Code, Thinker’s local proxy replaces older results with a short reminder to read them again if needed. It protects the current turn and recent results, and leaves your prompts and the agent’s replies intact. The decision accounts for the prompt-cache rewrite a cut can cause.</p>
+        <p>Installation enables compression where supported. Claude Desktop clears inside the session; Codex uses the local proxy; Devin uses its own compactor. <a href="#supported-agents">Agent support</a> varies. Run <code>thinker proxy status</code> to inspect the proxy, or <code>thinker proxy off</code> to disable it. For Claude Desktop, set <code>proxy: { desktop: false }</code> in the machine config.</p>
+        <p><a href="compression.html">Explore compression sessions and costs →</a> Fewer input tokens do not guarantee a lower bill: cache rewrites and extra reads also count.</p>
+        <details class="fold">
+          <summary>Optional: trim a result before it enters context</summary>
+          <p>Claude Code also supports per-tool output trimming with <code>thinker context --output-compression Read --level moderate</code>. Use <code>--level off</code> to disable it. This is off by default and separate from automatic clearing.</p>
         <figure class="ctx-figure" id="output-preview">
-          <figcaption><b>A tool result, before and after compression</b> <span class="ctx-example">example</span></figcaption>
+          <figcaption><b>Optional output trimming, before and after</b> <span class="ctx-example">example</span></figcaption>
           <div class="ctx-split">
             <div>
               <div class="ctx-head">Read <code>src/billing/invoice.py</code> <span class="ctx-sub">612 lines · ~7.1k tokens, re-read by the 23 calls after it</span></div>
@@ -706,49 +748,26 @@ omitted 456–612: to_pdf, send
 read any range: Read with offset and limit</span></pre>
             </div>
           </div>
-          <p class="ctx-note">Keep the relevant lines; tell the agent how to read the rest. Available for Claude Code. <a href="#cuts">Compression settings and limits</a>.</p>
+          <p class="ctx-note">This example shows Claude Code’s optional output trimming. Automatic context compression instead clears older results after use.</p>
         </figure>
-        <p><strong>Keep the knowledge, too.</strong> Thinker learns from your sessions and brings relevant notes into future tasks, checking them as the code changes. <a href="#notes">How the cache works</a>.</p>
-      </section>
-
-      <section id="install">
-        <h2>Install and start saving</h2>
-        <pre><code>npx @zerotimedev/thinker</code></pre>
-        <p>Requires Node 20+, git, curl, tar and a <a href="#supported-agents">supported coding agent</a>. The installer connects your agents and shows where their context goes. Choose the browser or terminal to review suggested cuts.</p>
-        <ol>
-          <li><strong>Find Savings:</strong> review the suggested instructions, skills and tools to shorten or switch off.</li>
-          <li><strong>Apply your choices:</strong> preview instruction changes as a diff; in the browser, open a pull request to review and merge.</li>
-          <li><strong>View Report:</strong> track tokens and costs week by week as you keep working.</li>
-        </ol>
-        <p><strong>After that, thinker comes to you.</strong> You don't run it by hand. About once a week, once a repository has ten sessions to read, your agent opens its reply with a short message from thinker: one line per change worth making, what it would have saved and the suggested action, with a link to the page. Reply with the numbers to approve, or "all", or review them on the page first; nothing changes until you say so. Whenever you want the page itself, <code>thinker ui</code> opens it. Learning, re-checking notes and updates run in the background.</p>
-        <details class="fold">
-          <summary>What installation changes</summary>
-          <p>Thinker installs under <code>~/.thinker</code> and connects your agents in their own settings. Its first report reads the last 30 days of sessions in your five most active repositories; generating that report needs no model call. In the browser, suggestions arrive checked for review. Nothing is cut until you apply your choices.</p>
-          <p>Each repository's cache starts empty and grows from your sessions. Notes are stored locally under <code>.thinker/</code>. Learning and verification use your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
-          <p>Use <code>--no-ui</code> to stay in the terminal. With <code>--yes</code> or no terminal, the installer prints the report.</p>
         </details>
       </section>
 
-      <div class="part-label">Where the context goes</div>
+      <div class="part-label">Instruction file analysis</div>
 
       <section id="context">
-        <h2>Find Savings</h2>
-        <p>Find Savings opens from the link in the weekly suggestion, or with <code>thinker ui</code>. See what each instruction, skill and tool costs your sessions, then choose what to cut.</p>
+        <h2>Keep the instructions that earn their place.</h2>
+        <p>A 4k-token instruction section sent on 40 calls adds 160k input tokens. Open <strong>Find Savings</strong> with <code>thinker ui</code> to see which sections of <code>AGENTS.md</code> and <code>CLAUDE.md</code> your sessions use, then choose what to shorten or remove.</p>
+        <p>Review instruction changes in a pull request. The same view also identifies unused skills, MCP servers and tools you can switch off.</p>
 
-        <h3>Why a few thousand tokens matter</h3>
-        <p>
-          An agent's context is sent whole on every model call. The instruction file, the skill list, every MCP server's tool definitions and every tool result so far are re-read each time, and a coding session makes tens of calls. So a part's cost is its size times the calls: a 4k-token section read by 40 calls is 160k input tokens, and a 7k-token file read on the third call is paid on every call after it.
-        </p>
-        <figure class="ctx-figure">
-          <figcaption><b>What one session sends, call by call</b> <span class="ctx-example">example</span> <span class="ctx-sub">12 model calls · 377k input tokens in all, 57% of them the fixed part</span></figcaption>
-          <div class="ctx-legend"><span><i style="background:#2a78d6"></i>Instruction files</span><span><i style="background:#eb6834"></i>Custom tools</span><span><i style="background:#1baf7a"></i>Built-in tools</span><span><i style="background:#eda100"></i>Tool outputs so far</span></div>
-          <svg class="ctx-chart" viewBox="0 0 720 236" role="img" aria-labelledby="ctx-mult-title" aria-describedby="ctx-mult-desc"><title id="ctx-mult-title">Example: the context sent on each model call of one session</title><desc id="ctx-mult-desc">Twelve columns, one per model call. The lowest three bands, the instruction files, custom tools and built-in tools, are the same 18k tokens on every call; the tool outputs above them grow from nothing to 25k as results accumulate. The session sends 377k input tokens in all.</desc><line x1="52" y1="149.5" x2="712" y2="149.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="153.5" text-anchor="end" class="ctx-tick">12k</text><line x1="52" y1="103.0" x2="712" y2="103.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="107.0" text-anchor="end" class="ctx-tick">24k</text><line x1="52" y1="56.5" x2="712" y2="56.5" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="60.5" text-anchor="end" class="ctx-tick">36k</text><line x1="52" y1="10.0" x2="712" y2="10.0" stroke="#e5e7eb" stroke-width="1"/><text x="44" y="14.0" text-anchor="end" class="ctx-tick">48k</text><line x1="52" y1="196" x2="712" y2="196" stroke="#d1d5db" stroke-width="1"/><rect x="62.0" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 1 · Instruction files: 6.4k tokens</title></rect><rect x="62.0" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 1 · Custom tools: 9.8k tokens</title></rect><rect x="62.0" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 1 · Built-in tools: 1.8k tokens</title></rect><text x="84.1" y="121.2" text-anchor="middle" class="ctx-total">18k</text><text x="84.1" y="214" text-anchor="middle" class="ctx-tick">1</text><rect x="116.2" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 2 · Instruction files: 6.4k tokens</title></rect><rect x="116.2" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 2 · Custom tools: 9.8k tokens</title></rect><rect x="116.2" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 2 · Built-in tools: 1.8k tokens</title></rect><rect x="116.2" y="119.3" width="44.2" height="7.0" fill="#eda100"><title>Call 2 · Tool outputs so far: 1.8k tokens</title></rect><text x="138.3" y="114.3" text-anchor="middle" class="ctx-total">20k</text><text x="138.3" y="214" text-anchor="middle" class="ctx-tick">2</text><rect x="170.3" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 3 · Instruction files: 6.4k tokens</title></rect><rect x="170.3" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 3 · Custom tools: 9.8k tokens</title></rect><rect x="170.3" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 3 · Built-in tools: 1.8k tokens</title></rect><rect x="170.3" y="116.2" width="44.2" height="10.1" fill="#eda100"><title>Call 3 · Tool outputs so far: 2.6k tokens</title></rect><text x="192.4" y="111.2" text-anchor="middle" class="ctx-total">21k</text><text x="192.4" y="214" text-anchor="middle" class="ctx-tick">3</text><rect x="224.5" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 4 · Instruction files: 6.4k tokens</title></rect><rect x="224.5" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 4 · Custom tools: 9.8k tokens</title></rect><rect x="224.5" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 4 · Built-in tools: 1.8k tokens</title></rect><rect x="224.5" y="88.7" width="44.2" height="37.6" fill="#eda100"><title>Call 4 · Tool outputs so far: 9.7k tokens</title></rect><text x="246.6" y="83.7" text-anchor="middle" class="ctx-total">28k</text><text x="246.6" y="214" text-anchor="middle" class="ctx-tick">4</text><rect x="278.7" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 5 · Instruction files: 6.4k tokens</title></rect><rect x="278.7" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 5 · Custom tools: 9.8k tokens</title></rect><rect x="278.7" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 5 · Built-in tools: 1.8k tokens</title></rect><rect x="278.7" y="84.0" width="44.2" height="42.2" fill="#eda100"><title>Call 5 · Tool outputs so far: 10.9k tokens</title></rect><text x="300.7" y="79.0" text-anchor="middle" class="ctx-total">29k</text><text x="300.7" y="214" text-anchor="middle" class="ctx-tick">5</text><rect x="332.8" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 6 · Instruction files: 6.4k tokens</title></rect><rect x="332.8" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 6 · Custom tools: 9.8k tokens</title></rect><rect x="332.8" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 6 · Built-in tools: 1.8k tokens</title></rect><rect x="332.8" y="79.4" width="44.2" height="46.9" fill="#eda100"><title>Call 6 · Tool outputs so far: 12.1k tokens</title></rect><text x="354.9" y="74.4" text-anchor="middle" class="ctx-total">30k</text><text x="354.9" y="214" text-anchor="middle" class="ctx-tick">6</text><rect x="387.0" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 7 · Instruction files: 6.4k tokens</title></rect><rect x="387.0" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 7 · Custom tools: 9.8k tokens</title></rect><rect x="387.0" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 7 · Built-in tools: 1.8k tokens</title></rect><rect x="387.0" y="70.4" width="44.2" height="55.8" fill="#eda100"><title>Call 7 · Tool outputs so far: 14.4k tokens</title></rect><text x="409.1" y="65.4" text-anchor="middle" class="ctx-total">32k</text><text x="409.1" y="214" text-anchor="middle" class="ctx-tick">7</text><rect x="441.2" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 8 · Instruction files: 6.4k tokens</title></rect><rect x="441.2" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 8 · Custom tools: 9.8k tokens</title></rect><rect x="441.2" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 8 · Built-in tools: 1.8k tokens</title></rect><rect x="441.2" y="68.1" width="44.2" height="58.1" fill="#eda100"><title>Call 8 · Tool outputs so far: 15k tokens</title></rect><text x="463.2" y="63.1" text-anchor="middle" class="ctx-total">33k</text><text x="463.2" y="214" text-anchor="middle" class="ctx-tick">8</text><rect x="495.3" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 9 · Instruction files: 6.4k tokens</title></rect><rect x="495.3" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 9 · Custom tools: 9.8k tokens</title></rect><rect x="495.3" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 9 · Built-in tools: 1.8k tokens</title></rect><rect x="495.3" y="39.8" width="44.2" height="86.4" fill="#eda100"><title>Call 9 · Tool outputs so far: 22.3k tokens</title></rect><text x="517.4" y="34.8" text-anchor="middle" class="ctx-total">40k</text><text x="517.4" y="214" text-anchor="middle" class="ctx-tick">9</text><rect x="549.5" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 10 · Instruction files: 6.4k tokens</title></rect><rect x="549.5" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 10 · Custom tools: 9.8k tokens</title></rect><rect x="549.5" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 10 · Built-in tools: 1.8k tokens</title></rect><rect x="549.5" y="36.7" width="44.2" height="89.5" fill="#eda100"><title>Call 10 · Tool outputs so far: 23.1k tokens</title></rect><text x="571.6" y="31.7" text-anchor="middle" class="ctx-total">41k</text><text x="571.6" y="214" text-anchor="middle" class="ctx-tick">10</text><rect x="603.7" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 11 · Instruction files: 6.4k tokens</title></rect><rect x="603.7" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 11 · Custom tools: 9.8k tokens</title></rect><rect x="603.7" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 11 · Built-in tools: 1.8k tokens</title></rect><rect x="603.7" y="33.3" width="44.2" height="93.0" fill="#eda100"><title>Call 11 · Tool outputs so far: 24k tokens</title></rect><text x="625.8" y="28.3" text-anchor="middle" class="ctx-total">42k</text><text x="625.8" y="214" text-anchor="middle" class="ctx-tick">11</text><rect x="657.8" y="171.2" width="44.2" height="24.8" fill="#2a78d6"><title>Call 12 · Instruction files: 6.4k tokens</title></rect><rect x="657.8" y="133.2" width="44.2" height="38.0" fill="#eb6834"><title>Call 12 · Custom tools: 9.8k tokens</title></rect><rect x="657.8" y="126.2" width="44.2" height="7.0" fill="#1baf7a"><title>Call 12 · Built-in tools: 1.8k tokens</title></rect><rect x="657.8" y="28.6" width="44.2" height="97.6" fill="#eda100"><title>Call 12 · Tool outputs so far: 25.2k tokens</title></rect><text x="679.9" y="23.6" text-anchor="middle" class="ctx-total">43k</text><text x="679.9" y="214" text-anchor="middle" class="ctx-tick">12</text></svg>
-          <p class="ctx-note">The three lower bands are the same on every call: 18k tokens here, paid twelve times. The top band is every tool result so far, paid on every call after the one that read it.</p>
+        <figure class="ctx-figure" id="savings-preview">
+          <figcaption><b>Find Savings: see which instructions earn their place</b> <span class="ctx-example">example</span> <span class="ctx-sub">48 sessions, 2,500 prompts · 5,320 tokens per call · 13.3M input tokens on the file, 10.9M of it wasted</span><span class="ctx-capact"><span class="ctx-sub">3 sections picked · 3,660 tokens per call, 9.2M this week</span><span class="ctx-btn">Apply</span></span></figcaption>
+          <div class="table-scroll" tabindex="0" role="region" aria-label="Example instruction savings"><table class="ctx-table">
+            <thead><tr><th>Section</th><th class="num">Per prompt</th><th class="num">Needed</th><th class="num">This week</th><th class="num">Wasted</th><th></th></tr></thead>
+            <tbody><tr><td><input type="checkbox" aria-label="Pick Repository layout"> Repository layout</td><td class="num">420</td><td class="num">92%</td><td class="num">1.1M</td><td class="num">88k</td><td></td></tr><tr><td><input type="checkbox" aria-label="Pick Running the tests"> Running the tests</td><td class="num">310</td><td class="num">71%</td><td class="num">0.78M</td><td class="num">0.23M</td><td></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Release process" checked> Release process</td><td class="num">1,460</td><td class="num">4%</td><td class="num">3.6M</td><td class="num">3.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Deploy to staging" checked> Deploy to staging</td><td class="num">980</td><td class="num">0%</td><td class="num">2.5M</td><td class="num">2.5M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr class="ctx-high"><td><input type="checkbox" aria-label="Pick Legacy API notes" checked> Legacy API notes</td><td class="num">1,220</td><td class="num">3%</td><td class="num">3M</td><td class="num">2.9M</td><td><span class="ctx-pill high">high waste</span></td></tr><tr><td><input type="checkbox" aria-label="Pick Commit conventions"> Commit conventions</td><td class="num">240</td><td class="num">58%</td><td class="num">0.6M</td><td class="num">0.25M</td><td></td></tr><tr class="ctx-medium"><td><input type="checkbox" aria-label="Pick Database migrations"> Database migrations</td><td class="num">690</td><td class="num">19%</td><td class="num">1.7M</td><td class="num">1.4M</td><td><span class="ctx-pill medium">medium waste</span></td></tr></tbody>
+          </table></div>
+          <p class="ctx-note">Pick sections to shorten or remove, review the diff, then open a pull request. <a href="#cuts">How to make a cut</a>.</p>
         </figure>
-        <p>
-          Two things follow. A token cut from the fixed part is cut from every call, so a 1,200-token section nobody acts on costs far more than its size suggests. And a tool result is cheap once and expensive as it stays: compressing it saves on every call that follows, not only the one that read it.
-        </p>
-
         <h3>What it shows</h3>
         <p>
           <strong>Input tokens over time</strong>, as stacked columns by day or week, total or per session, split into the parts the agent reads on every model call. The page sorts by the cost a session: tokens times model calls.
@@ -816,17 +835,6 @@ read any range: Read with offset and limit</span></pre>
           <dt>Agents</dt><dd>Claude Code and Codex; Cursor for MCP servers.</dd>
         </dl>
 
-        <h3>Compress tool outputs</h3>
-        <p>
-          A tool result stays in the conversation, so every model call after it reads it again: a whole-file read is paid for twenty times over. Compression keeps what the agent was looking for and names what it left out, so the agent can ask for any range.
-        </p>
-
-        <dl class="how">
-          <dt>How</dt><dd>Claude Code's tool hook may replace a result before the model reads it; nothing thinker serves ever leaves the context again, so this is the one place tokens are taken out instead of added. Three shapes are trimmed. A whole-file read becomes the lines around the session's recent search patterns and the request's identifiers, every omitted range named with the definitions it holds and a last line saying how to read it. A test run becomes its counts and each distinct failure once, the full log kept under <code>.thinker/state/tests/</code>. A large search becomes its hits grouped per file. Any other output past the cap is cut to it: 40 lines each side of a hit, about 3k tokens of plain output. A file under 120 lines, one with no hit, or one where the kept lines reach 60% of it passes whole.</dd>
-          <dt>Measure</dt><dd>After you change compression, the tool is measured from that setting onward. Its previous measurement stays as a muted row for comparison, below current rows.</dd>
-          <dt>Undo</dt><dd><strong>No compression</strong> on the page. It is a setting in <code>.thinker/config.json</code>; nothing already in a conversation changes.</dd>
-          <dt>Agents</dt><dd>Claude Code only.</dd>
-        </dl>
       </section>
 
       <section id="context-correctness">
@@ -835,17 +843,137 @@ read any range: Read with offset and limit</span></pre>
           Every cut removes something the agent might have read. What keeps that from costing you a task:
         </p>
         <ul>
-          <li><strong>Nothing is cut by itself.</strong> The report measures. Each cut is your choice, shown first as a diff, a setting or a sample result, and each has an undo path.</li>
+          <li><strong>Instruction and tool changes are your choice.</strong> Review the instruction diff or setting before applying it. Automatic <a href="#compression">context compression</a> runs separately.</li>
           <li><strong>Use is measured before you cut.</strong> A section applied in 90% of sessions wastes a tenth of its cost at most, and is flagged only when that tenth is still a large share of the file. Start with high waste: large, and used in almost no session. The saving shown is the most a cut can save; a session that needed the part goes without it.</li>
           <li><strong>Compression keeps the rules.</strong> The model that shortens a section is told to keep every instruction, command, flag, default and path and to drop history, numbers and rationale, and you read the diff in the pull request before merging it. Remove is yours to judge; in doubt, compress.</li>
-          <li><strong>A trimmed result says what it left out.</strong> A compressed file read names each omitted range and how to read it back, so the cost of a wrong guess is a second read, not a missed fact. A file the trim would not shorten passes whole, and full test logs stay on disk.</li>
-          <li><strong>You can undo a cut.</strong> Close an unmerged instruction PR or revert a merged change; use <strong>Turn back on</strong> for anything switched off, <strong>No compression</strong> for compression; <strong>Revert</strong> under Recent activity covers both. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
+          <li><strong>You can undo a cut.</strong> Close an unmerged instruction PR or revert a merged change; use <strong>Turn back on</strong> for anything switched off. Recent activity tracks your changes. The <a href="#faq-cut-files">FAQ</a> lists what each cut writes.</li>
         </ul>
         <p>
           <strong>What the numbers are.</strong> Tokens are counted from the transcripts at about four characters a token, times the model calls the transcript records. A tool output's cost is its tokens times the calls left after it; a compaction, which drops old results, is not seen, so that part is an upper estimate. The waste flags are measurements of use, not a promise: whether the agent then misses a cut section is what <em>followed</em> and <em>missed</em> are there to show, on your own sessions. No benchmark is claimed for the cuts; the <a href="#overview" onclick="openModal(); return false;">benchmarks</a> are about the cache.
         </p>
       </section>
 
+
+
+      <div class="part-label">The knowledge cache</div>
+
+      <section id="notes">
+        <h2>Reuse what your agent already learned.</h2>
+        <p>Thinker turns useful findings from your sessions into short notes and brings relevant ones into future tasks. A pointer to the right function or a known trap can save the agent from repeating the searches and file reads that found it. The cache starts empty and grows as you work.</p>
+        <h3>What a note is</h3>
+        <p>
+          A note answers a recurring question about the repository, not "what this file does". It is 3 to 12 lines with <code>file:Symbol</code> pointers into the code, and it comes in four kinds:
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Kind</th><th>What it answers</th></tr></thead>
+            <tbody>
+              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why.</td></tr>
+              <tr><td><code>map</code></td><td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td></tr>
+              <tr><td><code>howto</code></td><td>How to build, test, run or lint, with the non-obvious flags</td></tr>
+              <tr><td><code>behavior</code></td><td>A rule a design document checked into the repository states, or one a person wrote down</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Each note stores its title, the questions it answers, its body, the files and symbols it rests on with their content hashes, its source (a session, a pull request, a person), its confidence and its status. A note's pointers are its dependencies: a note about <code>AuthManager.verifyToken</code> hashes that definition alone, so it does not go stale because another method in the same file changed.
+        </p>
+      </section>
+
+      <section id="keeping-current">
+        <h2>Keeping it current</h2>
+        <p>
+          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a daily token cap (<code>maintain.dailyTokens</code> in the <a href="#configuration">configuration</a>):
+        </p>
+        <h3>It learns from every session</h3>
+        <ul>
+          <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
+          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration (off by default: the cache grows from the sessions).</li>
+          <li><strong>People</strong> add notes too: telling your agent to remember something makes it a note when the session is distilled.</li>
+        </ul>
+        <h3>It knows when a note is stale</h3>
+        <ul>
+          <li>Thinker checks each note’s dependencies against your working tree, including uncommitted edits. An ordinary code change queues verification while the note remains available.</li>
+          <li>Missing files or symbols and explicit contradictions withhold a note. Verification checks whether to keep, update or retire it.</li>
+          <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model, which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
+          <li>The block is found by a tree-sitter parser for Python, JavaScript, TypeScript, Go and Rust, which comes with the install. Other languages, and code the parser cannot read, use a regex heuristic.</li>
+        </ul>
+        <h3>It maintains itself</h3>
+        <p>
+          Maintenance runs from the prompt hooks and after every commit or merge, and spends little by default: one verification batch every three days, of the stale notes served in the last three days (at most 50), retrieval phrasings for new notes, and the removal of notes nobody was served in 14 days (a committed note is archived instead). Mining pull requests, reading design documents and carding skill files in the background are off unless the repository's <code>maintain</code> configuration turns each on. What a run did is shown once at the end of the next turn.
+        </p>
+        <div class="callout note">
+          <strong>Local by default.</strong> Learned notes live in <code>.thinker/local/</code>, which git ignores.
+        </div>
+      </section>
+
+      <section id="skills">
+        <h2>Skills</h2>
+        <p>
+          A skill is a file (<code>SKILL.md</code>) an agent pulls into its context by name: how to deploy, how to run the tests here, how to add a webhook. Its instructions rest on code that moves, so a skill decays the way a note does. Thinker treats the skill files checked into a repository as cached knowledge; it never edits one.
+        </p>
+        <ul>
+          <li><strong>Each skill gets a card.</strong> A skill file under <code>.claude/skills</code>, <code>.agents/skills</code>, <code>.codex/skills</code>, <code>.cursor/skills</code>, <code>.github/skills</code> or <code>skills/</code> gets a note of kind <code>skill</code>: what it is for, when to invoke it, what it prescribes, with pointers at the code it talks about. Maintenance cards new and changed files where <code>maintain.skills</code> is on. A served card tells the agent to invoke the skill for the full instructions.</li>
+          <li><strong>A card is served like any note.</strong> The hooks rank it with the rest, so a request the skill is about brings the card with its pointer to the file; nothing has to be asked for.</li>
+          <li><strong>Each card is audited against the code.</strong> When code a skill talks about changes, the audit reads the file against the current code and asks one question: does the code contradict something the skill states? A skill the code contradicts is <strong>out of date</strong>: its issues are recorded, it is not served, and no further model call is spent on it until the file changes.</li>
+          <li><strong>Sessions grade them.</strong> A session that invoked a skill is read for whether the skill held; a contradiction the session found takes the skill out the same way. Among skills that do the same thing, the one the sessions confirm is the one served (<code>skills.prefer</code> in the config pins one).</li>
+        </ul>
+      </section>
+
+      <div class="part-label">Efficient coding</div>
+
+      <section id="in-a-session">
+        <h2>In a session</h2>
+        <p>
+          Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
+        </p>
+        <ul>
+          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves up to two notes, only those it scores relevant; when it is missing, notes are ranked by words alone. A note is served once per session, withheld when its dependencies are missing or its claim is contradicted, and skipped for a one-word turn of conversation. When nothing fits, nothing is served.</li>
+          <li><strong>Each file the agent edits</strong> brings the rules resting on it, so a trap on that code is in front of the agent as it changes it.</li>
+          <li><strong>Periodic summaries</strong> show which notes were served. View Report tracks whether the agent acted on them and what learning cost.</li>
+        </ul>
+        <p>
+          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
+        </p>
+      </section>
+
+      <section id="tools">
+        <h2>The MCP server</h2>
+        <p>
+          The notes reach the agent through the hooks alone. The MCP server offers the agent no tools (since 2026-10-22; the <code>orient</code>, <code>lookup</code>, <code>remember</code> and <code>feedback</code> tools are gone): it carries thinker's own questions and, in a desktop app, its learning queue.
+        </p>
+      </section>
+
+      <div class="part-label">Measure it yourself</div>
+
+      <section id="usage">
+        <h2>Usage and the holdout</h2>
+        <div class="outcomes">
+          <a class="outcome" href="#in-a-session">
+            <div class="outcome-kicker">Tokens</div>
+            <div class="outcome-num">18% fewer input tokens</div>
+            <div class="outcome-label">per coding task</div>
+            <p class="outcome-body">The cache gives the agent the context that fits its task, so it does not have to build up its own picture of the codebase from file reads and searches.</p>
+            <div class="outcome-cta">What a session looks like &rarr;</div>
+          </a>
+          <a class="outcome" href="#holdout">
+            <div class="outcome-kicker">Wall time</div>
+            <div class="outcome-num">10% less wall time</div>
+            <div class="outcome-label">per coding task</div>
+            <p class="outcome-body">Fewer searches mean fewer turns and tool calls, so the same model finishes the same task sooner.</p>
+            <div class="outcome-cta">Measure it on your own sessions &rarr;</div>
+          </a>
+        </div>
+        <p class="outcomes-caption">Knowledge-cache benchmarks: one run per arm, different task sets per model. These results do not measure the Find Savings cuts. <button type="button" onclick="openModal()">See the benchmarks</button> or read the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">method and limitations</a>.</p>
+        <p>
+          View Report on the <a href="#local-page">local page</a> shows how the cache has been used, for one repository or every repository on the machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. Where the context itself goes is the <a href="#context">Find Savings view</a>.
+        </p>
+        <p id="holdout">
+          One number in it is measured rather than estimated. The hooks serve nothing in 15% of prompts, chosen by a hash of the session id and the turn's number, and what every turn cost is recorded from the session's transcript. The holdout comparison compares the prompts that got notes with the ones that had notes withheld, as cost per prompt overall and per model, once twenty prompts stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
+        </p>
+      </section>
+
+      <div class="part-label">Reference</div>
 
       <section id="supported-agents">
         <h2>Supported agents</h2>
@@ -897,123 +1025,6 @@ read any range: Read with offset and limit</span></pre>
         </p>
       </section>
 
-      <div class="part-label">The knowledge cache</div>
-
-      <section id="notes">
-        <h2>What a note is</h2>
-        <p>
-          A note answers a recurring question about the repository, not "what this file does". It is 3 to 12 lines with <code>file:Symbol</code> pointers into the code, and it comes in four kinds:
-        </p>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>Kind</th><th>What it answers</th></tr></thead>
-            <tbody>
-              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why.</td></tr>
-              <tr><td><code>map</code></td><td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td></tr>
-              <tr><td><code>howto</code></td><td>How to build, test, run or lint, with the non-obvious flags</td></tr>
-              <tr><td><code>behavior</code></td><td>A rule a design document checked into the repository states, or one a person wrote down</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p>
-          Each note stores its title, the questions it answers, its body, the files and symbols it rests on with their content hashes, its source (a session, a pull request, a person), its confidence and its status. A note's pointers are its dependencies: a note about <code>AuthManager.verifyToken</code> hashes that definition alone, so it does not go stale because another method in the same file changed.
-        </p>
-      </section>
-
-      <section id="keeping-current">
-        <h2>Keeping it current</h2>
-        <p>
-          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a daily token cap (<code>maintain.dailyTokens</code> in the <a href="#configuration">configuration</a>):
-        </p>
-        <h3>It learns from every session</h3>
-        <ul>
-          <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
-          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration (off by default: the cache grows from the sessions).</li>
-          <li><strong>People</strong> add notes too: telling your agent to remember something makes it a note when the session is distilled.</li>
-        </ul>
-        <h3>It knows when a note is stale</h3>
-        <ul>
-          <li>Every serving re-hashes the dependencies of every note against your working tree, uncommitted edits included. A note whose code changed is marked stale and names exactly what changed.</li>
-          <li>A stale note is <strong>never served by the hooks</strong>. It is held back, re-verified in the background, and served again once it is fresh.</li>
-          <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model, which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
-          <li>The block is found by a tree-sitter parser for Python, JavaScript, TypeScript, Go and Rust, which comes with the install. Other languages, and code the parser cannot read, use a regex heuristic.</li>
-        </ul>
-        <h3>It maintains itself</h3>
-        <p>
-          Maintenance runs from the prompt hooks and after every commit or merge, and spends little by default: one verification batch every three days, of the stale notes served in the last three days (at most 50), retrieval phrasings for new notes, and the removal of notes nobody was served in 14 days (a committed note is archived instead). Mining pull requests, reading design documents and carding skill files in the background are off unless the repository's <code>maintain</code> configuration turns each on. What a run did is shown once at the end of the next turn.
-        </p>
-        <div class="callout note">
-          <strong>Local by default.</strong> Learned notes live in <code>.thinker/local/</code>, which git ignores.
-        </div>
-      </section>
-
-      <section id="skills">
-        <h2>Skills</h2>
-        <p>
-          A skill is a file (<code>SKILL.md</code>) an agent pulls into its context by name: how to deploy, how to run the tests here, how to add a webhook. Its instructions rest on code that moves, so a skill decays the way a note does. Thinker treats the skill files checked into a repository as cached knowledge; it never edits one.
-        </p>
-        <ul>
-          <li><strong>Each skill gets a card.</strong> A skill file under <code>.claude/skills</code>, <code>.agents/skills</code>, <code>.codex/skills</code>, <code>.cursor/skills</code>, <code>.github/skills</code> or <code>skills/</code> gets a note of kind <code>skill</code>: what it is for, when to invoke it, what it prescribes, with pointers at the code it talks about. Maintenance cards new and changed files where <code>maintain.skills</code> is on. A served card tells the agent to invoke the skill for the full instructions.</li>
-          <li><strong>A card is served like any note.</strong> The hooks rank it with the rest, so a request the skill is about brings the card with its pointer to the file; nothing has to be asked for.</li>
-          <li><strong>Each card is audited against the code.</strong> When code a skill talks about changes, the audit reads the file against the current code and asks one question: does the code contradict something the skill states? A skill the code contradicts is <strong>out of date</strong>: its issues are recorded, it is not served, and no further model call is spent on it until the file changes.</li>
-          <li><strong>Sessions grade them.</strong> A session that invoked a skill is read for whether the skill held; a contradiction the session found takes the skill out the same way. Among skills that do the same thing, the one the sessions confirm is the one served (<code>skills.prefer</code> in the config pins one).</li>
-        </ul>
-      </section>
-
-      <div class="part-label">Efficient coding</div>
-
-      <section id="in-a-session">
-        <h2>In a session</h2>
-        <p>
-          Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
-        </p>
-        <ul>
-          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves up to two notes, only those it scores relevant; when it is missing, notes are ranked by words alone. A note is served once per session, never while stale, and not at all for a one-word turn of conversation. When nothing fits, nothing is served.</li>
-          <li><strong>Each file the agent edits</strong> brings the rules resting on it, so a trap on that code is in front of the agent as it changes it.</li>
-          <li><strong>At the end of each turn</strong> one line says what was served: <code>🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)</code>. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
-        </ul>
-        <p>
-          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <button type="button" class="link-btn" onclick="openModal('bench-tokens')" style="background:none;border:none;padding:0;font:inherit;color:#111;font-weight:600;text-decoration:underline;cursor:pointer">See the numbers</button>.
-        </p>
-      </section>
-
-      <section id="tools">
-        <h2>The MCP server</h2>
-        <p>
-          The notes reach the agent through the hooks alone. The MCP server offers the agent no tools (since 2026-10-22; the <code>orient</code>, <code>lookup</code>, <code>remember</code> and <code>feedback</code> tools are gone): it carries thinker's own questions and, in a desktop app, its learning queue.
-        </p>
-      </section>
-
-      <div class="part-label">Measure it yourself</div>
-
-      <section id="usage">
-        <h2>Usage and the holdout</h2>
-        <div class="outcomes">
-          <a class="outcome" href="#in-a-session">
-            <div class="outcome-kicker">Tokens</div>
-            <div class="outcome-num">18% fewer input tokens</div>
-            <div class="outcome-label">per coding task</div>
-            <p class="outcome-body">The cache gives the agent the context that fits its task, so it does not have to build up its own picture of the codebase from file reads and searches.</p>
-            <div class="outcome-cta">What a session looks like &rarr;</div>
-          </a>
-          <a class="outcome" href="#holdout">
-            <div class="outcome-kicker">Wall time</div>
-            <div class="outcome-num">10% less wall time</div>
-            <div class="outcome-label">per coding task</div>
-            <p class="outcome-body">Fewer searches mean fewer turns and tool calls, so the same model finishes the same task sooner.</p>
-            <div class="outcome-cta">Measure it on your own sessions &rarr;</div>
-          </a>
-        </div>
-        <p class="outcomes-caption">Knowledge-cache benchmarks: one run per arm, different task sets per model. These results do not measure the Find Savings cuts. <button type="button" onclick="openModal()">See the benchmarks</button> or read the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">method and limitations</a>.</p>
-        <p>
-          View Report on the <a href="#local-page">local page</a> shows how the cache has been used, for one repository or every repository on the machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. Where the context itself goes is the <a href="#context">Find Savings view</a>.
-        </p>
-        <p id="holdout">
-          One number in it is measured rather than estimated. The hooks serve nothing in 15% of prompts, chosen by a hash of the session id and the turn's number, and what every turn cost is recorded from the session's transcript. The holdout comparison compares the prompts that got notes with the ones that had notes withheld, as cost per prompt overall and per model, once twenty prompts stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
-        </p>
-      </section>
-
-      <div class="part-label">Reference</div>
 
       <section id="local-page">
         <h2>The local page</h2>
@@ -1094,25 +1105,14 @@ export THINKER_TELEMETRY=off
 
         <div class="faq-item" id="faq-context-savings">
           <h3>Where do the context savings come from? Why does a short section matter?</h3>
-          <p>
-            Every model call sends the whole context again: the instruction file, the catalog of skills and tools, and every tool result so far. A session of 40 calls reads a 3k-token section 40 times, 120k input tokens, and a file read on the fifth call is paid on the 35 calls after it. That is why the fixed part of the context is most of what a session spends, and why cutting a few thousand tokens from it is worth more than the number suggests: the cut applies to every call.
-          </p>
-          <p>Thinker works on that in four places, each measured on your own sessions on the <a href="#context">Find Savings view</a>:</p>
-          <ul>
-            <li><strong>Instruction sections</strong> no session acts on: compressed to a third or removed, as a pull request you review.</li>
-            <li><strong>Skills, MCP servers, plugins and built-in tools</strong> sessions never call: switched off for the repository in the agent's own settings.</li>
-            <li><strong>Tool outputs</strong>: a whole-file read, a test log or a big search trimmed to what the agent was looking for before the model reads it, so every later call reads less too.</li>
-            <li><strong>The cache</strong>: a note that points at the right definition replaces the searches and whole-file reads the agent would have made to find it.</li>
-          </ul>
-          <p>
-            The saving shown for a cut is its tokens times the calls of the sessions that would have read it, from the transcripts. The cache's effect is measured separately, by the <a href="#usage">holdout</a>.
-          </p>
+          <p>Context carried across 40 model calls is counted 40 times. Thinker addresses that repetition in three places: <a href="#compression">clearing old tool results</a>, <a href="#context">shortening instructions you review</a>, and <a href="#notes">reusing knowledge from previous sessions</a>.</p>
+          <p>Token reductions are not dollar savings one for one. Cached input has a different price, and a cut can cause a cache rewrite. Track both tokens and costs in View Report.</p>
         </div>
 
         <div class="faq-item" id="faq-cut-safe">
           <h3>Will my agent miss something I cut?</h3>
           <p>
-            It can, which is why nothing is cut without you. The page is built so that you see the risk before taking it:
+            It can, which is why instruction changes need your review. Find Savings helps you assess them:
           </p>
           <ul>
             <li><strong>Use is measured first.</strong> A section is <em>applied</em> when a session touched its files, ran its command or read the code it names; a judge can add <em>relevant</em> and <em>followed</em>. Only a part used in under half the sessions is flagged, and <strong>high waste</strong> means large and used in almost none. Start there.</li>
@@ -1127,18 +1127,8 @@ export THINKER_TELEMETRY=off
 
         <div class="faq-item" id="faq-compression-safe">
           <h3>Can compressing tool outputs break what the agent does?</h3>
-          <p>
-            Compression changes what the model reads of a result, not what the tool did. The file is unchanged, the test ran, the search ran. What is replaced, and what is kept:
-          </p>
-          <ul>
-            <li><strong>Only three shapes are trimmed</strong>, in Claude Code, for the tools you choose: a whole-file read, a test run and a large search. Everything else passes untouched, and so does a file under 120 lines, a file with nothing to centre on, or one where the kept lines would reach 60% of it.</li>
-            <li><strong>The omitted parts are named.</strong> A trimmed file read says which line ranges were left out, which definitions they hold, and how to read any of them back. If the agent needs an omitted range it reads it; the cost of a wrong guess is one more read, not a missed fact.</li>
-            <li><strong>Nothing is lost.</strong> A summarized test run keeps its full log under <code>.thinker/state/tests/</code> and says where. A grouped search keeps every file that matched.</li>
-            <li><strong>It is a setting, per tool, off by default.</strong> <strong>No compression</strong> on the page turns it off for the next tool call; a conversation already running is not rewritten.</li>
-          </ul>
-          <p>
-            What to watch: if the agent reads trimmed files back whole, the saving shrinks. The Tool outputs cards show the cost per tool after the change, on your sessions.
-          </p>
+          <p>Clearing removes older results from the context the model reads. It does not change the files or undo the tool’s work. The agent may need to read something again; those extra calls can reduce the saving.</p>
+          <p>Thinker protects recent results and the current turn. A cleared result carries a reminder to read it again when needed. See <a href="#compression">context compression</a> for controls and the <a href="compression.html">session comparisons</a> for costs and limitations.</p>
         </div>
 
         <div class="faq-item" id="faq-cut-files">
@@ -1149,7 +1139,6 @@ export THINKER_TELEMETRY=off
               <tbody>
                 <tr><td>Compress or remove a section</td><td>A branch <code>thinker/context-…</code> pushed to the origin and a pull request against the default branch; the working tree is untouched. Without GitHub or <code>gh</code>: the new text of <code>AGENTS.md</code> (or <code>CLAUDE.md</code>) in your working tree, uncommitted. The preview is kept under <code>.thinker/state/</code></td><td>Close the unmerged PR, revert a merged change, or restore the uncommitted file</td></tr>
                 <tr><td>Switch a skill, plugin, MCP server or built-in tool off</td><td>One key in the agent's own settings for this repository: <code>.claude/settings.local.json</code> or this repository's entry in <code>~/.claude.json</code>; the checkout's <code>.codex/config.toml</code> or, for a Codex skill, <code>~/.codex/config.toml</code>; <code>~/.cursor/mcp.json</code>. Each file is backed up first under <code>~/.thinker/state/harness-backups/</code></td><td><strong>Turn back on</strong></td></tr>
-                <tr><td>Compress tool outputs</td><td><code>diet.tools</code> in <code>.thinker/config.json</code>, a level per tool</td><td><strong>No compression</strong></td></tr>
               </tbody>
             </table>
           </div>
@@ -1190,7 +1179,7 @@ export THINKER_TELEMETRY=off
         <div class="faq-item" id="faq-helping">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
-            <li><strong>At the end of each turn</strong> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+            <li><strong>Periodic summaries</strong> show which notes were served; View Report keeps the detail.</li>
             <li><strong>The <a href="#context">Find Savings view</a></strong>, and the weekly suggestion drawn from it, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
             <li><strong>The cache summary under View Report</strong> shows notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
             <li><strong>The holdout is measured, not estimated.</strong> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout comparison compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
