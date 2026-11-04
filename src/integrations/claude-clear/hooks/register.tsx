@@ -43,8 +43,16 @@ export const INTRODUCED = 'thinker-clear:introduced'
 export const INTRO = 'thinker now clears old tool results, call text and earlier thinking in Claude Desktop sessions too, as it does in the terminal: the card under an answer shows what it saved. /thinker-clear runs one by hand.'
 export const TOP_TOOLS = 3
 export const RECENT = 8
+// What these words must carry, found 2026-11-04 by reading what the model did with the old ones
+// ("tool result cleared by thinker to save context"): they were silent on WHEN, and it assumed the
+// worst -- "that read's output was cleared before I saw it, so I don't know its line count", "I never
+// saw the file but reported a number anyway". It then retracted more of its work each turn and closed
+// a 28-turn session with "any line count I gave for a read that came back cleared (most of turns
+// 5-26) was made up". All 143 of those values were correct, checked against wc -l. A person reading
+// that last message would discard the whole session. So the text states the temporal fact: the
+// result was there when it was used, and went afterwards.
 export const placeholder = (chars: number) =>
-  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`
+  `[tool result removed by thinker after use: ${chars} chars. You saw it in full at the time, so answers you already gave from it stand. Read it again if you need it now.]`
 
 export type Policy = { keepMin: number; clearAtLeast: number; trigger: number; holdout: number; auto: boolean; clearDeep: boolean }
 export const DEFAULTS: Policy = { keepMin: KEEP_MIN, clearAtLeast: CLEAR_AT_LEAST, trigger: TRIGGER, holdout: HOLDOUT, auto: true, clearDeep: true }

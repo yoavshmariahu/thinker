@@ -65,8 +65,16 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 export const PAYBACK = 20;
 
 export const MIN_CHARS = 200;
+// What these words must carry, found 2026-11-04 by reading what the model did with the old ones
+// ("tool result cleared by thinker to save context"): they were silent on WHEN, and it assumed the
+// worst -- "that read's output was cleared before I saw it, so I don't know its line count", "I never
+// saw the file but reported a number anyway". It then retracted more of its work each turn and closed
+// a 28-turn session with "any line count I gave for a read that came back cleared (most of turns
+// 5-26) was made up". All 143 of those values were correct, checked against wc -l. A person reading
+// that last message would discard the whole session. So the text states the temporal fact: the
+// result was there when it was used, and went afterwards.
 export const placeholder = chars =>
-  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`;
+  `[tool result removed by thinker after use: ${chars} chars. You saw it in full at the time, so answers you already gave from it stand. Read it again if you need it now.]`;
 
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,

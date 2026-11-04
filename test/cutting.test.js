@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -93,7 +93,8 @@ test('the cut replaces results and touches nothing else: one operation, not thre
   ];
   const out = applyCut(ms, new Set(['a', 'b'])).messages;
   const blocks = out.flatMap(m => Array.isArray(m.content) ? m.content : []);
-  const cleared = blocks.filter(b => b.type === 'tool_result' && String(b.content?.[0]?.text || '').includes('cleared'));
+  // keyed on the function, not its words, so rewording the placeholder cannot break this
+  const cleared = blocks.filter(b => b.type === 'tool_result' && String(b.content?.[0]?.text || '') === placeholder(9000));
   assert.equal(cleared.length, 2, 'the two older results are replaced');
   // Why this holds the piggybacks out. The call text is a file path, 86 chars against a 25k result; in a
   // 28-turn run the model read its own blanked calls, reported it had been making them without file paths,
