@@ -295,7 +295,9 @@ test('a gateway that refuses the clearing edit gets the agent\'s own bytes, once
     req.on('data', c => chunks.push(c));
     req.on('end', () => {
       const body = JSON.parse(Buffer.concat(chunks).toString());
-      const cut = JSON.stringify(body.messages || []).includes('cleared by thinker');
+      // the placeholder's own opening, so a reworded placeholder does not fail this
+      const mark = cutPlaceholder(0).split(':')[0];
+      const cut = JSON.stringify(body.messages || []).includes(mark);
       seen.push({ cut, beta: req.headers['anthropic-beta'] });
       if (cut) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"type":"error","error":{"type":"invalid_request_error","message":"context_management: unsupported"}}'); }
       res.writeHead(200, { 'content-type': 'application/json' });
