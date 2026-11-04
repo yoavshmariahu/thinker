@@ -44,11 +44,40 @@
     .tile .pair span b { color: var(--fg); font-weight: 600; }
     .tile .why { margin-top: 0.45rem; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
 
-    .controls { position: relative; z-index: 5; background: rgba(255,255,255,0.94); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); margin: 2.2rem -1rem 1.5rem; padding: 0.7rem 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem 1.4rem; }
-    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
-    .seg button { background: #fff; border: 0; padding: 0.38rem 0.7rem; font: inherit; font-size: 0.82rem; font-weight: 500; color: var(--fg-2); cursor: pointer; }
-    .seg button + button { border-left: 1px solid var(--line); }
-    .seg button.on { background: var(--fg); color: #fff; }
+    .controls { position: relative; z-index: 5; margin-top: 1.5rem; }
+    .session-row { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1.5rem; }
+    .explore-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; margin-top: 1.4rem; border-bottom: 1px solid var(--line); }
+    .view-tabs { display: flex; align-self: stretch; gap: 1.2rem; }
+    .view-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; padding: .85rem 0; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: .86rem; font-weight: 500; cursor: pointer; }
+    .view-tabs button:hover { color: var(--fg); }
+    .view-tabs button.on { color: var(--fg); border-bottom-color: var(--fg); font-weight: 650; }
+    .view-tabs svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .pricing-controls { position: relative; display: flex; align-items: center; gap: .65rem; padding: .45rem 0; }
+    .pricing-label { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; color: var(--muted); font-size: .75rem; font-weight: 500; }
+    .pricing-options { display: flex; padding: 3px; background: var(--card-2); border: 1px solid var(--line); border-radius: 9px; }
+    .pricing-options button { padding: .4rem .65rem; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: .76rem; font-weight: 500; white-space: nowrap; cursor: pointer; }
+    .pricing-options button:hover { color: var(--fg); }
+    .pricing-options button.on { color: var(--fg); background: #fff; border-color: var(--line); box-shadow: 0 1px 2px #00000008; }
+    .pricing-help-wrap { display: inline-flex; }
+    .pricing-help { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+    .pricing-help span { display: inline-flex; justify-content: center; align-items: center; width: 16px; height: 16px; border: 1px solid #b4b4bb; border-radius: 50%; font-size: .68rem; font-weight: 600; }
+    .pricing-help:hover, .pricing-help[aria-expanded=true] { color: var(--fg); background: var(--line-2); }
+    .pricing-explainer { position: absolute; top: calc(100% + 8px); right: 0; width: min(360px, calc(100vw - 2rem)); padding: 1rem; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px #00000012; background: #fff; z-index: 8; font-size: .8rem; line-height: 1.55; color: var(--fg-2); white-space: normal; font-weight: 400; }
+    .pricing-explainer::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+    .pricing-explainer strong { display: block; color: var(--fg); margin-bottom: .4rem; font-size: .84rem; }
+    .pricing-explainer p + p { margin-top: .6rem; }
+    @media (max-width: 760px) {
+      .explore-toolbar { align-items: stretch; flex-direction: column; gap: .8rem; padding-bottom: .8rem; }
+      .view-tabs { border-bottom: 1px solid var(--line); }
+      .view-tabs button { flex: 1; }
+      .pricing-controls { justify-content: space-between; padding: 0; }
+    }
+    @media (max-width: 440px) {
+      .pricing-controls { flex-wrap: wrap; gap: .35rem; }
+      .pricing-options { width: 100%; }
+      .pricing-options button { flex: 1; }
+      .pricing-help { width: 32px; height: 32px; }
+    }
     .ctl-lbl { font-size: 0.78rem; color: var(--muted); font-weight: 500; margin-right: 0.4rem; }
     label.chk { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--fg-2); cursor: pointer; }
     .scrub { margin-top: 2.4rem; display: flex; align-items: center; gap: 0.6rem; flex: 1 1 260px; min-width: 240px; }
@@ -206,8 +235,6 @@
     .tag.held { background: var(--line-2); color: var(--muted); }
     .note.held { color: var(--muted); }
 
-    .controls { margin: 1.5rem 0 0; padding: 0 0 1rem; gap: .75rem; }
-    .ttl-control { display: inline-flex; align-items: center; margin-left: auto; }
     .session-picker { position: relative; margin: 0; flex: 1 1 390px; max-width: 480px; }
     .session-picker summary { display: flex; align-items: center; gap: .8rem; border: 1px solid var(--line); border-radius: 9px; padding: .65rem .8rem; list-style: none; }
     .session-picker summary::-webkit-details-marker { display: none; }
@@ -224,7 +251,7 @@
     button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--thk); outline-offset: 3px; }
     .picker-note, #load-status { font-size: .78rem; color: var(--muted); line-height: 1.5; margin-top: .6rem; }
     .chart-heading { margin-top: .8rem; }
-    @media (max-width: 600px) { .session-picker { max-width: none; flex-basis: 100%; } .ttl-control { margin-left: auto; } .scrub { flex-wrap: wrap; min-width: 0; } .scrub input { min-width: 90px; } }
+    @media (max-width: 600px) { .session-picker { max-width: none; flex-basis: 100%; } .scrub { flex-wrap: wrap; min-width: 0; } .scrub input { min-width: 90px; } }
     .cost-range .pair { display: grid; gap: .3rem; }
     .cost-range b { white-space: nowrap; }
     .tile .v.savings-headline { font-size: 1.4rem; line-height: 1.3; }
@@ -248,18 +275,33 @@
     <p class="lede">Explore how cutting old tool results changes a coding session’s context and token costs.</p>
 
     <div class="controls">
-      <details class="session-picker" id="session-picker">
-        <summary id="session-label">Choose a session</summary>
-        <div class="session-menu" id="sessions" aria-label="Sessions"></div>
-      </details>
-      <span class="seg tabs" role="tablist" aria-label="View"><button type="button" class="on" data-view="metrics" role="tab" aria-selected="true">Metrics</button><button type="button" data-view="session" role="tab" aria-selected="false">Session</button></span>
-      <span class="ttl-control"><span class="ctl-lbl" id="ttl-label">Cache TTL</span><span class="seg" id="ttl"><button data-v="1h" class="on" aria-pressed="true">1 hour</button><button data-v="5m" aria-pressed="false">5 minutes</button></span></span>
-      <label class="chk" id="cold-wrap"><input type="checkbox" id="cold" checked> Charge the control the cold start it skipped</label>
+      <div class="session-row">
+        <details class="session-picker" id="session-picker">
+          <summary id="session-label">Choose a session</summary>
+          <div class="session-menu" id="sessions" aria-label="Sessions"></div>
+        </details>
+        <label class="chk" id="cold-wrap"><input type="checkbox" id="cold" checked> Include the control’s cold start</label>
+      </div>
+      <div class="explore-toolbar">
+        <div class="view-tabs tabs" role="tablist" aria-label="Explore this session">
+          <button type="button" id="metrics-tab" class="on" data-view="metrics" role="tab" aria-selected="true" aria-controls="view-metrics" tabindex="0"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="M3 3v14h14M7 13V9m4 4V5m4 8v-6"/></svg>Metrics</button>
+          <button type="button" id="session-tab" data-view="session" role="tab" aria-selected="false" aria-controls="view-session" tabindex="-1"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 3h12a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H8l-4 3v-3H3V4a1 1 0 0 1 1-1Z"/><path d="M6 7h8M6 11h5"/></svg>Session transcript</button>
+        </div>
+        <div class="pricing-controls">
+          <div class="pricing-label"><span id="ttl-label">Claude pricing</span>
+            <div class="pricing-help-wrap" id="pricing-help-wrap">
+              <button class="pricing-help" id="pricing-help" type="button" aria-label="About Claude pricing" aria-expanded="false" aria-controls="pricing-explainer" aria-describedby="pricing-explainer"><span aria-hidden="true">?</span></button>
+              <div class="pricing-explainer" id="pricing-explainer" role="tooltip" hidden></div>
+            </div>
+          </div>
+          <div class="pricing-options" id="ttl" role="group" aria-labelledby="ttl-label"><button type="button" data-v="1h" class="on" aria-pressed="true">1-hour cache</button><button type="button" data-v="5m" aria-pressed="false">5-minute cache</button></div>
+        </div>
+      </div>
     </div>
     <p class="picker-note">One example per task. Savings use recorded tokens at list prices, including cache writes and output; these selected examples are not an average or a guarantee.</p>
     <p id="load-status" role="status"></p>
 
-    <div id="view-metrics">
+    <div id="view-metrics" role="tabpanel" aria-labelledby="metrics-tab">
     <div class="tiles" id="tiles"></div>
 
     <div class="scrub"><label for="pos" class="ctl-lbl">Explore a call</label><input type="range" id="pos" min="1" max="30" value="30" aria-label="Model call"><span class="pos" id="pos-lbl"></span></div>
@@ -295,7 +337,7 @@
     <div class="caveats" id="caveats"></div>
     </div>
 
-    <div id="view-session" hidden>
+    <div id="view-session" role="tabpanel" aria-labelledby="session-tab" hidden>
       <p class="sess-note" id="sess-note">Loading the session…</p>
       <div id="timeline"></div>
     </div>
@@ -371,9 +413,13 @@
       };
       $('#session-label').innerHTML = row(RUN()) + '<span class="chevron" aria-hidden="true">⌄</span>';
       $('#sessions').innerHTML = RUNS.map(r => `<button type="button" data-run="${r.id}" aria-pressed="${r.id === state.run}">${row(r)}</button>`).join('');
-      $('#ttl-label').textContent = D().costBounds ? 'Cost assumption' : 'Cache TTL';
-      document.querySelector('#ttl [data-v="1h"]').textContent = D().costBounds ? '30m write bound' : '1 hour';
-      document.querySelector('#ttl [data-v="5m"]').textContent = D().costBounds ? 'Input bound' : '5 minutes';
+      $('#ttl-label').textContent = D().costBounds ? 'OpenAI pricing' : 'Claude pricing';
+      document.querySelector('#ttl [data-v="1h"]').textContent = D().costBounds ? 'With cache writes' : '1-hour cache';
+      document.querySelector('#ttl [data-v="5m"]').textContent = D().costBounds ? 'Input only' : '5-minute cache';
+      $('#pricing-help').setAttribute('aria-label', `About ${D().costBounds ? 'OpenAI' : 'Claude'} pricing`);
+      $('#pricing-explainer').innerHTML = D().costBounds
+        ? `<strong>OpenAI · Astra</strong><p>This run did not record cache-write counts. These choices show two pricing estimates for the same session.</p><p><b>With cache writes</b> prices uncached input at the 30-minute write rate (${usd(P().w1h)}/M tokens). <b>Input only</b> uses the ordinary input rate (${usd(P().input)}/M). Cache-read and output rates stay the same.</p><p>The costs and charts change; the savings headline stays at the conservative ${D().savings.minPercent.toFixed(1)}% estimate.</p>`
+        : `<strong>Anthropic · Claude Opus</strong><p>Claude charges different cache-write rates for different cache lifetimes.</p><p><b>1-hour cache:</b> ${usd(P().w1h)}/M write tokens.<br><b>5-minute cache:</b> ${usd(P().w5m)}/M write tokens.</p><p>Both choices price the same recorded session. Cache-read and output rates stay the same; the costs and savings update with the cache-write rate.</p>`;
       $('#cost-note').textContent = D().costBounds ? `Scenario: ${costLabel()}. Cache reads and output are recorded; unknown cache writes are bounded. The headline is the minimum saving across both arms’ possible costs.` : 'At list prices: input, cache reads, cache writes, output.';
       $('#cold-wrap').style.display = D().cold ? '' : 'none';
       $('#pos').max = N();
@@ -550,6 +596,18 @@
     }
     function renderAll() {
       header(); tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); costBreakdown(); events(); stats(); setPos(state.pos); }
+    let pricingPinned = false, pricingFocused = false, pricingLeaveTimer;
+    function pricingHelp(open) {
+      $('#pricing-explainer').hidden = !open;
+      $('#pricing-help').setAttribute('aria-expanded', String(open));
+    }
+    $('#pricing-help-wrap').addEventListener('mouseenter', () => { clearTimeout(pricingLeaveTimer); pricingHelp(true); });
+    $('#pricing-help-wrap').addEventListener('mouseleave', () => { pricingLeaveTimer = setTimeout(() => { if (!pricingPinned && !pricingFocused) pricingHelp(false); }, 150); });
+    $('#pricing-help-wrap').addEventListener('focusin', () => { pricingFocused = true; pricingHelp(true); });
+    $('#pricing-help-wrap').addEventListener('focusout', ev => { pricingFocused = !!ev.relatedTarget && $('#pricing-help-wrap').contains(ev.relatedTarget); if (!pricingPinned && !pricingFocused) pricingHelp(false); });
+    $('#pricing-help').addEventListener('click', () => { pricingPinned = !pricingPinned; pricingHelp(pricingPinned); });
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { pricingPinned = false; pricingHelp(false); } });
+    document.addEventListener('click', ev => { if (!ev.target.closest('#pricing-help-wrap')) { pricingPinned = false; pricingHelp(false); } });
     $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); renderAll(); renderSession(); });
     $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); renderSession(); });
     $('#pos').addEventListener('input', ev => setPos(+ev.target.value));
@@ -664,7 +722,7 @@
     function showView(v) {
       document.body.classList.toggle('session', v === 'session');
       $('#view-metrics').hidden = v === 'session'; $('#view-session').hidden = v !== 'session';
-      document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.view === v); b.setAttribute('aria-selected', b.dataset.view === v); });
+      document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.view === v); b.setAttribute('aria-selected', b.dataset.view === v); b.setAttribute('tabindex', b.dataset.view === v ? '0' : '-1'); });
       history.replaceState(null, '', `${location.pathname}?run=${state.run}${v === 'session' ? '#session' : ''}`);
       if (v === 'session') { if (SESSION) renderSession(); else loadSession(); }
     }
@@ -676,6 +734,16 @@
         .finally(() => { LOADING.delete(id); });
     }
     $('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-view]'); if (b) showView(b.dataset.view); });
+    $('.tabs').addEventListener('keydown', ev => {
+      const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+      if (!keys.includes(ev.key)) return;
+      const tabs = [...document.querySelectorAll('.tabs button')];
+      const current = tabs.indexOf(ev.target.closest('button[data-view]'));
+      if (current < 0) return;
+      ev.preventDefault();
+      const next = ev.key === 'Home' ? 0 : ev.key === 'End' ? tabs.length - 1 : (current + (ev.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      showView(tabs[next].dataset.view); tabs[next].focus();
+    });
     const q = new URLSearchParams(location.search).get('run');
     state.pos = N();
     renderAll();
