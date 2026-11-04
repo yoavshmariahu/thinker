@@ -110,6 +110,13 @@ export async function release({ version, noWait = false, hold = false, promote =
     out('Installing dependencies and running the full test suite (THINKER_TEST=1)...');
     at('npm', ['ci'], { stdio: 'inherit' });
     at('npm', ['test'], { stdio: 'inherit' });
+    // The desktop door is TypeScript and has its own runner, so `npm test` cannot see a syntax error in
+    // it: `test/claude-clear.test.js` reads register.tsx as text to pin the policy surface and never
+    // parses it. On 2026-11-04 a half-replaced ternary left `const changedAt = firstChanged : firstChanged`
+    // and the mod did not compile for three merges -- no clearing in Claude Desktop at all -- while the
+    // Node suite and the policy guard stayed green throughout. Every release checks it from here on.
+    out('Running the desktop mod\'s own tests (claude plugin test)...');
+    at('claude', ['plugin', 'test', 'src/integrations/claude-clear'], { stdio: 'inherit' });
     testedTree = tree;
   };
   const manifestAt = url => {
