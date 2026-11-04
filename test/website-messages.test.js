@@ -47,7 +47,7 @@ function widget(fetch) {
     return elements.get(key);
   }
   let counter = 0;
-  const context = vm.createContext({ document: { createElement: () => ({ querySelector: element }), body: { append() {} } },
+  const context = vm.createContext({ document: { createElement: () => ({ querySelector: element, addEventListener() {} }), body: { append() {} }, head: { append() {} } },
     location: { pathname: '/' }, crypto: { randomUUID: () => `id-${++counter}` }, fetch,
     AbortController, setTimeout, clearTimeout });
   vm.runInContext(fs.readFileSync(new URL('../site/message.js', import.meta.url), 'utf8'), context);

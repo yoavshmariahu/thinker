@@ -1,9 +1,16 @@
-.message-launcher {
+.contact-actions {
   position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 60;
+  display: flex; align-items: center; gap: 0.5rem; max-width: calc(100vw - 2rem);
+}
+.call-booking { display: flex; align-items: center; }
+.message-launcher, .call-launcher, .contact-actions .call-booking button {
   padding: 0.8rem 1rem; border: 1px solid #ddd; border-radius: 999px;
   background: #111; color: #fff; font: 500 0.85rem -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  box-shadow: 0 3px 16px #0002; cursor: pointer;
+  box-shadow: 0 3px 16px #0002; cursor: pointer; white-space: nowrap; text-decoration: none;
 }
+.call-launcher, .contact-actions .call-booking button { background: #039BE5; color: #fff; }
+.call-booking:has(button) .call-launcher { display: none; }
+.call-launcher:hover, .contact-actions .call-booking button:hover { background: #0288d1; }
 .message-launcher:hover, .message-send:hover { background: #333; }
 .message-dialog {
   margin: auto; width: min(480px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem);
@@ -25,9 +32,10 @@
 .message-send { border: 0; border-radius: 6px; padding: 0.75rem 1rem; background: #111; color: #fff; font: inherit; font-size: 0.9rem; cursor: pointer; }
 .message-send:disabled { opacity: 0.6; cursor: wait; }
 .message-dialog .message-status { margin: 1rem 0; color: #333; }
-.message-launcher:focus-visible, .message-dialog :focus-visible { outline: 2px solid #555; outline-offset: 3px; }
+.contact-actions :focus-visible, .message-dialog :focus-visible { outline: 2px solid #555; outline-offset: 3px; }
 @media (max-width: 600px) {
-  .message-launcher { right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .contact-actions { right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .message-launcher, .call-launcher, .contact-actions .call-booking button { padding: 0.8rem 0.75rem; font-size: 0.8rem; }
   .message-dialog { padding: 1.5rem; }
   body { padding-bottom: 4.5rem; }
 }

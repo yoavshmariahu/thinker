@@ -1,7 +1,14 @@
 (() => {
+  const bookingUrl = 'https://calendar.google.com/calendar/appointments/schedules/AcZssZ2oQH0337bmx-uPEz6Ojqsza_Opmz9jgcY_qb3F3JpC5SjTGsqLIic-nlVkb2nK--XXSi31SyAU?gv=true';
   const widget = document.createElement('div');
   widget.innerHTML = `
-    <button type="button" class="message-launcher" aria-haspopup="dialog">Send us a message</button>
+    <div class="contact-actions">
+      <button type="button" class="message-launcher" aria-haspopup="dialog">Send us a message</button>
+      <span class="call-booking">
+        <a class="call-launcher" href="${bookingUrl}" target="_blank" rel="noopener">Book a call</a>
+        <span class="call-target"></span>
+      </span>
+    </div>
     <dialog class="message-dialog" aria-labelledby="message-title">
       <button type="button" class="message-close" aria-label="Close message form">×</button>
       <h2 id="message-title">Send us a message</h2>
@@ -67,4 +74,21 @@
       send.textContent = 'Send message';
     }
   });
+  // Keep the direct booking link usable if Google's embed cannot load.
+  const bookingStyles = document.createElement('link');
+  bookingStyles.rel = 'stylesheet';
+  bookingStyles.href = 'https://calendar.google.com/calendar/scheduling-button-script.css';
+  const bookingScript = document.createElement('script');
+  bookingScript.src = 'https://calendar.google.com/calendar/scheduling-button-script.js';
+  bookingScript.async = true;
+  bookingScript.addEventListener('load', () => {
+    if (!window.calendar?.schedulingButton) return;
+    window.calendar.schedulingButton.load({
+      url: bookingUrl,
+      color: '#039BE5',
+      label: 'Book a call',
+      target: widget.querySelector('.call-target'),
+    });
+  });
+  document.head.append(bookingStyles, bookingScript);
 })();
