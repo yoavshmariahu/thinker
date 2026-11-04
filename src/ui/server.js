@@ -223,8 +223,12 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (req.method === 'GET' && url.pathname === '/api/context') {
         // what each part is, in one line (part-describe.js, as Recent activity names it): "Artifact: drafts a document
         // or page". The same call, not a second table; the rows carry it as `about` and the page prints it under the name.
+        // ...and no tool-output rows: the page has had no view for them since 2026-11-04 (the clearing compresses
+        // outputs, and nobody is asked about one), so sending every tool's row is payload nothing reads. What they
+        // cost stays in `totals.outputs`, which the Report's own call reads.
         const describeParts = v => ({
           ...v,
+          outputs: { sessions: v.outputs?.sessions || 0, prompts: v.outputs?.prompts || 0, tools: [] },
           instructions: { ...v.instructions, sections: (v.instructions?.sections || []).map(x => ({ ...x, about: describePart({ kind: 'section', text: x.text }).about })) },
           skills: (v.skills || []).map(x => ({ ...x, about: describePart({ kind: 'skill', text: x.text }).about })),
           tools: (v.tools || []).map(x => ({ ...x, about: describePart({ kind: 'tool', name: x.name, toolKind: x.kind, builtin: x.group === 'builtin', text: x.text }).about })),

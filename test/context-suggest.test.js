@@ -81,6 +81,40 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(await scheduleContextSuggestion(store, { now: now + 30 * 86400_000, view: view() }), null);
 });
 
+test('the question says what the changes are worth in money, and asks nothing for a thin list (2026-11-04)', async () => {
+  const { writeReport } = await import('../src/report-snapshot.js');
+  const store = repo(), now = Date.parse('2026-10-22T10:00:00Z');
+  const v = (over = {}) => ({ days: 7, sessions: 40, skills: [], tools: [], outputs: { tools: [] }, instructions: { sessions: 40, sections: [] }, ...over });
+  const secs = xs => ({ instructions: { sessions: 40, sections: xs.map(([id, wasted]) => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste: 'high', usedShare: 0.1 })) } });
+  const offer = st => contextSuggestOffer(st, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', client: 'claude' });
+
+  // no report kept here: tokens alone, and no figure anybody made up
+  await scheduleContextSuggestion(store, { now, view: v(secs([['Releases', 30_000], ['Ports', 9_000]])), force: true });
+  assert.doesNotMatch(offer(store), /\$/);
+
+  // with one: the saving in dollars at list prices, in the lead and on every line, from the rate the Report measured
+  // (report.js:inputRate -- the window's input cost over its input tokens, so a cache read counts at its own rate)
+  const priced = repo();
+  writeReport(priced, 6, { inputRate: 2 / 1e6, unpriced: [], tokenTypes: [] });
+  await scheduleContextSuggestion(priced, { now, view: v(secs([['Releases', 30_000], ['Ports', 9_000]])), force: true });
+  const said = offer(priced);
+  assert.match(said, /together worth about \$3\.12 over those 7 days/);          // (30k + 9k) x 40 prompts x \$2/M
+  assert.match(said, /1\. AGENTS\.md · Releases: .*over the last 7 days, about \$2\.40\)/);
+  assert.match(said, /worth about \$3\.12 over the last 7 days at list prices\. Make any\?/, 'and in the question itself');
+  assert.match(said, /a subscription bills none of it by the token/);
+
+  // one change, or two worth a rounding error: said in a line, with the page's address, and no question at all
+  for (const view of [v(secs([['Releases', 30_000]])), v(secs([['A', 20], ['B', 20]]))]) {
+    const st = repo();
+    await scheduleContextSuggestion(st, { now, view, force: true });
+    const quiet = offer(st);
+    assert.doesNotMatch(quiet, /ask the user/);
+    assert.match(quiet, /Do not ask them about it as a question/);
+    assert.match(quiet, /#tab=save&view=all&from=suggestion/, 'the page is still named');
+  }
+  assert.deepEqual([SUGGEST.minAsk, SUGGEST.askSaving], [2, 1000]);
+});
+
 test('contextSuggestOffer: no person at an SDK session; without the page, it names thinker ui', async () => {
   const store = repo();
   await scheduleContextSuggestion(store, { view: view(), force: true });

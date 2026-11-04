@@ -155,10 +155,10 @@ async function contextCommand({ store, flags, out }) {
   // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them,
   // with what they are worth in money where the report kept here can price an input token (report.js:inputRate): the
   // same figure the session's question quotes, so the two doors say one thing
-  const rate = inputRateHere(store), money = n => rate && n > 0 ? ` (about ${formatDollars(n * rate)} at list prices)` : '';
+  const rate = inputRateHere(store), money = n => rate && n > 0 ? ` (~${formatDollars(n * rate)})` : '';
   if (top.length) {
     const sum = top.reduce((a, c) => a + c.total, 0);
-    out(`Top changes (up to ~${formatTokens(sum)} input tokens over the last ${days} days together${money(sum)}):`);
+    out(`Top changes (up to ~${formatTokens(sum)} input tokens over the last ${days} days together${rate ? `, about ${formatDollars(sum * rate)} at list prices` : ''}):`);
     top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days${money(c.total)}; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
     out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, All); --history lists the decisions.\n');
   }

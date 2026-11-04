@@ -563,7 +563,8 @@ test('the weekly question interrupts only when it is worth it, and both doors pr
   assert.match(suggest, /if \(thin\) return `<thinker-context-suggestions>/);
   // and what a change is worth is said in money, from one rate: the dollars an input token cost here, off the kept
   // report (report.js:inputRate), in the session's question and in `thinker context`'s Top changes alike
-  assert.match(read('report.js'), /export function inputRate\(view\)/);
+  assert.match(read('report.js'), /export const inputRate = view => view\?\.inputRate \?\? null;/);
+  assert.match(read('report.js'), /inputRate: pricedInput > 0 && pricedInputCost > 0 \? pricedInputCost \/ pricedInput : null,/, 'measured over the priced sessions alone');
   assert.match(read('report-snapshot.js'), /export function inputRateHere\(store/);
   for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store\)|inputRateHere\(store\)\)/, f);
   for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
