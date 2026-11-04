@@ -134,10 +134,18 @@ for arm, cwd, sid, log in (('cut', A.cwd_cut, A.sid_cut, A.log_cut), ('control',
                 if st['kind'] == 'call': k_now = st['k']
                 if st['kind'] == 'tool' and st['name'] == 'Read':
                     f = st['input'].get('file_path')
-                    if f in cutFiles and cutFiles[f] <= k_now and not any(n['turn'] == t['n'] and n['file'] == f for n in notes):
-                        notes.append(dict(kind='reread', k=k_now, turn=t['n'], file=f, cutAt=cutFiles[f]))   # one note per file and turn
+                    if f in cutFiles and cutFiles[f] <= k_now:
+                        prev = next((n for n in notes if n['turn'] == t['n'] and n['file'] == f), None)
+                        if prev: prev['n'] += 1   # one note per file and turn, counting the reads
+                        else: notes.append(dict(kind='reread', k=k_now, turn=t['n'], file=f, cutAt=cutFiles[f], n=1))
     # small file: per call, results, notes
-    out_small[arm] = dict(sid=sid, calls=[{**{x: c[x] for x in ('k', 't', 'read', 'write', 'input', 'out')}, **({'cut': c['cut']} if 'cut' in c else {}), **({'held': c['held']} if 'held' in c else {}), **({'compacted': True} if c.get('compacted') else {})} for c in calls],
+    outcome = None
+    for t in turns:
+        for st in t['steps']:
+            if st.get('kind') == 'result':
+                m = re.findall(r'(\d[\d,]*) passed(?:, \d+ skipped)?(?:, \d+ xfailed)?', blobs.get(st.get('blob'), ''))
+                if m: outcome = m[-1] + ' passed'
+    out_small[arm] = dict(sid=sid, outcome=outcome, calls=[{**{x: c[x] for x in ('k', 't', 'read', 'write', 'input', 'out')}, **({'cut': c['cut']} if 'cut' in c else {}), **({'held': c['held']} if 'held' in c else {}), **({'compacted': True} if c.get('compacted') else {})} for c in calls],
                           results=[{x: r[x] for x in ('c', 'at', 't', 'cut')} for r in results], notes=notes,
                           turns=[dict(n=t['n'], tools=t['tools'], calls=t['calls']) for t in turns])
     out_session[arm] = dict(sid=sid, turns=turns, calls=calls)
