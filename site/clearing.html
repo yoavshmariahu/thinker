@@ -336,7 +336,7 @@
     function header() {
       $('#lede').innerHTML = RUN().lede;
       $('#runsel').innerHTML = RUNS.map(r => `<button data-v="${r.id}" class="${r.id === state.run ? 'on' : ''}" role="radio" aria-checked="${r.id === state.run}">${r.label}</button>`).join('');
-      $('#cold-wrap').hidden = !D().cold;
+      $('#cold-wrap').style.display = D().cold ? '' : 'none';
       $('#pos').max = N();
       $('#legend1').innerHTML = `<span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span>${heldOf().length ? '<span><i class="heldmark"></i>cut refused</span>' : ''}${rereads().length ? '<span><i class="flagmark"></i>re-read of a cleared file</span>' : ''}`;
     }
