@@ -655,9 +655,9 @@
     .walk .seg span { font-size: 0.64rem; font-weight: 600; white-space: nowrap; color: #fff; opacity: 0; letter-spacing: 0; }
     .walk .seg.sys { background: #111; }
     .walk .seg.instr { background: #444; }
-    .walk .seg.res { background: var(--bar-before); }
+    .walk .seg.res { background: #b4b4bb; }
     .walk .seg.res span { color: #111; }
-    .walk .seg.think { background: var(--bar-soft); }
+    .walk .seg.think { background: #d9d9de; }
     .walk .seg.think span { color: #444; }
     .walk .seg.cleared { background: #fff; border-right: 1px dashed #d1d5db; }
     .walk .trigger { opacity: 0; position: absolute; top: 118px; height: 72px; width: 0; border-left: 2px dashed #111; }
@@ -669,7 +669,7 @@
     .walk .call .tk { color: var(--muted); font-variant-numeric: tabular-nums; }
     .walk .call.gone { color: var(--faint); }
     .walk .call.gone .tk { text-decoration: line-through; }
-    .walk .flow { position: absolute; left: 500px; top: 236px; width: 420px; display: flex; align-items: center; justify-content: space-between; opacity: 0; }
+    .walk .flow { position: absolute; left: 500px; top: 336px; width: 420px; display: flex; align-items: center; justify-content: space-between; opacity: 0; }
     .walk .node { border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.8rem; font-size: 0.85rem; font-weight: 600; background: #fff; text-align: center; min-width: 96px; }
     .walk .node.me { background: #111; color: #fff; border-color: #111; }
     .walk .node small { display: block; font-size: 0.68rem; font-weight: 500; color: var(--faint); margin-top: 2px; }
@@ -685,33 +685,27 @@
     .walk .saved { position: absolute; right: 40px; top: 190px; font-size: 1.1rem; font-weight: 700; color: var(--gain); letter-spacing: -0.03em; opacity: 0; }
 
     /* Compounding scene */
-    .walk .chart { position: absolute; left: 40px; top: 128px; width: 560px; height: 250px; border-bottom: 1px solid var(--line); }
-    .walk .chart .cols { position: absolute; left: 0; bottom: 0; width: 100%; height: 100%; display: flex; align-items: flex-end; gap: 3px; }
-    .walk .chart .col { flex: 1; display: flex; flex-direction: column; transform: scaleY(0); transform-origin: 50% 100%; border-radius: 2px 2px 0 0; overflow: hidden; }
-    .walk .chart .col .sv { background: #86efac; flex: none; }
-    .walk .chart .col .pd { background: #444; flex: none; }
-    .walk .chart .col .wr { background: repeating-linear-gradient(135deg, #444 0 4px, #b91c1c 4px 7px); flex: none; }
-    .walk .chart .y { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); z-index: 1; pointer-events: none; }
-    .walk .chart .y span { position: absolute; right: 0; top: -15px; font-size: 0.64rem; color: var(--faint); font-weight: 500; }
-    .walk .chart .xlab { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); font-weight: 500; }
-    .walk .chart .pay { position: absolute; top: -12px; bottom: -4px; width: 0; border-left: 2px dashed #15803d; opacity: 0; }
-    .walk .chart .pay i { position: absolute; left: 6px; top: -4px; font-style: normal; font-size: 0.68rem; font-weight: 600; color: #15803d; white-space: nowrap; }
-    .walk .chart .legend { left: 0; top: auto; bottom: -46px; }
-    .walk .chart .legend .hatch { background: repeating-linear-gradient(135deg, #444 0 2px, #b91c1c 2px 4px); }
-    .walk .ledger { position: absolute; left: 640px; top: 128px; width: 280px; display: flex; flex-direction: column; gap: 8px; }
-    .walk .ledger .row { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.7rem; opacity: 0; transform: translateX(10px); }
-    .walk .ledger .k { display: block; font-size: 0.64rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-    .walk .ledger .v { display: block; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.15; margin-top: 2px; font-variant-numeric: tabular-nums; }
-    .walk .ledger .row.cost .v { color: #b91c1c; }
-    .walk .ledger .row.gain .v { color: var(--gain); }
-    .walk .ledger .d { display: block; font-size: 0.7rem; color: var(--fg-2); margin-top: 2px; line-height: 1.35; }
-    .walk .acc.total { left: 640px; top: 362px; }
+    .walk .brace { position: absolute; top: 184px; height: 8px; border: 2px solid #6b6b75; border-bottom: 0; border-radius: 3px 3px 0 0; opacity: 0; }
+    .walk .brace i { position: absolute; left: 0; right: 0; top: 9px; text-align: center; font-style: normal; font-size: 0.66rem; font-weight: 600; color: #4b4b55; white-space: nowrap; }
+    .walk .race { position: absolute; left: 500px; top: 206px; width: 420px; opacity: 0; }
+    .walk .race .lbl { display: flex; justify-content: space-between; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .walk .race .lbl b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+    .walk .lane { margin-top: 7px; opacity: 0; }
+    .walk .lane .who { display: flex; justify-content: space-between; font-size: 0.68rem; font-weight: 600; color: var(--fg-2); margin-bottom: 3px; }
+    .walk .lane .who b { font-variant-numeric: tabular-nums; color: var(--fg); }
+    .walk .lane .bar { height: 18px; border-radius: 4px; background: var(--card-2); border: 1px solid var(--line); display: flex; overflow: hidden; }
+    .walk .lane .fill { height: 100%; width: 0; background: #444; flex: none; }
+    .walk .lane.b .fill { background: var(--gain); }
+    .walk .lane .hit { height: 100%; width: 0; flex: none; background: repeating-linear-gradient(135deg, #7f1d1d 0 4px, #dc2626 4px 7px); }
+    .walk .race .mark { position: absolute; top: 24px; height: 78px; width: 0; border-left: 2px dashed #111; opacity: 0; }
+    .walk .race .mark i { position: absolute; left: 5px; top: 100%; margin-top: 2px; font-style: normal; font-size: 0.64rem; font-weight: 600; color: var(--fg); white-space: nowrap; }
+    .walk .race .unit { font-size: 0.64rem; color: var(--faint); margin-top: 6px; }
 
     /* Cache scene */
     .walk .col-h { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
     .walk .sess { position: absolute; left: 40px; top: 92px; width: 250px; }
     .walk .sess .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 5px; transform-origin: 100% 50%; }
-    .walk .sess .ln { height: 8px; border-radius: 3px; background: var(--bar-before); }
+    .walk .sess .ln { height: 8px; border-radius: 3px; background: #b4b4bb; }
     .walk .sess .ln.p { background: #111; width: 70%; }
     .walk .sess .ln.w1 { width: 95%; } .sess .ln.w2 { width: 60%; } .sess .ln.w3 { width: 85%; } .sess .ln.w4 { width: 40%; }
     .walk .sess .foot { font-family: var(--mono); font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
@@ -721,7 +715,7 @@
     .walk .note { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.03); opacity: 0; transform: translateX(-16px); }
     .walk .note .kind { display: inline-block; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 4px; background: #111; color: #fff; }
     .walk .note .kind.rule { background: #444; }
-    .walk .note .kind.howto { background: var(--bar-before); color: #111; }
+    .walk .note .kind.howto { background: #b4b4bb; color: #111; }
     .walk .note .t { font-size: 0.84rem; font-weight: 600; margin-top: 5px; line-height: 1.3; }
     .walk .note .dep { font-family: var(--mono); font-size: 0.68rem; color: var(--muted); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .walk .note .hash { color: var(--faint); }
@@ -1118,7 +1112,7 @@
         <div class="stage" id="stage">
           <!-- 1 and 2 · Context window: baseline, then compression -->
           <section class="scene" id="s-ctx">
-            <div class="chapter"><span class="num" id="c-num">Baseline</span><span class="name" id="c-name">A session without thinker</span></div>
+            <div class="chapter"><span class="num" id="c-num">The problem</span><span class="name" id="c-name">Every call pays for the whole context</span></div>
             <div class="ctx-head">
               <div class="lbl">Context window <span>what every model call carries</span></div>
               <div class="counter"><span id="counter">0</span><small>tokens per call</small></div>
@@ -1132,6 +1126,19 @@
               <span><i style="background:#d9d9de"></i>Call text and thinking</span>
             </div>
             <div class="saved" id="saved">−106k tokens on every later call</div>
+            <div class="brace" id="brace"><i>old results · 106k · read already, carried on every call since</i></div>
+            <div class="race" id="paid">
+              <div class="lbl"><span>Paid so far <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">every call re-reads the whole context</span></span><b id="callno">call 1</b></div>
+              <div class="lane a" id="lane-p"><div class="who"><span>This session</span><b id="end-p">0</b></div><div class="bar"><div class="fill" id="fill-p"></div></div></div>
+              <div class="unit">counted in cache reads</div>
+            </div>
+            <div class="race" id="race">
+              <div class="lbl"><span>The next forty calls <span style="text-transform:none;letter-spacing:-0.01em;font-weight:500;color:var(--faint);margin-left:.4rem">paid with the cut, and without</span></span><b id="callno2">call 10</b></div>
+              <div class="lane a" id="lane-a"><div class="who"><span>Without a cut</span><b id="end-a">0</b></div><div class="bar"><div class="fill" id="fill-a"></div></div></div>
+              <div class="lane b" id="lane-b"><div class="who"><span>With thinker's cut</span><b id="end-b">0</b></div><div class="bar"><div class="hit" id="hit-b"></div><div class="fill" id="fill-b"></div></div></div>
+              <div class="mark" id="mark"><i>paid back · call 17</i></div>
+              <div class="unit">counted in cache reads · a cache write counts as twenty</div>
+            </div>
             <div class="calls" id="calls"></div>
             <div class="flow" id="flow">
               <div class="node">Agent<small>Claude Code</small></div>
@@ -1140,45 +1147,20 @@
               <div class="arrow"><i></i></div>
               <div class="node">API<small>Anthropic</small></div>
             </div>
-            <div class="cap" id="cap-b1">Every tool result stays in the prompt and is <b>re-read by every later call</b>.</div>
-            <div class="cap" id="cap-b2">Ten calls in, the agent is paying for <span class="r">180k tokens</span> of mostly old output.</div>
+            <div class="cap" id="cap-b1">Every model call carries the whole context again. A tool result is paid for once when it arrives, then <b>on every call after it</b>.</div>
+            <div class="cap" id="cap-b2">Nine calls in: <span class="r">179k tokens</span> a call, nearly a million read already, and the next call pays for all of it again.</div>
             <div class="cap" id="cap-c1">thinker sits between the agent and the API. Past 140k, at the next turn, it <b>replaces the old tool results with a one-line placeholder</b> in the request it forwards. The API is asked nothing.</div>
             <div class="cap" id="cap-c2">The newest turn and the last three results stay. Your prompts, the call text and the agent's thinking are <b>never touched</b>.</div>
-            <div class="cap" id="cap-c3">The placeholder says the result was read in full and can be read again. What was cut <b>stays cut</b>, call after call, so the prompt cache holds.</div>
+            <div class="cap" id="cap-c3">The cut is <b>paid once</b>: the prompt after it is written to the cache again, at about twenty times a read. A hit up front, then every later call reads 106k less.</div>
+            <div class="cap" id="cap-c4">By <b>call 17 the hit is repaid</b>. thinker only cuts when that happens within 20 calls, and what was cut stays cut, so the prompt cache holds.</div>
+            <div class="cap" id="cap-c5">Forty calls later: <span class="g">3.4M reads' worth</span> less paid, from one decision at a turn boundary.</div>
           </section>
 
           <!-- 2 · Why the saving compounds -->
-          <section class="scene" id="s-comp">
-            <div class="chapter"><span class="num">2 of 4</span><span class="name">Why the saving compounds</span></div>
-            <div class="ctx-head">
-              <div class="lbl">Tokens per call <span>the rest of the session, one column a call</span></div>
-            </div>
-            <div class="chart" id="chart">
-              <div class="y" style="bottom:100%"><span>300k</span></div>
-              <div class="y" style="bottom:50%"><span>150k</span></div>
-              <div class="cols" id="cols"></div>
-              <div class="pay" id="pay"><i>paid back · call 18</i></div>
-              <div class="xlab"><span>call 11 · the cut</span><span>call 50</span></div>
-              <div class="legend">
-                <span><i style="background:#444"></i>Read from the cache</span>
-                <span><i style="background:#86efac"></i>Not re-read, thanks to the cut</span>
-                <span><i class="hatch"></i>Written to the cache once</span>
-              </div>
-            </div>
-            <div class="ledger" id="ledger">
-              <div class="row cost" id="ld-cost"><span class="k">Paid once</span><span class="v">40k tokens written</span><span class="d">the prompt after the cut, cached again</span></div>
-              <div class="row gain" id="ld-gain"><span class="k">Saved on every later call</span><span class="v">106k tokens not read</span><span class="d">the old results no call carries any more</span></div>
-              <div class="row" id="ld-pay"><span class="k">Pays for itself by</span><span class="v">call 18</span><span class="d">a cache write costs about twenty reads</span></div>
-            </div>
-            <div class="acc total" id="total"><div class="lbl">Not re-read this session</div><div class="n"><span id="tot-n">0</span><small>tokens</small></div><div class="sub">from one decision, at call 11</div></div>
-            <div class="cap" id="cap-m1">A cut is <b>paid once</b>: the prompt after it is written to the cache again. Then <b>every later call</b> reads 106k less.</div>
-            <div class="cap" id="cap-m2">A cache write costs about twenty reads, so this cut <b>pays for itself by call 18</b>; thinker only cuts when that happens within 20 calls. After that, every call is pure saving.</div>
-            <div class="cap" id="cap-m3">Forty calls later: <span class="g">4.2M tokens</span> never re-read, from one decision thinker made at a turn boundary.</div>
-          </section>
 
           <!-- 3 · Knowledge cache -->
           <section class="scene" id="s-cache">
-            <div class="chapter"><span class="num">3 of 4</span><span class="name">Knowledge cache</span></div>
+            <div class="chapter"><span class="num">3 of 3</span><span class="name">Knowledge cache</span></div>
             <div class="sess" id="sess" style="opacity:0">
               <div class="col-h">Session ends</div>
               <div class="card" id="sess-card">
@@ -1213,7 +1195,7 @@
 
           <!-- 4 · Instruction files -->
           <section class="scene" id="s-instr">
-            <div class="chapter"><span class="num">4 of 4</span><span class="name">Instruction file analysis</span></div>
+            <div class="chapter"><span class="num">3 of 3</span><span class="name">Instruction file analysis</span></div>
             <div class="tbl" id="tbl">
               <div class="tr th"><div>Source</div><div class="num">Per prompt</div><div>Needed</div><div class="num">30 days</div><div class="num">Wasted</div><div></div></div>
               <div class="tr" data-need="3"><div class="src"><span class="chk"></span><span class="k">AGENTS.md</span><span class="n">Benchmark caches</span></div><div class="num">4.1k</div><div class="need"><div class="b"><i></i></div><em>3%</em></div><div class="num">12.3M</div><div class="waste">11.9M</div><span class="act">Compress</span></div>
@@ -1384,7 +1366,7 @@
       const hero = $('#hero'), walk = $('#walk'), box = $('#walk-box'), stage = $('#stage');
       const heroParts = $$('#hero > *');
       const playBtn = $('#walk-play'), exitBtn = $('#walk-exit'), startBtn = $('#btn-play');
-      const START = 5, END = 66;
+      const START = 5, END = 60;
       let playing = false;
 
       function fit() {
@@ -1446,6 +1428,17 @@
   show('#s-ctx', 5);
   tl.set(count, { v: 0 }, 5); tl.call(writeCount, null, 5);
   let acc = 0, t = 5.3;
+  // What a session pays: every call reads its whole prompt again, so the sum grows by the prompt each call.
+  // Counted in cache reads; a cache write is 2.0× an input token and a read 0.1×, so a write counts as twenty reads.
+  const SCP = 420 / 1000;                        // the session's own bar: full at a million
+  const paid = { p: 0, a: 0, b: 0, call: 1 };
+  const fmtBig = (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'M' : Math.round(v) + 'k';
+  const endP = $('#end-p'), endA = $('#end-a'), endB = $('#end-b'), callNo = $('#callno'), callNo2 = $('#callno2');
+  const writePaid = () => {
+    endP.textContent = fmtBig(paid.p); endA.textContent = fmtBig(paid.a); endB.textContent = fmtBig(paid.b);
+    callNo.textContent = 'call ' + Math.min(paid.call, 9); callNo2.textContent = 'call ' + paid.call;
+  };
+  tl.set(paid, { p: 0, a: 0, b: 0, call: 1 }, 5); tl.call(writePaid, null, 5);
   // system + instructions arrive together
   items.slice(0, 2).forEach((it) => {
     tl.to(it.seg, { width: it.tk * PX, duration: 0.6 }, t);
@@ -1453,6 +1446,11 @@
     acc += it.tk;
   });
   tl.to(count, { v: acc, duration: 0.6, onUpdate: writeCount }, t);
+  let cum = acc, call = 1;
+  tl.to('#paid', { opacity: 1, duration: 0.4 }, t + 0.2);
+  tl.to('#lane-p', { opacity: 1, duration: 0.4 }, t + 0.2);
+  tl.to('#fill-p', { width: cum * SCP, duration: 0.5 }, t + 0.3);
+  tl.to(paid, { p: cum, duration: 0.5, onUpdate: writePaid }, t + 0.3);
   t += 0.9;
   const step = 0.55;
   items.slice(2).forEach((it) => {
@@ -1461,16 +1459,22 @@
     if (it.kind === 'res' && it.tk >= 6) tl.to(it.seg.querySelector('span'), { opacity: 1, duration: 0.3 }, t + 0.3);
     acc += it.tk;
     tl.to(count, { v: acc, duration: 0.45, onUpdate: writeCount }, t + 0.05);
+    if (it.kind === 'res') {
+      // one more call, and it reads everything that came before it again
+      cum += acc; call += 1;
+      tl.to('#fill-p', { width: cum * SCP, duration: 0.4 }, t + 0.1);
+      tl.to(paid, { p: cum, call, duration: 0.4, onUpdate: writePaid }, t + 0.1);
+    }
     t += step;
   });
-  // t ≈ 11.7, acc = 179.4
+  // t ≈ 11.7, acc = 179.4, cum ≈ 965k over nine calls
   cap('#cap-b1', 6.6, 3.2);
   cap('#cap-b2', 10.4, 3.1);
   tl.fromTo(trig, { opacity: 0 }, { opacity: 1, duration: 0.4, immediateRender: false }, 11.2);
   tl.to('#counter', { color: '#dc2626', duration: 0.3 }, 11.4);
 
   // 2 · The cut (14–26)
-  tl.set('#c-num', { textContent: '1 of 4' }, 14);
+  tl.set('#c-num', { textContent: '1 of 3' }, 14);
   tl.set('#c-name', { textContent: 'Context compression' }, 14);
   tl.fromTo('#c-name', { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.5, immediateRender: false }, 14);
   tl.to('#flow', { opacity: 1, duration: 0.5 }, 14.3);
@@ -1486,9 +1490,14 @@
   const old = results.slice(0, results.length - 3);
   const CUT = old.reduce((n, it) => n + it.tk, 0); // 106.1k
   old.forEach((it, i) => {
-    tl.to(it.seg, { backgroundColor: '#6b6b75', duration: 0.25 }, 18.6 + i * 0.08);
+    tl.to(it.seg, { backgroundColor: '#6b6b75', duration: 0.25 }, 17.2 + i * 0.08);
   });
-  cap('#cap-c2', 19.8, 3.6);
+  // name the group that is about to go, where the legend sits, for the three seconds before the cut
+  tl.set('#brace', { left: 40 + (items[0].tk + items[1].tk) * PX, width: CUT * PX }, 17);
+  tl.to('.walk .legend', { opacity: 0, duration: 0.3 }, 17.0);
+  tl.to('#brace', { opacity: 1, duration: 0.4 }, 17.4);
+  tl.to('#brace', { opacity: 0, duration: 0.3 }, 20.2);
+  cap('#cap-c2', 19.8, 3.0);
   let left = acc;
   old.forEach((it, i) => {
     tl.to(it.seg.querySelector('span'), { opacity: 0, duration: 0.2 }, 20.2 + i * 0.1);
@@ -1504,121 +1513,110 @@
   tl.to('#counter', { color: '#15803d', duration: 0.3 }, 20.9);
   tl.fromTo('#saved', { opacity: 0, y: 6 }, { opacity: 1, y: 0, duration: 0.5, immediateRender: false }, 21.6);
   cap('#cap-c3', 23.6, 3.4);
-  hide('#s-ctx', 26.5);
-
-  // 3 · Why the saving compounds (27–38): one column a call for the rest of the session
-  show('#s-comp', 27);
-  const cols = $('#cols');
-  const CALLS = 40, FIRST = 11, GROW = 1.5, TOP = 300, H = 250;   // calls 11–50; the prompt keeps growing 1.5k a call
-  const TAIL = results.slice(-3).reduce((n, it) => n + it.tk, 0) + 7.0;  // the prompt after the cut: 40.3k, written once
-  const PAYBACK = Math.ceil(TAIL * 2.0 / (CUT * 0.1));            // cache write 2.0×, cache read 0.1× an input token: 8 calls
-  const colEls = [];
+  // The race: the same forty calls, paid once with the cut and once without. The cut call writes the tail
+  // (the prompt after the first replaced result) into the cache again at twenty reads a token: the hit.
+  const TAIL = results.slice(-3).reduce((n, it) => n + it.tk, 0) + 7.0;  // 40.3k
+  const HIT = TAIL * 20;                                                  // 806k reads' worth
+  const PAYBACK = Math.ceil(HIT / CUT);                                   // 8 calls → call 18
+  const CALLS = 40, GROW = 1.5, STEP = 0.14;                              // calls 10–49; the prompt keeps growing 1.5k a call
+  const RACE_MAX = 8600, SC = 420 / RACE_MAX;                            // the uncut session reaches 8.3M over those forty calls
+  tl.to('#paid', { opacity: 0, duration: 0.3 }, 21.2);
+  tl.set(paid, { a: 0, b: 0, call: call + 1 }, 21.4); tl.call(writePaid, null, 21.4);
+  tl.to('#race', { opacity: 1, duration: 0.4 }, 21.6);
+  tl.to('#lane-a', { opacity: 1, duration: 0.4 }, 21.6);
+  tl.to('#lane-b', { opacity: 1, duration: 0.4 }, 21.6);
+  tl.to('#hit-b', { width: HIT * SC, duration: 0.6, ease: 'power2.out' }, 22.0);
+  tl.to(paid, { b: HIT, duration: 0.6, onUpdate: writePaid }, 22.0);
+  cap('#cap-c3', 22.2, 3.8);
+  let ra = 0, rb = HIT, t2 = 23.0;
   for (let i = 0; i < CALLS; i++) {
-    const base = acc + GROW * i;
-    const col = document.createElement('div');
-    col.className = 'col' + (i === 0 ? ' cut' : '');
-    col.style.height = (base / TOP * H) + 'px';
-    // the cut call writes the tail (the prompt after the first replaced result) into the cache again; the prefix above it stays cached
-    const paid = base - CUT, wr = i === 0 ? TAIL : 0;
-    col.innerHTML = `<div class="sv" style="height:${CUT / TOP * H}px"></div><div class="wr" style="height:${wr / TOP * H}px"></div><div class="pd" style="height:${(paid - wr) / TOP * H}px"></div>`;
-    cols.appendChild(col); colEls.push(col);
+    ra += acc + GROW * i; rb += (acc - CUT) + GROW * i;
+    const at = t2 + i * STEP;
+    tl.to('#fill-a', { width: ra * SC, duration: 0.3 }, at);
+    tl.to('#fill-b', { width: (rb - HIT) * SC, duration: 0.3 }, at);
+    tl.to(paid, { a: ra, b: rb, call: call + 1 + i, duration: 0.3, onUpdate: writePaid }, at);
+    if (i === PAYBACK - 1) {
+      // the uncut session has now paid more: the hit is repaid, every call from here is saving
+      tl.set('#mark', { left: ra * SC }, at + 0.3);
+      tl.to('#mark', { opacity: 1, duration: 0.4 }, at + 0.3);
+    }
   }
-  const tot = { v: 0 };
-  const totEl = $('#tot-n');
-  const fmtBig = (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'M' : Math.round(v) + 'k';
-  const writeTot = () => { totEl.textContent = fmtBig(tot.v); };
-  tl.to('#total', { opacity: 1, duration: 0.4 }, 27.6);
-  let t3 = 27.8;
-  const STEP = 0.14;
-  colEls.forEach((col, i) => {
-    tl.to(col, { scaleY: 1, duration: 0.35 }, t3 + i * STEP);
-    tl.to(tot, { v: CUT * (i + 1), duration: 0.3, onUpdate: writeTot }, t3 + i * STEP + 0.05);
-  });
-  // the one-off cost lands first, the per-call saving next, then the line where the cut has paid for itself
-  tl.to('#ld-cost', { opacity: 1, x: 0, duration: 0.4 }, 28.0);
-  tl.to('#ld-gain', { opacity: 1, x: 0, duration: 0.4 }, 29.2);
-  const payX = (PAYBACK - 1 + 0.5) / CALLS * 100;
-  tl.set('#pay', { left: payX + '%' }, 27);
-  tl.to('#pay', { opacity: 1, duration: 0.4 }, t3 + (PAYBACK - 1) * STEP + 0.3);
-  tl.to('#ld-pay', { opacity: 1, x: 0, duration: 0.4 }, t3 + (PAYBACK - 1) * STEP + 0.5);
-  cap('#cap-m1', 27.6, 3.6);
-  cap('#cap-m2', 31.6, 3.6);
-  tl.fromTo('#total .n', { scale: 1 }, { scale: 1.08, duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, t3 + CALLS * STEP + 0.2);
-  cap('#cap-m3', 35.6, 2.6);
-  hide('#s-comp', 38.6);
+  cap('#cap-c4', 26.4, 3.2);
+  cap('#cap-c5', 30.0, 2.6);
+  tl.fromTo('#end-b', { scale: 1 }, { scale: 1.15, duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, t2 + CALLS * STEP + 0.2);
+  hide('#s-ctx', 32.8);
 
-  // 4 · Knowledge cache (39–55)
-  show('#s-cache', 39);
-  tl.fromTo('#sess', { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.5, immediateRender: false }, 39.2);
-  cap('#cap-k1', 40, 4.6);
-  tl.to('#dist', { opacity: 1, duration: 0.4 }, 40.6);
-  tl.to('#sess-card', { scale: 0.86, opacity: 0.55, duration: 0.8, ease: 'power2.inOut' }, 41);
-  tl.to('#notes-h', { opacity: 1, duration: 0.3 }, 41.4);
+  // 3 · Knowledge cache (33–49)
+  show('#s-cache', 33);
+  tl.fromTo('#sess', { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.5, immediateRender: false }, 33.2);
+  cap('#cap-k1', 34, 4.6);
+  tl.to('#dist', { opacity: 1, duration: 0.4 }, 34.6);
+  tl.to('#sess-card', { scale: 0.86, opacity: 0.55, duration: 0.8, ease: 'power2.inOut' }, 35);
+  tl.to('#notes-h', { opacity: 1, duration: 0.3 }, 35.4);
   ['#n1', '#n2', '#n3'].forEach((n, i) => {
-    tl.to(n, { opacity: 1, x: 0, duration: 0.5, ease: 'back.out(1.4)' }, 41.6 + i * 0.35);
+    tl.to(n, { opacity: 1, x: 0, duration: 0.5, ease: 'back.out(1.4)' }, 35.6 + i * 0.35);
   });
   // next session: prompt, served note, exploration skipped
-  tl.to('#next-h', { opacity: 1, duration: 0.3 }, 45);
-  tl.to('#prompt', { opacity: 1, duration: 0.4 }, 45.1);
+  tl.to('#next-h', { opacity: 1, duration: 0.3 }, 39);
+  tl.to('#prompt', { opacity: 1, duration: 0.4 }, 39.1);
   const clone = $('#n1').cloneNode(true);
   clone.id = 'n1-served'; clone.querySelectorAll('.pill').forEach(p => p.remove()); clone.querySelector('.dep').textContent = 'proxy-route.js:routeEvidence';
   clone.style.opacity = 0; $('#served-slot').appendChild(clone);
-  tl.fromTo(clone, { opacity: 0, x: -300, y: 0, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.8, ease: 'power3.inOut', immediateRender: false }, 46);
-  tl.fromTo('#n1', { borderColor: '#e5e7eb' }, { borderColor: '#111111', duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, 45.8);
-  cap('#cap-k2', 46.4, 4);
+  tl.fromTo(clone, { opacity: 0, x: -300, y: 0, scale: 0.9 }, { opacity: 1, x: 0, scale: 1, duration: 0.8, ease: 'power3.inOut', immediateRender: false }, 40);
+  tl.fromTo('#n1', { borderColor: '#e5e7eb' }, { borderColor: '#111111', duration: 0.3, yoyo: true, repeat: 1, immediateRender: false }, 39.8);
+  cap('#cap-k2', 40.4, 4);
   $$('#explore .call').forEach((c, i) => {
-    tl.to(c, { opacity: 1, x: 0, duration: 0.25 }, 47.2 + i * 0.12);
+    tl.to(c, { opacity: 1, x: 0, duration: 0.25 }, 41.2 + i * 0.12);
   });
   $$('#explore .call').forEach((c, i) => {
-    tl.to(c, { opacity: 0.35, duration: 0.3 }, 48.4 + i * 0.08);
-    tl.set(c, { className: 'call gone' }, 48.4 + i * 0.08);
+    tl.to(c, { opacity: 0.35, duration: 0.3 }, 42.4 + i * 0.08);
+    tl.set(c, { className: 'call gone' }, 42.4 + i * 0.08);
   });
-  tl.to('#skip', { opacity: 1, duration: 0.4 }, 49);
+  tl.to('#skip', { opacity: 1, duration: 0.4 }, 43);
   // staleness and verification
-  tl.set('#h1', { textContent: '#c902', color: '#b45309' }, 50.8);
-  tl.fromTo('#h1', { scale: 1 }, { scale: 1.25, duration: 0.2, yoyo: true, repeat: 1, immediateRender: false }, 50.8);
-  tl.to('#p-stale', { opacity: 1, duration: 0.3 }, 51.1);
-  cap('#cap-k3', 51, 3.8);
-  tl.to('#p-stale', { opacity: 0, duration: 0.2 }, 52.6);
-  tl.to('#p-verify', { opacity: 1, duration: 0.2 }, 52.7);
-  tl.to('#p-verify', { opacity: 0, duration: 0.2 }, 53.9);
-  tl.to('#p-fresh', { opacity: 1, duration: 0.3 }, 54);
-  tl.set('#h1', { color: '#9ca3af' }, 54);
-  hide('#s-cache', 54.6);
+  tl.set('#h1', { textContent: '#c902', color: '#b45309' }, 44.8);
+  tl.fromTo('#h1', { scale: 1 }, { scale: 1.25, duration: 0.2, yoyo: true, repeat: 1, immediateRender: false }, 44.8);
+  tl.to('#p-stale', { opacity: 1, duration: 0.3 }, 45.1);
+  cap('#cap-k3', 45, 3.8);
+  tl.to('#p-stale', { opacity: 0, duration: 0.2 }, 46.6);
+  tl.to('#p-verify', { opacity: 1, duration: 0.2 }, 46.7);
+  tl.to('#p-verify', { opacity: 0, duration: 0.2 }, 47.9);
+  tl.to('#p-fresh', { opacity: 1, duration: 0.3 }, 48);
+  tl.set('#h1', { color: '#9ca3af' }, 48);
+  hide('#s-cache', 48.6);
 
-  // 5 · Instruction files (55–65)
-  show('#s-instr', 55);
+  // 4 · Instruction files (49–59)
+  show('#s-instr', 49);
   const rows = $$('#tbl .tr:not(.th)');
   rows.forEach((r, i) => {
-    tl.fromTo(r, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.35, immediateRender: false }, 55.3 + i * 0.12);
+    tl.fromTo(r, { opacity: 0, x: -8 }, { opacity: 1, x: 0, duration: 0.35, immediateRender: false }, 49.3 + i * 0.12);
     const need = +r.dataset.need;
-    tl.to(r.querySelector('.need i'), { width: need + '%', duration: 0.7 }, 56 + i * 0.1);
+    tl.to(r.querySelector('.need i'), { width: need + '%', duration: 0.7 }, 50 + i * 0.1);
     const w = r.querySelector('.waste');
     const bad = need < 10;
-    tl.to(w, { backgroundColor: bad ? '#fef2f2' : '#ecfdf3', color: bad ? '#dc2626' : '#15803d', duration: 0.4 }, 56.8 + i * 0.1);
+    tl.to(w, { backgroundColor: bad ? '#fef2f2' : '#ecfdf3', color: bad ? '#dc2626' : '#15803d', duration: 0.4 }, 50.8 + i * 0.1);
   });
-  cap('#cap-i1', 55.8, 4.4);
+  cap('#cap-i1', 49.8, 4.4);
   // pick the wasteful rows
   const picks = rows.filter(r => +r.dataset.need < 10);
   picks.forEach((r, i) => {
-    tl.to(r.querySelector('.chk'), { backgroundColor: '#111', borderColor: '#111', duration: 0.2 }, 59.6 + i * 0.15);
-    tl.set(r.querySelector('.chk'), { className: 'chk on' }, 59.6 + i * 0.15);
-    tl.set(r, { className: 'tr picked' }, 59.7 + i * 0.15);
+    tl.to(r.querySelector('.chk'), { backgroundColor: '#111', borderColor: '#111', duration: 0.2 }, 53.6 + i * 0.15);
+    tl.set(r.querySelector('.chk'), { className: 'chk on' }, 53.6 + i * 0.15);
+    tl.set(r, { className: 'tr picked' }, 53.7 + i * 0.15);
   });
-  cap('#cap-i2', 60.6, 4.6);
-  tl.to('#pr', { opacity: 1, y: 0, duration: 0.6, ease: 'back.out(1.2)' }, 61.6);
-  cap('#cap-i3', 63, 3);
-  hide('#s-instr', 65.6);
+  cap('#cap-i2', 54.6, 4.6);
+  tl.to('#pr', { opacity: 1, y: 0, duration: 0.6, ease: 'back.out(1.2)' }, 55.6);
+  cap('#cap-i3', 57, 3);
+  hide('#s-instr', 59.6);
 
       tl.to({}, { duration: 0.01 }, END + 0.2); // pin the end
 
       // ---- Chapters ----
       const chapters = [
-        { t: 5, name: 'Baseline' },
+        { t: 5, name: 'The problem' },
         { t: 14, name: 'Context compression' },
-        { t: 27, name: 'Why it compounds' },
-        { t: 39, name: 'Knowledge cache' },
-        { t: 55, name: 'Instruction files' },
+        { t: 33, name: 'Knowledge cache' },
+        { t: 49, name: 'Instruction files' },
       ];
       const chips = $('#chips');
       chapters.forEach((c, i) => {
