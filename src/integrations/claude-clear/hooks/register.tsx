@@ -142,7 +142,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   }
   out.reverse()
   // the rows before the first one a clear changes keep their place in the cache; what follows is written again
-  const changedAt = firstChanged : firstChanged
+  const changedAt = firstChanged
   const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
   const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))
