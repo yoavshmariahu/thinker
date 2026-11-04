@@ -30,11 +30,10 @@ import { transformResponses, responsesUsageTap, responsesReport } from './proxy-
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { noteCompression } from './compression.js';
-import { decide, response as clearingResponse, store as clearingStore, isRewrite } from './clearing.js';
+import { isRewrite } from './cutting.js';
 import { decideCut, cutResponse, cutStore, freshCut, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
 export { isRewrite };
 
-export const EDIT_TYPE = 'clear_tool_uses_20250919';
 export const EDIT_BETA = 'context-management-2025-06-27';
 // `keep`: how many of the newest tool uses a clear leaves, a count or `turn` (2026-10-22): the tool uses of the
 // request's current turn, never under `keepMin`. The Context tab's measurement behind `turn`: on this repository's
@@ -71,50 +70,26 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
 // Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
 // cannot see (proxy-replay.js).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keep: 'turn', keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: false, clearDeep: true };
-// The clearing policy -- clear, freeze what was cleared, and clear again when it pays -- is clearing.js. What this
-// file does for it is measure the request (`measureClearing`) and send the edit it decides (`transformRequest`,
-// `cfg.record`). `clearDeep: false` (`--no-clear-deep`, `proxy: { clearDeep: false }`) keeps every ask at the floor.
-// What a clear takes before the turn, as the API counts what it cleared: the results, and with `clearInputs` the
-// text of their calls too (an ask that counted the results alone stopped the API half way, since the inputs it cleared
-// with them counted toward the ask: 296k of inputs beside 345k of results in one session here).
-// Less the newest `keep` tool uses before the turn, which the server never clears: counted in, they put the ask past
-// what the server can meet, and an ask it cannot meet is an edit it does not apply at all. On 2026-11-02 (smoke5,
-// mlflow PR26265) the policy asked 182k at a turn boundary with 120k cleared and 89k in the three kept results, the
-// server cleared nothing on that call and the whole conversation came back uncleared: 171k read and 73k written for
-// nothing, then the floor ask again the next call (`proxy-clear-unmet`).
-export function clearableBeforeTurn(cfg, messages, keep = keepValue(cfg, messages)) {
-  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
-  const results = [], inputs = [];
-  for (const m of messages.slice(0, turnStart(messages))) {
-    if (!Array.isArray(m?.content)) continue;
-    if (m.role === 'user') for (const b of m.content) if (b?.type === 'tool_result') results.push(textLen(b.content));
-    if (m.role === 'assistant') for (const b of m.content) if (b?.type === 'tool_use') inputs.push(JSON.stringify(b.input ?? {}).length);
-  }
-  const sum = a => a.slice(0, Math.max(0, a.length - keep)).reduce((x, y) => x + y, 0);
-  return Math.round((sum(results) + (cfg.clearInputs ? sum(inputs) : 0)) * TOKENS_PER_CHAR);
-}
-// The request as the decision needs it: the prompt before the current turn in tokens, the cached prefix a deeper ask
-// keeps (`prefix`: the system prompt and the tool definitions alone, so the write a deepening costs is everything
-// after them less what it drops. Claude Code sets its cache breakpoints on the system prompt and the newest messages,
-// and the API finds a cached prefix only at a breakpoint or within twenty blocks before one, so a prefix ending at
-// the first result a deeper ask drops, mid-conversation, is never found: measured 2026-11-02 (mlflow PR26265, smoke6),
-// two deeper asks read 12,707 tokens each, the system prompt, and wrote 60k, the whole post-clear context, where the
-// tail from the drop point was priced at 44-51k), what the results and call text before the turn weigh by the proxy's count (`before`; what is clearable is that less what the server already cleared, clearing.js), and the turn's id. All of it from
-// what sits before the turn: within a turn the request grows with every call, and a verdict that moved from one
-// call of a turn to the next would move the edit with it, which is the rewrite this exists to avoid.
-export function measureClearing(cfg, j, clearedUses = 0) {
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 100000, holdout: 0, clearInputs: true, clearThinking: true, clearDeep: true };
+// The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
+// prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
+// sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
+// matched; measured 2026-11-04, four cuts each read 12,895 tokens and wrote the whole post-cut context), the system
+// prompt's own size, and the turn's id. All of it from what sits before the turn: within a turn the request grows
+// with every call, and a verdict that moved from one call of a turn to the next would move the cut with it, which
+// is the rewrite this exists to avoid.
+export function measureClearing(cfg, j) {
   const txt = v => { try { return v == null ? 0 : JSON.stringify(v).length; } catch { return 0; } };
   const tok = chars => Math.floor(chars * TOKENS_PER_CHAR);
   const all = Array.isArray(j?.messages) ? j.messages : [];
   const messages = all.slice(0, turnStart(all));
   const head = txt(j?.system) + txt(j?.tools);
   const prompt = tok(head + txt(messages));
-  const keep = keepForTurn(cfg, all);
+
   // the system prompt is the one cache breakpoint a mid-conversation edit leaves usable, so it is the
   // only part of the prompt a cut does not pay to write again (measured 2026-11-04: on each of four
   // cuts, write == post-cut prompt - 12,895, and 12,895 was exactly that call's cache read)
-  return { prompt, prefix: Math.min(prompt, tok(head)), before: clearableBeforeTurn(cfg, all, keep), turn: turnId(all), keep, system: tok(j?.system) };
+  return { prompt, prefix: Math.min(prompt, tok(head)), turn: turnId(all), system: tok(j?.system) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -180,30 +155,6 @@ export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}
     get stoodDown() { return stoodDown; },
   };
 }
-// Two more things a clear can take with it, both on by default since 2026-10-28 (the owner's call: this is the
-// configuration this machine has run since 2026-10-25, and it is what makes clearing pay at all. The replay priced at
-// list over 45 days of this machine's sessions, research/cost-levers-2026-10-25.md and `thinker proxy replay`: the
-// shipped clear of results alone is break-even in dollars, -0.2%, since every clear writes the whole conversation again
-// at twice the input rate and a Fable read costs 2.5% of an input token, while the three together save 7.8% overall and
-// 10.8% on the sessions of 120 calls and more that are 71% of the bill, 2 of 73 of them costlier. An Artemis experiment
-// cannot judge this: its tasks are one turn, and a clear needs a conversation. What the replay cannot see is the model
-// reading again what was cleared, so those figures are an upper bound; the live holdout is the check):
-// `clearInputs` (off again with `--no-clear-inputs`, THINKER_PROXY_CLEAR_INPUTS=off, `proxy: { clearInputs: false }`): the edit's
-// `clear_tool_inputs`, so the text of the agent's own calls (its edits and commands) goes with their results; 2.3% of the
-// bill in the replay, 5.8% on sessions of 120 calls and more, riding the same clear. `clearThinking` (`--clear-thinking`,
-// THINKER_PROXY_CLEAR_THINKING=off, `proxy: { clearThinking: false }`): a `clear_thinking` edit that drops the thinking of
-// the turns before the current one, sent only on a request where the results before the current turn are, by the
-// proxy's own count, already enough for the tool clear to fire (thinkingEdit), so the two clears break the cache at the
-// same point and never on their own: 5.0% of the bill in the replay, 10.1% on the long sessions; thinking cleared on its
-// own schedule was negative, and a sliding keep (every call) cost 190%. This edit replaces the one the agent sent
-// (Claude Code's `keep: all`), the one place the proxy changes an edit of the agent's rather than appending.
-// Off by default since 2026-11-02: its keep is the count of the turn's assistant messages, which grows by one a call
-// like the tool keep did, and on this machine's log the calls that carried it rewrote the prefix 45% of the time where
-// the tool clear's set had not moved, against 6% without it. The docs say `thinking_turns` counts assistant turns with
-// thinking; whether that is one per message or one per exchange decides which constant is stable, and only a live
-// run can tell. `--clear-thinking` turns it back on. The desktop mod's thinking clear is one rewrite at a compaction
-// boundary (claude-clear), not this edit, and stays on.
-export const THINKING_EDIT_TYPE = 'clear_thinking_20251015';
 // what a text block costs the model, for the proxy's own count: four characters are 1.44 tokens (report.js:CALIBRATION)
 export const TOKENS_PER_CHAR = 1.44 / 4;
 // the margin the proxy's count of the clearable results must clear by before it sends the thinking edit, since the
@@ -236,7 +187,6 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearInputs = onOff('clear-inputs', 'THINKER_PROXY_CLEAR_INPUTS', PROXY_DEFAULTS.clearInputs);
   cfg.clearThinking = onOff('clear-thinking', 'THINKER_PROXY_CLEAR_THINKING', PROXY_DEFAULTS.clearThinking);
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
-  cfg.clientCut = onOff('client-cut', 'THINKER_PROXY_CLIENT_CUT', false);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -327,14 +277,42 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 
 // Apply a known set. Deterministic: the agent re-sends the whole conversation every call, so the
 // same ids give the same bytes, which is what keeps the prefix still.
-export function applyCut(messages, cut) {
+//
+// Three operations, the same three the desktop mod performs (`register.tsx:clearOld`), so the two
+// doors do the same thing and not merely hold the same config keys: an old result becomes a
+// placeholder; an assistant row before the newest turn has its call text emptied (`clearInputs`);
+// and the same row loses its thinking (`clearThinking`). The mod sheds thinking as a side effect of
+// rebuilding the row -- here it is explicit, so either can be switched off on its own.
+export function applyCut(messages, cut, { clearInputs = true, clearThinking = true } = {}) {
   const ids = new Set(cut);
-  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, firstChanged: -1 };
-  let n = 0, chars = 0, firstChanged = -1;
+  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, thinking: 0, firstChanged: -1 };
+  let n = 0, chars = 0, inputChars = 0, thinking = 0, firstChanged = -1;
+  // the newest turn is where the model is working: its call text and thinking are never touched
+  let turnStart = messages.length;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
+    if (m?.role === 'user' && (!blocks || blocks.some(b => b?.type === 'text'))) { turnStart = i; break; }
+  }
   const out = messages.map((m, i) => {
     const blocks = Array.isArray(m?.content) ? m.content : null;
-    if (!blocks || !blocks.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) return m;
-    firstChanged = firstChanged < 0 ? i : firstChanged;
+    if (!blocks) return m;
+    if (m.role === 'assistant') {
+      if (i >= turnStart || !(clearInputs || clearThinking)) return m;
+      let touched = false;
+      const content = blocks.flatMap(b => {
+        if (b?.type === 'thinking' && clearThinking) { thinking++; touched = true; return []; }
+        if (b?.type === 'tool_use' && clearInputs && Object.keys(b.input || {}).length) {
+          inputChars += JSON.stringify(b.input).length; touched = true;
+          return [{ ...b, input: {} }];
+        }
+        return [b];
+      });
+      if (!touched || !content.length) return m;
+      firstChanged = firstChanged < 0 || i < firstChanged ? i : firstChanged;
+      return { ...m, content };
+    }
+    if (!blocks.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) return m;
+    firstChanged = firstChanged < 0 || i < firstChanged ? i : firstChanged;
     return { ...m, content: blocks.map(b => {
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b);
@@ -343,161 +321,28 @@ export function applyCut(messages, cut) {
       return { ...b, content: cutPlaceholder(text.length) };
     }) };
   });
-  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
+  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), inputChars, thinking, firstChanged };
+}
+
+// What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
+// knows which uses it replaced, so this needs no guess at what a server chose.
+export function cutActions(messages, cut) {
+  const ids = new Set(cut), nameOf = new Map(), by = new Map();
+  for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) if (b?.type === 'tool_use') nameOf.set(b.id, b.name);
+  for (const id of ids) { const name = nameOf.get(id) || 'tool'; if (!by.has(name)) by.set(name, { name, calls: 0, tokens: 0 }); by.get(name).calls++; }
+  for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+    if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
+    const e = by.get(nameOf.get(b.tool_use_id) || 'tool');
+    if (e) e.tokens += Math.round(resultText(b).length * TOKENS_PER_CHAR);
+  }
+  return [...by.values()].sort((a, b) => b.tokens - a.tokens);
 }
 
 export const CUT_MIN_CHARS = CUTTING_MIN_CHARS;
 export const cutPlaceholder = cutting_placeholder;
 
-export function previousTurnUses(messages) {
-  const starts = [];
-  (Array.isArray(messages) ? messages : []).forEach((m, i) => {
-    if (m?.role !== 'user') return;
-    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
-    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) starts.push(i);
-  });
-  if (starts.length < 2) return 0;
-  let n = 0;
-  for (const m of messages.slice(starts[starts.length - 2], starts[starts.length - 1])) {
-    if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
-  }
-  return n;
-}
-// the keep a boundary decides: never fewer than the floor, never fewer than a turn of this session's shape
-export const keepForTurn = (cfg, messages) => cfg.keep === 'turn'
-  ? Math.max(cfg.keepMin ?? 0, previousTurnUses(messages))
-  : cfg.keep;
-export function turnToolUses(messages) {
-  let n = 0;
-  for (const m of messages.slice(turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
-  return n;
-}
-export const keepValue = (cfg, messages) => cfg.keep === 'turn' ? (cfg.keepMin ?? 0) : cfg.keep;
 
-export function clearEdit(cfg, messages, plan = { keep: keepValue(cfg, messages), ask: cfg.clearAtLeast }) {
-  return {
-    type: EDIT_TYPE,
-    trigger: { type: 'input_tokens', value: cfg.trigger },
-    keep: { type: 'tool_uses', value: plan.keep },
-    clear_at_least: { type: 'input_tokens', value: plan.ask },
-    ...(cfg.clearInputs ? { clear_tool_inputs: true } : {}),
-  };
-}
-// the proxy's count of what the tool results before the current turn weigh (the text of every tool_result block, at
-// TOKENS_PER_CHAR; an image counts nothing here, which errs on the safe side), what a `keep: turn` clear would take
-export function resultsBeforeTurn(messages) {
-  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
-  let chars = 0;
-  for (const m of messages.slice(0, turnStart(messages))) if (m?.role === 'user' && Array.isArray(m.content)) for (const b of m.content) if (b?.type === 'tool_result') chars += textLen(b.content);
-  return Math.round(chars * TOKENS_PER_CHAR);
-}
-// how many tool calls sit before the turn: what the frozen keep is reckoned from
-export function toolUsesBeforeTurn(messages) {
-  let n = 0;
-  for (const m of messages.slice(0, turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) n += m.content.filter(b => b?.type === 'tool_use').length;
-  return n;
-}
-// the same for the text of the tool calls before the turn (their `input`, as JSON), what clear_tool_inputs takes with them
-export function inputsBeforeTurn(messages) {
-  let chars = 0;
-  for (const m of messages.slice(0, turnStart(messages))) if (m?.role === 'assistant' && Array.isArray(m.content)) for (const b of m.content) if (b?.type === 'tool_use') chars += JSON.stringify(b.input ?? {}).length;
-  return Math.round(chars * TOKENS_PER_CHAR);
-}
-// Which of the agent's own actions a clear takes, named from the request the proxy is already scanning. The API
-// reports how much it cleared and how many tool uses, never which: the names are the proxy's own reckoning of the
-// same window the edit describes -- every tool use but the newest `keep`, with the size of its result at
-// TOKENS_PER_CHAR. So the agent can be told what the saving was made of, which is the question the figure raises.
-// Aggregated by tool name, biggest first, and the breakdown describes the set cleared out of *this* prompt: it is
-// never added up across requests, since each request clears the same cumulative set again.
-// What the clearing cost that the gauge could not see: material that came back.
-//
-// The gauge (clearing.js:response) weighs the clears against the cache rewrites after them, and that is the
-// whole of the cost it knows. Measured 2026-11-03 (research/clearing-bench, B4): a session cost 81% more than
-// its held-out pair, every penny of it in 75% more model calls, because the model re-read the files whose
-// results had been cleared -- and the gauge never stopped it, because no term in it counts a call. B6, at the
-// shipped trigger, was worse: the model stopped re-reading and answered "I couldn't give the line count (its
-// Read result was cleared from my context)" instead, so the damage left the token figures altogether.
-//
-// A re-read is visible in the request, though: it is a tool use whose name and input repeat one whose result
-// the server has already cleared. `fingerprints` of the cleared uses go in the session record, and a use in
-// the newest turn that matches one is material the clear did not save -- it is back, as fresh input, at ten to
-// forty times what clearing it saves on a call. One rule, and it is the cost the two runs above were made of.
-export function toolPrint(name, input) {
-  const text = `${name}\u0000${(() => { try { return JSON.stringify(input ?? {}); } catch { return ''; } })()}`;
-  let h1 = 0x811c9dc5, h2 = 0x01000193;
-  for (let i = 0; i < text.length; i++) {
-    h1 = (h1 ^ text.charCodeAt(i)) * 0x01000193 >>> 0;
-    h2 = (h2 + text.charCodeAt(i) * 0x85ebca6b) >>> 0;
-  }
-  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
-}
-// The cleared uses' prints, and any use of the newest turn that repeats one the record has already seen
-// cleared. `seen` is the record's list; the result's `prints` replaces it, capped, newest kept.
-export const REREAD_PRINTS = 400;
-export function rereadOfCleared(messages, keep, seen = []) {
-  const empty = { prints: Array.isArray(seen) ? seen : [], reread: null };
-  if (!Array.isArray(messages)) return empty;
-  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
-  const uses = [], sizes = new Map();
-  const start = turnStart(messages);
-  messages.forEach((m, i) => {
-    if (!Array.isArray(m?.content)) return;
-    for (const b of m.content) {
-      if (m.role === 'assistant' && b?.type === 'tool_use') uses.push({ id: b.id, name: String(b.name || 'tool'), print: toolPrint(b.name, b.input), fresh: i >= start });
-      if (m.role === 'user' && b?.type === 'tool_result') sizes.set(b.tool_use_id, (sizes.get(b.tool_use_id) || 0) + textLen(b.content));
-    }
-  });
-  const was = new Set(Array.isArray(seen) ? seen : []);
-  // a use of the turn in progress whose print the record saw cleared: the material is back
-  const by = new Map();
-  for (const u of uses) {
-    if (!u.fresh || !was.has(u.print)) continue;
-    const e = by.get(u.name) || { name: u.name, calls: 0, tokens: 0 };
-    e.calls++; e.tokens += Math.round((sizes.get(u.id) || 0) * TOKENS_PER_CHAR);
-    by.set(u.name, e);
-  }
-  const cleared = uses.slice(0, Math.max(0, uses.length - Math.max(0, keep | 0)));
-  const prints = [...was];
-  for (const u of cleared) if (!was.has(u.print)) prints.push(u.print);
-  const tools = [...by.values()].sort((a, b) => b.tokens - a.tokens);
-  return {
-    prints: prints.slice(-REREAD_PRINTS),
-    reread: tools.length ? { calls: tools.reduce((a, b) => a + b.calls, 0), tokens: tools.reduce((a, b) => a + b.tokens, 0), tools } : null,
-  };
-}
-export function clearedActions(messages, keep) {
-  if (!Array.isArray(messages)) return [];
-  const textLen = c => typeof c === 'string' ? c.length : Array.isArray(c) ? c.reduce((a, b) => a + (typeof b?.text === 'string' ? b.text.length : 0), 0) : 0;
-  const uses = [], sizes = new Map();
-  for (const m of messages) {
-    if (!Array.isArray(m?.content)) continue;
-    for (const b of m.content) {
-      if (m.role === 'assistant' && b?.type === 'tool_use') uses.push({ id: b.id, name: String(b.name || 'tool') });
-      if (m.role === 'user' && b?.type === 'tool_result') sizes.set(b.tool_use_id, (sizes.get(b.tool_use_id) || 0) + textLen(b.content));
-    }
-  }
-  const cleared = uses.slice(0, Math.max(0, uses.length - Math.max(0, keep | 0)));
-  const by = new Map();
-  for (const u of cleared) {
-    const e = by.get(u.name) || { name: u.name, calls: 0, tokens: 0 };
-    e.calls++; e.tokens += Math.round((sizes.get(u.id) || 0) * TOKENS_PER_CHAR);
-    by.set(u.name, e);
-  }
-  return [...by.values()].sort((a, b) => b.tokens - a.tokens || b.calls - a.calls);
-}
 
-// The thinking edit, on a request where the tool clear will fire by the proxy's count (the results before the current
-// turn weigh clearAtLeast with the margin; keep turn alone, since a count keeps results of earlier turns and the two
-// clears would part): the thinking of the turns before this one goes, that of the current turn stays (`thinking_turns`,
-// the assistant messages since the person's request, at least one, as the API requires). Deterministic in the
-// conversation, so once the thinking before a turn is cleared every later request clears it too and the cache holds;
-// at each new turn the cleared set grows by one turn, the moment the tool clear grows by the same turn's results.
-export function thinkingEdit(cfg, messages) {
-  if (!cfg.clearThinking || cfg.keep !== 'turn' || !Array.isArray(messages)) return null;
-  if (resultsBeforeTurn(messages) < cfg.clearAtLeast * THINKING_MARGIN) return null;
-  const turns = messages.slice(turnStart(messages)).filter(m => m?.role === 'assistant').length;
-  return { type: THINKING_EDIT_TYPE, keep: { type: 'thinking_turns', value: Math.max(1, turns) } };
-}
 
 // a session is on one side of the holdout for all its requests: switching sides mid-session would bring
 // the cleared results back and write the cache again
@@ -508,6 +353,8 @@ export function heldOut(session, share) {
   return h / 2 ** 32 < share;
 }
 
+// Claude Code can send a tool clearing of its own; this is the type to recognise it by, not to send.
+const AGENT_CLEAR_TYPE = 'clear_tool_uses_20250919';
 const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map(s => s.trim()).includes(EDIT_BETA);
 const sessionOf = headers => headers['x-claude-code-session-id'] || null;
 
@@ -521,39 +368,25 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (!j || !Array.isArray(j.messages)) return { body, reason: 'other' };
   const cm = j.context_management && typeof j.context_management === 'object' ? j.context_management : {};
   const edits = Array.isArray(cm.edits) ? cm.edits : [];
-  if (edits.some(e => e && e.type === EDIT_TYPE)) return { body, reason: 'agent-clears' };
-  // the API applies edits in order; the thinking edit Claude Code sends stays first, unless the proxy's own thinking edit
-  // takes its place (thinkingEdit, `--clear-thinking`): then that one is first and the agent's goes
-  // The edit this call sends: the session record's, decided at the turn boundary (clearing.js:decide) where the
-  // proxy holds one (cfg.record), else the floor. Between decisions the same edit goes byte for byte.
-  const rec = cfg.record, m = rec ? measureClearing(cfg, j, rec.clearedUses) : null;
-  // Thinker cuts the context itself: one decision at a turn boundary, then the same set applied
-  // byte for byte on every call of the turn. Nothing is asked of the API.
-  if (cfg.clientCut) {
-    const cutRec = cfg.cutRecord || freshCut('');
-    const cm2 = m || measureClearing(cfg, j, 0);
-    const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: cutRec.cut });
-    const dc = decideCut(cutRec, cfg, cm2, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
-    const applied = applyCut(j.messages, dc.cut);
-    if (!applied.cut) return { body, reason: dc.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model };
-    j.messages = applied.messages;
-    return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, asked: 0,
-      cut: dc.cut, changed: !!dc.clear, addBeta: false, actions: [],
-      clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
-      ...(dc.clear ? { clear: { tokens: dc.tokens, recache: dc.recache, cost: Math.round(dc.cost), saving: Math.round(dc.saving), ...(dc.cold ? { cold: true } : {}) }, tokens: dc.tokens, recache: dc.recache, cost: dc.cost, saving: dc.saving, cold: dc.cold } : {}),
-      ...(dc.held ? { held: { tokens: dc.held.tokens, recache: dc.held.recache, cost: Math.round(dc.held.cost), saving: Math.round(dc.held.saving), need: dc.held.need, have: dc.held.have } } : {}),
-      ...(dc.candidate != null ? { candidate: dc.candidate } : {}),
-      ...(dc.turn != null ? { turn: dc.turn } : {}) };
-  }
-  const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now, model: j.model }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
-  const edit = clearEdit(cfg, j.messages, d.edit), thinking = thinkingEdit(cfg, j.messages);
-  // material the clear did not save, because the model fetched it again (rereadOfCleared)
-  const rr = rec ? rereadOfCleared(j.messages, edit.keep.value, rec.seenCleared) : { prints: null, reread: null };
-  const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
-  // a held edit (clearing.js:decide, nothing safe to clear yet) is not sent at all
-  const hold = !!d.edit.hold, sent = [...(thinking ? [thinking] : []), ...kept, ...(hold ? [] : [edit])];
-  if (sent.length) j.context_management = { ...cm, edits: sent };
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: edit.keep.value, asked: edit.clear_at_least.value, changed: !!d.clear, ...(hold ? { hold: true } : {}), ...(d.turn != null ? { turn: d.turn } : {}), ...(d.clear ? { clear: { dropped: d.dropped, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) } } : {}), ...(d.held ? { held: { dropped: d.held.dropped, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}), ...(d.clearable != null ? { clearable: d.clearable } : {}), addBeta: !betaOn(headers), actions: hold ? [] : clearedActions(j.messages, edit.keep.value), ...(rr.prints ? { prints: rr.prints } : {}), ...(rr.reread ? { reread: rr.reread } : {}), ...(cfg.clearInputs ? { inputs: true } : {}), ...(thinking ? { thinkingKeep: thinking.keep.value } : {}) };
+  // an agent clearing for itself is left alone: two mechanisms over one conversation is nobody's policy
+  if (edits.some(e => e && e.type === AGENT_CLEAR_TYPE)) return { body, reason: 'agent-clears' };
+  // Thinker cuts the context itself (cutting.js): one decision at a turn boundary, then the same set
+  // applied byte for byte on every call of the turn. Nothing is asked of the API.
+  const rec = cfg.cutRecord || freshCut('');
+  const m = measureClearing(cfg, j);
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
+  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
+  const applied = applyCut(j.messages, d.cut, { clearInputs: cfg.clearInputs, clearThinking: cfg.clearThinking });
+  if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model };
+  j.messages = applied.messages;
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
+    cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
+    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, inputChars: applied.inputChars, thinking: applied.thinking, firstChanged: applied.firstChanged },
+    ...(cfg.clearInputs ? { inputs: true } : {}),
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
+    ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
+    ...(d.candidate != null ? { candidate: d.candidate } : {}),
+    ...(d.turn != null ? { turn: d.turn } : {}) };
 }
 // the client's beta header with the edit's beta added
 export const withBeta = value => [value, EDIT_BETA].filter(Boolean).join(',');
@@ -596,11 +429,12 @@ export function usageTap() {
     },
     result() {
       if (!Object.keys(seen).length) { try { take(JSON.parse(whole)); } catch { /* not JSON */ } }
-      const cleared = (seen.applied || []).filter(e => e.type === EDIT_TYPE);
+
       return {
         input: seen.input_tokens, read: seen.cache_read_input_tokens, write: seen.cache_creation_input_tokens, out: seen.output_tokens,
         write1h: seen.write1h, write5m: seen.write5m,
-        cleared: cleared.reduce((a, e) => a + (e.cleared_input_tokens || 0), 0), clearedUses: cleared.reduce((a, e) => a + (e.cleared_tool_uses || 0), 0), editAcknowledged: !!seen.acknowledged,
+        // what the cut took out is known from the cut itself (`clientCut`), not from the API's report
+        cleared: 0, clearedUses: 0,
       };
     },
   };
@@ -641,11 +475,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     log(row);
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
-  let editRejected = false;
-  // the clearing records, one per session, on disk: a restarted proxy sends the edit it was sending (clearing.js)
-  const clearing = clearingStore(clearingDir, cfg);
-  // the cut's own record: the tool_use ids already replaced, so a restart re-applies the same set
-  const cutting = cutStore(clearingDir && path.join(clearingDir, 'cut'));
+  let cutRejected = false;
+  // the cut's record, one per session, on disk: a restarted proxy re-applies the same set (cutting.js)
+  const cutting = cutStore(clearingDir);
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -672,12 +504,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const raw = Buffer.concat(chunks);
       const t0 = process.hrtime.bigint();
       let t;
-      const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
-      const rec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? clearing.read(sessionOf(req.headers)) : null;
-      const cutRec = requestCfg.clientCut && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
-      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, record: rec, cutRecord: cutRec }); } catch { t = { body: raw, reason: 'error' }; }
-      // the gauge gave this session up: the agent's own bytes, and the results come back once
-      if (t.injected && rec?.stopped) t = { body: raw, reason: 'uneconomic', model: t.model };
+      const noEdit = cutRejected;
+      const cutRec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, cutRecord: cutRec }); } catch { t = { body: raw, reason: 'error' }; }
       let n = null;
       if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
@@ -715,14 +544,16 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: getAgent(!!attempt) }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
-          // A 400 from an upstream that is not Anthropic's may be the gateway refusing the edit the proxy added --
-          // or it may be about the request itself, which is the agent's own to see. The body says which
-          // (`refusesEdit`), so it is read before anything reaches the agent: a refusal of the edit means the same
-          // request goes again untouched, anything else is passed on as it came. Reading the body first is the
-          // whole point. A real router (LiteLLM 1.106.5, 2026-10-28) answered 400 over a model name it did not
-          // know, and taking that for a refusal switched the clearing off for the life of the process and sent
-          // every failing request twice.
-          if (t.injected && !editRejected && ures.statusCode === 400 && !res.headersSent && !forwardsToAnthropic(requestCfg.upstream)) {
+          // A 400 on a request the proxy cut may be the cut itself being rejected -- a history the API will not
+          // take -- or it may be about the request, which is the agent's own to see. The body says which
+          // (`refusesEdit`), so it is read before anything reaches the agent: a rejection means the same request
+          // goes again as the agent wrote it and nothing is cut for the rest of the proxy's life. This matters
+          // more than it did when the API did the clearing: the edit is the proxy's own now, so a history the API
+          // will not accept is the proxy's fault and the only safe answer is to stop editing. An in-place edit of
+          // the history did exactly that in October. Anything else is passed on once, as it came: a real router
+          // (LiteLLM 1.106.5, 2026-10-28) answered 400 over a model name it did not know, and taking that for a
+          // rejection stopped the clearing over an unrelated error and sent every failing request twice.
+          if (t.injected && !cutRejected && ures.statusCode === 400 && !res.headersSent) {
             const parts = [];
             let read = 0;
             let ended = false;
@@ -731,10 +562,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
               // not about the edit: the agent's own to see. The bytes are in hand and the stream may already be
               // over, so `deliver` is told to finish the response itself rather than wait for an 'end' that has been
               if (!refusesEdit(body)) return deliver(Buffer.from(body), ended);
-              editRejected = true;
+              cutRejected = true;
               ures.resume();
-              log({ at: new Date().toISOString(), op: 'proxy-edit-rejected', upstream: up.origin, status: 400, says: String(body).slice(0, 200) });
-              t = { ...t, body: raw, injected: false, addBeta: false, reason: 'edit-unsupported' };
+              log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', upstream: up.origin, status: 400, says: String(body).slice(0, 200) });
+              t = { ...t, body: raw, injected: false, addBeta: false, reason: 'cut-rejected' };
               send(attempt);
             };
             ures.on('data', c => {
@@ -763,18 +594,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.hold ? { hold: true } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.reread ? { reread: { calls: t.reread.calls, tokens: t.reread.tokens } } : {}), ...(t.clearable != null ? { clearable: t.clearable } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), asked: t.asked, ...(t.thinkingKeep != null ? { thinkingKeep: t.thinkingKeep } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
-            // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
-            // gauge read; each event is a log line, and the record goes back to disk
-            // the cut's record stands on its own: it owns the set, so it does not need the clearing record
+            // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
+            // each event is a log line, and the record goes back to disk
             if (tap && cutRec && t.injected && t.protocol !== 'responses') {
               for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
               cutting.write(cutRec);
-            }
-            if (tap && rec && !cutRec && t.injected && t.protocol !== 'responses') {
-              for (const ev of clearingResponse(rec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: ev.stopped ? 'proxy-clearing-stopped' : ev.unmet ? 'proxy-clear-unmet' : ev.moved ? 'proxy-clear-moved' : ev.reread ? 'proxy-clear-reread' : 'proxy-clear', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...ev, read: usage.read, write: usage.write, cleared: usage.cleared, clearedUses: usage.clearedUses });
-              clearing.write(rec);
             }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
@@ -865,8 +691,9 @@ export function proxyReport(rows, { since } = {}) {
       overheadP50: ms[Math.floor(ms.length / 2)] ?? 0, overheadP99: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] ?? 0 };
   }
   const responses = responsesReport(rows, { since });
-  const stopped = new Set(rows.filter(r => r.op === 'proxy-clearing-stopped' && (!since || r.at >= since)).map(r => r.session));
-  if (outSides.clearing) outSides.clearing.sessionsStopped = stopped.size;
+  // a cut rejected by the API is the one way the editing stops now (proxy.js:cutRejected)
+  const rejected = new Set(rows.filter(r => r.op === 'proxy-cut-rejected' && (!since || r.at >= since)).map(r => r.session));
+  if (outSides.clearing) outSides.clearing.sessionsRejected = rejected.size;
   const warning = rewriteWarning(outSides);
   return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}) };
 }
@@ -886,5 +713,5 @@ export function rewriteWarning(sides, { minCalls = 50, minBaseCalls = 20, floor 
   const base = bases.length ? bases[0].rewrites / bases[0].calls : null;
   if (after < floor || (base != null && after < ratio * base)) return null;
   return `the calls after a clear write their prefix into the cache again on ${Math.round(after * 100)}% of ${c.after.calls} calls over ${LONG_CONTEXT / 1000}k of context` +
-    (base != null ? ` against ${Math.round(base * 100)}% without a clear` : '') + ': the clearing is breaking the cache instead of saving on it. Check what the edit sends from one call to the next (proxy.js:keepValue); thinker proxy off until it is understood.';
+    (base != null ? ` against ${Math.round(base * 100)}% without a clear` : '') + ': the clearing is breaking the cache instead of saving on it. Check that the cut set holds from one call to the next (cutting.js:decideCut); thinker proxy off until it is understood.';
 }

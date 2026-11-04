@@ -396,10 +396,15 @@ test('the band is tokens in the cost view as much as the token view: a cleared t
 });
 
 test('All repositories adds the pull requests up and takes the median over all of them, never a median of medians', () => {
-  const a = prSavings(null, { days: 30, delivery: delivery([pr(1, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 100_000 })]) });
+  // The weeks are the person's own (report.js:weekStart reads local dates), so a merge time written as UTC
+  // midnight falls in the week before this one wherever the machine is behind UTC: '2026-10-19T00:00:00Z' is
+  // Sunday the 18th in Los Angeles, outside the window, and this read 2 of 3 there while passing in UTC.
+  // Local noon is the same week in every zone.
+  const at = (day) => new Date(2026, 9, day, 12).toISOString();
+  const a = prSavings(null, { days: 30, delivery: delivery([pr(1, { merged: at(20), agent: 1_000_000, cleared: 100_000 })]) });
   const b = prSavings(null, { days: 30, delivery: delivery([
-    pr(1, { merged: '2026-10-21T00:00:00Z', agent: 2_000_000, cleared: 900_000 }),
-    pr(2, { merged: '2026-10-19T00:00:00Z', agent: 2_000_000, cleared: 500_000 }),
+    pr(1, { merged: at(21), agent: 2_000_000, cleared: 900_000 }),
+    pr(2, { merged: at(19), agent: 2_000_000, cleared: 500_000 }),
   ]) });
   const view = v => ({ to: new Date(2026, 9, 30).getTime(), columns: weekColumns(new Date(2026, 9, 30).getTime(), 2), models: [], unpriced: [], parts: [], totals: [], sessionTotals: [], actions: [], cache: {}, prs: v });
   const m = mergeReports([{ repo: 'a', name: 'A', view: view(a) }, { repo: 'b', name: 'B', view: view(b) }]);

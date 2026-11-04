@@ -28,7 +28,32 @@
 // for `clearing.js`.
 import fs from 'node:fs';
 import path from 'node:path';
-import { writeRate, readRate, remainingCalls, COLD_MS } from './clearing.js';
+import { relativeRate } from './model-usage.js';
+
+// list-price ratios to an input token: what a cache write costs by its TTL (the same on every Anthropic model), what a
+// cache read costs by the model (READ where the model is not priced: Anthropic's usual tenth)
+export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.1;
+export const writeRate = ttl => (ttl === '5m' ? WRITE_5M : WRITE_1H);
+export const readRate = model => { const r = relativeRate(model); return r ? Math.round(r.cacheRead / r.input * 1000) / 1000 : READ; };
+// Past the cache's hour the next request writes its whole context whatever the proxy does, so a clear at that moment
+// costs nothing extra: the decision prices it at zero. Not a state of its own.
+export const COLD_MS = 65 * 60 * 1000;
+// median further calls a session makes, by the calls it has made, measured on this machine's 146 proxied sessions
+// (5 -> 47, 10 -> 47, 20 -> 40, 40 -> 68, 60 -> 90, 100 -> 92, 150 -> 68). Flat-ish and heavy-tailed, so the steps
+// are coarse on purpose: a curve fitted to 146 sessions would be false precision.
+export const REMAINING = [[10, 40], [20, 40], [40, 68], [100, 90]];
+export const remainingCalls = n => (REMAINING.find(([at]) => n <= at) || [0, 90])[1];
+
+// For the report: a call that wrote most of its context into the cache rather than reading it, on a context long
+// enough for that to be a rewrite. A heuristic, and the gauge does not use it: under LONG_CONTEXT the newest result
+// alone can be half the context, and a gauge built on this ratio stopped two sessions on their second cleared call
+// over a 21k file read into a 40k conversation (2026-11-02).
+export const LONG_CONTEXT = 100000;
+export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
+// What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
+// plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
+// known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written
+// again. No estimate, no margin.
 
 // A cut result's content, from the original length, so the bytes are the same every call.
 export const MIN_CHARS = 200;
@@ -65,6 +90,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, calls = 0, model =
 export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model } = {}) {
   const same = { cut: rec.cut, clear: false };
   if (turn === rec.turn) return same;                        // mid-turn: never move the set
+  if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn };  // one cut a session, as the mod reads it
   if (m.prompt < cfg.trigger) return { ...same, turn };      // nothing is big enough to be worth it
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0 };
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens };

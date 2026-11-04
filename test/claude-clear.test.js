@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, readRate } from '../src/clearing.js';
+import { COLD_MS, WRITE_1H, readRate } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -45,7 +45,6 @@ const DESKTOP_POLICY = {
   clearInputs: { reads: 'p.clearInputs !== false' },
   clearThinking: { reads: 'p.clearThinking !== false' },
   clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(policy, {' },
-  keep: { exempt: 'the API\'s own keep count, sent as an edit parameter; the mod keeps the newest turn itself in clearOld, so there is nothing to send and no value that could differ within a turn' },
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
 };
 

@@ -80,19 +80,33 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
-test('thinking blocks and tool_use inputs are never touched', () => {
-  // October's breakage was an in-place edit of the history; a tool_result-only edit is accepted
-  // (checked live 2026-11-04: 6 and 8 placeholders beside 3 untouched thinking blocks, every call 200).
+test('the three operations are the desktop mod\'s three, and each is switchable', () => {
+  // register.tsx:clearOld does the same three outside the newest turn: the result becomes a placeholder,
+  // the call text is emptied, the row's thinking goes. Checked live 2026-11-04 that the API takes a
+  // tool_result-only edit (6 and 8 placeholders beside 3 untouched thinking blocks, every call 200).
   const ms = session(4);
-  const out = applyCut(ms, ms.filter(m => m.content?.[0]?.type === 'tool_result').map(m => m.content[0].tool_use_id)).messages;
+  const ids = ms.filter(m => m.content?.[0]?.type === 'tool_result').map(m => m.content[0].tool_use_id);
   const think = m => (m.content || []).filter(b => b.type === 'thinking');
   const uses = m => (m.content || []).filter(b => b.type === 'tool_use');
+
+  // with both off, only the results move: the narrowest edit, the one proven live
+  const narrow = applyCut(ms, ids, { clearInputs: false, clearThinking: false }).messages;
   for (let i = 0; i < ms.length; i++) {
-    assert.deepEqual(think(out[i]), think(ms[i]), 'thinking is byte-identical');
-    assert.deepEqual(uses(out[i]), uses(ms[i]), 'tool_use inputs are byte-identical');
+    assert.deepEqual(think(narrow[i]), think(ms[i]), 'thinking untouched when clearThinking is off');
+    assert.deepEqual(uses(narrow[i]), uses(ms[i]), 'call text untouched when clearInputs is off');
   }
-  const cut = out.flatMap(m => (m.content || []).filter(b => b.type === 'tool_result'));
-  assert.ok(cut.some(b => b.content.startsWith('[tool result cleared by thinker')), 'results did change');
+  assert.ok(narrow.flatMap(m => (m.content || []).filter(b => b.type === 'tool_result'))
+    .some(b => b.content.startsWith('[tool result cleared by thinker')), 'results did change');
+
+  // with both on, as they ship: the newest turn keeps everything, the turns before it lose both
+  const full = applyCut(ms, ids, { clearInputs: true, clearThinking: true });
+  const live = full.messages.length - 1;       // the turn in progress: nothing of it is ever touched
+  assert.deepEqual(think(full.messages[live]), think(ms[live]), 'the newest turn keeps its thinking');
+  assert.ok(full.thinking > 0, 'earlier thinking was dropped');
+  assert.ok(full.inputChars > 0, 'earlier call text was emptied');
+  const earlier = full.messages.slice(0, live).filter(m => m.role === 'assistant');
+  assert.equal(earlier.flatMap(think).length, 0, 'no thinking survives before the newest turn');
+  assert.ok(earlier.flatMap(uses).every(u => Object.keys(u.input || {}).length === 0), 'and no call text');
 });
 
 test('stopping is free: applying the set and cutting nothing more leaves the prefix alone', () => {
