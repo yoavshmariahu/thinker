@@ -52,7 +52,7 @@ test('the compression page inlines a run index and the default run, and every ru
       for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${r.id} ${arm} call ${c.k} is complete`);
     }
     assert.ok(d.control.calls.every(c => !c.cut), `${r.id}: the control was never cut`);
-    assert.ok(d.price && d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: Opus 5.5 list prices`);
+    assert.ok(d.costBounds ? d.price.input === 10 && d.price.out === 50 && d.price.w1h === 12.5 : d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: correct model prices`);
     assert.ok(r.summary && r.summary.cut.cost1h > 0 && r.summary.control.cost1h > 0, `${r.id}: the index carries both arms' cost`);
   }
   assert.ok(html.includes('One run per arm'), 'the caveats are stated');
@@ -90,4 +90,26 @@ test('the public pages share navigation and Compression keeps legacy links and e
   assert.ok(compression.indexOf('id="pos"') < compression.indexOf('<h2 class="chart-heading">Context window size over calls'));
   assert.match(compression, /session-saving/);
   assert.match(fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8'), /compression.html.*location.search.*location.hash/);
+});
+
+test('Django uses API totals and an explicit cost range with judged success; mitmproxy is not offered', () => {
+  const read = name => JSON.parse(fs.readFileSync(new URL('../site/' + name, import.meta.url), 'utf8'));
+  const manifest = read('clearing-runs.json');
+  assert.deepEqual(manifest.map(r => r.id), ['click-1', 'django-astra']);
+  const d = read('clearing-django-astra.json');
+  for (const arm of ['control', 'cut']) {
+    assert.equal(d[arm].turns.length, 14);
+    assert.equal(d[arm].judgment.pass, true);
+    assert.equal(d[arm].judgment.met, 5);
+    assert.ok(d[arm].judgment.verdicts.every(v => v.verdict === 'met'));
+  }
+  const bounds = arm => {
+    const sums = d[arm].calls.reduce((s,c) => ({input:s.input+c.input,read:s.read+c.read,out:s.out+c.out}), {input:0,read:0,out:0});
+    return {min:(sums.input*10+sums.read+sums.out*50)/1e6,max:(sums.input*12.5+sums.read+sums.out*50)/1e6};
+  };
+  const a=bounds('cut'), b=bounds('control');
+  assert.ok(Math.abs(d.savings.minDollars-(b.min-a.max))<1e-8);
+  assert.ok(Math.abs(d.savings.maxDollars-(b.max-a.min))<1e-8);
+  const sessionText=fs.readFileSync(new URL('../site/clearing-django-astra-session.json', import.meta.url),'utf8');
+  assert.doesNotMatch(sessionText, /encrypted_content|gAAAAAB|\/Users\/yoav|\/private\/var\/folders/);
 });
