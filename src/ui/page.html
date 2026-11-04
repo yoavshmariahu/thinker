@@ -657,7 +657,7 @@ function contextAsOf(v) {
   }, 5000);
 }
 // an old link to Top suggested (view=suggested) opens All, which lists every part; view=history opens Recent activity (show)
-let CVIEW = ['all', 'instructions', 'custom', 'builtin', 'outputs'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
+let CVIEW = ['all', 'instructions', 'custom', 'builtin'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
 // the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
 // `null` until the first report is in: the activity poll draws Save again when a decision has moved, and an empty
 // starting history differed from every real one, so the very first poll always re-read the whole report a second
@@ -696,7 +696,7 @@ const skillShort = text => {
   return { desc: desc ? desc.replace(/\s+/g, ' ').trim() : '', body: body.trim() };
 };
 // what is picked in each view (its key → the row), kept across renders; each view's sort
-const PICKS = { all: new Map(), instructions: new Map(), custom: new Map(), builtin: new Map(), outputs: new Map() };
+const PICKS = { all: new Map(), instructions: new Map(), custom: new Map(), builtin: new Map() };
 // the action pre-picked in a row's dropdown (view\tkey → act), and whether All's picks are still the installer's
 const PREACT = new Map(); let PRESUGGESTED = false;
 // The page the installer opens (from=setup) comes with the suggested savings checked on All, each row's dropdown on
@@ -705,9 +705,9 @@ const PREACT = new Map(); let PRESUGGESTED = false;
 // a changed check is theirs from then on.
 //
 // From the weekly question's link (from=suggestion) the checked rows are the lines that question numbered
-// (context-suggest.js:offeredPicks, sent as `offered`), not these: that ranking is recomputed here and leaves tool
-// outputs out, so it would check rows the person was never asked about. A link older than the answer window brings
-// no list, and the suggestions stand in for it.
+// (context-suggest.js:offeredPicks, sent as `offered`), not these: this page's own ranking is recomputed on arrival,
+// so it would check rows the person was never asked about. A link older than the answer window brings no list, and
+// the suggestions stand in for it.
 function preselectRows(rows, suggested) {
   for (const s of suggested) {
     const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
@@ -718,15 +718,13 @@ function preselectRows(rows, suggested) {
 // One ordering on Find Savings, most wasted first (the owner's call, 2026-10-29): the page writes the explanations
 // for the cards on screen and the page after them, which is only a promise someone can rely on while the order
 // cannot change under them. The Sort control went with it.
-const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted', outputs: 'wasted' };
+const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted' };
 // one ordering for every table, by the figures the table shows over the window: most wasted (what it cost in the
 // calls of the sessions that did not use it, what the summary ranks by), most costly (the Over N days column), most
 // used (the share), by name;
-// a section also in the file's order, an output by its calls
+// a section also in the file's order
 const windowCost = r => r.window || 0, windowWaste = r => r.wasted == null ? -1 : (r.wastedWindow || 0);
-// a row measured under an earlier compression setting (`past`, tool-outputs.js) stays below every current row, whatever
-// the order: it is kept for the comparison, not to rank the tool by what it cost before it was compressed
-const sortRows = (rows, by) => [...rows].sort((a, b) => (a.past === true) - (b.past === true) || cmpRows(by)(a, b));
+const sortRows = (rows, by) => [...rows].sort(cmpRows(by));
 const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
@@ -734,11 +732,8 @@ const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label 
 const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool: 'built-in tool', desktop: 'desktop app' };
 const CLIENT = { devin: 'Devin', codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
 // the actions a row takes, as context-suggest.js:allChanges gives them (the server resolves the row by its key): a section
-// compressed or removed; a skill or tool switched off, or back on when thinker switched it off; an output's compression level
+// compressed or removed; a skill or tool switched off, or back on when thinker switched it off
 const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', 'Switch off']] : [];
-// one level of compression (moderate, diet.js), as context-suggest.js:allChanges gives it: Compress, or No compression once
-// the output is compressed (at any level: the command line can set high, for an experiment)
-const levelOpts = s => s.compression ? [['uncompress', 'No compression']] : [['compress', 'Compress']];
 // What picking this action will do, in three words for the row and a sentence for the review before Apply. A person
 // who has never thought about an agent's context should be able to read either and know what they are about to change.
 const ACT_EFFECT = {
@@ -749,14 +744,11 @@ const ACT_EFFECT = {
   'tool:off': ['reversible', 'New sessions across all repositories stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
   'builtin:off': ['the agent loses it', "The tool is switched off across all repositories, so new Claude Code sessions have no definition of it and cannot call it at all. Sessions already open keep it. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back."],
   'tool:on': ['reversible', 'New sessions in this repository load it again.'],
-  'output:compress': ['reversible', 'Long results are trimmed before the model reads them: whole-file reads to the lines round what the agent searched for, test runs to their failures, big searches to their hits, anything long to about 3k tokens. No compression puts it back.'],
-  'output:uncompress': ['costs more', 'Results go back to their full length, and every later call in the session reads all of it again.'],
 };
 const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
 const effectOf = (r, act) => ACT_EFFECT[effectKey(r, act)] || ['', ''];
 // the action a row is on: what the installer pre-picked, else the first it offers
 const actNow = (view, r) => PREACT.get(`${view}\t${pickKey(r)}`) || (r.options[0] || [])[0];
-const perCall = n => n < 10 ? n.toFixed(1) : String(Math.round(n));
 const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 // One row per part of the context, in one shape for every table (and all of them on All): what it is, what it costs a
 // call and over the window, the share of sessions that used it, its waste, the detail See more opens, and its actions.
@@ -806,25 +798,11 @@ function contextRows(v) {
     about: s.about || '', explain: s.explain || null, explainKey: s.explainKey || '', tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `called in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
     wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
   });
-  const os = v.outputs?.sessions || 0, outCost = v.totals?.outputs?.perPrompt || (v.outputs?.tools || []).reduce((a, t) => a + (t.perPrompt || 0), 0);
-  // an output's waste: what its results cost after the agent last used them (tool-outputs.js:sessionOutputs), as a
-  // share of what every tool's output costs a prompt, by the thresholds of instruction-value.js:WASTE
-  const outWaste = t => { if (t.wasted == null) return null; const sh = outCost ? t.wasted / outCost : 0; return sh >= 0.05 ? 'high' : sh >= 0.02 ? 'medium' : 'low'; };
-  // a tool's rows, one per compression setting it ran with (tool-outputs.js:aggregateOutputs): the current setting's row
-  // takes the actions and the waste pill; a `past` row (measured under an earlier setting) is muted, offered nothing and
-  // sorted last, and each row's detail compares the tool with itself under its other settings
-  const levelName = l => l ? `${l} compression` : 'no compression';
-  const period = s => s.from && s.to ? `${s.sessions} session${s.sessions === 1 ? '' : 's'}, ${dayOf(s.from)} to ${dayOf(s.to)}` : `${s.sessions} session${s.sessions === 1 ? '' : 's'}`;
-  const compare = s => (s.others || []).map(o => { const less = o.perCall ? Math.round(100 * (1 - s.perCall / o.perCall)) : null; return `<p class="muted">${s.past ? 'Now' : 'Before'}, with ${levelName(o.level)} (${period(o)}): about ${fmt(o.perCall)} tokens a call, ${fmt(o.perPrompt)} input tokens a prompt${o.wasted != null ? `, ${fmt(o.wasted)} of it after the agent last used the result` : ''}. ${s.past ? 'This row' : 'This setting'} ${less == null ? 'is measured on its own' : less >= 0 ? `costs ${less}% less a call` : `costs ${-less}% more a call`}${s.sessions < 5 ? ' (few sessions yet: give it a week)' : ''}.</p>`; }).join('');
-  for (const s of v.outputs?.tools || []) rows.push({
-    view: 'outputs', kind: 'output', kindLabel: s.name.startsWith('mcp:') ? 'MCP server output' : s.name.startsWith('Bash:') ? 'Bash command output' : 'Tool output', key: `output:${s.name}` + (s.past ? `@${s.level || 'none'}` : ''), repo: repoOf(s), past: Boolean(s.past), level: s.level || null,
-    name: s.name.replace(/^(mcp|Bash):/, ''), sub: [s.repos > 1 ? `${s.repos} repositories` : '', s.past ? `measured with ${levelName(s.level)}, ${period(s)}` : s.level ? `${levelName(s.level)} since ${dayOf(s.since || s.from)}, ${period(s)}` : (s.others || []).length ? `before compression, ${period(s)}` : ''].filter(Boolean).join(' · '),
-    detail: `<p class="muted">${fmt(s.tokens)} tokens of output a session over ${perCall(s.calls)} calls, about ${fmt(s.perCall)} a call, read again by every model call after it.${s.wasted != null ? ` About ${fmt(s.wasted)} of its ${fmt(s.perPrompt)} input tokens a prompt were spent reading results after the agent last used them (an edit copying their text, or a later call on the same file in the same turn; an estimate).` : ''} ${s.past ? `Measured with ${levelName(s.level)} over ${period(s)}; the setting has changed since, and the tool is measured afresh from then as its own row above.` : s.compressible ? s.compression ? `Compressed at the ${s.compression} level since ${dayOf(s.since || s.from)}: this row is measured over the sessions since, not the month before.` : `Compressed, its long results are cut before the model reads them (Claude Code only): that would have saved at least ${fmt(s.saveModerate || 0)} input tokens a prompt here.` : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code).'}</p>${compare(s)}`,
-    about: s.about || '', explain: s.explain || null, explainKey: s.explainKey || '', tokens: s.perCall, unit: 'call', perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessions ?? os, acted: s.needed ?? null, actedBy: `of the prompts that read a result again, ${s.needed == null ? 'an unknown share' : `${Math.round(100 * s.needed)}%`} did so before the agent last used it; called in ${s.usedIn} of ${s.sessions ?? os} sessions`, calls: s.calls,
-    wasted: s.wasted ?? null, waste: s.past ? null : outWaste(s), off: false,
-    pill: s.past ? ['off', 'earlier setting'] : s.compression ? [s.compression === 'high' ? 'high' : 'ok', s.compression === 'high' ? 'high compression (command line)' : 'compressed'] : s.compressible ? null : ['off', "can't compress yet"],
-    options: s.past ? [] : s.compressible ? levelOpts(s) : [], disabled: s.past ? 'measured under an earlier setting; the current row takes the action' : s.compressible ? '' : 'thinker cannot compress this one yet (Bash commands, Read and MCP servers, in Claude Code)',
-  });
+  // A tool's output is no longer a row here (2026-11-04, the owner's call): the clearing takes out the results the
+  // agent is done with, on by default and asked about nowhere, and per-tool compression (diet.js) only shrank what was
+  // still live -- a choice to make, with the smaller half of the saving behind it. What outputs cost is still measured
+  // and still on the Report, under Cost by context; `thinker context --output-compression <tools>` still sets the diet
+  // for an experiment arm. Rows for the parts a person really does decide on: sections, skills, tools.
   return rows;
 }
 const pickKey = r => `${r.repo || ''}\t${r.key}`;
@@ -832,23 +810,23 @@ const pickKey = r => `${r.repo || ''}\t${r.key}`;
 // costs its size in every model call that carries it. Under forty words each (the owner's ask, 2026-10-25: if the
 // explanation needs more, the calculation is wrong).
 const helpPop = (label, text) => `<span class="help"><button type="button" class="help-btn" aria-label="${label}">?</button><div class="help-pop" role="tooltip">${text}</div></span>`;
-const PROMPT_HELP = helpPop('What Per prompt counts', 'What it adds to every prompt that carries it; a tool output, marked /call, is the size of one result instead. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.');
+const PROMPT_HELP = helpPop('What Per prompt counts', 'What it adds to every prompt that carries it. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.');
 // the Share column: what this row is worth against the rest of the table, which the token figures alone do not say
 const SHARE_HELP = helpPop('What Share counts', 'This row&rsquo;s wasted tokens as a share of everything wasted in this table: how much of the problem cutting this one part would solve.');
-const NEEDED_HELP = helpPop('What Needed counts', 'Of the prompts that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names, read the output before moving on. An estimate from the transcripts.');
+const NEEDED_HELP = helpPop('What Needed counts', 'Of the prompts that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names. An estimate from the transcripts.');
 const COST_HELP = helpPop('What the window total counts', 'Per prompt &times; every prompt that carried it in the window.');
 const WASTE_HELP = helpPop('What Wasted counts', 'The window total &times; the share of prompts that did not need it. The most that cutting it could save.');
 const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
 // a row's weight against the rest of the table: the bar is its waste over the heaviest row's, the figure its share of
 // the table's whole waste. This is what the waste pill was meant to say and could not, flagging all but one row alike.
 const impactCell = (r, max, total) => {
-  if (r.off || r.past || r.wasted == null || !(windowWaste(r) > 0) || !max) return '';
+  if (r.off || r.wasted == null || !(windowWaste(r) > 0) || !max) return '';
   const w = windowWaste(r), share = total ? w / total : 0;
   return `<span class="ctx-bar${share < 0.05 ? ' sm' : ''}" title="${fmt(w)} of the ${fmt(total)} wasted in this table"><span style="width:${Math.max(4, Math.round(100 * w / max))}%"></span></span><span class="ctx-barn">${share < 0.01 ? '&lt;1' : Math.round(100 * share)}%</span>`;
 };
 // The Potential savings card at the top of every view (back on 2026-10-22, the owner's ask): input tokens a prompt, the share
 // of the view's cost, and the window's total. For a section, skill or tool, what the flagged rows (high or medium waste) cost
-// in the sessions that did not use them, as the Wasted column sums it; for an output, what the compression cap alone would have cut.
+// in the sessions that did not use them, as the Wasted column sums it.
 const savingsCard = ({ perPrompt, share, window, days, cost, text, kicker = 'Potential savings, at most', ok }) => (window || perPrompt) > 0
   ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(window)} <span class="muted">input tokens over ${days} days</span></div></div>
      <div class="savings-plain">About <b>${fmt(perPrompt)} fewer tokens in every call</b> your agent makes${cost ? `, of the ${fmt(cost)} it reads now` : ''}${share != null ? ` — <b>${Math.round(100 * share)}% less</b>` : ''}.</div>
@@ -856,16 +834,9 @@ const savingsCard = ({ perPrompt, share, window, days, cost, text, kicker = 'Pot
   : `<div class="savings ok"><div class="why">${ok}</div></div>`;
 const flaggedSavings = (rows, days, { what, does, ok }) => {
   // a row with a decision on it (a change under way, a pull request pending or merged) is not a saving still to make
-  const live = rows.filter(r => !r.off && r.kind !== 'output'), flagged = live.filter(r => (r.waste === 'high' || r.waste === 'medium') && !r.decided), cost = live.reduce((a, r) => a + r.perPrompt, 0);
+  const live = rows.filter(r => !r.off), flagged = live.filter(r => (r.waste === 'high' || r.waste === 'medium') && !r.decided), cost = live.reduce((a, r) => a + r.perPrompt, 0);
   const per = flagged.reduce((a, r) => a + (r.wasted || 0), 0), n = l => flagged.filter(r => r.waste === l).length;
   return { perPrompt: per, cost, share: cost ? per / cost : null, window: flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0), days, text: `${n('high')} high and ${n('medium')} medium waste ${what}: what they cost in the prompts that did not need them. ${does}`, ok };
-};
-// an output: the part of each result past the moderate cap, read again by every call after it (tool-outputs.js); the trims
-// round what the agent looked for cut more, so this is a floor
-const outputSavings = (v, days) => {
-  // the rows measured under the current settings alone: a tool's row from before it was compressed is no saving left to make
-  const outs = (v.outputs?.tools || []).filter(o => !o.past), per = outs.reduce((a, o) => a + (o.saveModerate || 0), 0), cost = v.totals?.outputs?.perPrompt || outs.reduce((a, o) => a + (o.perPrompt || 0), 0);
-  return { kicker: 'Potential savings, at least', perPrompt: per, cost, share: cost ? per / cost : null, window: outs.reduce((a, o) => a + (o.saveModerateWindow ?? (o.saveModerate || 0) * (o.prompts || 0)), 0), days, text: 'With compression on every Bash command, Read and MCP server: the part of each result past the cap, read again by every call after it. Trimming file reads and search results round what the agent looked for saves more. Claude Code only.', ok: 'No output here is long enough for the cap to cut.' };
 };
 // The table of one view, as the docs' example: a row a part with its box, its size (what it adds to each prompt that carries
 // it), the share of prompts that needed it, its cost over the window and its waste; a dropdown in the row picks what to do, and the one Apply at the top right does it
@@ -879,22 +850,22 @@ function renderTable(view, rows, { title, sub, nameHead, savings }) {
   const days = CTX?.days || cdays, picks = PICKS[view];
   const pages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE)), page = Math.min(pages - 1, VPAGE[view] || 0), from = page * TABLE_PAGE;
   // the Share column is read against the whole table, not the page shown, so a row keeps its weight as you page through
-  const weighed = rows.filter(r => !r.off && !r.past && r.wasted != null && windowWaste(r) > 0);
+  const weighed = rows.filter(r => !r.off && r.wasted != null && windowWaste(r) > 0);
   const maxWaste = weighed.reduce((a, r) => Math.max(a, windowWaste(r)), 0), allWaste = weighed.reduce((a, r) => a + windowWaste(r), 0);
   const body = CMODE === 'cards' ? '' : rows.slice(from, from + TABLE_PAGE).map((r, k) => {
     const i = from + k;
     // a pill says what has happened to the row (switched off, a change under way, a pull request pending, compressed);
     // what the row is worth is the Share bar, which the waste pill could not say with 5%-of-its-kind flagging all but one
     const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []), on = picks.has(pickKey(r));
-    return `<tr class="${[r.off || r.past ? 'ctx-off' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
+    return `<tr class="${[r.off ? 'ctx-off' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
       <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}${r.about ? `<span class="ctx-about">${esc(r.about)}</span>` : ''}</td>
-      <td class="num">${fmt(r.tokens)}${r.unit ? `<span class="ctx-unit">/${r.unit}</span>` : ''}</td>
+      <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
       <td class="num">${fmt(windowCost(r))}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
       <td class="num">${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : impactCell(r, maxWaste, allWaste)}</td>
       <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div>${r.options.length ? `<div class="ctx-effect" data-eff="${i}">${esc(effectOf(r, actNow(view, r))[0])}</div>` : ''}</td></tr>
-      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${r.unit ? `${fmt(r.tokens)} tokens in each result, ${fmt(r.perPrompt)} in every prompt that carries it` : `${fmt(r.tokens)} tokens in every prompt that carries it`}, ${fmt(windowCost(r))} over ${CTX?.days || cdays} days · needed: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
+      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every prompt that carries it, ${fmt(windowCost(r))} over ${CTX?.days || cdays} days · needed: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
     ${savings ? savingsCard(savings) : ''}
@@ -902,9 +873,9 @@ function renderTable(view, rows, { title, sub, nameHead, savings }) {
       : rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Per prompt ${PROMPT_HELP}</th><th class="num">Needed ${NEEDED_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th class="num">Share ${SHARE_HELP}</th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
 }
 // What a card asks on the person's behalf. The heading names the change actually offered on that kind of part:
-// a section is shortened, a skill or a tool is switched off, an output is compressed -- "why you'd cut it" over a
+// a section is shortened, a skill or a tool is switched off -- "why you'd cut it" over a
 // row whose only action is Compress reads as removing the compression, which is the opposite (2026-10-29).
-const WHY_HEAD = { section: "Why you'd shorten it", skill: "Why you'd switch it off", tool: "Why you'd switch it off", output: "Why you'd compress it" };
+const WHY_HEAD = { section: "Why you'd shorten it", skill: "Why you'd switch it off", tool: "Why you'd switch it off" };
 
 // One part, as a card: what it is and why you would change it first, the figures under them, the action last.
 // The data attributes are the table's, so one wireTable drives both (picks, See more, the action, Apply).
@@ -921,18 +892,18 @@ function cardOf(r, i, view, { picks, maxWaste, allWaste, days }) {
   const on = picks.has(pickKey(r)), [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
   const dk = esc(`${view}\t${pickKey(r)}`);
   const kind = [view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '', r.sub].filter(Boolean).join(' \u00b7 ');
-  return `<article class="pcard${on ? ' ctx-picked' : ''}${r.off || r.past ? ' ctx-off' : ''}" data-row="${i}">
+  return `<article class="pcard${on ? ' ctx-picked' : ''}${r.off ? ' ctx-off' : ''}" data-row="${i}">
     <div class="pcard-top"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${esc(r.name)}</label>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</div>
     ${kind ? `<span class="ctx-kind">${esc(kind)}</span>` : ''}
     <div class="pcard-ex" data-ek="${esc(r.explainKey || '')}">${explainBlock(r)}</div>
     <div class="pcard-nums">
-      <div><b>${fmt(r.tokens)}</b><span>${r.unit ? 'in each result' : 'in every call'}</span></div>
+      <div><b>${fmt(r.tokens)}</b><span>in every call</span></div>
       <div><b>${r.acted == null ? '\u2013' : `${Math.round(100 * r.acted)}%`}</b><span>of calls needed it</span></div>
       ${r.wasted == null ? '' : `<div><b>${fmt(windowWaste(r))}</b><span>wasted over ${days} days</span></div>`}
       ${windowWaste(r) > 0 && allWaste ? `<div>${impactCell(r, maxWaste, allWaste)}<span>of the waste here</span></div>` : ''}
     </div>
     <div class="pcard-foot">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${dk}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select><span class="ctx-effect" data-eff="${i}">${esc(effectOf(r, actNow(view, r))[0])}</span>` : `<span class="why" title="${esc(r.disabled)}">No action here</span>`}<button class="ctx-more" data-more="${i}" data-dk="${dk}" aria-expanded="false">See more</button></div>
-    <div class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><div class="md-body">${r.detail}</div><div class="why">${r.unit ? `${fmt(r.tokens)} tokens in each result, ${fmt(r.perPrompt)} in every prompt that carries it` : `${fmt(r.tokens)} tokens in every prompt that carries it`}, ${fmt(windowCost(r))} over ${days} days \u00b7 needed: ${esc(r.actedBy)}</div></div>
+    <div class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every prompt that carries it, ${fmt(windowCost(r))} over ${days} days \u00b7 needed: ${esc(r.actedBy)}</div></div>
   </article>`;
 }
 
@@ -990,7 +961,7 @@ function explainLater() {
 // into the block of each card showing that part -- the card's own numbers, picks, open detail and dropdown are left
 // exactly as they are.
 function putExplains(got) {
-  for (const xs of [CTX?.instructions?.sections, CTX?.skills, CTX?.tools, CTX?.outputs?.tools]) {
+  for (const xs of [CTX?.instructions?.sections, CTX?.skills, CTX?.tools]) {
     for (const x of xs || []) if (got[x.explainKey]) x.explain = got[x.explainKey];
   }
   for (const rows of Object.values(VROWS)) {
@@ -1031,7 +1002,7 @@ function wireTable(root, view, rows) {
   root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.vpage.split(':'); VPAGE[k] = Math.max(0, Number(n)); renderContext(CTX); });
   bulkState();
 }
-// Every checked row's action: a skill, tool or output is changed at once (/api/changes/approve,
+// Every checked row's action: a skill or tool is changed at once (/api/changes/approve,
 // context-suggest.js:approveChanges, each recorded in Recent activity with its undo); a section's change is started in the
 // background (/api/changes/start, context-suggest.js:startSectionJob: `thinker instructions --compress|--remove <ids> --pr`
 // detached, recorded at once) and the page says so once and goes on. The owner's ask of 2026-10-24: a model call of some
@@ -1063,7 +1034,7 @@ async function applyRows(view, items, btn) {
   try {
     const said = []; let failed = false;
     if (rest.length) {
-      // Tools use one machine-wide switch. Skills keep their repository scope; outputs apply to each repository.
+      // Tools use one machine-wide switch. Skills keep their repository scope.
       const byRepo = new Map();
       for (const { r, act } of rest) for (const repo of (r.kind === 'tool' ? [r.repo || r.repoIds?.[0] || (CREPO !== 'all' ? CREPO : CTX?.repos?.[0]?.repo)] : r.repo ? [r.repo] : r.repoIds?.length ? r.repoIds : (CTX?.repos || []).map(x => x.repo)).filter(Boolean)) { if (!byRepo.has(repo)) byRepo.set(repo, { keys: [], acts: {} }); const g = byRepo.get(repo); g.keys.push(r.key); g.acts[r.key] = act; }
       // one repository failing (a checkout gone since the report) is said in its line; the others are still made
@@ -1077,7 +1048,7 @@ async function applyRows(view, items, btn) {
     }
     toast(said.join(' ') || 'Done', false, secs.length ? 6000 : undefined);
     PICKS[view].clear();
-    // the rows show what was done at once: the setting the server wrote on a skill, tool or output (patchContext), and a
+    // the rows show what was done at once: the setting the server wrote on a skill or tool (patchContext), and a
     // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
     // place), a second or more after an action, since the action made the kept copy stale
     if (!failed) patchContext(rest);
@@ -1087,13 +1058,12 @@ async function applyRows(view, items, btn) {
   } catch (err) { toast(err.message, true); if (btn) idle(btn); }
 }
 // what an Apply changed, written into the report on screen as the next report will show it: a skill or tool off (or back
-// on), an output compressed (or not); the report read again after it says the same from the files
+// on); the report read again after it says the same from the files
 function patchContext(items) {
   if (!CTX) return;
   const bySource = (arr, key) => (arr || []).find(s => `${s.client}:${s.key}` === key);
   for (const { r, act } of items) {
     if (r.kind === 'skill' || r.kind === 'tool') { const s = bySource(r.kind === 'skill' ? CTX.skills : CTX.tools, r.key); if (s && (act === 'off' || act === 'on')) s.off = act === 'off'; }
-    else if (r.kind === 'output' && (act === 'compress' || act === 'uncompress')) { const s = (CTX.outputs?.tools || []).find(o => !o.past && `output:${o.name}` === r.key); if (s) { s.compression = act === 'compress' ? 'moderate' : null; s.level = s.compression; } }
   }
 }
 function renderContext(v) {
@@ -1104,7 +1074,7 @@ function renderContext(v) {
   const all = contextRows(v), of = view => all.filter(r => r.view === view), perPrompt = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
   // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
   if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
-  const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools'], ['outputs', 'Tool outputs']];
+  const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools']];
   const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
   h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
   // the caption's figures: the sessions, the tokens per call, the cost over the window and how much of it was wasted
@@ -1115,16 +1085,14 @@ function renderContext(v) {
     instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most; a session that needed one would go without it.', ok: 'No section here is wasted enough to flag.' }),
     custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a session that needed one could turn it back on (a skill still runs as /name).', ok: 'Nothing here is wasted enough to flag.' }),
     builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Switching them off saves this at most; Revert or Turn back on brings one back.', ok: 'No built-in tool here is wasted enough to flag.' }),
-    outputs: outputSavings(v, v.days),
   };
   const sumSav = Object.values(sav).reduce((a, s) => ({ perPrompt: a.perPrompt + s.perPrompt, window: a.window + (s.window || 0) }), { perPrompt: 0, window: 0 });
-  sav.all = { ...sumSav, cost: perPrompt(all), share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them, and what compressing every output would cut at least.', ok: 'Nothing here is flagged, and no output is long enough to cut.' };
+  sav.all = { ...sumSav, cost: perPrompt(all), share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them.', ok: 'Nothing here is flagged.' };
   h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all }));
   h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions })
     : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + '<div class="controls"></div>');
   h += vdiv('custom', renderTable('custom', of('custom'), { nameHead: 'Skill or tool', title: 'Custom tools', sub: cap(of('custom'), v.sessions || 0, 'on them'), savings: sav.custom }));
   h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin }));
-  h += vdiv('outputs', renderTable('outputs', of('outputs'), { nameHead: 'Tool', title: 'Tool outputs', savings: sav.outputs, sub: (() => { const rs = of('outputs'), os = v.outputs?.sessions || 0; return `${os} session${os === 1 ? '' : 's'} · ${fmt(rs.reduce((a, r) => a + windowCost(r), 0))} input tokens of output read again, ${fmt(rs.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it after the agent last used the result`; })() }));
   swapBody(el, h);
   for (const [k] of VIEWS) wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
   vtabsHeight();

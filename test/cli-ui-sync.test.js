@@ -111,17 +111,20 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
   assert.match(read('ui/server.js'), /harnessView\(/);
   assert.match(read('cli.js'), /Claude Code, Codex and Cursor record loading/);
-  // the page switches tools off and back on, and sets an output's compression, from a row's dropdown and Apply: through
-  // /api/changes/approve and context-suggest.js:approveChanges, which calls the same functions as `thinker context
-  // --switch-off|--switch-on|--output-compression`, and records the decision for History's Revert
+  // the page switches tools off and back on from a row's dropdown and Apply: through /api/changes/approve and
+  // context-suggest.js:approveChanges, which calls the same function as `thinker context --switch-off|--switch-on`,
+  // and records the decision for History's Revert
   assert.match(read('ui/page.html'), /api\('\/api\/changes\/approve', \{ repo, \.\.\.g, days: cdays \}\)/);
   assert.match(read('context-suggest.js'), /switchSources\(store, \{ keys: \[c\.sourceKey \|\| c\.name\], on: true \}\)/);
-  assert.match(read('context-suggest.js'), /setOutputCompression\(store, \[c\.name\], level\)/);
-  // one level of compression from the page (moderate): its rows offer Compress or No compression, never High, which only
-  // `thinker context --output-compression <tools> --level high` sets, for an experiment arm (the owner's call, 2026-10-22)
+  // A tool's output compression is no door's choice (2026-11-04, the owner's call): the clearing compresses outputs and
+  // is on by default, so neither the page, the weekly question, the installer's picker nor `thinker context --approve`
+  // offers one -- no row, no action, no ACTS entry. The diet stays as `thinker context --output-compression <tools>
+  // [--level high]`, for an experiment arm.
   const page = read('ui/page.html');
-  assert.doesNotMatch(page, /\['high', 'High compression'\]/); assert.doesNotMatch(read('context-suggest.js'), /text: 'High compression'/);
-  assert.match(page, /const levelOpts = s => s\.compression \? \[\['uncompress', 'No compression'\]\] : \[\['compress', 'Compress'\]\]/);
+  assert.doesNotMatch(page, /'No compression'|levelOpts/); assert.doesNotMatch(read('context-suggest.js'), /uncompress|c\.kind === 'output'/);
+  // what a person decided before today is still theirs to take back: Revert on an old output decision puts the level back
+  assert.match(read('context-suggest.js'), /u\.kind === 'output'/);
+  assert.doesNotMatch(page, /view: 'outputs'/); assert.doesNotMatch(read('commands/context.js'), /Tool outputs: tokens per result/);
   assert.match(read('commands/context.js'), /\['high', 'moderate'\]\.includes\(flags\.level\)/);
   // a built-in tool is switched off from its row through the same route. Every Apply is read back first (2026-10-29):
   // one entry a change, naming the part, what the action does to it, and what the agent did with it. A built-in tool's
@@ -133,7 +136,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back/);
   assert.match(page, /rev-warn[\s\S]{0,260}The agent loses the ability, not just the description/);
   // what every action does, in the row and in the review: one entry a change, keyed by the kind and the action
-  for (const k of ['section:compress', 'section:remove', 'skill:off', 'tool:off', 'builtin:off', 'output:compress', 'output:uncompress']) assert.match(page, new RegExp(`'${k}': \\[`), k);
+  for (const k of ['section:compress', 'section:remove', 'skill:off', 'tool:off', 'builtin:off']) assert.match(page, new RegExp(`'${k}': \\[`), k);
   assert.match(page, /const effectOf = /);
   // and what each part is, in one line, from the same place Recent activity takes it (part-describe.js)
   assert.match(read('ui/server.js'), /describePart\(\{ kind: 'section'/);
@@ -180,7 +183,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('retire-background.js'), /KEPT_JOBS = new Set\(\['distill', 'learn', 'maintain', 'explain'\]\)/);
   // every view opens with its Potential savings card
   assert.match(page, /const savingsCard = /);
-  for (const k of ['all', 'instructions', 'custom', 'builtin', 'outputs']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
+  for (const k of ['all', 'instructions', 'custom', 'builtin']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
   assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
   // the installer's picker (setup/context-ask.js, `thinker context --machine --ask`) applies its picks through the same
@@ -221,7 +224,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('setup/context-ask.js'), /suggestionsUrl\(url, null, \{ from: 'setup' \}\)/);
   // The link in the weekly question opens the page on the lines that question numbered, checked, with the action it
   // suggested for each (context-suggest.js:offeredPicks, sent with the report as `offered`): one door's suggestion,
-  // not the page's own ranking of it, which leaves tool outputs out.
+  // not the page's own ranking, which is recomputed on arrival.
   const suggest = read('context-suggest.js');
   assert.match(suggest, /export const suggestionsUrl = \(url, repoId, \{ from \} = \{\}\)/);
   assert.match(suggest, /suggestionsUrl\(url, repoId, \{ from: 'suggestion' \}\)/);
@@ -356,7 +359,7 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.match(page, /s\.recent \? `changed \$\{dayOf\(s\.changedAt\)\}` : null/);
   assert.match(read('commands/context.js'), /s\.recent \? ` \(changed \$\{s\.changedAt\.slice\(0, 10\)\}: \$\{s\.sessions\} session/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
-  for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`', '`output:${s.name}`']) assert.ok(read('ui/page.html').includes(k), k);
+  for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`']) assert.ok(read('ui/page.html').includes(k), k);
 });
 
 test('over the wire: a section\'s Apply records the decision running and starts the command; Recent activity counts it until the job finishes', async t => {
@@ -478,7 +481,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   // One ordering, most wasted first (the owner's call, 2026-10-29), so the Sort control went: the page writes the
   // explanations for the cards in view and the page after them, which is only a promise while the order holds still.
   assert.doesNotMatch(read('ui/page.html'), /id="c-sort"|CSORTS/);
-  assert.match(read('ui/page.html'), /const VSORT = \{ all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted', outputs: 'wasted' \}/);
+  assert.match(read('ui/page.html'), /const VSORT = \{ all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted' \}/);
   assert.doesNotMatch(read('ui/page.html'), /data-vsort/);
   // every table on the page shows 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
@@ -547,7 +550,24 @@ test('Recent activity rows and `thinker context --history` say what the part is 
   assert.match(read('commands/context.js'), /\$\{e\.title\}\$\{e\.what \? `  \[\$\{e\.what\}\$\{e\.about \? `: \$\{e\.about\}` : ''\}\]` : ''\}/);
   // both read them from the entry, which changeHistory describes (part-describe.js) for entries written before they were kept
   assert.match(read('context-suggest.js'), /\.\.\.describeEntry\(e\)/);
-  for (const kind of ['section', 'skill', 'tool', 'output']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
+  for (const kind of ['section', 'skill', 'tool']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
+});
+
+test('the weekly question interrupts only when it is worth it, and both doors price a saving the same way (2026-11-04)', async () => {
+  const { SUGGEST } = await import('../src/context-suggest.js');
+  // a thin list is a line and the page's address, never a picker: two changes and 1k input tokens a prompt together
+  // before thinker stops anyone in the middle of their own work
+  assert.deepEqual([SUGGEST.minAsk, SUGGEST.askSaving], [2, 1000]);
+  const suggest = read('context-suggest.js');
+  assert.match(suggest, /const thin = asked\.length < SUGGEST\.minAsk \|\| asked\.reduce\(\(a, c\) => a \+ \(c\.saving \|\| 0\), 0\) < SUGGEST\.askSaving/);
+  assert.match(suggest, /if \(thin\) return `<thinker-context-suggestions>/);
+  // and what a change is worth is said in money, from one rate: the dollars an input token cost here, off the kept
+  // report (report.js:inputRate), in the session's question and in `thinker context`'s Top changes alike
+  assert.match(read('report.js'), /export const inputRate = view => view\?\.inputRate \?\? null;/);
+  assert.match(read('report.js'), /inputRate: pricedInput > 0 && pricedInputCost > 0 \? pricedInputCost \/ pricedInput : null,/, 'measured over the priced sessions alone');
+  assert.match(read('report-snapshot.js'), /export function inputRateHere\(store/);
+  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store\)|inputRateHere\(store\)\)/, f);
+  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
 });
 
 test('`thinker prs` is one door, and its help says what the figures are (2026-10-29)', async () => {

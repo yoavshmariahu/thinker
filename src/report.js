@@ -150,6 +150,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // without a measured input they cannot sit in the three tables that add up to one whole (2026-10-25)
   const estCols = cols.map(() => ({ sessions: 0, prompts: 0 })), byEst = Object.fromEntries(PARTS.map(([k]) => [k, cols.map(cell)]));
   const models = new Map(), unpriced = new Set();
+  // the window's input cost over its input tokens, priced sessions only (inputRate)
+  let pricedInput = 0, pricedInputCost = 0;
   // one row a measured session (sessionRows): its input, the four parts as estimated, and the things it cost (above), so
   // each action can be measured as tokens a prompt before and since it (actionEffect), live over a kept report
   const sessionRows = [];
@@ -170,6 +172,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0) * cal, system: (c.system || 0) * cal, custom: (p.custom || 0) * cal, builtin: (p.builtin || 0) * cal, outputs: (p.outputs || 0) * cal, agentCalls: (c.agentCalls || 0) * cal, thinking: c.thinking || 0, prompts: ((c.prompts || 0) + (c.agentText || 0)) * cal, notes: (c.notes || 0) * cal };
     const sum = Object.values(est).reduce((a, b) => a + b, 0), scale = sum > input && sum > 0 ? input / sum : 1;
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
+    if (inCost != null) { pricedInput += input; pricedInputCost += input * inCost; }
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }
     sessionRows.push({ t: r.t, input, prompts, parts: Object.fromEntries(PARTS.map(([k]) => [k, Math.round(est[k] * scale)])), ...(items.get(r.session) || { calls: 0, files: [], sources: {}, outputs: {} }) });
     const other = Math.max(0, input - sum * scale);
@@ -215,6 +218,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
+    inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
     tokenTypes,
     parts: PARTS.map(([key, name]) => ({ key, name, cells: byPart[key] })), others, otherInput, totals, sessionTotals,
     breakdown: BREAKDOWN.map(([key, name]) => ({ key, name, cells: byPart[key] })),
@@ -333,6 +337,13 @@ export function actionEffect(e, sessionRows = [], now = Date.now(), { until = nu
 }
 // What a prompt costs on average over the view's measured sessions (`sessionRows`): their input over their prompts. Shown
 // over the Saved column of Recent activity, the size the savings are read against.
+// What an input token cost here, in dollars at the list prices: the window's input cost over its input tokens, over
+// the priced sessions alone (`inCost` is each session's own, cache reads at a tenth of input and writes at twice it,
+// so the blend is how the sessions actually ran). It is the rate the Report already prices a part's share of the
+// input with, so a saving quoted anywhere -- the weekly question, `thinker context` -- reads the same as the table.
+// An unpriced model is left out rather than counted at zero (prices.js), and a window with no priced session has no
+// rate at all: then a figure is quoted in tokens alone rather than guessed at. Measured by reportView, read back here.
+export const inputRate = view => view?.inputRate ?? null;
 export function promptAverage(sessionRows = []) {
   const prompts = sessionRows.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0), tokens = sessionRows.reduce((a, r) => a + r.input, 0);
   return prompts ? { sessions: sessionRows.length, prompts, tokens, perPrompt: Math.round(tokens / prompts) } : null;

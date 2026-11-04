@@ -958,6 +958,22 @@ the only behavior. A harness that needs the order alone passes `cover: {body:
   - `instructions` attachment, when present, is exact (replaces estimate).
 - Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
 
+**A tool's output is nobody's choice (MANDATORY, 2026-11-04, the owner's call):**
+- The clearing is thinker's compression and it is on by default (`src/cutting.js`, applied by `proxy.js` on every
+  request, and the desktop mod beside it). It takes out the results the agent has finished with, which is where the
+  cost is: 88% of what output costs a session is re-reads past the agent's last use of the result.
+- So per-tool compression (`diet.js`) is offered nowhere a person can see it: no row on Find Savings (the **Tool
+  outputs** view is gone), no line in the weekly question, no option in the installer's picker, no `ACTS` entry, no
+  `output` change out of `partChanges`, no card out of `part-explain.js:viewParts`. It only shrank what was still
+  live -- the moderate cap took 7.5% of output cost over this machine's 38 most recent sessions, and the one arm
+  measured in agent sessions (a 4k cap, PostHog/Opus, 2026-10-28) saved nothing, because the agent fetches again
+  what was trimmed. A row asking for that decision cost a person a decision and bought what the clearing already had.
+- What stays: the measurement (`tool-outputs.js`, the Report's parts table and `totals.outputs`), the diet itself as
+  `thinker context --output-compression <tools> [--level high]` for an experiment arm, `describePart({kind:'output'})`
+  and the `output` branch of `undoOf`, so a decision someone made before this is still theirs to Revert.
+- What set it off: on 2026-11-04 a Claude Desktop session was interrupted mid-answer with a picker reading
+  "1 -- compress repeated tool output, or none?" -- the thinnest question thinker has ever put to anyone.
+
 **Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
 - A part sits in the prompt, so it costs its size in every model call that carries it. The table's four numbers are four readings of that, each with a **?** under forty words (the owner: if it needs more, the calculation is wrong).
 - **Per prompt** (`tokens`): its size, what it adds to every prompt that carries it. **Needed** (`usedShare`): of those prompts, the share the agent acted on it in. **Over N days** (`window`): per prompt × every prompt that carried it (`prompts`). **Wasted** (`wastedWindow`; `wasted` a prompt): window × (1 − needed). The savings card leads with the window figure. `perPrompt` (window ÷ every prompt of the window) stays in the data for the tab strip, the totals and `wasteLevel`, not in the table.
@@ -1230,6 +1246,22 @@ against each other by tokens saved, which is why the other two prompt questions 
   held there the same day: it was not effective enough to put to people. It is the only question the hooks can
   still emit, and only where a repository turns it on.
 A new thing worth suggesting is a row and a line of the weekly message, not a question of its own.
+
+**And it only interrupts when it is worth it, and says what it is worth (2026-11-04, the owner's ask).**
+- **A thin list is not a question** (`SUGGEST.minAsk` = 2 changes, `SUGGEST.askSaving` = 1,000 input tokens a prompt
+  together, both in `contextSuggestOffer` as `thin`). Below either floor the block is the lines and the page's
+  address with no question at all, said in one line of the agent's own answer. A single change is never a question:
+  "1 -- compress repeated tool output, or none?" is what one desktop session was asked in the middle of its own
+  work. `minSaving` (15 a prompt) is what makes a line worth printing; these are what make it worth stopping for.
+- **Every figure is also money, where this repository can price one.** `report.js:inputRate` is the dollars an input
+  token cost here -- the input side of the Report's token-type table, its cost over its tokens, so cache reads count
+  at their own rate and not at the input rate -- read off the kept report by `report-snapshot.js:inputRateHere` (a
+  file read, no measurement made) and kept with the summary as `pending.rate`. The lead, each line, and the question
+  itself carry it (`thinker context`'s Top changes too, the same rate). No kept report, or a model in the window
+  with no list price, means no dollar figure anywhere in the message rather than a guessed one.
+- Why: a suggestion nobody can value is one nobody acts on, and "34M tokens over 7 days" is not a figure a person
+  can place. It is the only place outside the Report and PR comments where thinker says dollars; `prices.js` is
+  still where they come from, and the message says they are list prices and that a subscription bills none of it.
 
 **The one exception (2026-10-28, owner-approved): the offer to turn the context proxy back on** (`proxy-offer.js`).
 A one-off repair of a fault thinker caused, not a recurring suggestion: the machines whose harness the proxy broke
