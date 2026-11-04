@@ -181,7 +181,7 @@
     .tag.cut { background: var(--thk-soft); color: var(--thk); }
     .tag.err { background: var(--flag-soft); color: var(--flag); }
     .blob { font-family: var(--mono); font-size: 0.7rem; line-height: 1.4; white-space: pre; overflow: auto; max-height: 24rem; background: var(--card-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.6rem; margin: 0.3rem 0 0.2rem; }
-    .tstats { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.5rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem 0.6rem; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+    .tstats { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.5rem; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem 0.6rem; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
     .tstats div { color: var(--muted); }
     .tstats div b { display: block; color: var(--fg); font-weight: 600; font-size: 0.86rem; }
     .tstats .d { font-size: 0.72rem; font-weight: 600; margin-left: 0.25rem; }
@@ -190,6 +190,18 @@
     .sess-end { margin: 0.5rem 0 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
     .sess-end .tile .v { font-size: 1.4rem; }
     @media (max-width: 720px) { .cols, .sess-head, .sess-end { grid-template-columns: 1fr; } .col + .col { border-left: 0; border-top: 1px solid var(--line); } .sess-head { position: static; } }
+
+    /* ---- cost by token type ---- */
+    .parts { display: grid; grid-template-columns: 7.5rem 1fr; gap: 0.5rem 0.75rem; align-items: center; margin: 0.75rem 0 0.5rem; }
+    .parts .lab { font-size: 0.82rem; font-weight: 600; }
+    .parts .lab small { display: block; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .pbar { display: flex; height: 26px; gap: 2px; }
+    .pbar span { display: flex; align-items: center; justify-content: center; font-size: 0.68rem; font-weight: 600; color: #fff; border-radius: 3px; overflow: hidden; white-space: nowrap; min-width: 0; }
+    .pbar span.lo { color: var(--fg); }
+    .parts-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; font-size: 0.78rem; color: var(--muted); margin: 0.35rem 0 0; }
+    .parts-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 0.3rem; vertical-align: -1px; background: var(--fg); }
+    table.ptab { margin-top: 0.75rem; }
+    table.ptab td.d.good { color: var(--thk); } table.ptab td.d.bad { color: var(--flag); }
   </style>
   <script src="/message.js" defer></script>
 </head>
@@ -227,6 +239,11 @@
     <p class="sub">Cumulative cost at Anthropic's list prices for Claude Opus 5.5. A cut makes every later call cheaper to read, but writes the rest of the conversation into the prompt cache again. Whether it pays depends on the write price, so pick the cache TTL above.</p>
     <div class="legend"><span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span></div>
     <figure><div class="chart" id="c2"></div></figure>
+
+    <h2>Where the dollars go</h2>
+    <p class="sub">The same totals split by what the API charged for: prompt-cache reads (the conversation re-read on every call), cache writes (new material, and the rewrite a cut provokes), output, and the little fresh input. thinker trades reads for writes; whether that pays depends on the write price, which is why the TTL toggle matters.</p>
+    <div id="parts"></div>
+    <div class="tbl-wrap"><table id="ptab" class="ptab"></table></div>
 
     <h2>The context window, side by side</h2>
     <p class="sub">What each run's prompt held at the selected call. Drag the slider or press play. Every block is one tool result, in the order it arrived; a hollow slot is a result thinker cut.</p>
@@ -417,9 +434,33 @@
     }
 
     // ---- tables ----
+    const PART_DEFS = [['read', 'cache reads'], ['write', 'cache writes'], ['output', 'output'], ['input', 'fresh input']];
+    function costParts(arm) {
+      const wr = state.ttl === '1h' ? P.w1h : P.w5m;
+      const out = { read: 0, write: 0, output: 0, input: 0 };
+      DATA[arm].forEach((c, i) => {
+        const w = c.w + (arm === 'control' && state.cold && i === 0 ? 39026 : 0);
+        out.read += c.r * P.read / 1e6; out.write += (w * wr + c.w5 * P.w5m) / 1e6; out.output += c.o * P.output / 1e6; out.input += c.i * P.input / 1e6;
+      });
+      out.total = out.read + out.write + out.output + out.input;
+      return out;
+    }
+    function costBreakdown() {
+      const pb = costParts('control'), pa = costParts('cut');
+      const max = Math.max(pb.total, pa.total);
+      const alpha = [1, 0.72, 0.46, 0.24];
+      const bar = (parts, hue) => `<div class="pbar">${PART_DEFS.map(([k, name], i) => { const w = parts[k] / max * 100; return `<span style="flex:0 0 ${w.toFixed(2)}%;background:${hue};opacity:${alpha[i]}" class="${i >= 2 ? 'lo' : ''}" title="${name}: ${usd(parts[k])}">${w > 9 ? usd(parts[k]) : ''}</span>`; }).join('')}</div>`;
+      $('#parts').innerHTML = `<div class="parts">
+        <div class="lab"><span class="arm ctl"><i></i>without thinker</span><small>${usd(pb.total)}</small></div>${bar(pb, 'var(--ctl)')}
+        <div class="lab"><span class="arm thk"><i></i>with thinker</span><small>${usd(pa.total)}</small></div>${bar(pa, 'var(--thk)')}
+      </div><div class="parts-legend">${PART_DEFS.map(([k, name], i) => `<span><i style="opacity:${alpha[i]}"></i>${name}</span>`).join('')}<span>bars share one scale; each arm's hue, darkest first</span></div>`;
+      $('#ptab').innerHTML = `<tr><th>At list price</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
+        PART_DEFS.concat([['total', 'total']]).map(([k, name]) => `<tr><td>${name}</td><td>${usd(pb[k])}</td><td>${usd(pa[k])}</td><td class="d ${pa[k] < pb[k] ? 'good' : pa[k] > pb[k] ? 'bad' : ''}">${pb[k] ? pct(pa[k], pb[k]) : ''}</td></tr>`).join('');
+    }
     function stats() {
       const a = series('cut'), b = series('control');
       const sum = (s, f) => s.reduce((n, x) => n + f(x), 0);
+      const pb = costParts('control'), pa = costParts('cut');
       const rows = [
         ['Model calls', b.length, a.length, false],
         ['Turns answered', 14, 14, false],
@@ -429,6 +470,10 @@
         ['Largest prompt, tokens', Math.max(...b.map(x => x.carried)), Math.max(...a.map(x => x.carried)), true],
         ['Cuts taken', 0, a.filter(x => x.cut).length, false],
         ['Results cut', 0, DATA.results.filter(r => r.cut).length, false],
+        ['Cost of cache reads, at list', pb.read, pa.read, true, true],
+        [`Cost of cache writes, ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL`, pb.write, pa.write, true, true],
+        ['Cost of output', pb.output, pa.output, true, true],
+        ['Cost of fresh input', pb.input, pa.input, true, true],
         [`Cost at list, ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} writes`, b[b.length - 1].cost, a[a.length - 1].cost, true, true],
       ];
       $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
@@ -453,7 +498,7 @@
       tracks();
       document.querySelectorAll('.ev').forEach(li => li.classList.toggle('on', +li.dataset.k === state.pos));
     }
-    function renderAll() { tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); events(); stats(); setPos(state.pos); }
+    function renderAll() { tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); costBreakdown(); events(); stats(); setPos(state.pos); }
     $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => x.classList.toggle('on', x === b)); renderAll(); renderSession(); });
     $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); renderSession(); });
     $('#pos').addEventListener('input', ev => setPos(+ev.target.value));
@@ -489,16 +534,17 @@
       const ctl = SESSION.control, cut = SESSION.cut;
       const byK = arm => Object.fromEntries(arm.calls.map(c => [c.k, c]));
       const kc = byK(ctl), kt = byK(cut);
-      let runC = 0, runT = 0, rdC = 0, rdT = 0;
+      let runC = 0, runT = 0, rdC = 0, rdT = 0, rcC = 0, rcT = 0, wcC = 0, wcT = 0;
       const money = v => '$' + v.toFixed(2);
       const delta = (a, b, fmt) => { const d = a - b; if (Math.abs(d) < 0.005) return ''; return `<span class="d ${d < 0 ? 'save' : 'cost'}">${d < 0 ? '−' : '+'}${fmt(Math.abs(d))}</span>`; };
       const pct = (a, b) => b ? `${a < b ? '−' : '+'}${Math.round(Math.abs(a - b) / b * 100)}%` : '';
       let html = '';
       for (let n = 1; n <= 14; n++) {
         const tc = ctl.turns[n - 1], tt = cut.turns[n - 1];
-        const sum = (t, km) => t.calls.reduce((a, k) => { const c = km[k]; a.read += c.read; a.write += c.write + (km === kc && state.cold && k === 1 ? 39026 : 0); a.out += c.out; a.cost += sessionCost(c, c, km === kc); return a; }, { read: 0, write: 0, out: 0, cost: 0, carried: km[t.calls[0]].read + km[t.calls[0]].write + km[t.calls[0]].input });
+        const wr = state.ttl === '1h' ? SESSION.price.w1h : SESSION.price.w5m;
+        const sum = (t, km) => t.calls.reduce((a, k) => { const c = km[k]; const w = c.write + (km === kc && state.cold && k === 1 ? 39026 : 0); a.read += c.read; a.write += w; a.out += c.out; a.cost += sessionCost(c, c, km === kc); a.readCost += c.read * SESSION.price.read / 1e6; a.writeCost += w * wr / 1e6; return a; }, { read: 0, write: 0, out: 0, cost: 0, readCost: 0, writeCost: 0, carried: km[t.calls[0]].read + km[t.calls[0]].write + km[t.calls[0]].input });
         const sc = sum(tc, kc), st = sum(tt, kt);
-        runC += sc.cost; runT += st.cost; rdC += sc.read; rdT += st.read;
+        runC += sc.cost; runT += st.cost; rdC += sc.read; rdT += st.read; rcC += sc.readCost; rcT += st.readCost; wcC += sc.writeCost; wcT += st.writeCost;
         const cutsHere = SESSION.cuts.filter(c => c.turn === n);
         const banner = cutsHere.map(c => {
           const removed = cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt === c.k);
@@ -523,6 +569,8 @@
           <div>carried into the turn<b>${fmt(sx.carried)}${isCut ? delta(sx.carried, sy.carried, fmt) : ''}</b></div>
           <div>read from cache<b>${fmt(sx.read)}${isCut ? delta(sx.read, sy.read, fmt) : ''}</b></div>
           <div>written to cache<b>${fmt(sx.write)}${isCut ? delta(sx.write, sy.write, fmt) : ''}</b></div>
+          <div>reads at list<b>${money(sx.readCost)}${isCut ? delta(sx.readCost, sy.readCost, money) : ''}</b></div>
+          <div>writes at list<b>${money(sx.writeCost)}${isCut ? delta(sx.writeCost, sy.writeCost, money) : ''}</b></div>
           <div>this turn at list<b>${money(sx.cost)}${isCut ? delta(sx.cost, sy.cost, money) : ''}</b></div>
           <div class="spend">spent so far<b>${money(run)}${isCut ? delta(run, runOther, money) + ` <span class="d ${run < runOther ? 'save' : 'cost'}">${pct(run, runOther)}</span>` : ''}</b></div>
         </div>`;
@@ -537,12 +585,12 @@
       }
       const head = `<div class="sess-head"><div class="col-h ctl"><span class="arm ctl"><i></i>straight to the API</span><span class="run" id="run-ctl"></span></div><div class="col-h thk"><span class="arm thk"><i></i>through thinker</span><span class="run" id="run-thk"></span></div></div>`;
       const end = `<div class="sess-end">
-        <div class="tile"><div class="k">The whole session, straight to the API</div><div class="v">${money(runC)}</div><div class="pair"><span>read <b>${fmt(rdC)}</b></span><span>${ctl.calls.length} calls</span></div></div>
-        <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pct(runT, runC)}</small></div><div class="pair"><span>read <b>${fmt(rdT)}</b></span><span>${cut.calls.length} calls · 4 cuts</span></div></div>
+        <div class="tile"><div class="k">The whole session, straight to the API</div><div class="v">${money(runC)}</div><div class="pair"><span>reads <b>${money(rcC)}</b></span><span>writes <b>${money(wcC)}</b></span><span>${ctl.calls.length} calls</span></div></div>
+        <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pct(runT, runC)}</small></div><div class="pair"><span>reads <b>${money(rcT)}</b> (${pct(rcT, rcC)})</span><span>writes <b>${money(wcT)}</b> (${pct(wcT, wcC)})</span><span>${cut.calls.length} calls · 4 cuts</span></div></div>
       </div>`;
       $('#timeline').innerHTML = head + html + end;
-      $('#run-ctl').textContent = `${money(runC)} over ${ctl.calls.length} calls`;
-      $('#run-thk').textContent = `${money(runT)} over ${cut.calls.length} calls, ${pct(runT, runC)}`;
+      $('#run-ctl').textContent = `${money(runC)}: reads ${money(rcC)}, writes ${money(wcC)}`;
+      $('#run-thk').textContent = `${money(runT)} (${pct(runT, runC)}): reads ${money(rcT)}, writes ${money(wcT)}`;
       $('#sess-note').textContent = `Both runs from their own Claude Code transcripts; every call's tokens are what the API reported (they match the proxy log to the token). Prices at list, cache writes at the ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL${state.cold ? ', the control charged its skipped cold start' : ''}. Expand any result to read exactly what the model was shown; a struck-through result is one thinker had cleared by then.`;
     }
     $('#timeline').addEventListener('click', ev => {
