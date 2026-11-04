@@ -25,39 +25,39 @@
     "when": "2026-11-04"
   },
   {
-    "id": "click-5",
-    "label": "Click bug fix \u00b7 pair 5",
-    "group": "click",
+    "id": "mitm-1",
+    "label": "mitmproxy filter fix \u00b7 pair 1",
+    "group": "mitm",
     "when": "2026-11-04"
   },
   {
-    "id": "click-6",
-    "label": "Click bug fix \u00b7 pair 6",
-    "group": "click",
+    "id": "mitm-2",
+    "label": "mitmproxy filter fix \u00b7 pair 2",
+    "group": "mitm",
     "when": "2026-11-04"
   },
   {
-    "id": "click-7",
-    "label": "Click bug fix \u00b7 pair 7",
-    "group": "click",
+    "id": "mitm-3",
+    "label": "mitmproxy filter fix \u00b7 pair 3",
+    "group": "mitm",
     "when": "2026-11-04"
   },
   {
-    "id": "click-8",
-    "label": "Click bug fix \u00b7 pair 8",
-    "group": "click",
+    "id": "express-1",
+    "label": "Express ETag fix \u00b7 pair 1",
+    "group": "express",
     "when": "2026-11-04"
   },
   {
-    "id": "click-9",
-    "label": "Click bug fix \u00b7 pair 9",
-    "group": "click",
+    "id": "express-2",
+    "label": "Express ETag fix \u00b7 pair 2",
+    "group": "express",
     "when": "2026-11-04"
   },
   {
-    "id": "click-10",
-    "label": "Click bug fix \u00b7 pair 10",
-    "group": "click",
+    "id": "express-3",
+    "label": "Express ETag fix \u00b7 pair 3",
+    "group": "express",
     "when": "2026-11-04"
   }
 ]
