@@ -117,3 +117,38 @@ test('stopping is free: applying the set and cutting nothing more leaves the pre
   assert.deepEqual(JSON.parse(a.body).messages, JSON.parse(b.body).messages,
     'declining to cut more sends exactly what the previous call sent');
 });
+
+test('a turn boundary re-edits nothing older: the write leak that cost ~50k a turn', () => {
+  // The bug this guards, found 2026-11-04 by diffing the requests of a real session. `clearInputs` and
+  // `clearThinking` applied to the assistant rows BEFORE the newest turn. So when a turn ended, the rows
+  // of the turn just finished crossed from protected to older and were re-edited -- thinking stripped,
+  // call text blanked -- 38%, 59% and 70% of the way up the conversation on three consecutive boundaries
+  // of one session. Everything below that point lost its place in the cache and was written again: ~50k
+  // per boundary, 26 boundaries, ~1.3M tokens, which was the bulk of a +38% loss against a control.
+  //
+  // What makes it safe now is that the cut touches tool results and nothing else, and the set only grows
+  // at a boundary. So this asserts the property rather than the absence of those two flags: every message
+  // older than the newest turn is byte-identical from one request of a session to the next.
+  const think = { type: 'thinking', thinking: '', signature: 'sig'.repeat(300) };
+  const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: '/p/' + id } });
+  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
+  const turn = i => [
+    { role: 'user', content: 'prompt ' + i },
+    { role: 'assistant', content: [think, tu('a' + i), tu('b' + i)] },
+    { role: 'user', content: [tr('a' + i, 30000), tr('b' + i, 30000)] },
+    { role: 'assistant', content: [{ type: 'text', text: 'done ' + i }] },
+  ];
+  const base = [...turn(1), ...turn(2), ...turn(3)];
+  const frozen = new Set(['a1', 'b1', 'a2', 'b2']);   // the set a previous boundary settled on
+  const before = applyCut(base, frozen).messages;
+  const later = [
+    ['the next prompt arrives', [...base, { role: 'user', content: 'prompt 4' }]],
+    ['its first results arrive', [...base, { role: 'user', content: 'prompt 4' },
+      { role: 'assistant', content: [think, tu('a4')] }, { role: 'user', content: [tr('a4', 30000)] }]],
+  ];
+  for (const [what, messages] of later) {
+    const after = applyCut(messages, frozen).messages;
+    before.forEach((m, i) => assert.equal(JSON.stringify(after[i]), JSON.stringify(m),
+      `${what}: message ${i} must be byte-identical, or everything below it is written again`));
+  }
+});
