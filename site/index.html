@@ -690,8 +690,8 @@
     .walk .chart .col { flex: 1; display: flex; flex-direction: column; transform: scaleY(0); transform-origin: 50% 100%; border-radius: 2px 2px 0 0; overflow: hidden; }
     .walk .chart .col .sv { background: #86efac; flex: none; }
     .walk .chart .col .pd { background: #444; flex: none; }
-    .walk .chart .col.cut .pd { background: repeating-linear-gradient(135deg, #444 0 4px, #b91c1c 4px 7px); }
-    .walk .chart .y { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); }
+    .walk .chart .col .wr { background: repeating-linear-gradient(135deg, #444 0 4px, #b91c1c 4px 7px); flex: none; }
+    .walk .chart .y { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--line); z-index: 1; pointer-events: none; }
     .walk .chart .y span { position: absolute; right: 0; top: -15px; font-size: 0.64rem; color: var(--faint); font-weight: 500; }
     .walk .chart .xlab { position: absolute; left: 0; right: 0; top: 100%; margin-top: 6px; display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--muted); font-weight: 500; }
     .walk .chart .pay { position: absolute; top: -12px; bottom: -4px; width: 0; border-left: 2px dashed #15803d; opacity: 0; }
@@ -705,7 +705,7 @@
     .walk .ledger .row.cost .v { color: #b91c1c; }
     .walk .ledger .row.gain .v { color: var(--gain); }
     .walk .ledger .d { display: block; font-size: 0.7rem; color: var(--fg-2); margin-top: 2px; line-height: 1.35; }
-    .walk .acc.total { left: 640px; top: 352px; }
+    .walk .acc.total { left: 640px; top: 362px; }
 
     /* Cache scene */
     .walk .col-h { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.5rem; }
@@ -1166,13 +1166,13 @@
               </div>
             </div>
             <div class="ledger" id="ledger">
-              <div class="row cost" id="ld-cost"><span class="k">Paid once</span><span class="v">40k tokens written</span><span class="d">the prompt after the cut goes into the cache again, on the cut call only</span></div>
+              <div class="row cost" id="ld-cost"><span class="k">Paid once</span><span class="v">40k tokens written</span><span class="d">the prompt after the cut, cached again</span></div>
               <div class="row gain" id="ld-gain"><span class="k">Saved on every later call</span><span class="v">106k tokens not read</span><span class="d">the old results no call carries any more</span></div>
-              <div class="row" id="ld-pay"><span class="k">Pays for itself by</span><span class="v">call 18</span><span class="d">a cache write costs about twenty reads; thinker cuts only when that is repaid within 20 calls</span></div>
+              <div class="row" id="ld-pay"><span class="k">Pays for itself by</span><span class="v">call 18</span><span class="d">a cache write costs about twenty reads</span></div>
             </div>
             <div class="acc total" id="total"><div class="lbl">Not re-read this session</div><div class="n"><span id="tot-n">0</span><small>tokens</small></div><div class="sub">from one decision, at call 11</div></div>
             <div class="cap" id="cap-m1">A cut is <b>paid once</b>: the prompt after it is written to the cache again. Then <b>every later call</b> reads 106k less.</div>
-            <div class="cap" id="cap-m2">A cache write costs about twenty reads, so this cut <b>pays for itself by call 18</b>. After that, every call is pure saving.</div>
+            <div class="cap" id="cap-m2">A cache write costs about twenty reads, so this cut <b>pays for itself by call 18</b>; thinker only cuts when that happens within 20 calls. After that, every call is pure saving.</div>
             <div class="cap" id="cap-m3">Forty calls later: <span class="g">4.2M tokens</span> never re-read, from one decision thinker made at a turn boundary.</div>
           </section>
 
@@ -1518,7 +1518,9 @@
     const col = document.createElement('div');
     col.className = 'col' + (i === 0 ? ' cut' : '');
     col.style.height = (base / TOP * H) + 'px';
-    col.innerHTML = `<div class="sv" style="height:${CUT / TOP * H}px"></div><div class="pd" style="height:${(base - CUT) / TOP * H}px"></div>`;
+    // the cut call writes the tail (the prompt after the first replaced result) into the cache again; the prefix above it stays cached
+    const paid = base - CUT, wr = i === 0 ? TAIL : 0;
+    col.innerHTML = `<div class="sv" style="height:${CUT / TOP * H}px"></div><div class="wr" style="height:${wr / TOP * H}px"></div><div class="pd" style="height:${(paid - wr) / TOP * H}px"></div>`;
     cols.appendChild(col); colEls.push(col);
   }
   const tot = { v: 0 };
