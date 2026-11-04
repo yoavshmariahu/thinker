@@ -411,7 +411,7 @@
     <a href="/" class="brand">thinker <span class="brand-docs">/ docs</span></a>
     <div class="site-nav-right" aria-label="Main navigation">
       <a href="docs.html" class="site-nav-link">Docs</a>
-      <a href="compression.html" class="site-nav-link">Compression</a>
+      <a href="compression.html" class="site-nav-link">See the data</a>
       <a href="https://github.com/yoavshmariahu/thinker" class="site-nav-link">GitHub</a>
     </div>
   </header>
@@ -523,7 +523,7 @@
         </figure>
         <p>In Claude Code, Thinker’s local proxy replaces older results with a short reminder to read them again if needed. It protects the current turn and recent results, and leaves your prompts and the agent’s replies intact. The decision accounts for the prompt-cache rewrite a cut can cause.</p>
         <p>Installation enables compression where supported. Claude Desktop clears inside the session; Codex uses the local proxy; Devin uses its own compactor. <a href="#supported-agents">Agent support</a> varies. Run <code>thinker proxy status</code> to inspect the proxy, or <code>thinker proxy off</code> to disable it. For Claude Desktop, set <code>proxy: { desktop: false }</code> in the machine config.</p>
-        <p><a href="compression.html">Explore compression sessions and costs →</a> Fewer input tokens do not guarantee a lower bill: cache rewrites and extra reads also count.</p>
+        <p><a href="compression.html">See the data: sessions and costs →</a> Fewer input tokens do not guarantee a lower bill: cache rewrites and extra reads also count.</p>
         <details class="fold">
           <summary>Optional: trim a result before it enters context</summary>
           <p>Claude Code also supports per-tool output trimming with <code>thinker context --output-compression Read --level moderate</code>. Use <code>--level off</code> to disable it. This is off by default and separate from automatic clearing.</p>

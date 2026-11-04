@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>thinker · Compression</title>
-  <meta name="description" content="Explore context compression in coding sessions: the cuts, cache writes, token costs, and full conversations with and without thinker.">
+  <title>thinker · See the data</title>
+  <meta name="description" content="See measured coding-agent results: knowledge caching and compression, per-request token costs, test outcomes and session comparisons.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -43,6 +43,21 @@
     .tile .pair { display: flex; gap: 0.9rem; margin-top: 0.35rem; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
     .tile .pair span b { color: var(--fg); font-weight: 600; }
     .tile .why { margin-top: 0.45rem; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
+
+    .benchmark { margin-top: 2rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: 12px; background: var(--card-2); }
+    .benchmark h2 { margin: .5rem 0; font-size: 1.6rem; }
+    .benchmark p { line-height: 1.55; }
+    .benchmark .benchmark-note { margin-top: .8rem; font-size: .85rem; color: var(--muted); }
+    .benchmark table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: .9rem; font-variant-numeric: tabular-nums; }
+    .benchmark th, .benchmark td { padding: .85rem .7rem; text-align: right; border-bottom: 1px solid var(--line); }
+    .benchmark th:first-child, .benchmark td:first-child { text-align: left; }
+    .benchmark thead th { font-size: .76rem; font-weight: 600; color: var(--muted); }
+    .benchmark td strong { color: var(--thk); }
+    .benchmark tfoot th, .benchmark tfoot td { border-bottom: 0; font-weight: 650; }
+    .benchmark details { margin-top: 1rem; }
+    .benchmark details p { margin-top: .75rem; font-size: .85rem; color: var(--fg-2); }
+    .benchmark summary { cursor: pointer; font-size: .9rem; font-weight: 600; }
+    @media (max-width: 600px) { .benchmark { padding: 1rem; } .benchmark table { min-width: 550px; } }
 
     .controls { position: relative; z-index: 5; margin-top: 1.5rem; }
     .session-row { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem 1.5rem; }
@@ -266,14 +281,40 @@
     <a href="index.html" class="nav-brand">thinker</a>
     <div class="site-nav-right" aria-label="Main navigation">
       <a href="docs.html" class="site-nav-link">Docs</a>
-      <a href="compression.html" class="site-nav-link">Compression</a>
+      <a href="compression.html" class="site-nav-link">See the data</a>
       <a href="https://github.com/yoavshmariahu/thinker" class="site-nav-link">GitHub</a>
     </div>
   </nav>
 
   <main>
-    <h1>Compression</h1>
-    <p class="lede">Explore how cutting old tool results changes a coding session’s context and token costs.</p>
+    <h1>See the data</h1>
+    <p class="lede">Measured coding sessions, costs and outcomes—with the assumptions and limitations alongside the results.</p>
+
+    <section class="benchmark" id="knowledge-and-compression" aria-labelledby="benchmark-title">
+      <p class="kicker">Knowledge cache + compression · November 4, 2026</p>
+      <h2 id="benchmark-title">Two MLflow coding tasks</h2>
+      <p>Each task ran once with neither feature and once with an existing knowledge cache plus Thinker compression. All four sessions passed their PR tests.</p>
+      <div class="tbl-wrap"><table>
+        <caption class="sr-only">API-equivalent coding-session costs in US dollars</caption>
+        <thead><tr><th scope="col">Task</th><th scope="col">Neither feature</th><th scope="col">Cache + compression</th><th scope="col">Cost saved</th><th scope="col">PR tests</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><a href="https://github.com/mlflow/mlflow/pull/26291">Model version <code>@latest</code></a></th><td>$15.08</td><td>$11.92</td><td><strong>20.9%</strong></td><td>Both passed</td></tr>
+          <tr><th scope="row"><a href="https://github.com/mlflow/mlflow/pull/26300">Gemini / Vertex <code>tool_choice</code></a></th><td>$16.94</td><td>$11.61</td><td><strong>31.5%</strong></td><td>Both passed</td></tr>
+        </tbody>
+        <tfoot><tr><th scope="row">Total for the two tasks</th><td>$32.02</td><td>$23.53</td><td></td><td>4 / 4 passed</td></tr></tfoot>
+      </table></div>
+      <p class="benchmark-note">Measured tokens priced at <a href="https://developers.openai.com/api/docs/models/gpt-6-astra">Astra API list rates</a>, not subscription charges. These selected examples measure the combined benefit; they do not isolate knowledge caching or establish an average saving.</p>
+      <details>
+        <summary>How this comparison was measured</summary>
+        <p><strong>Same tasks and model.</strong> Codex with GPT-6 Astra at medium effort, nine prompted turns per session, one run per arm. The tasks require broad file reads. Arm order was reversed on the second task. PR tests determined correctness; all four passed. Both treatment sessions received a knowledge note and triggered context cutting.</p>
+        <p><strong>Complete request accounting.</strong> Costs use provider-reported usage per request, including Codex’s native compaction in both controls. Every request explicitly reported zero cache-write tokens, with no missing or inconsistent counters. No write charge was inferred from missing data. Calls used the default service tier and stayed below the 272k-token pricing threshold. Rates per million tokens: $10 fresh input, $1 cache reads and $50 output.</p>
+        <p><strong>What is outside the comparison.</strong> Historical cache-building costs, setup, preflight and cancelled runs are excluded. The cache contained 195 Astra-built notes from a repository snapshot before the fixes; its build-time reasoning effort was not recorded. Two selected tasks with one repetition do not establish a general performance claim.</p>
+        <p><a href="clearing-mlflow-knowledge.json" download>Download the results and per-request usage (JSON)</a> · <a href="https://github.com/yoavshmariahu/thinker/commit/912b18753bd629b60255502cdf1d979fd2659ece">Tested Thinker build</a></p>
+      </details>
+    </section>
+
+    <h2 id="compression-sessions">Explore compression sessions</h2>
+    <p class="sub">Separate compression-only examples, with call-by-call charts and transcripts.</p>
 
     <div class="controls">
       <div class="session-row">
