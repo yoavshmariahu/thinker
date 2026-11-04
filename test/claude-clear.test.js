@@ -40,12 +40,9 @@ const DESKTOP_POLICY = {
   trigger: { reads: 'p.trigger,', mirrors: 'TRIGGER' },
   clearAtLeast: { reads: 'p.clearAtLeast,', mirrors: 'CLEAR_AT_LEAST' },
   keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
-  keepTurns: { reads: 'p.keepTurns,', mirrors: 'KEEP_TURNS' },
   // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
   clearInputs: { reads: 'p.clearInputs !== false' },
-  // the proxy says it in the system prompt; this door says it in the placeholder, where the result went
-  clearNotice: { reads: 'p.clearNotice !== false', mirrors: 'CLEAR_NOTICE' },
   clearThinking: { reads: 'p.clearThinking !== false' },
   clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(policy, {' },
   keep: { exempt: 'the API\'s own keep count, sent as an edit parameter; the mod keeps the newest turn itself in clearOld, so there is nothing to send and no value that could differ within a turn' },

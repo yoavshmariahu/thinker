@@ -188,45 +188,39 @@ test('isRewrite: a call that wrote most of its context rather than reading it', 
 test('the request is measured before the turn: the prefix a deeper ask keeps is the head, the system prompt and tools', () => {
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  // four turns of three tool calls: the keep a boundary decides covers the last `keepTurns` (2) settled turns,
-  // six results, so of the nine sitting before the turn in progress three are clearable. Before 2026-11-03 the
-  // keep was `keepMin` whatever the turn's shape, which let the server clear the turn in progress and the one
-  // before it (B6, research/clearing-bench: 8 of 28 turns answered without a value they had read).
+  // three turns of three tool calls: the keep a boundary decides is the previous turn's count (3), so six
+  // results sit before the turn and three of them are clearable. Before 2026-11-03 the keep was `keepMin`
+  // whatever the turn's shape, which let the server clear the turn in progress (B6, research/clearing-bench).
   const messages = [{ role: 'user', content: 'first' }];
   for (let i = 0; i < 3; i++) messages.push({ role: 'assistant', content: [tu(`a${i}`)] }, { role: 'user', content: [tr(`a${i}`, 10000)] });
   messages.push({ role: 'user', content: [{ type: 'text', text: 'second' }] });
   for (let i = 0; i < 3; i++) messages.push({ role: 'assistant', content: [tu(`b${i}`)] }, { role: 'user', content: [tr(`b${i}`, 10000)] });
   messages.push({ role: 'user', content: [{ type: 'text', text: 'third' }] });
   for (let i = 0; i < 3; i++) messages.push({ role: 'assistant', content: [tu(`c${i}`)] }, { role: 'user', content: [tr(`c${i}`, 10000)] });
-  messages.push({ role: 'user', content: [{ type: 'text', text: 'fourth' }] });
-  for (let i = 0; i < 3; i++) messages.push({ role: 'assistant', content: [tu(`d${i}`)] }, { role: 'user', content: [tr(`d${i}`, 10000)] });
   const j = { model: 'm', messages };
-  assert.equal(turnId(messages), 4);
-  assert.equal(measureClearing(cfg, j, 0).keep, 6, 'the keep covers the last two settled turns');
+  assert.equal(turnId(messages), 3);
+  assert.equal(measureClearing(cfg, j, 0).keep, 3, 'the keep covers the previous turn, and here equals the floor');
   const none = measureClearing(cfg, j, 0), two = measureClearing(cfg, j, 2);
-  assert.equal(none.turn, 4);
+  assert.equal(none.turn, 3);
   assert.equal(none.prefix, two.prefix, 'the head, whatever the server already holds: a prefix ending mid-conversation is not found');
   assert.ok(two.prefix < two.prompt);
   assert.equal(measureClearing(cfg, { ...j, system: 's'.repeat(4000), tools: [{ name: 't', description: 'd'.repeat(4000) }] }, 0).prefix, Math.floor((JSON.stringify('s'.repeat(4000)).length + JSON.stringify([{ name: 't', description: 'd'.repeat(4000) }]).length) * TOKENS_PER_CHAR));
   assert.equal(none.before, two.before, 'what sits before the turn is the same count either way');
   assert.ok(none.before > 0 && none.before < none.prompt);
-  // the newest keep results and their calls are never cleared, so they are not clearable: 9 results of 10000
-  // chars before the turn and a keep of 6 leave 3 (smoke5, 2026-11-02: counted in, the ask passed what the
-  // server could meet and it applied nothing)
+  // the newest keep results and their calls are never cleared, so they are not clearable: 6 results of 10000 chars
+  // before the turn and a keep of 3 leave 3 (smoke5, 2026-11-02: counted in, the ask passed what the server could
+  // meet and it applied nothing)
   const results = 3 * 10000 * TOKENS_PER_CHAR, inputs = 3 * JSON.stringify({ command: 'ls' }).length * TOKENS_PER_CHAR;
   assert.equal(none.before, Math.round(results + inputs));
-  // `keepMin` is a floor under the recent turns' own count, not the keep itself: turns of three tool calls keep
-  // six however low the floor goes, because the alternative is clearing work the model has just fetched
-  assert.equal(measureClearing({ ...cfg, keepMin: 0 }, j, 0).keep, 6, 'the recent turns floor the keep');
-  // one turn of history protects less, and is the switch for anyone who wants the old reach
-  assert.equal(measureClearing({ ...cfg, keepTurns: 1 }, j, 0).keep, 3, 'keepTurns: 1 keeps the previous turn alone');
+  // `keepMin` is a floor under the turn's own count, not the keep itself: a turn of three tool calls keeps
+  // three however low the floor goes, because the alternative is clearing the work the turn is using
+  assert.equal(measureClearing({ ...cfg, keepMin: 0 }, j, 0).keep, 3, 'the previous turn floors the keep');
   assert.equal(measureClearing({ ...cfg, keepMin: 0 }, j, 0).before, Math.round(results + inputs));
   assert.equal(measureClearing({ ...cfg, keepMin: 9 }, j, 0).before, 0, 'a keep past the count leaves nothing clearable');
   // a long turn raises the keep for the turn that follows it, and the measure shrinks to match
   const long = [{ role: 'user', content: 'first' }];
   for (let i = 0; i < 8; i++) long.push({ role: 'assistant', content: [tu(`d${i}`)] }, { role: 'user', content: [tr(`d${i}`, 10000)] });
   long.push({ role: 'user', content: [{ type: 'text', text: 'second' }] });
-  // only one settled turn exists here, so the keep is its eight: the count clamps to the history there is
   assert.equal(measureClearing(cfg, { model: 'm', messages: long }, 0).keep, 8, 'eight tool calls last turn, eight kept');
   assert.equal(measureClearing(cfg, { model: 'm', messages: long }, 0).before, 0, 'so none of those eight is clearable yet');
   // the current turn's results are not counted, so the measure does not move while the turn runs
@@ -235,7 +229,7 @@ test('the request is measured before the turn: the prefix a deeper ask keeps is 
   // what transformRequest sends with a record is the record's edit, and the row says what it decided
   const rec = freshRecord('s', cfg);
   const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'context-management-2025-06-27' }, Buffer.from(JSON.stringify(j)), { ...proxyConfig({}, {}), clearAtLeast: 0, record: rec, now });
-  assert.equal(t.injected, true); assert.equal(t.turn, 4); assert.equal(t.keep, 6, 'the last two settled turns made six tool calls between them, so six are kept');
+  assert.equal(t.injected, true); assert.equal(t.turn, 3); assert.equal(t.keep, 3, 'the previous turn made three tool calls, so three are kept');
   const edit = JSON.parse(t.body).context_management.edits.find(e => e.type === EDIT_TYPE);
   assert.equal(edit.clear_at_least.value, t.asked);
 });
@@ -259,12 +253,9 @@ test('the clearing never reaches into the turn in progress: the keep covers it a
     return { model: 'claude-opus-5-5', messages };
   };
 
-  // a turn of five tool calls is covered by the keep the next boundary decides, where the old floor of 3 was
-  // not; and `keepTurns` 2 covers the turn before it as well, so a turn has headroom of about its own size
-  // before its oldest results fall out of the keep -- the model reaches back a turn, not only within one.
+  // a turn of five tool calls is covered by the keep the next boundary decides, where the old floor of 3 was not
   const five = measureClearing(cfg, session(3, 5, 20000), 0);
-  assert.equal(five.keep, 10, 'five tool calls in each of the last two turns, ten kept');
-  assert.equal(measureClearing({ ...cfg, keepTurns: 1 }, session(3, 5, 20000), 0).keep, 5, 'one turn of history keeps five');
+  assert.equal(five.keep, 5, 'five tool calls last turn, five kept');
 
   // the ask never exceeds what is clearable before the turn, so the server can always satisfy it from
   // older material and stop before the turn in progress

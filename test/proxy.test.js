@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, isRewrite, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS, CLEAR_NOTICE, recentTurnUses } from '../src/proxy.js';
+import { clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, isRewrite, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
 import { freshRecord } from '../src/clearing.js';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
@@ -580,66 +580,12 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
   } finally { server.close(); up.close(); fs.rmSync(dumpDir, { recursive: true, force: true }); }
 });
 
-test('a clearing session carries the carry-forward notice, identically on every call', () => {
-  // The three gaps the notice had (2026-11-03): it advised the costly remedy (re-read, which is what B4's
-  // +81.4% was made of), it was said once a session and only three turns after the first clear, and it
-  // travelled by prompt hook -- so a `-p` run or a desktop session was never told at all. The proxy's own
-  // copy rides the system prompt of every clearing call instead.
-  const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: `/x/${id}` } });
-  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const messages = [];
-  for (let t = 0; t < 4; t++) {
-    messages.push({ role: 'user', content: [{ type: 'text', text: `request ${t}` }] });
-    for (let i = 0; i < 3; i++) messages.push({ role: 'assistant', content: [tu(`t${t}u${i}`)] }, { role: 'user', content: [tr(`t${t}u${i}`, 40000)] });
-  }
-  const cfg = proxyConfig({}, {});
-  const call = (j, record) => transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify(j)), { ...cfg, record });
-
-  // a string system prompt becomes two blocks, the agent's own untouched and the notice its own block, so the
-  // cached prefix the agent marked is unchanged and the notice sits after it
-  const one = JSON.parse(call({ model: 'claude-opus-5-5', system: 'you are a coding agent', messages }).body);
-  assert.deepEqual(one.system, [{ type: 'text', text: 'you are a coding agent' }, { type: 'text', text: CLEAR_NOTICE }]);
-  // an array system prompt keeps its blocks and its cache_control, and the notice is appended after them
-  const blocks = [{ type: 'text', text: 'tools' }, { type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }];
-  const two = JSON.parse(call({ model: 'claude-opus-5-5', system: blocks, messages }).body);
-  assert.deepEqual(two.system.slice(0, 2), blocks, 'the agent\'s own blocks and its breakpoint are untouched');
-  assert.equal(two.system[2].text, CLEAR_NOTICE);
-  assert.equal(two.system[2].cache_control, undefined, 'the notice carries no breakpoint of its own');
-  // no system prompt at all: the notice is the whole of it
-  assert.deepEqual(JSON.parse(call({ model: 'claude-opus-5-5', messages }).body).system, [{ type: 'text', text: CLEAR_NOTICE }]);
-
-  // it says to carry values forward, and does not advise a re-read as the first resort
-  assert.match(CLEAR_NOTICE, /carry what you need forward/i);
-  assert.match(CLEAR_NOTICE, /your own messages are never removed/i);
-  assert.ok(CLEAR_NOTICE.indexOf('carry what you need forward') < CLEAR_NOTICE.indexOf('read it again'), 'carry-forward comes before re-reading');
-  assert.ok(CLEAR_NOTICE.length < 500, 'it rides every prompt of the session, so it stays short');
-
-  // byte-identical from one call of a turn to the next, as everything the proxy adds must be
-  const rec = freshRecord('s', cfg);
-  const grow = [...messages];
-  const first = JSON.parse(call({ model: 'claude-opus-5-5', system: 'x', messages: grow }, rec).body).system;
-  for (let i = 0; i < 5; i++) {
-    grow.push({ role: 'assistant', content: [tu(`g${i}`)] }, { role: 'user', content: [tr(`g${i}`, 30000)] });
-    assert.deepEqual(JSON.parse(call({ model: 'claude-opus-5-5', system: 'x', messages: grow }, rec).body).system, first);
-  }
-
-  // `clearNotice` off leaves the prompt exactly as it came
-  const none = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', system: 'x', messages })), proxyConfig({ 'clear-notice': 'off' }, {}));
-  assert.equal(JSON.parse(none.body).system, 'x', 'clearNotice off leaves the system prompt exactly as it came');
-
-  // a held-out session is not edited at all, so it is not told either: nothing to explain where nothing cleared
-  const held = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA, 'x-claude-code-session-id': 'held' }, Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', system: 'x', messages })), proxyConfig({ holdout: '1' }, {}));
-  assert.equal(held.reason, 'holdout');
-  assert.equal(JSON.parse(held.body).system, 'x', 'a held-out prompt is untouched, notice included');
-});
-
 test('a declined deepening is on the row, so the gate can be judged from the log', () => {
   // The live log of 2026-11-03 could not tell a correct refusal from a blanket one: `clear` was on the row
   // only when a clear went out, so a boundary that declined left no trace and `recache` was never visible.
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  // several turns of four tool calls, so the keep a boundary decides (the last two turns, 8) still leaves
-  // the earlier turns clearable
+  // several turns of four tool calls, so the keep a boundary decides (4) leaves earlier turns clearable
   const messages = [];
   for (let t = 0; t < 6; t++) {
     messages.push({ role: 'user', content: [{ type: 'text', text: `request ${t}` }] });
@@ -653,7 +599,7 @@ test('a declined deepening is on the row, so the gate can be judged from the log
   // nothing cleared yet: the first clear is taken unpriced, and what was on the table is recorded
   const first = call(freshRecord('s', cfg));
   assert.ok(first.clearable > 0, 'the clearable tokens are on the row');
-  assert.equal(first.keep, 8, 'the keep covers the last two turns, not the bare floor of 3');
+  assert.equal(first.keep, 4, 'the keep covers the previous turn, not the bare floor of 3');
   assert.equal(first.held, undefined, 'a decision that cleared carries no held figures');
 
   // a session that has already cleared far more than the tail is worth: the ask grows, the price refuses it
