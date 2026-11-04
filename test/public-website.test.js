@@ -139,6 +139,19 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
       const id = pair.task === 'PR26291-hard' ? 'mlflow-registry' : 'mlflow-gateway';
       const explorer = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${id}.json`, import.meta.url), 'utf8'));
       const calls = explorer[arm === 'off' ? 'control' : 'cut'].calls;
+      const events = explorer[arm === 'off' ? 'control' : 'cut'].knowledgeEvents;
+      assert.equal(events.length, arm === 'off' ? 0 : 1);
+      for (const e of events) {
+        assert.equal(e.k, 1); assert.equal(e.hits, 1);
+        assert.equal(e.actualReadSaving, null, 'potential reading must not become a measured savings claim');
+        assert.equal(e.estimate.fileTokenCap, 6000);
+        assert.equal(e.sourceReadTokens, e.sources.reduce((n,s) => n+s.readTokens, 0));
+        assert.equal(e.potentialReadSaving, Math.max(0, e.sourceReadTokens-e.noteTokens));
+        assert.ok(e.sources.every(s => s.sha256.length === 64 && s.bytes > 0));
+        const transcript = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${id}-session.json`, import.meta.url), 'utf8'));
+        assert.deepEqual(transcript.cut.knowledgeEvents, events, 'metrics and transcript use the same event evidence');
+        assert.ok(transcript.cut.turns[0].steps.some(s => s.kind === 'knowledge' && s.k === e.k));
+      }
       assert.equal(calls.length, session.calls.length);
       assert.ok(Math.abs(calls.reduce((n,c) => n+(c.input*10+c.read+c.out*50)/1e6,0)-session.costUsd)<1e-8);
     }
