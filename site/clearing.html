@@ -141,6 +141,55 @@
       .ev .how { grid-column: 1; }
       nav { padding: 1.2rem 1rem; }
     }
+
+    /* ---- tabs ---- */
+    .tabs { display: flex; gap: 0.25rem; margin: 1.6rem 0 0; border-bottom: 1px solid var(--line); }
+    .tabs button { font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.55rem 0.9rem; margin-bottom: -1px; cursor: pointer; }
+    .tabs button.on { color: var(--fg); border-bottom-color: var(--fg); }
+    .tabs button:hover { color: var(--fg); }
+    body.session .scrub { display: none; }
+
+    /* ---- session view ---- */
+    .sess-note { font-size: 0.85rem; color: var(--muted); margin: 1rem 0; }
+    .sess-head { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1.25rem 0 0.5rem; position: sticky; top: 3.3rem; z-index: 4; background: #fff; padding: 0.4rem 0; }
+    .sess-head .col-h { font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.6rem; border-radius: 6px; }
+    .sess-head .col-h.ctl { background: var(--ctl-soft); } .sess-head .col-h.thk { background: var(--thk-soft); }
+    .sess-head .col-h .run { margin-left: auto; font-weight: 500; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+    .turn { margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+    .turn-h { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.7rem 0.9rem; background: var(--card-2); border-bottom: 1px solid var(--line); }
+    .turn-h .n { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+    .turn-h .prompt { font-size: 0.86rem; line-height: 1.45; color: var(--fg-2); white-space: pre-wrap; }
+    .turn-h .prompt.clip { max-height: 2.9em; overflow: hidden; }
+    .turn-h button { font: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; margin-left: auto; }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; }
+    .col { padding: 0.6rem 0.75rem 0.75rem; min-width: 0; display: flex; flex-direction: column; }
+    .col .tstats { margin-top: auto; padding-top: 0.5rem; }
+    .col + .col { border-left: 1px solid var(--line); }
+    .cutban { font-size: 0.8rem; line-height: 1.45; border-left: 3px solid var(--thk); background: var(--thk-soft); padding: 0.45rem 0.6rem; border-radius: 0 6px 6px 0; margin: 0.1rem 0 0.5rem; }
+    .cutban b { font-variant-numeric: tabular-nums; }
+    .step { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.8rem; line-height: 1.4; padding: 0.22rem 0; border-top: 1px solid var(--line-2); min-width: 0; }
+    .step:first-child { border-top: 0; }
+    .step .ic { flex: 0 0 4.4rem; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-top: 0.15em; }
+    .step .bd { flex: 1 1 auto; min-width: 0; }
+    .step .bd code { font-family: var(--mono); font-size: 0.76rem; word-break: break-all; }
+    .step .m { color: var(--muted); font-variant-numeric: tabular-nums; margin-left: 0.4rem; white-space: nowrap; }
+    .step.say .bd { white-space: pre-wrap; color: var(--fg-2); }
+    .step.say .bd.clip { max-height: 4.2em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+    .step .x { font: inherit; font-size: 0.74rem; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; white-space: nowrap; }
+    .step.res.cut .bd > .t { text-decoration: line-through; color: var(--muted); }
+    .tag { display: inline-block; font-size: 0.68rem; font-weight: 600; padding: 0.08rem 0.4rem; border-radius: 999px; margin-left: 0.4rem; vertical-align: 0.1em; white-space: nowrap; }
+    .tag.cut { background: var(--thk-soft); color: var(--thk); }
+    .tag.err { background: var(--flag-soft); color: var(--flag); }
+    .blob { font-family: var(--mono); font-size: 0.7rem; line-height: 1.4; white-space: pre; overflow: auto; max-height: 24rem; background: var(--card-2); border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem 0.6rem; margin: 0.3rem 0 0.2rem; }
+    .tstats { margin-top: 0.6rem; border-top: 1px solid var(--line); padding-top: 0.5rem; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem 0.6rem; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+    .tstats div { color: var(--muted); }
+    .tstats div b { display: block; color: var(--fg); font-weight: 600; font-size: 0.86rem; }
+    .tstats .d { font-size: 0.72rem; font-weight: 600; margin-left: 0.25rem; }
+    .tstats .d.save { color: var(--thk); } .tstats .d.cost { color: var(--flag); }
+    .tstats .spend b { font-size: 1rem; }
+    .sess-end { margin: 0.5rem 0 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .sess-end .tile .v { font-size: 1.4rem; }
+    @media (max-width: 720px) { .cols, .sess-head, .sess-end { grid-template-columns: 1fr; } .col + .col { border-left: 0; border-top: 1px solid var(--line); } .sess-head { position: static; } }
   </style>
   <script src="/message.js" defer></script>
 </head>
@@ -158,13 +207,16 @@
     <h1>One session, run twice.</h1>
     <p class="lede">The same 14 prompts, the same model (Claude Opus 5.5 in Claude Code), the same repository. Once <span class="arm ctl"><i></i>straight to the API</span>, once <span class="arm thk"><i></i>through thinker</span>, which takes old tool results out of the conversation once they have been used. Every model call of both runs is below, with what it carried, what it cost at list prices, and where thinker stepped in.</p>
 
-    <div class="tiles" id="tiles"></div>
-
+    <div class="tabs" role="tablist"><button type="button" class="on" data-view="metrics" role="tab">Metrics</button><button type="button" data-view="session" role="tab">Session, turn by turn</button></div>
     <div class="controls">
       <span><span class="ctl-lbl">Cache writes priced at</span><span class="seg" id="ttl"><button data-v="1h" class="on">1-hour TTL</button><button data-v="5m">5-minute TTL</button></span></span>
       <label class="chk"><input type="checkbox" id="cold" checked> Charge the control the cold start it skipped</label>
       <div class="scrub"><button id="play" type="button" aria-label="Play">▶</button><input type="range" id="pos" min="1" max="30" value="30" aria-label="Model call"><span class="pos" id="pos-lbl"></span></div>
     </div>
+
+    <div id="view-metrics">
+    <div class="tiles" id="tiles"></div>
+
 
     <h2>What each call carried</h2>
     <p class="sub">Tokens in the prompt of every model call: the system prompt, the conversation so far and the tool results in it. Without thinker it only grows. Each dashed line is a cut, where thinker replaced the results the model had already used with a one-line placeholder.</p>
@@ -202,6 +254,12 @@
         <li><b>What a cost cannot see.</b> In four turns the thinker run's answer flagged line counts it had already given as unverified, because the raw file was gone from its context. The figures it flagged matched the control's. The control's answers never said so. Nine of fourteen answers were identical in both runs, five differed by one line in both directions, none left a value out.</li>
         <li>Tokens are what the API reported on each call. The track view apportions each run's measured prompt by the character counts of the results in thinker's own request bodies, so it is an illustration of the same measured total.</li>
       </ul>
+    </div>
+    </div>
+
+    <div id="view-session" hidden>
+      <p class="sess-note" id="sess-note">Loading the session…</p>
+      <div id="timeline"></div>
     </div>
   </main>
 
@@ -396,8 +454,8 @@
       document.querySelectorAll('.ev').forEach(li => li.classList.toggle('on', +li.dataset.k === state.pos));
     }
     function renderAll() { tiles(); chart($('#c1'), 'carried'); chart($('#c2'), 'cost'); events(); stats(); setPos(state.pos); }
-    $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => x.classList.toggle('on', x === b)); renderAll(); });
-    $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); });
+    $('#ttl').addEventListener('click', ev => { const b = ev.target.closest('button'); if (!b) return; state.ttl = b.dataset.v; document.querySelectorAll('#ttl button').forEach(x => x.classList.toggle('on', x === b)); renderAll(); renderSession(); });
+    $('#cold').addEventListener('change', ev => { state.cold = ev.target.checked; renderAll(); renderSession(); });
     $('#pos').addEventListener('input', ev => setPos(+ev.target.value));
     let timer = null;
     function stop() { state.playing = false; clearInterval(timer); timer = null; $('#play').textContent = '▶'; $('#play').setAttribute('aria-label', 'Play'); }
@@ -408,6 +466,112 @@
       timer = setInterval(() => { if (state.pos >= 30) { stop(); return; } setPos(state.pos + 1); }, 450);
     });
     window.addEventListener('resize', () => ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false)));
+
+    // ---- session view ----
+    let SESSION = null, sessionLoading = false;
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    function toolLine(t) {
+      const inp = t.input || {};
+      if (t.name === 'Read') return `<code>Read ${esc(inp.file_path || '')}</code>${inp.offset || inp.limit ? `<span class="m">lines ${inp.offset || 1}–${(inp.offset || 1) + (inp.limit || 0) - 1}</span>` : ''}`;
+      if (t.name === 'Bash') return `<code>$ ${esc(inp.command || '')}</code>`;
+      if (t.name === 'Grep') return `<code>Grep ${esc(inp.pattern || '')}</code><span class="m">${esc(inp.path || inp.glob || '')}</span>`;
+      if (t.name === 'Glob') return `<code>Glob ${esc(inp.pattern || '')}</code>`;
+      return `<code>${esc(t.name)}</code> <span class="m">${esc(JSON.stringify(inp)).slice(0, 120)}</span>`;
+    }
+    function turnOfCall(arm, k) { const t = arm.turns.find(t => t.calls.includes(k)); return t ? t.n : null; }
+    function sessionCost(arm, call, isControl) {
+      const w = call.write + (isControl && state.cold && call.k === 1 ? 39026 : 0);
+      const P = SESSION.price;
+      return (call.input * P.input + call.out * P.out + call.read * P.read + w * (state.ttl === '1h' ? P.w1h : P.w5m)) / 1e6;
+    }
+    function renderSession() {
+      if (!SESSION) return;
+      const ctl = SESSION.control, cut = SESSION.cut;
+      const byK = arm => Object.fromEntries(arm.calls.map(c => [c.k, c]));
+      const kc = byK(ctl), kt = byK(cut);
+      let runC = 0, runT = 0, rdC = 0, rdT = 0;
+      const money = v => '$' + v.toFixed(2);
+      const delta = (a, b, fmt) => { const d = a - b; if (Math.abs(d) < 0.005) return ''; return `<span class="d ${d < 0 ? 'save' : 'cost'}">${d < 0 ? '−' : '+'}${fmt(Math.abs(d))}</span>`; };
+      const pct = (a, b) => b ? `${a < b ? '−' : '+'}${Math.round(Math.abs(a - b) / b * 100)}%` : '';
+      let html = '';
+      for (let n = 1; n <= 14; n++) {
+        const tc = ctl.turns[n - 1], tt = cut.turns[n - 1];
+        const sum = (t, km) => t.calls.reduce((a, k) => { const c = km[k]; a.read += c.read; a.write += c.write + (km === kc && state.cold && k === 1 ? 39026 : 0); a.out += c.out; a.cost += sessionCost(c, c, km === kc); return a; }, { read: 0, write: 0, out: 0, cost: 0, carried: km[t.calls[0]].read + km[t.calls[0]].write + km[t.calls[0]].input });
+        const sc = sum(tc, kc), st = sum(tt, kt);
+        runC += sc.cost; runT += st.cost; rdC += sc.read; rdT += st.read;
+        const cutsHere = SESSION.cuts.filter(c => c.turn === n);
+        const banner = cutsHere.map(c => {
+          const removed = cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt === c.k);
+          const turns = [...new Set(removed.map(r => turnOfCall(cut, r.k)).filter(Boolean))];
+          const fromTurns = [...new Set(cut.turns.filter(t => t.steps.some(s => s.kind === 'result' && s.cutAt === c.k)).map(t => t.n))];
+          return `<div class="cutban"><b>thinker stepped in</b> before this turn's first call: it replaced <b>${removed.length}</b> tool result${removed.length === 1 ? '' : 's'} from turn${fromTurns.length === 1 ? '' : 's'} ${fromTurns.join(', ')} with one-line placeholders, <b>${fmt(c.tokens)} tokens</b> out of the prompt. Rewriting the prompt cache behind the first placeholder cost <b>${fmt(c.recache)}</b> tokens of cache write (priced ×2 as a one-hour write, ${fmt(c.cost)}); priced against the reads it saves over 20 calls, thinker expected <b>${fmt(c.saving)}</b> read-tokens avoided.</div>`;
+        }).join('');
+        const steps = (t, arm, isCut) => t.steps.map(s => {
+          if (s.kind === 'user') return '';
+          if (s.kind === 'call') { const c = (isCut ? kt : kc)[s.k]; return `<div class="step"><span class="ic">call ${s.k}</span><div class="bd"><span class="m" style="margin:0">carried ${fmt(c.read + c.write + c.input)} tokens · read ${fmt(c.read)} · wrote ${fmt(c.write)} · answered ${c.out}</span></div></div>`; }
+          if (s.kind === 'thinking') return `<div class="step"><span class="ic">thought</span><div class="bd"><span class="m" style="margin:0">${s.chars ? s.chars.toLocaleString() + ' chars, ' : ''}a thinking block the API keeps in the prompt; neither run clears it</span></div></div>`;
+          if (s.kind === 'say') { const long = s.text.length > 320; return `<div class="step say"><span class="ic">${t.steps.indexOf(s) === t.steps.length - 1 ? 'answer' : 'says'}</span><div class="bd${long ? ' clip' : ''}">${esc(s.text)}</div>${long ? '<button type="button" class="x" data-x="say">more</button>' : ''}</div>`; }
+          if (s.kind === 'tool') return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}</div></div>`;
+          if (s.kind === 'result') {
+            const cutTurn = s.cutAt ? turnOfCall(cut, s.cutAt) : null;
+            return `<div class="step res${s.cutAt ? ' cut' : ''}"><span class="ic">result</span><div class="bd"><span class="t">${s.lines.toLocaleString()} lines, ${s.chars.toLocaleString()} chars</span>${s.error ? '<span class="tag err">error</span>' : ''}${s.cutAt ? `<span class="tag cut">cleared by thinker before turn ${cutTurn}</span>` : ''}${s.placeholder && s.cutAt ? `<div class="m" style="margin:0.15rem 0 0;white-space:normal">what the model sees now: <code>${esc(s.placeholder)}</code></div>` : ''}<div class="blob" hidden data-blob="${s.blob}"></div></div><button type="button" class="x" data-x="blob">show</button></div>`;
+          }
+          return '';
+        }).join('');
+        const stat = (sx, sy, isCut, run, runOther, rd) => `<div class="tstats">
+          <div>calls<b>${sx.calls}</b></div>
+          <div>carried into the turn<b>${fmt(sx.carried)}${isCut ? delta(sx.carried, sy.carried, fmt) : ''}</b></div>
+          <div>read from cache<b>${fmt(sx.read)}${isCut ? delta(sx.read, sy.read, fmt) : ''}</b></div>
+          <div>written to cache<b>${fmt(sx.write)}${isCut ? delta(sx.write, sy.write, fmt) : ''}</b></div>
+          <div>this turn at list<b>${money(sx.cost)}${isCut ? delta(sx.cost, sy.cost, money) : ''}</b></div>
+          <div class="spend">spent so far<b>${money(run)}${isCut ? delta(run, runOther, money) + ` <span class="d ${run < runOther ? 'save' : 'cost'}">${pct(run, runOther)}</span>` : ''}</b></div>
+        </div>`;
+        sc.calls = tc.calls.length; st.calls = tt.calls.length;
+        html += `<section class="turn" id="turn-${n}">
+          <div class="turn-h"><span class="n">Turn ${n}</span><div class="prompt${tc.prompt.length > 160 ? ' clip' : ''}">${esc(tc.prompt)}</div>${tc.prompt.length > 160 ? '<button type="button" data-x="prompt">full prompt</button>' : ''}</div>
+          <div class="cols">
+            <div class="col ctl">${steps(tc, ctl, false)}${stat(sc, st, false, runC, runT, rdC)}</div>
+            <div class="col thk">${banner}${steps(tt, cut, true)}${stat(st, sc, true, runT, runC, rdT)}</div>
+          </div>
+        </section>`;
+      }
+      const head = `<div class="sess-head"><div class="col-h ctl"><span class="arm ctl"><i></i>straight to the API</span><span class="run" id="run-ctl"></span></div><div class="col-h thk"><span class="arm thk"><i></i>through thinker</span><span class="run" id="run-thk"></span></div></div>`;
+      const end = `<div class="sess-end">
+        <div class="tile"><div class="k">The whole session, straight to the API</div><div class="v">${money(runC)}</div><div class="pair"><span>read <b>${fmt(rdC)}</b></span><span>${ctl.calls.length} calls</span></div></div>
+        <div class="tile"><div class="k">The whole session, through thinker</div><div class="v">${money(runT)}<small>${pct(runT, runC)}</small></div><div class="pair"><span>read <b>${fmt(rdT)}</b></span><span>${cut.calls.length} calls · 4 cuts</span></div></div>
+      </div>`;
+      $('#timeline').innerHTML = head + html + end;
+      $('#run-ctl').textContent = `${money(runC)} over ${ctl.calls.length} calls`;
+      $('#run-thk').textContent = `${money(runT)} over ${cut.calls.length} calls, ${pct(runT, runC)}`;
+      $('#sess-note').textContent = `Both runs from their own Claude Code transcripts; every call's tokens are what the API reported (they match the proxy log to the token). Prices at list, cache writes at the ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} TTL${state.cold ? ', the control charged its skipped cold start' : ''}. Expand any result to read exactly what the model was shown; a struck-through result is one thinker had cleared by then.`;
+    }
+    $('#timeline').addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-x]'); if (!b) return;
+      if (b.dataset.x === 'prompt') { const p = b.parentElement.querySelector('.prompt'); p.classList.toggle('clip'); b.textContent = p.classList.contains('clip') ? 'full prompt' : 'less'; }
+      if (b.dataset.x === 'say') { const d = b.parentElement.querySelector('.bd'); d.classList.toggle('clip'); b.textContent = d.classList.contains('clip') ? 'more' : 'less'; }
+      if (b.dataset.x === 'blob') {
+        const pre = b.parentElement.querySelector('.blob');
+        if (pre.hidden && !pre.textContent) pre.textContent = SESSION.blobs[pre.dataset.blob] || '(not kept)';
+        pre.hidden = !pre.hidden; b.textContent = pre.hidden ? 'show' : 'hide';
+      }
+    });
+    function showView(v) {
+      document.body.classList.toggle('session', v === 'session');
+      $('#view-metrics').hidden = v === 'session';
+      $('#view-session').hidden = v !== 'session';
+      document.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.view === v); b.setAttribute('aria-selected', b.dataset.view === v); });
+      if (v === 'session') { history.replaceState(null, '', '#session'); if (!SESSION && !sessionLoading) loadSession(); }
+      else { history.replaceState(null, '', location.pathname); stop(); }
+    }
+    function loadSession() {
+      sessionLoading = true;
+      fetch('clearing-session.json').then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => { SESSION = d; renderSession(); })
+        .catch(e => { $('#sess-note').textContent = `The session data did not load (${e.message}).`; })
+        .finally(() => { sessionLoading = false; });
+    }
+    $('.tabs').addEventListener('click', ev => { const b = ev.target.closest('button[data-view]'); if (b) showView(b.dataset.view); });
+    if (location.hash === '#session') showView('session');
     renderAll();
   })();
   </script>

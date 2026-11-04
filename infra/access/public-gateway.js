@@ -16,7 +16,7 @@ function handler(event) {
     if (/^\/docs(?:\.html|\/index\.html|\/)?$/.test(uri)) { request.uri = '/docs.html'; return request; }
     if (/^\/clearing(?:\.html|\/)?$/.test(uri)) { request.uri = '/clearing.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
-    if (uri === '/' || uri === '/index.html' || /^\/message\.(js|css)$/.test(uri) ||
+    if (uri === '/' || uri === '/index.html' || uri === '/clearing-session.json' || /^\/message\.(js|css)$/.test(uri) ||
         /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) ||
         /^\/(favicon(?:-16x16|-32x32)?\.(?:ico|png|svg)|apple-touch-icon.png)$/.test(uri)) return request;
     if (uri === '/gokce-bday' || uri.indexOf('/gokce-bday/') === 0) {

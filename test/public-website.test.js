@@ -8,6 +8,7 @@ const request = (uri, method = 'GET') => context.handler({ request: { uri, metho
 test('public website serves docs, messages and current/legacy downloads without authorization', () => {
   for (const uri of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) assert.equal(request(uri).uri, '/docs.html');
   for (const uri of ['/clearing', '/clearing/', '/clearing.html']) assert.equal(request(uri).uri, '/clearing.html');
+  assert.equal(request('/clearing-session.json').uri, '/clearing-session.json');
   for (const uri of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json']) {
     assert.equal(request(uri).uri, uri); assert.equal(request(uri, 'HEAD').uri, uri);
   }
@@ -45,4 +46,21 @@ test('the clearing page is one paired run, with its data inline and its caveats 
   assert.match(html, /href="index.html" class="nav-brand"/);
   const home = fs.readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
   assert.match(home, /href="clearing.html"/);
+});
+
+test('the clearing page\'s session view reads both runs, turn by turn, from one data file', () => {
+  const data = JSON.parse(fs.readFileSync(new URL('../site/clearing-session.json', import.meta.url), 'utf8'));
+  for (const arm of ['cut', 'control']) {
+    assert.equal(data[arm].turns.length, 14, `${arm}: 14 turns`);
+    assert.equal(data[arm].calls.length, arm === 'cut' ? 29 : 30, `${arm}: every model call`);
+    for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length && t.calls.length, `${arm} turn ${t.n} has a prompt, steps and calls`);
+    assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${arm}: no home paths`);
+  }
+  assert.equal(data.cuts.length, 4);
+  const cutResults = data.cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt);
+  assert.equal(cutResults.length, 24, 'the 24 results thinker cut are marked');
+  for (const r of cutResults) assert.ok(data.blobs[r.blob], 'a cut result keeps its original text');
+  const html = fs.readFileSync(new URL('../site/clearing.html', import.meta.url), 'utf8');
+  assert.match(html, /clearing-session\.json/);
+  assert.match(html, /id="view-session"/);
 });
