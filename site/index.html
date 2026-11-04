@@ -513,6 +513,12 @@
     .econ-heading h2 br{display:none}.econ-heading h2 br::after{content:' '}.econ-heading h2 .green{margin-left:.15em}
     .econ-scene.entering .econ-heading h2{animation:econ-snap .38s cubic-bezier(.16,1,.3,1) both}
     @keyframes econ-snap{from{opacity:0;transform:translateY(18px) scale(.97);filter:blur(4px)}to{opacity:1;transform:none;filter:blur(0)}}
+    .econ-rates{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:27px}
+    .econ-rate>span{display:block;font-size:.83rem;font-weight:600;color:#555}.econ-rate>strong{display:block;font-size:clamp(2.5rem,5vw,4rem);font-weight:650;letter-spacing:-.065em;line-height:1.15;margin:9px 0;white-space:nowrap;font-variant-numeric:tabular-nums}.econ-rate>small{display:block;font-size:.74rem;line-height:1.4;color:#777}.econ-rate-write>strong{color:#9a5a12}.econ-rate-read>strong{color:var(--saving)}
+    .econ-rate-track{height:8px;background:#eee;margin-top:15px}.econ-rate-track i{display:block;height:100%;background:#555;transform-origin:left}.econ-rate-write i{background:#c78023}.econ-rate-read i{background:var(--saving)}.econ-scene.entering .econ-rate-track i{animation:econ-rate-grow .45s cubic-bezier(.16,1,.3,1) both}.econ-rate-caption{font-size:.69rem;line-height:1.5;color:#777;margin-top:14px}
+    @keyframes econ-rate-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    @media(max-width:650px){.econ-rates{gap:10px;margin-top:25px}.econ-rate>span{font-size:.65rem}.econ-rate>strong{font-size:clamp(1.65rem,7.7vw,2.6rem);margin:10px 0}.econ-rate>small{font-size:.59rem;min-height:2.8em}.econ-rate-caption{font-size:.61rem;max-width:310px}.econ-rate-track{margin-top:10px}}
+    @media(prefers-reduced-motion:reduce){.econ-scene.entering .econ-rate-track i{animation:none}}
     .econ-billing-intro{font-size:.95rem;line-height:1.5;color:#555;max-width:670px;margin:0}
     .econ-billing-modes{display:flex;gap:30px;border-top:1px solid #eee;padding-top:16px;margin-top:28px;font-size:.78rem;line-height:1.5;color:#666}.econ-billing-modes b{color:#111;margin-right:6px}.econ-bill-labels small{display:block;font-size:.65rem;line-height:1.4;margin:5px 0;color:#777}
     .econ-bill{display:grid;grid-template-columns:240px 1fr;gap:45px;align-items:center;margin-top:24px}
@@ -847,7 +853,13 @@
         <section class="econ-scene" data-scene="0" aria-labelledby="econ-title-0">
           <div class="econ-heading"><span class="econ-step">01 / Agent billing</span><h2 id="econ-title-0">How agent billing works.</h2></div>
           <p class="econ-billing-intro">One task can trigger many model calls. Each sends context in and generates tokens out.</p>
-          <div class="econ-bill"><div class="econ-bill-total"><strong>10<span>¢</span></strong><span>example call</span></div><div class="econ-bill-breakdown"><div class="econ-bill-stack" role="img" aria-label="One example call costs 10 cents: 0.8 cents fresh input, 3.2 cents cache writes, 4 cents cache reads, 2 cents output"><i style="width:8%;background:#b4b4bb"></i><i style="width:32%;background:#555"></i><i style="width:40%;background:#15803d"></i><i style="width:20%;background:#ddd"></i></div><div class="econ-bill-labels"><span>Fresh input<small>Uncached context</small><b>0.8¢</b></span><span>Cache writes<small>Store context</small><b>3.2¢</b></span><span class="green">Cache reads<small>Reuse context</small><b>4¢</b></span><span>Output<small>Generated tokens</small><b>2¢</b></span></div></div></div>
+          <div class="econ-rates" aria-label="Cost per token relative to fresh input">
+            <div class="econ-rate"><span>Fresh input</span><strong>1×</strong><small>Uncached context</small><div class="econ-rate-track" aria-hidden="true"><i style="width:20%"></i></div></div>
+            <div class="econ-rate econ-rate-write"><span>Cache writes</span><strong>2×</strong><small>Store for 1 hour</small><div class="econ-rate-track" aria-hidden="true"><i style="width:40%"></i></div></div>
+            <div class="econ-rate econ-rate-read"><span>Cache reads</span><strong>0.05×</strong><small>Reuse context</small><div class="econ-rate-track" aria-hidden="true"><i style="width:1%"></i></div></div>
+            <div class="econ-rate"><span>Output</span><strong>5×</strong><small>Generated tokens</small><div class="econ-rate-track" aria-hidden="true"><i style="width:100%"></i></div></div>
+          </div>
+          <p class="econ-rate-caption">Cost per token · fresh input = 1× · Claude Opus 5.5 example</p>
           <div class="econ-billing-modes"><span><b>API</b> Pay per token, at different rates.</span><span><b>Subscription</b> Calls use your plan’s allowance.</span></div>
         </section>
         <section class="econ-scene" data-scene="1" aria-labelledby="econ-title-1" hidden>
@@ -902,32 +914,6 @@
           <code id="cmd">npx @zerotimedev/thinker</code>
           <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
         </div>
-      </div>
-    </div>
-
-    <!-- Benchmark cards -->
-    <div class="benchmark-cards">
-      <div class="benchmark-card" onclick="openModal('bench-tokens')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-tokens')}">
-        <div class="metric-kicker">Tokens</div>
-        <div class="metric-num gain">18% less tokens</div>
-        <div class="metric-label">per coding task</div>
-        <ul class="metric-models">
-          <li><span>Claude Fable</span><span><span class="before">1.25M &rarr;</span> 1.02M</span></li>
-          <li><span>Gemini 3.8 Flash</span><span><span class="before">16.6M &rarr;</span> 13.4M</span></li>
-          <li><span>GPT-6 Astra</span><span><span class="before">473k &rarr;</span> 384k</span></li>
-        </ul>
-        <div class="metric-cta">See the results &rarr;</div>
-      </div>
-      <div class="benchmark-card" onclick="openModal('bench-time')" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openModal('bench-time')}">
-        <div class="metric-kicker">Wall time</div>
-        <div class="metric-num gain">10% faster</div>
-        <div class="metric-label">per coding task</div>
-        <ul class="metric-models">
-          <li><span>Claude Fable</span><span><span class="before">2.7 &rarr;</span> 2.3 min</span></li>
-          <li><span>Gemini 3.8 Flash</span><span><span class="before">13.1 &rarr;</span> 11.9 min</span></li>
-          <li><span>GPT-6 Astra</span><span><span class="before">152 &rarr;</span> 141 s</span></li>
-        </ul>
-        <div class="metric-cta">See the results &rarr;</div>
       </div>
     </div>
 
