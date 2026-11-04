@@ -145,6 +145,9 @@
     .ev .what { font-size: 0.9rem; font-weight: 600; }
     .ev .what .tag { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.1rem 0.4rem; border-radius: 4px; margin-right: 0.4rem; vertical-align: 1px; }
     .ev .tag.cut { background: var(--thk-soft); color: var(--thk); }
+    .ev .tag.knowledge { background: var(--thk-soft); color: var(--thk); font-weight: 600; }
+    .knowledge-detail { font-size: 0.82rem; line-height: 1.5; margin-top: 0.4rem; }
+    .knowledge-detail details { color: var(--muted); margin-top: 0.25rem; }
     .ev .tag.flag { background: var(--flag-soft); color: var(--flag); }
     .ev .how { grid-column: 2; font-size: 0.82rem; color: var(--fg-2); line-height: 1.5; }
     .ev .how b { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -401,6 +404,11 @@
       return D()[arm].calls.map((c, i) => { const cost = callCost(c, coldW(arm, i)); cum += cost; return { ...c, carried: c.read + c.write + c.input + coldW(arm, i), cost: cum, own: cost }; });
     }
     const answerCall = (arm, t) => { const tt = D()[arm].turns[t - 1]; return tt && tt.calls.length ? tt.calls[tt.calls.length - 1] : null; };
+    const knowledgeOf = arm => D()[arm].knowledgeEvents || [];
+    const approx = n => n >= 1000 ? (n / 1000).toFixed(1) + 'k' : fmtN(n);
+    function knowledgeDetail(e) {
+      return `<div class="knowledge-detail"><b>Potential read saving: ~${approx(e.potentialReadSaving)} tokens</b>, if the note replaces one source-file read. Note context added: ~${approx(e.noteTokens)} tokens.<details><summary>How this estimate works</summary><p>~${approx(e.sourceReadTokens)} source tokens − ~${approx(e.noteTokens)} note tokens. One read per referenced file, capped at ${fmtN(e.estimate.fileTokenCap)} tokens per file; sizes use ${e.estimate.charsPerToken} characters per token (bytes for source files). Sources: ${e.sources.map(s => `<code>${esc(s.path)}</code>`).join(', ')}. Actual reading avoided was not measured. This estimate has no repeated-read multiplier and is not added to the measured session savings.</p></details></div>`;
+    }
     const firstCall = (arm, t) => { const tt = D()[arm].turns[t - 1]; return tt && tt.calls.length ? tt.calls[0] : null; };
     const rereads = () => D().cut.notes.filter(n => n.kind === 'reread');
     const cutsOf = () => D().cut.calls.filter(c => c.cut);
@@ -486,6 +494,7 @@
         const t = (xa || xb).t;
         const row = (x, cls, name) => x ? `<div class="r"><span class="arm ${cls}"><i></i>${name}</span><span>${kind === 'carried' ? `carried <b>${fmt(x.carried)}</b> · read ${fmt(x.read)} · wrote ${D().costBounds ? 'not recorded' : fmt(x.write)} · out ${x.out}` : `so far <b>${usd(x.cost)}</b> · this call ${usd(x.own)}`}</span></div>` : '';
         let note = '';
+        for (const [arm, label] of [['control', 'without thinker'], ['cut', 'with thinker']]) knowledgeOf(arm).filter(e => e.k === k).forEach(e => { note += `<div class="note">Knowledge cache hit (${label}): ${e.hits} note${e.hits === 1 ? '' : 's'} served · ~${approx(e.noteTokens)} note tokens. Potential read saving ~${approx(e.potentialReadSaving)} tokens if one source-file read is replaced.</div>`; });
         if (xa?.cut?.observed) note += `<div class="note cut">${xa.cut.results} older results became placeholders; approximately ${fmt(xa.cut.tokens)} tokens estimated from characters. Cache-write count not recorded.</div>`;
         else if (xa && xa.cut) note += `<div class="note cut">thinker cut ${fmt(xa.cut.tokens)} tokens before this call: ${D().cut.results.filter(r => r.cut === k).length} results replaced, rewrite ${fmt(xa.cut.recache)} tokens</div>`;
         if (xa && xa.held && !xa.cut) note += `<div class="note held">thinker priced a cut here and refused it: ${fmt(xa.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(xa.held.cost || 0)} against ${fmt(xa.held.saving || 0)} saved</div>`;
@@ -546,6 +555,7 @@
     // ---- events ----
     function events() {
       const items = [];
+      for (const [arm, label] of [['control', 'without thinker'], ['cut', 'with thinker']]) knowledgeOf(arm).forEach(e => items.push({ k: e.k, html: `<span class="tag knowledge">Knowledge cache hit</span> Before call ${e.k} (turn ${D()[arm].calls[e.k - 1].t}, ${label}), <b>${e.hits} note${e.hits === 1 ? '' : 's'}</b> served: ${e.notes.map(n => esc(n.title)).join('; ')}.${knowledgeDetail(e)}` }));
       cutsOf().forEach(x => { if (x.cut.observed) { items.push({k:x.k,html:`<span class="tag cut">cut</span>Before call ${x.k} (turn ${x.t}), ${x.cut.results} older tool results became placeholders. Their original text was approximately ${fmt(x.cut.tokens)} tokens, estimated from characters. ${D().recordedWrites ? 'Cache writes were recorded as zero.' : 'Cache-write counts were not recorded.'}`}); return; } const n = D().cut.results.filter(r => r.cut === x.k).length; items.push({ k: x.k, html: `<span class="tag cut">cut</span>Before call ${x.k} (turn ${x.t}) thinker replaced <b>${n} result${n > 1 ? 's' : ''}</b> with placeholders: <b>${fmt(x.cut.tokens)}</b> tokens out of the prompt. The policy estimated a rewrite of ${fmt(x.cut.recache)} tokens; the policy estimated savings over the next 20 calls of ${fmt(x.cut.saving)} tokens of reads.${D().cut.calls[x.k] ? ` The API then wrote ${fmt(D().cut.calls[x.k - 1].write)} on this call.` : ''}` }); });
       heldOf().forEach(x => { items.push({ k: x.k, html: `<span class="tag held">refused</span>At call ${x.k} (turn ${x.t}) thinker priced a cut and held back: ${fmt(x.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(x.held.cost || 0)} against ${fmt(x.held.saving || 0)} of reads saved over the next 20 calls.` }); });
       rereads().forEach(r => { items.push({ k: r.k, html: `<span class="tag flag">re-read</span>Turn ${r.turn}, call ${r.k}: the model read <code>${esc(r.file)}</code> again${r.n > 1 ? `, ${r.n} ranged reads` : ''}; its earlier result had been cleared at call ${r.cutAt}.` }); });
@@ -584,6 +594,12 @@
         rows[rows.length - 1][0] = 'API-equivalent session cost';
         rows.push(['Native compactions', D().control.calls.filter(c => c.compacted).length, D().cut.calls.filter(c => c.compacted).length, false]);
       }
+      if (D().combined) {
+        const total = (arm, key) => knowledgeOf(arm).reduce((n, e) => n + e[key], 0);
+        rows.push(['Knowledge notes served', total('control', 'hits'), total('cut', 'hits'), false]);
+        rows.push(['Knowledge-note context, tokens (est.)', '~' + approx(total('control', 'noteTokens')), '~' + approx(total('cut', 'noteTokens')), false]);
+        rows.push(['Potential reading saved if source reads are replaced (est.)', '~' + approx(total('control', 'potentialReadSaving')), '~' + approx(total('cut', 'potentialReadSaving')), false]);
+      }
       if (D().costBounds) { for (const label of ['Cuts refused','Re-reads of a cleared file']) { const i=rows.findIndex(r=>r[0]===label); rows[i]=[label,'not recorded','not recorded',false]; } rows.splice(3,1,['Cache-write tokens','not recorded','not recorded',false]); const wi=rows.findIndex(r=>r[0].startsWith('Cost of cache writes')); rows.splice(wi,1); rows[rows.length-2][0] = `Cost of uncached input · ${costLabel()}`; rows[rows.length-1][0] = `Scenario cost · ${costLabel()}`; }
       $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
         rows.map(([name, vb, va, diff, money]) => `<tr><td>${name}</td><td>${typeof vb === 'string' ? esc(vb) : money ? usd(vb) : fmtN(vb)}</td><td>${typeof va === 'string' ? esc(va) : money ? usd(va) : fmtN(va)}</td><td class="d ${diff ? (va < vb ? 'good' : va > vb ? 'bad' : '') : ''}">${diff && vb ? pct(va, vb) : ''}</td></tr>`).join('');
@@ -592,6 +608,7 @@
         const xb = b[k - 1], xa = a[k - 1];
         const cell = x => x ? `<td>${fmtN(x.carried)}</td><td>${fmtN(x.read)}</td><td>${D().costBounds ? 'not recorded' : fmtN(x.write)}</td><td>${fmtN(x.out)}</td><td>${usd(x.cost)}</td>` : '<td></td><td></td><td></td><td></td><td></td>';
         const notes = [];
+        for (const arm of ['control', 'cut']) knowledgeOf(arm).filter(e => e.k === k).forEach(e => notes.push(`knowledge cache: ${e.hits} note${e.hits === 1 ? '' : 's'} (${arm === 'cut' ? 'with' : 'without'} thinker)`));
         if (xa && xa.cut) notes.push('cut −' + fmtN(xa.cut.tokens));
         if (xa && xa.held && !xa.cut) notes.push('cut refused');
         rereads().filter(r => r.k === k).forEach(r => notes.push('re-read ' + esc(base(r.file))));
@@ -703,7 +720,7 @@
         const steps = (t, isCut) => t ? t.steps.map(s => {
           if (s.kind === 'user') return `<div class="step"><span class="ic">follow-up</span><div class="bd">${esc(s.text)}</div></div>`;
           if (s.kind === 'call') { const c = (isCut ? kt : kc)[s.k]; return `<div class="step"><span class="ic">call ${s.k}</span><div class="bd"><span class="m" style="margin:0">carried ${fmt(c.read + c.write + c.input)} tokens · read ${fmt(c.read)} · wrote ${D().costBounds ? 'not recorded' : fmt(c.write)} · answered ${c.out}</span></div></div>`; }
-          if (s.kind === 'knowledge') return `<div class="step"><span class="ic">note</span><div class="bd"><details><summary>Knowledge note served</summary><pre style="white-space:pre-wrap">${esc(s.text)}</pre></details></div></div>`;
+          if (s.kind === 'knowledge') { const e = knowledgeOf(isCut ? 'cut' : 'control').find(e => e.k === s.k); return `<div class="step"><span class="ic">cache hit</span><div class="bd"><details><summary>Knowledge note served</summary><pre style="white-space:pre-wrap">${esc(s.text)}</pre></details>${e ? knowledgeDetail(e) : ''}</div></div>`; }
           if (s.kind === 'thinking') return `<div class="step"><span class="ic">thought</span><div class="bd"><span class="m" style="margin:0">${s.chars ? s.chars.toLocaleString() + ' chars, ' : ''}a thinking block; neither run clears it</span></div></div>`;
           if (s.kind === 'say') { const long = s.text.length > 320; return `<div class="step say"><span class="ic">${t.steps.indexOf(s) === t.steps.length - 1 ? 'answer' : 'says'}</span><div class="bd${long ? ' clip' : ''}">${esc(s.text)}</div>${long ? '<button type="button" class="x" data-x="say">more</button>' : ''}</div>`; }
           if (s.kind === 'tool') { const rr = isCut && s.name === 'Read' && d.cut.notes.some(r => r.kind === 'reread' && r.file === s.input.file_path && r.turn === t.n); return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}${D().combined ? `<details><summary>Full tool call</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(s.input, null, 2))}</pre></details>` : ''}${rr ? '<span class="tag flag">re-read: this file had been cleared</span>' : ''}</div></div>`; }

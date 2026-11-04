@@ -14,11 +14,13 @@ import re
 p = argparse.ArgumentParser()
 p.add_argument('--records', required=True)
 p.add_argument('--reconciliation', required=True)
+p.add_argument('--knowledge', required=True, help='Artemis knowledge-events report from recorded deliveries and source sizes')
 p.add_argument('--out', required=True)
 a = p.parse_args()
 records, out = pathlib.Path(a.records), pathlib.Path(a.out)
 tasks = json.loads((records / 'tasks.json').read_text())['tasks']
 reconciliation = json.loads(pathlib.Path(a.reconciliation).read_text())
+knowledge = json.loads(pathlib.Path(a.knowledge).read_text())
 assert not reconciliation['excluded']
 
 
@@ -62,6 +64,9 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
     for arm, side in [('control', 'off'), ('cut', 'on')]:
         rec = json.loads((records / f'{pr}-{side}.json').read_text())
         report = rec['raw']['armReport']
+        knowledge_report = next(s for s in knowledge['sessions'] if s['id'] == rec['row']['id'])
+        knowledge_events = knowledge_report['events']
+        assert sum(e['hits'] for e in knowledge_events) == report['hookServed']
         assert rec['raw']['model'] == 'gpt-6-astra' and rec['raw']['turns'] == 9
         assert rec['row']['pass'] and not rec['row']['invalid'] and rec['raw']['grade']['tests'] == 'pass'
         dumps = sorted((json.loads(f.read_text()) for f in pathlib.Path(report['validation']['dump']).rglob('*.json')), key=lambda d: d['at'])
@@ -83,7 +88,8 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
                     body = text(item.get('content'))
                     note = re.search(r'<thinker-cache>([\s\S]*?)</thinker-cache>', body)
                     if note and not knowledge_seen:
-                        turns[0]['steps'].append(dict(kind='knowledge', text=scrub(note[1].strip())))
+                        assert any(e['k'] == k for e in knowledge_events)
+                        turns[0]['steps'].append(dict(kind='knowledge', k=k, text=scrub(note[1].strip())))
                         knowledge_seen = True
                     matches = [i+1 for i, prompt in enumerate(prompts) if matchable(prompt) in matchable(body)]
                     if matches:
@@ -149,7 +155,8 @@ for pr, ident in [('26291', 'mlflow-registry'), ('26300', 'mlflow-gateway')]:
         cost = sum((c['input']*10+c['read']+c['out']*50)/1e6 for c in calls)
         assert abs(cost-expected['min']) < 1e-8, 'Export must reconcile to the verified Artemis report'
         armdata = dict(calls=calls, outcome='PR tests passed', testEvidence=scrub(rec['raw']['grade']['testTail']),
-                       elapsedMs=rec['row']['wall_ms'])
+                       elapsedMs=rec['row']['wall_ms'], knowledgeEvents=knowledge_events,
+                       knowledgeEstimateBasis=knowledge_report['basis'])
         small[arm] = dict(**armdata, results=[{k:v for k,v in r.items() if k != 'step'} for r in results.values()],
                           notes=[], turns=[{k:t[k] for k in ['n', 'tools', 'calls']} for t in turns])
         full[arm] = dict(**armdata, turns=turns)
