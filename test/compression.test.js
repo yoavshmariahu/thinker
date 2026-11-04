@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { TURNS_AFTER, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
-import { clearedActions } from '../src/proxy.js';
+import { cutActions } from '../src/proxy.js';
 import { compressionNotice, formatTokens } from '../src/usage.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-compression-'));
@@ -138,8 +138,9 @@ test('the cleared actions are the tool uses outside the kept window, biggest fir
     { role: 'assistant', content: [{ type: 'tool_use', id: 'd', name: 'Grep' }] },
     { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'd', content: 'w'.repeat(100) }] },
   ];
-  assert.deepEqual(clearedActions(messages, 1), [{ name: 'Bash', calls: 2, tokens: 17_280 }, { name: 'Read', calls: 1, tokens: 1440 }], 'the newest tool use stays');
-  assert.deepEqual(clearedActions(messages, 99), [], 'nothing is cleared when everything is kept');
-  assert.deepEqual(clearedActions(null, 1), []);
-  assert.deepEqual(clearedActions([{ role: 'assistant', content: [{ type: 'tool_use', id: 'z' }] }], 0), [{ name: 'tool', calls: 1, tokens: 0 }], 'a use with no name or result still counts');
+  // the cut names the ids it replaced, so the card reads them rather than re-deriving a keep window
+  assert.deepEqual(cutActions(messages, ['a', 'b', 'c']), [{ name: 'Bash', calls: 2, tokens: 17_280 }, { name: 'Read', calls: 1, tokens: 1440 }], 'what the cut took, by tool');
+  assert.deepEqual(cutActions(messages, []), [], 'nothing cut, nothing to show');
+  assert.deepEqual(cutActions(null, ['a']), [{ name: 'tool', calls: 1, tokens: 0 }]);
+  assert.deepEqual(cutActions([{ role: 'assistant', content: [{ type: 'tool_use', id: 'z' }] }], ['z']), [{ name: 'tool', calls: 1, tokens: 0 }], 'a use with no name or result still counts');
 });

@@ -4,12 +4,27 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { clearableBeforeTurn, startProxy, AUTH_REFUSALS, refusesEdit, isRewrite, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, clearEdit, turnToolUses, thinkingEdit, resultsBeforeTurn, EDIT_TYPE, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
-import { freshRecord } from '../src/clearing.js';
+import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS } from '../src/proxy.js';
+import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
+// the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
+const AGENT_CLEAR = 'clear_tool_uses_20250919';
 
 const BETA = `oauth-2025-04-20,${EDIT_BETA},claude-code-20250219`;
 const body = (extra = {}) => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }],
   context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] }, stream: true, ...extra }));
+// A conversation with results old enough to cut. The server-side edit went on every request whatever the
+// conversation held; a cut needs something to replace, so the tests that want one say so.
+const cuttable = (extra = {}) => {
+  // ten results, so with keepMin 3 the seven droppable ones outweigh the rewrite at Opus 5.5's read rate
+  // (a twentieth of an input token): a thinner fixture is declined on price, which is the policy working.
+  const ms = [{ role: 'user', content: 'hi' }];
+  for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']) ms.push(
+    { role: 'assistant', content: [{ type: 'tool_use', id, name: 'Read', input: { file_path: `/x/${id}` } }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(40000) }] });
+  ms.push({ role: 'user', content: [{ type: 'text', text: 'next' }] });
+  return Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true, ...extra }));
+};
+const CUTS = { trigger: 0, clearAtLeast: 0 };   // so a test fixture is big enough to be worth cutting
 const SSE = [
   'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":3,"cache_read_input_tokens":90000,"cache_creation_input_tokens":2000,"output_tokens":1}}}\n\n',
   'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":4,"cleared_input_tokens":15626}]}}\n\n',
@@ -54,92 +69,31 @@ function send(port, { path: p = '/v1/messages?beta=true', headers = {}, data = b
 const until = async (f, ms = 2000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 10)); } };
 const rows = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : [];
 
-test('appends the clearing edit after the agent\'s own and streams the answer through unchanged', async () => {
-  const up = await upstream();
-  const px = await proxyTo(up.url, { clearAtLeast: 0 });
-  try {
-    const r = await send(px.port);
-    assert.equal(r.status, 200);
-    assert.equal(r.text, SSE.join(''));
-    const sent = JSON.parse(up.seen[0].body);
-    assert.equal(sent.context_management.edits[0].type, 'clear_thinking_20251015');
-    // clear_tool_inputs rides the same edit, on by default since 2026-10-28
-    assert.deepEqual(sent.context_management.edits[1], { type: EDIT_TYPE, trigger: { type: 'input_tokens', value: 140000 }, keep: { type: 'tool_uses', value: 3 }, clear_at_least: { type: 'input_tokens', value: 0 }, clear_tool_inputs: true });
-    assert.equal(up.seen[0].url, '/v1/messages?beta=true');
-    assert.equal(up.seen[0].headers['anthropic-beta'], BETA);
-    await until(() => rows(px.logFile).length);
-    const [row] = rows(px.logFile);
-    assert.equal(row.injected, true);
-    assert.equal(row.session, 's1');
-    assert.equal(row.read, 90000);
-    assert.equal(row.out, 42);
-    assert.equal(row.cleared, 15626);
-    assert.equal(row.clearedUses, 4);
-    assert.ok(!JSON.stringify(row).includes('hi'), 'no request content in the log');
-  } finally { px.server.close(); up.server.close(); }
-});
 
-test('keep turn: the clear leaves the current turn\'s tool uses, never under keep-min', () => {
-  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
-  const tr = id => ({ type: 'tool_result', tool_use_id: id, content: 'x' });
-  const messages = [
-    { role: 'user', content: 'first request' },
-    { role: 'assistant', content: [tu('a'), tu('b')] }, { role: 'user', content: [tr('a'), tr('b')] },
-    { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c'), { type: 'text', text: '<system-reminder>a hook rode along</system-reminder>' }] },
-    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
-    { role: 'assistant', content: [tu('d')] }, { role: 'user', content: [tr('d')] },
-    { role: 'assistant', content: [tu('e'), tu('f'), tu('g'), tu('h')] }, { role: 'user', content: [tr('e'), tr('f'), tr('g'), tr('h')] },
-  ];
-  assert.equal(turnToolUses(messages), 5, 'the second turn\'s: a text block beside a tool result starts no turn');
-  assert.equal(turnToolUses(messages.slice(0, 5)), 3);
-  assert.equal(turnToolUses([]), 0);
-  const cfg = { ...proxyConfig({ keep: 'turn', 'keep-min': '3' }, {}), payDecision: true };
-  assert.equal(cfg.keep, 'turn');
-  assert.equal(cfg.keepMin, 3);
-  // `turn` sends the minimum, constant (2026-11-02): a keep that grew with the turn moved the server's cleared set on every
-  // call and the cache was written again from the system prompt each time (proxy.js:keepValue)
-  assert.equal(clearEdit(cfg, messages).keep.value, 3, 'five tool uses in the turn, still the minimum');
-  assert.equal(clearEdit(cfg, messages.slice(0, 3)).keep.value, 3, 'a turn of two tool uses keeps the minimum');
-  assert.equal(clearEdit(cfg, messages.slice(0, 8)).keep.value, clearEdit(cfg, messages).keep.value, 'the same value from one call of a turn to the next');
-  assert.equal(clearEdit(proxyConfig({}, { THINKER_PROXY_KEEP: 'turn' }), messages).keep.value, 3, 'from the environment too');
-  assert.equal(clearEdit(proxyConfig({ keep: 'turn', 'keep-min': '5' }, {}), messages).keep.value, 5, 'the minimum is the value');
-  assert.equal(clearEdit(proxyConfig({ keep: '2' }, {}), messages).keep.value, 2, 'a count is a count');
-  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages })), cfg);
-  assert.equal(t.keep, 3);
-  assert.equal(JSON.parse(t.body).context_management.edits[0].keep.value, 3);
-});
 
 test('forwards the bytes as they came when the edit cannot or should not be added', async () => {
   const cfg = PROXY_DEFAULTS;
   const h = { 'anthropic-beta': BETA, 'x-claude-code-session-id': 's1' };
   const raw = body();
-  // a client that does not send the beta (pi, OpenCode, Goose: anything but Claude Code) gets the edit and the header
-  const third = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'oauth-2025-04-20' }, raw, cfg);
-  assert.deepEqual([third.injected, third.addBeta], [true, true]);
-  assert.equal(transformRequest('POST', '/v1/messages', h, raw, cfg).addBeta, false);
+  // the cut asks nothing of the API, so no beta header is needed by any client (pi, OpenCode, Goose included)
+  const big = cuttable();
+  const third = transformRequest('POST', '/v1/messages', { 'anthropic-beta': 'oauth-2025-04-20' }, big, { ...cfg, ...CUTS });
+  assert.deepEqual([third.injected, third.addBeta], [true, false]);
+  assert.equal(transformRequest('POST', '/v1/messages', h, raw, cfg).addBeta, undefined);
+  assert.equal(transformRequest('POST', '/v1/messages', h, raw, cfg).reason, 'nothing-to-cut', 'nothing to replace: as it came');
   assert.equal(transformRequest('POST', '/v1/messages/count_tokens', h, raw, cfg).reason, 'other');
   assert.equal(transformRequest('GET', '/v1/messages', h, raw, cfg).reason, 'other');
   assert.equal(transformRequest('POST', '/v1/messages', h, Buffer.from('{not json'), cfg).reason, 'unparsed');
-  const own = body({ context_management: { edits: [{ type: EDIT_TYPE }] } });
+  const own = body({ context_management: { edits: [{ type: AGENT_CLEAR }] } });
   const t = transformRequest('POST', '/v1/messages', h, own, cfg);
   assert.equal(t.reason, 'agent-clears');
   assert.equal(t.body, own);
-  // no context_management at all: the edit is added on its own
-  const bare = JSON.parse(transformRequest('POST', '/v1/messages', h, Buffer.from(JSON.stringify({ model: 'm', messages: [] })), cfg).body);
-  assert.deepEqual(bare.context_management.edits.map(e => e.type), [EDIT_TYPE]);
+  // nothing is ever asked of the API now, so an empty conversation is forwarded as it came
+  const bare = transformRequest('POST', '/v1/messages', h, Buffer.from(JSON.stringify({ model: 'm', messages: [] })), cfg);
+  assert.equal(bare.reason, 'nothing-to-cut');
+  assert.equal(JSON.parse(bare.body).context_management, undefined);
 });
 
-test('a client without the beta header gets it added upstream, with the edit', async () => {
-  const up = await upstream();
-  const px = await proxyTo(up.url, { clearAtLeast: 0 });
-  try {
-    assert.equal((await send(px.port, { headers: { 'anthropic-beta': 'oauth-2025-04-20' }, data: body({ context_management: undefined }) })).status, 200);
-    assert.equal(up.seen[0].headers['anthropic-beta'], `oauth-2025-04-20,${EDIT_BETA}`);
-    assert.deepEqual(JSON.parse(up.seen[0].body).context_management.edits.map(e => e.type), [EDIT_TYPE]);
-    await until(() => rows(px.logFile).length);
-    assert.deepEqual([rows(px.logFile)[0].injected, rows(px.logFile)[0].betaAdded], [true, true]);
-  } finally { px.server.close(); up.server.close(); }
-});
 
 test('a held-out session keeps its side for every request', async () => {
   assert.equal(heldOut('s1', 0), false);
@@ -215,7 +169,7 @@ test('a request the agent cancelled is logged as a cancellation, not a failure',
     await new Promise(resolve => {
       const req = http.request({ host: '127.0.0.1', port: px.port, path: '/v1/messages', method: 'POST' }, () => {});
       req.on('error', () => {});
-      req.end(body());
+      req.end(cuttable());
       setTimeout(() => { req.destroy(); setTimeout(resolve, 300); }, 100);
     });
     const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
@@ -247,7 +201,7 @@ test('an answer that stops partway is a failure, and its usage row says the toke
     });
   });
   const port = await new Promise(r => cut.listen(0, '127.0.0.1', () => r(cut.address().port)));
-  const px = await proxyTo(`http://127.0.0.1:${port}`);
+  const px = await proxyTo(`http://127.0.0.1:${port}`, { ...CUTS });
   try {
     await new Promise(resolve => {
       const req = http.request({ host: '127.0.0.1', port: px.port, path: '/v1/messages', method: 'POST',
@@ -257,7 +211,7 @@ test('an answer that stops partway is a failure, and its usage row says the toke
         res.on('close', resolve);
       });
       req.on('error', () => {});
-      req.end(body());
+      req.end(cuttable());
     });
     // Wait for both rows the assertions below read, rather than 200 ms and a hope: the error row and the
     // usage row are written independently, so a short wait left `err` undefined and failed on a property
@@ -294,15 +248,15 @@ test('flags win over the environment, the environment over the defaults', () => 
   const env = { THINKER_PROXY_TRIGGER: '50000', THINKER_PROXY_KEEP: '5', THINKER_PROXY_PORT: '7000' };
   const cfg = proxyConfig({ keep: '1', 'clear-at-least': '60000' }, env);
   assert.equal(cfg.trigger, 50000);
-  assert.equal(cfg.keep, 1);
   assert.equal(cfg.clearAtLeast, 60000);
   assert.equal(cfg.port, 7000);
   assert.equal(cfg.upstream, 'https://api.anthropic.com');
   assert.equal(proxyConfig({}, {}).trigger, PROXY_DEFAULTS.trigger);
-  // the default policy keeps the current turn's tool uses, three at least (the owner's decision on the replay, 2026-10-22)
-  assert.equal(PROXY_DEFAULTS.keep, 'turn');
-  assert.equal(proxyConfig({}, {}).keep, 'turn');
+  // The newest turn is kept by a rule (cutting.js, applyCut), not by a count sent to the API: `keep` is gone
+  // and keepMin is only a floor for a short turn. The count was what let three echoes evict a 25k read.
+  assert.equal(PROXY_DEFAULTS.keep, undefined);
   assert.equal(proxyConfig({}, {}).keepMin, 3);
+  assert.equal(proxyConfig({}, {}).clearThinking, true, 'as the mod has always had it');
 });
 
 test('a plain JSON answer is read too', () => {
@@ -314,54 +268,6 @@ test('a plain JSON answer is read too', () => {
   assert.equal(r.cleared, 0);
 });
 
-test('clear-inputs and clear-thinking: on by default and switchable off, the inputs on the edit, the thinking edit only where the tool clear fires by the proxy\'s count', () => {
-  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
-  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  const big = Math.ceil(130000 * 4 / 1.44); // 130k tokens of result text by the proxy's count: over clearAtLeast (100k) by THINKING_MARGIN
-  const messages = [
-    { role: 'user', content: 'first request' },
-    { role: 'assistant', content: [tu('a')] }, { role: 'user', content: [tr('a', big)] },
-    { role: 'assistant', content: [{ type: 'text', text: 'done' }] },
-    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
-    { role: 'assistant', content: [tu('b')] }, { role: 'user', content: [tr('b', 10)] },
-    { role: 'assistant', content: [tu('c')] }, { role: 'user', content: [tr('c', 10)] },
-  ];
-  // inputs on by default since 2026-10-28; the thinking edit off since 2026-11-02, its growing keep rewrote the cache
-  // (proxy.js:THINKING_EDIT_TYPE); `on` is a config that asks for it
-  assert.equal(proxyConfig({}, {}).clearInputs, true); assert.equal(proxyConfig({}, {}).clearThinking, false);
-  assert.equal(thinkingEdit(proxyConfig({}, {}), messages), null, 'no thinking edit by default');
-  const on = proxyConfig({ 'clear-thinking': true }, {});
-  assert.equal(on.clearInputs, true); assert.equal(on.clearThinking, true);
-  assert.equal(clearEdit(on, messages).clear_tool_inputs, true);
-  // and each goes off on its own, by flag, by `--no-` and by the variable
-  const off = proxyConfig({ 'no-clear-inputs': true, 'no-clear-thinking': true }, {});
-  assert.equal(off.clearInputs, false); assert.equal(off.clearThinking, false);
-  assert.equal(clearEdit(off, messages).clear_tool_inputs, undefined); assert.equal(thinkingEdit(off, messages), null);
-  assert.equal(proxyConfig({ 'clear-inputs': 'off' }, {}).clearInputs, false);
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_THINKING: 'no' }).clearThinking, false);
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: '' }).clearInputs, true, 'an empty variable leaves the default');
-  assert.equal(resultsBeforeTurn(messages), 130000); assert.equal(resultsBeforeTurn(messages.slice(0, 4)), 0, 'the first turn has nothing before it');
-  // the results before the second turn weigh 130k, over clearAtLeast (100k) with the margin: the thinking of the first turn
-  // goes, the second turn's two assistant messages are kept
-  assert.deepEqual(thinkingEdit(on, messages), { type: 'clear_thinking_20251015', keep: { type: 'thinking_turns', value: 2 } });
-  assert.equal(thinkingEdit(on, messages.slice(0, 6)).keep.value, 1, 'at least one turn, as the API requires');
-  assert.equal(thinkingEdit(on, messages.slice(0, 4)), null, 'in the first turn nothing is clearable');
-  assert.equal(thinkingEdit(proxyConfig({ 'clear-at-least': '120000', 'clear-thinking': true }, {}), messages), null, '130k does not clear 120k by the margin of 1.25');
-  assert.equal(thinkingEdit(proxyConfig({ keep: '3', 'clear-thinking': true }, {}), messages), null, 'keep turn alone: a count keeps results of earlier turns');
-  // in the request: the proxy's thinking edit first, in place of the agent's `keep: all`, the agent's other edits kept, the clear last
-  const body = Buffer.from(JSON.stringify({ model: 'm', messages, context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } }));
-  const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, body, on);
-  const edits = JSON.parse(t.body).context_management.edits;
-  assert.deepEqual(edits.map(e => e.type), ['clear_thinking_20251015', EDIT_TYPE]);
-  assert.deepEqual(edits[0].keep, { type: 'thinking_turns', value: 2 }); assert.equal(edits[1].clear_tool_inputs, true);
-  assert.equal(t.inputs, true); assert.equal(t.thinkingKeep, 2);
-  const early = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, 4), context_management: { edits: [{ type: 'clear_thinking_20251015', keep: 'all' }] } })), on);
-  assert.deepEqual(JSON.parse(early.body).context_management.edits[0], { type: 'clear_thinking_20251015', keep: 'all' }, 'where no thinking edit is due the agent\'s stays');
-  assert.equal(early.thinkingKeep, undefined);
-  // the variable still turns one on explicitly, and a flag wins over a variable that says otherwise
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CLEAR_INPUTS: 'on', THINKER_PROXY_CLEAR_THINKING: '1' }).clearThinking, true);
-  assert.equal(proxyConfig({ 'no-clear-inputs': true }, { THINKER_PROXY_CLEAR_INPUTS: 'on' }).clearInputs, false);
-});
 
 // A proxy somebody pointed at an upstream of their own (`--upstream`, a benchmark arm, a gateway) must never
 // read a refusal there as thinker having broken a routed harness: the credentials are theirs to match.
@@ -390,9 +296,9 @@ test('a gateway that refuses the clearing edit gets the agent\'s own bytes, once
     req.on('data', c => chunks.push(c));
     req.on('end', () => {
       const body = JSON.parse(Buffer.concat(chunks).toString());
-      const edits = body.context_management?.edits || [];
-      seen.push({ edits: edits.map(e => e.type), beta: req.headers['anthropic-beta'] });
-      if (edits.some(e => e.type === EDIT_TYPE)) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"type":"error","error":{"type":"invalid_request_error","message":"context_management: unsupported"}}'); }
+      const cut = JSON.stringify(body.messages || []).includes('cleared by thinker');
+      seen.push({ cut, beta: req.headers['anthropic-beta'] });
+      if (cut) { res.writeHead(400, { 'content-type': 'application/json' }); return res.end('{"type":"error","error":{"type":"invalid_request_error","message":"context_management: unsupported"}}'); }
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end('{"id":"m","type":"message","role":"assistant","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":5,"output_tokens":1}}');
     });
@@ -400,18 +306,18 @@ test('a gateway that refuses the clearing edit gets the agent\'s own bytes, once
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const px = await proxyTo(`http://127.0.0.1:${server.address().port}`, { trigger: 0, clearAtLeast: 0 });
   try {
-    const first = await send(px.port, { data: body({ stream: false }) });
+    const first = await send(px.port, { data: cuttable({ stream: false }) });
     assert.equal(first.status, 200, 'the agent gets an answer, not the refusal');
     assert.match(first.text, /"ok"/);
-    assert.deepEqual(seen[0].edits.includes(EDIT_TYPE), true, 'the first try carried the edit');
-    assert.deepEqual(seen[1].edits.includes(EDIT_TYPE), false, 'the second went as the agent wrote it');
-    const second = await send(px.port, { data: body({ stream: false }) });
+    assert.equal(seen[0].cut, true, 'the first try carried the cut');
+    assert.equal(seen[1].cut, false, 'the second went as the agent wrote it');
+    const second = await send(px.port, { data: cuttable({ stream: false }) });
     assert.equal(second.status, 200);
     assert.equal(seen.length, 3, 'no second try needed');
-    assert.deepEqual(seen[2].edits.includes(EDIT_TYPE), false, 'and the edit is not added again');
+    assert.equal(seen[2].cut, false, 'and nothing is cut again');
     const r = rows(px.logFile);
-    assert.equal(r.filter(x => x.op === 'proxy-edit-rejected').length, 1);
-    assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.reason), ['edit-unsupported', 'edit-unsupported']);
+    assert.equal(r.filter(x => x.op === 'proxy-cut-rejected').length, 1);
+    assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.reason), ['cut-rejected', 'cut-rejected']);
   } finally { px.server.close(); server.close(); }
 });
 
@@ -430,15 +336,15 @@ test('a 400 that is not about the edit reaches the agent as it came, once, and t
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const px = await proxyTo(`http://127.0.0.1:${server.address().port}`, { trigger: 0, clearAtLeast: 0 });
   try {
-    const r1 = await send(px.port, { data: body({ stream: false }) });
+    const r1 = await send(px.port, { data: cuttable({ stream: false }) });
     assert.equal(r1.status, 400, 'the gateway\'s own answer');
     assert.match(r1.text, /Invalid model name/, 'word for word, nothing invented');
     assert.equal(seen, 1, 'and sent once, not twice');
-    const r2 = await send(px.port, { data: body({ stream: false }) });
+    const r2 = await send(px.port, { data: cuttable({ stream: false }) });
     assert.equal(r2.status, 400);
     assert.equal(seen, 2);
     const r = rows(px.logFile);
-    assert.deepEqual(r.filter(x => x.op === 'proxy-edit-rejected'), [], 'nothing concluded about the edit');
+    assert.deepEqual(r.filter(x => x.op === 'proxy-cut-rejected'), [], 'nothing concluded about the cut');
     assert.deepEqual(r.filter(x => x.op === 'proxy').map(x => x.injected), [true, true], 'the clearing is still being tried');
   } finally { px.server.close(); server.close(); }
 });
@@ -462,75 +368,40 @@ test('what the proxy adds to a request is identical from one call of a turn to t
   const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
   const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
   // a first turn heavy enough for every clear to fire by the proxy's own count, then a long second turn
-  const messages = [
-    { role: 'user', content: 'first request' },
-    { role: 'assistant', content: [tu('a')] }, { role: 'user', content: [tr('a', 400000)] },
-    { role: 'assistant', content: [tu('b')] }, { role: 'user', content: [tr('b', 400000)] },
-    { role: 'user', content: [{ type: 'text', text: 'second request' }] },
-  ];
+  const messages = [{ role: 'user', content: 'first request' }];
+  // ten results in the first turn, so keepMin 3 leaves seven to cut and the cut is worth its rewrite
+  for (const id of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']) {
+    messages.push({ role: 'assistant', content: [tu(id)] }, { role: 'user', content: [tr(id, 80000)] });
+  }
+  messages.push({ role: 'user', content: [{ type: 'text', text: 'second request' }] });
   for (let i = 0; i < 12; i++) messages.push({ role: 'assistant', content: [tu(`t${i}`)] }, { role: 'user', content: [tr(`t${i}`, 3000)] });
-  const added = (cfg, k) => {
-    const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, k) })), { ...cfg, record: freshRecord('s', cfg) });
-    assert.equal(t.injected, true, `call ${k} carries the edit`);
-    return JSON.parse(t.body).context_management;
+  // one record across the calls, written after each answer, as startProxy does
+  const turnOf = (cfg, from, to) => {
+    const rec = freshCut('s');
+    const out = [];
+    for (let k = from; k <= to; k++) {
+      const t = transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA }, Buffer.from(JSON.stringify({ model: 'm', messages: messages.slice(0, k) })), { ...cfg, cutRecord: rec });
+      assert.equal(t.injected, true, `call ${k} carries the cut`);
+      cutResponse(rec, cfg, t, { read: 1, write: 1, input: 1, out: 1 });
+      // what the proxy adds is the edited conversation itself: the same bytes on every call of the turn
+      out.push(JSON.stringify(JSON.parse(t.body).messages.slice(0, messages.findIndex(m => Array.isArray(m.content) && m.content[0]?.type === 'text') + 1)));
+    }
+    return out;
   };
-  const first = added(proxyConfig({ 'clear-deep': false }, {}), 8);
-  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({ 'clear-deep': false }, {}), k), first, `call ${k} of the turn adds what the first did`);
-  // the deep ask too: it is decided from what sits before the turn, which does not move while the turn runs
-  const deepFirst = added(proxyConfig({ 'clear-deep': true }, {}), 8);
-  for (let k = 9; k <= messages.length; k++) assert.deepEqual(added(proxyConfig({ 'clear-deep': true }, {}), k), deepFirst, `call ${k} of the turn, deep`);
-  // every switch on: an edit whose value moves within the turn is one the defaults may not carry
-  const all = proxyConfig({ 'clear-inputs': true, 'clear-thinking': true }, {});
-  const moving = new Set();
-  const firstAll = added(all, 8);
-  for (let k = 9; k <= messages.length; k++) {
-    const now = added(all, k);
-    for (const e of now.edits) { const was = firstAll.edits.find(f => f.type === e.type); if (!was || JSON.stringify(was) !== JSON.stringify(e)) moving.add(e.type); }
-  }
-  for (const type of moving) {
-    const sw = { clear_thinking_20251015: 'clearThinking' }[type];
-    assert.ok(sw, `${type} moves within a turn and no switch covers it`);
-    assert.equal(PROXY_DEFAULTS[sw], false, `${type} moves within a turn (its keep grows a call), so ${sw} may not be on by default`);
-  }
-  assert.ok(moving.has('clear_thinking_20251015'), 'the thinking edit still moves (its keep counts the turn\'s assistant messages); when it is made constant, turn it back on and drop this line');
+  const TURN2 = 22;                      // messages[21] is 'second request'; its first call carries 22
+  const seen = turnOf(proxyConfig({}, {}), TURN2, messages.length);
+  for (let i = 1; i < seen.length; i++) assert.equal(seen[i], seen[0], `call ${TURN2 + i} of the turn sends what the first did`);
+  // with clearDeep off the set is decided once a session, so the bytes hold across turns too
+  const once = turnOf(proxyConfig({ 'clear-deep': false }, {}), TURN2, messages.length);
+  for (let i = 1; i < once.length; i++) assert.equal(once[i], once[0], 'one cut a session holds as well');
+  // Everything the proxy does is in the bytes above: there is no edit whose parameter could drift, which
+  // is what the old `clear_thinking` keep did (it counted the turn's assistant messages, so it grew a call
+  // and rewrote the prefix; that is why clearThinking shipped off here while the mod had it on). The
+  // defaults carry all three operations, so the comparison above is the whole guarantee.
+  assert.equal(PROXY_DEFAULTS.clearInputs, true);
+  assert.equal(PROXY_DEFAULTS.clearThinking, true);
 });
 
-test('the gauge stops editing a session whose rewrites after a clear cost more than it saved, and says so once in the log', async () => {
-  // an upstream whose every answer is a clear applied and the prefix written over: the first write is the clear's
-  // own, every one after it is the server moving the block, and the first of those already outweighs what the
-  // clear has saved and can still save over the calls a session this long has left (clearing.js:response)
-  const sse = [
-    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":2,"cache_read_input_tokens":31520,"cache_creation_input_tokens":400000,"output_tokens":1}}}\n\n',
-    'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":100,"cleared_input_tokens":140000}]}}\n\n',
-    'event: message_stop\ndata: {"type":"message_stop"}\n\n',
-  ];
-  const seen = [];
-  const up = http.createServer((req, res) => { const c = []; req.on('data', x => c.push(x)); req.on('end', () => { seen.push(JSON.parse(Buffer.concat(c).toString())); res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of sse) res.write(s); res.end(); }); });
-  await new Promise(r => up.listen(0, '127.0.0.1', r));
-  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`);
-  try {
-    for (let i = 0; i < 4; i++) { await send(port); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === i + 1); }
-    const all = rows(logFile);
-    const calls = all.filter(r => r.op === 'proxy');
-    assert.deepEqual(calls.map(r => !!r.injected), [true, true, false, false], 'edited until the gauge, passed through after');
-    assert.deepEqual(calls.slice(2).map(r => r.reason), ['uneconomic', 'uneconomic']);
-    const stopped = all.filter(r => r.op === 'proxy-clearing-stopped');
-    assert.equal(stopped.length, 1, 'said once');
-    assert.equal(stopped[0].session, 's1');
-    assert.ok(stopped[0].written > stopped[0].saved + stopped[0].ahead, 'the numbers it was judged on are on the row');
-    assert.equal(seen.slice(2).every(j => !(j.context_management?.edits || []).some(e => e.type === EDIT_TYPE)), true, 'the request goes up as the agent wrote it');
-    // the record is on disk beside the log, so a restarted proxy sends the same
-    const rec = JSON.parse(fs.readFileSync(path.join(path.dirname(logFile), 'clearing', 's1.json'), 'utf8'));
-    assert.equal(rec.stopped, 'uneconomic'); assert.equal(rec.cleared, 140000); assert.equal(rec.calls, 2);
-    // another session is still edited
-    await send(port, { headers: { 'x-claude-code-session-id': 's2' } });
-    await until(() => rows(logFile).filter(r => r.op === 'proxy').length === 5);
-    assert.equal(rows(logFile).filter(r => r.op === 'proxy').at(-1).injected, true);
-    const report = proxyReport(rows(logFile));
-    assert.equal(report.clearing.sessionsStopped, 1);
-    assert.deepEqual(report.clearing.rewrites.after, { calls: 3, rewrites: 3 }, 's1\'s edited calls from its first clear, and s2\'s one');
-  } finally { server.close(); up.close(); }
-});
 
 test('the report counts prefix rewrites after a clear beside the held-out rate, and warns when the clearing breaks the cache', () => {
   const at = i => new Date(1e12 + i * 1000).toISOString();
@@ -568,46 +439,15 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
   ];
   const up = http.createServer((req, res) => { req.on('data', () => {}); req.on('end', () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of sse) res.write(s); res.end(); }); });
   await new Promise(r => up.listen(0, '127.0.0.1', r));
-  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`, { clearAtLeast: 0 }, { dumpDir });
+  const { server, logFile, port } = await proxyTo(`http://127.0.0.1:${up.address().port}`, { ...CUTS }, { dumpDir });
   try {
-    await send(port); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === 1);
+    await send(port, { data: cuttable() }); await until(() => rows(logFile).filter(r => r.op === 'proxy').length === 1);
     await until(() => fs.existsSync(path.join(dumpDir, 's1')) && fs.readdirSync(path.join(dumpDir, 's1')).length === 1);
     const d = JSON.parse(fs.readFileSync(path.join(dumpDir, 's1', fs.readdirSync(path.join(dumpDir, 's1'))[0]), 'utf8'));
-    assert.equal(d.injected, true); assert.equal(d.keep, PROXY_DEFAULTS.keepMin); assert.equal(d.asked, 0);
+    assert.equal(d.injected, true); assert.equal(d.keep, PROXY_DEFAULTS.keepMin);
     assert.equal(d.usage.read, 1000); assert.equal(d.usage.write, 500);
-    assert.ok(d.sent.context_management.edits.some(e => e.type === EDIT_TYPE), 'the body as it went up, edit included');
+    assert.equal(d.sent.context_management, undefined, 'nothing is asked of the API');
     assert.ok(Array.isArray(d.sent.messages) && d.sent.messages.length > 0);
   } finally { server.close(); up.close(); fs.rmSync(dumpDir, { recursive: true, force: true }); }
 });
 
-test('a declined deepening is on the row, so the gate can be judged from the log', () => {
-  // The live log of 2026-11-03 could not tell a correct refusal from a blanket one: `clear` was on the row
-  // only when a clear went out, so a boundary that declined left no trace and `recache` was never visible.
-  const tu = id => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'ls' } });
-  const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
-  // several turns of four tool calls, so the keep a boundary decides (4) leaves earlier turns clearable
-  const messages = [];
-  for (let t = 0; t < 6; t++) {
-    messages.push({ role: 'user', content: [{ type: 'text', text: `request ${t}` }] });
-    for (let i = 0; i < 4; i++) messages.push({ role: 'assistant', content: [tu(`t${t}u${i}`)] }, { role: 'user', content: [tr(`t${t}u${i}`, 40000)] });
-  }
-  messages.push({ role: 'user', content: [{ type: 'text', text: 'newest request' }] });
-  const cfg = proxyConfig({ 'clear-deep': true }, {});
-  const call = record => transformRequest('POST', '/v1/messages', { 'anthropic-beta': BETA },
-    Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages })), { ...cfg, record });
-
-  // nothing cleared yet: the first clear is taken unpriced, and what was on the table is recorded
-  const first = call(freshRecord('s', cfg));
-  assert.ok(first.clearable > 0, 'the clearable tokens are on the row');
-  assert.equal(first.keep, 4, 'the keep covers the previous turn, not the bare floor of 3');
-  assert.equal(first.held, undefined, 'a decision that cleared carries no held figures');
-
-  // a session that has already cleared far more than the tail is worth: the ask grows, the price refuses it
-  const rec = { ...freshRecord('s', cfg), cleared: 120000, clearedUses: 2, clears: 1, calls: 30, turn: 0, model: 'claude-opus-5-5' };
-  const held = call(rec);
-  assert.equal(held.asked, cfg.clearAtLeast, 'the edit in force is unchanged');
-  assert.ok(held.held, 'the declined decision is on the row');
-  for (const k of ['dropped', 'recache', 'cost', 'saving', 'need', 'have']) assert.equal(typeof held.held[k], 'number', `held.${k}`);
-  assert.ok(held.held.cost > held.held.saving, 'it was declined because the write cost more than the reads it saves');
-  assert.ok(held.held.need > 0, 'how many reads it would have taken is recorded');
-});
