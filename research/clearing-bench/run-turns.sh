@@ -8,6 +8,7 @@ set -eo pipefail
 ARM="$1"; HOLDOUT="$2"; REPS="$3"; TURNS="$4"; shift 4; EXTRA=("$@")
 MODEL="${MODEL:-claude-opus-5-5}"
 P="${PORT:-$(~/.claude/bin/claude-port reserve thinker clearbench)}"
+mkdir -p "$OUT"   # an arm creates its own output dir: without it line 11 failed after reserving a port
 LOG="$OUT/log-$ARM.jsonl"; : > "$LOG"
 export THINKER_HOME="$OUT/home-$ARM"; mkdir -p "$THINKER_HOME/state"; export THINKER_PROXY_LOG="$LOG"
 node "$THINKER_SRC/src/cli.js" proxy --port "$P" --holdout "$HOLDOUT" ${EXTRA[@]+"${EXTRA[@]}"} > "$OUT/proxy-$ARM.out" 2>&1 &
