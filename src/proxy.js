@@ -31,6 +31,7 @@ import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { noteCompression } from './compression.js';
 import { decide, response as clearingResponse, store as clearingStore, isRewrite } from './clearing.js';
+import { decideCut, cutResponse, cutStore, freshCut, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
 export { isRewrite };
 
 export const EDIT_TYPE = 'clear_tool_uses_20250919';
@@ -279,48 +280,78 @@ export function turnStart(messages) {
 // than one gives the turn in progress headroom of about its own size before its oldest results fall out of the
 // keep, and protects the turn before it outright, which is what a model still working on a task reaches back for.
 
-// PROTOTYPE (agent/client-side-cut): thinker cuts the context itself, as the desktop mod does.
-// Why: the server-side edit has no state -- the API re-derives it per call, so there is nothing to
-// freeze. The server picks the set, re-applies on its own schedule (each a full prefix rewrite),
-// reaches into the turn in progress (3 of 20 dumped calls), and dropping the edit un-clears
-// everything at the price of one more rewrite. `keep` is a count, so cheap echoes evict a big read.
-// Cutting here makes each of those a choice: the newest turn is protected by a RULE, the cut is
-// stable because we choose it, and stopping means cutting nothing more.
-// The question this answers: October's breakage was "an in-place edit of the history with no
-// compaction boundary". So this touches tool_result CONTENT only -- thinking blocks and tool_use
-// inputs stay exactly as the agent wrote them.
-export const CUT_MIN_CHARS = 200;
-export const cutPlaceholder = (chars) =>
-  `[tool result cleared by thinker to save context: ${chars} chars. Read the file or run the command again if you need it.]`;
+// Thinker cuts the context itself (`src/cutting.js` holds the policy and says why). Two functions:
+// `cutCandidates` lists what a boundary could newly cut, and `applyCut` replaces a known set. Both
+// walk from the end, because the rule is about recency: the newest turn is kept whole whatever its
+// shape, then the newest `keepMin` results, then anything too small to be worth a placeholder. That
+// is a rule, where the API's `keep` was a count -- which is why three echoes could evict a 25k read.
+// Thinking blocks and tool_use inputs are left exactly as the agent wrote them: October's breakage
+// was an in-place edit of the history, and a tool_result-only edit is accepted (checked live,
+// 2026-11-04, 6 and 8 placeholders beside 3 untouched thinking blocks, every call 200).
+const resultText = b => typeof b.content === 'string' ? b.content
+  : Array.isArray(b.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('') : '';
 
-// The mod's rule (register.tsx:clearOld): from the end, the newest turn is kept whole, then the
-// newest `keepMin` results, then anything too small to be worth a placeholder.
-export function cutOld(messages, { keepMin = 3 } = {}) {
-  let kept = 0, cut = 0, chars = 0, inLatestTurn = true, firstChanged = -1;
-  const out = new Array(messages.length);
+// Walk the conversation newest-first, calling back for each tool result with whether the recency
+// rule protects it. `keepMin` counts only results the rule would otherwise let go.
+function walkResults(messages, keepMin, fn) {
+  let kept = 0, inLatestTurn = true;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    const blocks = Array.isArray(m?.content) ? m.content : null;
+    const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
     const results = blocks ? blocks.filter(b => b?.type === 'tool_result') : [];
     if (!results.length) {
       if (m?.role === 'user' && (!blocks || blocks.some(b => b?.type === 'text'))) inLatestTurn = false;
-      out[i] = m; continue;
+      continue;
     }
-    let touched = false;
-    const content = blocks.map(b => {
-      if (b?.type !== 'tool_result') return b;
-      const text = typeof b.content === 'string' ? b.content
-        : Array.isArray(b.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('') : '';
-      if (inLatestTurn || kept < keepMin) { kept++; return b; }
-      if (text.length < CUT_MIN_CHARS) return b;
-      cut++; chars += text.length; touched = true;
-      return { ...b, content: cutPlaceholder(text.length) };
-    });
-    out[i] = touched ? { ...m, content } : m;
-    if (touched) firstChanged = i;
+    for (let k = blocks.length - 1; k >= 0; k--) {
+      const b = blocks[k];
+      if (b?.type !== 'tool_result') continue;
+      const protectedByRule = inLatestTurn || kept < keepMin;
+      if (protectedByRule) kept++;
+      fn(b, i, protectedByRule);
+    }
   }
-  return { messages: out, cut, chars, firstChanged };
 }
+
+// What a boundary could newly cut, and what replacing it would cost: `recache` is the prompt from
+// the first result we would replace to the end, which is what a changed prefix makes the API write.
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS } = {}) {
+  const have = new Set(cut), ids = [];
+  let chars = 0, firstChanged = -1;
+  walkResults(messages, keepMin, (b, i, prot) => {
+    if (prot || have.has(b.tool_use_id)) return;
+    const text = resultText(b);
+    if (text.length < minChars) return;
+    ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
+  });
+  // the tail the rewrite pays for: every message from the first replaced one onward
+  let tail = 0;
+  if (firstChanged >= 0) tail = JSON.stringify(messages.slice(firstChanged)).length * TOKENS_PER_CHAR;
+  return { ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), recache: Math.round(tail), firstChanged };
+}
+
+// Apply a known set. Deterministic: the agent re-sends the whole conversation every call, so the
+// same ids give the same bytes, which is what keeps the prefix still.
+export function applyCut(messages, cut) {
+  const ids = new Set(cut);
+  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, firstChanged: -1 };
+  let n = 0, chars = 0, firstChanged = -1;
+  const out = messages.map((m, i) => {
+    const blocks = Array.isArray(m?.content) ? m.content : null;
+    if (!blocks || !blocks.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) return m;
+    firstChanged = firstChanged < 0 ? i : firstChanged;
+    return { ...m, content: blocks.map(b => {
+      if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
+      const text = resultText(b);
+      if (text.startsWith('[tool result cleared by thinker')) return b;
+      n++; chars += text.length;
+      return { ...b, content: cutPlaceholder(text.length) };
+    }) };
+  });
+  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
+}
+
+export const CUT_MIN_CHARS = CUTTING_MIN_CHARS;
+export const cutPlaceholder = cutting_placeholder;
 
 export function recentTurnUses(messages, turns = 2) {
   const starts = [];
@@ -530,19 +561,30 @@ export function transformRequest(method, url, headers, body, cfg) {
   // The edit this call sends: the session record's, decided at the turn boundary (clearing.js:decide) where the
   // proxy holds one (cfg.record), else the floor. Between decisions the same edit goes byte for byte.
   const rec = cfg.record, m = rec ? measureClearing(cfg, j, rec.clearedUses) : null;
+  // Thinker cuts the context itself: one decision at a turn boundary, then the same set applied
+  // byte for byte on every call of the turn. Nothing is asked of the API.
+  if (cfg.clientCut) {
+    const cutRec = cfg.cutRecord || freshCut('');
+    const cm2 = m || measureClearing(cfg, j, 0);
+    const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: cutRec.cut });
+    const dc = decideCut(cutRec, cfg, cm2, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
+    const applied = applyCut(j.messages, dc.cut);
+    if (!applied.cut) return { body, reason: dc.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model };
+    j.messages = applied.messages;
+    return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, asked: 0,
+      cut: dc.cut, changed: !!dc.clear, addBeta: false, actions: [],
+      clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
+      ...(dc.clear ? { clear: { tokens: dc.tokens, recache: dc.recache, cost: Math.round(dc.cost), saving: Math.round(dc.saving), ...(dc.cold ? { cold: true } : {}) }, tokens: dc.tokens, recache: dc.recache, cost: dc.cost, saving: dc.saving, cold: dc.cold } : {}),
+      ...(dc.held ? { held: { tokens: dc.held.tokens, recache: dc.held.recache, cost: Math.round(dc.held.cost), saving: Math.round(dc.held.saving), need: dc.held.need, have: dc.held.have } } : {}),
+      ...(dc.candidate != null ? { candidate: dc.candidate } : {}),
+      ...(dc.turn != null ? { turn: dc.turn } : {}) };
+  }
   const d = rec ? decide(rec, cfg, m, { turn: m.turn, ttl: cfg.ttl, now: cfg.now, model: j.model }) : { edit: { keep: keepValue(cfg, j.messages), ask: cfg.clearAtLeast }, clear: false };
   const edit = clearEdit(cfg, j.messages, d.edit), thinking = thinkingEdit(cfg, j.messages);
   // material the clear did not save, because the model fetched it again (rereadOfCleared)
   const rr = rec ? rereadOfCleared(j.messages, edit.keep.value, rec.seenCleared) : { prints: null, reread: null };
   const kept = thinking ? edits.filter(e => !(e && e.type === THINKING_EDIT_TYPE)) : edits;
   // a held edit (clearing.js:decide, nothing safe to clear yet) is not sent at all
-  if (cfg.clientCut) {
-    const c = cutOld(j.messages, { keepMin: cfg.keepMin ?? 3 });
-    if (!c.cut) return { body, reason: 'nothing-to-cut', model: j.model };
-    j.messages = c.messages;
-    return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, asked: 0,
-      clientCut: { cut: c.cut, chars: c.chars, firstChanged: c.firstChanged }, addBeta: false, actions: [] };
-  }
   const hold = !!d.edit.hold, sent = [...(thinking ? [thinking] : []), ...kept, ...(hold ? [] : [edit])];
   if (sent.length) j.context_management = { ...cm, edits: sent };
   // The carry-forward notice goes with the edit and not before it: a held call clears nothing, so there is
@@ -641,6 +683,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   let editRejected = false;
   // the clearing records, one per session, on disk: a restarted proxy sends the edit it was sending (clearing.js)
   const clearing = clearingStore(clearingDir, cfg);
+  // the cut's own record: the tool_use ids already replaced, so a restart re-applies the same set
+  const cutting = cutStore(clearingDir && path.join(clearingDir, 'cut'));
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
     let requestUrl = req.url, requestCfg = cfg;
@@ -669,7 +713,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       let t;
       const noEdit = editRejected && !forwardsToAnthropic(requestCfg.upstream);
       const rec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? clearing.read(sessionOf(req.headers)) : null;
-      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, record: rec }); } catch { t = { body: raw, reason: 'error' }; }
+      const cutRec = requestCfg.clientCut && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
+      try { t = noEdit ? { body: raw, reason: 'edit-unsupported' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, record: rec, cutRecord: cutRec }); } catch { t = { body: raw, reason: 'error' }; }
       // the gauge gave this session up: the agent's own bytes, and the results come back once
       if (t.injected && rec?.stopped) t = { body: raw, reason: 'uneconomic', model: t.model };
       let n = null;
@@ -761,7 +806,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (clearing.js:response): the decision applied, the server's count kept, the
             // gauge read; each event is a log line, and the record goes back to disk
-            if (tap && rec && t.injected && t.protocol !== 'responses') {
+            // the cut's record stands on its own: it owns the set, so it does not need the clearing record
+            if (tap && cutRec && t.injected && t.protocol !== 'responses') {
+              for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
+              cutting.write(cutRec);
+            }
+            if (tap && rec && !cutRec && t.injected && t.protocol !== 'responses') {
               for (const ev of clearingResponse(rec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: ev.stopped ? 'proxy-clearing-stopped' : ev.unmet ? 'proxy-clear-unmet' : ev.moved ? 'proxy-clear-moved' : ev.reread ? 'proxy-clear-reread' : 'proxy-clear', session: sessionOf(req.headers), model: t.model, asked: t.asked, keep: t.keep, ...ev, read: usage.read, write: usage.write, cleared: usage.cleared, clearedUses: usage.clearedUses });
               clearing.write(rec);
             }
