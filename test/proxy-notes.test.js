@@ -64,19 +64,22 @@ test('the injector leaves Claude Code, other paths and unparsable bodies alone, 
   assert.equal(r.body, body);
 });
 
-test('through the proxy: the upstream sees the bundle, the log counts the notes', async () => {
+test('through the proxy: the upstream sees the bundle, the log counts the notes', async t => {
   const seen = [];
   const up = http.createServer((q, res) => { const c = []; q.on('data', d => c.push(d)); q.on('end', () => { seen.push(JSON.parse(Buffer.concat(c).toString())); res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ usage: { input_tokens: 5, output_tokens: 1 } })); }); });
   await new Promise(r => up.listen(0, '127.0.0.1', r));
   const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-notes-')), 'proxy.jsonl');
   const notes = new NoteInjector({ serve: serve() });
   const proxy = await new Promise(r => { const s = startProxy({ ...PROXY_DEFAULTS, upstream: `http://127.0.0.1:${up.address().port}` }, { logFile, notes, onListen: a => r({ s, port: a.port }) }); });
+  t.after(() => { proxy.s.closeAllConnections(); proxy.s.close(); up.closeAllConnections(); up.close(); });
   const post = body => new Promise(r => { const q = http.request({ host: '127.0.0.1', port: proxy.port, path: '/v1/messages', method: 'POST', headers: { 'content-type': 'application/json' } }, res => { res.resume(); res.on('end', r); }); q.end(body); });
   await post(req([{ role: 'user', content: 'task' }]));
   await post(req([{ role: 'user', content: 'task' }, { role: 'assistant', content: 'a' }, { role: 'user', content: 'more' }]));
   assert.equal(seen[0].messages[0].content[0].text, '<thinker-cache>task</thinker-cache>');
   assert.equal(seen[1].messages[2].content[0].text, '<thinker-cache>more</thinker-cache>');
   const rows = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(l => JSON.parse(l));
-  assert.deepEqual(rows.map(r => [r.notes, r.notesReplayed, r.injected, r.betaAdded]), [[1, 0, true, true], [1, 1, true, true]]);
-  proxy.s.close(); up.close();
+  assert.deepEqual(rows.map(r => [r.notes, r.notesReplayed]), [[1, 0], [1, 1]]);
+  // Nothing is asked of the API (#610, one clearing mechanism): the bundle rides on the request the
+  // agent sent, so no row claims a cut and no beta header is added. Until #610 both read true here.
+  assert.deepEqual(rows.map(r => [r.injected, r.betaAdded, r.reason]), [[false, undefined, 'nothing-to-cut'], [false, undefined, 'nothing-to-cut']]);
 });
