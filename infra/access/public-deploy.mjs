@@ -24,6 +24,7 @@ const assets = [
   ['clearing.html', 'site/clearing.html', 'text/html; charset=utf-8'],
   ['nav.css', 'site/nav.css', 'text/css; charset=utf-8'],
   ...fs.readdirSync(path.join(root, 'site')).filter(name => /^clearing-[a-z0-9-]+\.json$/.test(name)).sort().map(name => [name, 'site/' + name, 'application/json']),
+  ['card.png', 'site/card.png', 'image/png'],
   ['message.js', 'site/message.js', 'text/javascript; charset=utf-8'],
   ['message.css', 'site/message.css', 'text/css; charset=utf-8'],
   ['dist/install.sh', 'install.sh', 'text/plain; charset=utf-8'],
@@ -76,7 +77,7 @@ if (mode === 'prepare') {
     '--body', path.join(root, file), '--content-type', type, '--cache-control', 'no-cache'], config.bucketRegion);
   call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
   const invalidation = call(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
-    '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
+    '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/card.png', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
   save('public-invalidation.json', invalidation);
   console.log('Public site deployed; invalidation:', invalidation.Invalidation.Id);
 } else throw new Error('Usage: node infra/access/deploy.mjs prepare|apply');

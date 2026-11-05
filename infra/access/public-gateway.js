@@ -28,7 +28,7 @@ function handler(event) {
     if (uri === '/how-it-works') { request.uri = '/how-it-works.html'; return request; }
     if (uri === '/see-the-data') { request.uri = '/compression.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
-    if (uri === '/' || uri === '/index.html' || uri === '/nav.css' || uri === '/home.css' || /^\/clearing-[a-z0-9-]+\.json$/.test(uri) || /^\/message\.(js|css)$/.test(uri) ||
+    if (uri === '/' || uri === '/index.html' || uri === '/nav.css' || uri === '/home.css' || uri === '/card.png' || /^\/clearing-[a-z0-9-]+\.json$/.test(uri) || /^\/message\.(js|css)$/.test(uri) ||
         /^\/dist\/(thinker\.tgz|install\.sh|version\.json)$/.test(uri) ||
         /^\/(favicon(?:-16x16|-32x32)?\.(?:ico|png|svg)|apple-touch-icon.png)$/.test(uri)) return request;
     if (uri === '/gokce-bday' || uri.indexOf('/gokce-bday/') === 0) {

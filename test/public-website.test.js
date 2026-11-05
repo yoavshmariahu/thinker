@@ -242,3 +242,25 @@ test('Django uses recorded input without a separate Codex write charge and retai
   const sessionText=fs.readFileSync(new URL('../site/clearing-django-astra-session.json', import.meta.url),'utf8');
   assert.doesNotMatch(sessionText, /encrypted_content|gAAAAAB|\/Users\/yoav|\/private\/var\/folders/);
 });
+
+test('every public page names one 1200x630 share card, and the card is served and deployed', () => {
+  const card = fs.readFileSync(new URL('../site/card.png', import.meta.url));
+  assert.equal(card.subarray(0, 8).toString('latin1'), '\x89PNG\r\n\x1a\n', 'a PNG');
+  assert.equal(card.readUInt32BE(16), 1200, 'the width link previews expect');
+  assert.equal(card.readUInt32BE(20), 630, 'the height link previews expect');
+  assert.ok(card.length < 5e6, 'under the 5MB X accepts');
+  for (const method of ['GET', 'HEAD']) assert.equal(request('/card.png', method).uri, '/card.png');
+  for (const file of ['index.html', 'docs.html', 'compression.html', 'how-it-works.html']) {
+    const html = fs.readFileSync(new URL('../site/' + file, import.meta.url), 'utf8');
+    assert.match(html, /<meta name="twitter:card" content="summary_large_image">/, file);
+    // Absolute: a relative URL is not fetched by the crawlers.
+    assert.match(html, /<meta property="og:image" content="https:\/\/thinker\.sh\/card\.png">/, file);
+    assert.match(html, /<meta name="twitter:image" content="https:\/\/thinker\.sh\/card\.png">/, file);
+    const canonical = html.match(/<link rel="canonical" href="([^"]+)">/)[1];
+    assert.match(html, new RegExp(`<meta property="og:url" content="${canonical.replace(/[.\/]/g, '\\$&')}">`), file);
+    assert.match(html, /<meta property="og:image:alt" content="[^"]+">/, file);
+  }
+  const deploy = fs.readFileSync(new URL('../infra/access/public-deploy.mjs', import.meta.url), 'utf8');
+  assert.match(deploy, /\['card.png', 'site\/card.png', 'image\/png'\]/, 'uploaded with its own type');
+  assert.match(deploy, /'\/card\.png'.*'\/message\.\*'/, 'and invalidated at the edge');
+});

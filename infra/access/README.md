@@ -7,6 +7,8 @@ The canonical domain is `thinker.sh`; `zerotime.dev`, `www.zerotime.dev`, and
 `www.thinker.sh` redirect permanently to it, preserving paths and query parameters.
 “See how it works” opens the standalone tour at `/how-it-works`; the `.html`
 and trailing-slash variants redirect to that shareable URL.
+Link previews (X, Slack, LinkedIn) use `/card.png`, a 1200×630 image shipped as
+`site/card.png` and named by the Open Graph and Twitter tags on every page.
 “See the data” lives at `/see-the-data`; legacy `/compression` and `/clearing`
 URLs (including `.html` and trailing-slash variants) redirect there in one hop.
 Since 0.1.35 the installer and releases live on GitHub (tags `vX.Y.Z` with the
@@ -19,7 +21,7 @@ The S3 origin stays private and the existing CloudFront/WAF configuration is pre
 From an isolated worktree, run `node infra/access/deploy.mjs prepare`, inspect
 `.access-work/public-plan.json`, then run `node infra/access/deploy.mjs apply`.
 Preparation tests routing in the AWS edge runtime. Apply backs up existing
-objects and the prior LIVE function, uploads the pages, message assets and installer,
+objects and the prior LIVE function, uploads the pages, the share card, message assets and installer,
 publishes routing, and invalidates the changed URLs. It does not rebuild the CLI archive.
 Run `THINKER_TEST=1 node infra/access/smoke.mjs` after propagation.
 Keep `.access-work/public-*` backups outside the worktree before cleanup.
