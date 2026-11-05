@@ -19,10 +19,13 @@ def scrub(s):
 def clean(o):return json.loads(scrub(json.dumps(o,ensure_ascii=False)))
 meta=dict(id=a.id,price=dict(input=4,read=.2,w1h=8,w5m=5,out=20),cold=0,model='Claude Opus 5.5 · medium',protocol='anthropic',recordedWrites=True,recordedTTL=True,combined=True,judged=True,repo='PostHog',task=a.task,source='Artemis · PostHog '+a.task+' · nine prompts',costData='clearing-'+a.id+'-costs.json',savings=dict(minPercent=pair['savingPercent'],maxPercent=pair['savingPercent'],minDollars=pair['saving'],maxDollars=pair['saving']))
 small,full=dict(meta),dict(meta);blobs={};accounting={}
+# Snapshot the decision limit used by the pinned experiment build, not a future default.
+small['cutPolicy']=full['cutPolicy']={'maxPaybackCalls':20}
 def keep(body):
  h=hashlib.sha256(body.encode()).hexdigest()[:16];blobs[h]=body;return h
 for arm,side,key in [('control','off','control'),('cut','on','treatment')]:
  rec=json.loads((records/(a.task+'-'+side+'.json')).read_text());priced=next(s for s in report['sessions'] if s['id']==pair[key]);r=rec['raw'].get('armReport') or {'validation':priced['validation']}
+ assert r['validation']['thinkerCommit']=='912b18753bd629b60255502cdf1d979fd2659ece'
  assert not rec['row']['invalid']
  dumps=sorted((json.loads(f.read_text()) for f in pathlib.Path(r['validation']['dump']).rglob('*.json')),key=lambda d:d['at'])
  dumps=[d for d in dumps if d['usage'] is not None]

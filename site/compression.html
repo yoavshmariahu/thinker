@@ -314,7 +314,7 @@
 
     <div class="scrub"><label for="pos" class="ctl-lbl">Explore a call</label><input type="range" id="pos" min="1" max="30" value="30" aria-label="Model call"><span class="pos" id="pos-lbl"></span></div>
     <h2 class="chart-heading">Context window size over calls</h2>
-    <p class="sub">Prompt tokens of every model call. Dashed line: a cut. Hollow tick: a cut refused.</p>
+    <p class="sub">Prompt tokens of every model call. Dashed line: a cut. Hollow tick: a cut skipped.</p>
     <div class="legend" id="legend1"></div>
     <figure><div class="chart" id="c1"></div></figure>
 
@@ -415,6 +415,14 @@
     const rereads = () => D().cut.notes.filter(n => n.kind === 'reread');
     const cutsOf = () => D().cut.calls.filter(c => c.cut);
     const heldOf = () => D().cut.calls.filter(c => c.held && !c.cut);
+    function skippedCut(h) {
+      const tokens = h.tokens ?? h.dropped, limit = D().cutPolicy?.maxPaybackCalls;
+      const parts = [];
+      if (Number.isFinite(tokens)) parts.push(`The cut could remove ${fmt(tokens)} tokens${Number.isFinite(h.recache) ? ` and would rewrite ${fmt(h.recache)} cached tokens` : ''}.`);
+      if (Number.isFinite(h.payback)) parts.push(`That rewrite would take an estimated ${fmtN(h.payback)} more model calls to pay for itself${Number.isFinite(limit) ? `, exceeding the ${fmtN(limit)}-call limit` : ''}.`);
+      if (!parts.length) parts.push('The recorded event does not include an estimate explaining the decision.');
+      return parts.join(' ');
+    }
 
     // ---- header ----
     function header() {
@@ -442,7 +450,7 @@
       $('#cost-note').textContent = D().recordedTTL ? 'API-equivalent estimate, not a subscription charge. Includes native compaction; cache writes use their recorded five-minute or one-hour lifetime.' : D().recordedWrites ? 'API-equivalent estimate, not a subscription charge. Includes native compaction; cache-write tokens explicitly reported as zero.' : D().costBounds ? `Scenario: ${costLabel()}. Cache reads and output are recorded; unknown cache writes are bounded. The headline spans both arms’ possible costs; it is not a measured saving.` : 'At list prices: input, cache reads, cache writes, output.';
       $('#cold-wrap').style.display = D().cold ? '' : 'none';
       $('#pos').max = N();
-      $('#legend1').innerHTML = `<span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span><span${heldOf().length ? '' : ' class="unavailable" title="No refusal events recorded for this run"'}><i class="heldmark"></i>cut refused</span><span${rereads().length ? '' : ' class="unavailable" title="No re-read events recorded for this run"'}><i class="flagmark"></i>re-read of a cleared file</span>`;
+      $('#legend1').innerHTML = `<span><i class="ctl"></i>without thinker</span><span><i class="thk"></i>with thinker</span><span><i class="cutmark"></i>cut by thinker</span><span${heldOf().length ? '' : ' class="unavailable" title="No skipped cuts recorded for this run"'}><i class="heldmark"></i>cut skipped</span><span${rereads().length ? '' : ' class="unavailable" title="No re-read events recorded for this run"'}><i class="flagmark"></i>re-read of a cleared file</span>`;
     }
 
     // ---- tiles ----
@@ -501,9 +509,9 @@
         const row = (x, cls, name) => x ? `<div class="r"><span class="arm ${cls}"><i></i>${name}</span><span>${kind === 'carried' ? `carried <b>${fmt(x.carried)}</b> · read ${fmt(x.read)} · wrote ${D().costBounds ? 'not recorded' : fmt(x.write)} · out ${x.out}` : `so far <b>${usd(x.cost)}</b> · this call ${usd(x.own)}`}</span></div>` : '';
         let note = '';
         for (const [arm, label] of [['control', 'without thinker'], ['cut', 'with thinker']]) knowledgeOf(arm).filter(e => e.k === k).forEach(e => { note += `<div class="note">Knowledge cache hit (${label}): ${e.hits} note${e.hits === 1 ? '' : 's'} served · ~${approx(e.noteTokens)} note tokens. Potential read saving ~${approx(e.potentialReadSaving)} tokens if one source-file read is replaced.</div>`; });
-        if (xa?.cut?.observed) note += `<div class="note cut">${xa.cut.results} older results became placeholders; approximately ${fmt(xa.cut.tokens)} tokens estimated from characters. Cache-write count not recorded.</div>`;
+        if (xa?.cut?.observed) note += `<div class="note cut">${xa.cut.results} older results became placeholders; approximately ${fmt(xa.cut.tokens)} tokens estimated from characters. ${D().recordedWrites ? `The API reported ${fmt(xa.write)} cache-write tokens on this call.` : 'Cache-write count not recorded.'}</div>`;
         else if (xa && xa.cut) note += `<div class="note cut">thinker cut ${fmt(xa.cut.tokens)} tokens before this call: ${D().cut.results.filter(r => r.cut === k).length} results replaced, rewrite ${fmt(xa.cut.recache)} tokens</div>`;
-        if (xa && xa.held && !xa.cut) note += `<div class="note held">thinker priced a cut here and refused it: ${fmt(xa.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(xa.held.cost || 0)} against ${fmt(xa.held.saving || 0)} saved</div>`;
+        if (xa && xa.held && !xa.cut) note += `<div class="note held"><b>Cut skipped.</b> ${skippedCut(xa.held)}</div>`;
         rereads().filter(r => r.k === k).forEach(r => { note += `<div class="note flag">the model re-read ${esc(base(r.file))}${r.n > 1 ? ` (${r.n} reads)` : ''}, cleared at call ${r.cutAt}</div>`; });
         tip.innerHTML = `<div class="h">Call ${k} · without: turn ${xb?.t || '—'} · with: turn ${xa?.t || '—'}</div>${row(xb, 'ctl', 'without thinker')}${row(xa, 'thk', 'with thinker')}${note}`;
         tip.hidden = false;
@@ -563,7 +571,7 @@
       const items = [];
       for (const [arm, label] of [['control', 'without thinker'], ['cut', 'with thinker']]) knowledgeOf(arm).forEach(e => items.push({ k: e.k, html: `<span class="tag knowledge">Knowledge cache hit</span> Before call ${e.k} (turn ${D()[arm].calls[e.k - 1].t}, ${label}), <b>${e.hits} note${e.hits === 1 ? '' : 's'}</b> served: ${e.notes.map(n => esc(n.title)).join('; ')}.${knowledgeDetail(e)}` }));
       cutsOf().forEach(x => { if (x.cut.observed) { items.push({k:x.k,html:`<span class="tag cut">cut</span>Before call ${x.k} (turn ${x.t}), ${x.cut.results} older tool results became placeholders. Their original text was approximately ${fmt(x.cut.tokens)} tokens, estimated from characters. ${D().recordedTTL ? `The API reported ${fmt(x.write)} cache-write tokens on this call.` : D().recordedWrites ? 'Cache writes were recorded as zero.' : 'Cache-write counts were not recorded.'}`}); return; } const n = D().cut.results.filter(r => r.cut === x.k).length; items.push({ k: x.k, html: `<span class="tag cut">cut</span>Before call ${x.k} (turn ${x.t}) thinker replaced <b>${n} result${n > 1 ? 's' : ''}</b> with placeholders: <b>${fmt(x.cut.tokens)}</b> tokens out of the prompt. The policy estimated a rewrite of ${fmt(x.cut.recache)} tokens; the policy estimated savings over the next 20 calls of ${fmt(x.cut.saving)} tokens of reads.${D().cut.calls[x.k] ? ` The API then wrote ${fmt(D().cut.calls[x.k - 1].write)} on this call.` : ''}` }); });
-      heldOf().forEach(x => { items.push({ k: x.k, html: `<span class="tag held">refused</span>At call ${x.k} (turn ${x.t}) thinker priced a cut and held back: ${fmt(x.held.dropped || 0)} tokens would go, the rewrite would cost ${fmt(x.held.cost || 0)} against ${fmt(x.held.saving || 0)} of reads saved over the next 20 calls.` }); });
+      heldOf().forEach(x => { items.push({ k: x.k, html: `<span class="tag held">cut skipped</span>At call ${x.k} (turn ${x.t}): ${skippedCut(x.held)}` }); });
       rereads().forEach(r => { items.push({ k: r.k, html: `<span class="tag flag">re-read</span>Turn ${r.turn}, call ${r.k}: the model read <code>${esc(r.file)}</code> again${r.n > 1 ? `, ${r.n} ranged reads` : ''}; its earlier result had been cleared at call ${r.cutAt}.` }); });
       D().cut.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>${D().protocol === 'responses' ? 'Codex' : 'Claude Code'} compacted the thinker run’s conversation at call ${c.k}; its cost is included.` }));
       D().control.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>${D().protocol === 'responses' ? 'Codex' : 'Claude Code'} compacted the control’s conversation at call ${c.k}. This is the agent’s own behavior; its cost is included in the baseline.` }));
@@ -585,7 +593,7 @@
         ['Output tokens', sum(b, x => x.out), sum(a, x => x.out), true],
         ['Largest prompt, tokens', Math.max(...b.map(x => x.carried)), Math.max(...a.map(x => x.carried)), true],
         ['Cuts taken', 0, cutsOf().length, false],
-        ['Cuts refused', 0, heldOf().length, false],
+        ['Cuts skipped', 0, heldOf().length, false],
         ['Results cut', 0, D().cut.results.filter(r => r.cut).length, false],
         ['Re-reads of a cleared file', 0, rereads().length, false],
         ['Cost of cache reads, at list', pb.read, pa.read, true, true],
@@ -595,7 +603,7 @@
         [`Cost at list, ${state.ttl === '1h' ? 'one-hour' : 'five-minute'} writes`, b[b.length - 1].cost, a[a.length - 1].cost, true, true],
       ];
       if (D().recordedWrites) {
-        for (const label of ['Cuts refused', 'Re-reads of a cleared file']) { const i = rows.findIndex(r => r[0] === label); rows[i] = [label, 'not recorded', 'not recorded', false]; }
+        for (const label of D().recordedTTL ? ['Re-reads of a cleared file'] : ['Cuts skipped', 'Re-reads of a cleared file']) { const i = rows.findIndex(r => r[0] === label); rows[i] = [label, 'not recorded', 'not recorded', false]; }
         rows.find(r => r[0].startsWith('Cost of cache writes'))[0] = 'Cost of recorded cache writes';
         rows[rows.length - 1][0] = 'API-equivalent session cost';
         rows.push(['Native compactions', D().control.calls.filter(c => c.compacted).length, D().cut.calls.filter(c => c.compacted).length, false]);
@@ -606,7 +614,7 @@
         rows.push(['Knowledge-note context, tokens (est.)', '~' + approx(total('control', 'noteTokens')), '~' + approx(total('cut', 'noteTokens')), false]);
         rows.push(['Potential reading saved if source reads are replaced (est.)', '~' + approx(total('control', 'potentialReadSaving')), '~' + approx(total('cut', 'potentialReadSaving')), false]);
       }
-      if (D().costBounds) { for (const label of ['Cuts refused','Re-reads of a cleared file']) { const i=rows.findIndex(r=>r[0]===label); rows[i]=[label,'not recorded','not recorded',false]; } rows.splice(3,1,['Cache-write tokens','not recorded','not recorded',false]); const wi=rows.findIndex(r=>r[0].startsWith('Cost of cache writes')); rows.splice(wi,1); rows[rows.length-2][0] = `Cost of uncached input · ${costLabel()}`; rows[rows.length-1][0] = `Scenario cost · ${costLabel()}`; }
+      if (D().costBounds) { for (const label of ['Cuts skipped','Re-reads of a cleared file']) { const i=rows.findIndex(r=>r[0]===label); rows[i]=[label,'not recorded','not recorded',false]; } rows.splice(3,1,['Cache-write tokens','not recorded','not recorded',false]); const wi=rows.findIndex(r=>r[0].startsWith('Cost of cache writes')); rows.splice(wi,1); rows[rows.length-2][0] = `Cost of uncached input · ${costLabel()}`; rows[rows.length-1][0] = `Scenario cost · ${costLabel()}`; }
       $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
         rows.map(([name, vb, va, diff, money]) => `<tr><td>${name}</td><td>${typeof vb === 'string' ? esc(vb) : money ? usd(vb) : fmtN(vb)}</td><td>${typeof va === 'string' ? esc(va) : money ? usd(va) : fmtN(va)}</td><td class="d ${diff ? (va < vb ? 'good' : va > vb ? 'bad' : '') : ''}">${diff && vb ? pct(va, vb) : ''}</td></tr>`).join('');
       let h = `<tr><th>Call</th><th>Turn</th><th>Without: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>With thinker: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>Note</th></tr>`;
@@ -616,7 +624,7 @@
         const notes = [];
         for (const arm of ['control', 'cut']) knowledgeOf(arm).filter(e => e.k === k).forEach(e => notes.push(`knowledge cache: ${e.hits} note${e.hits === 1 ? '' : 's'} (${arm === 'cut' ? 'with' : 'without'} thinker)`));
         if (xa && xa.cut) notes.push('cut −' + fmtN(xa.cut.tokens));
-        if (xa && xa.held && !xa.cut) notes.push('cut refused');
+        if (xa && xa.held && !xa.cut) notes.push('cut skipped');
         rereads().filter(r => r.k === k).forEach(r => notes.push('re-read ' + esc(base(r.file))));
         h += `<tr><td>${k}</td><td>${xb ? xb.t : ''}${xa && xb && xa.t !== xb.t ? ' / ' + xa.t : ''}</td>${cell(xb)}${cell(xa)}<td style="text-align:left">${notes.join('; ')}</td></tr>`;
       }
