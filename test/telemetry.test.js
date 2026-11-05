@@ -743,10 +743,67 @@ test('telemetry says whether each installed agent runs thinker and how much it w
     const old = path.join(proj, 'c.jsonl'); fs.writeFileSync(old, '{}'); fs.utimesSync(old, new Date(Date.now() - 9 * 864e5), new Date(Date.now() - 9 * 864e5));
     const day = path.join(h, '.codex', 'sessions', '2026', '10', '16'); fs.mkdirSync(day, { recursive: true }); fs.writeFileSync(path.join(day, 'rollout.jsonl'), '{}');
     assert.deepEqual(wiringHealth({ home: h, detected: ['claude', 'codex'] }), {
-      claude: { hooks: true, mcp: true, live: true, sessions7d: 2 },
-      codex: { hooks: false, mcp: false, live: false, sessions7d: 1 },
+      claude: { hooks: true, mcp: true, live: true, sessions7d: 2, sessionStore: 'read' },
+      codex: { hooks: false, mcp: false, live: false, sessions7d: 1, sessionStore: 'read' },
     });
+    // Gemini keeps its chats under a hash of the repository path; they were never counted at all
+    const chats = path.join(h, '.gemini', 'tmp', 'abc', 'chats'); fs.mkdirSync(chats, { recursive: true });
+    fs.writeFileSync(path.join(chats, 's.json'), '{}');
+    assert.deepEqual(wiringHealth({ home: h, detected: ['gemini'] }).gemini.sessions7d, 1);
+    // An agent whose store is not on this filesystem has not been seen to run none: it has not been seen.
+    // This is the container case -- the agent keeps its sessions inside it -- and it read as 0 before.
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-wiring-bare-'));
+    try {
+      const away = wiringHealth({ home: bare, detected: ['claude', 'codex', 'cursor', 'gemini', 'pi'] });
+      for (const client of ['claude', 'cursor', 'gemini']) {
+        assert.equal(away[client].sessions7d, null, `${client}: no store is unknown, not zero`);
+        assert.equal(away[client].sessionStore, 'missing');
+      }
+      // pi keeps no store thinker reads at user scope: unknown for a different reason, and said so
+      assert.equal(away.pi.sessions7d, null);
+      assert.equal(away.pi.sessionStore, 'none');
+      // a store that is there and empty is a real zero
+      fs.mkdirSync(path.join(bare, '.claude', 'projects'), { recursive: true });
+      const empty = wiringHealth({ home: bare, detected: ['claude'] }).claude;
+      assert.equal(empty.sessions7d, 0);
+      assert.equal(empty.sessionStore, 'read');
+      // CLAUDE_CONFIG_DIR moves the store, as it does for every other door of thinker
+      const moved = path.join(bare, 'moved');
+      fs.mkdirSync(path.join(moved, 'projects', '-r'), { recursive: true });
+      fs.writeFileSync(path.join(moved, 'projects', '-r', 'x.jsonl'), '{}');
+      assert.equal(wiringHealth({ home: bare, env: { CLAUDE_CONFIG_DIR: moved }, detected: ['claude'] }).claude.sessions7d, 1);
+    } finally { removeTree(bare); }
   } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+});
+
+test('telemetry says what kind of machine the counts were read on, and keeps one install id per machine', async () => {
+  const { machineFacts, installIdStable, getInstallId } = await import('../src/telemetry.js');
+  const h = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-machine-'));
+  try {
+    const facts = machineFacts({ home: h, env: {}, exists: () => false, readFile: () => { throw new Error('no cgroup'); } });
+    assert.deepEqual(facts, { schemaVersion: 1, container: null, agentHomesMoved: [], thinkerHomeMoved: false, installIdStable: true });
+    // the marks a runtime leaves, in the order a nested one should be read
+    const kind = (env, files, cgroup) => machineFacts({ home: h, env, exists: f => files.includes(f), readFile: () => cgroup ?? (() => { throw new Error('none'); })() }).container;
+    assert.equal(kind({ KUBERNETES_SERVICE_HOST: '10.0.0.1' }, [], null), 'kubernetes');
+    assert.equal(kind({}, ['/.dockerenv'], null), 'docker');
+    assert.equal(kind({}, ['/run/.containerenv'], null), 'podman');
+    assert.equal(kind({}, [], '0::/kubepods/pod123/abc'), 'kubernetes');
+    assert.equal(kind({}, [], '0::/docker/abc'), 'docker');
+    assert.equal(kind({}, [], '0::/system.slice/containerd.service'), 'containerd');
+    // which agent homes were moved, by name, never the path
+    assert.deepEqual(machineFacts({ home: h, env: { CLAUDE_CONFIG_DIR: '/x', CODEX_HOME: '/y' }, exists: () => false, readFile: () => { throw new Error('x'); } }).agentHomesMoved, ['claude', 'codex']);
+    assert.equal(JSON.stringify(machineFacts({ home: h, env: { CLAUDE_CONFIG_DIR: '/secret/path' }, exists: () => false, readFile: () => { throw new Error('x'); } })).includes('/secret/path'), false);
+    // a home that cannot keep the id says so, and the id stays the same anyway while the device is known
+    const unwritable = path.join(h, 'readonly');
+    fs.mkdirSync(unwritable); fs.chmodSync(unwritable, 0o500);
+    try {
+      assert.equal(installIdStable(unwritable), false, 'an unpersisted id is not stable');
+      const first = getInstallId(unwritable), second = getInstallId(unwritable);
+      assert.equal(first, second, 'the same machine reports one install id, not a new one per report');
+      assert.match(first, /^[0-9a-f-]{36}$/);
+      assert.equal(machineFacts({ home: unwritable, env: {}, exists: () => false, readFile: () => { throw new Error('x'); } }).installIdStable, false);
+    } finally { fs.chmodSync(unwritable, 0o700); }
+  } finally { removeTree(h); }
 });
 
 test('computeCacheMetrics counts a repository\'s notes once, from its fullest checkout, not again for each worktree', () => {

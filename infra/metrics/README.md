@@ -402,7 +402,31 @@ name, with `supported` (thinker wires it: the eight agents in `clients.detected`
 (days since its configuration or state last changed; null when only its binary was found). Names only,
 never paths or settings. `clients.detected` is empty when no supported agent is found (older clients
 sent `["claude"]`, the setup fallback). The **Harnesses** and **Devices without a supported agent** cards
-read this block; a device whose latest report predates it is left out of both.
+read this block; a device whose latest report predates it is left out of both. `lastUsedDays` leaves out
+the files thinker writes into an agent's own home (`src/harnesses.js:ageDays`, `clients.js:wiringFiles`):
+the hook's wiring check rewrites them daily, so counting them made every wired agent read as used today —
+the one figure that says whether a person works with an agent at all, answered by thinker's housekeeping.
+
+`raw_json.clients.wiring.<agent>.sessions7d` is how many of that agent's sessions changed in the last 7
+days, and it is **null when that cannot be known**, with `sessionStore` saying which case: `read` (the store
+was there, so 0 is a real zero), `missing` (not on this filesystem — the agent runs where this install
+cannot see it, or its home was moved), `none` (thinker reads no store for that agent at user scope: its
+sessions are the traces the hooks record inside a repository), `unreadable`. Until 2026-11-05 every one of
+those read as `0`, and a store thinker never looked at read like an agent nobody ran: Gemini's chats were
+not counted at all and `CLAUDE_CONFIG_DIR`/`CODEX_HOME` were ignored, though every other door of thinker
+honours them.
+
+`raw_json.clients.machine` (schema 1) is the machine the counts were read on, so a zero can be told from a
+blind spot: `container` (`docker`, `podman`, `containerd`, `kubernetes`, or null for a host — from the marks
+a runtime leaves on the process, never an id or image name), `agentHomesMoved` (agent names only),
+`thinkerHomeMoved`, and `installIdStable` — whether the install id will still be there for the next report.
+A home that cannot be written used to mint a new id every hour, so one machine read as dozens of installs
+(53, 37 and 22 ids in as many reports in October 2026); `getInstallId` now derives a stable id from the
+device when the write fails. **Machines running an agent that thinker never hears from**, **Why thinker
+cannot see an agent's sessions** and **Machines by kind** are the cards for all of this, on Cache health.
+Why it exists: on 2026-11-05 three machines reported an agent used that day or the day before, weeks of
+hourly reports, and no request, no session and no repository — installs on machines in daily use that were
+being served nothing, and the dashboard said nobody was running an agent.
 
 Clients until 2026-10-21 sent `raw_json.warmup` (gone with the warm-up, `d84af6795`; older rows keep it), 30-day counts of the warm-up offers the hooks
 made (`offers`; `offersToColdCaches` went to a cache that held notes from sessions but had
