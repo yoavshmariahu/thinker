@@ -298,12 +298,20 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // it carries thinker's name in the question and in the header and no offer can hand-write one that does not
   // (2026-10-29, the owner's ask). A new question goes through the same helper.
   assert.match(read('repo-onboard.js'), /export const QUESTION_HEADER = 'thinker';/);
-  for (const f of ['context-suggest.js', 'coverage.js', 'proxy-offer.js', 'error-report.js']) {
+  for (const f of ['context-suggest.js', 'coverage.js', 'proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
     const src = read(f);
     assert.match(src, /askThrough\(tool, /, `${f} asks through the labelled clause`);
     assert.match(src, /askInChat\(/, `${f} labels its chat fallback too`);
     assert.doesNotMatch(src, /\(header "(?!\$\{QUESTION_HEADER\})/, `${f} writes no header of its own`);
   }
+  // The container question is the owner's own wording (2026-11-05) and the only place it is written: the
+  // offer passes it to askThrough, which tells the agent to put it unchanged. A change here is deliberate.
+  assert.match(read('containers-offer.js'), /export const QUESTION = 'thinker is installed on your machine but not in the container\. Install it here to get token cost savings on your sessions\?';/);
+  assert.match(read('containers-offer.js'), /askThrough\(tool, QUESTION\)/);
+  assert.match(read('containers-offer.js'), /export const OPTIONS = '"Yes" \/ "No" \/ "Never ask again"';/);
+  assert.match(read('mcp-server.js'), /answerContainersOffer\(String\(choice\)/);
+  // one question a turn: the container offer takes its place in the hook's single chain, never beside another
+  assert.match(read('commands/hooks.js'), /proxyOffer\(store, \{ client \}\) \|\| containersOffer\(store, \{ client \}\) \|\|/);
   assert.match(read('context-suggest.js'), /\$\{cmd\} --dismiss all/);
   assert.match(read('ui/server.js'), /const said = \[\], pr = prAvailable\(st\.repo\)\.ok;/);
   assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);

@@ -270,7 +270,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                 what thinker itself has failed at on this machine, exactly as it would be
                                  sent to its developers. Nothing is sent until you answer yes; never stops
                                  the question coming back
-  containers [--install id|name|all] [--devcontainer] [--json]
+  containers [--install id|name|all] [--devcontainer] [--json] [--answer yes|no|never]
                                 the agents on this machine that run in a container. A devcontainer has its own
                                  home, so the wiring here is not what the agent in there reads, and it gets no
                                  notes; --install copies this build in (no network, native modules left out) and

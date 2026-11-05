@@ -51,6 +51,10 @@ export const DEFAULTS = {
   // shows it helps (AGENTS.md), and held there on 2026-10-25 (the owner's call: it was not effective enough to put to
   // people); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
   coverage: false,
+  // the one question about a container (containers-offer.js): on, because a session in a container is served
+  // nothing at all and the weekly context message cannot carry it (it is built from the sessions thinker can
+  // see). `maintain: { containers: false }` stops the machine being looked at.
+  containers: true,
   // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
   // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
   contextSuggest: true,
@@ -326,6 +330,11 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
     if (cfg.coverage === true && !dry) {
       try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch (e) { failed('coverage', e); }
+    }
+    // 7b. at most daily, and never from the prompt path: is an agent on this machine running in a container
+    // thinker is not inside (containers-offer.js)? The hook asks about what this records; a yes installs it.
+    if (cfg.containers !== false && !dry) {
+      try { const { scheduleContainersOffer } = await (fns.containers ? { scheduleContainersOffer: fns.containers } : import('./containers-offer.js')); const c = scheduleContainersOffer(store, { now }); if (c) r.containerFound = c.name || c.id; } catch (e) { failed('containers', e); }
     }
     // 8. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
     if (cfg.contextSuggest !== false && !dry) {
