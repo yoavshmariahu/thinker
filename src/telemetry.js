@@ -16,7 +16,7 @@ import { containerKind } from './container-kind.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
-import { proxyReport } from './proxy.js';
+import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
@@ -439,7 +439,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     const side = r.protocol === 'responses' ? 'responses' : r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'other';
     const m = byModel[r.model || 'unknown'] ||= {};
     const s = m[side] ||= { requests: 0, billedInput: 0, cleared: 0 };
-    s.requests++; s.billedInput += billed(r); s.cleared += r.cleared || 0;
+    s.requests++; s.billedInput += billed(r); s.cleared += clearedOf(r);
   }
   return {
     schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,

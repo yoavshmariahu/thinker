@@ -2,8 +2,8 @@
 // server-side edit, and each failure below is one this session measured.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder } from '../src/cutting.js';
+import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { decideCut, freshCut, priceCut, placeholder, clearedOf, clearedUsesOf, clearedEstimated } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -152,4 +152,44 @@ test('a turn boundary re-edits nothing older: the write leak that cost ~50k a tu
     before.forEach((m, i) => assert.equal(JSON.stringify(after[i]), JSON.stringify(m),
       `${what}: message ${i} must be byte-identical, or everything below it is written again`));
   }
+});
+
+// What the cut took out has to reach the five readers that report it. Until 0.2.23 it reached none:
+// `applyCut` never returned the `tokens` its caller put on the row, and every reader asked
+// `row.cleared > 0`, which the API sets and the cut does not. Measured on production telemetry
+// 2026-11-05: an install on 0.2.22 whose clearing-side requests moved over 85 hourly reports while
+// its `requestsCleared` stayed at exactly 3,414 and its `cleared` at 1,196,669,313 -- the frozen
+// residue of the API-side era, with not one cut counted since.
+test('a cut says what it took out, and every reader of the saving agrees on the figure', () => {
+  const ms = session(6);
+  const cand = cutCandidates(ms, { keepMin: 3 });
+  const applied = applyCut(ms, cand.ids);
+  assert.ok(applied.cut > 0);
+  assert.equal(applied.tokens, Math.round(applied.chars * TOKENS_PER_CHAR), 'the row carries tokens, not undefined');
+
+  const t = transformRequest('POST', '/v1/messages', headers,
+    Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms })),
+    { ...proxyConfig(), cutRecord: freshCut('s'), trigger: 1000, clearAtLeast: 1000 });
+  assert.ok(t.injected && t.clientCut.tokens > 0, 'the request logs its own count');
+
+  // one row, as the proxy writes it: no `cleared`, because nothing was asked of the API
+  const row = { op: 'proxy', at: '2026-11-05T10:00:00Z', session: 's', model: 'claude-opus-5-5', status: 200,
+    clientCut: t.clientCut, injected: true, input: 10, read: 200000, write: 0, out: 5 };
+  assert.equal(clearedOf(row), t.clientCut.tokens);
+  assert.equal(clearedUsesOf(row), t.clientCut.cut);
+  assert.ok(clearedEstimated(row), 'thinker counted it, the API did not measure it');
+
+  // the API-side era's rows keep their measured figure, and are not estimates
+  const old = { op: 'proxy', at: '2026-11-01T10:00:00Z', session: 'old', cleared: 7000, clearedUses: 3 };
+  assert.equal(clearedOf(old), 7000);
+  assert.equal(clearedUsesOf(old), 3);
+  assert.equal(clearedEstimated(old), false);
+
+  // the log's two sides (proxy.js:proxyReport)
+  const sides = proxyReport([row]);
+  assert.equal(sides.clearing.cleared, t.clientCut.tokens);
+  assert.equal(sides.clearing.requestsCleared, 1);
+  // a long call after a clear is counted after it, which is what the rewrite warning reads
+  assert.equal(sides.clearing.rewrites.after.calls, 1);
+  assert.equal(sides.clearing.rewrites.before.calls, 0);
 });

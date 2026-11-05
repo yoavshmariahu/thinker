@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
+import { clearedOf, clearedUsesOf } from './cutting.js';
 const sha = x => crypto.createHash('sha256').update(x).digest('hex');
 const canonical = x => Array.isArray(x) ? x.map(canonical) : x && typeof x === 'object'
   ? Object.fromEntries(Object.keys(x).sort().map(k => [k, canonical(x[k])])) : x;
@@ -116,19 +117,20 @@ export function clearBoundaries(records, session, requests) {
   let previous = 0;
   const times = [];
   for (const r of records.filter(r => r.op === 'proxy' && r.session === session).sort((a, b) => a.at.localeCompare(b.at))) {
-    if (!Number.isFinite(r.clearedUses)) continue;
-    if (r.cleared > 0 && r.clearedUses > previous) {
+    const uses = clearedUsesOf(r);
+    if (!Number.isFinite(uses)) continue;
+    if (clearedOf(r) > 0 && uses > previous) {
       const end = Date.parse(r.at);
       const start = requests.filter(q => q.at <= end).at(-1)?.at;
       // Don't assign a clear to a request hours before it merely because other calls had no notes.
       times.push(start != null && end - start < 5 * 60_000 ? start : end);
     }
-    previous = r.clearedUses;
+    previous = uses;
   }
   return times;
 }
 
-const PROXY_CACHE = diskCache('cache-clears', 1);
+const PROXY_CACHE = diskCache('cache-clears', 2);
 let proxyMemo;
 export function sessionClears(session, requests) {
   if (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG) return [];
@@ -137,8 +139,8 @@ export function sessionClears(session, requests) {
     const stat = fs.statSync(file), stamp = `${file}:${stat.size}:${stat.mtimeMs}`;
     if (proxyMemo?.stamp === stamp) return clearBoundaries(proxyMemo.records, session, requests);
     const records = cachedByFiles(PROXY_CACHE, cacheKey(file), [file], () => rows(fs.readFileSync(file, 'utf8'))
-      .filter(r => r.op === 'proxy' && r.session && Number.isFinite(r.clearedUses))
-      .map(({ at, session, cleared, clearedUses }) => ({ op: 'proxy', at, session, cleared, clearedUses })));
+      .filter(r => r.op === 'proxy' && r.session && Number.isFinite(clearedUsesOf(r)))
+      .map(({ at, session, cleared, clearedUses, clientCut }) => ({ op: 'proxy', at, session, cleared, clearedUses, ...(clientCut ? { clientCut } : {}) })));
     proxyMemo = { stamp, records };
     return clearBoundaries(records, session, requests);
   } catch { return []; }

@@ -76,6 +76,25 @@ export const MIN_CHARS = 200;
 export const placeholder = chars =>
   `[tool result removed by thinker after use: ${chars} chars. You saw it in full at the time, so answers you already gave from it stand. Read it again if you need it now.]`;
 
+// What a logged request says was taken out of *that* prompt, whichever door did it. Until 0.2.22 the API
+// cleared and reported it (`cleared`, measured); since the cut, thinker does it itself and the row carries
+// its own count (`clientCut`, the replaced results' characters at TOKENS_PER_CHAR). Both describe the
+// cumulative set left out of this one prompt -- the set is re-applied to every request of the session -- so
+// a sum over a session's rows is what the clearing saved it, as it always was.
+//
+// One accessor because five readers asked `row.cleared > 0` and the cut never set it: the per-session
+// record (`compression.js:noteCompression`), the log's two sides (`proxy.js:proxyReport`), the telemetry
+// (`telemetry.js:proxyMetrics`), what a pull request saved (`compression.js:clearedBySession`) and what the
+// rewrites after a clear cost (`clearingCostBySession`). Every one of them read 0 for the whole of 0.2.22.
+// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js).
+export const clearedOf = r => Math.round(r?.protocol === 'responses'
+  ? (r?.estimatedRemovedTokens || r?.clientCut?.tokens || 0)
+  : (r?.cleared || r?.clientCut?.tokens || 0));
+export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
+// Whether that figure is the API's measurement or thinker's own count of what it removed. Kept on the
+// record so no door claims a measured number for an estimate (`compression.js`).
+export const clearedEstimated = r => r?.protocol === 'responses' || (!(r?.cleared > 0) && r?.clientCut?.tokens > 0);
+
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
   saved: 0, written: 0, chars: 0, model: null, at: 0,

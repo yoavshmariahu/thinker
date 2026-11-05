@@ -30,10 +30,10 @@ import { transformResponses, responsesUsageTap, responsesReport } from './proxy-
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { noteCompression } from './compression.js';
-import { isRewrite, LONG_CONTEXT } from './cutting.js';
+import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
 import { decideCut, cutResponse, cutStore, freshCut, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
-export { isRewrite, LONG_CONTEXT };
+export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
 // `keep`: how many of the newest tool uses a clear leaves, a count or `turn` (2026-10-22): the tool uses of the
@@ -292,7 +292,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
 export function applyCut(messages, cut) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
-  if (!ids.size) return { messages, cut: 0, chars: 0, firstChanged: -1 };
+  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, firstChanged: -1 };
   let n = 0, chars = 0, firstChanged = -1;
   const out = messages.map((m, i) => {
     const c = m?.content;
@@ -309,7 +309,11 @@ export function applyCut(messages, cut) {
     if (firstChanged < 0) firstChanged = i;
     return { ...m, content: blocks };
   });
-  return { messages: out, cut: n, chars, firstChanged };
+  // `tokens` so the row a call logs says what was taken out of *that* prompt, in the units the figure is
+  // read in. It was asked for on the row (`clientCut.tokens`) and never returned here, so every reader of
+  // what the clearing saved -- the card, the Stop hook's line, `thinker proxy report`, `thinker prs`, the
+  // telemetry -- read 0 from 0.2.22, the release the cut shipped in (2026-11-05).
+  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
@@ -369,7 +373,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
     cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
-    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, inputChars: applied.inputChars, thinking: applied.thinking, firstChanged: applied.firstChanged },
+    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
     ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
     ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
@@ -684,10 +688,11 @@ export function proxyReport(rows, { since } = {}) {
     s.requests++; if (r.session) s.sessions.add(r.session); if (r.truncated) s.truncated++;
     // the cache after a clear: of the calls over LONG_CONTEXT, how many wrote their prefix rather than read it, before
     // the session's first clear and after it (a held-out session has no clear, so all of its calls are `before`)
-    if (r.cleared) s.seenClear.add(r.session);
+    const cleared = clearedOf(r);
+    if (cleared) s.seenClear.add(r.session);
     if ((r.input || 0) + (r.read || 0) + (r.write || 0) >= LONG_CONTEXT) { const b = s.long[s.seenClear.has(r.session) ? 'after' : 'before']; b[0]++; if (isRewrite(r)) b[1]++; }
     s.input += r.input || 0; s.read += r.read || 0; s.write += r.write || 0; s.out += r.out || 0;
-    s.cleared += r.cleared || 0; if (r.cleared) s.clears++;
+    s.cleared += cleared; if (cleared) s.clears++;
     s.overheadMs.push(r.overheadMs || 0);
   }
   const outSides = {};
