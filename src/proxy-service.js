@@ -193,7 +193,16 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     saveNetworkEnv(home, process.env);
     if (restartFn({ cli, home, managedOnly: true })) {
       const listening = await waitProxyStarted(home, s.port, wait);
-      return { on: true, restarted: true, why, managed: true, listening };
+      if (listening) return { on: true, restarted: true, why, managed: true, listening };
+      // Something is on the port without having recorded its startup -- a proxy mid-start, or another
+      // process entirely. Claim nothing and start nothing: a competitor there is the EADDRINUSE race this
+      // branch exists to avoid.
+      if (await isListening(s.port)) return { on: true, restarted: true, why, managed: true, listening };
+      // Nothing is on the port at all, and the manager said yes: a stub `systemctl` (every devcontainer
+      // image ships one), a unit it refused, a launchd agent that never came up. Start it here, because an
+      // agent pointed at a dead port is the one outcome worse than no proxy.
+      const own = startDetached({ cli, home });
+      return { on: true, restarted: true, why, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: await waitProxyStarted(home, s.port, wait, own) };
     }
     if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1') return { on: true, running: true, deferred: 'network-restricted hook' };
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
@@ -204,7 +213,12 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
   saveNetworkEnv(home, process.env);
   if (restartFn({ cli, home, managedOnly: true })) {
     const listening = await waitProxyStarted(home, s.port, wait);
-    return { on: true, started: true, managed: true, listening };
+    if (listening) return { on: true, started: true, managed: true, listening };
+    // as above: a listener that has not recorded ownership is left alone and claimed for nothing; a dead
+    // port after the manager said yes is started here
+    if (await isListening(s.port)) return { on: true, started: true, managed: true, listening };
+    const own = startDetached({ cli, home });
+    return { on: true, started: true, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: await waitProxyStarted(home, s.port, wait, own) };
   }
   const pid = startDetached({ cli, home });
   const listening = await waitProxyStarted(home, s.port, wait, pid);
@@ -271,7 +285,14 @@ WantedBy=default.target
 }
 const run = (cmd, args) => { try { execFileSync(cmd, args, { stdio: 'ignore' }); return true; } catch { return false; } };
 const uid = () => os.userInfo().uid;
-const hasSystemd = () => process.platform === 'linux' && run('systemctl', ['--user', 'show-environment']);
+// `systemctl` answering is not the same as systemd running this machine. Microsoft's devcontainer images --
+// and many other container images -- ship a stub `systemctl` on the PATH that exits 0 for everything and
+// starts nothing. Measured on 2026-11-05 in `mcr.microsoft.com/devcontainers/javascript-node:22`:
+// `systemctl --user show-environment`, `enable --now` and `restart` all succeeded, a unit was written, the
+// service recorded itself as on, and nothing ever listened -- so the agent in the container had
+// `ANTHROPIC_BASE_URL` pointing at a dead port and would have failed every model call. systemd is in charge
+// only where it booted the machine, which is what `/run/systemd/system` says; the stub cannot fake that.
+const hasSystemd = () => process.platform === 'linux' && fs.existsSync('/run/systemd/system') && run('systemctl', ['--user', 'show-environment']);
 
 // the service manager's entry: launchd on macOS, systemd on Linux with a user session; elsewhere the hook alone
 export function installService({ cli, home = thinkerHome(), manage = !isTestMode() } = {}) {
