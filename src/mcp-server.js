@@ -13,6 +13,7 @@ import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
 import { coveragePending, answerCoverage } from './coverage.js';
 import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
+import { containersOfferPending, answerContainersOffer } from './containers-offer.js';
 import { errorOfferPending, answerErrorOffer } from './error-report.js';
 import { contextSuggestAwaiting, answerContextSuggestion } from './context-suggest.js';
 import { queueDir, buildRunning, nextRequest, answerRequest, requestText } from './session-llm.js';
@@ -96,6 +97,7 @@ function registerTools() {
   registerContextTool();
   registerCoverageTool();
   registerProxyTool();
+  registerContainersTool();
   registerErrorsTool();
   registerQueueTools();
 }
@@ -154,6 +156,21 @@ function registerProxyTool() {
       asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
     },
   }, async ({ choice, asked }) => text(await answerProxyOffer(String(choice), { store, client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
+}
+
+// The answer to the offer to install thinker in the container the agent runs in (containers-offer.js):
+// offered only while one waits. It needs no repository of its own -- a container is the machine's.
+let containersTool;
+function registerContainersTool() {
+  if (containersTool || !containersOfferPending()) return;
+  containersTool = server.registerTool('containers', {
+    title: 'Answer the container install offer',
+    description: 'Only when a thinker-container-offer notice tells you to: records the user\'s answer and, if they said yes, installs thinker in the container and wires the agents inside.',
+    inputSchema: {
+      choice: z.string().describe('What the user chose: yes, no, or never'),
+      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
+    },
+  }, async ({ choice, asked }) => text(await answerContainersOffer(String(choice), { store, client: clientName(), via: asked === 'chat' ? 'text' : 'picker' })));
 }
 
 // The answer to the one-off question about sending error reports (error-report.js): offered only while one

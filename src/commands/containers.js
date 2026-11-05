@@ -7,8 +7,17 @@ import { thinkerHome } from '../update.js';
 
 const WIRABLE_NOTE = 'thinker is on this machine but not inside the container, so the agent in there gets no notes and nothing is learned from its sessions.';
 
-export async function containersCommand({ flags = {}, store, out = console.log, exec = execFileSync } = {}) {
+export async function containersCommand({ flags = {}, args = [], store, out = console.log, exec = execFileSync, cli } = {}) {
   if (flags.devcontainer) { out(containerSnippet()); return; }
+
+  // the answer to the in-session offer (containers-offer.js), for a client that speaks no MCP and for
+  // anyone typing it; a yes installs here and now, as it does through the tool
+  if (flags.answer != null) {
+    const { answerContainersOffer } = await import('../containers-offer.js');
+    const choice = String(flags.answer === true ? (args[1] || '') : flags.answer);
+    out(await answerContainersOffer(choice, { store, client: flags.client ? String(flags.client) : undefined, via: flags.via === 'text' ? 'text' : 'picker', exec }));
+    return;
+  }
 
   let repos = [];
   // every checkout this machine's log has named (usage.js:knownRepos keeps them per origin), so an offer is

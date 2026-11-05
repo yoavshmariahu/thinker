@@ -37,6 +37,17 @@ Tested live on 2026-11-05 against that image, with the repository bind-mounted: 
 Claude Code and Codex inside, and the prompt hook there served a note out of the repository's cache with
 every pointer resolved against the code inside the container.
 
+thinker asks about it itself, once. Maintenance looks at the machine at most daily (never the prompt hook:
+no prompt waits on `docker ps`) and records a container running an agent it is not inside; the next prompt
+has the agent put the question to the person with its own picker -- "thinker is installed on your machine
+but not in the container. Install it here to get token cost savings on your sessions?", Yes / No / Never ask
+again -- and the answer comes back through thinker's `containers` MCP tool or `thinker containers --answer`.
+A yes installs there and then. A no waits 30 days, since a container is a situation and not a one-off fault:
+another is started, this one is rebuilt. Never closes it on this machine, and `maintain: { containers:
+false }` stops the machine being looked at at all. It is a question of its own rather than a line in the
+weekly context message because that message is built from the sessions thinker can see, and a session inside
+a container is exactly what it cannot (the owner's call, 2026-11-05).
+
 Two limits to know. A container rebuild wipes the install -- `thinker containers --devcontainer` prints the
 `postCreateCommand` and volume that keep it. And a **git worktree** cannot be used from inside a container
 on its own: its `.git` is a file naming a gitdir on the host, so `git rev-parse` fails inside and thinker
