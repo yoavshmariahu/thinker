@@ -172,23 +172,59 @@ test('a request the agent cancelled is logged as a cancellation, not a failure',
       req.end(cuttable());
       setTimeout(() => { req.destroy(); setTimeout(resolve, 300); }, 100);
     });
-    const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
+    assert.deepEqual(rows(px.logFile).filter(x => x.op === 'proxy-error'), [], 'a cancellation is not a failure');
+    const errs = rows(px.logFile).filter(x => x.op === 'proxy-cancelled');
     assert.equal(errs.length, 1, 'one row, whichever stream reported the break first');
-    assert.equal(errs[0].aborted, true, 'the agent left: nothing failed');
+    assert.equal(errs[0].aborted, true, 'the flag stays for a reader of an older log');
     assert.equal(errs[0].retried, false, 'nobody is waiting for the answer');
   } finally { px.server.close(); slow.close(); }
 });
 
-test('a name that does not resolve is tried once more before the agent sees an api_error', async () => {
-  const px = await proxyTo('http://thinker-proxy-no-such-host.invalid');
+test('a name that does not resolve is given the whole ladder before the agent sees an api_error', async () => {
+  // The rungs are the test's own so it does not sit through eight seconds; the policy and its
+  // measurement are in test/proxy-retry.test.js.
+  const px = await proxyTo('http://thinker-proxy-no-such-host.invalid', {}, { retryWaits: [1, 1, 1] });
   try {
     const r = await send(px.port);
     assert.equal(r.status, 502);
     assert.equal(JSON.parse(r.text).error.type, 'api_error');
     const errs = rows(px.logFile).filter(x => x.op === 'proxy-error');
-    assert.deepEqual(errs.map(x => x.code), ['ENOTFOUND', 'ENOTFOUND']);
-    assert.deepEqual(errs.map(x => x.retried), [true, false], 'the resolver gets a second chance');
+    assert.deepEqual(errs.map(x => x.code), Array(4).fill('ENOTFOUND'), 'three tries again, then the failure is the agent\'s');
+    assert.deepEqual(errs.map(x => x.retried), [true, true, true, false]);
+    assert.deepEqual(errs.map(x => x.attempt), [0, 1, 2, 3], 'each row says which try it was');
   } finally { px.server.close(); }
+});
+
+test('a request survives a resolver that goes quiet, on the address the host last answered on', async () => {
+  // The upstream closes each connection, so the second request has to resolve the name again rather
+  // than reuse a socket: the point is the lookup, not the pool.
+  const seen = [];
+  const once = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => { seen.push(req.url); res.writeHead(200, { 'content-type': 'text/event-stream', connection: 'close' }); res.end(SSE.join('')); });
+  });
+  await new Promise(r => once.listen(0, '127.0.0.1', r));
+  let resolves = true, asked = 0;
+  // The host is a name on purpose: 127.0.0.1 never reaches a resolver, and this is about the resolver.
+  const px = await proxyTo(`http://thinker-proxy-test.invalid:${once.address().port}`, {}, {
+    resolver: (host, options, cb) => {
+      asked++;
+      if (!resolves) return cb(Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }));
+      return options?.all ? cb(null, [{ address: '127.0.0.1', family: 4 }]) : cb(null, '127.0.0.1', 4);
+    },
+  });
+  try {
+    assert.equal((await send(px.port)).status, 200, 'the first request fills the book');
+    resolves = false;
+    const r = await send(px.port);
+    assert.equal(r.status, 200, 'the second goes through although nothing resolves');
+    assert.deepEqual(seen.length, 2, 'and it really reached the upstream');
+    assert.ok(asked >= 2, 'the resolver was asked first either way');
+    const fell = rows(px.logFile).filter(x => x.op === 'proxy-dns-fallback');
+    assert.equal(fell.length, 1, 'the fallback is on the record, to be counted');
+    assert.equal(fell[0].host, 'thinker-proxy-test.invalid');
+    assert.deepEqual(rows(px.logFile).filter(x => x.op === 'proxy-error'), [], 'nothing failed, so nothing is reported as a failure');
+  } finally { px.server.close(); once.close(); }
 });
 
 test('an answer that stops partway is a failure, and its usage row says the tokens are partial', async () => {

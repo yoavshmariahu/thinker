@@ -403,12 +403,16 @@ const billed = r => Math.round((r.input || 0) + 0.1 * (r.read || 0) + 2 * (r.wri
 // so their cancellations are still in `errors`; the window rolls them out in 30 days.
 // `total` counts tries, so a request tried twice is two: `retried` is how many were tried again and
 // `failed` (total - retried) is how many the agent saw fail.
+// `recovered` is how many of those retries then got an answer -- the number that judges the retry
+// policy, and the one nobody was counting. Measured on this machine for the fortnight to 2026-11-05 it
+// would have read 110 retries and 1 recovery, which is what sent the ladder and the address book in
+// (proxy-retry.js). It is read off the usage rows, since only a request that answered has one.
 export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = process.env } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const rows = readProxyRows(proxyLogFile(home, env)).filter(r => !r.at || r.at >= since);
   const state = serviceState(home);
   let cfg = {}; try { cfg = (readMachineConfig(home) || {}).proxy || {}; } catch {}
-  const errors = { total: 0, retried: 0, truncated: 0, byCode: {} };
+  const errors = { total: 0, retried: 0, recovered: 0, truncated: 0, byCode: {} };
   let cancelled = 0;
   const byModel = {};
   const notes = { requests: 0, served: 0, replayed: 0 };
@@ -422,13 +426,15 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     if (r.op === 'proxy-standdown') { standDowns.push({ at: r.at || null, reason: r.reason || null }); continue; }
     if (r.op === 'proxy-offer') { offer.asked++; continue; }
     if (r.op === 'proxy-offer-answer') { if (offer[r.choice] != null) offer[r.choice]++; continue; }
+    if (r.op === 'proxy-cancelled') { cancelled++; continue; }
     if (r.op === 'proxy-error') {
-      if (r.aborted) { cancelled++; continue; }
+      if (r.aborted) { cancelled++; continue; }   // a row written before the op existed (2026-11-05)
       errors.total++; if (r.retried) errors.retried++; if (r.truncated) errors.truncated++;
       const code = String(r.code || 'unknown'); errors.byCode[code] = (errors.byCode[code] || 0) + 1;
       continue;
     }
     if (r.op !== 'proxy') continue;
+    if (r.retried) errors.recovered++;   // tried again and answered (proxy.js:send)
     if (r.notes != null) { notes.requests++; notes.served += r.notes || 0; notes.replayed += r.notesReplayed || 0; }
     const side = r.protocol === 'responses' ? 'responses' : r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'other';
     const m = byModel[r.model || 'unknown'] ||= {};
