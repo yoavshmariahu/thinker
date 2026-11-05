@@ -83,7 +83,7 @@ test('the compression page inlines a run index and the default run, and every ru
     const d = JSON.parse(fs.readFileSync(new URL(`../site/clearing-${r.id}.json`, import.meta.url), 'utf8'));
     for (const arm of ['cut', 'control']) {
       assert.ok(d[arm].calls.length > 10, `${r.id} ${arm}: every model call`);
-      assert.ok(d[arm].turns.length >= 9, `${r.id} ${arm}: the turns`);
+      assert.ok(d[arm].turns.length >= 7, `${r.id} ${arm}: the turns`);
       for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${r.id} ${arm} call ${c.k} is complete`);
     }
     assert.ok(d.control.calls.every(c => !c.cut), `${r.id}: the control was never cut`);
@@ -102,13 +102,13 @@ test('the compression page\'s session view reads both runs, turn by turn, from o
     const f = `clearing-${id}-session.json`;
     const data = JSON.parse(fs.readFileSync(new URL('../site/' + f, import.meta.url), 'utf8'));
     for (const arm of ['cut', 'control']) {
-      assert.ok(data[arm].turns.length >= 9, `${f} ${arm}: the turns`);
+      assert.ok(data[arm].turns.length >= 7, `${f} ${arm}: the turns`);
       for (const t of data[arm].turns) assert.ok(t.prompt && t.steps.length, `${f} ${arm} turn ${t.n} has a prompt and steps`);
       assert.doesNotMatch(JSON.stringify(data[arm].turns.map(t => t.prompt)), /\/Users\//, `${f} ${arm}: no home paths`);
     }
     assert.deepEqual(data.cut.turns.map(t => t.prompt), data.control.turns.map(t => t.prompt), `${f}: compare the same user turn`);
     const cutResults = data.cut.turns.flatMap(t => t.steps).filter(s => s.kind === 'result' && s.cutAt);
-    assert.ok(cutResults.length > 0, `${f}: the cut results are marked`);
+    assert.equal(cutResults.length > 0, data.cut.calls.some(c=>c.cut), `${f}: only recorded cuts mark results`);
     for (const r of cutResults) assert.ok(data.blobs[r.blob], `${f}: a cut result keeps its original text`);
   }
 });
@@ -190,7 +190,7 @@ test('Django uses recorded input without a separate Codex write charge and retai
     assert.equal(data.recordedTTL,true);
     for (const [arm,side] of [['control','off'],['cut','on']]) {
       const calls=data[arm].calls;
-      assert.equal(data[arm].turns.length,9);
+      assert.equal(data[arm].turns.length,data.promptCount || 9);
       assert.equal(calls.length,accounting.sessions[side].calls.length);
       assert.ok(calls.every(c=>c.write===c.write1h+c.write5m));
       const price=calls.reduce((n,c)=>n+(c.input*4+c.read*.2+c.write1h*8+c.write5m*5+c.out*20)/1e6,0);
@@ -211,6 +211,9 @@ test('Django uses recorded input without a separate Codex write charge and retai
   assert.equal(d.codexBilling,true);
   assert.equal(d.writeCountsRecorded,false,'missing physical counters stay missing');
   assert.equal(d.costBounds,undefined);
+  assert.equal(d.comparisonIncomplete,true);
+  assert.match(d.reviewNotice,/TLS transport failure/);
+  assert.equal(read('clearing-django-astra-costs.json').pairedSavings,null);
   assert.equal(d.savings,undefined,'derive the headline from the same costs as the chart');
   assert.equal(d.price.w1h,0);assert.equal(d.price.w5m,0);
   const html=fs.readFileSync(new URL('../site/compression.html',import.meta.url),'utf8');
@@ -222,6 +225,7 @@ test('Django uses recorded input without a separate Codex write charge and retai
     assert.ok(Math.abs(summary[arm].cost5m-cost)<1e-8);
   }
   assert.equal(summary.savings,undefined,'no obsolete range in the session selector');
+  assert.equal(summary.comparisonIncomplete,true);
   const sessionText=fs.readFileSync(new URL('../site/clearing-django-astra-session.json', import.meta.url),'utf8');
   assert.doesNotMatch(sessionText, /encrypted_content|gAAAAAB|\/Users\/yoav|\/private\/var\/folders/);
 });

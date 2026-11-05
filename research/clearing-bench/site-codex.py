@@ -13,7 +13,9 @@ full={**small};blobs={}
 def scrub(s):
  s=re.sub(r'/private/var/folders/[^\s<>"\']+/T/artemis-worktrees/[^/\s<>"\']+', '<checkout>',s)
  s=re.sub(r'/Users/[^/\s]+', '~',s)
- return s
+ s=re.sub(r'/private/var/folders/[^\s<>"\']*', '<temporary path>',s)
+ s=re.sub(r'gAAAAAB[A-Za-z0-9_=\-]*', '[encrypted value omitted]',s)
+ return re.sub(r'sk-[A-Za-z0-9_\-]{20,}', '[credential-like value omitted]',s)
 def text(x):
  if isinstance(x,str):return x
  if isinstance(x,list):return '\n'.join(text(i) for i in x)
@@ -21,12 +23,24 @@ def text(x):
  return ''
 def keep(t):
  key=hashlib.sha256(t.encode()).hexdigest()[:16];blobs[key]=t;return key
-reconciliation=json.loads(pathlib.Path(a.reconciliation).read_text());assert len(reconciliation['pairs'])==1 and not reconciliation['excluded'];pair=reconciliation['pairs'][0]
+reconciliation=json.loads(pathlib.Path(a.reconciliation).read_text());incomplete=reconciliation.get('strictSessionVerification',{}).get('complete') is False
+if incomplete:
+ assert reconciliation['finalCodexCumulativeUsageMatches'] and reconciliation['pairedSavings'] is None
+ small.update(comparisonIncomplete=True,reviewNotice="Recorded usage only: the control had one TLS transport failure whose billing is unknown. Its 66 successful responses match Codex’s final usage totals. Complete-session cost and savings remain unverified. Both patches met all five criteria.",cutPolicy={'maxPaybackCalls':20},costData='clearing-django-astra-costs.json')
+ full.update(small)
+else:
+ assert len(reconciliation['pairs'])==1 and not reconciliation['excluded']
 # The page derives one saving from recorded input/read/output at the displayed rates.
 # Codex credit billing has no separate write charge; API write-price bounds do not apply.
 for arm in ['control','cut']:
- rec=json.loads(pathlib.Path(getattr(a,arm)).read_text());raw=rec['raw'];report=raw['armReport'];assert raw['model']=='gpt-6-astra' and raw['turns']==14 and not rec['row']['invalid'];assert report['validation']['proxyObserved']
- ds=sorted([json.loads(f.read_text())for f in pathlib.Path(report['validation']['dump']).rglob('*.json')],key=lambda d:d['at']);assert ds
+ rec=json.loads(pathlib.Path(getattr(a,arm)).read_text());raw=rec['raw'];report=raw.get('armReport');assert raw['model']=='gpt-6-astra' and raw['turns']==14 and not rec['row']['invalid']
+ if report:
+  assert report['validation']['proxyObserved'];dumpdir=report['validation']['dump']
+ else:
+  assert incomplete and arm=='control' and rec['row']['id']==reconciliation['control']
+  report={'responses':{'holdout':reconciliation['controlRecordedUsage']}}
+  dumpdir=json.loads(raw['armSteps']['before']['tail'])['dump']
+ ds=sorted([json.loads(f.read_text())for f in pathlib.Path(dumpdir).rglob('*.json')],key=lambda d:d['at']);assert ds
  turns=[dict(n=i+1,prompt=scrub(t),steps=[],calls=[],tools={})for i,t in enumerate(prompts)]
  seen=set();resultmap={};calls=[];seen_prompts=set()
  for k,d in enumerate(ds,1):
@@ -40,7 +54,7 @@ for arm in ['control','cut']:
     continue
    if typ in ['function_call_output','custom_tool_call_output']:
     tid=item['call_id'];body=text(item.get('output'));prior=resultmap.get(tid)
-    if body.startswith("[thinker: an older turn's tool output was cleared."):
+    if body.startswith(("[thinker: an older turn's tool output was cleared.", "[tool result removed by thinker")):
      assert prior,'Original result is missing from earlier requests'
      if not prior.get('cut'):prior['cut']=k;prior['step']['cutAt']=k;new_cuts.append(prior)
      continue
