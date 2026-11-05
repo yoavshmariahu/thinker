@@ -34,5 +34,12 @@
     "label": "MLflow \u00b7 Span serialization",
     "description": "Astra medium \u00b7 knowledge cache + compression",
     "when": "2026-11-04"
+  },
+  {
+    "id": "posthog-invites",
+    "group": "posthog-invites",
+    "label": "PostHog \u00b7 Member invitations",
+    "description": "Opus medium \u00b7 knowledge cache + compression",
+    "when": "2026-11-04"
   }
 ]
