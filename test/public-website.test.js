@@ -169,7 +169,24 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
 test('Django uses API totals and an explicit cost range with judged success; mitmproxy is not offered', () => {
   const read = name => JSON.parse(fs.readFileSync(new URL('../site/' + name, import.meta.url), 'utf8'));
   const manifest = read('clearing-runs.json');
-  assert.deepEqual(manifest.map(r => r.id), ['click-1', 'django-astra', 'mlflow-registry', 'mlflow-gateway', 'mlflow-span']);
+  assert.deepEqual(manifest.slice(0,5).map(r => r.id), ['click-1', 'django-astra', 'mlflow-registry', 'mlflow-gateway', 'mlflow-span']);
+  for (const entry of manifest.slice(5)) {
+    assert.match(entry.id, /^posthog-/);
+    const data=read(`clearing-${entry.id}.json`), accounting=read(`clearing-${entry.id}-costs.json`), transcript=read(`clearing-${entry.id}-session.json`);
+    assert.equal(data.recordedTTL,true);
+    for (const [arm,side] of [['control','off'],['cut','on']]) {
+      const calls=data[arm].calls;
+      assert.equal(data[arm].turns.length,9);
+      assert.equal(calls.length,accounting.sessions[side].calls.length);
+      assert.ok(calls.every(c=>c.write===c.write1h+c.write5m));
+      const price=calls.reduce((n,c)=>n+(c.input*4+c.read*.2+c.write1h*8+c.write5m*5+c.out*20)/1e6,0);
+      assert.ok(Math.abs(price-accounting.sessions[side].cost)<1e-8,'measured write lifetimes reconcile to Artemis pricing');
+      assert.equal(data[arm].judgment.pass,accounting.sessions[side].pass);
+      assert.deepEqual(data[arm].knowledgeEvents,transcript[arm].knowledgeEvents);
+    }
+    assert.equal(data.control.knowledgeEvents.length,0);
+    assert.ok(data.control.calls.every(c=>!c.cut));
+  }
   const d = read('clearing-django-astra.json');
   for (const arm of ['control', 'cut']) {
     assert.equal(d[arm].turns.length, 14);

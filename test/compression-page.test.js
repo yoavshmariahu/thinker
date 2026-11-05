@@ -161,4 +161,41 @@ assert.match(node('#session-label').innerHTML,/Claude Opus 5.5/);
 assert.doesNotMatch(node('#timeline').innerHTML,/Turn 24|NaN/);
 await click('.tabs',tabs[0]);
 assert.equal(node('#view-metrics').hidden,false);
+for (const entry of JSON.parse(fs.readFileSync('site/clearing-runs.json')).filter(r=>r.id.startsWith('posthog-'))) {
+ await click('#sessions',{dataset:{run:entry.id}});
+ const d=JSON.parse(fs.readFileSync(`site/clearing-${entry.id}.json`));
+ const accounting=JSON.parse(fs.readFileSync(`site/clearing-${entry.id}-costs.json`));
+ assert.equal(node('#ttl').hidden,true);
+ assert.ok(node('#ptab').innerHTML.includes(`<td>total</td><td>$${accounting.sessions.off.cost.toFixed(2)}</td><td>$${accounting.sessions.on.cost.toFixed(2)}</td>`));
+ assert.match(node('#tiles').innerHTML,/Opus judge/);
+ assert.match(node('#caveats').innerHTML,/not knowledge caching alone/);
+ assert.doesNotMatch(node('#pricing-explainer').innerHTML,/zero cache-write/);
+ await click('.tabs',tabs[1]);
+ assert.match(node('#timeline').innerHTML,/Turn 9/);
+ assert.match(node('#sess-note').textContent,/Both Claude sessions/);
+ assert.doesNotMatch(node('#timeline').innerHTML,/what the model sees now|NaN|undefined/);
+ await click('.tabs',tabs[0]);
+}
+// Unit fixture only: exercise actual mixed-TTL pricing and a worse treatment outcome.
+context.ttlFixture = JSON.parse(fs.readFileSync('site/clearing-click-1.json'));
+const f = context.ttlFixture;
+Object.assign(f,{recordedWrites:true,recordedTTL:true,combined:true,judged:true,costData:'fixture-costs.json',task:'fixture'});
+for (const [arm,mult] of [['control',1],['cut',2]]) {
+ f[arm].calls.forEach((c,i)=>Object.assign(c,{input:i?0:1000,read:i?0:1000,out:i?0:100,write1h:i?0:1000000*mult,write5m:i?0:1000000*mult,write:i?0:2000000*mult}));
+ f[arm].knowledgeEvents=[];f[arm].judgment={pass:arm==='control'};f[arm].outcome=arm==='control'?'Judge passed':'Judge failed';
+}
+vm.runInContext("RUN_DATA['click-1'] = ttlFixture; const fixtureRun = RUNS.find(r=>r.id==='click-1'); fixtureRun.summary.savings = {minPercent:-99.95,maxPercent:-99.95,minDollars:-13,maxDollars:-13};",context);
+await click('#sessions',{dataset:{run:'mlflow-span'}});
+await click('#sessions',{dataset:{run:'click-1'}});
+assert.equal(node('#ttl').hidden,true);
+assert.match(node('#pricing-explainer').innerHTML,/Each write is priced at its reported lifetime/);
+assert.match(node('#ptab').innerHTML,/<td>cache writes · 5 minutes<\/td><td>\$5\.00<\/td><td>\$10\.00<\/td>/);
+assert.match(node('#ptab').innerHTML,/<td>cache writes · 1 hour<\/td><td>\$8\.00<\/td><td>\$16\.00<\/td>/);
+assert.match(node('#ptab').innerHTML,/<td>total<\/td><td>\$13\.01<\/td><td>\$26\.01<\/td>/);
+assert.match(node('#session-label').innerHTML,/99\.9[45]?% more|100\.0% more/);
+assert.match(node('#tiles').innerHTML,/Check results/);
+assert.match(node('#tiles').innerHTML,/Opus judge · both patches/);
+assert.doesNotMatch(node('#tiles').innerHTML,/Both passed|undefined|NaN/);
+assert.match(node('#judge-evidence').innerHTML,/Judge failed/);
+assert.doesNotMatch(node('#caveats').innerHTML,/zero cache-write|Both PR-test suites passed/);
 });

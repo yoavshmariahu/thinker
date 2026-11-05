@@ -15,6 +15,9 @@ def summary(d):
         base = tot('input') * P['input'] + tot('out') * P['out'] + tot('read') * P['read']
         out[arm] = dict(calls=len(c), reads=tot('read'), writes=tot('write') + cold, out=tot('out'), max=max(x['read'] + x['write'] + x['input'] for x in c) + (cold if False else 0),
                         cost1h=(base + (tot('input') * (P['w1h'] - P['input']) if d.get('costBounds') else 0) + (tot('write') + cold) * P['w1h']) / 1e6, cost5m=(base + (tot('write') + cold) * P['w5m']) / 1e6, outcome=d[arm].get('outcome'))
+        if d.get('recordedTTL'):
+            assert all(x['write'] == x['write1h'] + x['write5m'] for x in c)
+            out[arm]['cost1h'] = out[arm]['cost5m'] = (base + tot('write1h')*P['w1h'] + tot('write5m')*P['w5m'])/1e6
     cuts = [x['cut'] for x in d['cut']['calls'] if x.get('cut')]
     out['coldCost'] = {'1h': d['cold'] * P['w1h'] / 1e6, '5m': d['cold'] * P['w5m'] / 1e6}
     out['cuts'] = len(cuts); out['cutTokens'] = sum(x['tokens'] for x in cuts)
