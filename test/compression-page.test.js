@@ -79,27 +79,33 @@ await click('#ttl',ttls[1]);
 assert.equal(ttls[1]['aria-pressed'], true);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
-assert.match(node('#tiles').innerHTML,/Unverified/);
 checkCodexInputs('django-astra');
 assert.match(node('#tiles').innerHTML,/LLM judge · 5\/5 criteria/);
 assert.deepEqual(partRows(node('#ptab').innerHTML),['cached input','uncached input','output','total']);
 assert.doesNotMatch(node('#ptab').innerHTML,/cache writes|Not recorded/);
 assert.equal(legendText(node('#legend1').innerHTML),legend);
 
-assert.match(node('#tiles').innerHTML,/<span>Unverified<\/span>/);
-assert.match(node('#run-notice').textContent,/billing is unknown/);
-assert.doesNotMatch(node('#ptab').innerHTML,/%/);
-assert.match(node('#session-label').innerHTML,/Cost unverified/);
+// The accounted 2026-11-04 pair: a figure, not "Unverified". It ran the earlier per-request policy,
+// and the notice beside it has to say so, or the headline reads as the policy that ships now.
+assert.doesNotMatch(node('#tiles').innerHTML,/Unverified/);
+assert.match(node('#tiles').innerHTML,/19\.2% saved/);
+assert.match(node('#run-notice').textContent,/earlier per-request cut policy/);
+assert.match(node('#run-notice').textContent,/not a measurement of what Thinker does today/);
+assert.doesNotMatch(node('#run-notice').textContent,/billing is unknown/);
+assert.doesNotMatch(node('#session-label').innerHTML,/Cost unverified/);
 assert.doesNotMatch(node('#session-label').innerHTML,/At least/);
 assert.doesNotMatch(node('#tiles').innerHTML,/At least|Session cost/);
 assert.match(node('#tiles').innerHTML,/<div class="k">Uncached input<\/div>/);
 assert.equal([...node('#tiles').innerHTML.matchAll(/<div class="k">[^<]*cost[^<]*<\/div>/gi)].length,1,'only one topline cost card');
-assert.match(node('#stats').innerHTML,/10.54/);
-assert.match(node('#stats').innerHTML,/10.42/);
+assert.match(node('#stats').innerHTML,/11.09/);
+assert.match(node('#stats').innerHTML,/8.96/);
 const beforeCostChart=node('#c2').innerHTML;
 const savingsCard=node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0];
 for (const sub of node('#tiles').innerHTML.matchAll(/<div class="sub">([^<]+)<\/div>/g)) assert.ok(sub[1].length <= 32, 'topline subtext stays brief');
-assert.match(node('#caveats').innerHTML,/Shared turn-boundary cut policy/);
+// the caveats block for this run leads with the policy it actually ran, so a reader cannot take the
+// figure for the shipped turn-boundary one
+assert.match(node('#caveats').innerHTML,/Historical per-request cutting policy/);
+assert.match(node('#caveats').innerHTML,/not a measurement of batched cutting/);
 assert.match(node('#judge-evidence').innerHTML,/Task outcome/);
 assert.doesNotMatch(node('#tiles').innerHTML,/NaN|undefined/);
 assert.equal(node('#ttl-label').textContent,'OpenAI pricing');
@@ -112,8 +118,10 @@ assert.doesNotMatch(node('#tiles').innerHTML,/estimated|range/);
 
 assert.doesNotMatch(node('#sessions').innerHTML,/mitmproxy/);
 await click('#ttl',ttls[0]);
-assert.match(node('#stats').innerHTML,/10.54/);
-assert.match(node('#stats').innerHTML,/10.42/);
+assert.match(node('#stats').innerHTML,/11.09/);
+assert.match(node('#stats').innerHTML,/8.96/);
+assert.match(node('#stats').innerHTML,/−19.2%/,'the saving is stated against the control, from the same costs');
+assert.match(node('#stats').innerHTML,/Prompt-cache writes, tokens<\/td><td>n\/a<\/td><td>n\/a<\/td>/,'unreported in both arms');
 assert.equal(node('#c2').innerHTML,beforeCostChart,'hidden TTL setting cannot change Codex costs');
 assert.equal(node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0],savingsCard,'Codex saving does not depend on the TTL setting');
 assert.match(node('#c2').innerHTML,/svg/);
@@ -127,7 +135,8 @@ assert.equal(prevented,true);assert.equal(tabs[1].focused,true);assert.equal(tab
 assert.equal(tabs[0].tabindex,'-1');
 
 assert.match(node('#timeline').innerHTML,/Turn 14/);
-assert.doesNotMatch(node('#timeline').innerHTML,/(?:−|\+)\d+%|The whole session/);
+// deltas are shown again: the pair is accounted, so a difference can be stated
+assert.match(node('#timeline').innerHTML,/\(−19%\)/);
 assert.ok(!node('#timeline').innerHTML.includes('NaN'), 'no unrecorded fields rendered as numbers');
 assert.match(node('#sess-note').textContent,/API usage/);
 for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36'],['mlflow-span','16.6%','13.22','11.02','0.36']]) {
