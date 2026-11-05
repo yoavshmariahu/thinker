@@ -200,7 +200,32 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
   so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
   the saving it would have made, a wrong one pays a full prefix rewrite up front.
-- **The ratchet.** A cut is a set of `tool_use` ids kept per session on disk (`cutStore`). The agent resends the
+- **The ratchet is the conversation's, and it is held under concurrency** (2026-11-05; `proxy.js:conversationKey`,
+  `cutting.js:mergeCut`, `cutStore.update`). One machine runs many agents through one proxy, and the record the
+  ratchet lives in was keyed on `x-claude-code-session-id`, which Claude Code sends for everything a session does:
+  the person's thread, each subagent's, and the small side calls beside them. So one record held several
+  conversations. Two failures followed, both reproduced end to end against the real proxy process on 240
+  requests, 12 conversations under 3 session ids (`test/proxy.test.js`, the two concurrency tests):
+  a title call's `turn: 1` landed in the person's record, and the next request of their turn read itself as a new
+  boundary and **cut mid-turn** -- 4 moves in that run, 0 after; and an overlapping request's late answer
+  persisted the record it had read before the reservation, **putting the set back** -- 9 rollbacks, 0 after. The
+  records themselves told the rest: 3 records holding 23 to 26 ids from conversations they did not belong to, and
+  29 calls counted where 70 happened, against 12 records of 10 ids and every call counted.
+  So: the record is named by the conversation's own first user message (its text alone, because Claude Code moves
+  `cache_control` between calls), a write merges with what is stored instead of replacing it and only ever goes
+  forward (the turn rises, the set is the furthest-on turn's, no counter falls), the counters are incremented
+  read-modify-write, and the file is renamed into place so a reader never sees half a record. Two conversations
+  opened with the same words still share a record; that is the residue.
+- **One session replaces a running proxy, not all of them** (`proxy-service.js:claimRestart`, `RESTART_GRACE_MS`
+  30s). `thinker update` moves the version for the whole machine, and then every session's next prompt had a
+  reason to restart the proxy -- each a SIGTERM to a process streaming another session's answer, each new process
+  racing the service manager for the port: 105 recorded starts against 26,245 EADDRINUSE lines in this machine's
+  log. The first hook to arrive claims the restart in a file created with `wx`, keyed on what it is restarting
+  *to*, and the rest find the proxy they wanted on their next prompt. The claim is left to expire rather than
+  released, because the window that matters is between the SIGTERM and the new process recording its own version,
+  where every other hook still reads the old state. Only the replacement of a **running** proxy is gated: a port
+  with nothing on it is a broken route for every session and may never wait on another session's claim.
+- **The ratchet.** A cut is a set of `tool_use` ids kept per conversation on disk (`cutStore`). The agent resends the
   whole conversation on every request and knows nothing of this, so the set is re-applied to each one -- 1.9 ms
   on a 1 MB body, no tokens, and no rewrite, because the same ids give the same bytes. Within a turn the set
   never moves, which is what keeps the prompt cache. Stopping is free: keep applying the set and cut no more.

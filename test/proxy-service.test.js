@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 // Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
@@ -417,7 +417,9 @@ test('a proxy already listening is replaced when its flags or its version moved,
     const write = extra => fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port, ports: [port], wroteClaude: false, ...extra }));
     // a state from before the record: replaced once, so every machine picks up the present policy
     write({});
-    const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(first.pid);
+    // `restartGrace: 0` because this test puts three reasons to restart milliseconds apart and asks what each
+    // one does about them; one session's claim standing for 30 seconds is the next test's subject.
+    const first = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartGrace: 0 }); children.push(first.pid);
     assert.equal(first.restarted, true);
     assert.equal(first.listening, false, 'the existing listener cannot establish readiness for the new child');
     assert.match(first.why, /first run that records them/);
@@ -426,13 +428,13 @@ test('a proxy already listening is replaced when its flags or its version moved,
     assert.deepEqual(await ensureProxy({ cli: CLI, home: m.home, wait: 1 }), { on: true, running: true });
     // an older thinker started it
     write({ args: serviceArgs(m.home).join(' '), version: '0.0.1' });
-    const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(upgraded.pid);
+    const upgraded = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartGrace: 0 }); children.push(upgraded.pid);
     assert.equal(upgraded.restarted, true);
     assert.equal(upgraded.listening, false);
     assert.match(upgraded.why, /new version \(0\.0\.1 -> /);
     // the flags moved under it (a gateway, a clearing policy, the codex route)
     write({ args: 'proxy --port 1 --holdout 0.15', version: appVersion() });
-    const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1 }); children.push(reflagged.pid);
+    const reflagged = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartGrace: 0 }); children.push(reflagged.pid);
     assert.equal(reflagged.restarted, true);
     assert.equal(reflagged.listening, false);
     assert.equal(reflagged.why, 'the flags changed');
@@ -610,5 +612,52 @@ test('in a container, a proxy that will not stay up stands down rather than leav
     // on this machine (not a container) the service stays on and the next prompt tries again
     assert.equal(result.on, true, 'a host keeps the service: a port dead for a moment is ordinary there');
     assert.equal(serviceState(m.home).standDown, undefined);
+  } finally { m.restore(); }
+});
+
+// `thinker update` moves the version for the whole machine, and then every session's next prompt has a
+// reason to replace the proxy. One of them needs to: the rest would be SIGTERMing a process that is
+// streaming another session's answer, and racing the service manager for the port (105 recorded starts
+// against 26,245 EADDRINUSE lines on this machine).
+test('one session replaces a running proxy; the others find it on their next prompt', async () => {
+  const m = fakeMachine();
+  const server = http.createServer(() => {});
+  try {
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    const port = server.address().port;
+    const state = { enabled: true, port, ports: [port], wroteClaude: false, args: serviceArgs(m.home).join(' '), version: '0.0.1' };
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify(state));
+    let restarts = 0;
+    const restartFn = () => { restarts++; return true; };
+
+    // four sessions reach the hook at once, as they do after an update
+    const all = await Promise.all([1, 2, 3, 4].map(() => ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn })));
+    assert.equal(restarts, 1, 'the port is replaced once');
+    assert.equal(all.filter(r => r.restarted).length, 1);
+    assert.deepEqual(all.filter(r => !r.restarted), [1, 2, 3].map(() => ({ on: true, running: true, deferred: 'another session is replacing it' })));
+
+    // A proxy to replace with something else is its own claim: the clearing policy moved under it here,
+    // so the flags this would start are not the flags the claim above was made for.
+    fs.writeFileSync(path.join(m.home, 'config.json'), JSON.stringify({ proxy: { trigger: 120000 } }));
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ ...state, version: appVersion() }));
+    assert.equal((await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn })).why, 'the flags changed');
+    assert.equal(restarts, 2);
+
+    // and once the claim has gone stale, the reason stands again: a restart that never took hold is retried
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ ...state, args: serviceArgs(m.home).join(' ') }));
+    assert.equal((await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn, restartGrace: 0 })).restarted, true);
+    assert.equal(restarts, 3);
+  } finally { server.close(); m.restore(); }
+});
+
+test('a restart claim is one caller\'s, for one target, and expires', () => {
+  const m = fakeMachine();
+  try {
+    const now = Date.now();
+    assert.equal(claimRestart(m.home, '0.2.24 proxy --port 7', { now }), true, 'the first caller takes it');
+    assert.equal(claimRestart(m.home, '0.2.24 proxy --port 7', { now: now + 1000 }), false, 'the next finds it taken');
+    assert.equal(claimRestart(m.home, '0.2.25 proxy --port 7', { now: now + 1000 }), true, 'another target is its own claim');
+    assert.equal(claimRestart(m.home, '0.2.25 proxy --port 7', { now: now + 31000 }), true, 'and a claim nothing came of expires');
   } finally { m.restore(); }
 });
