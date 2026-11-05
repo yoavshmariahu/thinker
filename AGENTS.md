@@ -263,15 +263,15 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   - Build at an anchor commit at or before the earliest task base in that repo.
   - Each task gets a copy, topped up only with changes merged before its own base.
   - Verify the fix commit is absent from the cache's build checkout.
-- Record anchor commit, what was mined or read, source hashes, and model and effort of every building call; these must match the coding arm.
+- Record anchor commit, what was mined or read, source hashes, and model and effort of every building call. The cache builder may differ from the coding model (owner-approved, 2026-11-05); record both separately.
 - Missing, failed or empty cache stops the run before coding. No fallback.
 - Historical session-learning experiments are not valid caches.
 - `research/performance-canary/guardrails.py` enforces this (`cacheSource: recent-merged-prs`). `research/efficiency-simple/run.py` mines only.
 
 **Matched models (MANDATORY):**
-- Compare arms only with the same exact model and reasoning effort per phase: exploration, memory building, coding, judging.
+- Compare arms only with the same exact model and reasoning effort within each compared phase: exploration, coding, judging. Cache building is a separate phase and may use a different model and effort from coding; a Sonnet-built cache may be evaluated with Opus. Keep the cache fixed unless cache selection is the declared intervention.
 - Keep agent config fixed except the declared intervention.
-- Record models before running. Disable silent provider/model fallback. Mismatch = invalid comparison.
+- Record every phase's model before running. Disable silent provider/model fallback. A model or effort mismatch between the coding arms invalidates their comparison; a different, explicitly recorded cache-builder model does not.
 - Prefer executable tests for correctness. Report correctness, tokens, latency separately.
 - Different models or reasoning settings go in separate cohorts, never one ranking.
 
