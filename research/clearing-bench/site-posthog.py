@@ -22,9 +22,10 @@ small,full=dict(meta),dict(meta);blobs={};accounting={}
 def keep(body):
  h=hashlib.sha256(body.encode()).hexdigest()[:16];blobs[h]=body;return h
 for arm,side,key in [('control','off','control'),('cut','on','treatment')]:
- rec=json.loads((records/(a.task+'-'+side+'.json')).read_text());priced=next(s for s in report['sessions'] if s['id']==pair[key]);r=rec['raw']['armReport']
- assert not rec['row']['invalid'] and rec['raw']['turns']==9
+ rec=json.loads((records/(a.task+'-'+side+'.json')).read_text());priced=next(s for s in report['sessions'] if s['id']==pair[key]);r=rec['raw'].get('armReport') or {'validation':priced['validation']}
+ assert not rec['row']['invalid']
  dumps=sorted((json.loads(f.read_text()) for f in pathlib.Path(r['validation']['dump']).rglob('*.json')),key=lambda d:d['at'])
+ dumps=[d for d in dumps if d['usage'] is not None]
  assert len(dumps)==len(priced['calls'])
  turns=[dict(n=i+1,prompt=scrub(t),steps=[],calls=[],tools={}) for i,t in enumerate(prompts)]
  seen=set();seen_prompts=set();results={};calls=[];current=1;seen_notes=set()

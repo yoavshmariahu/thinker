@@ -184,7 +184,7 @@ for (const [arm,mult] of [['control',1],['cut',2]]) {
  f[arm].calls.forEach((c,i)=>Object.assign(c,{input:i?0:1000,read:i?0:1000,out:i?0:100,write1h:i?0:1000000*mult,write5m:i?0:1000000*mult,write:i?0:2000000*mult}));
  f[arm].knowledgeEvents=[];f[arm].judgment={pass:arm==='control'};f[arm].outcome=arm==='control'?'Judge passed':'Judge failed';
 }
-vm.runInContext("RUN_DATA['click-1'] = ttlFixture; const fixtureRun = RUNS.find(r=>r.id==='click-1'); fixtureRun.summary.savings = {minPercent:-99.95,minDollars:-13};",context);
+vm.runInContext("RUN_DATA['click-1'] = ttlFixture; const fixtureRun = RUNS.find(r=>r.id==='click-1'); fixtureRun.summary.savings = {minPercent:-99.95,maxPercent:-99.95,minDollars:-13,maxDollars:-13};",context);
 await click('#sessions',{dataset:{run:'mlflow-span'}});
 await click('#sessions',{dataset:{run:'click-1'}});
 assert.equal(node('#ttl').hidden,true);
