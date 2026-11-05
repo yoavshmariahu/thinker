@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { USER_SCOPE_CLIENTS } from './clients.js';
+import { USER_SCOPE_CLIENTS, wiringFiles } from './clients.js';
 
 const DAY = 864e5;
 
@@ -57,17 +57,33 @@ export function editorStorageDirs({ home = os.homedir(), platform = process.plat
 const exists = p => { try { fs.statSync(p); return true; } catch { return false; } };
 const onPath = (bin, env) => (env.PATH || '').split(path.delimiter).some(d => d && exists(path.join(d, bin)));
 
-// Days since the newest change in the places found: each place itself and its immediate children.
-function ageDays(places, now) {
+// Days since the newest change in the places found: each place itself and its immediate children, except
+// the files thinker writes there itself (clients.js:wiringFiles at user scope). Counting those made every
+// wired agent look used today, since the hook's wiring check rewrites them daily -- the one figure that
+// says whether a person is working with an agent at all, answered by thinker's own housekeeping. The
+// wiring is written in place and skipped when unchanged (clients.js), so leaving those names out leaves
+// the directory's own timestamp alone too.
+function ageDays(places, now, mine = new Set()) {
   let newest = 0;
   for (const p of places) {
+    if (mine.has(p)) continue;
     let st; try { st = fs.statSync(p); } catch { continue; }
     newest = Math.max(newest, st.mtimeMs);
     if (!st.isDirectory()) continue;
     let names = []; try { names = fs.readdirSync(p).slice(0, 200); } catch {}
-    for (const n of names) { try { newest = Math.max(newest, fs.statSync(path.join(p, n)).mtimeMs); } catch {} }
+    for (const n of names) {
+      const f = path.join(p, n);
+      if (mine.has(f)) continue;
+      try { newest = Math.max(newest, fs.statSync(f).mtimeMs); } catch {}
+    }
   }
   return newest ? Math.max(0, Math.floor((now - newest) / DAY)) : null;
+}
+
+// What thinker wrote into this agent's own files, so the age above is the person's doing and not ours.
+function ourFiles(client) {
+  try { return new Set(Object.values(wiringFiles(client, { scope: 'user' })).filter(v => typeof v === 'string')); }
+  catch { return new Set(); }
 }
 
 // { name: { supported, lastUsedDays } } for every harness with evidence; lastUsedDays is null when only
@@ -78,7 +94,7 @@ export function detectHarnesses({ home = os.homedir(), platform = process.platfo
   for (const h of HARNESSES) {
     const places = [...(h.dirs || []).map(d => path.join(home, d)), ...storage.flatMap(s => (h.extensions || []).map(e => path.join(s, e)))].filter(exists);
     if (!places.length && !(h.bins || []).some(b => onPath(b, env))) continue;
-    out[h.name] = { supported: USER_SCOPE_CLIENTS.includes(h.name), lastUsedDays: places.length ? ageDays(places, now) : null };
+    out[h.name] = { supported: USER_SCOPE_CLIENTS.includes(h.name), lastUsedDays: places.length ? ageDays(places, now, ourFiles(h.name)) : null };
   }
   return out;
 }

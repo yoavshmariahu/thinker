@@ -78,11 +78,23 @@ export function getInstallId(home = thinkerHome()) {
   } catch {}
 
   const newId = crypto.randomUUID();
+  let kept = false;
   try {
     fs.mkdirSync(path.dirname(idFile), { recursive: true });
     fs.writeFileSync(idFile, newId + '\n');
+    kept = true;
   } catch {}
-  return newId;
+  if (kept) return newId;
+  // A home that cannot be written -- an image built read-only, a container with a fresh home every run --
+  // used to get a new random id on every report, so one machine read as dozens of installs (53 ids in 53
+  // hourly reports on 2026-11-05) and every per-install figure on the dashboard counted it that many
+  // times. Where the device is known, derive the id from it instead: stable for as long as the device is,
+  // without persisting anything. Never reached on a machine whose file is writable, so no existing
+  // installation's id changes.
+  const device = deviceIdentity({ home }).id;
+  return device
+    ? crypto.createHmac('sha256', 'thinker:telemetry:install:v1').update(device).digest('hex').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/, '$1-$2-$3-$4-$5')
+    : newId;
 }
 
 // Notes on the machine now, in every checkout the machine's log has ever named (usage.js:knownRepos), not
@@ -242,45 +254,127 @@ export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
 // (2026-10-16: three such devices, and nothing said whether their agents were wired or simply unused): each
 // installed agent's machine-wide wiring (hooks, MCP, and whether the copy its entries run is still there)
 // and how many of its sessions changed in the last 7 days, from the agent's own session files (a count,
-// nothing of their content).
+// nothing of their content), with whether that store could be read at all.
+// Where each agent keeps the sessions it has run. The same stores `transcripts.js:findSessions` reads, with
+// the variables that move them honoured -- `CLAUDE_CONFIG_DIR` and `CODEX_HOME`, which every other door of
+// thinker honours (`clients.js:claudeDir`, `codexHome`) and this one did not -- and Gemini's chats, which it
+// never read at all. A client absent from this table keeps no session store thinker can read at user scope:
+// its sessions are the traces the hooks record in each repository's own cache, so its count is unknown here,
+// never 0.
 const SESSION_DIRS = {
-  claude: h => [path.join(h, '.claude', 'projects')],
-  codex: h => [path.join(h, '.codex', 'sessions')],
+  claude: (h, env) => [path.join(env.CLAUDE_CONFIG_DIR || path.join(h, '.claude'), 'projects')],
+  codex: (h, env) => [path.join(env.CODEX_HOME || path.join(h, '.codex'), 'sessions')],
   cursor: h => [path.join(h, '.cursor', 'projects')],
+  gemini: h => [path.join(h, '.gemini', 'tmp')],
 };
-function recentSessions(client, { home = os.homedir(), days = 7, max = 5000 } = {}) {
-  const roots = SESSION_DIRS[client]?.(home); if (!roots) return null;
+// How deep a session file sits under the store, and what it is called:
+// Claude Code projects/<repository>/<session>.jsonl; Codex sessions/YYYY/MM/DD/<rollout>.jsonl, filed by the
+// day it started, so an older day's folder is skipped; Cursor projects/<repository>/agent-transcripts/<id>/;
+// Gemini tmp/<hash of the repository path>/chats/<session>.json.
+const SESSION_SHAPE = {
+  claude: { depth: 1, ext: '.jsonl' },
+  codex: { depth: 3, ext: '.jsonl', byDay: true },
+  cursor: { cursor: true },
+  gemini: { depth: 2, ext: '.json' },
+};
+// { sessions, store }. `sessions` is how many of the agent's sessions changed in the last `days`, and null
+// when that cannot be known: the store is not on this filesystem (`missing`), could not be read
+// (`unreadable`), or this client keeps none thinker reads (`none`).
+//
+// Reporting 0 for a store that is not there is what made the dashboard say nobody runs an agent on machines
+// in daily use: an agent in a container keeps its sessions inside it, and an install on the host cannot see
+// them. On 2026-11-05 three machines reported an agent used that day or the day before
+// (`clients.harnesses`), weeks of hourly reports, and no request, no session and no repository. A zero and
+// a blind spot must not read alike.
+function recentSessions(client, { home = os.homedir(), env = process.env, days = 7, max = 5000 } = {}) {
+  const roots = SESSION_DIRS[client]?.(home, env);
+  if (!roots) return { sessions: null, store: 'none' };
+  const present = roots.filter(r => { try { return fs.statSync(r).isDirectory(); } catch { return false; } });
+  if (!present.length) return { sessions: null, store: 'missing' };
+  const shape = SESSION_SHAPE[client] || { depth: 1, ext: '.jsonl' };
   const since = Date.now() - days * DAY_MS;
-  let n = 0, seen = 0;
-  // Claude Code: projects/<dir>/<session>.jsonl; Codex: sessions/YYYY/MM/DD/<rollout>.jsonl; Cursor:
-  // projects/<dir>/agent-transcripts/<session>/
+  const newer = f => { try { return fs.statSync(f).mtimeMs >= since; } catch { return false; } };
+  let n = 0, seen = 0, failed = 0;
   const walk = (dir, depth) => {
-    let names = []; try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    let names = []; try { names = fs.readdirSync(dir, { withFileTypes: true }); } catch { failed++; return; }
     for (const e of names) {
       if (++seen > max) return;
       const f = path.join(dir, e.name);
-      if (client === 'cursor' && depth === 1) { if (e.name === 'agent-transcripts') walk(f, 2); continue; }
-      if (client === 'cursor' && depth === 2) { try { if (fs.statSync(f).mtimeMs >= since) n++; } catch {} continue; }
-      // Codex files a session under the day it started: an older day's folder is skipped
-      if (e.isDirectory()) { if (depth < (client === 'codex' ? 3 : 1)) { try { if (client !== 'codex' || depth < 2 || fs.statSync(f).mtimeMs >= since) walk(f, depth + 1); } catch {} } continue; }
-      if (e.name.endsWith('.jsonl')) { try { if (fs.statSync(f).mtimeMs >= since) n++; } catch {} }
+      if (shape.cursor) {
+        if (depth === 1) { if (e.name === 'agent-transcripts') walk(f, 2); continue; }
+        if (depth === 2) { if (newer(f)) n++; continue; }
+      }
+      if (e.isDirectory()) {
+        // a Codex day folder older than the window holds no session of it
+        if (depth < (shape.depth ?? 1) && (!shape.byDay || depth < 2 || newer(f))) walk(f, depth + 1);
+        continue;
+      }
+      if (!shape.cursor && e.name.endsWith(shape.ext) && newer(f)) n++;
     }
   };
-  for (const r of roots) walk(r, 0);
-  return n;
+  for (const r of present) walk(r, 0);
+  return { sessions: n, store: failed && !n ? 'unreadable' : 'read' };
 }
-export function wiringHealth({ home, detected = detectClients({ fallback: false }) } = {}) {
+
+export function wiringHealth({ home, env = process.env, detected = detectClients({ fallback: false }) } = {}) {
   const out = {};
   for (const client of detected.filter(c => USER_SCOPE_CLIENTS.includes(c))) {
     let w = null; try { w = inferWiring(null, client, { scope: 'user' }); } catch {}
+    const { sessions, store } = recentSessions(client, { home, env });
     out[client] = {
       hooks: !!w?.hooks, mcp: !!w?.mcp,
       // entries whose copy of thinker is gone run nothing
       live: !!w && w.scripts.length > 0 && w.scripts.every(sc => fs.existsSync(sc)),
-      sessions7d: recentSessions(client, { home }),
+      // null when the store it would be counted from is not here to read: `sessionStore` says which case
+      sessions7d: sessions,
+      sessionStore: store,
     };
   }
   return out;
+}
+
+// The machine the counts above were read on, so a zero can be told from a blind spot. An agent running in a
+// container keeps its sessions inside it and reaches the API from inside it, so an install on the host sees
+// neither, and a home it cannot write loses the install id on every run -- one machine then reads as dozens
+// of installs (53, 37 and 22 ids in as many reports on 2026-11-05). Names, booleans and one short kind
+// only: no paths, no hostnames, nothing of what the agent did.
+export function machineFacts({ home = thinkerHome(), env = process.env, readFile = fs.readFileSync, exists = fs.existsSync } = {}) {
+  const moved = [];
+  // the variables that move an agent's own home, named in clients.js: a store thinker cannot find is
+  // usually one of these, and knowing which turns a blind count into a fixable report
+  if (env.CLAUDE_CONFIG_DIR) moved.push('claude');
+  if (env.CODEX_HOME) moved.push('codex');
+  if (env.PI_CODING_AGENT_DIR) moved.push('pi');
+  return {
+    schemaVersion: 1,
+    container: containerKind({ env, readFile, exists }),
+    agentHomesMoved: moved,
+    thinkerHomeMoved: !!env.THINKER_HOME,
+    installIdStable: installIdStable(home),
+  };
+}
+
+// 'docker' | 'podman' | 'kubernetes' | 'containerd' | null, from the marks a container runtime leaves in
+// the filesystem it gives the process. Never a container id or an image name.
+function containerKind({ env = process.env, readFile = fs.readFileSync, exists = fs.existsSync } = {}) {
+  if (env.KUBERNETES_SERVICE_HOST) return 'kubernetes';
+  try { if (exists('/.dockerenv')) return 'docker'; } catch {}
+  try { if (exists('/run/.containerenv')) return 'podman'; } catch {}
+  try {
+    const cgroup = String(readFile('/proc/self/cgroup', 'utf8'));
+    if (/kubepods/.test(cgroup)) return 'kubernetes';
+    if (/docker/.test(cgroup)) return 'docker';
+    if (/containerd|libpod|lxc/.test(cgroup)) return 'containerd';
+  } catch {}
+  return null;
+}
+
+// Whether the install id this report carries will still be here for the next one. `getInstallId` cannot say
+// so itself: it returns a new id whether or not the write worked, so a home it cannot write reads as a new
+// installation every hour. Compared rather than just read, since only a persisted id comes back twice.
+export function installIdStable(home = thinkerHome()) {
+  const id = getInstallId(home);   // writes the file where it can, as every report does already
+  try { return fs.readFileSync(path.join(home, 'state', 'install-id'), 'utf8').trim() === id; } catch { return false; }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -649,6 +743,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       // every coding agent found, supported or not, with the days since it was last used (harnesses.js)
       harnesses: detectHarnesses(),
       wiring: wiringHealth(),
+      // the machine these counts were read on: a container, a moved agent home or a home that cannot keep
+      // the install id all make a count of 0 mean "not seen" rather than "not used"
+      machine: machineFacts({ home }),
       activeRequests: cls.active || {},
       servings: cls.servings || {},
       sessions: cls.sessions || {},
