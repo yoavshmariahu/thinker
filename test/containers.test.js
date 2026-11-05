@@ -133,3 +133,123 @@ test('the devcontainer snippet is printed, never written, and installs from the 
   return containersCommand({ flags: { devcontainer: true }, store: null, out: l => lines.push(l), exec: () => { throw new Error('docker must not be called for a snippet'); } })
     .then(() => assert.equal(lines.join('\n'), snippet));
 });
+
+// --- the offer ------------------------------------------------------------------------------------------
+// The question is put by the agent and answered through thinker's own tool or the command; a yes installs.
+// Every docker call is injected here too, and the state is a temporary home: the suite must not look at
+// this machine's containers or write its real state.
+import { scheduleContainersOffer, containersOffer, containersOfferDue, containersOfferPending, answerContainersOffer, offerState, QUESTION, OPTIONS, AGAIN_DAYS, CANDIDATE_HOURS } from '../src/containers-offer.js';
+
+const tempHome = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-home-'));
+const oneWirable = (repo, { thinker = false } = {}) => dockerFake({
+  containers: { dev: 1 },
+  inspect: { dev: container('dev', { mounts: [[repo, '/workspaces/app']] }) },
+  probes: { dev: `agent=claude\nnode=v22.23.3\nhome=/home/node${thinker ? '\nthinker=home' : ''}` },
+});
+
+test('the question is asked once, carries the owner\'s wording, and is only asked where there is a container to install into', () => {
+  const home = tempHome();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-repo-'));
+  try {
+    fs.mkdirSync(path.join(repo, '.git'));
+    // nothing recorded yet: the hook says nothing and never shells out to docker
+    assert.equal(containersOffer(null, { client: 'claude', home }), '');
+    // maintenance records the candidate
+    const found = scheduleContainersOffer(null, { home, exec: oneWirable(repo) });
+    assert.equal(found.name, 'dev');
+    assert.equal(containersOfferDue({ home }).name, 'dev');
+    const block = containersOffer(null, { client: 'claude', home });
+    assert.match(block, /^<thinker-container-offer>/);
+    assert.ok(block.includes(`"${QUESTION}"`), 'the question is put exactly as written');
+    assert.ok(block.includes(OPTIONS), 'yes, no and never are the options');
+    assert.match(block, /AskUserQuestion/);
+    assert.match(block, /header "thinker"/);
+    assert.match(block, /thinker's `containers` tool/);
+    // asked once: a second prompt in the same session, or any later one, says nothing
+    assert.equal(containersOffer(null, { client: 'claude', home }), '');
+    assert.equal(containersOfferPending(home), true, 'the answer tool is offered while one is awaited');
+    // an agent with no way to ask is never handed the question
+    const other = tempHome();
+    try {
+      scheduleContainersOffer(null, { home: other, exec: oneWirable(repo) });
+      assert.equal(containersOffer(null, { client: 'goose', home: other }), '');
+    } finally { fs.rmSync(other, { recursive: true, force: true }); }
+  } finally { for (const d of [home, repo]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+test('a container with thinker already in it is never asked about, and a stale candidate is not asked about either', () => {
+  const home = tempHome();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-repo2-'));
+  try {
+    fs.mkdirSync(path.join(repo, '.git'));
+    assert.equal(scheduleContainersOffer(null, { home, exec: oneWirable(repo, { thinker: true }) }), null);
+    assert.equal(containersOfferDue({ home }), null);
+    // a candidate recorded two days ago may be a container that is long gone. The machine is looked at at
+    // most daily, so this second look is a day on from the one above.
+    const now = Date.now() + 25 * 3600_000;
+    scheduleContainersOffer(null, { home, exec: oneWirable(repo), now });
+    assert.ok(containersOfferDue({ home, now }));
+    assert.equal(containersOfferDue({ home, now: now + (CANDIDATE_HOURS + 1) * 3600_000 }), null);
+  } finally { for (const d of [home, repo]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+test('yes installs at once; no waits and never closes it', async () => {
+  const home = tempHome();
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-repo3-'));
+  try {
+    fs.mkdirSync(path.join(repo, '.git'));
+    const exec = oneWirable(repo);
+    const now = Date.now();
+    scheduleContainersOffer(null, { home, exec, now });
+    containersOffer(null, { client: 'claude', home, now });
+    let installed = null;
+    const said = await answerContainersOffer('yes', { home, exec, now, client: 'claude', installFn: async c => { installed = c; return { ok: true, target: '/home/node/.thinker/app', wired: 'claude', steps: [] }; } });
+    assert.equal(installed.name, 'dev', 'the container the question was asked about is the one wired');
+    assert.match(said, /thinker is now in dev/);
+    assert.match(said, /postCreateCommand/, 'and says how to keep it across a rebuild');
+    assert.equal(offerState(home).choice, 'yes');
+    assert.equal(offerState(home).installed, true);
+
+    // no: recorded, nothing installed, and the machine is left alone for AGAIN_DAYS
+    const h2 = tempHome();
+    scheduleContainersOffer(null, { home: h2, exec, now });
+    containersOffer(null, { client: 'claude', home: h2, now });
+    const no = await answerContainersOffer('no', { home: h2, exec, now, installFn: () => { throw new Error('a no must install nothing'); } });
+    assert.match(no, new RegExp(`not ask again for ${AGAIN_DAYS} days`));
+    assert.equal(containersOfferDue({ home: h2, now: now + 29 * 86400_000 }), null);
+    assert.equal(scheduleContainersOffer(null, { home: h2, exec, now: now + 29 * 86400_000 }), null, 'and does not even look while it waits');
+    assert.ok(scheduleContainersOffer(null, { home: h2, exec, now: now + (AGAIN_DAYS + 1) * 86400_000 }), 'after the wait it looks again');
+
+    // never: closed for good, whatever is found later
+    const h3 = tempHome();
+    scheduleContainersOffer(null, { home: h3, exec, now });
+    containersOffer(null, { client: 'claude', home: h3, now });
+    await answerContainersOffer('never ask again', { home: h3, exec, now, installFn: () => { throw new Error('never must install nothing'); } });
+    assert.equal(scheduleContainersOffer(null, { home: h3, exec, now: now + 400 * 86400_000 }), null);
+    assert.equal(containersOffer(null, { client: 'claude', home: h3, now: now + 400 * 86400_000 }), '');
+    for (const d of [h2, h3]) fs.rmSync(d, { recursive: true, force: true });
+  } finally { for (const d of [home, repo]) fs.rmSync(d, { recursive: true, force: true }); }
+});
+
+test('a yes for a container that has gone, or a failed install, says so and claims nothing', async () => {
+  const home = tempHome();
+  try {
+    fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'state', 'containers-offer.json'), JSON.stringify({ asked: new Date().toISOString(), askedFor: 'dev', candidate: { id: 'dev', foundAt: new Date().toISOString() } }));
+    const gone = dockerFake({ containers: {}, inspect: {}, probes: {} });
+    assert.match(await answerContainersOffer('yes', { home, exec: gone }), /no longer running, so thinker installed nothing/);
+    assert.equal(offerState(home).installed, false);
+
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-repo4-'));
+    fs.mkdirSync(path.join(repo, '.git'));
+    const h2 = tempHome();
+    const exec = oneWirable(repo);
+    scheduleContainersOffer(null, { home: h2, exec });
+    containersOffer(null, { client: 'claude', home: h2 });
+    const said = await answerContainersOffer('yes', { home: h2, exec, installFn: async () => ({ ok: false, target: '/x', steps: [{ what: 'copy thinker in', ok: false, detail: 'no space left on device' }] }) });
+    assert.match(said, /could not finish installing/);
+    assert.match(said, /no space left on device/);
+    assert.equal(offerState(h2).installed, false);
+    for (const d of [repo, h2]) fs.rmSync(d, { recursive: true, force: true });
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
