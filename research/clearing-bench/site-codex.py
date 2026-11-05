@@ -7,8 +7,8 @@ The dump paths come from each archived arm report. No model calls or grading her
 import argparse,collections,hashlib,json,pathlib,re
 p=argparse.ArgumentParser()
 for k in ['control','cut','task','reconciliation','out']:p.add_argument('--'+k,required=True)
-a=p.parse_args();task=json.loads(pathlib.Path(a.task).read_text())['tasks'][0];prompts=[task['prompt']]+task['turns'];prices=dict(input=10,read=1,w5m=10,w1h=12.5,out=50)
-small=dict(id='django-astra',price=prices,cold=0,model='GPT-6 Astra · high',protocol='responses',costBounds=True,source='Artemis · Django PR21834 · 14 prompts · one pair',judgeModel='gpt-6-astra')
+a=p.parse_args();task=json.loads(pathlib.Path(a.task).read_text())['tasks'][0];prompts=[task['prompt']]+task['turns'];prices=dict(input=10,read=1,w5m=0,w1h=0,out=50)
+small=dict(id='django-astra',price=prices,cold=0,model='GPT-6 Astra · high',protocol='responses',codexBilling=True,writeCountsRecorded=False,source='Artemis · Django PR21834 · 14 prompts · one pair',judgeModel='gpt-6-astra')
 full={**small};blobs={}
 def scrub(s):
  s=re.sub(r'/private/var/folders/[^\s<>"\']+/T/artemis-worktrees/[^/\s<>"\']+', '<checkout>',s)
@@ -22,7 +22,8 @@ def text(x):
 def keep(t):
  key=hashlib.sha256(t.encode()).hexdigest()[:16];blobs[key]=t;return key
 reconciliation=json.loads(pathlib.Path(a.reconciliation).read_text());assert len(reconciliation['pairs'])==1 and not reconciliation['excluded'];pair=reconciliation['pairs'][0]
-small['savings']=dict(minPercent=pair['savedPercent']['min'],maxPercent=pair['savedPercent']['max'],minDollars=pair['saved']['min'],maxDollars=pair['saved']['max']);full['savings']=small['savings']
+# The page derives one saving from recorded input/read/output at the displayed rates.
+# Codex credit billing has no separate write charge; API write-price bounds do not apply.
 for arm in ['control','cut']:
  rec=json.loads(pathlib.Path(getattr(a,arm)).read_text());raw=rec['raw'];report=raw['armReport'];assert raw['model']=='gpt-6-astra' and raw['turns']==14 and not rec['row']['invalid'];assert report['validation']['proxyObserved']
  ds=sorted([json.loads(f.read_text())for f in pathlib.Path(report['validation']['dump']).rglob('*.json')],key=lambda d:d['at']);assert ds

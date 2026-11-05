@@ -73,7 +73,7 @@ test('the compression page inlines a run index and the default run, and every ru
       for (const c of d[arm].calls) assert.ok(c.read >= 0 && c.write >= 0 && c.t >= 1, `${r.id} ${arm} call ${c.k} is complete`);
     }
     assert.ok(d.control.calls.every(c => !c.cut), `${r.id}: the control was never cut`);
-    assert.ok(d.protocol === 'responses' ? d.price.input === 10 && d.price.out === 50 && d.price.w1h === 12.5 : d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: correct model prices`);
+    assert.ok(d.protocol === 'responses' ? d.price.input === 10 && d.price.out === 50 && d.price.w1h === (d.codexBilling ? 0 : 12.5) : d.price.read === 0.2 && d.price.w1h === 8, `${r.id}: correct model prices`);
     assert.ok(r.summary && r.summary.cut.cost1h > 0 && r.summary.control.cost1h > 0, `${r.id}: the index carries both arms' cost`);
   }
   assert.ok(html.includes('One run per arm'), 'the caveats are stated');
@@ -166,7 +166,7 @@ test('See the data publishes the combined MLflow comparison with complete, sanit
   assert.match(deploy, /'\/compression\*', '\/clearing\*'/);
 });
 
-test('Django uses API totals and an explicit cost range with judged success; mitmproxy is not offered', () => {
+test('Django uses recorded input without a separate Codex write charge and retains judged success; mitmproxy is not offered', () => {
   const read = name => JSON.parse(fs.readFileSync(new URL('../site/' + name, import.meta.url), 'utf8'));
   const manifest = read('clearing-runs.json');
   assert.deepEqual(manifest.slice(0,5).map(r => r.id), ['click-1', 'django-astra', 'mlflow-registry', 'mlflow-gateway', 'mlflow-span']);
@@ -194,13 +194,20 @@ test('Django uses API totals and an explicit cost range with judged success; mit
     assert.equal(d[arm].judgment.met, 5);
     assert.ok(d[arm].judgment.verdicts.every(v => v.verdict === 'met'));
   }
-  const bounds = arm => {
-    const sums = d[arm].calls.reduce((s,c) => ({input:s.input+c.input,read:s.read+c.read,out:s.out+c.out}), {input:0,read:0,out:0});
-    return {min:(sums.input*10+sums.read+sums.out*50)/1e6,max:(sums.input*12.5+sums.read+sums.out*50)/1e6};
-  };
-  const a=bounds('cut'), b=bounds('control');
-  assert.ok(Math.abs(d.savings.minDollars-(b.min-a.max))<1e-8);
-  assert.ok(Math.abs(d.savings.maxDollars-(b.max-a.min))<1e-8);
+  assert.equal(d.codexBilling,true);
+  assert.equal(d.writeCountsRecorded,false,'missing physical counters stay missing');
+  assert.equal(d.costBounds,undefined);
+  assert.equal(d.savings,undefined,'derive the headline from the same costs as the chart');
+  assert.equal(d.price.w1h,0);assert.equal(d.price.w5m,0);
+  const html=fs.readFileSync(new URL('../site/compression.html',import.meta.url),'utf8');
+  const index=JSON.parse(html.match(/const RUN_INDEX = \/\*RUN_INDEX\*\/(.+?);\n/)[1]);
+  const summary=index.find(r=>r.id==='django-astra').summary;
+  for(const arm of ['control','cut']) {
+    const cost=d[arm].calls.reduce((n,c)=>n+(c.input*10+c.read+c.out*50)/1e6,0);
+    assert.ok(Math.abs(summary[arm].cost1h-cost)<1e-8);
+    assert.ok(Math.abs(summary[arm].cost5m-cost)<1e-8);
+  }
+  assert.equal(summary.savings,undefined,'no obsolete range in the session selector');
   const sessionText=fs.readFileSync(new URL('../site/clearing-django-astra-session.json', import.meta.url),'utf8');
   assert.doesNotMatch(sessionText, /encrypted_content|gAAAAAB|\/Users\/yoav|\/private\/var\/folders/);
 });
