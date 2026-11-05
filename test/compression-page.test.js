@@ -78,15 +78,15 @@ await click('#ttl',ttls[1]);
 assert.equal(ttls[1]['aria-pressed'], true);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
-assert.match(node('#tiles').innerHTML,/10.2–22.5%/);
+assert.match(node('#tiles').innerHTML,/19.2%/);
 checkCodexInputs('django-astra');
 assert.match(node('#tiles').innerHTML,/LLM judge · 5\/5 criteria/);
-assert.deepEqual(partRows(node('#ptab').innerHTML),expectedParts);
-assert.match(node('#ptab').innerHTML,/<td>cache writes<\/td><td>Not recorded/);
+assert.deepEqual(partRows(node('#ptab').innerHTML),['cached input','uncached input','output','total']);
+assert.doesNotMatch(node('#ptab').innerHTML,/cache writes|Not recorded/);
 assert.equal(legendText(node('#legend1').innerHTML),legend);
 
-assert.match(node('#tiles').innerHTML,/<span>10.2–22.5%<\/span>/);
-assert.match(node('#session-label').innerHTML,/10.2–22.5% estimated/);
+assert.match(node('#tiles').innerHTML,/<span>19.2% saved<\/span>/);
+assert.match(node('#session-label').innerHTML,/19.2% saved/);
 assert.doesNotMatch(node('#session-label').innerHTML,/At least/);
 assert.doesNotMatch(node('#tiles').innerHTML,/At least|Session cost/);
 assert.match(node('#tiles').innerHTML,/<div class="k">Uncached input<\/div>/);
@@ -100,17 +100,19 @@ assert.match(node('#caveats').innerHTML,/Historical per-request cutting policy/)
 assert.match(node('#judge-evidence').innerHTML,/Task outcome/);
 assert.doesNotMatch(node('#tiles').innerHTML,/NaN|undefined/);
 assert.equal(node('#ttl-label').textContent,'OpenAI pricing');
-assert.match(node('#pricing-explainer').innerHTML,/OpenAI · Astra/);
-assert.match(node('#pricing-explainer').innerHTML,/10.2–22.5% accounting range/);
-assert.equal(node('#ttl [data-v="1h"]').textContent,'With cache writes');
-assert.equal(node('#ttl [data-v="5m"]').textContent,'Input only');
+assert.match(node('#pricing-explainer').innerHTML,/Codex · Astra/);
+assert.match(node('#pricing-explainer').innerHTML,/no separate cache-write charge/);
+assert.equal(node('#ttl').hidden,true);
+assert.doesNotMatch(node('#tiles').innerHTML,/estimated|range/);
+
+
 
 assert.doesNotMatch(node('#sessions').innerHTML,/mitmproxy/);
 await click('#ttl',ttls[0]);
-assert.match(node('#stats').innerHTML,/11.57/);
-assert.match(node('#stats').innerHTML,/9.96/);
-assert.notEqual(node('#c2').innerHTML,beforeCostChart);
-assert.equal(node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0],savingsCard,'pricing changes costs but keeps the conservative saving');
+assert.match(node('#stats').innerHTML,/11.09/);
+assert.match(node('#stats').innerHTML,/8.96/);
+assert.equal(node('#c2').innerHTML,beforeCostChart,'hidden TTL setting cannot change Codex costs');
+assert.equal(node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0],savingsCard,'Codex saving does not depend on the TTL setting');
 assert.match(node('#c2').innerHTML,/svg/);
 node('#c1').place(48,true);
 assert.ok(!node('#c1 .tip').innerHTML.includes('NaN'));
