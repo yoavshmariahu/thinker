@@ -170,7 +170,33 @@ export function startDetached({ cli, home = thinkerHome() }) {
 // From the prompt hook on every prompt: nothing when the service is off or already listening (one connect, under a
 // millisecond); else the proxy is started and given `wait` ms to listen before the hook returns, so the agent's next
 // model call finds it.
-export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, restartFn = restartService } = {}) {
+// How long one session's replacement of a running proxy stands for every other session's hook.
+//
+// `thinker update` changes the version for the whole machine at once, and the next prompt in every
+// session reaches the branch below and replaces the proxy -- each replacement a SIGTERM to a process
+// that is streaming other sessions' answers, and each new process racing the service manager for the
+// port. On this machine's log: 105 recorded starts against 26,245 EADDRINUSE lines. One of them needs
+// to do it, so the first to arrive claims it and the rest find the proxy they wanted on their next
+// prompt. Keyed on what the restart is for, so a genuinely different target (another version, changed
+// flags) is never held back by a claim made for the previous one, and left behind to expire rather than
+// released on success: the window that matters is the one between SIGTERM and the new process recording
+// its own version, where every other hook still reads the old state and would restart it again.
+export const RESTART_GRACE_MS = 30000;
+export function claimRestart(home, target, { now = Date.now(), grace = RESTART_GRACE_MS } = {}) {
+  const f = path.join(home, 'state', 'proxy-restart.json');
+  const mine = JSON.stringify({ target, at: new Date(now).toISOString(), pid: process.pid });
+  // `wx` is the claim: the file is created by one caller or by none, which two hooks reading and then
+  // writing could not promise each other.
+  const take = () => { try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, mine, { flag: 'wx' }); return true; } catch { return false; } };
+  if (take()) return true;
+  const prev = readJson(f, null);
+  const at = prev?.at ? Date.parse(prev.at) : 0;
+  if (prev?.target === target && now - at < grace) return false;   // another session has this one in hand
+  try { fs.unlinkSync(f); } catch { /* another caller got there first, and then it is theirs */ }
+  return take();
+}
+
+export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, restartFn = restartService, restartGrace = RESTART_GRACE_MS } = {}) {
   const s = serviceState(home);
   if (!s.enabled || !s.port) return { on: false };
   // the setting taken out by hand is an answer, and this is the first thing that runs after it: the service goes,
@@ -189,6 +215,10 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     const version = appVersion();
     if (s.args === want && s.version === version) return { on: true, running: true };
     const why = s.args === undefined ? 'the first run that records them' : s.version !== version ? `a new version (${s.version || 'unknown'} -> ${version})` : 'the flags changed';
+    // One session replaces it; the others would only be SIGTERMing a process mid-answer (`claimRestart`).
+    // Only this branch is gated: a port with nothing on it is a broken route for every session, and must
+    // never wait on another session's claim.
+    if (!claimRestart(home, `${version} ${want}`, { grace: restartGrace })) return { on: true, running: true, deferred: 'another session is replacing it' };
     // Let the installed service manager own the process. Starting a detached competitor here
     // caused repeated EADDRINUSE crashes, and could inherit the invoking agent's network sandbox.
     saveNetworkEnv(home, process.env);
