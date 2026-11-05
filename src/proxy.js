@@ -31,6 +31,7 @@ import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT } from './cutting.js';
+import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
 import { decideCut, cutResponse, cutStore, freshCut, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
 export { isRewrite, LONG_CONTEXT };
 
@@ -102,15 +103,10 @@ export function turnId(messages) {
   }
   return n;
 }
-// Codes worth one more try when nothing of the answer has reached the agent: a dropped connection
-// (a reused keep-alive socket the API had already closed), a connect timeout, and a name that did
-// not resolve, which on a laptop means the resolver is not back yet after a sleep or a network
-// change. In October 2026 these were 53 of the 91 errors the machines reported and none was retried,
-// so each one cost the agent a 502 and a retry of its own.
-export const RETRY_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'];
-// A name that did not resolve is retried after a moment: an immediate second lookup asks a resolver
-// that is still on its way up and fails the same way.
-export const RETRY_DELAY = { ENOTFOUND: 250, EAI_AGAIN: 250 };
+// What happens when a request never reached the upstream: the codes worth another try, the ladder a
+// dead resolver is given, and the address a host last answered on. All of it in proxy-retry.js, with
+// the measurement that set the policy. Re-exported because that is where every reader looked for it.
+export { RETRY_CODES, DNS_CODES, RETRY_TLS, RETRY_WAITS, retryable, retryPlan, addressBook, cachingLookup, KNOWN_FOR } from './proxy-retry.js';
 // How many refusals in a row mean the agent's credentials are not for the endpoint the proxy forwards to, rather
 // than one expired token or one upstream hiccup: a session whose every call fails is broken either way, and the
 // proxy is the one thing in the path that the person did not put there.
@@ -434,7 +430,7 @@ export function usageTap() {
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null } = {}) {
   // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
   // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
   // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
@@ -467,6 +463,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
   let cutRejected = false;
+  // Where each upstream host last answered, so a resolver that goes quiet is not the end of a request
+  // (proxy-retry.js). Filled from the lookups the requests make anyway; read only once one has failed.
+  const addresses = addressBook();
+  const lookup = cachingLookup(addresses, {
+    ...(resolver ? { lookup: resolver } : {}),
+    onFallback: (host, known) => log({ at: new Date().toISOString(), op: 'proxy-dns-fallback', host, family: known.family || null }),
+  });
   // the cut's record, one per session, on disk: a restarted proxy re-applies the same set (cutting.js)
   const cutting = cutStore(clearingDir);
   const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
@@ -535,13 +538,18 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
         else if (req.headers['anthropic-beta'] != null) headers['anthropic-beta'] = req.headers['anthropic-beta'];
         // One error row per request: a break the agent and the API both notice (the agent leaves, so
         // the proxy drops the upstream request, so that request errors too) is one event, not two.
+        // A cancellation gets an op of its own (2026-11-05): 174 of this machine's 830 error rows are
+        // the person pressing Esc, and while `aborted` has flagged them since October every reader
+        // had to know to look for it -- `thinker proxy report --verify-usage` did not, and called the
+        // accounting incomplete because somebody had changed their mind. The flag stays beside the
+        // new op, because a log written before this is still read for a fortnight.
         let logged = false, recorded = false, truncated = false;
         const logError = (e, extra) => {
           if (logged) return;
           logged = true;
-          log({ at: new Date().toISOString(), op: 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
+          log({ at: new Date().toISOString(), op: extra?.aborted ? 'proxy-cancelled' : 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
-        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: getAgent(!!attempt) }, ures => {
+        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: getAgent(!!attempt), lookup }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
           // A 400 on a request the proxy cut may be the cut itself being rejected -- a history the API will not
           // take -- or it may be about the request, which is the agent's own to see. The body says which
@@ -630,12 +638,16 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
           // 2026 (20 of 20 on one Codex machine) look like failures of the API, which hid the 53
           // that were real. Nobody is waiting for an answer, so there is nothing to retry or send.
           const cancelled = res.destroyed && !res.writableFinished;
-          const retry = !attempt && !cancelled && !res.headersSent && RETRY_CODES.includes(e.code);
-          logError(e, { retried: retry, ...(cancelled ? { aborted: true } : {}) });
-          if (retry) {
-            const wait = RETRY_DELAY[e.code] || 0;
-            if (!wait) return send(1);
-            return void setTimeout(() => { if (res.destroyed) return; send(1); }, wait);
+          // A resolver that will not answer gets the ladder rather than one 250 ms rung, which
+          // recovered 1 of 110 requests (proxy-retry.js). Nothing of the answer has reached the
+          // agent, so none of this is visible to it; the wait is abandoned if it leaves.
+          const plan = !cancelled && !res.headersSent
+            ? retryPlan(e, attempt, { address: addresses.has(up.hostname), ...(retryWaits ? { waits: retryWaits } : {}) })
+            : { retry: false };
+          logError(e, { retried: !!plan.retry, attempt, ...(cancelled ? { aborted: true } : {}) });
+          if (plan.retry) {
+            if (!plan.waitMs) return send(attempt + 1);
+            return void setTimeout(() => { if (res.destroyed) return; send(attempt + 1); }, plan.waitMs);
           }
           if (res.destroyed) return;
           if (res.headersSent) return res.destroy();

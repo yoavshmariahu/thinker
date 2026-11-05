@@ -214,6 +214,38 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   marker), so the cause is not yet known. Judge any change here by cache **write** tokens, against the 15%
   holdout, and dump both arms (`THINKER_PROXY_DUMP`) before trusting a figure.
 
+**A request that never reached the API is the proxy's to recover (2026-11-05; `src/proxy-retry.js`):**
+- Measured on this machine's log, the 12 days to 2026-11-05 (20,749 rows, 830 error rows): 174 of those rows
+  are the person pressing Esc, and of the 650 real failures **487 are a name that did not resolve** -- three
+  quarters of everything that goes wrong. The rest: 106 a TLS record that did not authenticate (82 on a
+  reused keep-alive socket), 23 a reset that was not a cancellation, 34 the remainder. The error rate does
+  **not** rise with concurrency (1.5% at one active session, 1.4% at four, 0.7-1.8% at six to eleven), so
+  parallel agents are not what breaks a request.
+- The single 250 ms retry this replaces ran **110 times and recovered 1** since retries began on 2026-10-29:
+  every `retried: true` row is followed by its own failure row. `afterMs` is a median of 4, so nothing times
+  out -- the resolver refuses at once and refuses again 250 ms later. 46 of 58 bursts hold their errors inside
+  5 seconds; 6 long ones (1-6 minutes) hold 173 between them.
+- So two things. **The address the host last answered on** (`addressBook`, `cachingLookup`, wired as the
+  request's `lookup`): recorded from the lookups requests make anyway, never a lookup of thinker's own, read
+  only after the resolver has already refused, forgotten after `KNOWN_FOR` (6h), logged `proxy-dns-fallback`.
+  A stale address costs a failed connect, which is where the request already was. And **a ladder**
+  (`RETRY_WAITS`, 0.25/0.5/1/2/4s, ~8s in all), abandoned the moment the agent leaves; with an address in hand
+  the first rung waits for nothing. Past the ladder the 502 is the agent's to see: a six-minute outage is not
+  thinker's to paper over.
+- A fresh socket is the whole remedy for the reused-socket class, so the TLS record failure (`RETRY_TLS`,
+  matched on the code's text because Node builds it from OpenSSL's string) and `EHOSTUNREACH` join
+  `RETRY_CODES` rather than getting a mechanism of their own; attempt 1 already opens its own connection.
+  Not done, deliberately: lowering the keep-alive idle timeout. Node applies an agent timeout to active
+  sockets too, so a wrong value kills a streaming answer mid-thinking -- a worse failure than the 46 resets
+  it would save. It needs the upstream's real idle timeout measured first.
+- **A cancellation is not an error** (`op: 'proxy-cancelled'`): 174 of 830 rows were the person changing their
+  mind, and while `aborted` has flagged them since October every reader had to know to look for it --
+  `thinker proxy report --verify-usage` did not, and called the accounting incomplete over it. The flag stays
+  beside the new op while logs written before this are still in the window.
+- Judge a change here by three numbers, all in the telemetry's proxy block: DNS errors against requests,
+  502s the agent actually saw (`errors.failed`), and **`errors.recovered`** -- retries that then answered,
+  which is what showed the old policy was pure cost and which nothing was counting.
+
 **One summary, not a line a turn (2026-11-01, the owner's call):**
 - thinker said something at the end of nearly every turn: the notes served in it, what the clearing
   saved (`compressionNotice` had no guard at all, so from three turns past a clear it printed under
@@ -330,6 +362,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
+| `src/proxy-retry.js` | a request that never reached the upstream: the retryable codes, the ladder a dead resolver gets, the address a host last answered on |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |

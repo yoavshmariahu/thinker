@@ -89,7 +89,9 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       sides.apiRequests = responsesUsageRecords(rows, { since });
       try {
         if (malformed) throw Error(`${malformed} malformed proxy log records`);
-        if (rows.some(r => r.op === 'proxy-error' && (!since || r.at >= since))) throw Error('Proxy transport errors: request accounting may be incomplete');
+        // A cancellation is not a transport error: the person changed their mind and the accounting is
+        // whole. `proxy-cancelled` since 2026-11-05, the `aborted` flag on a row written before it.
+        if (rows.some(r => r.op === 'proxy-error' && !r.aborted && (!since || r.at >= since))) throw Error('Proxy transport errors: request accounting may be incomplete');
         sides.usageValidation = verifyResponsesUsage(rows, { since });
       } catch (error) {
         sides.usageValidation = { complete: false, error: error.message };
