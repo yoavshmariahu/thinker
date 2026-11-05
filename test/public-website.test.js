@@ -211,22 +211,22 @@ test('Django uses recorded input without a separate Codex write charge and retai
   assert.equal(d.codexBilling,true);
   assert.equal(d.writeCountsRecorded,false,'missing physical counters stay missing');
   assert.equal(d.costBounds,undefined);
-  // The accounted pair of 2026-11-04 replaces the 2026-11-05 attempt that lost a request to a TLS
-  // failure and so could publish no figure. Every request of both sessions returned 200.
-  assert.equal(d.comparisonIncomplete,undefined,'this pair is accounted end to end');
+  // The shipped turn-boundary pair of 2026-11-05: both arms accounted end to end, so no unverified
+  // presentation and no policy caveat about measuring something we no longer run.
+  assert.equal(d.comparisonIncomplete,undefined);
   assert.equal(d.transportErrors,0);
-  // It ran the earlier per-request policy (AGENTS.md: 24 cuts, 19 mid-turn), so the page must say so
-  // rather than let the figure read as the shipped turn-boundary policy.
-  assert.match(d.reviewNotice,/earlier per-request cut policy/);
-  assert.match(d.reviewNotice,/19 of them mid-turn/);
-  assert.match(d.reviewNotice,/not a measurement of what Thinker does today/);
+  assert.match(d.reviewNotice,/accounted end to end/);
+  assert.match(d.reviewNotice,/shipped turn-boundary cut policy/);
   assert.match(d.reviewNotice,/writes are excluded from both arms/,'writes unreported, and cutting provokes them');
-  assert.match(d.reviewNotice,/came out at 1\.1%/,'the repeat under the shipped policy is named beside it');
+  assert.doesNotMatch(d.reviewNotice,/per-request/,'this pair is not the historical policy');
   const acc = read('clearing-django-astra-costs.json');
-  assert.equal(acc.pairedSavings.percent,19.1756);
-  assert.match(acc.policy,/per-request/);
-  assert.equal(d.savings.minPercent,d.savings.maxPercent,'one point, not a range: there is no write price to bound');
-  assert.ok(Math.abs(d.savings.minPercent-19.175586)<1e-5);
+  assert.equal(acc.pairedSavings.percent,36.1169);
+  assert.equal(acc.controlRecordedUsage.errors,0);
+  assert.equal(acc.treatmentRecordedUsage.errors,0);
+  assert.equal(acc.treatmentRecordedUsage.requestsCarryingACut,37);
+  assert.equal(acc.strictSessionVerification.complete,true);
+  assert.match(acc.policy,/turn-boundary/);
+  assert.equal(d.savings,undefined,'derive the headline from the same costs as the chart');
   assert.equal(d.price.w1h,0);assert.equal(d.price.w5m,0);
   const html=fs.readFileSync(new URL('../site/compression.html',import.meta.url),'utf8');
   const index=JSON.parse(html.match(/const RUN_INDEX = \/\*RUN_INDEX\*\/(.+?);\n/)[1]);
@@ -236,9 +236,9 @@ test('Django uses recorded input without a separate Codex write charge and retai
     assert.ok(Math.abs(summary[arm].cost1h-cost)<1e-8);
     assert.ok(Math.abs(summary[arm].cost5m-cost)<1e-8);
   }
-  assert.equal(summary.savings.minPercent,summary.savings.maxPercent);
+  assert.equal(summary.savings,undefined,'the page derives it from the costs');
   assert.equal(summary.comparisonIncomplete,undefined);
-  assert.equal(summary.cuts,24);
+  assert.equal(summary.cuts,1,'one cut decision, re-applied by the ratchet');
   const sessionText=fs.readFileSync(new URL('../site/clearing-django-astra-session.json', import.meta.url),'utf8');
   assert.doesNotMatch(sessionText, /encrypted_content|gAAAAAB|\/Users\/yoav|\/private\/var\/folders/);
 });
