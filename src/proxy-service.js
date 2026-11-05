@@ -25,6 +25,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
+import { containerKind, inContainer } from './container-kind.js';
 import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 
@@ -218,11 +219,31 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     // port after the manager said yes is started here
     if (await isListening(s.port)) return { on: true, started: true, managed: true, listening };
     const own = startDetached({ cli, home });
-    return { on: true, started: true, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: await waitProxyStarted(home, s.port, wait, own) };
+    const up = await waitProxyStarted(home, s.port, wait, own);
+    if (!up && !(await isListening(s.port))) return { ...deadPort({ cli, home }), started: true, managed: false, fellBack: 'the service manager started nothing' };
+    return { on: true, started: true, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: up };
   }
   const pid = startDetached({ cli, home });
   const listening = await waitProxyStarted(home, s.port, wait, pid);
+  if (!listening && !(await isListening(s.port))) return { ...deadPort({ cli, home }), started: true, pid };
   return { on: true, started: true, pid, listening };
+}
+
+// An agent routed at a proxy that is not there fails every model call, which is worse than no proxy at all
+// (the mandatory rule: thinker never trades a working harness for itself). On a host, a port that is dead
+// for a moment is ordinary -- the next prompt starts it, and the agent's own requests have not begun -- so
+// nothing is given up on. In a container it is not ordinary: measured on 2026-11-05 in a devcontainer, a
+// proxy spawned by a short-lived parent bound its port, logged its banner and was gone seconds later, and
+// nothing a later hook did brought it back, so the route would have stayed dead for the life of the
+// container. There the service stands down instead: the URL comes out of every agent's file, those sessions
+// go straight to the API, and `thinker proxy on` is the only thing that turns it back on. The install starts
+// the proxy in the form that does survive in a container (`containers.js:installInContainer`), so this is
+// the floor, not the normal path.
+function deadPort({ cli, home }) {
+  if (!inContainer()) return { on: true, listening: false };
+  const why = 'the proxy would not stay up in this container';
+  try { standDown(why, { home }); } catch {}
+  return { on: false, stoodDown: why, listening: false };
 }
 
 // The service manager's entry is one per machine, and only the machine's own THINKER_HOME may write or restart it.

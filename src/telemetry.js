@@ -12,6 +12,7 @@ import { thinkerHome, DAY_MS } from './update.js';
 import { summarize, readLog, knownRepos, holdoutOf } from './usage.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
+import { containerKind } from './container-kind.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
@@ -352,21 +353,6 @@ export function machineFacts({ home = thinkerHome(), env = process.env, readFile
     thinkerHomeMoved: !!env.THINKER_HOME,
     installIdStable: installIdStable(home),
   };
-}
-
-// 'docker' | 'podman' | 'kubernetes' | 'containerd' | null, from the marks a container runtime leaves in
-// the filesystem it gives the process. Never a container id or an image name.
-function containerKind({ env = process.env, readFile = fs.readFileSync, exists = fs.existsSync } = {}) {
-  if (env.KUBERNETES_SERVICE_HOST) return 'kubernetes';
-  try { if (exists('/.dockerenv')) return 'docker'; } catch {}
-  try { if (exists('/run/.containerenv')) return 'podman'; } catch {}
-  try {
-    const cgroup = String(readFile('/proc/self/cgroup', 'utf8'));
-    if (/kubepods/.test(cgroup)) return 'kubernetes';
-    if (/docker/.test(cgroup)) return 'docker';
-    if (/containerd|libpod|lxc/.test(cgroup)) return 'containerd';
-  } catch {}
-  return null;
 }
 
 // Whether the install id this report carries will still be here for the next one. `getInstallId` cannot say
