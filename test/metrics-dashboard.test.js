@@ -79,3 +79,28 @@ test('dashboard provisioning creates Token spend, maps its filters, and refreshe
   assert.equal([...records.values()].filter(r => r.name === 'Token spend').length, 1);
   await assert.rejects(verify({ config: { ...config, spendId: null }, call: () => { throw new Error('must fail before queries'); } }), /Token spend dashboard missing/);
 });
+
+// The clearing has two doors and the dashboard must count both. The Responses path (Codex) is reported under
+// `proxy.sides.responses` with its own sides and fields, so a card written against `sides.clearing` alone sees
+// none of it: that is how two of the nine machines the clearing was working for on 2026-11-05 read as devices
+// with the proxy on and nothing to show, and how all of that path's savings went uncounted. A card that counts
+// one door counts the other, or is named here with the reason it is one protocol's own figure.
+const MESSAGES_ONLY = new Map([
+  ['Prefix rewrites after a clear · 30 days', 'the rewrite accounting is per Messages call (proxy.js:proxyReport rewrites); the Responses sides keep no such block'],
+  ['Tokens cleared · 30 days', 'what the API itself reported clearing, which only the Messages path is told; the Codex card carries this path\'s own figure'],
+  ['Billed input a request · cleared vs held out', 'billedInput is weighted from the Anthropic token classes and the Responses sides carry no such field'],
+]);
+
+test('every spend card that counts one door of the clearing counts the other, or says why not', () => {
+  for (const q of spendQuestions) {
+    if (!/sides,(clearing|holdout)/.test(q.sql)) continue;
+    assert.ok(/sides,responses/.test(q.sql) || MESSAGES_ONLY.has(q.name),
+      `"${q.name}" counts the Messages path only: count the Responses path too, or exempt it in MESSAGES_ONLY with a reason`);
+  }
+  for (const name of MESSAGES_ONLY.keys()) {
+    assert.ok(spendQuestions.some(q => q.name === name), `MESSAGES_ONLY names "${name}", which is no longer a card`);
+  }
+  // and the Codex door has cards of its own: what it cut, and why it left the rest alone
+  assert.ok(spendQuestions.some(q => /sides,responses,clearing,removedTokens/.test(q.sql)), 'the Codex door reports what it removed, in tokens');
+  assert.ok(spendQuestions.some(q => /sides,responses,unchanged,reasons/.test(q.sql)), 'the Codex door says why a request was left alone');
+});
