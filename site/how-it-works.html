@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://thinker.sh/how-it-works">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>How it works — thinker</title>
-  <meta name="description" content="Watch the 42-second Thinker tour: how context compression, instruction trimming, and a knowledge cache help your tokens go further.">
+  <meta name="description" content="Watch the 48-second Thinker tour: how context compression, instruction trimming, and a knowledge cache help your tokens go further.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
@@ -29,7 +29,7 @@
 
   <main>
     <section class="economics" id="economics" aria-label="How Thinker makes your tokens go further">
-      <div class="econ-topline"><span class="econ-eyebrow">Make your tokens go further</span><span class="econ-example">42 seconds · illustrative example</span><a class="econ-close" href="/">Back to home ×</a></div>
+      <div class="econ-topline"><span class="econ-eyebrow">Make your tokens go further</span><span class="econ-example">48 seconds · illustrative example</span><a class="econ-close" href="/">Back to home ×</a></div>
       <div class="econ-scenes">
         <section class="econ-scene" data-scene="0" aria-labelledby="econ-title-0">
           <div class="econ-heading"><span class="econ-step">01 / Agent billing</span><h2 id="econ-title-0">How agent billing works.</h2></div>
@@ -55,33 +55,48 @@
           <div class="econ-repeat-hero"><div class="econ-repeat-counter"><strong id="econ-repeat-cost">4¢</strong><span>spent rereading the original 200k tokens</span></div><div class="econ-repeat-multiplier"><strong id="econ-repeat-n">1</strong><span>model calls so far</span></div></div>
           <div class="econ-repeats" id="econ-repeats" aria-hidden="true"></div><div class="econ-repeat-legend"><span><i></i>Earlier context, sent again</span><span><i></i>New context piles on</span></div><p class="econ-repeat-note">Counter tracks the original 200k only. New context adds more cost.</p>
         </section>
-        <section class="econ-scene" data-scene="3" aria-labelledby="econ-title-3" hidden>
-          <div class="econ-heading"><span class="econ-step">04 / Thinker compresses</span><h2 id="econ-title-3">Keep the useful.<br> <span class="green">Cut the rest.</span></h2></div>
+        <section class="econ-scene econ-wiring-scene" data-scene="3" aria-labelledby="econ-title-3" hidden>
+          <div class="econ-heading"><span class="econ-step">04 / Connect your agents</span><h2 id="econ-title-3">Your agents.<br> <span class="green">Now with thinker.</span></h2></div>
+          <p class="econ-billing-intro">Install once. Thinker connects through your agents’ settings. Keep coding as usual.</p>
+          <div class="econ-wiring" role="group" aria-label="Thinker connects your coding agents to context compression, a knowledge cache and instruction analysis">
+            <div class="econ-wire-agents"><span>Claude Code</span><span>Codex</span><span>Cursor</span><span class="econ-wire-more">&amp; more</span></div>
+            <div class="econ-wire-bus econ-wire-in" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <div class="econ-wire-hub"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6" opacity=".75"/><circle cx="22" cy="10" r="6" opacity=".5"/></svg><strong>thinker</strong><span>Connected to your workflow</span></div>
+            <div class="econ-wire-bus econ-wire-out" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="econ-wire-features">
+              <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 19h16M8 9l4 3 4-3M8 15l4-3 4 3"/></svg><strong>Context compression</strong><span>Less old context per call.</span><small>Automatic, where supported</small></div>
+              <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5"/></svg><strong>Knowledge cache</strong><span>Save discoveries. Reuse answers.</span><small>Connected through hooks &amp; MCP</small></div>
+              <div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14V8l-5-5Zm0 0v5h5M8 12h8M8 16h5"/></svg><strong>Instruction analysis</strong><span>Find guidance worth trimming.</span><small>You review and approve edits</small></div>
+            </div>
+          </div>
+        </section>
+        <section class="econ-scene" data-scene="4" aria-labelledby="econ-title-4" hidden>
+          <div class="econ-heading"><span class="econ-step">05 / Thinker compresses</span><h2 id="econ-title-4">Keep the useful.<br> <span class="green">Cut the rest.</span></h2></div>
           <div class="econ-cut-hero"><div><strong id="econ-context-n">200k</strong><span>tokens carried per call</span></div><div class="econ-cut-percent" id="econ-cut-percent"><strong>−60%</strong><span>context in this example</span></div></div>
           <div class="econ-context econ-cut-track" id="econ-cut-track" role="img" aria-label="120 thousand tokens of older tool results removed, 80 thousand retained"><div class="econ-prefix">Kept</div><div class="econ-old" id="econ-old-block"><span>120k · old tool results</span></div><div class="econ-recent" id="econ-rewrite-block">Kept</div></div>
           <div class="econ-write-receipt" id="econ-write-receipt"><span>One-time rewrite</span><strong>+28.8¢</strong><span>extra now</span></div>
           <div class="econ-cut-key"><span id="econ-cut-label">Older results, removed after use.</span><span id="econ-cut-key">Recent context stays.</span><span class="sr-only" id="econ-removed"></span></div>
         </section>
-        <section class="econ-scene econ-cost-scene" data-scene="4" aria-labelledby="econ-title-4" hidden>
-          <div class="econ-heading"><span class="econ-step">05 / The payoff</span><h2 id="econ-title-4">Rewrite now.<br> <span class="green">Fewer reads later.</span></h2></div>
+        <section class="econ-scene econ-cost-scene" data-scene="5" aria-labelledby="econ-title-5" hidden>
+          <div class="econ-heading"><span class="econ-step">06 / The payoff</span><h2 id="econ-title-5">Rewrite now.<br> <span class="green">Fewer reads later.</span></h2></div>
           <p class="econ-billing-intro">A one-time rewrite adds 28.8¢ to this call. Each later call saves 2.4¢, gradually paying it back.</p>
           <div class="econ-repeat-hero"><div class="econ-repeat-counter econ-net-block"><strong id="econ-net">28.8¢</strong><span id="econ-payback-label">still to recover</span></div><div class="econ-repeat-multiplier"><strong class="green">−2.4¢</strong><span>saved on each later call</span></div></div>
           <div id="econ-chart" class="econ-chart econ-payoff-cost-chart"></div>
           <span class="sr-only"><b id="econ-calls">0</b> later calls</span>
           <p class="econ-repeat-note" id="econ-payback-state">Write cost first. Savings follow.</p>
         </section>
-        <section class="econ-scene" data-scene="5" aria-labelledby="econ-title-5" hidden>
-          <div class="econ-heading"><span class="econ-step">06 / Trim instructions</span><h2 id="econ-title-5">Trim once.<br> <span class="green">Keep relevant context.</span></h2></div>
+        <section class="econ-scene" data-scene="6" aria-labelledby="econ-title-6" hidden>
+          <div class="econ-heading"><span class="econ-step">07 / Trim instructions</span><h2 id="econ-title-6">Trim once.<br> <span class="green">Keep relevant context.</span></h2></div>
           <div class="econ-trim-demo"><div class="econ-file"><div class="econ-file-head"><span>AGENTS.md</span><strong id="econ-file-size">12k tokens</strong></div><div class="econ-code-line long"></div><div class="econ-code-line medium"></div><div class="econ-cut-lines" id="econ-cut-lines"><div class="econ-code-line"></div><div class="econ-code-line long"></div><div class="econ-code-line medium"></div><div class="econ-code-line long"></div></div><div class="econ-code-line short"></div><div class="econ-file-foot" id="econ-file-foot">Your edits. Your approval.</div></div><div class="econ-trim-saving"><strong>−8k</strong><span>tokens on every call</span><p>Smaller writes.<br> Cheaper reads. Again.</p></div></div>
           <div class="econ-compound"><div><strong id="econ-trim-total">8k</strong><span>fewer context tokens read</span></div><div><b id="econ-trim-calls">1 later call × 8k fewer tokens</b><span>Same session. Saving on every later read.</span></div></div>
         </section>
-        <section class="econ-scene" data-scene="6" aria-labelledby="econ-title-6" hidden>
-          <div class="econ-heading"><span class="econ-step">07 / Knowledge cache</span><h2 id="econ-title-6">Learn once.<br> <span class="green">Save and reuse.</span></h2></div>
+        <section class="econ-scene" data-scene="7" aria-labelledby="econ-title-7" hidden>
+          <div class="econ-heading"><span class="econ-step">08 / Knowledge cache</span><h2 id="econ-title-7">Learn once.<br> <span class="green">Save and reuse.</span></h2></div>
           <div class="econ-knowledge"><div class="econ-discovery"><strong>40k</strong><span>exploration tokens carried forward</span><div class="econ-source">Read files. Trace code. Search history.</div></div><div class="econ-knowledge-arrow" aria-hidden="true">→</div><div class="econ-note"><strong>2k</strong><span>note tokens carried forward</span><div class="econ-source">The same answers, less context.</div></div></div>
           <div class="econ-compound econ-compound-knowledge"><div><strong id="econ-knowledge-total">38k</strong><span>fewer context tokens read</span></div><div><b id="econ-knowledge-calls">1 later call × 38k fewer tokens</b><span>Same session. Saving on every later read.</span></div></div><p class="econ-small-note econ-knowledge-overhead">Illustration: 40k exploration replaced by 2k notes. Learning and verification also cost tokens.</p>
         </section>
-        <section class="econ-scene" data-scene="7" aria-labelledby="econ-title-7" hidden>
-          <div class="econ-heading"><span class="econ-step">08 / More runway</span><h2 id="econ-title-7">More work.<br> <span class="green">Same token limit.</span></h2></div>
+        <section class="econ-scene" data-scene="8" aria-labelledby="econ-title-8" hidden>
+          <div class="econ-heading"><span class="econ-step">09 / More runway</span><h2 id="econ-title-8">More work.<br> <span class="green">Same token limit.</span></h2></div>
           <div class="econ-limit-comparison" role="img" aria-label="Illustrative comparison: without Thinker, the token budget is exhausted. With Thinker, the same work uses less of the budget, leaving room to continue.">
             <span class="econ-limit-boundary">Your token limit</span>
             <div class="econ-limit-row"><div class="econ-limit-label"><span>Without thinker</span><strong id="econ-limit-stopped">Working…</strong></div><div class="econ-limit-track"><div class="econ-limit-used" id="econ-limit-without"></div></div></div>
@@ -91,7 +106,7 @@
           <p class="econ-limit-foot">Illustrative token budget. Actual usage and plan limits vary.</p>
         </section>
       </div>
-      <div class="econ-player"><div class="econ-player-top"><button type="button" class="econ-play" id="econ-play">Play 42-second tour</button><label class="econ-scrub-label" for="econ-scrub"><span class="sr-only">Walkthrough position in seconds</span><input id="econ-scrub" type="range" min="0" max="42" step="0.1" value="0" aria-valuetext="0 seconds of 42 seconds"></label><span class="econ-time" id="econ-time">0:00 / 0:42</span><button type="button" class="econ-replay" id="econ-replay" aria-label="Replay walkthrough from the beginning">Replay</button></div><div class="econ-chapters" aria-label="Walkthrough chapters"><button type="button" data-chapter="0" aria-current="step">Agent billing</button><button type="button" data-chapter="1">Session bill</button><button type="button" data-chapter="2">Repeated cost</button><button type="button" data-chapter="3">Compression</button><button type="button" data-chapter="4">The payoff</button><button type="button" data-chapter="5">Trim</button><button type="button" data-chapter="6">Knowledge cache</button><button type="button" data-chapter="7">More runway</button></div></div>
+      <div class="econ-player"><div class="econ-player-top"><button type="button" class="econ-play" id="econ-play">Play 48-second tour</button><label class="econ-scrub-label" for="econ-scrub"><span class="sr-only">Walkthrough position in seconds</span><input id="econ-scrub" type="range" min="0" max="48" step="0.1" value="0" aria-valuetext="0 seconds of 48 seconds"></label><span class="econ-time" id="econ-time">0:00 / 0:48</span><button type="button" class="econ-replay" id="econ-replay" aria-label="Replay walkthrough from the beginning">Replay</button></div><div class="econ-chapters" aria-label="Walkthrough chapters"><button type="button" data-chapter="0" aria-current="step">Agent billing</button><button type="button" data-chapter="1">Session bill</button><button type="button" data-chapter="2">Repeated cost</button><button type="button" data-chapter="3">Your agents</button><button type="button" data-chapter="4">Compression</button><button type="button" data-chapter="5">The payoff</button><button type="button" data-chapter="6">Trim</button><button type="button" data-chapter="7">Knowledge cache</button><button type="button" data-chapter="8">More runway</button></div></div>
       <div class="econ-status sr-only" id="econ-status" aria-live="polite"></div>
       <details class="econ-assumptions"><summary>Illustrative economics, not measured savings <span>Model, rates &amp; assumptions</span></summary><p>USD at <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching" target="_blank" rel="noreferrer">Claude Opus 5.5 API list prices</a>: fresh input $4, one-hour cache writes $8, cache reads $0.20, output $20 per million tokens. Checked November 4, 2026. Subscription allowances are not dollar bills.</p><p>The session bill uses 20 calls at 10¢ each, holding the cost mix and 200k cached tokens fixed to show how costs add up. The repeated-cost counter isolates that original context at 4¢ per call; the growing bars illustrate additional context accumulating, whose cost is not included in the counter. These are illustrations, not a measured session. The compression example starts with 200k cached tokens, removes 120k net of placeholders, and assumes 40k retained tokens need rewriting. Each call adds the same $0.060 of fresh input, new writes, and output in both cases. The example isolates this context’s lifetime: it assumes a warm cache, no further cuts, no extra rereads, and identical work. Actual write size depends on reusable cache boundaries; recovery depends on later calls. Instruction and knowledge examples are separate illustrations and are not added to compression savings. Trimming 8k instruction tokens avoids 160k context-read tokens over 20 later calls in the same session; dollar savings depend on fresh input, writes, and reads. The knowledge example replaces 40k exploration tokens with a 2k note pack: 38k less context carried into each later call. Over 20 later calls in the same session, that avoids 760k context-read tokens. Both examples assume the removed context would otherwise remain in every later request, with no intervening compression. The knowledge example assumes the notes answer the same questions without extra exploration. Figures exclude the initial exploration difference and learning or verification costs; they are illustrative read-token reductions, not measured outcomes or net dollar savings.</p><p>The final runway visual is conceptual: reducing repeated context can leave more of a token budget available for useful work. It does not specify an increase in tasks, subscription allowance, or session length. Rewrites, learning and verification also consume tokens; actual results depend on the workload and agent.</p><p>Compression availability depends on the agent. Instruction trimming and the knowledge cache are separate features. <a href="docs.html">See how Thinker works with your agent →</a></p></details>
     </section>
@@ -105,7 +120,7 @@
       const $ = id => root.querySelector('#' + id);
       const scenes = [...root.querySelectorAll('[data-scene]')];
       const chapters = [...root.querySelectorAll('[data-chapter]')];
-      const starts = [0, 4, 9, 14, 19, 28, 32, 36], end = 42;
+      const starts = [0, 4, 9, 14, 20, 25, 34, 38, 42], end = 48;
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
       const clamp = (n, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
       const smooth = n => { n = clamp(n); return n * n * (3 - 2 * n); };
@@ -166,6 +181,16 @@
           repeatMarks.forEach((mark,i) => { mark.classList.toggle('active', i < calls); mark.classList.toggle('latest', i === calls - 1); });
         }
         if (index === 3) {
+          const wiring = root.querySelector('.econ-wiring');
+          wiring.style.setProperty('--wire-in', reduced.matches ? 1 : smooth((local - .3) / .9));
+          wiring.style.setProperty('--wire-out', reduced.matches ? 1 : smooth((local - 1.3) / .9));
+          root.querySelectorAll('.econ-wire-features > div').forEach((feature, i) => {
+            const progress = reduced.matches ? 1 : smooth((local - 2 - i * .3) / .6);
+            feature.style.opacity = .35 + .65 * progress;
+            feature.style.transform = 'translateY(' + (6 * (1 - progress)) + 'px)';
+          });
+        }
+        if (index === 4) {
           const progress = reduced.matches ? (local > .5 ? 1 : 0) : smooth((local - .55) / .85);
           $('econ-old-block').style.width = (60 * (1 - progress)) + '%';
           $('econ-old-block').style.opacity = 1 - progress;
@@ -181,7 +206,7 @@
           $('econ-cut-percent').style.opacity = progress;
           $('econ-cut-percent').style.transform = 'scale(' + (.75 + progress*.25) + ')';
         }
-        if (index === 4) {
+        if (index === 5) {
           const calls = Math.floor(clamp((local - .35) / 6.7) * 30 + 1e-9);
           const c = costAt(calls);
           $('econ-calls').textContent = Math.floor(calls);
@@ -193,7 +218,7 @@
           root.querySelector('.econ-net-block').classList.toggle('paid', calls >= 12);
           chart(calls);
         }
-        if (index === 5) {
+        if (index === 6) {
           const progress = reduced.matches ? (local > .5 ? 1 : 0) : smooth((local - .5) / .8);
           $('econ-cut-lines').style.height = (40 * (1 - progress)) + 'px';
           $('econ-cut-lines').style.opacity = 1 - progress;
@@ -203,7 +228,7 @@
           $('econ-trim-total').textContent = (calls * 8) + 'k';
           $('econ-trim-calls').textContent = calls + (calls === 1 ? ' later call' : ' later calls') + ' × 8k fewer tokens';
         }
-        if (index === 6) {
+        if (index === 7) {
           const progress = reduced.matches ? 1 : smooth((local - .4) / .75);
           root.querySelector('.econ-note').style.transform = 'translateX(' + (12 * (1 - progress)) + 'px)';
           root.querySelector('.econ-note').style.opacity = .45 + .55 * progress;
@@ -211,7 +236,7 @@
           $('econ-knowledge-total').textContent = (calls * 38) + 'k';
           $('econ-knowledge-calls').textContent = calls + (calls === 1 ? ' later call' : ' later calls') + ' × 38k fewer tokens';
         }
-        if (index === 7) {
+        if (index === 8) {
           // Schematic motion only: these proportions are not a savings estimate.
           const work = reduced.matches ? 1 : smooth((local - .3) / 1.8);
           const extra = reduced.matches ? 1 : smooth((local - 2.6) / 1.5);
@@ -229,9 +254,9 @@
           $('econ-limit-finish').style.transform = 'translateY(' + (8 * (1 - finish)) + 'px)';
         }
         $('econ-scrub').value = time;
-        $('econ-scrub').setAttribute('aria-valuetext', Math.floor(time) + ' seconds of 42 seconds, ' + chapters[active].textContent);
-        $('econ-time').textContent = fmtTime(time) + ' / 0:42';
-        $('econ-play').textContent = playing ? 'Pause' : time >= end ? 'Play again' : time === 0 ? 'Play 42-second tour' : 'Play';
+        $('econ-scrub').setAttribute('aria-valuetext', Math.floor(time) + ' seconds of 48 seconds, ' + chapters[active].textContent);
+        $('econ-time').textContent = fmtTime(time) + ' / 0:48';
+        $('econ-play').textContent = playing ? 'Pause' : time >= end ? 'Play again' : time === 0 ? 'Play 48-second tour' : 'Play';
       }
       function tick(now) {
         if (!playing) return;
@@ -264,10 +289,10 @@
       $('econ-play').addEventListener('click', () => playing ? pause() : play());
       $('econ-replay').addEventListener('click', () => { pause(); seek(0); if (!reduced.matches) play(); });
       $('econ-scrub').addEventListener('input', e => { const value = e.target.value; pause(); seek(value); });
-      chapters.forEach((button,index) => button.addEventListener('click', () => { pause(); seek(starts[index] + (reduced.matches ? [0,4,4,3,7.5,2.5,2.5,5.5][index] : 0)); if (!reduced.matches) play(); }));
+      chapters.forEach((button,index) => button.addEventListener('click', () => { pause(); seek(starts[index] + (reduced.matches ? [0,4,4,4,3,7.5,2.5,2.5,5.5][index] : 0)); if (!reduced.matches) play(); }));
       document.addEventListener('visibilitychange', () => { if (document.hidden && playing) pause(); });
       reduced.addEventListener('change', () => { if (reduced.matches) pause(); });
-      new ResizeObserver(() => { chartKey = ''; if (active === 4) render(); }).observe($('econ-chart'));
+      new ResizeObserver(() => { chartKey = ''; if (active === 5) render(); }).observe($('econ-chart'));
       new IntersectionObserver(entries => {
         const entry = entries[0];
         if (!entry.isIntersecting && playing) pause();
