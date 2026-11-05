@@ -513,64 +513,16 @@ load the project file; existing dependency paths provide retrieval relevance.
 
 ## Pull requests delivered (`thinker prs`, 2026-10-29)
 
-What a pull request cost and what thinker saved on it. The question behind it: of the work people actually
-ship, how much of it did thinker pay for. Nothing here calls a model or spends a token.
-
-- **A session belongs to one pull request**, by evidence in this order (`delivery.js:linkFor`): a person's own
-  `thinker prs link` (which may `--split` one session between two); a commit the session was sitting on that
-  is one of the pull request's (`commit`); the session's branch matching its head ref (`branch`). A branch
-  used twice goes to the pull request whose life the session falls inside. A session matching nothing is
-  listed as unlinked, never dropped and never guessed at.
-- **Two savings, kept apart**, because they are not the same kind of evidence. `cleared` is **measured**: the
-  tokens the API left out of that session's prompts after the context proxy cleared them. `reading` is an
-  **estimate**: one read per file behind each note the session was seen to act on, which is exactly what
-  `usage.js` counts for the machine, so the two doors can never disagree. `total` adds them, and every door
-  says which is which.
-- **The clearing is read from the proxy's own log** (`compression.js:clearedBySession`), not from the card's
-  state files: those are at most 200, pruned after two days, because a card is drawn in the session that paid
-  for the clear. A pull request merges days later, so by then they are gone. The state file is still consulted
-  for what the log's tail no longer reaches, and the larger of the two wins.
-- **`merged` means merged with work recorded here**, not merged in the repository. On this repository a
-  7-day window held 90 merged pull requests and 22 the machine's own sessions worked on; counting all 90
-  would have read as thinker saving nothing on 68 pull requests it never saw. The repository's total is
-  carried beside it as `mergedSeen`, for context only.
-- **Agent tokens are every prompt and every answer added up**, which is the same shape as the saving: the
-  cleared tokens are also per-prompt and summed over calls. So saved ÷ spent is a figure that means something.
-- **GitHub is read through the person's own `gh` login, read-only** (`delivery.js:syncPrs`), and from the
-  listing alone: it already carries the branch, the head, the base, the merge commit and the times, which is
-  everything the linking and the figures need. A pull request's own page and its commit list cost a call each
-  and are read only when one is named (`--pr n`). A page at a time, newest first, stopping at the window
-  (`MAX_PAGES` 20): not `gh api --paginate`, which follows the link header to the end of the repository's
-  history. Reading a month of this repository was over two minutes when every matched pull request cost a
-  detail call and a commits call; it is six seconds for 541 pull requests now. Maintenance does it once a
-  day, the whole window the first time and back to the last sync after (`maintain.js`,
-  `maintain: { prSync: false }`; not `maintain.prs`, which is the mining step). It is free, so it is not a
-  background spend in the sense of the rule above.
-- **The journal** is `<log dir>/delivery/<digest>.jsonl`, per repository, gitignored, three record kinds
-  (`observation`, `pr`, `link`). Sessions, servings and model calls stay in the usage log; nothing is copied.
-- **Posting** (`delivery-comment.js`): `thinker prs comment --pr n` publishes the local
-  report on a merged PR; `--dry` previews, `--days` uses the report's window (30 by default). Reruns
-  update the authenticated author's comment for this machine, leaving other authors and machines alone.
-  Sync and maintenance stay read-only on GitHub. Comments distinguish measured gross clearing from
-  estimated reading, state the window and session attribution, and publish no session IDs or note text.
-  Comments show the **netted** figure (2026-11-04; it was gross until then): clearing at the session model's
-  cache-read rate, reading at its input rate, honoring manual shares and price overrides, **less the cache
-  writes the calls after a clear paid for**. Unknown prices stay unpriced. Learning spend is still not
-  deducted. The Report band and the page carry the same figure, and the token columns stay beside it.
-- **Automatic posting** (`delivery-auto.js`) runs in the existing four-hour update job, even without
-  a new release or after a failed update check. First pass establishes a start date (no backfill);
-  later passes post once per newly merged PR with local savings after 20 minutes of session quiet, and
-  never one whose netted dollars are a loss -- that is a bug report, not news for someone's pull request.
-  Receipts live in `<THINKER_HOME>/state/pr-comments.json`; failed posts retry, at most 10 attempts
-  per pass. `prComments: false` in machine or repository config disables it, as does disabling the
-  repository. `prs auto --dry --json` inspects locally known candidates without GitHub. Test mode
-  suppresses real publishing; tests must inject every network boundary. Update status/check/schedule
-  paths never post. Manual `prs comment` can update a previously posted comment.
-- **What leaves the machine** (`delivery-telemetry.js`, payload `prs`) is counts and token totals. Never a
-  pull request's number, title, URL, branch or author, never a repository, never a session id. The metrics
-  API promotes the headline numbers to columns and `v_pr_delivery` reads saved per merged pull request.
-- This replaced `thinker impact`, the review-era delivery tracker (findings, review runs, decisions), removed
-  with the rest of `thinker review`'s remains on 2026-10-29. Its journal (`<log dir>/impact/`) has no reader.
+- **Session-PR linking** (`delivery.js:linkFor`): `thinker prs link` (with `--split`), one session per PR. Unlinked sessions never dropped.
+- **Two savings types**: `cleared` (measured tokens, `compression.js:clearedBySession`), `reading` (estimated, `usage.js`). `total` sums both.
+- **Proxy log consulted** for state files when tail unreached; larger value wins.
+- **`merged` = merged with recorded work**. `mergedSeen` shows repository total.
+- **Agent tokens = prompt + answer sum**.
+- **GitHub read-only** (`gh` login, `delivery.js:syncPrs`): branch, head, base, merge commit, times. Detail/commits only for named PRs (`--pr n`). 20 pages max, newest first.
+- **Journal**: `<log dir>/delivery/<digest>.jsonl`, three record kinds, gitignored.
+- **Posting** (`delivery-comment.js`): `thinker prs comment --pr n`; `--dry`, `--days 30`. Shows netted figure: clearing at cache-read rate, reading at input rate, minus cache-write cost.
+- **Auto-posting** (`delivery-auto.js`): 4-hour job, posts once per merged PR after 20 min quiet if netted dollars ≥ 0. Disabled by `prComments: false`. Receipts in `<THINKER_HOME>/state/pr-comments.json`.
+- **Telemetry** (`delivery-telemetry.js`): counts and tokens only.
 
 ## Usage history
 
@@ -678,99 +630,14 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
 
 ## Dependency-keyed invalidation
 
-- A dep is `{path, symbol?}`. With a symbol, thinker hashes just that
-  definition's block; without, the whole file. A note about
-  `Command.invoke` does not go stale because an unrelated function in the
-  same file changed.
-- The block is found by tree-sitter when its grammars are installed
-  (`ast.js`; Python, JavaScript, TypeScript, Go, Rust) and otherwise by a
-  language-agnostic definition regex with brace or indentation matching
-  (`deps.js:findSymbol`). The regex is thrown off by braces in strings and
-  regex literals and by `return foo(` lines; on this repository's own notes
-  the two disagreed on 5% of symbol deps, the regex wrong each time. The
-  parser is on by default since 0.1.30: `web-tree-sitter` and
-  `tree-sitter-wasms` are dependencies, pinned to the versions that load each
-  other, and install and update put them in place with the rest (`npm ci`).
-  They were an optional `thinker ast install` into `~/.thinker/ast` before;
-  that directory is still read, after thinker's own copy
-  (`ast.js:astDirs`; `THINKER_AST_DIR` names another place; `thinker ast`
-  shows which is in use and `thinker ast install` repairs an install without
-  its dependencies; `THINKER_AST=off` disables it). An install made without
-  npm has no parser and keeps the regex. A dep hashed by the parser carries
-  `engine: "ast"` and, beside its hash, the regex hash of the same symbol
-  (`hashRegex`). So the two kinds of checkout agree (`deps.js:checkNote`):
-  where the parser arrives, a dep the regex hashed is not stale if the regex
-  block is unchanged, and the parser's record replaces it (`upgraded`);
-  where there is no parser, a dep a teammate's parser hashed is not stale if
-  its `hashRegex` still matches, and the record is kept as it is. Installing
-  the parser, or lacking it, marks no note stale.
-- The parser is not believed where it failed. The grammars lag the languages
-  (Go's `new(expr)`, TypeScript's `import('x').T` in a type: 5% of the
-  TypeScript and 3% of the Go files behind the Grafana and PostHog notesets
-  parse with errors), and the parser recovers silently, cutting a definition
-  short or folding its neighbours into it. A definition with a parse error in
-  or beside it is marked (`ast.js:broken`) and `astFindSymbol` returns nothing
-  for it, so `locateSymbol` falls back to the regex. One name of a declaration
-  group (`const ( A = 1; B = 2 )`, `const a = 1, b = 2`) is its own lines, not
-  the group's. Measured over 1,359 symbol deps of five notesets on 2026-10-10:
-  the engines agree on 96%; of the 53 they disagree on, the parser is right on
-  about 44 (the regex takes a call site for the definition, or runs past its
-  end), 8 are judgment calls (a Rust `struct` or its `impl`), and none is a
-  case where the regex is right.
-- What hashing works out is kept on disk between processes
-  (`disk-cache.js`, under `~/.thinker/cache`): a file's definitions by its text
-  (`ast.js:definitions`), a symbol's or a whole file's hash by the text
-  (`deps.js:symbolRecord`, `fileHash`), and a dep's hash at a commit by the
-  commit (`deps.js:hashDepAt`, which was two git processes for every dep whose
-  hash had moved, on every prompt). The keys carry the text or commit and the
-  hasher's own source, so an entry is never wrong, only absent; nothing there
-  is a record, and deleting the directory costs one slow run. Every hook and
-  command is a new process, and without this each one re-read every file every
-  note points at: on this repository's 158 notes `orient` took 0.88 s with the
-  regex and 1.3 s with the parser, and takes 0.36 s with either now; the check
-  of all 307 Grafana notes went from 0.7 s (1.7 s with the parser) to 0.09 s.
-  The suite runs without the cache unless a test names a directory
-  (`setDiskCache`) or `THINKER_HOME` is set.
-- Pointers written in the body (`core.py:Command.main`, `Foo.bar`,
-  `types.convert_type`) are extracted automatically and added as deps, so
-  the tracked set matches what the note actually claims.
-- Every `orient`/`lookup` re-hashes the deps of every note against the
-  working tree, so uncommitted edits are caught too. A whole-file dep on a
-  file the note also points into by symbol is dropped when the note is
-  created or verified (`ops.js:dropShadowedFileDeps`). A whole-file dep on
-  a code file whose definitions the body names becomes those symbol deps
-  when the note is created (`deps.js:narrowAtCreation`; configs, scripts
-  and documents stay whole), and the distiller is told to name the
-  definition for a code file. Maintenance and `thinker check` judge a
-  changed whole-file dep further (`deps.js:narrowFileDep`, `checkNote` with
-  `narrow`): when the body names definitions in the file, the dep becomes
-  those symbol deps, the note is stale only on the ones that changed since
-  `verifiedCommit` (each carrying its hash from that commit, so the change
-  stays visible), and the narrowed deps are persisted whether the note is
-  fresh or stale, so the next check and the verification see symbols, not
-  the file; when it names none and no changed line of the diff since
-  `verifiedCommit` holds a term the note uses, the dep keeps the file and
-  takes the new hash. `checkNote` returns deps that are safe to store in
-  either case: a dep the change altered keeps its stored record. On this
-  repository (two hundred commits a week) 74 of 137 stale notes rested on
-  nothing but whole-file deps on hub files (`src/cli.js` in 48), and
-  neither the term rule nor a line-anchored variant could clear them, since
-  a week of diff to a hub file holds every word; anchoring to definitions
-  is what helps, and it helps the next time, not retroactively.
-  Stale notes are ranked lower and served with a `⚠ STALE` banner listing
-  exactly which deps changed and how (symbol body changed / file removed /
-  symbol not found).
-- The `verify` log record names the deps that triggered it (`changed`).
-- `thinker check` persists statuses; `thinker verify` sends each stale note, the git diff of
-  its changed deps since `verifiedCommit`, and the current text of every dep
-  to a small model (Haiku by default) which answers `still_valid` (re-hash,
-  bump confidence), `update` (rewrite body, keep history) or `invalid`
-  (retire). The answer is the verdict and one sentence, a body only for
-  `update`, capped at 1,500 tokens (`ops.js:VERIFY_SCHEMA`,
-  `VERIFY_MAX_TOKENS`): a week of verify calls here averaged 2,900 output
-  tokens for verdicts that were 64% `still_valid`. A rewritten body that
-  starts with the framing the model was shown (`NOTE (kind=…) "title"`, or
-  the title) loses that line (`ops.js:cleanBody`).
+- A dep is `{path, symbol?}`. With symbol, thinker hashes that definition's block; without, the whole file.
+- Block found by tree-sitter (grammars: Python, JavaScript, TypeScript, Go, Rust) or regex (`deps.js:findSymbol`). Parser on by default since 0.1.30: `web-tree-sitter` and `tree-sitter-wasms` pinned/installed via `npm ci`. Optional `thinker ast install` into `~/.thinker/ast`; also read from `THINKER_AST_DIR`; disabled via `THINKER_AST=off`. Parser hashes carry `engine: "ast"`; mismatch with regex hash: if regex unchanged, not stale; parser record replaces it (`upgraded`).
+- Parser fallback: grammars lag languages. Broken definitions marked (`ast.js:broken`); `astFindSymbol` returns nothing, `locateSymbol` falls back to regex.
+- Hashing cached to `~/.thinker/cache`: file definitions, symbol/file hash, dep hash at commit (`disk-cache.js`, `deps.js`). Keys include text/commit and hasher source; entries never wrong, only absent.
+- Pointers in body (`core.py:Command.main`, `Foo.bar`) auto-extracted as deps.
+- Every `orient`/`lookup` re-hashes deps against working tree. Whole-file deps shadowed by symbol deps dropped (`ops.js:dropShadowedFileDeps`). Code file whole-file deps with named definitions become symbol deps at creation (`deps.js:narrowAtCreation`); `thinker check` narrows further (`narrowFileDep`, `checkNote` with `narrow`): if body names definitions, dep becomes symbol deps; if no definitions named and no changed line holds note's terms, keep file dep with new hash.
+- Stale notes ranked lower, served with `⚠ STALE` banner listing changed deps. `verify` log records changed deps.
+- `thinker check` persists statuses; `thinker verify` sends stale note, git diff since `verifiedCommit`, current text of every dep to Haiku (default) for verdict: `still_valid`, `update`, or `invalid`. One sentence per verdict, body only for `update`, capped 1,500 tokens (`ops.js:VERIFY_SCHEMA`, `VERIFY_MAX_TOKENS`).
 
 ## Capture
 
