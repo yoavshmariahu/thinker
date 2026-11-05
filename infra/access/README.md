@@ -5,6 +5,8 @@ The site and docs are public. `production.json` sets
 The homepage and docs include a GitHub link and the shared message widget.
 The canonical domain is `thinker.sh`; `zerotime.dev`, `www.zerotime.dev`, and
 `www.thinker.sh` redirect permanently to it, preserving paths and query parameters.
+“See how it works” opens the standalone tour at `/how-it-works`; the `.html`
+and trailing-slash variants redirect to that shareable URL.
 “See the data” lives at `/see-the-data`; legacy `/compression` and `/clearing`
 URLs (including `.html` and trailing-slash variants) redirect there in one hop.
 Since 0.1.35 the installer and releases live on GitHub (tags `vX.Y.Z` with the
