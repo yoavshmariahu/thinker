@@ -729,3 +729,19 @@ test('proxy accounting verification is an explicit CLI flag', () => {
   assert.match(read('cli.js'), /--verify-usage/);
   assert.match(read('commands/proxy.js'), /flags\['verify-usage'\]/);
 });
+
+// `thinker containers` is machine-wide and CLI-only, like `proxy` and `errors`: it changes a container on
+// this machine, not a repository's context, so it has no row on Find Savings and no Report figure. The sync
+// rule it must keep is the other one -- the command is the only door, and it answers in a repository thinker
+// is switched off for, because a container is the machine's, not the checkout's.
+test('thinker containers is machine-wide and CLI-only, and installs from this build rather than the network', async () => {
+  const cli = fs.readFileSync(new URL('../src/cli.js', import.meta.url), 'utf8');
+  assert.match(cli, /'containers'/, 'containers answers where a repository is switched off, as proxy and errors do');
+  assert.match(cli, /containers \[--install id\|name\|all\] \[--devcontainer\] \[--json\]/, 'the command is in the help');
+  const page = fs.readFileSync(new URL('../src/ui/page.html', import.meta.url), 'utf8');
+  assert.ok(!/containers/.test(page), 'no page control may offer to change a container');
+  const mod = await import('../src/containers.js');
+  // what goes into a container is this build, so the two copies cannot drift to different versions
+  assert.ok(mod.COPY_EXCLUDES.includes('node_modules/onnxruntime-node'), 'the host\'s native modules are the wrong architecture inside');
+  assert.match(mod.containerSnippet(), /npx -y thinkersh --no-build/, 'the permanent form installs by version, not by copy');
+});

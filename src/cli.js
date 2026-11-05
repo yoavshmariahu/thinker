@@ -30,6 +30,7 @@ import { commands as contextCommands } from './commands/context.js';
 import { commands as explainCommands } from './commands/explain.js';
 import { commands as reportCommands } from './commands/report.js';
 import { commands as proxyCommands } from './commands/proxy.js';
+import { commands as containerCommands } from './commands/containers.js';
 import { commands as errorCommands } from './commands/errors.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
@@ -38,7 +39,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail', 'dry'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail', 'dry'].includes(k)) || (cmd === 'containers' && ['json', 'devcontainer'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 // A process can be left in a directory that no longer exists: a worktree removed under it, a build directory
@@ -269,6 +270,12 @@ const HELP = `thinker — knowledge cache for coding agents
                                 what thinker itself has failed at on this machine, exactly as it would be
                                  sent to its developers. Nothing is sent until you answer yes; never stops
                                  the question coming back
+  containers [--install id|name|all] [--devcontainer] [--json]
+                                the agents on this machine that run in a container. A devcontainer has its own
+                                 home, so the wiring here is not what the agent in there reads, and it gets no
+                                 notes; --install copies this build in (no network, native modules left out) and
+                                 wires the agents inside, serving from the checkout you already mount.
+                                 A rebuild wipes it: --devcontainer prints the lines that keep it
   proxy on [--gateway] [--upstream url] | off | status
                                 the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
@@ -319,10 +326,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...errorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'errors', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];
 
 async function main() {
   // Retired entrypoints must not initialize a cache, schedule work or execute a command.
