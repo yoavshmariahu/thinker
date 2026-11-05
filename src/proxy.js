@@ -292,7 +292,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
 export function applyCut(messages, cut) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
-  if (!ids.size) return { messages, cut: 0, chars: 0, firstChanged: -1 };
+  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, firstChanged: -1 };
   let n = 0, chars = 0, firstChanged = -1;
   const out = messages.map((m, i) => {
     const c = m?.content;
@@ -309,7 +309,12 @@ export function applyCut(messages, cut) {
     if (firstChanged < 0) firstChanged = i;
     return { ...m, content: blocks };
   });
-  return { messages: out, cut: n, chars, firstChanged };
+  // `tokens` is what this prompt is shorter by, and that is the whole of the saving: the set is cumulative
+  // within a conversation, so every later call reads the shorter prefix again (compression.js). Reported
+  // here rather than worked out by a reader, because only this walk knows which results it replaced -- one
+  // below `CUT_MIN_CHARS` is left in place, and a cut id whose result the agent no longer sends is not in
+  // the prompt to save anything.
+  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
@@ -369,7 +374,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
     cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
-    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, inputChars: applied.inputChars, thinking: applied.thinking, firstChanged: applied.firstChanged },
+    // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
+    // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
+    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
     ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
     ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
@@ -420,12 +427,27 @@ export function usageTap() {
       return {
         input: seen.input_tokens, read: seen.cache_read_input_tokens, write: seen.cache_creation_input_tokens, out: seen.output_tokens,
         write1h: seen.write1h, write5m: seen.write5m,
-        // what the cut took out is known from the cut itself (`clientCut`), not from the API's report
+        // The API clears nothing now, so it reports nothing: what the cut took out is the cut's own figure,
+        // put on the row by `clearedBy`.
         cleared: 0, clearedUses: 0,
       };
     },
   };
 }
+
+// What this request was shorter by, and how many results that was: the two fields every door that speaks
+// about a saving reads off this row (`compression.js:noteCompression` writes the session's record from it,
+// `clearedBySession` sums it, `cache-savings.js:clearBoundaries` finds the clears by the count rising).
+//
+// They used to come from the API, which reported what its own edit had cleared. Thinker cuts the context
+// itself now and asks the API for nothing, so from 2026-11-04 there was nothing for the API to report and
+// `usageTap` returned 0 -- while the field the cut fills instead (`clientCut`) is read by nobody outside
+// this file. So every saving went unrecorded: on this machine the last session record was written
+// 2026-11-04 04:01, the API's last cleared figure came at 12:01 the same day, and the `proxy-cut` rows
+// after it account for 666,516 tokens taken out that reached no card, no `thinker proxy report` and no
+// pull request. Only a request the cut actually shortened carries the fields, so a row that cleared
+// nothing still says nothing (`noteCompression` would otherwise record a clear that never happened).
+const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clientCut.tokens), clearedUses: t.clientCut.cut || 0 } : {});
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
@@ -601,7 +623,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
