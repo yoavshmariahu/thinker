@@ -11,8 +11,9 @@
     "id": "django-astra",
     "group": "django",
     "label": "Django \u00b7 Prefetch routing",
-    "description": "Astra high \u00b7 historical per-request policy",
-    "origin": "Artemis \u00b7 Django PR21834 \u00b7 14 prompts"
+    "description": "Astra high \u00b7 shared cut policy \u00b7 accounting incomplete",
+    "origin": "Artemis \u00b7 Django PR21834 \u00b7 14 prompts \u00b7 replacement control",
+    "when": "2026-11-05"
   },
   {
     "id": "mlflow-registry",
@@ -46,7 +47,14 @@
     "id": "posthog-broadcasts",
     "group": "posthog-broadcasts",
     "label": "PostHog \u00b7 Broadcast scheduling",
-    "description": "Opus medium \u00b7 knowledge cache + compression",
-    "when": "2026-11-04"
+    "description": "Opus medium \u00b7 seven-turn testing and repair",
+    "when": "2026-11-05"
+  },
+  {
+    "id": "posthog-metrics",
+    "group": "posthog-metrics",
+    "label": "PostHog \u00b7 Metric UUIDs",
+    "description": "Opus medium \u00b7 additional attempt completed",
+    "when": "2026-11-05"
   }
 ]

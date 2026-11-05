@@ -79,25 +79,27 @@ await click('#ttl',ttls[1]);
 assert.equal(ttls[1]['aria-pressed'], true);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
-assert.match(node('#tiles').innerHTML,/19.2%/);
+assert.match(node('#tiles').innerHTML,/Unverified/);
 checkCodexInputs('django-astra');
 assert.match(node('#tiles').innerHTML,/LLM judge · 5\/5 criteria/);
 assert.deepEqual(partRows(node('#ptab').innerHTML),['cached input','uncached input','output','total']);
 assert.doesNotMatch(node('#ptab').innerHTML,/cache writes|Not recorded/);
 assert.equal(legendText(node('#legend1').innerHTML),legend);
 
-assert.match(node('#tiles').innerHTML,/<span>19.2% saved<\/span>/);
-assert.match(node('#session-label').innerHTML,/19.2% saved/);
+assert.match(node('#tiles').innerHTML,/<span>Unverified<\/span>/);
+assert.match(node('#run-notice').textContent,/billing is unknown/);
+assert.doesNotMatch(node('#ptab').innerHTML,/%/);
+assert.match(node('#session-label').innerHTML,/Cost unverified/);
 assert.doesNotMatch(node('#session-label').innerHTML,/At least/);
 assert.doesNotMatch(node('#tiles').innerHTML,/At least|Session cost/);
 assert.match(node('#tiles').innerHTML,/<div class="k">Uncached input<\/div>/);
 assert.equal([...node('#tiles').innerHTML.matchAll(/<div class="k">[^<]*cost[^<]*<\/div>/gi)].length,1,'only one topline cost card');
-assert.match(node('#stats').innerHTML,/11.09/);
-assert.match(node('#stats').innerHTML,/8.96/);
+assert.match(node('#stats').innerHTML,/10.54/);
+assert.match(node('#stats').innerHTML,/10.42/);
 const beforeCostChart=node('#c2').innerHTML;
 const savingsCard=node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0];
 for (const sub of node('#tiles').innerHTML.matchAll(/<div class="sub">([^<]+)<\/div>/g)) assert.ok(sub[1].length <= 32, 'topline subtext stays brief');
-assert.match(node('#caveats').innerHTML,/Historical per-request cutting policy/);
+assert.match(node('#caveats').innerHTML,/Shared turn-boundary cut policy/);
 assert.match(node('#judge-evidence').innerHTML,/Task outcome/);
 assert.doesNotMatch(node('#tiles').innerHTML,/NaN|undefined/);
 assert.equal(node('#ttl-label').textContent,'OpenAI pricing');
@@ -110,8 +112,8 @@ assert.doesNotMatch(node('#tiles').innerHTML,/estimated|range/);
 
 assert.doesNotMatch(node('#sessions').innerHTML,/mitmproxy/);
 await click('#ttl',ttls[0]);
-assert.match(node('#stats').innerHTML,/11.09/);
-assert.match(node('#stats').innerHTML,/8.96/);
+assert.match(node('#stats').innerHTML,/10.54/);
+assert.match(node('#stats').innerHTML,/10.42/);
 assert.equal(node('#c2').innerHTML,beforeCostChart,'hidden TTL setting cannot change Codex costs');
 assert.equal(node('#tiles').innerHTML.split('<div class="tile cache-writes">')[0],savingsCard,'Codex saving does not depend on the TTL setting');
 assert.match(node('#c2').innerHTML,/svg/);
@@ -125,6 +127,7 @@ assert.equal(prevented,true);assert.equal(tabs[1].focused,true);assert.equal(tab
 assert.equal(tabs[0].tabindex,'-1');
 
 assert.match(node('#timeline').innerHTML,/Turn 14/);
+assert.doesNotMatch(node('#timeline').innerHTML,/(?:−|\+)\d+%|The whole session/);
 assert.ok(!node('#timeline').innerHTML.includes('NaN'), 'no unrecorded fields rendered as numbers');
 assert.match(node('#sess-note').textContent,/API usage/);
 for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36'],['mlflow-span','16.6%','13.22','11.02','0.36']]) {
@@ -201,7 +204,8 @@ for (const entry of JSON.parse(fs.readFileSync('site/clearing-runs.json')).filte
   assert.ok(node('#stats').innerHTML.includes(`<td>Cuts skipped</td><td>0</td><td>${count}</td>`));
  }
  await click('.tabs',tabs[1]);
- assert.match(node('#timeline').innerHTML,/Turn 9/);
+ assert.ok(node('#timeline').innerHTML.includes(`Turn ${d.promptCount || 9}`));
+ if (entry.id === 'posthog-broadcasts') { assert.match(node('#run-notice').textContent,/grades are inconsistent/); assert.match(node('#judge-evidence').innerHTML,/65 passed without Thinker; 62 passed with Thinker/); }
  assert.match(node('#sess-note').textContent,/Both Claude sessions/);
  assert.doesNotMatch(node('#timeline').innerHTML,/what the model sees now|(?:carried|read|wrote|answered) (?:NaN|undefined)|>NaN<|>undefined</);
  await click('.tabs',tabs[0]);

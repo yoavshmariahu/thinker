@@ -5,7 +5,7 @@ p=argparse.ArgumentParser();p.add_argument('--records',required=True);p.add_argu
 a=p.parse_args();records=pathlib.Path(a.records);out=pathlib.Path(a.out)
 report=json.loads(pathlib.Path(a.report).read_text());pair=next(p for p in report['pairs'] if p['task']==a.task)
 task=next(t for t in json.loads((records/'tasks.json').read_text())['tasks'] if t['id']==a.task)
-prompts=[task['prompt']]+task['turns'];assert len(prompts)==9
+prompts=[task['prompt']]+task['turns'];assert len(prompts)>=1
 assert re.fullmatch(r'[a-z0-9-]+',a.id)
 def text(c):
  if isinstance(c,str):return c
@@ -17,7 +17,7 @@ def scrub(s):
  s=re.sub(r'gAAAAAB[A-Za-z0-9_=\-]*','[encrypted value omitted]',s)
  return re.sub(r'sk-[A-Za-z0-9_\-]{20,}','[credential-like value omitted]',s)
 def clean(o):return json.loads(scrub(json.dumps(o,ensure_ascii=False)))
-meta=dict(id=a.id,price=dict(input=4,read=.2,w1h=8,w5m=5,out=20),cold=0,model='Claude Opus 5.5 · medium',protocol='anthropic',recordedWrites=True,recordedTTL=True,combined=True,judged=True,repo='PostHog',task=a.task,source='Artemis · PostHog '+a.task+' · nine prompts',costData='clearing-'+a.id+'-costs.json',savings=dict(minPercent=pair['savingPercent'],maxPercent=pair['savingPercent'],minDollars=pair['saving'],maxDollars=pair['saving']))
+meta=dict(id=a.id,price=dict(input=4,read=.2,w1h=8,w5m=5,out=20),cold=0,model='Claude Opus 5.5 · medium',protocol='anthropic',recordedWrites=True,recordedTTL=True,combined=True,judged=True,repo='PostHog',task=a.task,source=f'Artemis · PostHog {a.task} · {len(prompts)} prompts',promptCount=len(prompts),costData='clearing-'+a.id+'-costs.json',savings=dict(minPercent=pair['savingPercent'],maxPercent=pair['savingPercent'],minDollars=pair['saving'],maxDollars=pair['saving']))
 small,full=dict(meta),dict(meta);blobs={};accounting={}
 # Snapshot the decision limit used by the pinned experiment build, not a future default.
 small['cutPolicy']=full['cutPolicy']={'maxPaybackCalls':20}
@@ -70,7 +70,7 @@ for arm,side,key in [('control','off','control'),('cut','on','treatment')]:
    for tid,result in results.items():
     if tid not in present and 'until' not in result:result['until']=k
   calls.append(c);turns[current-1]['calls'].append(k);turns[current-1]['steps'].append(dict(kind='call',k=k))
- assert seen_prompts==set(range(1,10)),seen_prompts
+ assert seen_prompts==set(range(1,len(prompts)+1)),seen_prompts
  assert seen_notes==set(e['k'] for e in priced['knowledge']['events'])
  last=next((s for s in reversed(rec['transcript']['steps']) if s['kind']=='assistant'),None)
  if last:turns[-1]['steps'].append(dict(kind='say',text=scrub(last['text'])))
