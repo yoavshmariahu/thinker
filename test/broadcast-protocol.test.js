@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { stagedTask, TEST } from '../research/broadcast-correctness/protocol.mjs';
+test('broadcast protocol retains the request and hidden grader, permits real tests, and caps repairs', () => {
+  const original={id:'example',prompt:'Do not run tests.\n\nOnce a scheduled broadcast is live, people must be able to stop and edit it.\n\nRead each file in full.',goldDiffText:'PRIVATE_REFERENCE',criteria:[{id:'hidden'}],turns:['old']};
+  const changed=stagedTask(original);
+  assert.equal(changed.goldDiffText,original.goldDiffText);
+  assert.deepEqual(changed.criteria,original.criteria);
+  assert.equal(changed.turns.length,6);
+  assert.match(changed.prompt,/Once a scheduled broadcast is live/);
+  assert.doesNotMatch(changed.prompt,/Do not run tests|PRIVATE_REFERENCE|"hidden"/);
+  assert.ok(changed.turns.every(t=>t.includes(TEST)));
+  assert.match(changed.turns[4],/at most three edit-and-test cycles/);
+  assert.throws(()=>stagedTask({...original,prompt:'different task'}),/boundaries/);
+});
+
+test('adapter runs tests in the session checkout and preserves failed functional evidence', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'broadcast-adapter-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const deps=path.join(root,'deps'),checkout=path.join(root,'checkout'),bin=path.join(root,'bin');
+  fs.mkdirSync(path.join(deps,'frontend/node_modules'),{recursive:true});
+  fs.mkdirSync(path.join(checkout,'frontend'),{recursive:true});fs.mkdirSync(bin);
+  const adapter=path.join(root,'arm.mjs');
+  fs.copyFileSync(fileURLToPath(new URL('../research/broadcast-correctness/arm.mjs',import.meta.url)),adapter);
+  const capture=path.join(root,'capture.mjs');fs.writeFileSync(capture,'console.log(JSON.stringify({capturePreserved:true}))');
+  fs.writeFileSync(path.join(bin,'pnpm'),`#!${process.execPath}\nimport('node:fs').then(fs=>{if(process.cwd()!==process.env.EXPECT_CWD)process.exit(9);const a=process.argv.slice(2);fs.writeFileSync(a[a.indexOf('--outputFile')+1],JSON.stringify({success:process.env.MOCK_FAIL!=='1',numTotalTests:Number(process.env.MOCK_TESTS),numFailedTests:process.env.MOCK_FAIL==='1'?1:0,numTotalTestSuites:4}));process.exit(process.env.MOCK_FAIL==='1'?1:0)})\n`,{mode:0o755});
+  const env={...process.env,THINKER_TEST:'1',PATH:bin+path.delimiter+process.env.PATH,BROADCAST_DEPS_ROOT:deps,BROADCAST_CAPTURE_ADAPTER:capture,EXPECT_CWD:fs.realpathSync(checkout),MOCK_TESTS:'29'};
+  const run=(phase,extra={})=>spawnSync(process.execPath,[adapter,phase,'fixture',checkout],{env:{...env,...extra},encoding:'utf8'});
+  const before=run('before');assert.equal(before.status,0,before.stderr);
+  assert.equal(fs.realpathSync(path.join(checkout,'frontend/node_modules')),fs.realpathSync(path.join(deps,'frontend/node_modules')));
+  const after=run('after',{MOCK_TESTS:'30'});assert.equal(after.status,0,after.stderr);
+  const result=JSON.parse(after.stdout);assert.equal(result.capturePreserved,true);assert.equal(result.functionalValidation.complete,true);
+  assert.equal(JSON.parse(run('after',{MOCK_TESTS:'30',MOCK_FAIL:'1'}).stdout).functionalValidation.complete,false);
+  assert.equal(JSON.parse(run('after').stdout).functionalValidation.complete,false,'unchanged test count is not new regression coverage');
+});
