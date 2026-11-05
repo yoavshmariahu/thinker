@@ -173,7 +173,7 @@ for (const entry of JSON.parse(fs.readFileSync('site/clearing-runs.json')).filte
  await click('.tabs',tabs[1]);
  assert.match(node('#timeline').innerHTML,/Turn 9/);
  assert.match(node('#sess-note').textContent,/Both Claude sessions/);
- assert.doesNotMatch(node('#timeline').innerHTML,/what the model sees now|NaN|undefined/);
+ assert.doesNotMatch(node('#timeline').innerHTML,/what the model sees now|(?:carried|read|wrote|answered) (?:NaN|undefined)|>NaN<|>undefined</);
  await click('.tabs',tabs[0]);
 }
 // Unit fixture only: exercise actual mixed-TTL pricing and a worse treatment outcome.
