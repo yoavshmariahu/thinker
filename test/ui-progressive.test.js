@@ -163,3 +163,25 @@ test('the browser handles an empty report and stops with an explicit cold-read e
   context.api = async () => ({ loading: true, refreshing: false, progress: { error: 'Disk unavailable' } });
   await assert.rejects(context.progressiveView('/api/report?repo=all', () => assert.fail('rendered no data'), () => true), /Disk unavailable/);
 });
+
+// All is paged 20 rows at a time and ranked by waste, so a row the weekly question numbered (or the installer's
+// picker listed) could be checked on a page nobody had opened: the line above the Apply counted savings the person
+// could not see. The checked rows come first on All, frozen when the door's list is resolved, so unchecking one does
+// not move it (page.html:PRETOP, preselectRows, sortRows).
+test('the rows a door checked come first on All, and stay where they are when one is unchecked', async () => {
+  const { default: vm } = await import('node:vm');
+  const page = fs.readFileSync(new URL('../src/ui/page.html', import.meta.url), 'utf8');
+  const code = page.slice(page.indexOf('const PICKS = {'), page.indexOf('// a button says what it is doing while it works'));
+  const context = vm.createContext({ pickKey: r => `${r.repo || ''}\t${r.key}` });
+  const api = vm.runInContext(`${code}\n({ sortRows, preselectRows, PICKS, PRETOP })`, context);
+  const row = (key, wastedWindow) => ({ key, name: key, view: 'all', wasted: 1, wastedWindow, window: wastedWindow, options: [['compress', 'Compress']] });
+  const rows = [row('big', 900), row('mid', 500), row('small', 20)];
+  // the rows come back from the vm's own Array, so the order is compared as text
+  const keys = view => api.sortRows(rows, 'wasted', view).map(r => r.key).join(' ');
+  assert.equal(keys('all'), 'big mid small', 'with nothing checked: most wasted first');
+  api.preselectRows(rows, [{ kind: 'section', key: 'small', repo: null, act: 'compress' }]);
+  assert.equal(keys('all'), 'small big mid', 'the checked row leads, the rest keep their order');
+  assert.equal(keys('instructions'), 'big mid small', 'only All is preselected, so only All reorders');
+  api.PICKS.all.delete('\tsmall');
+  assert.equal(keys('all'), 'small big mid', 'unchecking does not move the row out from under the hand');
+});

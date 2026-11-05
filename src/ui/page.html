@@ -711,7 +711,7 @@ const PREACT = new Map(); let PRESUGGESTED = false;
 function preselectRows(rows, suggested) {
   for (const s of suggested) {
     const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
-    if (r) { PICKS.all.set(pickKey(r), r); PREACT.set(`all\t${pickKey(r)}`, s.act); }
+    if (r) { PICKS.all.set(pickKey(r), r); PREACT.set(`all\t${pickKey(r)}`, s.act); PRETOP.add(pickKey(r)); }
   }
   PRESUGGESTED = PICKS.all.size > 0;
 }
@@ -719,12 +719,19 @@ function preselectRows(rows, suggested) {
 // for the cards on screen and the page after them, which is only a promise someone can rely on while the order
 // cannot change under them. The Sort control went with it.
 const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted' };
+// Except that the rows the door checked come first on All (the owner's ask, 2026-11-05). All is paged TABLE_PAGE rows
+// at a time and ranked by waste, which the question's lines are not: a line it numbered could sit on a page nobody
+// had opened, so the line above the Apply said "2 suggested savings checked for you" over rows that were not on
+// screen, and the person had to find what they had already been asked about. Frozen when the door's list is resolved
+// (preselectRows) rather than read from the picks, so unchecking a row leaves it where it is and nothing moves under
+// the hand that unchecked it; among themselves and below them the order is the ordinary one.
+const PRETOP = new Set();
 // one ordering for every table, by the figures the table shows over the window: most wasted (what it cost in the
 // calls of the sessions that did not use it, what the summary ranks by), most costly (the Over N days column), most
 // used (the share), by name;
 // a section also in the file's order
 const windowCost = r => r.window || 0, windowWaste = r => r.wasted == null ? -1 : (r.wastedWindow || 0);
-const sortRows = (rows, by) => [...rows].sort(cmpRows(by));
+const sortRows = (rows, by, view) => { const cmp = cmpRows(by); return [...rows].sort(view === 'all' && PRETOP.size ? (a, b) => (PRETOP.has(pickKey(b)) ? 1 : 0) - (PRETOP.has(pickKey(a)) ? 1 : 0) || cmp(a, b) : cmp); };
 const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
@@ -846,7 +853,7 @@ const flaggedSavings = (rows, days, { what, does, ok }) => {
 const TABLE_PAGE = 20, VPAGE = {};
 const pagerOf = (key, n, page, pageSize) => n > pageSize ? `<div class="ctx-note rep-pager"><span>${page * pageSize + 1}–${Math.min(n, (page + 1) * pageSize)} of ${n}</span><button class="btn ghost" data-vpage="${key}:${page - 1}"${page ? '' : ' disabled'}>Previous</button><button class="btn ghost" data-vpage="${key}:${page + 1}"${(page + 1) * pageSize < n ? '' : ' disabled'}>Next</button></div>` : '';
 function renderTable(view, rows, { title, sub, nameHead, savings }) {
-  rows = VROWS[view] = sortRows(rows, VSORT[view]);
+  rows = VROWS[view] = sortRows(rows, VSORT[view], view);
   const days = CTX?.days || cdays, picks = PICKS[view];
   const pages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE)), page = Math.min(pages - 1, VPAGE[view] || 0), from = page * TABLE_PAGE;
   // the Share column is read against the whole table, not the page shown, so a row keeps its weight as you page through
@@ -984,7 +991,7 @@ function bulkState() {
 }
 // the rows a view shows (by index) and what its table does: picks, See more, Apply, the sort
 function wireTable(root, view, rows) {
-  const sorted = sortRows(rows, VSORT[view]);
+  const sorted = sortRows(rows, VSORT[view], view);
   root.querySelectorAll(`[data-pick="${view}"]`).forEach(c => { c.onchange = () => { const r = sorted[Number(c.dataset.i)]; c.checked ? PICKS[view].set(pickKey(r), r) : PICKS[view].delete(pickKey(r)); c.closest('tr, .pcard').classList.toggle('ctx-picked', c.checked); if (view === 'all') PRESUGGESTED = false; bulkState(); }; });
   root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const d = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = d.hidden; d.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
   const actOf = i => root.querySelector(`[data-act="${i}"]`)?.value;
