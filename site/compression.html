@@ -454,13 +454,15 @@
       const savedPercent = D().savings ? D().savings.minPercent : (cb - ca) / cb * 100;
       const gain = saved >= 0;
       const writesKnown = !D().costBounds, writes = total(a, 'write'), baselineWrites = total(b, 'write');
+      const codex = D().protocol === 'responses';
+      const inputTile = (label, key, cls = '') => `<div class="tile ${cls}"><div class="k">${label}</div><div class="v ${total(a, key) <= total(b, key) ? 'good' : 'bad'}">${fmt(total(a, key))}</div><div class="sub">tokens · ${fmt(total(b, key))} without</div></div>`;
       const judged = !!D().cut.judgment;
       const passed = judged ? D().cut.judgment.pass && D().control.judgment.pass : !!(RUN().summary.cut.outcome && RUN().summary.control.outcome);
       const outcome = D().judged ? 'Opus judge · both patches' : judged ? `LLM judge · ${D().cut.judgment.met}/${D().cut.judgment.total} criteria` : 'Tests · both sessions';
       $('#tiles').innerHTML = `
         <div class="tile"><div class="k">Cost savings</div><div class="v ${gain ? 'good' : 'bad'} savings-headline"><span>${D().costBounds ? `${D().savings.minPercent.toFixed(1)}–${D().savings.maxPercent.toFixed(1)}%` : `${Math.abs(savedPercent).toFixed(1)}% ${gain ? 'saved' : 'more'}`}</span></div><div class="sub">${D().costBounds ? `${usd(D().savings.minDollars)}–${usd(D().savings.maxDollars)} estimated` : `${usd(Math.abs(saved))} ${gain ? 'saved' : 'more'}`}</div></div>
-        <div class="tile cache-writes"><div class="k">Cache writes</div><div class="v ${writesKnown ? writes <= baselineWrites ? 'good' : 'bad' : 'unavailable'}">${writesKnown ? fmt(writes) : 'Not recorded'}</div><div class="sub">${writesKnown ? `tokens · ${fmt(baselineWrites)} without` : 'Counts missing in this run'}</div></div>
-        <div class="tile"><div class="k">Input tokens</div><div class="v ${total(a, 'carried') <= total(b, 'carried') ? 'good' : 'bad'}">${pct(total(a, 'carried'), total(b, 'carried'))}</div><div class="sub">${cutsOf().length} cut${cutsOf().length === 1 ? '' : 's'} · ${a.length} vs ${b.length} calls</div></div>
+        ${codex ? inputTile('Uncached input', 'input', 'cache-writes') : `<div class="tile cache-writes"><div class="k">Cache writes</div><div class="v ${writesKnown ? writes <= baselineWrites ? 'good' : 'bad' : 'unavailable'}">${writesKnown ? fmt(writes) : 'Not recorded'}</div><div class="sub">${writesKnown ? `tokens · ${fmt(baselineWrites)} without` : 'Counts missing in this run'}</div></div>`}
+        ${codex ? inputTile('Cached input', 'read') : `<div class="tile"><div class="k">Input tokens</div><div class="v ${total(a, 'carried') <= total(b, 'carried') ? 'good' : 'bad'}">${pct(total(a, 'carried'), total(b, 'carried'))}</div><div class="sub">${cutsOf().length} cut${cutsOf().length === 1 ? '' : 's'} · ${a.length} vs ${b.length} calls</div></div>`}
         <div class="tile"><div class="k">Task outcome</div><div class="v ${passed ? 'good' : 'bad'}">${passed ? 'Both passed' : 'Check results'}</div><div class="sub">${outcome}</div></div>`;
     }
 

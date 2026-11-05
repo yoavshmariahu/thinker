@@ -27,6 +27,18 @@ assert.match(node('#session-label').innerHTML,/Click/);
 assert.match(node('#session-label').innerHTML,/Claude Opus 5.5/);
 const headings = html => [...html.matchAll(/<div class="k">([^<]+)<\/div>/g)].map(m=>m[1]);
 const expectedHeadings=['Cost savings','Cache writes','Input tokens','Task outcome'];
+const codexHeadings=['Cost savings','Uncached input','Cached input','Task outcome'];
+const checkCodexInputs = id => {
+ const data=JSON.parse(fs.readFileSync(`site/clearing-${id}.json`));
+ assert.deepEqual(headings(node('#tiles').innerHTML),codexHeadings);
+ for (const [label,key] of [['Uncached input','input'],['Cached input','read']]) {
+  const values=['cut','control'].map(arm=>data[arm].calls.reduce((n,c)=>n+c[key],0));
+  const format=n=>n>=1e6?(n/1e6).toFixed(2)+'M':n>=1000?Math.round(n/1000)+'k':String(Math.round(n));
+  const tile=node('#tiles').innerHTML.split(`<div class="k">${label}</div>`)[1].split('</div></div>')[0];
+  for (const value of values) assert.ok(tile.includes(format(value)),`${id}: ${label} includes both recorded arm totals`);
+ }
+ assert.doesNotMatch(node('#tiles').innerHTML,/Cache writes|Not recorded/);
+};
 assert.deepEqual(headings(node('#tiles').innerHTML),expectedHeadings);
 assert.match(node('#tiles').innerHTML,/Tests · both sessions/);
 assert.doesNotMatch(node('#tiles').innerHTML,/Not recorded/);
@@ -67,7 +79,7 @@ assert.equal(ttls[1]['aria-pressed'], true);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
 assert.match(node('#tiles').innerHTML,/10.2–22.5%/);
-assert.deepEqual(headings(node('#tiles').innerHTML),expectedHeadings);
+checkCodexInputs('django-astra');
 assert.match(node('#tiles').innerHTML,/LLM judge · 5\/5 criteria/);
 assert.deepEqual(partRows(node('#ptab').innerHTML),expectedParts);
 assert.match(node('#ptab').innerHTML,/<td>cache writes<\/td><td>Not recorded/);
@@ -77,7 +89,7 @@ assert.match(node('#tiles').innerHTML,/<span>10.2–22.5%<\/span>/);
 assert.match(node('#session-label').innerHTML,/10.2–22.5% estimated/);
 assert.doesNotMatch(node('#session-label').innerHTML,/At least/);
 assert.doesNotMatch(node('#tiles').innerHTML,/At least|Session cost/);
-assert.match(node('#tiles').innerHTML,/<div class="k">Cache writes<\/div><div class="v unavailable">Not recorded<\/div>/);
+assert.match(node('#tiles').innerHTML,/<div class="k">Uncached input<\/div>/);
 assert.equal([...node('#tiles').innerHTML.matchAll(/<div class="k">[^<]*cost[^<]*<\/div>/gi)].length,1,'only one topline cost card');
 assert.match(node('#stats').innerHTML,/11.09/);
 assert.match(node('#stats').innerHTML,/8.96/);
@@ -114,6 +126,7 @@ assert.ok(!node('#timeline').innerHTML.includes('NaN'), 'no unrecorded fields re
 assert.match(node('#sess-note').textContent,/API usage/);
 for (const [id, saving, control, treatment, compaction] of [['mlflow-registry','20.9%','15.08','11.92','0.32'],['mlflow-gateway','31.5%','16.94','11.61','0.36'],['mlflow-span','16.6%','13.22','11.02','0.36']]) {
  await click('#sessions',{dataset:{run:id}});
+ checkCodexInputs(id);
  assert.match(node('#session-label').innerHTML,/knowledge cache \+ compression/);
  assert.ok(node('#tiles').innerHTML.includes(saving));
  assert.equal(node('#ttl-label').textContent,'OpenAI pricing');
