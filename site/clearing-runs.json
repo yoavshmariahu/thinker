@@ -11,9 +11,9 @@
     "id": "django-astra",
     "group": "django",
     "label": "Django \u00b7 Prefetch routing",
-    "description": "Astra high \u00b7 historical per-request policy \u00b7 accounted pair",
-    "origin": "Artemis \u00b7 Django PR21834 \u00b7 14 prompts \u00b7 one pair \u00b7 pre-turn-boundary policy",
-    "when": "2026-11-04"
+    "description": "Astra high \u00b7 shipped turn-boundary policy \u00b7 accounted pair",
+    "origin": "Artemis \u00b7 Django PR21834 \u00b7 14 prompts \u00b7 one pair",
+    "when": "2026-11-05"
   },
   {
     "id": "mlflow-registry",
