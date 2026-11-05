@@ -186,6 +186,20 @@ for (const entry of JSON.parse(fs.readFileSync('site/clearing-runs.json')).filte
  assert.match(node('#tiles').innerHTML,/Opus judge/);
  assert.match(node('#caveats').innerHTML,/not knowledge caching alone/);
  assert.doesNotMatch(node('#pricing-explainer').innerHTML,/zero cache-write/);
+ if (entry.id === 'posthog-invites') {
+  const explanation='The cut could remove 154k tokens and would rewrite 93k cached tokens. That rewrite would take an estimated 25 more model calls to pay for itself, exceeding the 20-call limit.';
+  assert.ok(node('#events').innerHTML.includes(`At call 65 (turn 5): ${explanation}`));
+  assert.doesNotMatch(node('#events').innerHTML,/0 tokens would go|priced a cut|186k against 0/);
+  node('#c1').place(65,true);
+  assert.ok(node('#c1 .tip').innerHTML.includes(explanation));
+  assert.match(node('#c1 .tip').innerHTML,/Cut skipped/);
+  const firstCut=d.cut.calls.find(c=>c.cut);
+  node('#c1').place(firstCut.k,true);
+  assert.match(node('#c1 .tip').innerHTML,/The API reported .* cache-write tokens on this call/);
+  assert.doesNotMatch(node('#c1 .tip').innerHTML,/Cache-write count not recorded/);
+  const count=d.cut.calls.filter(c=>c.held&&!c.cut).length;
+  assert.ok(node('#stats').innerHTML.includes(`<td>Cuts skipped</td><td>0</td><td>${count}</td>`));
+ }
  await click('.tabs',tabs[1]);
  assert.match(node('#timeline').innerHTML,/Turn 9/);
  assert.match(node('#sess-note').textContent,/Both Claude sessions/);
@@ -196,6 +210,7 @@ for (const entry of JSON.parse(fs.readFileSync('site/clearing-runs.json')).filte
 context.ttlFixture = JSON.parse(fs.readFileSync('site/clearing-click-1.json'));
 const f = context.ttlFixture;
 Object.assign(f,{recordedWrites:true,recordedTTL:true,combined:true,judged:true,costData:'fixture-costs.json',task:'fixture'});
+f.cut.calls[0].held={cost:186000};
 for (const [arm,mult] of [['control',1],['cut',2]]) {
  f[arm].calls.forEach((c,i)=>Object.assign(c,{input:i?0:1000,read:i?0:1000,out:i?0:100,write1h:i?0:1000000*mult,write5m:i?0:1000000*mult,write:i?0:2000000*mult}));
  f[arm].knowledgeEvents=[];f[arm].judgment={pass:arm==='control'};f[arm].outcome=arm==='control'?'Judge passed':'Judge failed';
@@ -213,5 +228,7 @@ assert.match(node('#tiles').innerHTML,/Check results/);
 assert.match(node('#tiles').innerHTML,/Opus judge · both patches/);
 assert.doesNotMatch(node('#tiles').innerHTML,/Both passed|undefined|NaN/);
 assert.match(node('#judge-evidence').innerHTML,/Judge failed/);
+assert.match(node('#events').innerHTML,/does not include an estimate explaining the decision/);
+assert.doesNotMatch(node('#events').innerHTML,/0 tokens would go|186k against 0/);
 assert.doesNotMatch(node('#caveats').innerHTML,/zero cache-write|Both PR-test suites passed/);
 });
