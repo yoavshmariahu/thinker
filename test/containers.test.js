@@ -84,7 +84,14 @@ test('installing copies this build in, leaves the host\'s native modules out, an
   try {
     fs.writeFileSync(path.join(app, 'package.json'), '{}');
     const calls = [];
-    const exec = (bin, args) => { calls.push(args.join(' ')); return args.includes('version') && args.includes('sh') ? 'thinker 9.9.9' : 'Summary: 1 of 1 selected agents connected.'; };
+    const exec = (bin, args) => {
+      calls.push(args.join(' '));
+      const line = args.join(' ');
+      if (line.includes('serviceArgs')) return 'proxy --port 44327 --holdout 0.15 --codex';
+      if (line.includes('ANTHROPIC_BASE_URL')) return 'the proxy answers on 44327';
+      if (line.includes('version')) return 'thinker 9.9.9';
+      return 'Summary: 1 of 1 selected agents connected.';
+    };
     const spawn = (bin, args, opts) => {
       calls.push(`${bin} ${args.join(' ')}`);
       return { status: 0, stdout: Buffer.from('tarball'), stderr: Buffer.from('') };
@@ -93,7 +100,10 @@ test('installing copies this build in, leaves the host\'s native modules out, an
     assert.equal(r.ok, true);
     assert.equal(r.target, '/home/node/.thinker/app');
     assert.equal(r.wired, 'claude');
-    assert.deepEqual(r.steps.map(s => s.ok), [true, true, true, true, true]);
+    assert.deepEqual(r.steps.map(s => s.ok), [true, true, true, true, true, true, true], 'make, copy, chown, connect, version, start the proxy, verify the route');
+    assert.ok(calls.some(c => c.includes('ANTHROPIC_BASE_URL')), 'the route written inside is checked, not assumed');
+    // started as a detached exec's own process: a child of a foreground exec does not survive it
+    assert.ok(calls.some(c => c.startsWith('exec -d ') && c.includes('cli.js proxy')), 'the proxy is started in the form that stays up in a container');
     const tar = calls.find(c => c.startsWith('tar '));
     for (const excluded of COPY_EXCLUDES) assert.ok(tar.includes(`--exclude ${excluded}`), `${excluded} must stay on the host`);
     assert.ok(calls.some(c => c.includes('connect --clients claude')), 'the agents found inside are the ones wired');
@@ -101,7 +111,7 @@ test('installing copies this build in, leaves the host\'s native modules out, an
     // ANTHROPIC_BASE_URL=http://127.0.0.1:<port> into the agent's settings and leave launchd or systemd to
     // keep the proxy up; a container has neither, nothing listens on that port (measured in a devcontainer
     // on 2026-11-05, including after a prompt), and the agent in there would fail every model call.
-    assert.ok(calls.some(c => c.includes('connect --clients claude --no-proxy')), 'an install must never point the agent in a container at a proxy that cannot stay up there');
+    assert.ok(calls.some(c => c.includes('connect --clients claude')) && !calls.some(c => c.includes('--no-proxy')), 'a container gets the full install, the proxy included');
     assert.ok(!calls.some(c => c.includes('npm') || c.includes('npx')), 'no network install: the same build as the host goes in');
   } finally { fs.rmSync(app, { recursive: true, force: true }); }
 });
@@ -257,4 +267,25 @@ test('a yes for a container that has gone, or a failed install, says so and clai
     assert.equal(offerState(h2).installed, false);
     for (const d of [repo, h2]) fs.rmSync(d, { recursive: true, force: true });
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('an install that leaves a dead proxy route takes it back out rather than break the agent', () => {
+  const app = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ctr-dead-'));
+  try {
+    const calls = [];
+    // the proxy wrote its URL into the settings inside and nothing answers on the port
+    const exec = (bin, args) => {
+      calls.push(args.join(' '));
+      if (args.includes('-e')) return 'DEAD:44749';
+      if (args.join(' ').includes('version')) return 'thinker 9.9.9';
+      return 'Summary: 1 of 1 selected agents connected.';
+    };
+    const spawn = () => ({ status: 0, stdout: Buffer.from('tar'), stderr: Buffer.from('') });
+    const r = installInContainer({ id: 'dev', name: 'dev', home: '/home/node', agents: ['claude'] }, { app, exec, spawn });
+    assert.equal(r.ok, false, 'an install that would break the agent is not a success');
+    const route = r.steps.find(s => s.what === 'verify the route');
+    assert.equal(route.ok, false);
+    assert.match(route.detail, /taken back out/);
+    assert.ok(calls.some(c => c.includes('proxy off')), 'the route is removed from every agent file inside');
+  } finally { fs.rmSync(app, { recursive: true, force: true }); }
 });

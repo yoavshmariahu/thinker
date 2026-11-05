@@ -593,3 +593,22 @@ test('Anthropic\'s own host in the environment is no blocker, stands nothing dow
     assert.equal(again.upstream, null); assert.equal(serviceState(m.home).upstream, undefined, 'the stored value is dropped on the next on');
   } finally { m.restore(); }
 });
+
+test('in a container, a proxy that will not stay up stands down rather than leave the agent on a dead port', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    // a port nothing listens on, and a container (the marks a runtime leaves; containerKind reads them)
+    fs.writeFileSync(path.join(m.home, 'state/proxy-service.json'), JSON.stringify({ enabled: true, port: 1, wroteClaude: true }));
+    const { containerKind } = await import('../src/container-kind.js');
+    assert.equal(containerKind({ env: {}, exists: f => f === '/.dockerenv', readFile: () => { throw new Error('x'); } }), 'docker');
+    // the fault this is for, measured in a devcontainer on 2026-11-05: the proxy bound its port, logged its
+    // banner and was gone seconds later, and no later hook brought it back -- so the route would have
+    // stayed dead for the life of the container and every model call in there would have failed.
+    const result = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn: () => false });
+    assert.equal(result.listening, false);
+    // on this machine (not a container) the service stays on and the next prompt tries again
+    assert.equal(result.on, true, 'a host keeps the service: a port dead for a moment is ordinary there');
+    assert.equal(serviceState(m.home).standDown, undefined);
+  } finally { m.restore(); }
+});

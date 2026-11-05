@@ -25,6 +25,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
+import { containerKind, inContainer } from './container-kind.js';
 import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 
@@ -193,7 +194,16 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     saveNetworkEnv(home, process.env);
     if (restartFn({ cli, home, managedOnly: true })) {
       const listening = await waitProxyStarted(home, s.port, wait);
-      return { on: true, restarted: true, why, managed: true, listening };
+      if (listening) return { on: true, restarted: true, why, managed: true, listening };
+      // Something is on the port without having recorded its startup -- a proxy mid-start, or another
+      // process entirely. Claim nothing and start nothing: a competitor there is the EADDRINUSE race this
+      // branch exists to avoid.
+      if (await isListening(s.port)) return { on: true, restarted: true, why, managed: true, listening };
+      // Nothing is on the port at all, and the manager said yes: a stub `systemctl` (every devcontainer
+      // image ships one), a unit it refused, a launchd agent that never came up. Start it here, because an
+      // agent pointed at a dead port is the one outcome worse than no proxy.
+      const own = startDetached({ cli, home });
+      return { on: true, restarted: true, why, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: await waitProxyStarted(home, s.port, wait, own) };
     }
     if (process.env.CODEX_SANDBOX_NETWORK_DISABLED === '1') return { on: true, running: true, deferred: 'network-restricted hook' };
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
@@ -204,11 +214,36 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
   saveNetworkEnv(home, process.env);
   if (restartFn({ cli, home, managedOnly: true })) {
     const listening = await waitProxyStarted(home, s.port, wait);
-    return { on: true, started: true, managed: true, listening };
+    if (listening) return { on: true, started: true, managed: true, listening };
+    // as above: a listener that has not recorded ownership is left alone and claimed for nothing; a dead
+    // port after the manager said yes is started here
+    if (await isListening(s.port)) return { on: true, started: true, managed: true, listening };
+    const own = startDetached({ cli, home });
+    const up = await waitProxyStarted(home, s.port, wait, own);
+    if (!up && !(await isListening(s.port))) return { ...deadPort({ cli, home }), started: true, managed: false, fellBack: 'the service manager started nothing' };
+    return { on: true, started: true, managed: false, fellBack: 'the service manager started nothing', pid: own, listening: up };
   }
   const pid = startDetached({ cli, home });
   const listening = await waitProxyStarted(home, s.port, wait, pid);
+  if (!listening && !(await isListening(s.port))) return { ...deadPort({ cli, home }), started: true, pid };
   return { on: true, started: true, pid, listening };
+}
+
+// An agent routed at a proxy that is not there fails every model call, which is worse than no proxy at all
+// (the mandatory rule: thinker never trades a working harness for itself). On a host, a port that is dead
+// for a moment is ordinary -- the next prompt starts it, and the agent's own requests have not begun -- so
+// nothing is given up on. In a container it is not ordinary: measured on 2026-11-05 in a devcontainer, a
+// proxy spawned by a short-lived parent bound its port, logged its banner and was gone seconds later, and
+// nothing a later hook did brought it back, so the route would have stayed dead for the life of the
+// container. There the service stands down instead: the URL comes out of every agent's file, those sessions
+// go straight to the API, and `thinker proxy on` is the only thing that turns it back on. The install starts
+// the proxy in the form that does survive in a container (`containers.js:installInContainer`), so this is
+// the floor, not the normal path.
+function deadPort({ cli, home }) {
+  if (!inContainer()) return { on: true, listening: false };
+  const why = 'the proxy would not stay up in this container';
+  try { standDown(why, { home }); } catch {}
+  return { on: false, stoodDown: why, listening: false };
 }
 
 // The service manager's entry is one per machine, and only the machine's own THINKER_HOME may write or restart it.
@@ -271,7 +306,14 @@ WantedBy=default.target
 }
 const run = (cmd, args) => { try { execFileSync(cmd, args, { stdio: 'ignore' }); return true; } catch { return false; } };
 const uid = () => os.userInfo().uid;
-const hasSystemd = () => process.platform === 'linux' && run('systemctl', ['--user', 'show-environment']);
+// `systemctl` answering is not the same as systemd running this machine. Microsoft's devcontainer images --
+// and many other container images -- ship a stub `systemctl` on the PATH that exits 0 for everything and
+// starts nothing. Measured on 2026-11-05 in `mcr.microsoft.com/devcontainers/javascript-node:22`:
+// `systemctl --user show-environment`, `enable --now` and `restart` all succeeded, a unit was written, the
+// service recorded itself as on, and nothing ever listened -- so the agent in the container had
+// `ANTHROPIC_BASE_URL` pointing at a dead port and would have failed every model call. systemd is in charge
+// only where it booted the machine, which is what `/run/systemd/system` says; the stub cannot fake that.
+const hasSystemd = () => process.platform === 'linux' && fs.existsSync('/run/systemd/system') && run('systemctl', ['--user', 'show-environment']);
 
 // the service manager's entry: launchd on macOS, systemd on Linux with a user session; elsewhere the hook alone
 export function installService({ cli, home = thinkerHome(), manage = !isTestMode() } = {}) {

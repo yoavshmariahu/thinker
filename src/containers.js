@@ -145,22 +145,56 @@ export function installInContainer(container, { app = path.join(thinkerHome(), '
 
   const wire = (clients || container.agents).join(',');
   const connected = step('wire the agents inside', () =>
-    // `--no-proxy`, and it is not optional. A plain `connect` enables the context proxy as a service of the
-    // machine: it writes `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` into the agent's settings and leaves
-    // launchd or systemd to keep the process up. A container has neither, and the detached fallback does not
-    // survive in one -- measured on 2026-11-05 in a devcontainer: the URL was written, the service recorded
-    // itself as on, and nothing was ever listening on the port, including after a prompt. Claude Code in
-    // there would have sent every request to a dead loopback port and failed every model call. That is the
-    // fault the mandatory rule is about ("the proxy never takes over someone else's route... never trade a
-    // person's working harness for it"), and an install that caused it would be worse than no install.
-    //
-    // So a container gets the hooks, the MCP server and the notes, and its route is left exactly as it is.
-    // The clearing does not reach these sessions yet; making it would mean a proxy that stays up inside a
-    // container, or one on the host the container can reach, and either is its own change with its own
-    // measurement.
-    run(['exec', container.id, 'sh', '-lc', `cd ${home} && node ${target}/src/cli.js connect --clients ${wire} --no-proxy 2>&1 | tail -3`], { exec, timeout: 120_000 }));
+    // A full install, the proxy included. It was `--no-proxy` for one release-less day (#671), because a
+    // plain `connect` in a container wrote `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` into the agent's
+    // settings and nothing ever listened there: every devcontainer image ships a stub `systemctl` that
+    // exits 0 for everything and starts nothing, so thinker wrote a systemd unit, believed a manager owned
+    // the process, and never started one itself. Both halves are fixed in proxy-service.js -- systemd
+    // counts only where it booted the machine (`/run/systemd/system`), and a manager that reports success
+    // while the port stays dead is no longer believed -- so the proxy runs in the container as it does
+    // anywhere else, on the container's own loopback, reachable by nothing outside it. The route is
+    // verified below, and taken back out if nothing answers.
+    run(['exec', container.id, 'sh', '-lc', `cd ${home} && node ${target}/src/cli.js connect --clients ${wire} 2>&1 | tail -3`], { exec, timeout: 120_000 }));
   const version = step('check it runs', () => run(['exec', container.id, 'sh', '-lc', `node ${target}/src/cli.js version`], { exec, timeout: 60_000 }));
-  return { ok: connected && version, steps, target, wired: wire };
+  // The proxy needs starting from a process that outlives the install, which `docker exec` is not: a child
+  // spawned by a foreground exec is gone the moment that exec returns -- measured here on 2026-11-05, where
+  // the proxy bound its port, logged its banner and was a zombie seconds later. The same server started as
+  // a detached exec's own process runs and serves. So the install starts it that way, with the arguments the
+  // service itself would use, and its log is the service's log.
+  const started = step('start the proxy inside', () => {
+    const args = run(['exec', container.id, 'node', '-e',
+      `import("${target}/src/proxy-service.js").then(m=>console.log(m.serviceArgs().join(" ")))`], { exec, timeout: 60_000 });
+    if (!args || !/--port \d+/.test(args)) return 'no proxy to start: the install left the route alone';
+    run(['exec', '-d', container.id, 'sh', '-lc',
+      `node ${target}/src/cli.js ${args} >> ${home}/.thinker/state/proxy-service.log 2>&1`], { exec, timeout: 60_000 });
+    return args;
+  });
+
+  // The one thing an install must never leave behind: an agent routed at a proxy that is not there. If the
+  // settings inside name a loopback URL, something must answer on it, or the route comes back out
+  // (`proxy off` inside puts every agent's file back as it was). thinker never trades a working harness for
+  // itself, and a container is where that is easiest to get wrong.
+  const route = step('verify the route', () => {
+    const script = [
+      'const fs=require("fs");let u=null;',
+      `try{u=(JSON.parse(fs.readFileSync("${home}/.claude/settings.json","utf8")).env||{}).ANTHROPIC_BASE_URL||null}catch{}`,
+      'if(!u){console.log("no proxy route: left as it was");process.exit(0)}',
+      'const p=Number(u.split(":").pop());const c=require("net").connect({host:"127.0.0.1",port:p});',
+      'c.setTimeout(2500);',
+      'c.once("connect",()=>{console.log("the proxy answers on "+p);c.destroy()});',
+      'c.once("timeout",()=>{console.log("DEAD:"+p);c.destroy();process.exitCode=3});',
+      'c.once("error",()=>{console.log("DEAD:"+p);process.exitCode=3});',
+    ].join('');
+    let out = '';
+    try { out = run(['exec', container.id, 'node', '-e', script], { exec, timeout: 30_000 }); }
+    catch (err) { out = String(err?.stdout || err?.message || ''); }
+    if (/DEAD:/.test(out)) {
+      run(['exec', container.id, 'sh', '-lc', `node ${target}/src/cli.js proxy off`], { exec, timeout: 60_000 });
+      throw new Error(`nothing answered on the proxy port inside, so the route was taken back out and the agents in there go straight to the API (${out.trim().slice(0, 60)})`);
+    }
+    return out.trim().split('\n').pop();
+  });
+  return { ok: connected && version && started && route, steps, target, wired: wire };
 }
 
 // The same install, made part of the image so a rebuild keeps it. Printed, never written: a person's

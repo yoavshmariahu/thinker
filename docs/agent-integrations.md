@@ -52,16 +52,29 @@ Two limits to know. A container rebuild wipes the install -- `thinker containers
 `postCreateCommand` and volume that keep it. And a **git worktree** cannot be used from inside a container
 on its own: its `.git` is a file naming a gitdir on the host, so `git rev-parse` fails inside and thinker
 finds no repository at all (the hook runs, finds nothing, says nothing). Mount the main checkout, or clone
-inside. The proxy does not reach these sessions, and the install deliberately leaves the route in the container
-exactly as it is (`connect --no-proxy`). A plain `connect` would write
-`ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` into the agent's settings there and leave launchd or systemd to
-keep the process up; a container has neither, and measured in a devcontainer on 2026-11-05 nothing ever
-listened on that port, including after a prompt -- so the agent inside would have sent every request to a
-dead loopback port and failed every model call. A container therefore gets the hooks, the MCP server and the
-notes, and nothing touches how it reaches the API. Bringing the clearing to those sessions means a proxy
-that stays up inside a container, or one on the host the container can reach (`host.docker.internal` reaches
-the machine, but the host proxy binds loopback and that port refuses); either is its own change with its own
-measurement.
+inside. The install is a full install, the clearing included. The proxy runs inside the container, on the
+container's own loopback, reachable by nothing outside it. Two faults had to be fixed for that to be true
+(both measured in `mcr.microsoft.com/devcontainers/javascript-node:22` on 2026-11-05):
+
+- **A stub `systemctl` was believed.** Devcontainer images ship a `systemctl` on the PATH that exits 0 for
+  everything and starts nothing. `hasSystemd` took that for a user session, so thinker wrote a systemd unit,
+  `restartService` reported success for every restart, and `ensureProxy` never started a process itself:
+  `ANTHROPIC_BASE_URL` was written into the agent's settings and nothing ever listened on the port. systemd
+  now counts only where it booted the machine (`/run/systemd/system`), and a manager that reports success
+  while the port stays dead is no longer believed -- `ensureProxy` starts the proxy itself, unless something
+  is already on the port that has not recorded ownership, which is left alone as before.
+- **A child of a foreground `docker exec` does not outlive it.** Started that way the proxy bound its port,
+  logged its banner and was a zombie seconds later. The install starts it as a detached exec's own process
+  (`docker exec -d`, with the arguments the service itself would use), which runs and serves, and then
+  checks the port: if nothing answers, the route comes back out (`proxy off` inside) rather than leave the
+  agent pointed at a dead port. Verified in that image: the proxy answers, survives a prompt through the
+  hook, forwards a request to the API and logs its cut decision.
+
+The floor, if the proxy ever dies in a container: the next prompt hook stands the service down
+(`proxy-service.js:ensureProxy`, `deadPort`) -- the URL comes out of every agent's file, those sessions go
+straight to the API and `thinker proxy on` is the only thing that turns it back on. On a host a port that is
+dead for a moment is ordinary and nothing is given up on; in a container it is not, because nothing there
+brought it back.
 
 ## Devin
 
