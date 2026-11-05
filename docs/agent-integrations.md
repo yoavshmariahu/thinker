@@ -15,6 +15,35 @@ Project trust and hook enablement remain controlled by the host. New generated p
 are locally excluded from git; existing instruction files retain their visibility. `thinker uninstall`
 removes Thinker's entries and preserves other integrations.
 
+
+## Agents in a container
+
+A devcontainer has its own home, so the machine-wide wiring thinker writes (`~/.claude/settings.json` and
+the rest) is not what the agent inside reads. When the container mounts the host's agent home -- the common
+pattern, so a login is not repeated -- the agent *does* read thinker's hooks, and every one of them names a
+path on the host that does not exist inside; each fails and the agent swallows it. Checked on 2026-11-05:
+running the host's hook command inside a `mcr.microsoft.com/devcontainers/javascript-node:22` container
+exits 1, with no trace anywhere. Either way the session is served no notes and nothing is learned from it,
+and the machine reports an agent used daily with no request against the cache.
+
+`thinker containers` lists the running containers that have a coding agent in them, what checkout each
+shares with this machine, and whether it can be wired. `thinker containers --install <id|name|all>` copies
+this build in (no network: `tar` over `docker exec`, the host's native modules left out, about 100 MB and
+8 seconds) and runs `connect` inside, so the agent's own files in the container name a path that exists
+there. The cache needs no copying: it lives in the checkout the container already mounts, so the notes and
+what the session learns stay in the repository.
+
+Tested live on 2026-11-05 against that image, with the repository bind-mounted: detect, install, wire
+Claude Code and Codex inside, and the prompt hook there served a note out of the repository's cache with
+every pointer resolved against the code inside the container.
+
+Two limits to know. A container rebuild wipes the install -- `thinker containers --devcontainer` prints the
+`postCreateCommand` and volume that keep it. And a **git worktree** cannot be used from inside a container
+on its own: its `.git` is a file naming a gitdir on the host, so `git rev-parse` fails inside and thinker
+finds no repository at all (the hook runs, finds nothing, says nothing). Mount the main checkout, or clone
+inside. The proxy does not reach these sessions yet: it binds loopback on the host, and
+`host.docker.internal` reaches the machine but that port refuses.
+
 ## Devin
 
 Run `thinker connect --clients devin` and restart Devin. Auto-detection recognizes the
