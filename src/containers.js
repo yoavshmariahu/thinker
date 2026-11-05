@@ -145,7 +145,20 @@ export function installInContainer(container, { app = path.join(thinkerHome(), '
 
   const wire = (clients || container.agents).join(',');
   const connected = step('wire the agents inside', () =>
-    run(['exec', container.id, 'sh', '-lc', `cd ${home} && node ${target}/src/cli.js connect --clients ${wire} 2>&1 | tail -3`], { exec, timeout: 120_000 }));
+    // `--no-proxy`, and it is not optional. A plain `connect` enables the context proxy as a service of the
+    // machine: it writes `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` into the agent's settings and leaves
+    // launchd or systemd to keep the process up. A container has neither, and the detached fallback does not
+    // survive in one -- measured on 2026-11-05 in a devcontainer: the URL was written, the service recorded
+    // itself as on, and nothing was ever listening on the port, including after a prompt. Claude Code in
+    // there would have sent every request to a dead loopback port and failed every model call. That is the
+    // fault the mandatory rule is about ("the proxy never takes over someone else's route... never trade a
+    // person's working harness for it"), and an install that caused it would be worse than no install.
+    //
+    // So a container gets the hooks, the MCP server and the notes, and its route is left exactly as it is.
+    // The clearing does not reach these sessions yet; making it would mean a proxy that stays up inside a
+    // container, or one on the host the container can reach, and either is its own change with its own
+    // measurement.
+    run(['exec', container.id, 'sh', '-lc', `cd ${home} && node ${target}/src/cli.js connect --clients ${wire} --no-proxy 2>&1 | tail -3`], { exec, timeout: 120_000 }));
   const version = step('check it runs', () => run(['exec', container.id, 'sh', '-lc', `node ${target}/src/cli.js version`], { exec, timeout: 60_000 }));
   return { ok: connected && version, steps, target, wired: wire };
 }

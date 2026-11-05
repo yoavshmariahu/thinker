@@ -97,6 +97,11 @@ test('installing copies this build in, leaves the host\'s native modules out, an
     const tar = calls.find(c => c.startsWith('tar '));
     for (const excluded of COPY_EXCLUDES) assert.ok(tar.includes(`--exclude ${excluded}`), `${excluded} must stay on the host`);
     assert.ok(calls.some(c => c.includes('connect --clients claude')), 'the agents found inside are the ones wired');
+    // The route inside the container is left alone. A plain `connect` would write
+    // ANTHROPIC_BASE_URL=http://127.0.0.1:<port> into the agent's settings and leave launchd or systemd to
+    // keep the proxy up; a container has neither, nothing listens on that port (measured in a devcontainer
+    // on 2026-11-05, including after a prompt), and the agent in there would fail every model call.
+    assert.ok(calls.some(c => c.includes('connect --clients claude --no-proxy')), 'an install must never point the agent in a container at a proxy that cannot stay up there');
     assert.ok(!calls.some(c => c.includes('npm') || c.includes('npx')), 'no network install: the same build as the host goes in');
   } finally { fs.rmSync(app, { recursive: true, force: true }); }
 });

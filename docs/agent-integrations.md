@@ -52,8 +52,16 @@ Two limits to know. A container rebuild wipes the install -- `thinker containers
 `postCreateCommand` and volume that keep it. And a **git worktree** cannot be used from inside a container
 on its own: its `.git` is a file naming a gitdir on the host, so `git rev-parse` fails inside and thinker
 finds no repository at all (the hook runs, finds nothing, says nothing). Mount the main checkout, or clone
-inside. The proxy does not reach these sessions yet: it binds loopback on the host, and
-`host.docker.internal` reaches the machine but that port refuses.
+inside. The proxy does not reach these sessions, and the install deliberately leaves the route in the container
+exactly as it is (`connect --no-proxy`). A plain `connect` would write
+`ANTHROPIC_BASE_URL=http://127.0.0.1:<port>` into the agent's settings there and leave launchd or systemd to
+keep the process up; a container has neither, and measured in a devcontainer on 2026-11-05 nothing ever
+listened on that port, including after a prompt -- so the agent inside would have sent every request to a
+dead loopback port and failed every model call. A container therefore gets the hooks, the MCP server and the
+notes, and nothing touches how it reaches the API. Bringing the clearing to those sessions means a proxy
+that stays up inside a container, or one on the host the container can reach (`host.docker.internal` reaches
+the machine, but the host proxy binds loopback and that port refuses); either is its own change with its own
+measurement.
 
 ## Devin
 
