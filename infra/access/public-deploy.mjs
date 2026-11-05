@@ -16,6 +16,8 @@ const call = (args, region = config.region) => JSON.parse(aws([...args, '--outpu
 const hash = file => createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
 const assets = [
   ['index.html', 'site/index.html', 'text/html; charset=utf-8'],
+  ['how-it-works.html', 'site/how-it-works.html', 'text/html; charset=utf-8'],
+  ['home.css', 'site/home.css', 'text/css; charset=utf-8'],
   ['docs.html', 'site/docs.html', 'text/html; charset=utf-8'],
   ['docs/index.html', 'site/docs.html', 'text/html; charset=utf-8'],
   ['compression.html', 'site/compression.html', 'text/html; charset=utf-8'],
@@ -41,7 +43,7 @@ if (mode === 'prepare') {
   const prepared = call(['cloudfront', 'update-function', '--name', config.functionName, '--if-match', existing.ETag,
     '--function-config', 'file://' + save('public-function-config.json', { Comment: 'Public Thinker website and downloads', Runtime: 'cloudfront-js-2.0' }),
     '--function-code', 'fileb://' + path.join(root, 'infra/access/public-gateway.js')]);
-  const cases = [['/docs', '/docs.html'], ['/docs/', '/docs.html'], ['/docs.html', '/docs.html'], ['/see-the-data', '/compression.html'], ['/dist/thinker.tgz', '/dist/thinker.tgz'], ['/message.js', '/message.js']]
+  const cases = [['/how-it-works', '/how-it-works.html'], ['/home.css', '/home.css'], ['/docs', '/docs.html'], ['/docs/', '/docs.html'], ['/docs.html', '/docs.html'], ['/see-the-data', '/compression.html'], ['/dist/thinker.tgz', '/dist/thinker.tgz'], ['/message.js', '/message.js']]
     .map(([uri, expected]) => ({ uri, expected, host: 'thinker.sh' }));
   for (const host of ['thinker.sh', 'zerotime.dev', 'www.zerotime.dev', 'www.thinker.sh']) {
     cases.push({ host, uri: '/compression.html', location: 'https://thinker.sh/see-the-data?run=click-1&tag=a%2Fb&tag=c' });
@@ -74,7 +76,7 @@ if (mode === 'prepare') {
     '--body', path.join(root, file), '--content-type', type, '--cache-control', 'no-cache'], config.bucketRegion);
   call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
   const invalidation = call(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
-    '--paths', '/', '/index.html', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
+    '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/message.*', '/dist/install.sh', '/access/*', '/thinker101/*', '/Thinker101/*']);
   save('public-invalidation.json', invalidation);
   console.log('Public site deployed; invalidation:', invalidation.Invalidation.Id);
 } else throw new Error('Usage: node infra/access/deploy.mjs prepare|apply');

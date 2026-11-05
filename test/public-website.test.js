@@ -40,6 +40,20 @@ test('old domains and data URLs redirect directly to thinker.sh, retaining encod
   assert.equal(request('/').uri, '/', 'canonical homepage does not loop');
   assert.equal(request('/see-the-data', 'HEAD').uri, '/compression.html');
 });
+test('the walkthrough has a public shareable page and canonical aliases', () => {
+  for (const method of ['GET', 'HEAD']) {
+    assert.equal(request('/how-it-works', method).uri, '/how-it-works.html');
+    assert.equal(request('/home.css', method).uri, '/home.css');
+    for (const host of ['thinker.sh', 'zerotime.dev', 'www.thinker.sh']) {
+      for (const uri of ['/how-it-works/', '/how-it-works.html']) {
+        const response = request(uri, method, host, { ref: { value: 'shared' } });
+        assert.equal(response.statusCode, 301);
+        assert.equal(response.headers.location.value, 'https://thinker.sh/how-it-works?ref=shared');
+      }
+    }
+  }
+  assert.equal(request('/how-it-works', 'POST').statusCode, 405);
+});
 test('homepage installs publicly and both pages expose repository and message widget', () => {
   const home = fs.readFileSync(new URL('../site/index.html', import.meta.url), 'utf8');
   assert.ok(!home.includes('| bash'), 'the site offers the npx install only');
@@ -48,7 +62,7 @@ test('homepage installs publicly and both pages expose repository and message wi
   assert.ok(!home.includes('Enter access code'));
   assert.ok(!home.includes('Join waitlist'));
   assert.ok(!home.includes("fetch('/access/session'"));
-  for (const file of ['index.html', 'docs.html', 'compression.html']) {
+  for (const file of ['index.html', 'docs.html', 'compression.html', 'how-it-works.html']) {
     const html = fs.readFileSync(new URL('../site/' + file, import.meta.url), 'utf8');
     assert.match(html, /href="https:\/\/github.com\/yoavshmariahu\/thinker"/);
     assert.match(html, /src="\/message.js" defer/);
@@ -100,7 +114,7 @@ test('the compression page\'s session view reads both runs, turn by turn, from o
 });
 
 test('the public pages share navigation and Compression keeps legacy links and exploration controls', () => {
-  const pages = ['index', 'docs', 'compression'].map(name => fs.readFileSync(new URL(`../site/${name}.html`, import.meta.url), 'utf8'));
+  const pages = ['index', 'docs', 'compression', 'how-it-works'].map(name => fs.readFileSync(new URL(`../site/${name}.html`, import.meta.url), 'utf8'));
   const nav = html => html.match(/<div class="site-nav-right"[^>]*>[\s\S]*?<\/div>/)[0];
   for (const page of pages) {
     assert.equal(nav(page), nav(pages[0]));

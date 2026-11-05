@@ -15,6 +15,11 @@ for (const path of ['/docs', '/docs/', '/docs.html', '/docs/index.html']) {
 }
 for (const path of ['/message.js', '/message.css', '/dist/install.sh', '/dist/thinker.tgz', '/dist/version.json',
   '/access/download/' + 'a'.repeat(64) + '/thinker.tgz']) assert.equal((await request(path, 'HEAD')).status, 200, path);
+assert.ok(html.includes('href="/how-it-works"'));
+const tour = await request('/how-it-works');
+assert.equal(tour.status, 200);
+assert.ok((await tour.text()).includes('<title>How it works — thinker</title>'));
+assert.equal((await request('/home.css', 'HEAD')).status, 200);
 const data = await request('/see-the-data');
 assert.equal(data.status, 200);
 assert.ok((await data.text()).includes('<h1>See the data</h1>'));
