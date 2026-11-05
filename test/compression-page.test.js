@@ -66,15 +66,15 @@ await click('#ttl',ttls[1]);
 assert.equal(ttls[1]['aria-pressed'], true);
 await click('#sessions',{dataset:{run:'django-astra'}});
 assert.match(node('#session-label').innerHTML,/Django/);
-assert.match(node('#tiles').innerHTML,/10.2%/);
+assert.match(node('#tiles').innerHTML,/10.2–22.5%/);
 assert.deepEqual(headings(node('#tiles').innerHTML),expectedHeadings);
 assert.match(node('#tiles').innerHTML,/LLM judge · 5\/5 criteria/);
 assert.deepEqual(partRows(node('#ptab').innerHTML),expectedParts);
 assert.match(node('#ptab').innerHTML,/<td>cache writes<\/td><td>Not recorded/);
 assert.equal(legendText(node('#legend1').innerHTML),legend);
 
-assert.match(node('#tiles').innerHTML,/<span>10.2% saved<\/span>/);
-assert.match(node('#session-label').innerHTML,/10.2% saved/);
+assert.match(node('#tiles').innerHTML,/<span>10.2–22.5%<\/span>/);
+assert.match(node('#session-label').innerHTML,/10.2–22.5% estimated/);
 assert.doesNotMatch(node('#session-label').innerHTML,/At least/);
 assert.doesNotMatch(node('#tiles').innerHTML,/At least|Session cost/);
 assert.match(node('#tiles').innerHTML,/<div class="k">Cache writes<\/div><div class="v unavailable">Not recorded<\/div>/);
@@ -89,7 +89,7 @@ assert.match(node('#judge-evidence').innerHTML,/Task outcome/);
 assert.doesNotMatch(node('#tiles').innerHTML,/NaN|undefined/);
 assert.equal(node('#ttl-label').textContent,'OpenAI pricing');
 assert.match(node('#pricing-explainer').innerHTML,/OpenAI · Astra/);
-assert.match(node('#pricing-explainer').innerHTML,/conservative 10.2%/);
+assert.match(node('#pricing-explainer').innerHTML,/10.2–22.5% accounting range/);
 assert.equal(node('#ttl [data-v="1h"]').textContent,'With cache writes');
 assert.equal(node('#ttl [data-v="5m"]').textContent,'Input only');
 

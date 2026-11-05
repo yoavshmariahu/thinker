@@ -723,3 +723,9 @@ test('the end-of-turn notices have one cadence, and the hooks read it from the m
   assert.doesNotMatch(hooks, /everyPrompts|everyHours|NOTICE_PROMPTS|NOTICE_HOURS/, 'the floors are the module\'s, never a second copy at a door');
   assert.match(read('usage.js'), /over the last \$\{prompts\} prompts/, 'a held summary says the span it speaks for');
 });
+
+// Experiment-only validation has no UI control; normal page reports retain their shape.
+test('proxy accounting verification is an explicit CLI flag', () => {
+  assert.match(read('cli.js'), /--verify-usage/);
+  assert.match(read('commands/proxy.js'), /flags\['verify-usage'\]/);
+});

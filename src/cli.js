@@ -279,7 +279,8 @@ const HELP = `thinker — knowledge cache for coding agents
                                  results of earlier turns are cleared; --keep n: all but the newest n);
                                  --notes serves this checkout's notes to an agent with no prompt hook (Goose, Aider: Anthropic
                                  and OpenAI chat requests; off until an experiment); proxy report [--days n] [--json] sums its
-                                 log; proxy replay [--days n] [--policies spec] [--json] costs the policies over this
+                                 log; add --verify-usage to reject incomplete Responses accounting (nonzero exit).
+                                 proxy replay [--days n] [--policies spec] [--json] costs the policies over this
                                  checkout's Claude Code sessions with no model call
                                  --codex: serve Codex at /codex alongside Anthropic (enabled by the managed service).
                                  --protocol responses: a standalone OpenAI tool-output clearing proxy; requires --upstream,
