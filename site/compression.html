@@ -617,6 +617,11 @@
         rows.push(['Potential reading saved if source reads are replaced (est.)', '~' + approx(total('control', 'potentialReadSaving')), '~' + approx(total('cut', 'potentialReadSaving')), false]);
       }
       if (D().costBounds) { for (const label of ['Cuts refused','Re-reads of a cleared file']) { const i=rows.findIndex(r=>r[0]===label); rows[i]=[label,'not recorded','not recorded',false]; } rows.splice(3,1,['Cache-write tokens','not recorded','not recorded',false]); const wi=rows.findIndex(r=>r[0].startsWith('Cost of cache writes')); rows.splice(wi,1); rows[rows.length-2][0] = `Cost of uncached input · ${costLabel()}`; rows[rows.length-1][0] = `Scenario cost · ${costLabel()}`; }
+      if (D().protocol === 'responses') {
+        const i = rows.findIndex(r => r[0] === 'Prompt-cache writes, tokens' || r[0] === 'Cache-write tokens');
+        const row = ['Prompt-cache writes, tokens', 'n/a', 'n/a', false];
+        if (i >= 0) rows[i] = row; else rows.splice(4, 0, row);
+      }
       $('#stats').innerHTML = `<tr><th>Measure</th><th><span class="arm ctl"><i></i>without thinker</span></th><th><span class="arm thk"><i></i>with thinker</span></th><th>Difference</th></tr>` +
         rows.map(([name, vb, va, diff, money]) => `<tr><td>${name}</td><td>${typeof vb === 'string' ? esc(vb) : money ? usd(vb) : fmtN(vb)}</td><td>${typeof va === 'string' ? esc(va) : money ? usd(va) : fmtN(va)}</td><td class="d ${diff ? (va < vb ? 'good' : va > vb ? 'bad' : '') : ''}">${diff && vb ? pct(va, vb) : ''}</td></tr>`).join('');
       let h = `<tr><th>Call</th><th>Turn</th><th>Without: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>With thinker: prompt</th><th>read</th><th>written</th><th>out</th><th>cost so far</th><th>Note</th></tr>`;

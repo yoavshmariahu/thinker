@@ -38,6 +38,7 @@ const checkCodexInputs = id => {
   for (const value of values) assert.ok(tile.includes(format(value)),`${id}: ${label} includes both recorded arm totals`);
  }
  assert.doesNotMatch(node('#tiles').innerHTML,/Cache writes|Not recorded/);
+ assert.match(node('#stats').innerHTML,/<td>Prompt-cache writes, tokens<\/td><td>n\/a<\/td><td>n\/a<\/td><td class="d "><\/td>/);
 };
 assert.deepEqual(headings(node('#tiles').innerHTML),expectedHeadings);
 assert.match(node('#tiles').innerHTML,/Tests · both sessions/);
