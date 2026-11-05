@@ -127,7 +127,10 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
           out(`Responses ${name}: ${r.requests} requests, ${formatTokens(r.input)} input tokens (${formatTokens(r.cachedInput)} cached, included in input), ${formatTokens(r.output)} output tokens; ${writes}` +
             (r.freshInput != null ? `; ${formatTokens(r.freshInput)} ordinary input tokens` : '') +
             (r.writeCoverage.inconsistent ? `; ${r.writeCoverage.inconsistent} inconsistent usage records` : '') +
-            `; ${r.removedBytes} tool-output bytes removed from requests, ${r.errors} errors` +
+            // the proxy's own estimate of what it took out, so this door speaks the tokens the spend cards do;
+            // a row written before it was summed carries none, and then the bytes stand alone rather than
+            // reading as 0 tokens removed
+            `; ${r.removedBytes} tool-output bytes removed from requests${r.removedTokens ? ` (${formatTokens(r.removedTokens)} tokens, estimated)` : ''}, ${r.errors} errors` +
             (Object.keys(r.reasons).length ? `; ${Object.entries(r.reasons).map(([k, n]) => `${k}: ${n}`).join(', ')}` : '') + '.');
         }
         continue;

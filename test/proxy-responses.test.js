@@ -74,12 +74,18 @@ test('Responses usage reads split SSE and JSON without Anthropic cache weights',
     for (let i = 0; i < data.length; i += 3) tap.push(Buffer.from(data.slice(i, i + 3)));
     assert.deepEqual(tap.result(), { input: 250, read: 200, write: 40, write30m: 10, write12h: 30, freshInput: 10, out: 7, apiUsage: usage, ...(data === answer ? { responseId: 'r1' } : {}) });
   }
-  const r = proxyReport([{ op: 'proxy', protocol: 'responses', injected: true, input: 250, read: 200, out: 7, removedBytes: 400, status: 200 }, { op: 'proxy', protocol: 'responses', reason: 'encoded-request', status: 200 }]);
+  const r = proxyReport([{ op: 'proxy', protocol: 'responses', injected: true, input: 250, read: 200, out: 7, removedBytes: 400, estimatedRemovedTokens: 100, status: 200 }, { op: 'proxy', protocol: 'responses', reason: 'encoded-request', status: 200 }]);
   assert.deepEqual(Object.keys(r), ['responses']);
   assert.equal(r.responses.clearing.input, 250);
   assert.equal(r.responses.clearing.cachedInput, 200);
   assert.equal(r.responses.clearing.billedInput, undefined);
   assert.deepEqual(r.responses.unchanged.reasons, { 'encoded-request': 1 });
+  // What the cut took out, in tokens as well as bytes: this path is told nothing by the API, so the row's own
+  // estimate is the only token figure it has, and the telemetry's spend cards count the Codex door by it.
+  assert.equal(r.responses.clearing.removedBytes, 400);
+  assert.equal(r.responses.clearing.removedTokens, 100);
+  // a row from before the estimate was summed carries no token figure and must not drag the total down
+  assert.equal(proxyReport([{ op: 'proxy', protocol: 'responses', injected: true, removedBytes: 400, status: 200 }]).responses.clearing.removedTokens, 0);
 });
 
 test('HTTP transport preserves auth, streaming, errors and compact requests without logging content', async t => {

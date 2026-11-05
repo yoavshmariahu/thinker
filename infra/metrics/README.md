@@ -452,6 +452,23 @@ injection. The `responses` side is the OpenAI Responses protocol, where the prox
 removes the text itself; its own `errors` is what the API answered, so an answer
 that stopped partway is counted there as `truncated`.
 
+`sides.responses` is the clearing's other door, and it is nested: its own `clearing`,
+`holdout` and `unchanged` sides, each with requests, the token types, the reasons it
+recorded, and what a cut took out as `removedBytes` (measured) and `removedTokens`
+(the proxy's own estimate from the characters removed, which `src/report-savings.js`
+already reads as this protocol's cleared tokens). It carries no `cleared` and no
+`billedInput`: nothing asks the API to clear here, so there is nothing for it to
+report. A card written against `sides.clearing` alone therefore sees none of this
+path — which is what happened until 2026-11-05, when two of the nine machines the
+clearing was working for read as devices with the proxy on and nothing to show, and
+2.5 GB of removed Codex tool output was counted nowhere. **Devices where the clearing
+cut something**, **Codex clearing** and **Why a Codex request was left alone** are the
+cards for it, the per-device table carries its three columns, and a card that counts
+one door must count the other or be named in `MESSAGES_ONLY`
+(`test/metrics-dashboard.test.js`) with the reason it is one protocol's own figure.
+Clients from before `removedTokens` was summed send bytes alone, so that column is
+blank for them, which is not zero.
+
 `errors` is what happened to a request somebody was waiting for. `total` counts
 tries, so a request tried twice is two: `retried` is how many were tried again and
 `failed` (`total` − `retried`) is how many the agent saw fail. `truncated` is the

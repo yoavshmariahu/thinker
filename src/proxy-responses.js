@@ -195,7 +195,7 @@ export function responsesReport(rows, { since } = {}) {
   for (const r of rows) {
     if (r.op !== 'proxy' || r.protocol !== 'responses' || (since && r.at < since)) continue;
     const key = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'unchanged';
-    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, errors: 0, truncated: 0, reasons: {},
+    const s = sides[key] ||= { requests: 0, input: 0, cachedInput: 0, output: 0, removedBytes: 0, removedTokens: 0, errors: 0, truncated: 0, reasons: {},
       cacheWrite: null, cacheWrite30m: null, cacheWrite12h: null, freshInput: null,
       writeCoverage: { reported: 0, missing: 0, ttlReported: 0, inconsistent: 0 }, freshInputRequests: 0 };
     s.requests++; s.input += r.input || 0; s.cachedInput += r.read || 0; s.output += r.out || 0;
@@ -211,6 +211,13 @@ export function responsesReport(rows, { since } = {}) {
       s.freshInput = (s.freshInput ?? 0) + r.input - r.read - r.write; s.freshInputRequests++;
     }
     s.removedBytes += r.removedBytes || 0;
+    // What a cut here took out, in the unit every other door speaks. The Messages path is told by the API how
+    // much it cleared (`cleared`); this path cuts the text itself, so the row carries the proxy's own estimate
+    // (proxy-responses.js:transformResponses, `chars * TOKENS_PER_CHAR`), which report-savings.js:49 already
+    // reads as this protocol's cleared tokens. Dropping it here left the whole Codex side of the clearing with
+    // no token figure at all: the telemetry's proxy block reported bytes, so every spend card that speaks
+    // tokens read a Codex machine as zero.
+    s.removedTokens += r.estimatedRemovedTokens || 0;
     // `errors` is what the API answered; an answer that stopped partway answered 200 and then broke,
     // so it is counted here rather than left out of both.
     if (r.status >= 400) s.errors++;
