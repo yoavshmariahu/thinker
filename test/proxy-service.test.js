@@ -678,7 +678,7 @@ test('replaceReason: a service running this version with these flags is left alo
 
 // A fake `launchctl` on the PATH, with launchd's shape: `bootout` answers at once and the label stays registered
 // (`print` succeeds) for as long as the old process takes to leave; `bootstrap` of a registered label fails;
-// `load` exits 0 whether or not it loaded anything.
+// `load` exits 0 whether or not it loaded anything. The old instance prints as pid 11, a new one as 22.
 function fakeLaunchctl({ draining = 0, bootstrapRefuses = false, loadWorks = false } = {}) {
   const dir = tmp('thinker-launchctl-');
   const state = path.join(dir, 'state');
@@ -692,8 +692,8 @@ case "$1" in
   bootout) [ -f "$S/loaded" ] || exit 3; touch "$S/terming"; exit 0;;
   print)
     [ -f "$S/loaded" ] || exit 113
-    if [ -f "$S/terming" ]; then n=$(cat "$S/draining"); if [ "$n" -gt 0 ]; then echo $((n-1)) > "$S/draining"; exit 0; fi; rm -f "$S/loaded" "$S/terming"; exit 113; fi
-    exit 0;;
+    if [ -f "$S/terming" ]; then n=$(cat "$S/draining"); if [ "$n" -gt 0 ]; then echo $((n-1)) > "$S/draining"; printf '\tstate = SIGTERMed\n\tpid = 11\n'; exit 0; fi; rm -f "$S/loaded" "$S/terming"; exit 113; fi
+    printf '\tstate = running\n\tpid = 22\n'; exit 0;;
   bootstrap) [ -f "$S/loaded" ] && exit 5; ${bootstrapRefuses ? 'exit 5' : 'touch "$S/loaded"; exit 0'};;
   load) ${loadWorks ? 'touch "$S/loaded";' : ''} exit 0;;
 esac
@@ -722,9 +722,11 @@ test('a launchd restart waits for the booted-out label to leave before bootstrap
 test('a launchd restart that bootstraps while the label is still registered is what it used to do, and fails', () => {
   const l = fakeLaunchctl({ draining: 1000 });
   try {
-    assert.equal(bootstrapAgent('/tmp/x.plist'), false, 'bootstrap refused (5), load exited 0 and loaded nothing: not believed');
-    assert.deepEqual(l.calls(), ['bootstrap', 'load', 'print']);
+    assert.equal(bootstrapAgent('/tmp/x.plist'), true, 'without a bootout the instance print names is running: believed');
     assert.equal(bootOutAgent({ wait: 60, step: 5 }), false, 'a label that will not leave within the wait is reported, not assumed gone');
+    assert.equal(bootstrapAgent('/tmp/x.plist'), false, 'bootstrap refused (5), load exited 0, and the instance registered is the old one draining: not believed');
+    assert.equal(bootstrapAgent('/tmp/x.plist', { was: 11 }), false, 'nor when it is named by pid');
+    assert.deepEqual(l.calls().slice(-3), ['bootstrap', 'load', 'print']);
   } finally { l.restore(); }
 });
 
@@ -732,7 +734,7 @@ test('a launchd restart believes `load` only when the label is there after it', 
   const l = fakeLaunchctl({ draining: 0, bootstrapRefuses: true, loadWorks: true });
   try {
     assert.equal(bootOutAgent({ wait: 1000, step: 5 }), true);
-    assert.equal(bootstrapAgent('/tmp/x.plist'), true, 'bootstrap refused, load loaded it: the label answers print');
+    assert.equal(bootstrapAgent('/tmp/x.plist', { was: 11 }), true, 'bootstrap refused, load loaded it: print names a running instance that is not the old one');
     assert.ok(BOOTOUT_WAIT_MS > 20_000, 'the wait outlasts launchd\'s own ExitTimeOut (20 s), after which it SIGKILLs and the label leaves');
   } finally { l.restore(); }
 });

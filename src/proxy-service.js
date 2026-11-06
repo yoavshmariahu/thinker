@@ -354,16 +354,24 @@ const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0
 // 100 seconds of ECONNREFUSED for every other session, seven times in the day. So: wait for the label to leave
 // before bootstrapping, believe `bootstrap`'s own exit code, and believe `load` only when the label is there after it.
 export const BOOTOUT_WAIT_MS = 25_000;
-const agentLoaded = () => run('launchctl', ['print', `gui/${uid()}/${PROXY_LABEL}`]);
+// the registered instance, as `launchctl print` describes it (`state = SIGTERMed` and the old pid while it drains), or null
+export function agentInstance() {
+  let out;
+  try { out = execFileSync('launchctl', ['print', `gui/${uid()}/${PROXY_LABEL}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; }
+  return { pid: Number(/^\s*pid = (\d+)/m.exec(out)?.[1]) || null, state: /^\s*state = (.+)$/m.exec(out)?.[1]?.trim() || null };
+}
 export function bootOutAgent({ wait = BOOTOUT_WAIT_MS, step = 100 } = {}) {
   run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
   const t0 = Date.now();
-  while (agentLoaded()) { if (Date.now() - t0 >= wait) return false; sleepSync(step); }
+  while (agentInstance()) { if (Date.now() - t0 >= wait) return false; sleepSync(step); }
   return true;
 }
-export function bootstrapAgent(plist) {
+// `was` is the pid of the instance being replaced: a `print` after `load` that still names it is the old one draining
+export function bootstrapAgent(plist, { was = null } = {}) {
   if (run('launchctl', ['bootstrap', `gui/${uid()}`, plist])) return true;
-  return run('launchctl', ['load', plist]) && agentLoaded();
+  if (!run('launchctl', ['load', plist])) return false;
+  const inst = agentInstance();
+  return !!inst && inst.state !== 'SIGTERMed' && (was == null || inst.pid !== was);
 }
 // `systemctl` answering is not the same as systemd running this machine. Microsoft's devcontainer images --
 // and many other container images -- ship a stub `systemctl` on the PATH that exits 0 for everything and
@@ -418,7 +426,7 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
     bootOutAgent(); // kickstart -k would restart the old ProgramArguments
     // An old detached competitor may still own the port after bootout.
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
-    const started = bootstrapAgent(p);
+    const started = bootstrapAgent(p, { was: s.pid });
     return managedOnly || started; // an installed manager must not race a detached fallback
   }
   if (fs.existsSync(unitPath(home))) {
