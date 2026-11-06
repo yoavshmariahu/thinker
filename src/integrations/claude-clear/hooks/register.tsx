@@ -278,7 +278,24 @@ const stubsOf = async ($: any) => {
   return stubs
 }
 
+// the folder the definitions live in, for the grant below: a file is one of thinker's when it sits right in it
+const toolsDir = async ($: any) => `${(await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`}/tools`
+export const isToolFile = (file: unknown, dir: string) => typeof file === 'string' && file.startsWith(`${dir}/`) && file.endsWith('.json') && !file.slice(dir.length + 1).includes('/') && !file.includes('..')
+
 export const register: Register = (on) => {
+  // The pointer sends the model to read a file outside every working directory, which Claude Code would put to the
+  // person as a question. The grant is this mod's, not a rule in their settings (the owner's call, 2026-11-06): a Read
+  // of a file right inside <THINKER_HOME>/tools is allowed here, only where the engine would have asked -- a deny rule
+  // of the person's own still stands -- and it leaves with the mod.
+  on('tool.check', { tool: 'Read' }, async ($, e, next) => {
+    const r = await next(e)
+    try {
+      if (r?.decision !== 'ask' || (await $.env.get('THINKER_TEST')) === '1') return r
+      if (isToolFile((e.input as any)?.file_path, await toolsDir($))) return { decision: 'allow', reason: 'thinker: the definition of a tool moved to disk' }
+    } catch {}
+    return r
+  })
+
   on('tool.describe', async ($, e, next) => {
     const r = await next(e)
     try {

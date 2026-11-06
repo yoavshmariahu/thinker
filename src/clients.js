@@ -45,8 +45,6 @@ import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
-import { allowRule as toolsReadRule } from './tool-stubs.js';
-import { thinkerHome } from './update.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -1330,10 +1328,6 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         const cur = readJsonOr(f.local, {});
         if (cardDirIn(cur) !== dir || clearDirIn(cur) !== clearDir) mergeJson(f.local, c => withClearDir(withCardDir(c, dir), clearDir));
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
-        // A tool moved to disk (tool-stubs.js) is read back from <THINKER_HOME>/tools, outside every working directory, which
-        // Claude Code asks about unless a rule allows it: written here, once, with the rest of the wiring (the owner's call,
-        // 2026-11-06: no session may be asked for that read), never by the switch; uninstall takes it out.
-        if (setAllowRule(f.local, toolsReadRule(thinkerHome()), true)) done.push(`Claude Code: allowed reading thinker's tool definitions (${toolsReadRule(thinkerHome())} in permissions.allow of ${rel(f.local)})`);
       }
     }
   }
@@ -1587,7 +1581,6 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
-  if (scope === 'user') setAllowRule(claude.local, toolsReadRule(thinkerHome()), false);
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

@@ -46,12 +46,10 @@ export function readStubs(home) {
   const j = readJson(stubsFile(home));
   return { tools: j && typeof j.tools === 'object' && j.tools ? j.tools : {} };
 }
-// The agent reads the file with its own Read tool, and outside the working directory that needs a permission: an
-// allow rule for the tools directory in the user's Claude Code settings (`//` is an absolute path there). Seen live
-// 2026-11-06: in a default-permission session the Read was refused and the model stopped there, as it should. Written
-// once, up front, by `thinker connect` and `rewire` with the rest of Claude Code's wiring (clients.js:installClient),
-// never by the switch, so no session is ever asked; `thinker uninstall --user` takes it out.
-export const allowRule = home => `Read(//${toolsDir(home).replace(/^\/+/, '')}/**)`;
+// The agent reads the file with its own Read tool, and outside the working directory Claude Code would ask the person
+// first (seen live 2026-11-06: in a default-permission session the Read was refused and the model stopped there, as it
+// should). The clearing mod grants that one read itself, from its `tool.check` hook, for a file right inside this
+// directory (`isToolFile` in register.tsx); nothing is written into anyone's permission settings (the owner's call).
 export const stubbedNames = home => new Set(Object.keys(readStubs(home).tools));
 
 // The definition on disk: `{name, description, input_schema}`. A pointer is never written as a description

@@ -10,8 +10,7 @@ import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { COLD_MS, WRITE_1H, PAYBACK, readRate } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
-import { pointer, POINTER_OPENS, allowRule } from '../src/tool-stubs.js';
-import { thinkerHome } from '../src/update.js';
+import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -113,6 +112,15 @@ test('the mod sends a switched-off tool as the sentence the proxy sends, naming 
   assert.equal(said, pointer('Artifact', '/h/tools/Artifact.json'));
   assert.ok(s.includes("on('tool.describe'"), 'the mod answers tool.describe');
   assert.ok(s.includes('state/tool-stubs.json'), 'from the registry the switch writes');
+  // the read the pointer asks for is the mod's to allow, for a file right inside the tools folder, only where the engine would ask
+  assert.ok(s.includes("on('tool.check', { tool: 'Read' }"), 'the mod answers the permission check for Read');
+  assert.match(s, /if \(r\?\.decision !== 'ask'[^\n]*return r/, 'a deny of the person\'s own stands');
+  assert.match(s, /isToolFile\(\(e\.input as any\)\?\.file_path, await toolsDir\(\$\)\)\) return \{ decision: 'allow'/);
+  // the predicate itself, its type annotations dropped, so the cases below hold the mod's own code
+  const isToolFile = new Function('return ' + s.match(/export const isToolFile = (.+)\n/)[1].replace('(file: unknown, dir: string)', '(file, dir)'))();
+  assert.ok(isToolFile('/h/.thinker/tools/Artifact.json', '/h/.thinker/tools'));
+  for (const bad of ['/h/.thinker/tools/x/Artifact.json', '/h/.thinker/tools/../config.json', '/h/.thinker/tools/notes.txt', '/h/.thinker/config.json', 42]) assert.ok(!isToolFile(bad, '/h/.thinker/tools'), String(bad));
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /tools\/\*\*|toolsReadRule/, 'the wiring writes no rule for it');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {
@@ -166,8 +174,7 @@ test('connect names the clearing folder with the card in the user\'s Claude sett
     installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
     const s = JSON.parse(fs.readFileSync(settings, 'utf8'));
     assert.equal(s.env[CARD_ENV], ['/my/mod', claudeCardDir(CLI), MOD].join(D));
-    // a tool moved to disk is read back from outside every working directory: allowed once here, never asked for in a session
-    assert.deepEqual(s.permissions, { allow: [allowRule(thinkerHome())] });
+    assert.equal(s.permissions, undefined, 'no permission rule of thinker\'s: the mod grants the tool-definition read itself');
     uninstallWiring({ scope: 'user' });
     assert.deepEqual(JSON.parse(fs.readFileSync(settings, 'utf8')), { env: { [CARD_ENV]: '/my/mod' } });
   } finally {
