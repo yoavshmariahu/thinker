@@ -38,6 +38,22 @@ export const writeRatio = (model: string) => 2 / readRate(model)
 // A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK,
 // which carries the measurement that set it). test/claude-clear.test.js holds the two together.
 export const PAYBACK = 25
+// What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
+// holds the two together): from the first clear onward, a request that wrote more than half of a long context
+// into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,
+// priced at the one-hour write rate (compression.js:clearingCostBySession). The engine reports every request's
+// usage to `turn.step` in the API's own counts, so the figure is measured, not modelled.
+export const LONG_CONTEXT = 100000
+export const isRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx }
+// the API's counts, as `turn.step`'s usage carries them, in the proxy log's spelling
+export const usageOf = (usage: any) => usage ? { input: Number(usage.input_tokens) || 0, read: Number(usage.cache_read_input_tokens) || 0, write: Number(usage.cache_creation_input_tokens) || 0 } : null
+export type Cost = { rewrites: number; write: number }
+// the cost after one more request: the write counted when the request rewrote its prefix, as the proxy charges it
+export const charge = (cost: Cost | undefined, usage: any): Cost => {
+  const u = usageOf(usage), c = { rewrites: cost?.rewrites ?? 0, write: cost?.write ?? 0 }
+  if (u && isRewrite(u)) { c.rewrites++; c.write += u.write }
+  return c
+}
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
 export const INTRODUCED = 'thinker-clear:introduced'
@@ -164,7 +180,9 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
 // `measured` says whether the whole came from the API's context figures (before the clear, and on the first
 // request after it) or is the estimate alone.
 export type Kinds = { results: number; inputs: number; thinking: number; total: number; measured: boolean }
-export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; firstTurn?: number; told?: boolean }
+// `cost` and `model` are this door's own too: the proxy's log carries each request's writes and model on its rows,
+// and a desktop session has no rows, so the record keeps what the netted figure needs (delivery.js:rewriteCostFor).
+export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; cost?: Cost; model?: string; firstTurn?: number; told?: boolean }
 
 // module state: starts over on a reload (the record on disk does not)
 let policy: Policy = DEFAULTS
@@ -357,6 +375,10 @@ export const register: Register = (on) => {
         }
       }
       state.requests++; state.saved += out; state.lastAt = Date.now()
+      // and what this request cost: a prefix rewrite's write tokens, from the clear onward, and the model that
+      // answered, which is what prices them
+      state.cost = charge(state.cost, r?.usage)
+      if (r?.usage?.model) state.model = String(r.usage.model)
       await save($)
     }
     return r
@@ -408,6 +430,8 @@ export const register: Register = (on) => {
       tools: c.tools,
       recent: [...(state?.recent ?? []), { at: now, cleared: c.tokens, uses }].slice(-RECENT),
       kinds,
+      cost: state?.cost ?? { rewrites: 0, write: 0 },
+      ...(state?.model ? { model: state.model } : {}),
       ...(state?.firstTurn != null ? { firstTurn: state.firstTurn } : {}),
       ...(state?.told ? { told: true } : {}),
     }

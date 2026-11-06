@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { TURNS_AFTER, clearedBySession, clearingCostBySession, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
+import { TURNS_AFTER, clearedBySession, clearingCostBySession, desktopClearRows, desktopClearingCost, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
 import { cutActions } from '../src/proxy.js';
 import { compressionNotice, formatTokens } from '../src/usage.js';
 
@@ -226,5 +226,33 @@ test('what a pull request saved, and what its rewrites cost, both see a cut row'
   const cost = clearingCostBySession(file, {});
   assert.equal(cost.get('s1').rewrites, 1, 'a rewrite after a cut is charged to the cut');
   assert.ok(cost.get('s1').usd > 0);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a desktop session\'s record is charged its own count of rewrites, where the log has no rows for it', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.jsonl'), records = path.join(dir, 'compression');
+  fs.mkdirSync(records);
+  // the proxy's own session: its rows carry the writes, and its record (which the proxy writes too) is left alone
+  fs.writeFileSync(log, JSON.stringify({ at: '2026-11-06T10:00:00.000Z', op: 'proxy', session: 'p', model: 'claude-opus-5-5', cleared: 80_000, input: 0, read: 0, write: 120_000 }) + '\n');
+  fs.writeFileSync(path.join(records, 'p.json'), JSON.stringify({ session: 'p', firstAt: 1, lastAt: Date.parse('2026-11-06T10:00:00Z'), requests: 1, saved: 80_000, uses: 1, recent: [], cost: { rewrites: 9, write: 9e6 }, model: 'claude-opus-5-5' }));
+  // the desktop session: the mod's record alone, with the count the mod made and the model the API answered with
+  fs.writeFileSync(path.join(records, 'd.json'), JSON.stringify({ session: 'd', firstAt: 1, lastAt: Date.parse('2026-11-06T11:00:00Z'), requests: 6, saved: 300_000, uses: 4, recent: [], cost: { rewrites: 2, write: 220_000 }, model: 'claude-opus-5-5' }));
+  // a record from before the mod counted: a saving, and no cost figure rather than a free one
+  fs.writeFileSync(path.join(records, 'old.json'), JSON.stringify({ session: 'old', firstAt: 1, lastAt: Date.parse('2026-11-06T11:00:00Z'), requests: 2, saved: 50_000, uses: 1, recent: [] }));
+  // a record with no model: counted in tokens, named unpriced
+  fs.writeFileSync(path.join(records, 'u.json'), JSON.stringify({ session: 'u', firstAt: 1, lastAt: Date.parse('2026-11-06T11:00:00Z'), requests: 2, saved: 50_000, uses: 1, recent: [], cost: { rewrites: 1, write: 100_000 } }));
+  const costs = clearingCostBySession(log, { dir: records });
+  assert.equal(costs.get('p').write, 120_000, 'the proxy\'s session is read from the log, never from the record beside it');
+  const d = costs.get('d');
+  assert.equal(d.rewrites, 2); assert.equal(d.write, 220_000); assert.equal(d.model, 'claude-opus-5-5');
+  assert.ok(Math.abs(d.usd - 1.76) < 0.01, `priced at the 1h write rate as the proxy's rows are, got ${d.usd}`);
+  assert.equal(costs.has('old'), false, 'no cost block, no cost figure');
+  assert.equal(costs.get('u').usd, 0); assert.equal(costs.get('u').unpriced, 1);
+  assert.deepEqual(clearingCostBySession(log, { dir: records, since: '2026-11-07T00:00:00.000Z' }).has('d'), false, 'the window holds for a record too');
+  assert.equal(desktopClearingCost(records, { covered: new Set(['p']) }).has('p'), false);
+  // the rows the ledger prices carry the record's model before the log's
+  const rows = desktopClearRows(records, { covered: new Set(['p']), modelOf: () => 'claude-haiku-5-5' });
+  assert.equal(rows.find(r => r.session === 'd').model, 'claude-opus-5-5', 'the record\'s own model');
+  assert.equal(rows.find(r => r.session === 'u').model, 'claude-haiku-5-5', 'else the log\'s');
   fs.rmSync(dir, { recursive: true, force: true });
 });
