@@ -32,12 +32,19 @@ async function savingsCommand({ store, flags, out }) {
   // The two windows count servings differently and the difference is said, not buried: today would
   // read nothing for most of a working day if it waited for the assessments (savings-ledger.js).
   out('  Today counts notes already served, less any the session said it did not use; Lifetime counts only servings a finished');
-  out('  session confirmed, which is what `thinker report` shows. Cleared context is measured either way.');
+  out('  session confirmed, which is what `thinker report` shows. Cleared context waits for no assessment and is in both.');
   out(`  Counted over every repository on this machine${l.from ? `, from ${String(l.from).slice(0, 10)}` : ''}; read ${ago(Date.now() - l.at)}, refreshed every ${Math.round(REFRESH_MS / 60_000)} min while you work.`);
   // The caveat is the point of the command: these are the Report page's own two series, which is the
   // only reason a dollar figure is said at all (prices.js, savings-ledger.js).
-  out(`  An API-list-price equivalent at the providers' rates as published on ${PRICED_ON}, not a bill: cache hits price the reading`);
-  out('  the agents did not have to do, context cleared prices prompt text they did not read again. `thinker report` has the week-by-week table.');
+  out(`  An API-list-price equivalent at the providers' rates as published on ${PRICED_ON}, not a bill, and neither half is measured billing:`);
+  // The Report's own captions, carried here rather than softened: the cache figure is an estimate of
+  // reading nobody observed, and the clearing figure is gross of the cache rewrite a clear causes,
+  // which `thinker proxy replay` measured at +7.3% of session cost over 264 sessions (report.js).
+  out('  · cache hits are an estimate of reading avoided -- one read per file a note rests on, capped -- not reading anybody watched.');
+  out('    Where a holdout comparison has enough prompts on both sides, `thinker usage` measures this instead; until then it is modelled.');
+  out('  · context cleared is gross: the tokens the API reported leaving out of later prompts, with the cache rewrite each clear causes');
+  out('    not deducted. `thinker proxy replay` prices a clear end to end, and put the whole clearing at +7.3% of session cost.');
+  out('  `thinker report` has the week-by-week table these two come from.');
 }
 
 export const commands = { savings: savingsCommand };

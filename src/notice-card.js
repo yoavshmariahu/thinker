@@ -69,7 +69,7 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     <details><summary class="cursor-interaction">What this counts</summary>
       <p class="text-small">Today: ${escape(savingsDetail(l.today))} — notes already served, less any a session said it did not use.</p>
       <p class="text-small">Lifetime: ${escape(savingsDetail(l.lifetime))}, over every repository on this machine — servings a finished session confirmed, as <code>thinker report</code> counts them.</p>
-      <p class="text-small">An API-list-price equivalent at the providers' published rates, not a bill: the same two series as <code>thinker report</code>. <code>thinker savings</code> prints them in full.</p>
+      <p class="text-small">An API-list-price equivalent at the providers' published rates, not measured billing: cache hits estimate reading avoided, and context cleared is gross of the cache rewrite each clear causes. The same two series as <code>thinker report</code>; <code>thinker savings</code> prints them in full.</p>
     </details>
   </div>
 `;

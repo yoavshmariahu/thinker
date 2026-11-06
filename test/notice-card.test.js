@@ -126,7 +126,8 @@ test('the Codex desktop card carries the money, its split and its caveat', t => 
   assert.match(html, /saved today ~\$3\.65 · lifetime ~\$849/);
   assert.match(html, /Today: cache hits ~\$3\.65/);
   assert.match(html, /Lifetime: cache hits ~\$21\.7 .*context cleared ~\$828/);
-  assert.match(html, /not a bill/);
+  assert.match(html, /not measured billing/);
+  assert.match(html, /gross of the cache rewrite/, 'the Report\'s own caveat travels with the figure');
   assert.match(html, /thinker savings/, 'the card points at the command that prints it in full');
   // no ledger: the cards are drawn exactly as they were before
   fs.rmSync(path.join(home, 'state', 'savings.json'));

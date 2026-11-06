@@ -143,6 +143,9 @@ test('`thinker savings` prints the split, the caveat and the same figures as --j
   assert.match(text, /Today .*cache hits ~\$[\d.]+ .*context cleared ~\$[\d.]+/);
   assert.match(text, /Lifetime /);
   assert.match(text, /not a bill/, 'the caveat travels with the figure');
+  assert.match(text, /cache hits are an estimate of reading avoided/);
+  assert.match(text, /context cleared is gross/);
+  assert.match(text, /\+7\.3% of session cost/, 'and names the measurement that prices a clear end to end');
   assert.match(text, /thinker report/, 'and points at the table it comes from');
   const j = JSON.parse(run(['--json']));
   assert.equal(j.day, dayKey(now));

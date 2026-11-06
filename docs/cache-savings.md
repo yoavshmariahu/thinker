@@ -73,6 +73,15 @@ dominates the lifetime total. Surfaces with room show the split rather than the 
 API-list-price equivalents at the rates in `prices.js`, not measured billing: the rest of the product
 counts tokens for the reason recorded there, and this is the second exception after the Report page.
 
+Neither half is a measurement, and the footer carries the Report's own captions for both. The cache
+half estimates reading that nobody observed: one read per file a note rests on, at most five files,
+each capped. Where a holdout comparison has enough prompts on both sides it measures the same thing
+directly and `cacheMetrics` prefers it; the ledger does not, because a holdout is a per-prompt
+comparison and cannot be cut into days. The clearing half is gross -- the tokens the API reported
+leaving out of later prompts, with the cache rewrite each clear causes not deducted. `thinker proxy
+replay` prices a clear end to end and put the whole clearing at +7.3% of session cost over 264
+sessions, so a large positive clearing figure here is not a claim about net spend.
+
 The two windows select servings differently, and every surface that explains itself says which is
 which. Lifetime counts servings a finished session confirmed, exactly as the aggregate report does.
 Today counts what has already been served, less anything a session reported unused or contradicted --
