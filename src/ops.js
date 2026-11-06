@@ -191,6 +191,10 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
     // nothing left to rest on: a verification dropped every file that went away (verifyBehavior's revision
     // did, until 2026-11-06), and a note with no anchor can never go stale, so it was served for good
     if (!(n.deps || []).some(d => d.path)) return retire(n, []);
+    // a note from before the measurement was kept on the note (2026-11-06), or a shared one this checkout has
+    // not measured: measured once here, whatever else this pass does to it, so no door reads the disk for it again
+    const hadReads = Array.isArray(n.reads?.files);
+    if (!hadReads) n = { ...n, reads: readsOf(store.repo, n) };
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasWaiting = needsVerification(n);
     if (changed.length) {
@@ -206,22 +210,20 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
       // still read as changed, and the verification sees symbols rather than the file
       const next = { ...n, status, [field]: waiting, ...(upgraded ? { deps } : {}) };
       delete next[field === 'stale' ? 'recheck' : 'stale'];
-      if (persist && (n.status !== status || upgraded || JSON.stringify(n[field]?.changed) !== JSON.stringify(changed))) store.put(next);
+      if (persist && (!hadReads || n.status !== status || upgraded || JSON.stringify(n[field]?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
     // a contradicted note stays stale with no code change: only its verification clears it
     if (n.contradicted) {
       const next = { ...n, status: 'stale', stale: { since: n.stale?.since || n.recheck?.since || new Date().toISOString(), changed: [] } };
       delete next.recheck;
-      if (persist && (n.status !== 'stale' || n.recheck || n.stale?.changed?.length)) store.put(next);
+      if (persist && (!hadReads || n.status !== 'stale' || n.recheck || n.stale?.changed?.length)) store.put(next);
       return next;
     }
     if (wasWaiting) { const next = { ...n, status: 'fresh', deps, reads: readsOf(store.repo, n) }; delete next.stale; delete next.recheck; if (persist) store.put(next); return next; }
     // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
     if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
-    // a note from before the measurement was kept on the note (2026-11-06), or a shared one this checkout has
-    // not measured: measured once here, so no door reads the disk for it again
-    if (!Array.isArray(n.reads?.files)) { const next = { ...n, reads: readsOf(store.repo, n) }; if (persist) store.put(next); return next; }
+    if (!hadReads && persist) store.put(n);
     return n;
   });
 }

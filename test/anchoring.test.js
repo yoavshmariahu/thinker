@@ -86,6 +86,10 @@ test('a desired behavior whose anchors are all gone is withheld until the remova
   store.put({ ...store.get(bare.id), reads: undefined });
   assert.deepEqual(refresh(store, [store.get(bare.id)])[0].reads.files.map(f => f.path), ['build.sh'], 'a note without one is measured once by refresh');
   assert.ok(Array.isArray(store.get(bare.id).reads.files), 'and kept');
+  // and one whose file changed at the same time is measured too, pending or not
+  store.put({ ...store.get(bare.id), reads: undefined }); fs.appendFileSync(path.join(dir, 'build.sh'), 'echo done\n');
+  const pending = refresh(store, [store.get(bare.id)])[0];
+  assert.equal(pending.status, 'pending'); assert.deepEqual(store.get(bare.id).reads.files.map(f => f.path), ['build.sh']);
   fs.rmSync(path.join(dir, 'src/a.js'));
   assert.equal(refresh(store, [store.get(b.id)])[0].status, 'stale', 'removed in the working tree: withheld, not retired');
   git(dir, 'add', '-A'); git(dir, 'commit', '-q', '-m', 'remove a.js');
