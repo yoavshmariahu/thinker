@@ -405,7 +405,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **The savings footer: money, on the one surface that keeps it (2026-11-06, the owner's call):**
 - What thinker has saved is shown as dollars, today and over the whole log, in every client it has a
-  door into: the Claude Code status row (terminal and the desktop app), the Codex desktop card, the
+  door into: the Claude Code status row (the terminal) and the status line under the prompt (the desktop app), the Codex desktop card, the
   Cursor table, and the end-of-turn line for Codex CLI and a Claude Code without the mod.
 - **Dollars are the exception, and stay honest by construction.** `prices.js` records the 2026-10-04
   decision that the product counts tokens, never dollars, because most agents run on a subscription.
@@ -433,6 +433,20 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   the `AbovePrompt` band). `$.ui.status` was the first home and cannot be placed at all -- it takes
   text and nothing else. thinker still writes no `statusLine` into the agent's settings: that surface
   is the person's, and often already theirs.
+- **The desktop app draws no tail, so there the line is the engine's status line under the prompt**
+  (2026-11-06; `register.tsx:showStatus`, `/thinker-hide`). The engine's own types say of `tail`: "no other
+  surface draws it yet", and the Claude desktop app's Code tab draws neither the hint line nor the mode
+  labels at all (a screenshot: nothing under the input but the model picker), so the tail door, a
+  `SessionMode` label and a rewritten `PromptHint` hint all showed nothing there; the band above the input
+  (`AbovePrompt`) does draw, and a pane does, and both were turned down (the owner's call: the band is in
+  the wrong place, the pane far too big). What the desktop does draw under the input box is `$.ui.status`,
+  checked live with a probe mod the same day: text alone, pinned per plugin, cleared with `undefined`. So
+  on `surface: 'desktop'` the line goes through it, read at session start and after every turn as the
+  tail is, and the tail is set on the terminal alone, so no surface shows the figure twice. The repository
+  note that `$.ui.status` "cannot be placed" stands for the terminal, where it never showed. A status line
+  carries no button, so the dismissal is `/thinker-hide`, registered on the desktop alone: it clears the
+  line for the rest of the day, the day kept in the mod's store (`HIDDEN_KEY`) across sessions, and the
+  next day the line is back.
 - **The status line says the name, not the brain** (the owner's ask, 2026-11-06): `thinker: ...`, where
   the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
   lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by

@@ -16,8 +16,12 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout. (The prompt's notes arrive as a row a hook appends, which a test cannot raise.)
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], env = {} as Record<string, string>, config = null as any } = {}) {
-  mock.store(on)
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any } = {}) {
+  on('store.get', ($, e) => ({ value: e.key === 'savings-hidden-on' && hidden ? hidden : undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('command.register', () => ({ value: undefined }))
+  // the engine's own status line under the prompt, the desktop door: what the mod pinned, or cleared
+  on('ui.status', ($, e) => { pinned.push(e.text); return { value: undefined } })
   mock.env(on, { HOME: '/home/me', ...env })
   // the engine's own status row, beneath the mod: what the mod added to it is `tail`
   on('ui.render', { component: 'PromptHint' }, ($, e) => { status.push(e.props.tail); const { Text } = $.ui.resolve(e); return <Text key="hint">{e.props.hint}</Text> })
@@ -114,10 +118,40 @@ test('notices switched off in the repository config leave the row alone', async 
   expect(await row($, status)).toBeUndefined()
 })
 
-test('the figures reach the desktop app\'s status row too', async ($, on) => {
-  const status: (string | undefined)[] = []
-  engine(on, { savings: ledger(), status })
-  expect((await row($, status, 'desktop'))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+test('on the desktop the figures are the status line under the prompt, and no tail', async ($, on) => {
+  const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, pinned })
+  expect(await row($, status, 'desktop')).toBeUndefined()   // the desktop draws no tail
+  expect(pinned.at(-1)).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+})
+
+test('the terminal pins no status line: one figure, one place', async ($, on) => {
+  const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, pinned })
+  await row($, status, 'terminal')
+  expect(pinned).toEqual([])
+})
+
+test('/thinker-hide clears the status line for the day, across sessions', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'thinker-hide', args: '' } as any)
+  expect(pinned.at(-1)).toBeUndefined()
+})
+
+test('hidden today, a new desktop session pins nothing until tomorrow', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned, hidden: today() })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  expect(pinned.at(-1)).toBeUndefined()
+})
+
+test('notices off pin nothing on the desktop either', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned, env: { THINKER_NOTICE: 'off' } })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  expect(pinned.at(-1)).toBeUndefined()
 })
 
 test('only the notes served count, not the titles listed for lookup', () => {

@@ -158,6 +158,10 @@ test('the status row says what the ledger says, in the same words and the same d
   // surface is theirs
   assert.match(src, /component: 'PromptHint'/);
   assert.match(src, /tail: statusTail\(line\)/);
-  assert.doesNotMatch(src, /\$\.ui\.status\(/, 'a pinned line cannot be placed; the row can');
+  // the desktop app draws no tail but does draw the engine's status line under the prompt (seen live,
+  // 2026-11-06), so there the line is `$.ui.status`, on that surface alone, and /thinker-hide clears it
+  assert.match(src, /\$\.ui\.status\(line && hiddenOn !== dayKey\(Date\.now\(\)\) \? line : undefined\)/);
+  assert.match(src, /if \(surface !== 'desktop'\) return/);
+  assert.match(src, /name: 'thinker-hide'/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');
 });

@@ -175,12 +175,24 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
 // never read a file: the reads happen at the start of the session and at the end of each turn, and a
 // changed line asks for a redraw.
 let line = ''
+// the day the person ran /thinker-hide, kept in the mod's store across sessions; the line is back the next day
+let hiddenOn = ''
+export const HIDDEN_KEY = 'savings-hidden-on'
 
-// Read the ledger and, if it says something new, have the band drawn again.
-async function readSavings($: any): Promise<void> {
+// The desktop door: the engine's own status line under the prompt (`$.ui.status`), which the Claude
+// desktop app draws and the terminal does not place (the terminal's door is the tail below). Text
+// alone, so the dismissal is a command rather than a button. Cleared with `undefined` once hidden.
+const showStatus = ($: any, surface: string) => {
+  if (surface !== 'desktop') return
+  $.ui.status(line && hiddenOn !== dayKey(Date.now()) ? line : undefined)
+}
+
+// Read the ledger and, if it says something new, have the row drawn again.
+async function readSavings($: any, surface = ''): Promise<void> {
   try {
     const next = await savings($)
     if (next !== line) { line = next; $.ui.invalidate('ui.render') }
+    showStatus($, surface)
   } catch {}
 }
 
@@ -252,7 +264,23 @@ export const register: Register = on => {
   cards = null
   line = ''
 
-  on('session.start', async ($, e, next) => { await markSession($); await readSavings($); return next(e) })
+  let surface = ''
+  on('session.start', async ($, e, next) => {
+    surface = e.surface
+    await markSession($)
+    if (surface === 'desktop') {
+      await $.command.register({ name: 'thinker-hide', description: 'Hide the thinker savings line under the prompt for today' })
+      hiddenOn = String((await $.store.get(HIDDEN_KEY)) ?? '')
+    }
+    await readSavings($, surface)
+    return next(e)
+  })
+  on('command.run', { command: 'thinker-hide' }, async ($) => {
+    hiddenOn = dayKey(Date.now())
+    await $.store.set(HIDDEN_KEY, hiddenOn)
+    showStatus($, surface)
+    return { text: 'thinker savings line hidden until tomorrow.' }
+  })
 
   // a hook's JSON additionalContext (the late notes after a tool) is in the folded result
   on('classic.PostToolUse', async ($, e, next) => {
@@ -291,7 +319,7 @@ export const register: Register = on => {
       }
       // every turn, card or no card: the Stop hook has just started the ledger's refresh, and the
       // status row is what the person reads between summaries. One file read, no counting here.
-      await readSavings($)
+      await readSavings($, surface)
     }
     return next(e)
   })
@@ -306,9 +334,10 @@ export const register: Register = on => {
   // thinker still writes no `statusLine` into the person's settings -- that surface is theirs.
   // Nothing is read here; `line` was read when the turn ended (readSavings).
   on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
-    if (!line) return next(e)
+    if (!line || e.surface !== 'terminal') return next(e)
     return next({ ...e, props: { ...e.props, tail: statusTail(line) } })
   })
+
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     const drawn = await next(e)
