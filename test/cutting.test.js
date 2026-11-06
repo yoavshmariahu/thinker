@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, PAYBACK, REWRITE_SHARE, savedPerCall, readRate, WRITE_1H } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -81,6 +81,41 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   const a = applyCut(ms, ['u0.0']), b = applyCut(ms, ['u0.0']);
   assert.deepEqual(JSON.parse(JSON.stringify(a.messages)), JSON.parse(JSON.stringify(b.messages)));
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
+});
+
+test('a cut saves the write it spares as well as the read, and the real paybacks of 2026-11-05 pass the floor', () => {
+  // Counting the cache read alone refused every boundary this machine priced on 2026-11-05 -- 23 of them,
+  // paybacks 25 to 64 -- and the Claude path made no cut for the two days after the API-side clearing went
+  // (#610). A session does not only read its prefix back: 3.40% of its calls write 85.2% of their context
+  // again, and after a cut those writes are over a smaller context. These are the real figures from the
+  // proxy log, as `held` recorded them, with the payback each one gets now.
+  const real = [
+    { tokens: 105472, recache: 127570, was: 25, now: 16 },   // the cheapest boundary of the day
+    { tokens: 144556, recache: 203903, was: 29, now: 18 },
+    { tokens: 203340, recache: 353744, was: 35, now: 23 },   // still refused, and rightly
+    { tokens: 108036, recache: 343894, was: 64, now: 41 },   // a tail three times what it removes
+  ];
+  for (const r of real) {
+    const p = priceCut(null, { ids: ['x'], tokens: r.tokens, recache: r.recache }, { model: 'claude-opus-5' });
+    const readOnly = Math.ceil(r.recache * WRITE_1H / (r.tokens * readRate('claude-opus-5')));
+    assert.equal(readOnly, r.was, `the read-only price of ${r.tokens}/${r.recache} was ${r.was} calls`);
+    assert.equal(p.payback, r.now, `counting the write it spares, it repays in ${r.now}`);
+    assert.equal(p.pays, r.now <= PAYBACK, `a boundary repaying in ${r.now} calls ${r.now <= PAYBACK ? 'is taken' : 'is refused'}`);
+  }
+  // the floor itself is unchanged: 20 calls, and nothing is assumed about how long the session runs
+  assert.equal(PAYBACK, 20);
+  // the rate is a read plus a share of a write, and the row carries what it is worth on a call
+  assert.equal(savedPerCall('claude-opus-5'), readRate('claude-opus-5') + REWRITE_SHARE * WRITE_1H);
+  const one = priceCut(null, { ids: ['x'], tokens: 100000, recache: 100000 }, { model: 'claude-opus-5' });
+  assert.equal(one.saving, Math.round(100000 * savedPerCall('claude-opus-5')), 'the row says what the cut is worth a call');
+  assert.equal(one.payback, Math.ceil(100000 * WRITE_1H / one.saving));
+  // a cheaper read makes a cut harder to justify, and the write term does not drown that out: Opus 5.5
+  // reads at half the usual rate, so the same cut must repay over fewer effective tokens
+  assert.ok(priceCut(null, { ids: ['x'], tokens: 105472, recache: 127570 }, { model: 'claude-opus-5-5' }).payback
+    > priceCut(null, { ids: ['x'], tokens: 105472, recache: 127570 }, { model: 'claude-opus-5' }).payback,
+    'a model whose cache read is cheaper gets a longer payback, as before');
+  // and a pause past the cache's hour is still free, whatever the ratio
+  assert.equal(priceCut(null, { ids: ['x'], tokens: 10, recache: 1e6 }, { cold: true }).pays, true);
 });
 
 test('the cut replaces results and touches nothing else: one operation, not three', () => {

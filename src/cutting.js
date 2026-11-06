@@ -64,6 +64,29 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // but the saving it would have made, while a cut taken wrongly pays a full prefix rewrite up front.
 export const PAYBACK = 20;
 
+// The share of its own context a call writes to the cache anyway, whatever thinker does. Measured on this
+// machine's 29 long Claude Code sessions (60+ calls, peak context 140k+) over the five days to 2026-11-06:
+// 6,197 calls, of which 3.40% wrote 85.2% of their context back and carried 84.5% of all the write there
+// was -- compaction, the cache's hour running out, a model change -- while the other 96.6% wrote a flat
+// ~1,644-token delta that a smaller context does not make smaller. So 0.0340 x 0.852 = 0.029, and the
+// delta is left out of it deliberately: it is new content, and a cut does not make new content cheaper.
+export const REWRITE_SHARE = 0.029;
+
+// What one cut token saves on one later call, in input-token equivalents. Two parts, and both are things
+// the session pays on that call if the cut is not made:
+//   - the cache read it would have been part of (`readRate`), which is all this counted until 2026-11-06;
+//   - its share of the rewrites that call might be, `REWRITE_SHARE` of the write rate. A long session does
+//     not only read its prefix back, it writes it again now and then, and after a cut every one of those
+//     writes is over a context smaller by exactly what the cut took out.
+// Counting the read alone priced a cut token at 0.1 a call where it is worth 0.158, a factor of 1.58, and
+// the error fell entirely on the refusing side: on 2026-11-05 all 23 of this machine's priced boundaries
+// were refused at paybacks of 25 to 64, of which 16 are inside the floor once the write is counted, and
+// the Claude path made no cut at all in the two days after the API-side clearing was removed (#610). The
+// factor is 1.58 and not the 7x a flat 47-58k write on four Codex cuts suggested: on the Anthropic path
+// the API-era clears show the write is the whole post-cut prompt less the ~32k cached system prefix, so
+// `recache` (the tail from the first replaced result) is if anything 13% under what a cut really costs.
+export const savedPerCall = (model, ttl = '1h') => readRate(model) + REWRITE_SHARE * writeRate(ttl);
+
 export const MIN_CHARS = 200;
 // What these words must carry, found 2026-11-04 by reading what the model did with the old ones
 // ("tool result cleared by thinker to save context"): they were silent on WHEN, and it assumed the
@@ -118,15 +141,17 @@ export const freshCut = session => ({
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
 export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {}) {
-  const read = readRate(model);
   // `cand.recache` is the tail as it will be sent (proxy.js:cutCandidates), which is what the API writes
   // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
   // place in the cache, and not the system prompt, which is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
   const cost = cold ? 0 : recache * writeRate(ttl);
+  // What the cut is worth on each later call: the read it saves and its share of the writes the session
+  // makes anyway (`savedPerCall`). Both sides of the ratio are in input-token equivalents at list prices.
+  const saving = cand.tokens * savedPerCall(model, ttl);
   // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
-  const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
-  return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
+  const payback = saving > 0 ? Math.ceil(cost / saving) : Infinity;
+  return { tokens: cand.tokens, recache, cost, saving: Math.round(saving), payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes

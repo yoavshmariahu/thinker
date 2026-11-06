@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, PAYBACK, writeRatio, REWRITE_SHARE, savedPerCall, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -93,15 +93,21 @@ test('a clear is made when it repays its write inside PAYBACK calls, and nothing
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 20000, calls, idle: 0, cleared: true })).toBe(true)
   // three times what it drops: never repays inside the floor
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 300000, calls, idle: 0, cleared: true })).toBe(false)
-  // the line itself: writeRatio(model) x recache against PAYBACK x dropped. 20 where the model is unknown,
-  // so a token written needs 20 read back; the floor allows PAYBACK calls to do it.
-  expect(writeRatio('')).toBe(20)
+  // the line itself: writeRatio(model) x recache against PAYBACK x dropped. A cleared token saves a cache
+  // read on every later call AND the share of its context a call writes back anyway (REWRITE_SHARE, measured
+  // 2026-11-06; cutting.js:savedPerCall), so where the model is unknown a written token needs 2 / (0.1 + 0.058)
+  // = 12.66 of those saved back, not the 20 this counted when the read was the whole of the saving. Counting
+  // the read alone refused every boundary the proxy priced on 2026-11-05, 16 of them inside the floor.
+  expect(REWRITE_SHARE).toBe(0.029)
+  expect(savedPerCall('')).toBe(0.158)
+  expect(writeRatio('')).toBe(2 / 0.158)
   expect(PAYBACK).toBe(20)
   const edge = Math.floor(PAYBACK * 80000 / writeRatio(''))
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true })).toBe(true)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge + 1, calls, idle: 0, cleared: true })).toBe(false)
-  // on Opus 5.5 a read is a twentieth of an input token, so a written token needs 40 reads and the same
-  // write no longer repays in time
-  expect(writeRatio('claude-opus-5-5')).toBe(40)
+  // on Opus 5.5 a read is a twentieth of an input token, so a cleared token saves less per call and the
+  // same write no longer repays in time
+  expect(Math.round(savedPerCall('claude-opus-5-5') * 1e6)).toBe(108000)
+  expect(writeRatio('claude-opus-5-5')).toBe(2 / (0.05 + 0.029 * 2))
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(false)
 })

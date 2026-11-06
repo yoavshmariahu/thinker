@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, readRate } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, readRate, REWRITE_SHARE, savedPerCall } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -93,8 +93,18 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   const rates = new Function(`return ${table[1]}`)();
   const modRead = m => (rates.find(([re]) => re.test(m.toLowerCase())) || [null, 0.1])[1];
   for (const m of ['claude-opus-5-5', 'claude-opus-5', 'opus', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'gpt-6-astra']) assert.equal(modRead(m), readRate(m), `the mod's read rate for ${m} is clearing.js's`);
-  assert.ok(/export const writeRatio = \(model: string\) => 2 \/ readRate\(model\)/.test(s), 'the write is WRITE_1H over the read');
+  assert.ok(/export const writeRatio = \(model: string\) => 2 \/ savedPerCall\(model\)/.test(s), 'the write is WRITE_1H over what a cleared token saves on a call');
   assert.equal(WRITE_1H, 2);
+  // A cleared token saves the read it is no longer part of AND its share of the writes the session makes anyway
+  // (cutting.js:REWRITE_SHARE, measured 2026-11-06). Counting the read alone refused cuts whose real payback was
+  // inside the floor, and the two doors must refuse and allow the same ones: the mod's rewrite share is the proxy's.
+  assert.equal(modConst(s, 'REWRITE_SHARE'), REWRITE_SHARE, "the mod's rewrite share is cutting.js's");
+  assert.ok(/export const savedPerCall = \(model: string\) => readRate\(model\) \+ REWRITE_SHARE \* 2/.test(s),
+    'the mod saves a read plus a share of a write per call, as priceCut does');
+  for (const m of ['claude-opus-5', 'claude-opus-5-5', 'claude-fable-5-1', 'gpt-6-astra']) {
+    const modSaved = readRate(m) + modConst(s, 'REWRITE_SHARE') * 2;
+    assert.ok(Math.abs(modSaved - savedPerCall(m)) < 1e-12, `the mod's per-call saving for ${m} is cutting.js's`);
+  }
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {

@@ -25,7 +25,8 @@ export const MIN_CHARS = 200
 // Clear, freeze what was cleared, and clear again when it pays (src/clearing.js: the proxy's policy and this door's,
 // the owner's call 2026-11-02). A clear here rewrites the conversation in place at a compaction boundary, so
 // everything after the first row it changes is written to the cache again, at WRITE_RATIO cache reads a token at the
-// 1h rate; it saves a cache read of what it cleared on every later request. So a clear is made when what it would
+// 1h rate; on every later request it saves a cache read of what it cleared, and the share of a context-proportional
+// rewrite that call might be (`savedPerCall`). So a clear is made when what it would
 // drop, read back over the requests the session likely has left, outweighs that write (`clearPays`). What was
 // cleared stays cleared: `clearOld` leaves a placeholder alone, so a later clear only takes what came after. A pause
 // past the cache's hour makes the next request write its context anyway, so a clear then costs nothing extra.
@@ -34,7 +35,11 @@ export const COLD_MS = 65 * 60 * 1000
 // token and a cache read a tenth of one on most models, a twentieth on Opus 5.5, a fortieth on Fable (model-usage.js)
 export const READ_RATES: [RegExp, number][] = [[/fable|mythos/, 0.025], [/opus-5-5|opus-5\.5|^opus$/, 0.05], [/./, 0.1]]
 export const readRate = (model: string) => (READ_RATES.find(([re]) => re.test(String(model || '').toLowerCase())) || [null, 0.1])[1]
-export const writeRatio = (model: string) => 2 / readRate(model)
+// the share of its context a call writes back anyway, so a cleared token saves that share of a write besides the read
+// it saves (cutting.js:REWRITE_SHARE, measured; the proxy and this door price a clear the same way)
+export const REWRITE_SHARE = 0.029
+export const savedPerCall = (model: string) => readRate(model) + REWRITE_SHARE * 2
+export const writeRatio = (model: string) => 2 / savedPerCall(model)
 // A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK).
 export const PAYBACK = 20
 export const DELAY_MS = 1500

@@ -211,6 +211,33 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
   so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
   the saving it would have made, a wrong one pays a full prefix rewrite up front.
+- **A cut token saves a read *and* a share of a write** (2026-11-06; `cutting.js:REWRITE_SHARE`, `savedPerCall`).
+  Until this the saving counted the cache read alone, at `readRate` a token a call, as though a session only ever
+  read its prefix back. It writes it again now and then too -- compaction, the cache's hour running out, a model
+  change -- and after a cut every one of those writes is over a context smaller by exactly what the cut took out.
+  Measured on this machine's 29 long Claude Code sessions (60+ calls, peak context 140k+), the five days to
+  2026-11-06: of 6,197 calls, **3.40% wrote 85.2% of their context again and carried 84.5% of all the write there
+  was**, while the other 96.6% wrote a flat ~1,644-token delta, which is new content and is left out because a cut
+  does not make new content cheaper. So `REWRITE_SHARE` is 0.0340 x 0.852 = 0.029, and a cut token is worth
+  `readRate + 0.029 x writeRate` a call: 0.158 against the 0.1 that was counted, a factor of 1.58.
+  The whole of the error fell on the refusing side. On 2026-11-05 **all 23 of this machine's priced boundaries
+  were refused** (paybacks 25 to 64) and the Claude path made no cut at all in the two days after the API-side
+  clearing was removed (#610) -- while the desktop mod, the Codex path and the holdout went on working, so the
+  cards and `thinker proxy report` showed a working clearing with nothing behind it on the main door. Of those 23,
+  16 are inside the floor once the write is counted (the cheapest at 16 calls) and the 7 whose tail is more than
+  1.74x what they remove stay refused. The floor stays 20 (the owner's call, 2026-11-06, over a tighter 10, which
+  the measured figures showed would have left the Claude path at zero cuts).
+  It is 1.58 and **not the 7x a flat 47-58k write on four cuts suggested**: those four were Codex sessions, where
+  the backend caches by prefix and charges no write premium. On the Anthropic path the API-era clears say the
+  opposite -- the write was the whole post-cut prompt less the ~32k cached system prefix, every time (read 32,372
+  on the cleared call in four sessions checked), so `recache`, the tail from the first replaced result, is if
+  anything 13% *under* what a cut really costs. Replayed on the refused 635k-token conversation of 2026-11-05
+  (its transcript rebuilt from `api-request`/`api-request-blob` rows, which carry the exact bodies): no band of
+  that conversation pays even now, the best being 34 calls, and **smaller bands are worse, not better** -- the
+  tail has a floor in the live turn and the protected results, so cutting the newest 20 eligible results prices
+  at 89 calls where cutting all 254 prices at 34. Old results were 38% of that conversation; thinking, its
+  signatures and the agent's own text were most of the rest. There is nothing to win there by choosing a cut
+  point, and a candidate walk that searched for one would be a cost with no return.
 - **The ratchet is the conversation's, and it is held under concurrency** (2026-11-05; `proxy.js:conversationKey`,
   `cutting.js:mergeCut`, `cutStore.update`). One machine runs many agents through one proxy, and the record the
   ratchet lives in was keyed on `x-claude-code-session-id`, which Claude Code sends for everything a session does:
@@ -397,7 +424,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
-| `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
+| `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary (a cut token saves a cache read plus `REWRITE_SHARE` of a write), the session record |
 | `src/proxy-retry.js` | a request that never reached the upstream: the retryable codes, the ladder a dead resolver gets, the address a host last answered on |
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
