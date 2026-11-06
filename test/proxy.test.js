@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
-import { clearedBySession, compressionHeader, compressionSaving } from '../src/compression.js';
+import { clearedBySession, compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
 import { TOKENS_PER_CHAR } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';
@@ -626,6 +626,23 @@ test('what the cut took out is on the row, in the session record, and summed as 
     // what the card, the Stop hook's line and `thinker proxy report` will put to the person once it is due
     const due = compressionSaving({ ...state, turns: 3 });
     assert.equal(compressionHeader(due, n => n), `context cleared · ~${saved.cleared} tokens not re-read over 2 calls`);
+  } finally { p.server.close(); up.server.close(); }
+});
+
+test('the breakdown by action is what the results were worth, not what the placeholders weigh', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    await send(p.port, { data: cuttable() });
+    const row = rows(p.logFile).find(r => r.op === 'proxy' && r.clientCut);
+    const state = JSON.parse(fs.readFileSync(path.join(path.dirname(p.logFile), 'compression', 's1.json'), 'utf8'));
+    const read = state.tools.find(t => t.name === 'Read');
+    assert.equal(read.calls, row.clearedUses, 'every result the cut replaced is counted');
+    // Each cut result is 40,000 chars; the placeholder that replaces it is ~150. Reading the breakdown off
+    // the already-cut messages gave 59 tokens a call -- 531 against a session's 1.48M saved (#610..0.2.23).
+    assert.equal(read.tokens, Math.round(40000 * TOKENS_PER_CHAR) * read.calls, 'at the size they were when the agent sent them');
+    assert.ok(Math.abs(read.tokens - row.cleared) <= read.calls, 'so the breakdown adds up to what the row says was taken out');
+    assert.equal(compressionTools(state, n => n), `Read \u00d7${read.calls} (${read.tokens})`);
   } finally { p.server.close(); up.server.close(); }
 });
 
