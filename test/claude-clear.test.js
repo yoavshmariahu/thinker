@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, readRate } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 
@@ -85,6 +85,9 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
   assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
   assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
+  // the floor itself: one policy, so a move on either door fails here until the other follows. Nothing pinned it
+  // until 2026-11-06, the day the proxy's went from 20 to 25, which is exactly the divergence #588 cost a release.
+  assert.equal(modConst(s, 'PAYBACK'), PAYBACK, "the mod's payback floor is the proxy's");
   // one price: the mod's reads-per-written-token is the proxy's write rate over its read rate for the model (20 on
   // most models, 40 on Opus 5.5, 80 on Fable; a read priced at 2.5% for every model stopped the first paired smoke on
   // 2026-11-02, and one at 10% for every model would call a losing clear on Opus 5.5 a win)

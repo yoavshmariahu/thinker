@@ -409,8 +409,12 @@ export function transformRequest(method, url, headers, body, cfg) {
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
-    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
-    ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
+    // the decision's own arithmetic, so a cut can be audited against the floor that allowed it. `saving`,
+    // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
+    // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,
+    // so this branch had never run, and `Math.round(undefined)` would have logged `"saving":null`.
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), payback: d.payback, ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
+    ...(d.held ? { held: d.held } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
     ...(d.turn != null ? { turn: d.turn } : {}) };
 }

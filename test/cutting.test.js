@@ -83,6 +83,26 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
+test('the floor is 25 because 20 cut nothing, and 25 still refuses the cuts that lost', () => {
+  // the real boundaries, from this machine's proxy log. The first is the cheapest the Claude path reached in
+  // the two days after the cut landed: refused at 20, made at 25, in a session that then ran 283 more calls.
+  const opus = { model: 'claude-opus-5' };
+  const cheapest = priceCut({ prompt: 337692 }, { tokens: 105472, recache: 127570 }, opus);
+  assert.equal(cheapest.payback, 25, 'the cheapest real boundary of 2026-11-05 repays in 25 calls');
+  assert.equal(cheapest.pays, true, 'and 25 is inside the floor');
+  assert.ok(cheapest.payback > 20, 'where 20 refused it, which is why no cut was made that day');
+
+  // the four cuts of the +38% session that set the floor needed 14, 32, 66 and 82 calls. 25 admits the first
+  // and no other, so raising the floor re-admits none of the ones that lost.
+  for (const [calls, want] of [[14, true], [32, false], [66, false], [82, false]]) {
+    // a candidate whose arithmetic gives exactly that payback: cost = calls x tokens x readRate
+    const tokens = 100000, recache = calls * tokens * 0.1 / 2;
+    const p = priceCut({ prompt: 400000 }, { tokens, recache }, opus);
+    assert.equal(p.payback, calls, `the ${calls}-call cut prices at ${calls}`);
+    assert.equal(p.pays, want, `a cut repaying in ${calls} is ${want ? 'made' : 'refused'}`);
+  }
+});
+
 test('the cut replaces results and touches nothing else: one operation, not three', () => {
   const think = { type: 'thinking', thinking: 'T', signature: 'sig' };
   const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: '/p/' + id } });

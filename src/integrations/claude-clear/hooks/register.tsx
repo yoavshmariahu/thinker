@@ -35,8 +35,9 @@ export const COLD_MS = 65 * 60 * 1000
 export const READ_RATES: [RegExp, number][] = [[/fable|mythos/, 0.025], [/opus-5-5|opus-5\.5|^opus$/, 0.05], [/./, 0.1]]
 export const readRate = (model: string) => (READ_RATES.find(([re]) => re.test(String(model || '').toLowerCase())) || [null, 0.1])[1]
 export const writeRatio = (model: string) => 2 / readRate(model)
-// A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK).
-export const PAYBACK = 20
+// A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK,
+// which carries the measurement that set it). test/claude-clear.test.js holds the two together.
+export const PAYBACK = 25
 export const DELAY_MS = 1500
 export const COMMAND = 'thinker-clear'
 export const INTRODUCED = 'thinker-clear:introduced'

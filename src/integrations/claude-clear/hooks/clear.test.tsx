@@ -131,7 +131,7 @@ test('a clear is made when it repays its write inside PAYBACK calls, and nothing
   // the line itself: writeRatio(model) x recache against PAYBACK x dropped. 20 where the model is unknown,
   // so a token written needs 20 read back; the floor allows PAYBACK calls to do it.
   expect(writeRatio('')).toBe(20)
-  expect(PAYBACK).toBe(20)
+  expect(PAYBACK).toBe(25)
   const edge = Math.floor(PAYBACK * 80000 / writeRatio(''))
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true })).toBe(true)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge + 1, calls, idle: 0, cleared: true })).toBe(false)
