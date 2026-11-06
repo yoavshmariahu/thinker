@@ -211,6 +211,20 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
   so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
   the saving it would have made, a wrong one pays a full prefix rewrite up front.
+- **A cold boundary cuts everything eligible, whatever the size** (2026-11-06; `decideCut`, the `cold` branch
+  before the trigger). Past the cache's hour the request writes its whole context again whether or not anything
+  is replaced, so the tail is free and the trigger and `clearAtLeast` have nothing to protect at that moment.
+  Replayed over this machine's last 14 days (145 sessions of 40+ calls, rebuilt from their transcripts; the
+  candidates match the proxy's own priced boundaries of 2026-11-05 within 0.5%), 41 cold boundaries had something
+  to cut and 9 cleared the 100k floor: the other 32 were refused for a cost of zero, and taking them is +12% net
+  at list prices with no session made worse off. The mod does not follow: its clear is a compaction turn queued
+  after the turn completes, so the request that would have been free has already gone and the cache is warm
+  again when it acts; its idle rule waives the payback alone (`register.tsx:clearPays`, the note above it).
+  The same replay, for the record: the trigger moves nothing (110k is +$3 on $452, since the size floor is what
+  gates and needs ~300k of context to be met), the payback floor buys $7-8 at 30 or 40 and adds sessions that
+  lose, and the size floor is the lever (60k is +14%; 80k less, because it admits the band where the fixed part
+  of the tail -- the live turn and the protected results -- weighs most). A refusal for size now carries
+  `candidate` on its row, so the next such question is read off the log rather than rebuilt from transcripts.
 - **The floor is the whole policy, and at 20 it cut nothing** (2026-11-06). In the two days after the cut landed
   this machine's Claude path made no cut at all: 30 priced boundaries in 4 conversations, every one refused at a
   payback of 21 to 64. The floor is the only reason -- the cost side is not overstated (one cut's predicted tail
