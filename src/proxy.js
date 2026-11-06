@@ -309,10 +309,11 @@ export function applyCut(messages, cut) {
     if (firstChanged < 0) firstChanged = i;
     return { ...m, content: blocks };
   });
-  // `tokens` so the row a call logs says what was taken out of *that* prompt, in the units the figure is
-  // read in. It was asked for on the row (`clientCut.tokens`) and never returned here, so every reader of
-  // what the clearing saved -- the card, the Stop hook's line, `thinker proxy report`, `thinker prs`, the
-  // telemetry -- read 0 from 0.2.22, the release the cut shipped in (2026-11-05).
+  // `tokens` is what this prompt is shorter by, and that is the whole of the saving: the set is cumulative
+  // within a conversation, so every later call reads the shorter prefix again (compression.js). Reported
+  // here rather than worked out by a reader, because only this walk knows which results it replaced -- one
+  // below `CUT_MIN_CHARS` is left in place, and a cut id whose result the agent no longer sends is not in
+  // the prompt to save anything.
   return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
 }
 
@@ -349,6 +350,30 @@ export function heldOut(session, share) {
 const AGENT_CLEAR_TYPE = 'clear_tool_uses_20250919';
 const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map(s => s.trim()).includes(EDIT_BETA);
 const sessionOf = headers => headers['x-claude-code-session-id'] || null;
+// A session is not a conversation, and the cut's record belongs to the conversation.
+//
+// Claude Code sends one `x-claude-code-session-id` for everything a session does: the person's own
+// thread, each subagent's thread, and the small side calls it makes beside them (a title, a summary).
+// Each of those is a conversation with a turn count of its own, so keyed on the session alone they
+// shared one record and one reservation. Measured on this machine's proxy log, the 12 days to
+// 2026-11-05: 13 of 968 sessions had two conversations interleaved within a turn, and the clobber is
+// not subtle -- a side call's first and only turn writes `turn: 1`, and the next request of the
+// person's thread, still inside turn 7, reads the boundary as new and may cut mid-turn at exactly the
+// moment a cut is most expensive. Simulated the same day: the set moved on a mid-turn request.
+//
+// The conversation is named by its own first user message, which every later request of it resends
+// unchanged -- its text alone, because Claude Code moves `cache_control` markers between calls and a
+// hash over the blocks would change with them. Two conversations opened with the same words (two
+// subagents given one prompt) still share a record; that is the residue, and it is the narrow case.
+export function conversationKey(session, j) {
+  if (!session) return null;                                 // no session, no reliable ratchet
+  const first = (Array.isArray(j?.messages) ? j.messages : []).find(m => m?.role === 'user');
+  const c = first?.content;
+  const text = typeof c === 'string' ? c
+    : Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b?.text || '').join('\n') : '';
+  if (!text) return session;
+  return `${session}#${crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
+}
 
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
 export function transformRequest(method, url, headers, body, cfg) {
@@ -364,7 +389,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (edits.some(e => e && e.type === AGENT_CLEAR_TYPE)) return { body, reason: 'agent-clears' };
   // Thinker cuts the context itself (cutting.js): one decision at a turn boundary, then the same set
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
-  const rec = cfg.cutRecord || freshCut('');
+  // the record is the conversation's, not the session's (`conversationKey`), and the store is asked for it
+  // here because this is the first point the body has been parsed
+  const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
@@ -373,6 +400,8 @@ export function transformRequest(method, url, headers, body, cfg) {
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
     cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
+    // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
+    // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
     ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), saving: Math.round(d.saving), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, saving: d.saving, cold: d.cold } : {}),
     ...(d.held ? { held: { tokens: d.held.tokens, recache: d.held.recache, cost: Math.round(d.held.cost), saving: Math.round(d.held.saving), need: d.held.need, have: d.held.have } } : {}),
@@ -424,12 +453,27 @@ export function usageTap() {
       return {
         input: seen.input_tokens, read: seen.cache_read_input_tokens, write: seen.cache_creation_input_tokens, out: seen.output_tokens,
         write1h: seen.write1h, write5m: seen.write5m,
-        // what the cut took out is known from the cut itself (`clientCut`), not from the API's report
+        // The API clears nothing now, so it reports nothing: what the cut took out is the cut's own figure,
+        // put on the row by `clearedBy`.
         cleared: 0, clearedUses: 0,
       };
     },
   };
 }
+
+// What this request was shorter by, and how many results that was: the two fields every door that speaks
+// about a saving reads off this row (`compression.js:noteCompression` writes the session's record from it,
+// `clearedBySession` sums it, `cache-savings.js:clearBoundaries` finds the clears by the count rising).
+//
+// They used to come from the API, which reported what its own edit had cleared. Thinker cuts the context
+// itself now and asks the API for nothing, so from 2026-11-04 there was nothing for the API to report and
+// `usageTap` returned 0 -- while the field the cut fills instead (`clientCut`) is read by nobody outside
+// this file. So every saving went unrecorded: on this machine the last session record was written
+// 2026-11-04 04:01, the API's last cleared figure came at 12:01 the same day, and the `proxy-cut` rows
+// after it account for 666,516 tokens taken out that reached no card, no `thinker proxy report` and no
+// pull request. Only a request the cut actually shortened carries the fields, so a row that cleared
+// nothing still says nothing (`noteCompression` would otherwise record a clear that never happened).
+const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clientCut.tokens), clearedUses: t.clientCut.cut || 0 } : {});
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
@@ -504,8 +548,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = cutRejected;
-      let cutRec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, cutRecord: cutRec, readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      // The record is read inside the transform, which is where the conversation can be told from the
+      // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
+      let cutRec = null;
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
       // Reserve the boundary's decision before forwarding, including a decision not to cut.
       // Retries and concurrent requests in this turn must reuse the same set, even when a
       // later tool result would make a previously refused candidate profitable.
@@ -605,13 +651,15 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage }, t.actions);
+              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
             if (tap && cutRec && Array.isArray(t.cut) && ures.statusCode >= 200 && ures.statusCode < 300) {
-              for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
-              (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
+              // through the store's read-modify-write, so the counters land on the record as it is now: another
+              // request of this conversation may have reserved the next boundary while this answer streamed
+              const store = t.protocol === 'responses' ? responseCutting : cutting;
+              for (const ev of store.update(cutRec.session, rec => cutResponse(rec, requestCfg, t, usage))) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
             }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP

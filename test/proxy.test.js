@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
+import { clearedBySession, compressionHeader, compressionSaving } from '../src/compression.js';
+import { TOKENS_PER_CHAR } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';
 
@@ -488,3 +490,154 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
   } finally { server.close(); up.close(); fs.rmSync(dumpDir, { recursive: true, force: true }); }
 });
 
+
+
+// Many agents at once, through one proxy. The ratchet is per conversation and it may not move inside a
+// turn (AGENTS.md, MANDATORY); what follows is that rule under the two interleavings this machine's log
+// shows -- a session's side call beside the person's own thread, and an answer that lands after the next
+// boundary has already been reserved. Both reproduced before the fix: the first moved the set on a
+// mid-turn request, the second put it back to nothing and lost a call from the count.
+
+// one conversation of a session: its own first message, which is what names it, then results old enough
+// to cut and a fresh prompt -- turn 2, a boundary
+const conversation = (name, { tail = [], n = 10 } = {}) => {
+  const ms = [{ role: 'user', content: [{ type: 'text', text: `${name}: do the thing` }] }];
+  for (let i = 0; i < n; i++) ms.push(
+    { role: 'assistant', content: [{ type: 'tool_use', id: `${name}-${i}`, name: 'Read', input: { file_path: `/x/${i}` } }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: `${name}-${i}`, content: 'x'.repeat(40000) }] });
+  ms.push({ role: 'user', content: [{ type: 'text', text: 'next' }] }, ...tail);
+  return Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true }));
+};
+// The tool calls of the turn in progress: small ones, which is what makes this the dangerous shape. They
+// are cheap to leave in the tail and they push the older results out of the newest `keepMin`, so a
+// boundary priced here pays easily -- and a boundary priced here is the bug. Three echoes and a grep is
+// an ordinary turn.
+const live = (name, n) => Array.from({ length: n }, (_, i) => [
+  { role: 'assistant', content: [{ type: 'tool_use', id: `${name}-live${i}`, name: 'Bash', input: { command: `echo ${i}` } }] },
+  { role: 'user', content: [{ type: 'tool_result', tool_use_id: `${name}-live${i}`, content: 'y'.repeat(1200) }] }]).flat();
+// which results went up as a placeholder: the cut set, as the API saw it
+const placeheld = sent => {
+  const j = JSON.parse(sent.body.toString('utf8'));
+  const out = [];
+  for (const m of j.messages) for (const b of Array.isArray(m.content) ? m.content : []) {
+    const text = Array.isArray(b?.content) ? b.content[0]?.text : null;
+    if (b?.type === 'tool_result' && typeof text === 'string' && text.startsWith('[tool result removed by thinker')) out.push(b.tool_use_id);
+  }
+  return out;
+};
+const clearingDir = p => path.join(path.dirname(p.logFile), 'clearing');
+const records = p => { try { return fs.readdirSync(clearingDir(p)).filter(f => f.endsWith('.json')); } catch { return []; } };
+const record = (p, f = records(p)[0]) => { try { return JSON.parse(fs.readFileSync(path.join(clearingDir(p), f), 'utf8')); } catch { return null; } };
+
+test('a side call of the session leaves the cut set of the person\'s own conversation where it was', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    // the boundary: the cut is decided, reserved, and sent
+    await send(p.port, { data: conversation('mine') });
+    const set = placeheld(up.seen.at(-1));
+    assert.ok(set.length >= 6, `the boundary cut something (${set.length})`);
+
+    // The same `x-claude-code-session-id`, a conversation of its own: a title, a summary, a subagent's
+    // thread. One turn, nothing to cut -- and keyed on the session alone its `turn: 1` landed in the
+    // record the person's thread reserves its boundary with.
+    await send(p.port, { data: Buffer.from(JSON.stringify({ model: 'claude-haiku-5-5', messages: [{ role: 'user', content: [{ type: 'text', text: 'write a title for this session' }] }], stream: true })) });
+
+    // the person's conversation again, mid-turn, with a fresh result a boundary would cut
+    await send(p.port, { data: conversation('mine', { tail: live('mine', 3) }) });
+    assert.deepEqual(placeheld(up.seen.at(-1)), set, 'the same set, byte for byte, inside the turn');
+    assert.ok(!placeheld(up.seen.at(-1)).some(id => id.includes('live')), 'and the turn\'s own results are untouched');
+
+    const cuts = rows(p.logFile).filter(r => r.op === 'proxy-cut' && r.clear);
+    assert.equal(cuts.length, 1, 'one cut in all: the side call did not open a second one mid-turn');
+    assert.equal(records(p).length, 2, 'a record each, because a session is not a conversation');
+  } finally { p.server.close(); up.server.close(); }
+});
+
+// the first answer is held until the test lets it go, so a second request of the same conversation
+// passes a boundary while the first is still streaming
+function heldUpstream() {
+  const seen = [], held = [];
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      seen.push({ url: req.url, body: Buffer.concat(chunks) });
+      const answer = () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of SSE) res.write(s); res.end(); };
+      if (seen.length === 1) held.push(answer); else answer();
+    });
+  });
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, held, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+test('an answer that lands after the next boundary leaves the reservation and the count alone', async () => {
+  const up = await heldUpstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    const first = send(p.port, { data: conversation('mine') });          // turn 2, answer held open
+    await until(() => up.seen.length === 1);
+    // the agent goes on: the turn closes and the next one opens, which is a boundary of its own
+    await send(p.port, { data: conversation('mine', { tail: [...live('mine', 3), { role: 'user', content: [{ type: 'text', text: 'and now this' }] }] }) });
+    const reserved = record(p);
+    assert.equal(reserved.turn, 3, 'the second request reserved the new boundary');
+
+    up.held.pop()();                                                     // the first answer lands at last
+    await first;
+    await until(() => record(p)?.calls === 2);
+    const end = record(p);
+    assert.equal(end.turn, 3, 'the late answer did not put the boundary back');
+    assert.deepEqual(end.cut, reserved.cut, 'nor the set, which is what holds the prompt cache in a turn');
+    assert.equal(end.calls, 2, 'and neither call was lost from the count');
+    assert.ok(end.saved >= reserved.saved, 'what the cut saved is not rolled back either');
+  } finally { p.server.close(); up.server.close(); }
+});
+
+// What the cut saved has to reach the person, and between 2026-11-04 and 2026-11-05 none of it did: the
+// API-side clearing reported `cleared` on each response and every door read that, the cut asks the API for
+// nothing, and the field the cut filled instead was read by nobody. The session record stopped being
+// written, so the card, the Stop hook's line, `thinker proxy report` and `thinker prs` had nothing to say
+// about 666,516 tokens this machine had taken out.
+test('what the cut took out is on the row, in the session record, and summed as the saving', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    await send(p.port, { data: cuttable() });
+    // the saving is not the cut: it is every later call that reads the shorter prefix (compression.js)
+    await send(p.port, { data: cuttable() });
+    const cut = rows(p.logFile).filter(r => r.op === 'proxy' && r.clientCut);
+    assert.equal(cut.length, 2, 'both calls were shortened by the set');
+    for (const r of cut) {
+      assert.ok(r.cleared > 0, 'the row says what the prompt was shorter by');
+      assert.equal(r.cleared, r.clientCut.tokens, 'and the figure is the cut\'s own, the API having reported none');
+      assert.equal(r.cleared, Math.round(r.clientCut.chars * TOKENS_PER_CHAR), 'tied to the characters it replaced');
+      assert.equal(r.clearedUses, r.clientCut.cut, 'with the results it replaced beside it');
+      assert.equal(r.clientCut.inputChars, undefined, 'the call text is not the cut\'s business');
+      assert.equal(r.clientCut.thinking, undefined, 'nor the thinking');
+    }
+    // the session's record: what the card, the Stop hook's line and `thinker proxy report` read
+    const saved = clearedBySession(p.logFile).get('s1');
+    assert.equal(saved.requests, 2, 'counted on every call that read the shorter prefix, not once at the cut');
+    assert.equal(saved.cleared, cut[0].cleared + cut[1].cleared);
+    const file = path.join(path.dirname(p.logFile), 'compression', 's1.json');
+    assert.ok(fs.existsSync(file), 'and the record is written beside the log, for a card that may not read the log');
+    const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(state.saved, saved.cleared, 'the record beside the log and the log agree');
+    assert.deepEqual(compressionSaving(state), null, 'and nothing is said yet: the saving comes due three turns on');
+    // what the card, the Stop hook's line and `thinker proxy report` will put to the person once it is due
+    const due = compressionSaving({ ...state, turns: 3 });
+    assert.equal(compressionHeader(due, n => n), `context cleared · ~${saved.cleared} tokens not re-read over 2 calls`);
+  } finally { p.server.close(); up.server.close(); }
+});
+
+test('a request the cut did not shorten claims no saving', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    await send(p.port, { data: body() });                    // nothing in it old enough to cut
+    const r = rows(p.logFile).find(x => x.op === 'proxy');
+    assert.equal(r.cleared, 0, 'nothing was taken out of this prompt');
+    assert.equal(r.clearedUses, 0);
+    assert.equal(clearedBySession(p.logFile).size, 0, 'and no session is credited with a clear that never happened');
+    assert.equal(fs.existsSync(path.join(path.dirname(p.logFile), 'compression', 's1.json')), false);
+  } finally { p.server.close(); up.server.close(); }
+});

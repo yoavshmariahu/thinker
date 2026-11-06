@@ -189,3 +189,34 @@ test('POST /errors accepts a report, and a bad one answers 422 without storing i
   const metrics = await handler({ rawPath: '/metrics', requestContext: { http: { method: 'POST' } }, body: '{}' }, {});
   assert.equal(metrics.statusCode, 500, 'the metrics writer is still the one that runs there');
 });
+
+// Until the /errors route was deployed, `$default` sent an error report to the metrics writer and it was
+// stored as an installation snapshot: by 2026-11-05 that was 32 rows on four installs, every one of them
+// device-less, event-less and all-zero. Three of those four installs were reading as device-unknown with
+// nothing measured, because a snapshot view takes an install's newest row and theirs was an error report --
+// all four send a device ID on their real reports. Routed by shape now, so a route that moves cannot do it.
+test('an error report that reaches the metrics path is still filed as an error report', async () => {
+  const stored = [], metrics = [];
+  const handler = createHandler((key, data) => { metrics.push({ key, data }); },
+    () => { throw new Error('message writer must not be used'); },
+    (key, report) => { stored.push({ key, report }); });
+  const answer = await handler({ rawPath: '/metrics', requestContext: { http: { method: 'POST' }, requestId: 'req-11' }, body: JSON.stringify(errorPayload) }, {});
+  assert.equal(answer.statusCode, 202);
+  assert.deepEqual(JSON.parse(answer.body), { status: 'accepted', count: 1 });
+  assert.equal(metrics.length, 0, 'never stored as a snapshot of an installation');
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].report.errors[0].op, 'hook.pre');
+
+  // an ordinary report that happens to carry an `errors` block of its own is a report
+  const report = { installId: 'i-1', event: 'hourly', timestamp: '2026-11-05T10:00:00Z', cacheSize: { totalNotes: 3 }, errors: [] };
+  const ok = await handler({ rawPath: '/metrics', requestContext: { http: { method: 'POST' } }, body: JSON.stringify(report) }, {});
+  assert.equal(ok.statusCode, 202);
+  assert.equal(metrics.length, 1);
+});
+
+test('the writer refuses an error report as a snapshot, whatever route reached it', () => {
+  assert.throws(() => normalizeReport('metrics/live/x.json', errorPayload, '2026-11-05T10:00:00Z'), /Error report posted as a metrics report/);
+  // the shape is specific: a snapshot is never refused for carrying errors
+  const row = normalizeReport('metrics/live/y.json', { installId: 'i-2', event: 'hourly', timestamp: '2026-11-05T10:00:00Z', cacheSize: { totalNotes: 1 }, errors: [{ op: 'x' }] }, '2026-11-05T10:00:00Z');
+  assert.equal(row.install_id, 'i-2');
+});
