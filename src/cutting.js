@@ -64,28 +64,35 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // but the saving it would have made, while a cut taken wrongly pays a full prefix rewrite up front.
 export const PAYBACK = 20;
 
-// The share of its own context a call writes to the cache anyway, whatever thinker does. Measured on this
-// machine's 29 long Claude Code sessions (60+ calls, peak context 140k+) over the five days to 2026-11-06:
-// 6,197 calls, of which 3.40% wrote 85.2% of their context back and carried 84.5% of all the write there
-// was -- compaction, the cache's hour running out, a model change -- while the other 96.6% wrote a flat
-// ~1,644-token delta that a smaller context does not make smaller. So 0.0340 x 0.852 = 0.029, and the
-// delta is left out of it deliberately: it is new content, and a cut does not make new content cheaper.
-export const REWRITE_SHARE = 0.029;
-
 // What one cut token saves on one later call, in input-token equivalents. Two parts, and both are things
 // the session pays on that call if the cut is not made:
 //   - the cache read it would have been part of (`readRate`), which is all this counted until 2026-11-06;
-//   - its share of the rewrites that call might be, `REWRITE_SHARE` of the write rate. A long session does
-//     not only read its prefix back, it writes it again now and then, and after a cut every one of those
-//     writes is over a context smaller by exactly what the cut took out.
-// Counting the read alone priced a cut token at 0.1 a call where it is worth 0.158, a factor of 1.58, and
-// the error fell entirely on the refusing side: on 2026-11-05 all 23 of this machine's priced boundaries
-// were refused at paybacks of 25 to 64, of which 16 are inside the floor once the write is counted, and
-// the Claude path made no cut at all in the two days after the API-side clearing was removed (#610). The
-// factor is 1.58 and not the 7x a flat 47-58k write on four Codex cuts suggested: on the Anthropic path
-// the API-era clears show the write is the whole post-cut prompt less the ~32k cached system prefix, so
-// `recache` (the tail from the first replaced result) is if anything 13% under what a cut really costs.
-export const savedPerCall = (model, ttl = '1h') => readRate(model) + REWRITE_SHARE * writeRate(ttl);
+//   - its share of the write, on a call that writes its context back instead of reading it. A long session
+//     does not only read its prefix: it writes it again now and then -- compaction, the cache's hour
+//     running out, a model change -- and after a cut every one of those writes is over a context smaller
+//     by exactly what the cut took out.
+// Counting the read alone is right only for a conversation that never writes its context back, and the
+// error fell entirely on the refusing side: on 2026-11-05 all 23 of this machine's priced boundaries were
+// refused at paybacks of 25 to 64, and the Claude path made no cut at all in the two days after the
+// API-side clearing was removed (#610), while the desktop door, the Codex path and the holdout went on.
+export const savedPerCall = (model, ttl = '1h', share = 0) =>
+  readRate(model) + Math.max(0, share || 0) * writeRate(ttl);
+
+// `share` is **the conversation's own**, measured from the calls thinker has already watched it make, and
+// deliberately not a constant. On this machine's 29 long Claude Code sessions (6,197 calls, the five days
+// to 2026-11-06) the mean was 0.029 -- 3.40% of calls writing 85.2% of their context, carrying 84.5% of
+// all the write there was -- but the per-session spread is 22x, from 0.0079 to 0.178. That mean is a fact
+// about this machine, this agent and this cache TTL, not a constant of the world, and a figure that must
+// generalize to every machine to be safe is a figure nobody should price a cut with. The one number a
+// conversation can honestly be priced by is the one it has just been observed to pay.
+// Left out of it: the flat ~1,644-token delta a call writes for its own new content. A cut does not make
+// new content cheaper, and `written / context` already dilutes it over the context that call did not write.
+export const SHARE_MIN_CALLS = 10;    // under this there is no evidence yet, so no credit: the read alone
+export const SHARE_MAX = 0.25;        // above anything measured; a conversation past it gets no more credit
+export function rewriteShare(rec) {
+  if (!rec || (rec.seen || 0) < SHARE_MIN_CALLS || !(rec.context > 0)) return 0;
+  return Math.min(SHARE_MAX, Math.max(0, (rec.written || 0) / rec.context));
+}
 
 export const MIN_CHARS = 200;
 // What these words must carry, found 2026-11-04 by reading what the model did with the old ones
@@ -126,7 +133,9 @@ export const clearedEstimated = r => r?.protocol === 'responses' || r?.clientCut
 
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
-  saved: 0, written: 0, chars: 0, model: null, at: 0,
+  // `written` and `context` are the evidence for the write side of the price (`rewriteShare`): what this
+  // conversation wrote to the cache over the context of the `seen` calls it was not cutting on.
+  saved: 0, written: 0, context: 0, seen: 0, chars: 0, model: null, at: 0,
 });
 
 // What a cut would cost and save. `recache` is the prompt from the first result we would replace to
@@ -140,18 +149,21 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {}) {
+export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, share = 0 } = {}) {
   // `cand.recache` is the tail as it will be sent (proxy.js:cutCandidates), which is what the API writes
   // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
   // place in the cache, and not the system prompt, which is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
   const cost = cold ? 0 : recache * writeRate(ttl);
-  // What the cut is worth on each later call: the read it saves and its share of the writes the session
-  // makes anyway (`savedPerCall`). Both sides of the ratio are in input-token equivalents at list prices.
-  const saving = cand.tokens * savedPerCall(model, ttl);
+  // What the cut is worth on each later call: the read it saves, and the write it spares on a call that
+  // writes this conversation's context back, at the rate this conversation has been seen to do that
+  // (`savedPerCall`, `rewriteShare`). Both sides of the ratio are input-token equivalents at list prices.
+  const saving = cand.tokens * savedPerCall(model, ttl, share);
   // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
   const payback = saving > 0 ? Math.ceil(cost / saving) : Infinity;
-  return { tokens: cand.tokens, recache, cost, saving: Math.round(saving), payback, pays: cand.tokens > 0 && payback <= PAYBACK };
+  return { tokens: cand.tokens, recache, cost, saving: Math.round(saving),
+    // on the row, so a refusal or a cut can be read back against the evidence it was priced with
+    share: Math.round((share || 0) * 1e4) / 1e4, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes
@@ -165,7 +177,7 @@ export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h',
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0 };
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens };
   const cold = rec.at > 0 && now - rec.at > COLD_MS;
-  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
+  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, share: rewriteShare(rec) });
   if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: p };
   return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
 }
@@ -188,6 +200,13 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   }
   // what the cut is worth on this call: the tokens it took out, read at this model's rate
   if (rec.cut.length && usage) rec.saved += (t.clientCut?.tokens || 0) * readRate(rec.model);
+  // The evidence for the write side of the next decision: how much of its context this conversation
+  // writes back when thinker has not just changed its prefix. A call a cut was made on is left out --
+  // that write is the cut's own cost, and counting it would have each cut arguing for the next one.
+  if (usage && !t.clear) {
+    const ctx = (usage.input || 0) + (usage.read || 0) + (usage.write || 0);
+    if (ctx > 0) { rec.written += usage.write || 0; rec.context += ctx; rec.seen++; }
+  }
   return events;
 }
 
@@ -212,6 +231,7 @@ export function mergeCut(prev, rec) {
     turn: upto(prev.turn, rec.turn), at: upto(prev.at, rec.at),
     calls: upto(prev.calls, rec.calls), clears: upto(prev.clears, rec.clears),
     saved: upto(prev.saved, rec.saved), written: upto(prev.written, rec.written),
+    context: upto(prev.context, rec.context), seen: upto(prev.seen, rec.seen),
     chars: upto(prev.chars, rec.chars), model: rec.model || prev.model || null };
 }
 

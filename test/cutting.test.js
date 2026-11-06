@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, PAYBACK, REWRITE_SHARE, savedPerCall, readRate, WRITE_1H } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, PAYBACK, savedPerCall, rewriteShare, readRate, WRITE_1H, SHARE_MIN_CALLS, SHARE_MAX } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -83,39 +83,59 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
-test('a cut saves the write it spares as well as the read, and the real paybacks of 2026-11-05 pass the floor', () => {
-  // Counting the cache read alone refused every boundary this machine priced on 2026-11-05 -- 23 of them,
-  // paybacks 25 to 64 -- and the Claude path made no cut for the two days after the API-side clearing went
-  // (#610). A session does not only read its prefix back: 3.40% of its calls write 85.2% of their context
-  // again, and after a cut those writes are over a smaller context. These are the real figures from the
-  // proxy log, as `held` recorded them, with the payback each one gets now.
-  const real = [
-    { tokens: 105472, recache: 127570, was: 25, now: 16 },   // the cheapest boundary of the day
-    { tokens: 144556, recache: 203903, was: 29, now: 18 },
-    { tokens: 203340, recache: 353744, was: 35, now: 23 },   // still refused, and rightly
-    { tokens: 108036, recache: 343894, was: 64, now: 41 },   // a tail three times what it removes
-  ];
-  for (const r of real) {
-    const p = priceCut(null, { ids: ['x'], tokens: r.tokens, recache: r.recache }, { model: 'claude-opus-5' });
-    const readOnly = Math.ceil(r.recache * WRITE_1H / (r.tokens * readRate('claude-opus-5')));
-    assert.equal(readOnly, r.was, `the read-only price of ${r.tokens}/${r.recache} was ${r.was} calls`);
-    assert.equal(p.payback, r.now, `counting the write it spares, it repays in ${r.now}`);
-    assert.equal(p.pays, r.now <= PAYBACK, `a boundary repaying in ${r.now} calls ${r.now <= PAYBACK ? 'is taken' : 'is refused'}`);
-  }
+test('a cut saves the write it spares as well as the read, at the share this conversation was seen to write', () => {
+  // Counting the cache read alone is right only for a conversation that never writes its context back, and
+  // it refused every boundary this machine priced on 2026-11-05 -- 23 of them, paybacks 25 to 64 -- leaving
+  // the Claude path with no cut at all for two days (#610 took the API-side clearing out). A conversation
+  // that does write its context back pays that write over a context a cut has made smaller.
+  const cand = { ids: ['x'], tokens: 105472, recache: 127570 };   // the cheapest real boundary of that day
+  const read = priceCut(null, cand, { model: 'claude-opus-5', share: 0 });
+  assert.equal(read.payback, 25, 'by the read alone, the boundary the proxy refused at 25 calls');
+  // the same boundary in a conversation observed writing 8% of its context a call (two real sessions of that
+  // day were above that): the cut spares that write too, and it repays inside the floor
+  const heavy = priceCut(null, cand, { model: 'claude-opus-5', share: 0.08 });
+  assert.equal(heavy.pays, true);
+  assert.ok(heavy.payback < read.payback && heavy.payback <= PAYBACK, `repays in ${heavy.payback} calls`);
+  // and in one that barely writes at all, it stays refused: the credit is the conversation's own, not a constant
+  const light = priceCut(null, cand, { model: 'claude-opus-5', share: 0.008 });
+  assert.equal(light.pays, false, 'a conversation that does not write its context back gets no write credit');
   // the floor itself is unchanged: 20 calls, and nothing is assumed about how long the session runs
   assert.equal(PAYBACK, 20);
-  // the rate is a read plus a share of a write, and the row carries what it is worth on a call
-  assert.equal(savedPerCall('claude-opus-5'), readRate('claude-opus-5') + REWRITE_SHARE * WRITE_1H);
-  const one = priceCut(null, { ids: ['x'], tokens: 100000, recache: 100000 }, { model: 'claude-opus-5' });
-  assert.equal(one.saving, Math.round(100000 * savedPerCall('claude-opus-5')), 'the row says what the cut is worth a call');
-  assert.equal(one.payback, Math.ceil(100000 * WRITE_1H / one.saving));
-  // a cheaper read makes a cut harder to justify, and the write term does not drown that out: Opus 5.5
-  // reads at half the usual rate, so the same cut must repay over fewer effective tokens
-  assert.ok(priceCut(null, { ids: ['x'], tokens: 105472, recache: 127570 }, { model: 'claude-opus-5-5' }).payback
-    > priceCut(null, { ids: ['x'], tokens: 105472, recache: 127570 }, { model: 'claude-opus-5' }).payback,
-    'a model whose cache read is cheaper gets a longer payback, as before');
-  // and a pause past the cache's hour is still free, whatever the ratio
+  // the rate, and what the row carries so a decision can be read back against its evidence
+  assert.equal(savedPerCall('claude-opus-5', '1h', 0.08), readRate('claude-opus-5') + 0.08 * WRITE_1H);
+  assert.equal(savedPerCall('claude-opus-5', '1h'), readRate('claude-opus-5'), 'no share, no credit');
+  assert.equal(heavy.share, 0.08);
+  assert.equal(heavy.saving, Math.round(105472 * savedPerCall('claude-opus-5', '1h', 0.08)));
+  assert.equal(heavy.payback, Math.ceil(heavy.cost / heavy.saving));
+  // a cheaper cache read still lengthens the payback: the write term does not drown the model out
+  assert.ok(priceCut(null, cand, { model: 'claude-opus-5-5', share: 0.08 }).payback > heavy.payback);
+  // a pause past the cache's hour is still free, whatever the ratio
   assert.equal(priceCut(null, { ids: ['x'], tokens: 10, recache: 1e6 }, { cold: true }).pays, true);
+});
+
+test('the write credit is the conversation\'s own measurement, with no evidence worth nothing', () => {
+  // The machine-wide mean (0.029 over this machine's 29 long sessions) is not a constant of the world: the
+  // per-session spread is 22x, 0.0079 to 0.178. So the share comes from the record, and a record with too
+  // few calls behind it earns no credit rather than borrowing someone else's figure.
+  assert.equal(rewriteShare(null), 0);
+  assert.equal(rewriteShare(freshCut('s')), 0, 'a fresh record has no evidence');
+  const thin = { ...freshCut('s'), seen: SHARE_MIN_CALLS - 1, written: 50000, context: 100000 };
+  assert.equal(rewriteShare(thin), 0, `under ${SHARE_MIN_CALLS} calls of evidence, the read alone`);
+  const seen = { ...freshCut('s'), seen: SHARE_MIN_CALLS, written: 3000, context: 100000 };
+  assert.equal(rewriteShare(seen), 0.03);
+  assert.equal(rewriteShare({ ...seen, written: 90000 }), SHARE_MAX, 'the credit is capped past anything measured');
+  // the record gathers it from the calls thinker did not cut on: a cut's own rewrite is its cost, and
+  // counting it would have each cut arguing for the next
+  const rec = freshCut('s');
+  for (let i = 0; i < SHARE_MIN_CALLS; i++) cutResponse(rec, {}, { turn: 1 }, { input: 10, read: 9000, write: 1000 });
+  assert.equal(rec.seen, SHARE_MIN_CALLS);
+  assert.equal(rec.context, SHARE_MIN_CALLS * 10010);
+  assert.ok(Math.abs(rewriteShare(rec) - 1000 / 10010) < 1e-9, 'its own writes over its own context');
+  const before = { seen: rec.seen, written: rec.written, context: rec.context };
+  cutResponse(rec, {}, { turn: 2, clear: true, tokens: 1, recache: 1, cost: 1, saving: 1, clientCut: { chars: 1, cut: 1 } },
+    { input: 10, read: 10, write: 500000 });
+  assert.deepEqual({ seen: rec.seen, written: rec.written, context: rec.context }, before,
+    'the call a cut was made on is no evidence for the next cut');
 });
 
 test('the cut replaces results and touches nothing else: one operation, not three', () => {
