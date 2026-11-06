@@ -11,7 +11,7 @@ import http from 'node:http';
 import { createUiServer } from '../src/ui/server.js';
 import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, undoHarness, readHarnessState } from '../src/harness.js';
 import { setDiskCache } from '../src/disk-cache.js';
-import { toolFile, stubbedNames, allowRule, STUB_TOKENS } from '../src/tool-stubs.js';
+import { toolFile, stubbedNames, STUB_TOKENS } from '../src/tool-stubs.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -186,9 +186,7 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   const file = toolFile(th, 'Workflow');
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { name: 'Workflow', description: `Workflow ${long(2000)}`, input_schema: {} }, 'the definition as the newest transcript recorded it');
   assert.deepEqual([...stubbedNames(th)], ['Workflow']);
-  // the Read the pointer asks for is allowed in the user's settings, since the file is outside every working directory
-  const userSettings = JSON.parse(fs.readFileSync(path.join(h, '.claude', 'settings.json'), 'utf8'));
-  assert.deepEqual(userSettings.permissions.allow, [allowRule(th)]); assert.deepEqual(userSettings.enabledPlugins, { 'gtm@market': true }, 'the rest of the file kept');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(h, '.claude', 'settings.json'), 'utf8')), { enabledPlugins: { 'gtm@market': true } }, 'the user\'s settings untouched: the Read is allowed by the wiring, once');
   assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true, thinkerHome: th }).sources.find(s => s.key === 'tool:Workflow').off, true, 'a stubbed tool reads as off');
   const applied = readHarnessState(store).applied[0];
   assert.equal(applied.scope, 'machine', 'the registry is the machine\'s');
@@ -202,7 +200,6 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   assert.equal(saved.sources[0].tokensPerSession, applied.tokens - STUB_TOKENS);
   assert.match(undoHarness(store, { home: th, userHome: h, now: T0 }), /Turned back on, from the next session on: Workflow/);
   assert.ok(!fs.existsSync(file)); assert.deepEqual([...stubbedNames(th)], []);
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(h, '.claude', 'settings.json'), 'utf8')).permissions, { allow: [] }, 'the last tool back takes the allow rule with it');
   assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true, thinkerHome: th }).sources.find(s => s.key === 'tool:Workflow').off, false);
 });
 

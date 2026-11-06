@@ -10,7 +10,8 @@ import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { COLD_MS, WRITE_1H, PAYBACK, readRate } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
-import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
+import { pointer, POINTER_OPENS, allowRule } from '../src/tool-stubs.js';
+import { thinkerHome } from '../src/update.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -165,6 +166,8 @@ test('connect names the clearing folder with the card in the user\'s Claude sett
     installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
     const s = JSON.parse(fs.readFileSync(settings, 'utf8'));
     assert.equal(s.env[CARD_ENV], ['/my/mod', claudeCardDir(CLI), MOD].join(D));
+    // a tool moved to disk is read back from outside every working directory: allowed once here, never asked for in a session
+    assert.deepEqual(s.permissions, { allow: [allowRule(thinkerHome())] });
     uninstallWiring({ scope: 'user' });
     assert.deepEqual(JSON.parse(fs.readFileSync(settings, 'utf8')), { env: { [CARD_ENV]: '/my/mod' } });
   } finally {

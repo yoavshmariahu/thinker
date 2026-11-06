@@ -45,6 +45,8 @@ import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
+import { allowRule as toolsReadRule } from './tool-stubs.js';
+import { thinkerHome } from './update.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -1087,14 +1089,16 @@ function uninstallRepoClient(repo, client) {
 // The one permission thinker asks Devin for: its own learn_next tool, which reads the learning queue and saves an
 // answer and nothing else. Returns whether the rule was added.
 export const DEVIN_LEARN_RULE = 'mcp__thinker__learn_next';
-function setDevinLearnRule(file, on) {
+const setDevinLearnRule = (file, on) => setAllowRule(file, DEVIN_LEARN_RULE, on);
+// One rule in a settings file's permissions.allow, on or off; the rest of the file as it was. Returns whether it was added.
+function setAllowRule(file, rule, on) {
   if (!on && !fs.existsSync(file)) return false;
   const list = v => (Array.isArray(v) ? v : []);
-  const had = list(readJsonOr(file, {}).permissions?.allow).includes(DEVIN_LEARN_RULE);
+  const had = list(readJsonOr(file, {}).permissions?.allow).includes(rule);
   if (had === !!on) return false;
   mergeJson(file, c => {
-    const allow = list(c.permissions?.allow).filter(r => r !== DEVIN_LEARN_RULE);
-    if (on) allow.push(DEVIN_LEARN_RULE);
+    const allow = list(c.permissions?.allow).filter(r => r !== rule);
+    if (on) allow.push(rule);
     const permissions = { ...(c.permissions || {}), allow };
     if (!allow.length) delete permissions.allow;
     const n = { ...c, permissions };
@@ -1326,6 +1330,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         const cur = readJsonOr(f.local, {});
         if (cardDirIn(cur) !== dir || clearDirIn(cur) !== clearDir) mergeJson(f.local, c => withClearDir(withCardDir(c, dir), clearDir));
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
+        // A tool moved to disk (tool-stubs.js) is read back from <THINKER_HOME>/tools, outside every working directory, which
+        // Claude Code asks about unless a rule allows it: written here, once, with the rest of the wiring (the owner's call,
+        // 2026-11-06: no session may be asked for that read), never by the switch; uninstall takes it out.
+        if (setAllowRule(f.local, toolsReadRule(thinkerHome()), true)) done.push(`Claude Code: allowed reading thinker's tool definitions (${toolsReadRule(thinkerHome())} in permissions.allow of ${rel(f.local)})`);
       }
     }
   }
@@ -1579,6 +1587,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
+  if (scope === 'user') setAllowRule(claude.local, toolsReadRule(thinkerHome()), false);
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

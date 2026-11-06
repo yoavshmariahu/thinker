@@ -155,7 +155,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /s\.group === 'builtin' \? 'Move to disk' : 'Switch off'/);
   assert.match(read('context-suggest.js'), /disk: \{ act: 'off', text: 'Move to disk' \}/);
   assert.match(read('context-machine.js'), /p\.group === 'builtin' \? ACTS\.disk/);
-  assert.match(read('setup/context-ask.js'), /a built-in tool's definition moves to a file the agent reads before its first call/);
+  assert.match(read('setup/context-ask.js'), /a built-in tool\\'s definition moves to a file the agent reads before its first call/);
   // what every action does, in the row and in the review: one entry a change, keyed by the kind and the action
   for (const k of ['section:compress', 'section:remove', 'skill:off', 'tool:off', 'builtin:off']) assert.match(page, new RegExp(`'${k}': \\[`), k);
   assert.match(page, /const effectOf = /);

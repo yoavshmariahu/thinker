@@ -1,5 +1,5 @@
 import { discoverRepos } from './machine.js';
-import { addStub, removeStub, stubbedNames, readStubs, setAllow, allowRule, toolFile, STUB_TOKENS } from './tool-stubs.js';
+import { addStub, removeStub, stubbedNames, toolFile, STUB_TOKENS } from './tool-stubs.js';
 import { readScopedState, writeScopedState } from './scoped-state.js';
 // What an agent's harness loads into every session, against what the sessions use: MCP servers,
 // plugins and skills that cost context each time and are never called. "thinker loads what this
@@ -552,15 +552,8 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {}, global =
   // 2026-11-06 the name went into permissions.deny, which took the tool itself out with its definition.
   if (s.how === 'tool') {
     const tHome = home || thinkerHome(), def = readToolDefinition(s.file, s.name) || { name: s.name, description: s.texts?.[s.key] || '', input_schema: {} };
+    // the Read the pointer asks for is allowed by the wiring, once (clients.js, tool-stubs.js:allowRule): nothing here
     const { file } = addStub(tHome, s.name, def, { at: now });
-    // the Read the pointer asks for needs an allow rule outside the working directory (tool-stubs.js:allowRule): written
-    // once, into the user's settings, where the deny used to go
-    if (!readStubs(tHome).allow) {
-      const settings = claudePaths(userHome).settings, rule = allowRule(tHome);
-      let ours = false;
-      editJson(settings, j => { const p = j.permissions ||= {}; ours = !(p.allow || []).includes(rule); p.allow = addTo(p.allow, rule); }, ctx);
-      setAllow(tHome, { file: settings, rule, ours });
-    }
     return { key: 'tool-stub', id: s.name, file };
   }
   // A user-level deny removes this server's tools across every project, including project-defined
@@ -627,17 +620,7 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
     try {
       if (u.key === 'codex') { for (const o of u.overrides || []) applyCodex(o.repo, o.source, ctx, o); applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       if (u.key === 'desktop-connector') { app.unshift(a.name); continue; }
-      if (u.key === 'tool-stub') {
-        const tHome = home || thinkerHome();
-        removeStub(tHome, u.id);
-        // the last tool back: the allow rule goes too, where it was thinker's
-        const st = readStubs(tHome);
-        if (!Object.keys(st.tools).length && st.allow) {
-          if (st.allow.ours) editJson(st.allow.file, j => { if (j.permissions?.allow) j.permissions.allow = j.permissions.allow.filter(r => r !== st.allow.rule); }, ctx);
-          setAllow(tHome, null);
-        }
-        back.unshift(a.name); continue;
-      }
+      if (u.key === 'tool-stub') { removeStub(home || thinkerHome(), u.id); back.unshift(a.name); continue; }
       if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
