@@ -169,3 +169,22 @@ test('explicit proxy logs supply clear boundaries in isolated previews', t => {
   assert.deepEqual(sessionClears('s', [request(1, { n: 100 })]), [start + 1000]);
   assert.deepEqual(sessionClears('other', [request(1, { n: 100 })]), []);
 });
+
+test('the money rides the summary: the notice line and the Cursor table carry today and lifetime', () => {
+  const money = 'saved today ~$3.65 · lifetime ~$849';
+  // the end-of-turn line (Codex CLI, and Claude Code where the card mod does not run)
+  const line = turnNotice('/nope', [{ id: 'n', title: 'A note', body: '' }], { prompts: 4, savings: money });
+  assert.ok(line.endsWith(` · ${money}`), line);
+  assert.match(line, /^🧠 thinker: 1 note over the last 4 prompts/);
+  // the running session's own figure keeps its place in front of it
+  assert.ok(turnNotice('/nope', [], { input: { tokens: 88000, covered: 1 }, savings: money }).endsWith(` · ${money}`));
+  // no notice at all where there is nothing to say: the money alone does not raise one
+  assert.equal(turnNotice('/nope', [], { savings: money }), '');
+  // Cursor's table, where the agent writes the card itself: the money is a row, not a longer head
+  const table = turnFooterMarkdown('/nope', [{ id: 'n', title: 'A note', body: '' }], { prompts: 2, savings: money });
+  assert.equal(table.split('\n').length, 4);
+  assert.ok(table.endsWith(`| *${money}* |`), table);
+  assert.equal(turnFooterMarkdown('/nope', [], { savings: money }), '', 'no notes, no table');
+  // and with no ledger yet the surfaces read exactly as they did before
+  assert.equal(turnFooterMarkdown('/nope', [{ id: 'n', title: 'A note', body: '' }], { prompts: 2 }).split('\n').length, 3);
+});

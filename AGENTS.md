@@ -311,6 +311,45 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   hooks count the prompts and the cards only read the count: both run in every turn, and counting twice
   would halve the floor. One thinker message, whichever door it comes through.
 
+**The savings footer: money, on the one surface that keeps it (2026-11-06, the owner's call):**
+- What thinker has saved is shown as dollars, today and over the whole log, in every client it has a
+  door into: the Claude Code status row (terminal and the desktop app), the Codex desktop card, the
+  Cursor table, and the end-of-turn line for Codex CLI and a Claude Code without the mod.
+- **Dollars are the exception, and stay honest by construction.** `prices.js` records the 2026-10-04
+  decision that the product counts tokens, never dollars, because most agents run on a subscription.
+  The footer is the second exception after the Report page, so it is not allowed its own arithmetic:
+  `savings-ledger.js` asks `report-savings.js:weeklySavings` -- the Report's own two series, avoided
+  reading at each request's observed input mix and cleared context at the prompt-cache read rate --
+  for two windows instead of six weeks. A figure under a prompt can never contradict `thinker report`,
+  and `test/savings-ledger.test.js` holds the two together over one window.
+- Clearing moves far more tokens than avoided reading, at a fortieth of its price, so it dominates the
+  lifetime total (on this machine: $827 of $849). Every surface that has room shows the split, and
+  `thinker savings` prints it with the caveat; the one-line form is a total, never a claim about a bill.
+- **A hook may not count it.** The full pass is a read of the machine's log and of every session its
+  savings records name -- about a second on a 16 MB log. The Stop hook starts `thinker savings
+  --refresh` in the background at most every `REFRESH_MS` (10 min) under a lock, and every surface
+  reads the kept ledger (`THINKER_HOME/state/savings.json`): the machine's, like the notice cadence,
+  since lifetime means every checkout. No model call, so it runs the same inside a desktop app.
+- **The figures ride the engine's own status row, at its far right** (the owner's ask, 2026-11-06:
+  that row has empty space, and a row of thinker's own does not earn one). The door is `PromptHint`'s
+  `tail`: the engine keeps its line and its live pills and draws the tail dim at the end, cut where
+  the row ends. `$.ui.status` was the first home and cannot be placed -- it takes text and nothing
+  else. The padding is measured in cells, not characters, so a two-cell glyph does not push the line
+  off the row (`cells`, `statusTail`, held by the mod's own test). thinker still writes no
+  `statusLine` into the agent's settings: that surface is the person's, and often already theirs.
+- **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
+  Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
+  yet judged, minus anything judged unused or contradicted, priced from the model the session's
+  transcript names. Measured on this machine: only 15% of the sessions ever served notes have been
+  assessed at all, and of those the median is assessed 72 minutes after its first serving, one in ten
+  past ten hours -- confirmed-only, a daily figure would read $0 all morning and then show a fraction
+  of the day. `provisionalSince` keeps that second pass to the sessions that can still matter: asking
+  it of every session took the ledger from 1.2 s to 7 s on a 611-session log.
+- A ledger whose `day` has passed says lifetime alone rather than yesterday's figure as today's.
+  Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status row too.
+- Where the card mod runs, the Stop hook leaves the money out of its line: the status row already has
+  it, and one figure gets one voice per client.
+
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
 - Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
@@ -402,6 +441,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
+| `src/savings-ledger.js` | what the footers say: the Report's two savings series over today and the whole log, kept in `THINKER_HOME/state/savings.json` |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
 | `src/server/` | `thinker-server`: `index.js`, `repos.js`, `auth.js`, `worker.js` |

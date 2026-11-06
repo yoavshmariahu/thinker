@@ -54,3 +54,45 @@ For compatibility, `thinker usage --json` retains `saved.tokens`, `saved.net`, a
 `saved.byModel` as the older one-read accounting. The new `saved.input` object
 contains the report's lifetime estimate, coverage and input mix by model. Existing PR attribution and telemetry fields based on one-read accounting remain compatible. Learning costs
 are not included in the new per-hit input estimate.
+
+## The savings footer
+
+Every client thinker has a door into shows what it has saved, in dollars, for today and over the
+whole log: the far right of the Claude Code status row (terminal and desktop app), the Codex desktop
+card, the Cursor table, and the end-of-turn line in Codex CLI and in a Claude Code without the card
+mod. `thinker savings` prints the same figures with their split.
+
+The footer does not compute anything of its own. `savings-ledger.js` asks the Report page's savings
+table (`report-savings.js:weeklySavings`) for two windows instead of six weeks, so both of its series
+are counted the way the Report counts them: avoided reading priced at each request's observed mix of
+fresh input, cache reads and cache writes, and context the proxy cleared priced as the prompt-cache
+reads it replaced. A figure under a prompt therefore cannot contradict `thinker report`.
+
+Cleared context moves far more tokens than avoided reading and is worth a fraction of each, so it
+dominates the lifetime total. Surfaces with room show the split rather than the total alone. These are
+API-list-price equivalents at the rates in `prices.js`, not measured billing: the rest of the product
+counts tokens for the reason recorded there, and this is the second exception after the Report page.
+
+Neither half is a measurement, and the footer carries the Report's own captions for both. The cache
+half estimates reading that nobody observed: one read per file a note rests on, at most five files,
+each capped. Where a holdout comparison has enough prompts on both sides it measures the same thing
+directly and `cacheMetrics` prefers it; the ledger does not, because a holdout is a per-prompt
+comparison and cannot be cut into days. The clearing half is gross -- the tokens the API reported
+leaving out of later prompts, with the cache rewrite each clear causes not deducted. `thinker proxy
+replay` prices a clear end to end and put the whole clearing at +7.3% of session cost over 264
+sessions, so a large positive clearing figure here is not a claim about net spend.
+
+The two windows select servings differently, and every surface that explains itself says which is
+which. Lifetime counts servings a finished session confirmed, exactly as the aggregate report does.
+Today counts what has already been served, less anything a session reported unused or contradicted --
+the rule the running session's own footer uses -- priced at the model the session's transcript names.
+Waiting for the assessments would leave a daily figure at $0 for most of a working day: on the
+machine this was built on, only 15% of the sessions ever served notes have been assessed at all, and
+of those the median was assessed 72 minutes after its first serving. A ledger stamped on a day that
+has passed says lifetime alone rather than presenting yesterday's figure as today's.
+
+The ledger is the machine's (`THINKER_HOME/state/savings.json`), since lifetime spans every checkout.
+Working it out is a read of the whole log and of the sessions its savings records name, so no hook and
+no status line does it: the Stop hook starts `thinker savings --refresh` in the background at most
+every ten minutes under a lock, makes no model call, and every surface reads the kept file. Notices
+off silences the footer with everything else.

@@ -17,6 +17,7 @@ import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '.
 import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
 import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens, sessionInputSavings } from '../usage.js';
+import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
 import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
@@ -123,6 +124,14 @@ async function hookCommand(ctx) {
     if (isDisabledRepo(repo)) return;
     if (!store.exists()) store.init();
     const session = sessionOf(ev);
+    // What thinker has saved, today and over the whole log, off the kept ledger (savings-ledger.js): a
+    // read of one small file, because the figure itself is a second of log and transcript reading and a
+    // hook may not spend that. The Stop hook starts the refresh in the background. Nothing where the
+    // notices are off: this is one of them, not a figure that follows the person around regardless.
+    const moneyLine = () => {
+      if (!noticeOn(store)) return '';
+      try { return savingsLine(readSavings(store)); } catch { return ''; }
+    };
     // Cursor's stop hook has no user-facing message field (clients.js:stopOutput); when notes are served in
     // Cursor, ask the agent to end its reply with a Markdown table card box.
     // Cursor has no message field at the end of a turn, so the card is asked for in the agent's own
@@ -133,7 +142,7 @@ async function hookCommand(ctx) {
       // held turns are counted once a turn, by the Stop hook below, which sees everything the turn served
       if (!due.due) return '';
       const held = pendingNotice(store);
-      const footer = turnFooterMarkdown(store.repo, [...held.ids.map(id => store.get(id)).filter(Boolean), ...(notes || [])], { input: sessionInputSavings(store, session), prompts: held.turns + 1 });
+      const footer = turnFooterMarkdown(store.repo, [...held.ids.map(id => store.get(id)).filter(Boolean), ...(notes || [])], { input: sessionInputSavings(store, session), prompts: held.turns + 1, savings: moneyLine() });
       if (footer) noticeShown(store);
       return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
     };
@@ -369,6 +378,11 @@ async function hookCommand(ctx) {
     if (client === 'cursor') out('{}');
     if (client === 'agy') out('{"decision":"allow"}');
     if (client === 'agy' && ev.fullyIdle === false) return;
+    // The savings ledger the footers read, recomputed in the background at most every REFRESH_MS
+    // (savings-ledger.js): a second of log and transcript reading, so never in the hook itself, and
+    // never a model call, so it runs the same inside a desktop app. Started here rather than at the
+    // prompt so the figure a turn's own notes and clears belong to is in it by the next turn.
+    if (noticeOn(store)) { try { refreshSavingsInBackground(store, { cli }); } catch (e) { recordError('hook.savings', e, { repo }); } }
     // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
     noticeCard(store, { client, session, ...holdoutTurn(store, session), notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean), updateOnly: true });
     const served = takeTurn(store, session !== 'unknown' ? session : null);
@@ -398,7 +412,9 @@ async function hookCommand(ctx) {
         const changed = input?.covered && inputNoticeChanged(store.dir, session, input);
         const held = pendingNotice(store);
         const waiting = [...new Set([...held.ids, ...served])].map(id => store.get(id)).filter(Boolean);
-        const notice = [(waiting.length && !carded) || changed ? turnNotice(store.repo, waiting, { input, prompts: held.turns + 1 }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+        // The money goes with the summary, except where the card mod runs: there the statusline keeps it
+        // on screen the whole session, and saying it twice in one client is two voices for one figure.
+        const notice = [(waiting.length && !carded) || changed ? turnNotice(store.repo, waiting, { input, prompts: held.turns + 1, savings: carded ? '' : moneyLine() }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
         // The floors start again only once the person has actually been told: nothing to say yet, or a
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.

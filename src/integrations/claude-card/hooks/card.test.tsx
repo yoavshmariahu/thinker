@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { servedNotes, cardHeader, compressionHeader, compressionTools, tailOf, shortTitle, TURNS_AFTER } from './register'
+import { servedNotes, cardHeader, cells, compressionHeader, compressionTools, statusTail, tailOf, shortTitle, TURNS_AFTER } from './register'
 
 const bundle = `<thinker-cache>
 Notes about this repo from earlier sessions.
@@ -16,10 +16,13 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout. (The prompt's notes arrive as a row a hook appends, which a test cannot raise.)
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any } = {}) {
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], env = {} as Record<string, string>, config = null as any } = {}) {
   mock.store(on)
-  mock.env(on, { HOME: '/home/me' })
+  mock.env(on, { HOME: '/home/me', ...env })
+  // the engine's own status row, beneath the mod: what the mod added to it is `tail`
+  on('ui.render', { component: 'PromptHint' }, ($, e) => { status.push(e.props.tail); const { Text } = $.ui.resolve(e); return <Text key="hint">{e.props.hint}</Text> })
   on('session.id', () => ({ value: 'sess-1' }))
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
   on('fs.write', ($, e) => { writes.push(e.path); return { value: undefined } })
   on('session.repo', () => ({ value: { root, remote: null, internal: false } as any }))
@@ -27,6 +30,8 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
     if (e.path === '/wt/.git') return { value: 'gitdir: /r/.git/worktrees/wt\n' }
     if (e.path === '/r/.thinker/local/notes/codex-hook.json') return { value: JSON.stringify({ deps: [{ path: 'src/clients.js' }, { path: 'src/small.js' }, { path: '.claude/settings.json' }] }) }
     if (e.path === '/home/me/.thinker/state/compression/sess-1.json' && compression) return { value: JSON.stringify(compression) }
+    if (e.path === '/home/me/.thinker/state/savings.json' && savings) return { value: JSON.stringify(savings) }
+    if (e.path === `${root}/.thinker/config.json` && config) return { value: JSON.stringify(config) }
     return { deny: 'no such file' }
   })
   on('fs.stat', ($, e) => ({ value: { kind: 'file', size: e.path.endsWith('clients.js') ? 100000 : 3600, mtimeMs: 0 } as any }))
@@ -36,6 +41,91 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
 const end = (turnId: string, text = answer) => ({ answer: text, durationMs: 1, isAborted: false, turnId, reason: 'answer' as const })
 const mount = ($: any, surface: 'terminal' | 'desktop', text = answer) =>
   $.ui.mount({ plugin: 'thinker-card', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
+
+// the ledger as src/savings-ledger.js writes it; `day` is stamped in the person's own timezone
+const today = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const ledger = (day = today()) => ({ at: Date.now(), day, today: { cost: 3.65, tokens: 5_636_787 }, lifetime: { cost: 849.2, tokens: 1_339_960_865 } })
+
+// the status row as the engine hands it to the mod, and what the mod gave back
+const HINT = { component: 'PromptHint' as const, props: { hint: '~/src/talker  main', isDraft: false, isWorking: false } }
+const row = async ($: any, status: (string | undefined)[], surface: 'terminal' | 'desktop' = 'terminal') => {
+  await $.session.start({ cwd: '/r', surface, isInteractive: true })
+  const ui = await $.ui.mount({ plugin: 'thinker-card', surface, ...HINT })
+  const tail = status.at(-1)
+  await ui.unmount()
+  return tail
+}
+
+test('the figures sit at the far right of the status row, with the engine\'s own line kept', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status })
+  const tail = await row($, status)
+  expect(tail?.trimEnd()).toBe(tail)                       // padding goes in front, never behind
+  expect(tail?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+})
+
+test('the figures end in the row\'s last cell, measured in cells so a wide glyph fits', () => {
+  // 🧠 is two cells wide: a line measured by length alone would be padded one cell too far
+  expect(cells('🧠 a')).toBe(4)
+  const line = '🧠 lifetime ~$849'
+  const hint = '~/src/talker  main'
+  const tail = statusTail(hint, line, 80)
+  expect(cells(hint) + cells(tail)).toBe(80)   // flush with the right edge, nothing spare
+  expect(tail.endsWith(line)).toBe(true)
+  // and at any width the row is wide enough for
+  for (const columns of [60, 81, 120, 200]) expect(cells(hint) + cells(statusTail(hint, line, columns))).toBe(columns)
+  // a row with no room for the padding puts the line straight after the engine's own
+  expect(statusTail('a'.repeat(70), line, 80)).toBe(` ${line}`)
+  expect(statusTail('', line, 0)).toBe(` ${line}`)
+})
+
+test('the status row is read again at the end of every turn, served or not', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status })
+  await $.turn.complete(end('t1'))
+  expect(await row($, status)).toBeDefined()
+  await $.turn.complete(end('t2', 'Another answer.'))
+  expect((await row($, status))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+})
+
+test('a ledger stamped on another day says lifetime alone', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger('2026-01-01'), status })
+  expect((await row($, status))?.trimStart()).toBe('🧠 lifetime ~$849')
+})
+
+test('no ledger yet leaves the row to the engine', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { status })
+  expect(await row($, status)).toBeUndefined()
+})
+
+test('a cache with nothing saved yet leaves the row to the engine', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: { at: Date.now(), day: today(), today: { cost: 0, tokens: 0 }, lifetime: { cost: 0, tokens: 0 } }, status })
+  expect(await row($, status)).toBeUndefined()
+})
+
+test('notices switched off leave the row alone, by environment or by config', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, env: { THINKER_NOTICE: 'off' } })
+  expect(await row($, status)).toBeUndefined()
+})
+
+test('notices switched off in the repository config leave the row alone', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, config: { notice: false } })
+  expect(await row($, status)).toBeUndefined()
+})
+
+test('the figures reach the desktop app\'s status row too', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status })
+  expect((await row($, status, 'desktop'))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+})
 
 test('only the notes served count, not the titles listed for lookup', () => {
   expect(servedNotes([bundle, 'unrelated']).map(n => n.id)).toEqual(['codex-hook'])
@@ -96,7 +186,6 @@ test('in a linked worktree the notes are read from the main checkout', async ($,
 test('a session the card runs in is marked for the Stop hook', async ($, on) => {
   const writes: string[] = []
   engine(on, { writes })
-  on('session.start', ($, e) => ({ value: undefined }) as any)
   on('classic.PostToolUse', () => ({ additionalContext: [bundle] }))
   await $.classic.PostToolUse({ tool_name: 'Read', tool_input: {}, tool_response: {}, tool_use_id: 't' } as any)
   await $.turn.complete(end('t1'))

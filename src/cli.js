@@ -29,6 +29,7 @@ import { commands as instructionsCommands } from './commands/instructions.js';
 import { commands as contextCommands } from './commands/context.js';
 import { commands as explainCommands } from './commands/explain.js';
 import { commands as reportCommands } from './commands/report.js';
+import { commands as savingsCommands } from './commands/savings.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as containerCommands } from './commands/containers.js';
 import { commands as errorCommands } from './commands/errors.js';
@@ -250,6 +251,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  how the cache has been used on this machine, in every repository: notes served, what sessions
                                  did with them, build/distillation tokens, and estimated savings
                                  (--here: this repository only; history is kept in ~/.thinker/log.jsonl)
+  savings [--json] [--refresh]   what the footers say: saved today and over the whole log, in dollars, split between the
+                                 reading the cache replaced and the context the proxy cleared, over every repository on
+                                 this machine. The Report page's own two series at list prices, not a bill (--refresh
+                                 recomputes the figure the Claude Code statusline and the end-of-turn cards read)
   benchmark pr [number] [--agent a] [--model m] [--budget n]
                                  run a paired benchmark on a recent PR change with vs without the cache
   benchmark [run ["<repo question>"]] [--agent a] [--model m] [--budget n]
@@ -326,10 +331,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];
 
 async function main() {
   // Retired entrypoints must not initialize a cache, schedule work or execute a command.
@@ -377,7 +382,7 @@ async function main() {
     if (!store.exists()) store.init();
   }
   // symbol boundaries by tree-sitter where its grammars are installed (`thinker ast install`), else by regex
-  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'prs', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'report', undefined].includes(cmd)) await initAst();
+  if (!['update', 'upgrade', 'switch', 'branch', 'serve', 'ast', 'usage', 'prs', 'stats', 'telemetry', 'help', 'version', 'served', 'spent', 'guide', 'proxy', 'report', 'savings', undefined].includes(cmd)) await initAst();
 
   const handler = COMMANDS[cmd];
   if (!handler) { out(HELP); return; }
