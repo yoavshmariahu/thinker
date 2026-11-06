@@ -120,28 +120,20 @@ export const cardHeader = (n: number, tokens: number, prompts = 0) =>
 // holds the two sentences together). Both figures are already formatted; `today` is null when the kept
 // ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
 export const savingsStatus = (today: string | null, lifetime: string) =>
-  `🧠 ${today ? `saved today ~${today} · ` : ''}lifetime ~${lifetime}`
+  `thinker: ${today ? `saved today ~${today} · ` : ''}lifetime ~${lifetime}`
 
-// How many cells a string takes on a terminal row: a wide glyph (emoji, CJK) takes two, so a line
-// measured by `length` alone would be padded one cell too far and lose its last character.
-export const cells = (s: string): number => {
-  let n = 0
-  for (const ch of s) n += /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]|[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]/u.test(ch) ? 2 : 1
-  return n
-}
-
-// The figures on the status line's own row, flush with its right edge: the engine draws the tail
-// straight after its own line, so the padding is the row less what the engine's line takes and what
-// the figures take, and the last character of the line lands in the last cell of the row. Where the
-// row cannot hold both, the figures follow the engine's line after one space and the engine cuts what
-// does not fit (and leaves the tail out entirely under four columns).
+// The figures as the tail of the engine's own status row, which is the whole of what a mod may say
+// about how they are drawn. The engine takes the string and nothing else: it collapses every run of
+// whitespace in it to one space and trims the ends (`clean`, src/.../prompt-hint), draws it after its
+// own line behind a dim ` · `, in one Text with `wrap: "truncate"`, and leaves it out under
+// TAIL_MIN_COLUMNS of row. So the tail cannot be placed, padded or coloured:
 //
-// `hint` is the engine's line as it draws it, which is the only width there is to go on: a surface
-// whose drawn line is narrower than the string it hands over leaves a gap, never an overflow.
-export const statusTail = (hint: string, line: string, columns: number): string => {
-  const room = columns - cells(hint) - cells(line)
-  return room > 1 ? ' '.repeat(room) + line : ` ${line}`
-}
+//   <Box maxWidth={room}><Text dimColor wrap="truncate">{[' · ', tail]}</Text></Box>
+//
+// Padding it to the right edge was tried and is not possible (read out of the engine, 2026-11-06):
+// the leading spaces are collapsed and trimmed before it is drawn. What is left to decide is the
+// words, so the line names thinker and then says the figures.
+export const statusTail = (line: string): string => line
 
 // The person's own day, in their own timezone, as the ledger stamps it (savings-ledger.js:dayKey).
 export const dayKey = (now: number): string => {
@@ -297,18 +289,18 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // The figures ride the status line's own row, at its far right (the owner's ask, 2026-11-06: that
-  // row has empty space and a row of thinker's own does not earn one). `PromptHint`'s `tail` is the
-  // engine's own door for this: the engine keeps its line and its live pills and draws the tail dim at
-  // the end, cut where the row ends, so the row stays the engine's and thinker only fills the gap.
+  // The figures ride the status line's own row rather than taking a row of their own (the owner's ask,
+  // 2026-11-06: that row has empty space and a row of thinker's own does not earn one). `PromptHint`'s
+  // `tail` is the engine's own door for this: the engine keeps its line and its live pills and draws
+  // the tail dim after them, cut where the row ends. Where on the row is the engine's to decide, and
+  // it draws the tail straight after its own line, not at the right edge (statusTail).
   //
   // `$.ui.status` was the first home for this and cannot be placed: it takes text and nothing else.
   // thinker still writes no `statusLine` into the person's settings -- that surface is theirs.
   // Nothing is read here; `line` was read when the turn ended (readSavings).
   on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
     if (!line) return next(e)
-    const columns = e.viewport?.columns ?? 0
-    return next({ ...e, props: { ...e.props, tail: statusTail(e.props.hint ?? '', line, columns) } })
+    return next({ ...e, props: { ...e.props, tail: statusTail(line) } })
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {

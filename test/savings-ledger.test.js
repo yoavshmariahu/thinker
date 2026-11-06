@@ -92,7 +92,7 @@ test('a figure stamped on another day says lifetime alone, and says it the same 
   const l = computeSavings(store, { now });
   const line = savingsLine(l, { now });
   assert.match(line, /^saved today ~\$[\d.]+ · lifetime ~\$[\d.]+$/);
-  assert.equal(savingsStatus(l, { now }), `🧠 ${line}`);
+  assert.equal(savingsStatus(l, { now }), `thinker: ${line}`);
   // tomorrow, the same file: today's figure belongs to a day that has passed, so it is not said
   const tomorrow = now + DAY;
   assert.equal(savingsLine(l, { now: tomorrow }), `lifetime ~${formatDollars(l.lifetime.cost)}`);

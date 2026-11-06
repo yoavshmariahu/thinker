@@ -161,10 +161,12 @@ export function savingsLine(ledger, { now = Date.now() } = {}) {
 }
 
 // The statusline's own form: shorter, since it sits under the prompt beside everything else the
-// session pins there, and marked with the brain so it is read as thinker's and not the host's.
+// session pins there, and named so it is read as thinker's and not the host's. The name in words, not
+// the brain the rest of thinker's lines carry (the owner's ask, 2026-11-06): the status row is a line
+// of small type beside the host's own, where a lone glyph is a puzzle and a word is a label.
 export function savingsStatus(ledger, { now = Date.now() } = {}) {
   const line = savingsLine(ledger, { now });
-  return line ? `🧠 ${line}` : '';
+  return line ? `thinker: ${line}` : '';
 }
 
 // The split, for `thinker savings` and the cards' detail: what each row contributed, and the tokens

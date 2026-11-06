@@ -330,13 +330,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   --refresh` in the background at most every `REFRESH_MS` (10 min) under a lock, and every surface
   reads the kept ledger (`THINKER_HOME/state/savings.json`): the machine's, like the notice cadence,
   since lifetime means every checkout. No model call, so it runs the same inside a desktop app.
-- **The figures ride the engine's own status row, at its far right** (the owner's ask, 2026-11-06:
-  that row has empty space, and a row of thinker's own does not earn one). The door is `PromptHint`'s
-  `tail`: the engine keeps its line and its live pills and draws the tail dim at the end, cut where
-  the row ends. `$.ui.status` was the first home and cannot be placed -- it takes text and nothing
-  else. The padding is measured in cells, not characters, so a two-cell glyph does not push the line
-  off the row (`cells`, `statusTail`, held by the mod's own test). thinker still writes no
-  `statusLine` into the agent's settings: that surface is the person's, and often already theirs.
+- **The figures ride the engine's own status row, not a row of their own** (the owner's ask,
+  2026-11-06: that row has empty space, and a row of thinker's own does not earn one). The door is
+  `PromptHint`'s `tail`: the engine keeps its line and its live pills and draws the tail after them,
+  cut where the row ends. **Where on the row, and in what colour, is the engine's and not the mod's**:
+  it collapses every whitespace run in the tail to one space, trims it, and draws it in one
+  `<Text dimColor wrap="truncate">` behind a dim separator. So the tail is the line and nothing else
+  (`statusTail`) -- padding it to the right edge was tried, and the engine strips the padding; a green
+  figure is not available there either, and a mod that wants colour must draw its own tree (a card, or
+  the `AbovePrompt` band). `$.ui.status` was the first home and cannot be placed at all -- it takes
+  text and nothing else. thinker still writes no `statusLine` into the agent's settings: that surface
+  is the person's, and often already theirs.
+- **The status line says the name, not the brain** (the owner's ask, 2026-11-06): `thinker: ...`, where
+  the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
+  lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by
+  `test/claude-card.test.js`.
 - **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
   Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
   yet judged, minus anything judged unused or contradicted, priced from the model the session's

@@ -58,7 +58,8 @@ are not included in the new per-hit input estimate.
 ## The savings footer
 
 Every client thinker has a door into shows what it has saved, in dollars, for today and over the
-whole log: the far right of the Claude Code status row (terminal and desktop app), the Codex desktop
+whole log: the Claude Code status row (terminal and desktop app), as the tail the engine draws after
+its own line; the Codex desktop
 card, the Cursor table, and the end-of-turn line in Codex CLI and in a Claude Code without the card
 mod. `thinker savings` prints the same figures with their split.
 
