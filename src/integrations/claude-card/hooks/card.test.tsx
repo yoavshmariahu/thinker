@@ -67,13 +67,16 @@ test('the figures sit at the far right of the status row, with the engine\'s own
   expect(tail?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
 })
 
-test('the right edge is measured in cells, so a wide glyph does not push the line off the row', () => {
+test('the figures end in the row\'s last cell, measured in cells so a wide glyph fits', () => {
   // 🧠 is two cells wide: a line measured by length alone would be padded one cell too far
   expect(cells('🧠 a')).toBe(4)
   const line = '🧠 lifetime ~$849'
-  const tail = statusTail('~/src/talker  main', line, 80)
-  expect(cells('~/src/talker  main') + cells(tail)).toBe(79)
+  const hint = '~/src/talker  main'
+  const tail = statusTail(hint, line, 80)
+  expect(cells(hint) + cells(tail)).toBe(80)   // flush with the right edge, nothing spare
   expect(tail.endsWith(line)).toBe(true)
+  // and at any width the row is wide enough for
+  for (const columns of [60, 81, 120, 200]) expect(cells(hint) + cells(statusTail(hint, line, columns))).toBe(columns)
   // a row with no room for the padding puts the line straight after the engine's own
   expect(statusTail('a'.repeat(70), line, 80)).toBe(` ${line}`)
   expect(statusTail('', line, 0)).toBe(` ${line}`)

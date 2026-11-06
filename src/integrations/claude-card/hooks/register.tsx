@@ -130,11 +130,16 @@ export const cells = (s: string): number => {
   return n
 }
 
-// The figures on the status line's own row, at its far right: spaces to the row's end where it is wide
-// enough to hold them, else straight after the engine's line, which the engine cuts if even that does
-// not fit. One cell is left spare so a mismeasured glyph costs a space and not the last character.
+// The figures on the status line's own row, flush with its right edge: the engine draws the tail
+// straight after its own line, so the padding is the row less what the engine's line takes and what
+// the figures take, and the last character of the line lands in the last cell of the row. Where the
+// row cannot hold both, the figures follow the engine's line after one space and the engine cuts what
+// does not fit (and leaves the tail out entirely under four columns).
+//
+// `hint` is the engine's line as it draws it, which is the only width there is to go on: a surface
+// whose drawn line is narrower than the string it hands over leaves a gap, never an overflow.
 export const statusTail = (hint: string, line: string, columns: number): string => {
-  const room = columns - cells(hint) - cells(line) - 1
+  const room = columns - cells(hint) - cells(line)
   return room > 1 ? ' '.repeat(room) + line : ` ${line}`
 }
 
