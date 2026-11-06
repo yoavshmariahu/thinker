@@ -18,7 +18,7 @@ import { readLog } from '../usage.js';
 import { isTestMode } from '../test-mode.js';
 import { runAutomaticPrComments } from '../delivery-auto.js';
 import { recordRepair, repairAfterUpdate as rewireAfterUpdate } from '../environment-repair.js';
-import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, trackClaude, routeAppeared, standDown } from '../proxy-service.js';
+import { proxyOn, proxyUrl, wireAgents, restartService, disableProxyService, serviceState, enableProxyService, removedByHand, trackClaude, routeAppeared, standDown, replaceReason, isListening } from '../proxy-service.js';
 
 async function initCommand(ctx) {
   // `init` and `setup` were two ways to set a repository up, and the difference was never clear.
@@ -165,8 +165,8 @@ async function rewireCommand(ctx) {
     }
   };
   refresh(null, 'user', USER_SCOPE_CLIENTS);
-  // the proxy service (proxy-service.js): the agents' files hold its URL, and the running service is started again so
-  // that it runs this version's code (rewire is what `thinker update` runs from the new copy)
+  // the proxy service (proxy-service.js): the agents' files hold its URL, and a running service that is not this
+  // version's code with these flags is started again (rewire is what `thinker update` runs from the new copy)
   // an install from before the service (no state at all, never turned off): on once, as connect would do it
   if (!flags.here && !dry && !isTestMode() && !serviceState().enabled && !serviceState().off) {
     try { const p = await enableProxyService({ cli, repos }); summary.changed++; summary.files.push(...p.wired.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: context proxy on (${p.url})`); } catch (e) { failed('your settings (proxy)', e); }
@@ -182,7 +182,10 @@ async function rewireCommand(ctx) {
       } else {
         const w = wireAgents(proxyUrl(), { repos });
         if (w.changed.length) { summary.changed++; summary.files.push(...w.changed.map(x => x.file)); if (!quiet && !flags.json) out(`your settings: rewired ${w.changed.map(x => x.file).join(', ')} to the context proxy`); }
-        restartService({ cli });
+        // started again only where it runs other code or other flags than this copy would start it with, or where
+        // nothing listens: the background update runs this every four hours whether it installed anything or not,
+        // and a restart is a gap in which every session's model calls are refused (proxy-service.js:bootOutAgent)
+        if (replaceReason() || !(await isListening(serviceState().port))) restartService({ cli });
       }
     } catch (e) { failed('your settings (proxy)', e); }
   }

@@ -152,6 +152,15 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
 // the proxy as a detached process (the hook's way, and the only one where no service manager runs); the pid is kept so
 // `off` can stop it
 // The version of the copy this process runs from, recorded with the flags a running proxy was started with
+// Why a running service has to be replaced, or null when it already runs this version with the flags this copy would
+// start it with. One answer for the prompt hook (`ensureProxy`) and for `thinker rewire`: until 2026-11-06 rewire
+// restarted the service whenever the proxy was on, and the background update runs rewire every four hours whether or
+// not it installed anything, so this machine's proxy was taken down five times a day to be started again as it was.
+export function replaceReason(home = thinkerHome(), s = serviceState(home)) {
+  const want = serviceArgs(home, s).join(' '), version = appVersion();
+  if (s.args === want && s.version === version) return null;
+  return s.args === undefined ? 'the first run that records them' : s.version !== version ? `a new version (${s.version || 'unknown'} -> ${version})` : 'the flags changed';
+}
 export const appVersion = () => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || null; } catch { return null; } };
 
 export function startDetached({ cli, home = thinkerHome() }) {
@@ -211,10 +220,9 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     // The prompt hook is the quiet moment to replace it: between turns, with no request of the agent's in flight.
     // A state without the record (every machine, the first time this runs) counts as different, so each is
     // replaced once and picks up the present policy.
-    const want = serviceArgs(home, s).join(' ');
-    const version = appVersion();
-    if (s.args === want && s.version === version) return { on: true, running: true };
-    const why = s.args === undefined ? 'the first run that records them' : s.version !== version ? `a new version (${s.version || 'unknown'} -> ${version})` : 'the flags changed';
+    const why = replaceReason(home, s);
+    if (!why) return { on: true, running: true };
+    const version = appVersion(), want = serviceArgs(home, s).join(' ');
     // One session replaces it; the others would only be SIGTERMing a process mid-answer (`claimRestart`).
     // Only this branch is gated: a port with nothing on it is a broken route for every session, and must
     // never wait on another session's claim.
@@ -336,6 +344,27 @@ WantedBy=default.target
 }
 const run = (cmd, args) => { try { execFileSync(cmd, args, { stdio: 'ignore' }); return true; } catch { return false; } };
 const uid = () => os.userInfo().uid;
+const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+// `launchctl bootout` answers before the process is gone: launchd has sent SIGTERM, the proxy is draining the answers
+// it is streaming, and the label stays registered until it exits (launchd's own ExitTimeOut, 20 s, then SIGKILL).
+// A `bootstrap` of the same label in that window is refused ("Bootstrap failed: 5: Input/output error"), and the
+// `load` that stood in for it prints "Load failed" and exits 0 all the same, so `run` read the restart as done.
+// Reproduced on a throwaway label on 2026-11-06, after a day in which every `thinker rewire` left the service
+// unregistered and nothing listening on the proxy's port until some session's prompt hook found it dead -- 13 to
+// 100 seconds of ECONNREFUSED for every other session, seven times in the day. So: wait for the label to leave
+// before bootstrapping, believe `bootstrap`'s own exit code, and believe `load` only when the label is there after it.
+export const BOOTOUT_WAIT_MS = 25_000;
+const agentLoaded = () => run('launchctl', ['print', `gui/${uid()}/${PROXY_LABEL}`]);
+export function bootOutAgent({ wait = BOOTOUT_WAIT_MS, step = 100 } = {}) {
+  run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
+  const t0 = Date.now();
+  while (agentLoaded()) { if (Date.now() - t0 >= wait) return false; sleepSync(step); }
+  return true;
+}
+export function bootstrapAgent(plist) {
+  if (run('launchctl', ['bootstrap', `gui/${uid()}`, plist])) return true;
+  return run('launchctl', ['load', plist]) && agentLoaded();
+}
 // `systemctl` answering is not the same as systemd running this machine. Microsoft's devcontainer images --
 // and many other container images -- ship a stub `systemctl` on the PATH that exits 0 for everything and
 // starts nothing. Measured on 2026-11-05 in `mcr.microsoft.com/devcontainers/javascript-node:22`:
@@ -353,9 +382,9 @@ export function installService({ cli, home = thinkerHome(), manage = !isTestMode
   if (process.platform === 'darwin') {
     const p = plistPath(home);
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    if (manage) run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
+    if (manage) bootOutAgent();
     fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
-    if (manage && !run('launchctl', ['bootstrap', `gui/${uid()}`, p]) && !run('launchctl', ['load', p])) return { type: 'hook', path: p, reason: 'launchctl refused the agent' };
+    if (manage && !bootstrapAgent(p)) return { type: 'hook', path: p, reason: 'launchctl refused the agent' };
     return { type: 'launchd', path: p };
   }
   if (hasSystemd()) {
@@ -386,10 +415,10 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
   if (process.platform === 'darwin' && fs.existsSync(plistPath(home))) {
     const p = plistPath(home);
     fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
-    run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]); // kickstart -k would restart the old ProgramArguments
+    bootOutAgent(); // kickstart -k would restart the old ProgramArguments
     // An old detached competitor may still own the port after bootout.
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
-    const started = run('launchctl', ['bootstrap', `gui/${uid()}`, p]) || run('launchctl', ['load', p]);
+    const started = bootstrapAgent(p);
     return managedOnly || started; // an installed manager must not race a detached fallback
   }
   if (fs.existsSync(unitPath(home))) {
