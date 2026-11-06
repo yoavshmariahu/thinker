@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 // Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
@@ -693,7 +693,7 @@ case "$1" in
   print)
     [ -f "$S/loaded" ] || exit 113
     if [ -f "$S/terming" ]; then n=$(cat "$S/draining"); if [ "$n" -gt 0 ]; then echo $((n-1)) > "$S/draining"; printf '\tstate = SIGTERMed\n\tpid = 11\n'; exit 0; fi; rm -f "$S/loaded" "$S/terming"; exit 113; fi
-    printf '\tstate = running\n\tpid = 22\n'; exit 0;;
+    printf '\tstate = running\n\tpid = 22\n\tprogram = /usr/bin/node\n\targuments = {\n\t\t/usr/bin/node\n\t\t/app/src/cli.js\n\t\tproxy\n\t\t--port\n\t\t6901\n\t}\n'; exit 0;;
   bootstrap) [ -f "$S/loaded" ] && exit 5; ${bootstrapRefuses ? 'exit 5' : 'touch "$S/loaded"; exit 0'};;
   load) ${loadWorks ? 'touch "$S/loaded";' : ''} exit 0;;
 esac
@@ -737,4 +737,104 @@ test('a launchd restart believes `load` only when the label is there after it', 
     assert.equal(bootstrapAgent('/tmp/x.plist', { was: 11 }), true, 'bootstrap refused, load loaded it: print names a running instance that is not the old one');
     assert.ok(BOOTOUT_WAIT_MS > 20_000, 'the wait outlasts launchd\'s own ExitTimeOut (20 s), after which it SIGKILLs and the label leaves');
   } finally { l.restore(); }
+});
+
+test('agentInstance reads the program line launchd loaded, so a restart knows whether KeepAlive would start the same thing', () => {
+  const l = fakeLaunchctl();
+  try {
+    assert.deepEqual(agentInstance(), { pid: 22, state: 'running', args: ['/usr/bin/node', '/app/src/cli.js', 'proxy', '--port', '6901'] });
+  } finally { l.restore(); }
+});
+
+test('restartDue: nothing in flight and idle, or patient enough, or past the deadline', () => {
+  const at = new Date(1_000_000).toISOString();
+  const m = { at };
+  assert.equal(restartDue(null, { inFlight: 0, idleMs: 10 ** 6 }), null, 'no marker, no restart');
+  assert.equal(restartDue(m, { inFlight: 1, idleMs: 0 }, { now: 1_000_000 + 5000 }), null, 'a request in flight');
+  assert.equal(restartDue(m, { inFlight: 0, idleMs: RESTART_IDLE_MS - 1 }, { now: 1_000_000 + 5000 }), null, 'one just finished: the next may be on its way');
+  assert.equal(restartDue(m, { inFlight: 0, idleMs: RESTART_IDLE_MS }, { now: 1_000_000 + 5000 }), 'idle');
+  assert.equal(restartDue(m, { inFlight: 0, idleMs: 1 }, { now: 1_000_000 + RESTART_PATIENCE_MS }), 'idle', 'past the patience the first empty moment will do');
+  assert.equal(restartDue(m, { inFlight: 3, idleMs: 0 }, { now: 1_000_000 + RESTART_PATIENCE_MS }), null, 'but not with requests in flight');
+  assert.equal(restartDue(m, { inFlight: 3, idleMs: 0 }, { now: 1_000_000 + RESTART_DEADLINE_MS }), 'deadline', 'past the deadline it drains, as a bootout did');
+  assert.ok(RESTART_IDLE_MS < RESTART_PATIENCE_MS && RESTART_PATIENCE_MS < RESTART_DEADLINE_MS);
+});
+
+test('requestRestart keeps the first ask\'s time, and the marker is cleared by hand or by the new instance', () => {
+  const home = tmp('thinker-proxy-wanted-');
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port: 6901 }));
+  assert.equal(restartWanted(home), null);
+  requestRestart(home, { why: 'a new version (0.1 -> 0.2)' });
+  const first = restartWanted(home);
+  assert.equal(first.why, 'a new version (0.1 -> 0.2)');
+  assert.equal(first.respawn, false);
+  assert.equal(first.version, appVersion());
+  assert.equal(first.args, serviceArgs(home).join(' '));
+  requestRestart(home, { why: 'asked again by the next prompt', respawn: true });
+  assert.equal(restartWanted(home).at, first.at, 'the patience runs from the first ask, however many hooks repeat it');
+  assert.equal(restartWanted(home).respawn, true, 'the rest follows the latest ask');
+  clearRestartWanted(home);
+  assert.equal(restartWanted(home), null);
+  requestRestart(home, { why: 'once more' });
+  recordProxyListening(6901, { home, pid: 4242 });
+  assert.equal(restartWanted(home), null, 'the instance that listens is the one that was asked for: it clears the marker');
+  assert.equal(serviceState(home).idleRestart, true, 'and records that it watches the marker, so the next ask can be left to it; an older instance never did, and is booted out');
+});
+
+test('the watcher lets what is in flight finish, then closes, respawns where asked, and exits', async () => {
+  const home = tmp('thinker-proxy-watch-');
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  requestRestart(home, { why: 'update', respawn: true, version: '0.0.1', args: 'proxy --port 1' });
+  let inFlight = 2; const order = []; const rows = [];
+  const stop = idleRestartWatcher({
+    home, running: { version: '0.0.0', args: 'proxy --port 1' },
+    load: () => ({ inFlight, idleMs: 10 ** 6 }),
+    close: () => { order.push('close'); return new Promise(r => setTimeout(r, 10)); },
+    respawn: () => order.push('respawn'), exit: () => order.push('exit'), log: r => rows.push(r), every: 5,
+  });
+  try {
+    await new Promise(r => setTimeout(r, 40));
+    assert.deepEqual(order, [], 'two requests in flight: nothing happens');
+    inFlight = 0;
+    const t = Date.now(); while (order.length < 3 && Date.now() - t < 2000) await new Promise(r => setTimeout(r, 5));
+    assert.deepEqual(order, ['close', 'respawn', 'exit'], 'the listener goes first, then the replacement is started, then this process leaves');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].op, 'proxy-restart-idle'); assert.equal(rows[0].when, 'idle'); assert.equal(rows[0].why, 'update'); assert.equal(rows[0].respawn, true);
+  } finally { stop(); }
+});
+
+test('the watcher clears a marker that asks for what this process already is', async () => {
+  const home = tmp('thinker-proxy-watch-same-');
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  requestRestart(home, { why: 'the first run that records them', version: '0.2.0', args: 'proxy --port 1' });
+  let exited = false;
+  const stop = idleRestartWatcher({ home, running: { version: '0.2.0', args: 'proxy --port 1' }, load: () => ({ inFlight: 0, idleMs: 10 ** 6 }), close: () => {}, exit: () => { exited = true; }, every: 5 });
+  try {
+    await new Promise(r => setTimeout(r, 40));
+    assert.equal(exited, false, 'already this version with these flags: no restart');
+    assert.equal(restartWanted(home), null, 'and the marker is gone, so nothing asks again');
+  } finally { stop(); }
+});
+
+test('ensureProxy answers pending when the restart is left to an idle moment, and boots a dead port out now', async () => {
+  const m = fakeMachine();
+  const srv = http.createServer((req, res) => res.end('x'));
+  try {
+    const port = await freePort();
+    await new Promise(r => srv.listen(port, '127.0.0.1', r));
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'config.json'), JSON.stringify({ proxy: { holdout: 0 } }));
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port, ports: [port], pid: process.pid, args: serviceArgs(m.home, { port }).join(' '), version: '0.0.1' }));
+    const calls = [];
+    const r = await ensureProxy({ cli: CLI, home: m.home, restartGrace: 0, restartFn: o => { calls.push(o); return 'pending'; } });
+    assert.deepEqual(r, { on: true, running: true, pending: `a new version (0.0.1 -> ${appVersion()})` });
+    assert.equal(calls[0].whenIdle, undefined, 'a listening service is asked to go when idle');
+    assert.equal(calls[0].why, `a new version (0.0.1 -> ${appVersion()})`);
+    srv.close();
+    await new Promise(r => setTimeout(r, 50));
+    const dead = await ensureProxy({ cli: CLI, home: m.home, wait: 1, restartFn: o => { calls.push(o); return false; } });
+    assert.equal(calls[1].whenIdle, false, 'nothing listening: booted out and started now, never left to a marker');
+    assert.equal(dead.on, true);
+    if (dead.pid) { try { process.kill(dead.pid, 'SIGTERM'); } catch {} }
+  } finally { try { srv.close(); } catch {} m.restore(); }
 });

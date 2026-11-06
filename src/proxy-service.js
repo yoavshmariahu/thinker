@@ -54,7 +54,10 @@ function saveNetworkEnv(home, env) {
 export function recordProxyListening(port, { home = thinkerHome(), pid = process.pid } = {}) {
   const s = serviceState(home);
   if (!s.enabled || s.port !== port) return;
-  writeJson(stateFile(home), { ...s, pid, startedAt: new Date().toISOString(), args: serviceArgs(home, s).join(' '), version: appVersion() });
+  clearRestartWanted(home); // whatever asked for a restart has it now
+  // `idleRestart`: this instance watches the marker. An instance from before it (none recorded) is booted out as before,
+  // since a marker left for it would wait for ever.
+  writeJson(stateFile(home), { ...s, pid, startedAt: new Date().toISOString(), args: serviceArgs(home, s).join(' '), version: appVersion(), idleRestart: true });
 }
 // An agent's own file, read in order to write it back. `readJson` answers `{}` for anything it cannot parse, and
 // writing that back replaced a whole settings file -- permissions, hooks, model, every env of the person's -- with
@@ -230,7 +233,9 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     // Let the installed service manager own the process. Starting a detached competitor here
     // caused repeated EADDRINUSE crashes, and could inherit the invoking agent's network sandbox.
     saveNetworkEnv(home, process.env);
-    if (restartFn({ cli, home, managedOnly: true })) {
+    const r = restartFn({ cli, home, managedOnly: true, why });
+    if (r === 'pending') return { on: true, running: true, pending: why }; // it goes at its first idle moment
+    if (r) {
       const listening = await waitProxyStarted(home, s.port, wait);
       if (listening) return { on: true, restarted: true, why, managed: true, listening };
       // Something is on the port without having recorded its startup -- a proxy mid-start, or another
@@ -250,7 +255,7 @@ export async function ensureProxy({ cli, home = thinkerHome(), wait = 1500, rest
     return { on: true, restarted: true, why, pid, listening };
   }
   saveNetworkEnv(home, process.env);
-  if (restartFn({ cli, home, managedOnly: true })) {
+  if (restartFn({ cli, home, managedOnly: true, whenIdle: false })) {
     const listening = await waitProxyStarted(home, s.port, wait);
     if (listening) return { on: true, started: true, managed: true, listening };
     // as above: a listener that has not recorded ownership is left alone and claimed for nothing; a dead
@@ -358,8 +363,62 @@ export const BOOTOUT_WAIT_MS = 25_000;
 export function agentInstance() {
   let out;
   try { out = execFileSync('launchctl', ['print', `gui/${uid()}/${PROXY_LABEL}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; }
-  return { pid: Number(/^\s*pid = (\d+)/m.exec(out)?.[1]) || null, state: /^\s*state = (.+)$/m.exec(out)?.[1]?.trim() || null };
+  const args = /^\s*arguments = \{\n([\s\S]*?)\n\s*\}/m.exec(out)?.[1]?.split('\n').map(l => l.trim()).filter(Boolean) || null;
+  return { pid: Number(/^\s*pid = (\d+)/m.exec(out)?.[1]) || null, state: /^\s*state = (.+)$/m.exec(out)?.[1]?.trim() || null, args };
 }
+
+// --- a restart that waits for the proxy to be idle (2026-11-06) ---
+// A restart is a gap: the old process stops listening, drains what it is streaming, the new one boots, and every
+// session's model calls are refused in between. Measured on this machine: launchd's KeepAlive brings a cleanly
+// exited process back in 0.93 s (7 s if it had run under ten seconds), and Claude Code retries a refused
+// connection by itself. So a restart taken at a moment with nothing in flight costs at most one retry delay to
+// one request, and the drain -- as long as the longest answer in flight, up to launchd's 20 s cutoff -- is gone.
+// Where the service manager would start the same program line again (an update: the program is the app's path,
+// which does not change), an update or a rewire no longer boots the service out. It leaves a marker, and the
+// proxy exits with 0 at the first idle moment (`idleRestartWatcher`, in the proxy's own process), the manager
+// starting it again on the new code; a proxy with no manager starts its own replacement first. Booting out
+// is kept for what the manager cannot do: a changed program line (another port, other flags), a stand-down,
+// or a port with nothing on it.
+export const RESTART_IDLE_MS = 3000;            // nothing in flight, and nothing finished for this long
+export const RESTART_PATIENCE_MS = 15 * 60_000; // past this, the first moment with nothing in flight will do
+export const RESTART_DEADLINE_MS = 60 * 60_000; // past this, stop listening and drain, as a bootout did
+export const restartWantedFile = home => path.join(home, 'state', 'proxy-restart-wanted.json');
+export function requestRestart(home, { why = 'restart', respawn = false, version = appVersion(), args = serviceArgs(home).join(' ') } = {}) {
+  const f = restartWantedFile(home);
+  const had = readJson(f); // the first ask's time stays, so the patience runs from it
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  writeJson(f, { at: had.at || new Date().toISOString(), why, respawn, version, args });
+}
+export const restartWanted = home => { const m = readJson(restartWantedFile(home)); return m.at ? m : null; };
+export const clearRestartWanted = home => { try { fs.rmSync(restartWantedFile(home), { force: true }); } catch {} };
+// when the proxy should go: 'idle', 'deadline', or null for not yet
+export function restartDue(marker, load, { now = Date.now(), idle = RESTART_IDLE_MS, patience = RESTART_PATIENCE_MS, deadline = RESTART_DEADLINE_MS } = {}) {
+  if (!marker?.at) return null;
+  const waited = now - Date.parse(marker.at);
+  if (load.inFlight === 0 && (load.idleMs >= idle || waited >= patience)) return 'idle';
+  if (waited >= deadline) return 'deadline';
+  return null;
+}
+// In the proxy's own process: reads the marker every `every` ms and goes when it is due -- stops listening, lets
+// what is in flight finish (`close`), starts its replacement where it was asked to (`respawn`), and exits. A marker
+// that asks for what this process already is (same version, same flags) is cleared and ignored.
+export function idleRestartWatcher({ home, running = null, load, close, respawn = () => {}, exit, log = () => {}, every = 1000, ...limits }) {
+  let going = false;
+  const tick = () => {
+    if (going) return;
+    const m = restartWanted(home);
+    if (!m) return;
+    if (running && m.version === running.version && m.args === running.args) { clearRestartWanted(home); return; }
+    const when = restartDue(m, load(), limits);
+    if (!when) return;
+    going = true; clearInterval(timer);
+    log({ op: 'proxy-restart-idle', why: m.why, when, waitedMs: Date.now() - Date.parse(m.at), inFlight: load().inFlight, respawn: !!m.respawn });
+    Promise.resolve().then(close).then(() => { if (m.respawn) respawn(); exit(); });
+  };
+  const timer = setInterval(tick, every); timer.unref?.();
+  return () => clearInterval(timer);
+}
+const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 export function bootOutAgent({ wait = BOOTOUT_WAIT_MS, step = 100 } = {}) {
   run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
   const t0 = Date.now();
@@ -416,13 +475,18 @@ export function uninstallService({ home = thinkerHome(), manage = !isTestMode() 
   return done;
 }
 // after an update the service runs the old code until it is started again
-export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false } = {}) {
+// `whenIdle`: leave the marker and let the proxy go at an idle moment, where the manager would start the same
+// program line again (answers 'pending'); false boots it out now, for a port with nothing listening on it.
+export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false, whenIdle = true, why = 'restart' } = {}) {
   manage = manage && ownsService(home);
   const s = serviceState(home);
   if (!s.enabled || !manage) return false;
   if (process.platform === 'darwin' && fs.existsSync(plistPath(home))) {
     const p = plistPath(home);
     fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
+    const inst = whenIdle && s.idleRestart ? agentInstance() : null;
+    const program = [process.execPath, cli, ...serviceArgs(home, s)].join('\n');
+    if (inst?.pid && inst.state === 'running' && inst.args?.join('\n') === program) { requestRestart(home, { why }); return 'pending'; }
     bootOutAgent(); // kickstart -k would restart the old ProgramArguments
     // An old detached competitor may still own the port after bootout.
     if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
@@ -430,12 +494,16 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
     return managedOnly || started; // an installed manager must not race a detached fallback
   }
   if (fs.existsSync(unitPath(home))) {
-    fs.writeFileSync(unitPath(home), unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(unitPath(home), 0o600);
+    const u = unitPath(home), text = unitText({ cli, home });
+    let same = false; try { same = fs.readFileSync(u, 'utf8') === text; } catch {}
+    fs.writeFileSync(u, text, { mode: 0o600 }); fs.chmodSync(u, 0o600);
+    if (whenIdle && s.idleRestart && same && run('systemctl', ['--user', 'is-active', '--quiet', 'thinker-proxy.service'])) { requestRestart(home, { why }); return 'pending'; } // Restart=always brings it back
     run('systemctl', ['--user', 'daemon-reload']);
     const started = run('systemctl', ['--user', 'restart', 'thinker-proxy.service']);
     return managedOnly || started;
   }
   if (managedOnly) return false;
+  if (whenIdle && s.idleRestart && s.pid && alive(s.pid)) { requestRestart(home, { why, respawn: true }); return 'pending'; } // it starts its own replacement
   if (s.pid) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
   return true; // the next prompt's hook starts the new code
 }

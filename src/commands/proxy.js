@@ -3,6 +3,7 @@
 // of what it did and the offline replay.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { proxyConfig, startProxy, proxyReport, LONG_CONTEXT, REWRITE_DAYS } from '../proxy.js';
 import { replay, renderReplay, parsePolicies } from '../proxy-replay.js';
 import { NoteInjector, PROXY_CLIENT } from '../proxy-notes.js';
@@ -14,7 +15,7 @@ import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
 import { compressionHeader } from '../compression.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
 
 // The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
 // the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
@@ -198,6 +199,20 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   });
   server.on('listening', () => recordProxyListening(server.address().port));
   server.on('error', e => { out(`thinker proxy: ${e.message}`); process.exitCode = 1; });
+  // The service's own process: an update or a rewire asks for a restart with a marker, and this process goes at
+  // its first idle moment (proxy-service.js:idleRestartWatcher), the service manager -- or this process itself,
+  // where there is none -- starting the new code. What it is now is read here, not later: after an update the
+  // files on disk are the new version's. A proxy somebody started by hand on another port is not asked.
+  if (serviceState().port === cfg.port) {
+    const running = { version: appVersion(), args: serviceArgs().join(' ') };
+    idleRestartWatcher({
+      home: thinkerHome(), running, load: () => server.load(),
+      close: () => new Promise(r => server.close(r)),
+      respawn: () => { try { spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: 'ignore', env: process.env }).unref(); } catch {} },
+      exit: () => process.exit(0),
+      log: row => { try { fs.appendFileSync(logFile, JSON.stringify({ at: new Date().toISOString(), ...row }) + '\n'); } catch {} },
+    });
+  }
   await new Promise(resolve => {
     for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => server.close(resolve));
   });
