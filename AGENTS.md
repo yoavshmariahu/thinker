@@ -465,6 +465,16 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status row too.
 - Where the card mod runs, the Stop hook leaves the money out of its line: the status row already has
   it, and one figure gets one voice per client.
+- **A clear the proxy never saw is in the ledger too** (2026-11-06; `compression.js:desktopClearRows`,
+  `clearingRows`). The ledger and the Report priced cleared tokens from the proxy's log alone, and a
+  desktop session never reaches the proxy: the clearing mod writes `state/compression/<session>.json` and
+  no log row, so its clears were on the card under the answer and in `thinker proxy report` and nowhere
+  money is said -- one desktop session's 7.8M cleared tokens, in no footer and no Report. Now the records
+  of the sessions the log has no rows for are read as one row each, dated the session's last request
+  (`saved` accrues through the session), priced from the model the session's own `op: session` log rows
+  name, unpriced where none does; a session the log does have rows for is left to the log, since the proxy
+  writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
+  ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
 
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.

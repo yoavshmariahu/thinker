@@ -25,8 +25,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { isTestMode } from './test-mode.js';
-import { summarize, readLog } from './usage.js';
-import { compressionRecords } from './compression.js';
+import { summarize, readLog, sessionKey } from './usage.js';
+import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, SAVINGS_SERIES } from './report-savings.js';
 import { formatDollars } from './prices.js';
@@ -81,9 +81,11 @@ export function computeSavings(store, { now = Date.now() } = {}) {
   const cache = [], open = [];
   summarize(store, { all: true, now, onSaving: r => cache.push(r), onProvisional: r => open.push(r), provisionalSince: dayStart(now) });
   const events = readLog(store, { all: true });
-  // The proxy's own log, as reportView reads it: a test with no home and no log of its own has none.
+  // The proxy's own log, as reportView reads it, and the recorded clears of the sessions that never
+  // reached the proxy (a desktop app's; compression.js:clearingRows). A test with no home and no log of
+  // its own has none.
   const compression = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG
-    ? [] : compressionRecords(proxyLogFile());
+    ? [] : clearingRows(proxyLogFile(), compressionDir(), { events, key: sessionKey });
   // `origin: null` counts every repository's clearing: this is the machine's ledger, and a clear is not
   // attributed to a checkout here as it is in a repository's report. The clearing series is measured
   // either way -- the proxy reports what it took out -- so only the cache series differs by window.
