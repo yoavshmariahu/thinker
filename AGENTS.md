@@ -1244,7 +1244,18 @@ schema the proxy sends in its place refuses nothing; Claude Code checks a call a
 was wrong, so a call made without reading the file costs one round trip. `harnessSavings` counts a stubbed tool as gone
 from every session since, less `STUB_TOKENS`, because the transcript still records the definition the engine built. The
 registry entry is `scope: machine` whatever door switched it, as the proxy is one per machine; `thinker harness --undo`
-removes the name and the file, and the next request carries the definition again. Not done: an MCP server still goes off
+removes the name and the file, and the next request carries the definition again. **The Read needs a permission** (seen live the same
+day): the file is outside every working directory, and in a default-permission session Claude Code refused the Read and
+the model stopped there, as it should. So the first tool moved to disk writes `Read(//<THINKER_HOME>/tools/**)` into
+`permissions.allow` of the user's Claude settings (`tool-stubs.js:allowRule`, where the deny used to go), the registry
+keeps whose rule it is, and the last tool back takes it out. **Proven end to end** through the proxy with the schema
+stripped (Haiku, `claude -p`, the mod loaded): with Agent moved to disk the model called it from memory without opening the
+file and the call passed; with ReportFindings, whose schema it did not know, it read the file first and then made a
+correctly shaped call that the tool answered. **It is not called "switched off" anywhere** (the owner's ask, the same
+day): the action is `ACTS.disk` "Move to disk" in the weekly suggestion, `thinker context`, the installer's multi-select
+and the Find Savings row; the page's confirmation and review paragraph say the tool stays callable; the harness's own reply
+opens "Moved to disk"; Recent activity says "Moved to disk"; and the recall line never names a tool moved to disk, since
+the pointer is in every prompt already. `test/cli-ui-sync.test.js` holds the page, the command and the installer to it. Not done: an MCP server still goes off
 by its `mcp__<server>__*` deny, since Claude Code already defers those definitions behind ToolSearch; and the mod's
 `isDeferred: true` answer, which would put a built-in tool behind ToolSearch with its exact schema, is the engine's own
 way of the same thing and was not taken, the ask being a file the model reads.

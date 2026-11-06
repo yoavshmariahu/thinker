@@ -10,7 +10,7 @@ import { readScopedState, writeScopedState } from '../src/scoped-state.js';
 import { recordReviewed, changeHistory, revertDecision } from '../src/context-suggest.js';
 import { createUiServer } from '../src/ui/server.js';
 import { codexHarnessConfig } from '../src/harness-codex.js';
-import { toolFile, stubbedNames } from '../src/tool-stubs.js';
+import { toolFile, stubbedNames, allowRule } from '../src/tool-stubs.js';
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-machine-tools-'));
@@ -35,9 +35,10 @@ test('tool switches use user settings, are visible in another repository, and un
   write(settings, { permissions: { deny: ['Read(.env)'] }, env: { KEEP: 'yes' } });
   write(path.join(home, '.claude.json'), { mcpServers: { docs: { command: 'docs', env: { TOKEN: 'kept' } } } });
   const opts = { home: th, userHome: home, global: true, any: true, usage: usage(source('tool', 'Workflow'), source('mcp', 'docs')) };
-  assert.match(switchOffNow(a, 'Workflow tool,docs MCP server', opts), /every repository/);
+  const said = switchOffNow(a, 'Workflow tool,docs MCP server', opts);
+  assert.match(said, /^Moved to disk for every repository.*Workflow/); assert.match(said, /Switched off here and in every repository.*docs/);
   // the server by a user-level deny; the built-in tool by its definition on disk and the machine's registry (tool-stubs.js)
-  assert.deepEqual(JSON.parse(fs.readFileSync(settings)).permissions.deny, ['Read(.env)', 'mcp__docs__*']);
+  assert.deepEqual(JSON.parse(fs.readFileSync(settings)).permissions, { deny: ['Read(.env)', 'mcp__docs__*'], allow: [allowRule(th)] });
   assert.ok(fs.existsSync(toolFile(th, 'Workflow')));
   assert.equal(fs.existsSync(path.join(a.repo, '.claude/settings.local.json')), false);
   assert.equal(claudeHarnessConfig(b.repo, { home, managedFile: null }).stubbed.has('Workflow'), true);
@@ -46,7 +47,7 @@ test('tool switches use user settings, are visible in another repository, and un
   switchOffNow(b, 'Workflow tool,docs MCP server', opts);
   assert.equal(readHarnessState(a).applied.length, 2, 'repeat does not replace the original undo');
   assert.match(undoHarness(b, { home: th, userHome: home, names: ['tool:Workflow', 'mcp:docs'] }), /Turned back on/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(settings)), { permissions: { deny: ['Read(.env)'] }, env: { KEEP: 'yes' } });
+  assert.deepEqual(JSON.parse(fs.readFileSync(settings)), { permissions: { deny: ['Read(.env)'], allow: [] }, env: { KEEP: 'yes' } });
   assert.equal(stubbedNames(th).size, 0); assert.ok(!fs.existsSync(toolFile(th, 'Workflow')));
   assert.equal(readHarnessState(a).applied?.length || 0, 0);
   assert.equal(JSON.parse(fs.readFileSync(path.join(home, '.claude.json'))).mcpServers.docs.env.TOKEN, 'kept');

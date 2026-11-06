@@ -44,7 +44,18 @@ const writeJson = (f, v) => {
 
 export function readStubs(home) {
   const j = readJson(stubsFile(home));
-  return { tools: j && typeof j.tools === 'object' && j.tools ? j.tools : {} };
+  return { tools: j && typeof j.tools === 'object' && j.tools ? j.tools : {}, ...(j?.allow ? { allow: j.allow } : {}) };
+}
+// The agent reads the file with its own Read tool, and outside the working directory that needs a permission: an
+// allow rule for the tools directory in the user's Claude Code settings (`//` is an absolute path there), written with
+// the first tool moved to disk and taken out with the last (harness.js:apply, undoHarness). Seen live 2026-11-06: in
+// a default-permission session the Read was refused and the model stopped there, as it should. `allow` in the
+// registry records the rule and whether it was thinker's to write (`ours`), so a rule the person had is left alone.
+export const allowRule = home => `Read(//${toolsDir(home).replace(/^\/+/, '')}/**)`;
+export function setAllow(home, allow) {
+  const st = readStubs(home);
+  if (allow) st.allow = allow; else delete st.allow;
+  writeJson(stubsFile(home), st);
 }
 export const stubbedNames = home => new Set(Object.keys(readStubs(home).tools));
 

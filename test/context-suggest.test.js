@@ -71,7 +71,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
   // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
   assert.doesNotMatch(said, /^\d+\. Workflow tool/m);
-  assert.match(said, /including Workflow tool: switching a built-in tool off takes a capability with it/);
+  assert.match(said, /including Workflow tool: a built-in tool is not switched off but moved to disk/);
 
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
@@ -365,7 +365,7 @@ test('allChanges: every part as a row with its actions, whatever its waste; off 
   assert.deepEqual(by('claude:skill:x').options.map(o => o.act), ['on'], 'switched off: back on');
   assert.equal(cs.some(c => c.options.some(o => o.act === 'high' || o.act === 'uncompress')), false);
   // a built-in tool is switched off from its row like any tool (the page asks first), and is marked as built-in
-  assert.deepEqual(by('claude:builtin:Workflow').options.map(o => o.act), ['off']); assert.equal(by('claude:builtin:Workflow').builtin, true);
+  assert.deepEqual(by('claude:builtin:Workflow').options.map(o => [o.act, o.text]), [['off', 'Move to disk']]); assert.equal(by('claude:builtin:Workflow').builtin, true);
   // the page names a row by its key, as a list, and a choice may name an action after a colon
   assert.deepEqual(pickChanges(cs, ['section:AGENTS.md:Ports'], { 'section:AGENTS.md:Ports': 'remove' }).map(c => [c.key, c.chosen]), [['section:AGENTS.md:Ports', 'remove']]);
 });

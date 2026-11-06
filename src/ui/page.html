@@ -740,7 +740,8 @@ const KIND = { mcp: 'MCP server', connector: 'connector', plugin: 'plugin', tool
 const CLIENT = { devin: 'Devin', codex: 'Codex', cursor: 'Cursor', claude: 'Claude Code', gemini: 'Gemini CLI' };
 // the actions a row takes, as context-suggest.js:allChanges gives them (the server resolves the row by its key): a section
 // compressed or removed; a skill or tool switched off, or back on when thinker switched it off
-const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', 'Switch off']] : [];
+// a built-in tool is not switched off but moved to disk (context-suggest.js:ACTS.disk): same action, said as what it does
+const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', s.group === 'builtin' ? 'Move to disk' : 'Switch off']] : [];
 // What picking this action will do, in three words for the row and a sentence for the review before Apply. A person
 // who has never thought about an agent's context should be able to read either and know what they are about to change.
 const ACT_EFFECT = {
@@ -749,7 +750,7 @@ const ACT_EFFECT = {
   'skill:off': ['reversible', 'New sessions in this repository stop loading its name and description. You can still run it yourself by typing /name, and Turn back on undoes this at any time.'],
   'skill:on': ['reversible', 'New sessions in this repository load it again.'],
   'tool:off': ['reversible', 'New sessions across all repositories stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
-  'builtin:off': ['the agent loses it', "The tool is switched off across all repositories, so new Claude Code sessions have no definition of it and cannot call it at all. Sessions already open keep it. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back."],
+  'builtin:off': ['still callable', "Its definition moves to a file on this machine and every prompt carries one line pointing there: the agent reads the file before its first call, and the tool stays callable. It applies to new Claude Code sessions across all repositories; sessions already open keep the definition. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo puts the definition back."],
   'tool:on': ['reversible', 'New sessions in this repository load it again.'],
 };
 const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
@@ -1035,7 +1036,7 @@ async function applyRows(view, items, btn) {
   };
   if (!await confirmDialog({
     title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
-    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}. The agent loses the ability, not just the description, in every new session across all repositories \u2014 until you turn it back on.</p>` : ''}`,
+    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: not switched off but moved to disk. In every new session across all repositories the agent gets one line pointing at the file instead of the definition, reads it before the first call, and can still use the tool \u2014 until you turn it back on, when the definition returns to every prompt.</p>` : ''}`,
   })) return;
   if (btn) busy(btn, 'Applying…');
   try {
@@ -1116,12 +1117,12 @@ function renderContext(v) {
 const CH_KIND = { section: 'Instruction section', skill: 'Skill', tool: 'Tool', output: 'Tool output' };
 // what a decision did, in a word: the action approved (entries written before `act` was kept name it in their
 // suggested action), or dismissed, or reverted
-const CH_DONE = { off: 'Switched off', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' };
+const CH_DONE = { off: 'Switched off', disk: 'Moved to disk', on: 'Turned back on', compress: 'Compressed', remove: 'Removed', high: 'High compression', uncompress: 'Compression off' };
 // a job under way or failed first (context-suggest.js:startSectionJob), then a pull request by its state: pending while open,
 // merged, rejected once closed without merging (Close PR too)
 const doneOf = e => e.running ? ['busy', `<span class="spinner"></span>${e.job.action === 'compress' ? 'Compressing…' : 'Removing…'}`, true] : e.failed ? ['failed', 'Failed']
   : e.revertPr ? ['off', 'Revert PR opened'] : e.pr ? (e.pr.state === 'merged' ? (e.unpulled ? ['wait', 'Merged · pull to apply'] : ['ok', 'Merged']) : e.pr.state === 'closed' ? ['high', 'Rejected'] : ['pr', 'PR pending']) : e.revertedAt ? ['off', 'Reverted'] : e.decision === 'dismissed' ? ['off', 'Dismissed']
-  : ['ok', CH_DONE[e.act] || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
+  : ['ok', (e.act === 'off' && e.what === 'Built-in tool' ? CH_DONE.disk : CH_DONE[e.act]) || (/^switch/i.test(e.action || '') ? CH_DONE.off : /^remove/i.test(e.action || '') ? CH_DONE.remove : /compress/i.test(e.action || '') ? CH_DONE.compress : 'Applied')];
 // what a decision still needs of the person, in a few words (the card at the top of Recent activity)
 const needOf = e => e.running ? null : e.failed ? `retry it, or pick the section again: ${e.job.error}` : e.pending ? `merge or close pull request #${e.pr.number}` : null;
 const HISTORY_PAGE = TABLE_PAGE, HPAGE = {};

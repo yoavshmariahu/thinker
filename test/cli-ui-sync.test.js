@@ -141,15 +141,21 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(read('context-suggest.js'), /u\.kind === 'output'/);
   assert.doesNotMatch(page, /view: 'outputs'/); assert.doesNotMatch(read('commands/context.js'), /Tool outputs: tokens per result/);
   assert.match(read('commands/context.js'), /\['high', 'moderate'\]\.includes\(flags\.level\)/);
-  // a built-in tool is switched off from its row through the same route. Every Apply is read back first (2026-10-29):
+  // a built-in tool is moved to disk from its row through the same route (2026-11-06, tool-stubs.js: not switched off; its
+  // definition in a file, a pointer in every prompt, the tool still callable). Every Apply is read back first (2026-10-29):
   // one entry a change, naming the part, what the action does to it, and what the agent did with it. A built-in tool's
-  // entry still names what goes, where it is written (harness.js: permissions.deny of .claude/settings.local.json) and
-  // how it comes back, and the review carries its own paragraph saying the agent loses the ability, not the description.
+  // entry says where the definition goes and how it comes back, and the review's own paragraph says the tool stays
+  // callable; nothing on the page may call it switched off, nor may the command or the installer (ACTS.disk everywhere).
   assert.match(page, /bold: s\.kind === 'tool'/);
   assert.match(page, /title: `Apply \$\{items\.length === 1 \? 'this change' : `these \$\{items\.length\} changes`\}\?`/);
-  assert.match(page, /switched off across all repositories/);
-  assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo brings it back/);
-  assert.match(page, /rev-warn[\s\S]{0,260}The agent loses the ability, not just the description/);
+  assert.match(page, /'builtin:off': \['still callable', "Its definition moves to a file on this machine/);
+  assert.doesNotMatch(page, /switched off across all repositories|cannot call it at all|loses the ability/);
+  assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo puts the definition back/);
+  assert.match(page, /rev-warn[\s\S]{0,260}not switched off but moved to disk/);
+  assert.match(page, /s\.group === 'builtin' \? 'Move to disk' : 'Switch off'/);
+  assert.match(read('context-suggest.js'), /disk: \{ act: 'off', text: 'Move to disk' \}/);
+  assert.match(read('context-machine.js'), /p\.group === 'builtin' \? ACTS\.disk/);
+  assert.match(read('setup/context-ask.js'), /a built-in tool's definition moves to a file the agent reads before its first call/);
   // what every action does, in the row and in the review: one entry a change, keyed by the kind and the action
   for (const k of ['section:compress', 'section:remove', 'skill:off', 'tool:off', 'builtin:off']) assert.match(page, new RegExp(`'${k}': \\[`), k);
   assert.match(page, /const effectOf = /);

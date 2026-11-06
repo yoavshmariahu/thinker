@@ -1,5 +1,5 @@
 import { discoverRepos } from './machine.js';
-import { addStub, removeStub, stubbedNames, toolFile, STUB_TOKENS } from './tool-stubs.js';
+import { addStub, removeStub, stubbedNames, readStubs, setAllow, allowRule, toolFile, STUB_TOKENS } from './tool-stubs.js';
 import { readScopedState, writeScopedState } from './scoped-state.js';
 // What an agent's harness loads into every session, against what the sessions use: MCP servers,
 // plugins and skills that cost context each time and are never called. "thinker loads what this
@@ -551,8 +551,16 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {}, global =
   // tool stays callable. The registry is the machine's, whatever `global` says, as the proxy is. Until
   // 2026-11-06 the name went into permissions.deny, which took the tool itself out with its definition.
   if (s.how === 'tool') {
-    const def = readToolDefinition(s.file, s.name) || { name: s.name, description: s.texts?.[s.key] || '', input_schema: {} };
-    const { file } = addStub(home || thinkerHome(), s.name, def, { at: now });
+    const tHome = home || thinkerHome(), def = readToolDefinition(s.file, s.name) || { name: s.name, description: s.texts?.[s.key] || '', input_schema: {} };
+    const { file } = addStub(tHome, s.name, def, { at: now });
+    // the Read the pointer asks for needs an allow rule outside the working directory (tool-stubs.js:allowRule): written
+    // once, into the user's settings, where the deny used to go
+    if (!readStubs(tHome).allow) {
+      const settings = claudePaths(userHome).settings, rule = allowRule(tHome);
+      let ours = false;
+      editJson(settings, j => { const p = j.permissions ||= {}; ours = !(p.allow || []).includes(rule); p.allow = addTo(p.allow, rule); }, ctx);
+      setAllow(tHome, { file: settings, rule, ours });
+    }
     return { key: 'tool-stub', id: s.name, file };
   }
   // A user-level deny removes this server's tools across every project, including project-defined
@@ -619,7 +627,17 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
     try {
       if (u.key === 'codex') { for (const o of u.overrides || []) applyCodex(o.repo, o.source, ctx, o); applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       if (u.key === 'desktop-connector') { app.unshift(a.name); continue; }
-      if (u.key === 'tool-stub') { removeStub(home || thinkerHome(), u.id); back.unshift(a.name); continue; }
+      if (u.key === 'tool-stub') {
+        const tHome = home || thinkerHome();
+        removeStub(tHome, u.id);
+        // the last tool back: the allow rule goes too, where it was thinker's
+        const st = readStubs(tHome);
+        if (!Object.keys(st.tools).length && st.allow) {
+          if (st.allow.ours) editJson(st.allow.file, j => { if (j.permissions?.allow) j.permissions.allow = j.permissions.allow.filter(r => r !== st.allow.rule); }, ctx);
+          setAllow(tHome, null);
+        }
+        back.unshift(a.name); continue;
+      }
       if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
@@ -718,7 +736,8 @@ export async function recallCard(cards, prompt, { floor = RECALL.floor, k = RECA
 // in a session, or nothing.
 export async function harnessRecall(store, prompt, { session, client, scoreFn } = {}) {
   if (!recallOn(store)) return '';
-  const st = readHarnessState(store), cards = (st.applied || []).filter(a => !client || (a.client || 'claude') === client).flatMap(a => a.cards || []);
+  // a tool moved to disk needs no recall: the pointer in its definition is in every prompt already (tool-stubs.js)
+  const st = readHarnessState(store), cards = (st.applied || []).filter(a => a.undo?.key !== 'tool-stub' && (!client || (a.client || 'claude') === client)).flatMap(a => a.cards || []);
   if (!cards.length) return '';
   const said = new Set(st.recalled?.[session] || []);
   const open = cards.filter(x => !said.has(x.id)), match = recallMatch(store);
@@ -920,10 +939,12 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   saveState(store, st);
   const tokens = done.reduce((t, d) => t + d.tokens, 0);
   store.log({ op: 'harness-off', via, chosen: chosen.length, switched: done.length, tokens });
-  const files = done.filter(d => d.undo.key !== 'desktop-connector'), desk = done.filter(d => d.undo.key === 'desktop-connector');
+  const files = done.filter(d => !['desktop-connector', 'tool-stub'].includes(d.undo.key)), desk = done.filter(d => d.undo.key === 'desktop-connector'), stubs = done.filter(d => d.undo.key === 'tool-stub');
+  // a built-in tool is not switched off: its definition is on disk and a pointer stands in every prompt (tool-stubs.js)
+  const disk = stubs.length ? `Moved to disk for every repository from the next session on: ${stubs.map(d => `${d.name} (${d.undo.file})`).join(', ')}, about ${formatTokens(stubs.reduce((t, d) => t + d.tokens, 0))} tokens a prompt. Each prompt carries one line pointing at the file, the agent reads it before its first call, and the tool stays callable. \`thinker harness --undo\` puts the definition back.` : '';
   const line = files.length ? `Switched off here${global ? ' and in every repository' : ''} from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
   // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
   const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} chosen: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
-  return [line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ');
+  return [disk, line, app, failed.length ? `Not switched off: ${failed.join('; ')}.` : ''].filter(Boolean).join(' ');
 }
 

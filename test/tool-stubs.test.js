@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addStub, removeStub, readStubs, stubbedNames, stubOf, stubTools, stubReader, writeDefinition, toolFile, pointer, isPointer, STUB_SCHEMA } from '../src/tool-stubs.js';
+import { addStub, removeStub, readStubs, stubbedNames, stubOf, stubTools, stubReader, writeDefinition, toolFile, pointer, isPointer, STUB_SCHEMA, allowRule, setAllow } from '../src/tool-stubs.js';
 import { transformRequest, PROXY_DEFAULTS } from '../src/proxy.js';
 
 const tmp = t => { const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-stubs-'))); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
@@ -26,6 +26,11 @@ test('the switch writes the definition to disk and the name into the registry; u
   assert.ok(!fs.existsSync(file));
   assert.deepEqual([...stubbedNames(home)], ['SendFeedback']);
   assert.throws(() => addStub(home, '../etc/passwd', def('x')), /not a tool name/);
+  // the allow rule the switch writes, an absolute path in Claude Code's own syntax, kept in the registry with whose it is
+  assert.equal(allowRule('/h/.thinker'), 'Read(//h/.thinker/tools/**)');
+  setAllow(home, { file: '/s.json', rule: allowRule(home), ours: true });
+  assert.deepEqual(readStubs(home).allow, { file: '/s.json', rule: allowRule(home), ours: true }); assert.deepEqual([...stubbedNames(home)], ['SendFeedback'], 'the tools kept');
+  setAllow(home, null); assert.equal(readStubs(home).allow, undefined);
 });
 
 test('the file is completed by whichever door sees the real definition, and a pointer is never written as one', t => {
