@@ -171,7 +171,7 @@ test('explicit proxy logs supply clear boundaries in isolated previews', t => {
 });
 
 test('the money rides the summary: the notice line and the Cursor table carry today and lifetime', () => {
-  const money = 'saved today ~$3.65 · lifetime ~$849';
+  const money = 'saved today $3.65 · lifetime $849';
   // the end-of-turn line (Codex CLI, and Claude Code where the card mod does not run)
   const line = turnNotice('/nope', [{ id: 'n', title: 'A note', body: '' }], { prompts: 4, savings: money });
   assert.ok(line.endsWith(` · ${money}`), line);

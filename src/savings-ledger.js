@@ -155,8 +155,8 @@ export function savingsLine(ledger, { now = Date.now() } = {}) {
   if (!ledger.lifetime.tokens && !ledger.lifetime.unpricedTokens) return '';
   const sameDay = ledger.sameDay ?? ledger.day === dayKey(now);
   const parts = [];
-  if (sameDay && Number.isFinite(today)) parts.push(`saved today ~${formatDollars(today)}`);
-  parts.push(`lifetime ~${formatDollars(lifetime)}`);
+  if (sameDay && Number.isFinite(today)) parts.push(`saved today ${formatDollars(today)}`);
+  parts.push(`lifetime ${formatDollars(lifetime)}`);
   return parts.join(' · ');
 }
 
@@ -173,6 +173,6 @@ export function savingsStatus(ledger, { now = Date.now() } = {}) {
 // behind it, so a total nobody can check is never the only thing said.
 export function savingsDetail(cell) {
   if (!cell) return '';
-  const row = (name, c) => `${name} ~${formatDollars(c.cost)} (~${formatTokens(c.tokens)} tokens)`;
+  const row = (name, c) => `${name} ${formatDollars(c.cost)} (${formatTokens(c.tokens)} tokens)`;
   return [row('cache hits', cell.cache), row('context cleared', cell.cleared)].join(' · ');
 }

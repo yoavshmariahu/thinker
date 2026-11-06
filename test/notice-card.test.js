@@ -123,9 +123,9 @@ test('the Codex desktop card carries the money, its split and its caveat', t => 
   fs.writeFileSync(path.join(home, 'state', 'savings.json'), JSON.stringify(ledger));
   const file = ref(noticeCard(store, { client: 'codex', session: 's1', turn: 1, notes: [two] }));
   const html = fs.readFileSync(file, 'utf8');
-  assert.match(html, /saved today ~\$3\.65 · lifetime ~\$849/);
-  assert.match(html, /Today: cache hits ~\$3\.65/);
-  assert.match(html, /Lifetime: cache hits ~\$21\.7 .*context cleared ~\$828/);
+  assert.match(html, /saved today \$3\.65 · lifetime \$849/);
+  assert.match(html, /Today: cache hits \$3\.65/);
+  assert.match(html, /Lifetime: cache hits \$21\.7 .*context cleared \$828/);
   assert.match(html, /not measured billing/);
   assert.match(html, /gross of the cache rewrite/, 'the Report\'s own caveat travels with the figure');
   assert.match(html, /thinker savings/, 'the card points at the command that prints it in full');

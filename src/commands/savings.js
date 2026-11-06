@@ -25,8 +25,8 @@ async function savingsCommand({ store, flags, out }) {
   out(`thinker savings · ${line}`);
   out('');
   for (const [label, cell] of [['Today', l.today], ['Lifetime', l.lifetime]]) {
-    out(`  ${label.padEnd(9)} ~${formatDollars(cell.cost).padEnd(8)} ${savingsDetail(cell)}`);
-    if (cell.unpricedTokens) out(`  ${' '.repeat(9)} ~${formatTokens(cell.unpricedTokens)} tokens on models nobody priced are not in the total`);
+    out(`  ${label.padEnd(9)} ${formatDollars(cell.cost).padEnd(8)} ${savingsDetail(cell)}`);
+    if (cell.unpricedTokens) out(`  ${' '.repeat(9)} ${formatTokens(cell.unpricedTokens)} tokens on models nobody priced are not in the total`);
   }
   out('');
   // The two windows count servings differently and the difference is said, not buried: today would

@@ -16,8 +16,12 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout. (The prompt's notes arrive as a row a hook appends, which a test cannot raise.)
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], env = {} as Record<string, string>, config = null as any } = {}) {
-  mock.store(on)
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any } = {}) {
+  on('store.get', ($, e) => ({ value: e.key === 'savings-hidden-on' && hidden ? hidden : undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('command.register', () => ({ value: undefined }))
+  // the engine's own status line under the prompt, the desktop door: what the mod pinned, or cleared
+  on('ui.status', ($, e) => { pinned.push(e.text); return { value: undefined } })
   mock.env(on, { HOME: '/home/me', ...env })
   // the engine's own status row, beneath the mod: what the mod added to it is `tail`
   on('ui.render', { component: 'PromptHint' }, ($, e) => { status.push(e.props.tail); const { Text } = $.ui.resolve(e); return <Text key="hint">{e.props.hint}</Text> })
@@ -40,7 +44,7 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
 }
 const end = (turnId: string, text = answer) => ({ answer: text, durationMs: 1, isAborted: false, turnId, reason: 'answer' as const })
 const mount = ($: any, surface: 'terminal' | 'desktop', text = answer) =>
-  $.ui.mount({ plugin: 'thinker-card', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
+  $.ui.mount({ plugin: 'thinker', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
 
 // the ledger as src/savings-ledger.js writes it; `day` is stamped in the person's own timezone
 const today = () => {
@@ -53,7 +57,7 @@ const ledger = (day = today()) => ({ at: Date.now(), day, today: { cost: 3.65, t
 const HINT = { component: 'PromptHint' as const, props: { hint: '~/src/talker  main', isDraft: false, isWorking: false } }
 const row = async ($: any, status: (string | undefined)[], surface: 'terminal' | 'desktop' = 'terminal') => {
   await $.session.start({ cwd: '/r', surface, isInteractive: true })
-  const ui = await $.ui.mount({ plugin: 'thinker-card', surface, ...HINT })
+  const ui = await $.ui.mount({ plugin: 'thinker', surface, ...HINT })
   const tail = status.at(-1)
   await ui.unmount()
   return tail
@@ -62,11 +66,11 @@ const row = async ($: any, status: (string | undefined)[], surface: 'terminal' |
 test('the figures ride the status row as its tail, with the engine\'s own line kept', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
-  expect(await row($, status)).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+  expect(await row($, status)).toBe('thinker: saved today $3.65 · lifetime $849')
 })
 
 test('the tail is the line and nothing else: the engine places it, and collapses what it is padded with', () => {
-  const line = 'thinker: lifetime ~$849'
+  const line = 'thinker: lifetime $849'
   expect(statusTail(line)).toBe(line)
   // the engine's own `clean`, as it runs before the tail is drawn: padding a tail to the right edge
   // of the row cannot work, so the mod does not pretend to (register.tsx:statusTail)
@@ -81,13 +85,13 @@ test('the status row is read again at the end of every turn, served or not', asy
   await $.turn.complete(end('t1'))
   expect(await row($, status)).toBeDefined()
   await $.turn.complete(end('t2', 'Another answer.'))
-  expect((await row($, status))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: saved today $3.65 · lifetime $849')
 })
 
 test('a ledger stamped on another day says lifetime alone', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger('2026-01-01'), status })
-  expect((await row($, status))?.trimStart()).toBe('thinker: lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: lifetime $849')
 })
 
 test('no ledger yet leaves the row to the engine', async ($, on) => {
@@ -114,10 +118,40 @@ test('notices switched off in the repository config leave the row alone', async 
   expect(await row($, status)).toBeUndefined()
 })
 
-test('the figures reach the desktop app\'s status row too', async ($, on) => {
-  const status: (string | undefined)[] = []
-  engine(on, { savings: ledger(), status })
-  expect((await row($, status, 'desktop'))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+test('on the desktop the figures are the status line under the prompt, and no tail', async ($, on) => {
+  const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, pinned })
+  expect(await row($, status, 'desktop')).toBeUndefined()   // the desktop draws no tail
+  expect(pinned.at(-1)).toBe('saved today $3.65 · lifetime $849')   // the app heads it with the plugin's name
+})
+
+test('the terminal pins no status line: one figure, one place', async ($, on) => {
+  const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, pinned })
+  await row($, status, 'terminal')
+  expect(pinned).toEqual([])
+})
+
+test('/thinker-hide clears the status line for the day, across sessions', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  await $.command.run({ command: 'thinker-hide', args: '' } as any)
+  expect(pinned.at(-1)).toBeUndefined()
+})
+
+test('hidden today, a new desktop session pins nothing until tomorrow', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned, hidden: today() })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  expect(pinned.at(-1)).toBeUndefined()
+})
+
+test('notices off pin nothing on the desktop either', async ($, on) => {
+  const pinned: (string | undefined)[] = []
+  engine(on, { savings: ledger(), pinned, env: { THINKER_NOTICE: 'off' } })
+  await $.session.start({ cwd: '/r', surface: 'desktop', isInteractive: true })
+  expect(pinned.at(-1)).toBeUndefined()
 })
 
 test('only the notes served count, not the titles listed for lookup', () => {
