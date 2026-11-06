@@ -290,6 +290,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   released, because the window that matters is between the SIGTERM and the new process recording its own version,
   where every other hook still reads the old state. Only the replacement of a **running** proxy is gated: a port
   with nothing on it is a broken route for every session and may never wait on another session's claim.
+- **A restart is a gap, so it happens only for a reason, and it has to actually come back** (2026-11-06;
+  `proxy-service.js:replaceReason`, `bootOutAgent`, `bootstrapAgent`). On this machine the proxy was taken down
+  seven times in a day with nothing listening on its port for 13 to 100 seconds each time -- ECONNREFUSED in
+  every other session's model calls, read as "the proxy is flaking" -- and the cause was two things together.
+  `thinker rewire` restarted the service whenever the proxy was on, and the background update runs rewire every
+  four hours whether or not it installed anything; so now rewire asks the same question the prompt hook asks
+  (`replaceReason`: is the running service this version with these flags) and restarts nothing that answers no.
+  And the restart itself did not come back: `launchctl bootout` answers before the proxy has drained the answers
+  it is streaming, launchd refuses a `bootstrap` of the label while it is still registered ("Bootstrap failed: 5:
+  Input/output error"), and the `load` fallback prints "Load failed" and exits 0, which `run` took for success.
+  Reproduced on a throwaway label. So the bootout waits for the label to leave (`BOOTOUT_WAIT_MS`, 25 s, past
+  launchd's own 20 s ExitTimeOut), bootstrap's own exit code is read, and `load` is believed only when the label
+  answers `launchctl print` afterwards. The proxy's SIGTERM handler drains (`server.close`), which is what makes
+  the gap as long as the longest answer in flight; that is kept, since cutting an answer mid-stream is the worse
+  failure. `test/proxy-service.test.js` runs both against a fake `launchctl` with launchd's shape.
 - **The ratchet.** A cut is a set of `tool_use` ids kept per conversation on disk (`cutStore`). The agent resends the
   whole conversation on every request and knows nothing of this, so the set is re-applied to each one -- 1.9 ms
   on a 1 MB body, no tokens, and no rewrite, because the same ids give the same bytes. Within a turn the set

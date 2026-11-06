@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 // Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
@@ -660,4 +660,79 @@ test('a restart claim is one caller\'s, for one target, and expires', () => {
     assert.equal(claimRestart(m.home, '0.2.25 proxy --port 7', { now: now + 1000 }), true, 'another target is its own claim');
     assert.equal(claimRestart(m.home, '0.2.25 proxy --port 7', { now: now + 31000 }), true, 'and a claim nothing came of expires');
   } finally { m.restore(); }
+});
+
+test('replaceReason: a service running this version with these flags is left alone; another version, other flags or no record is replaced', () => {
+  const home = tmp('thinker-proxy-replace-');
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const state = extra => fs.writeFileSync(path.join(home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port: 6901, ...extra }));
+  state({ args: serviceArgs(home, { port: 6901 }).join(' '), version: appVersion() });
+  assert.equal(replaceReason(home), null, 'what rewire and the prompt hook would start is what runs: no restart');
+  state({ args: serviceArgs(home, { port: 6901 }).join(' '), version: '0.0.1' });
+  assert.match(replaceReason(home), /a new version \(0\.0\.1 -> /);
+  state({ args: 'proxy --port 6901 --holdout 0 --codex', version: appVersion() });
+  assert.equal(replaceReason(home), 'the flags changed');
+  state({});
+  assert.equal(replaceReason(home), 'the first run that records them');
+});
+
+// A fake `launchctl` on the PATH, with launchd's shape: `bootout` answers at once and the label stays registered
+// (`print` succeeds) for as long as the old process takes to leave; `bootstrap` of a registered label fails;
+// `load` exits 0 whether or not it loaded anything.
+function fakeLaunchctl({ draining = 0, bootstrapRefuses = false, loadWorks = false } = {}) {
+  const dir = tmp('thinker-launchctl-');
+  const state = path.join(dir, 'state');
+  fs.mkdirSync(state);
+  fs.writeFileSync(path.join(state, 'loaded'), '');
+  fs.writeFileSync(path.join(state, 'draining'), String(draining));
+  const script = `#!/bin/sh
+S="${state}"
+echo "$1" >> "$S/calls"
+case "$1" in
+  bootout) [ -f "$S/loaded" ] || exit 3; touch "$S/terming"; exit 0;;
+  print)
+    [ -f "$S/loaded" ] || exit 113
+    if [ -f "$S/terming" ]; then n=$(cat "$S/draining"); if [ "$n" -gt 0 ]; then echo $((n-1)) > "$S/draining"; exit 0; fi; rm -f "$S/loaded" "$S/terming"; exit 113; fi
+    exit 0;;
+  bootstrap) [ -f "$S/loaded" ] && exit 5; ${bootstrapRefuses ? 'exit 5' : 'touch "$S/loaded"; exit 0'};;
+  load) ${loadWorks ? 'touch "$S/loaded";' : ''} exit 0;;
+esac
+exit 1
+`;
+  fs.writeFileSync(path.join(dir, 'launchctl'), script, { mode: 0o755 });
+  const savedPath = process.env.PATH;
+  process.env.PATH = `${dir}${path.delimiter}${savedPath}`;
+  const calls = () => { try { return fs.readFileSync(path.join(state, 'calls'), 'utf8').trim().split('\n'); } catch { return []; } };
+  const loaded = () => fs.existsSync(path.join(state, 'loaded'));
+  return { calls, loaded, restore: () => { process.env.PATH = savedPath; } };
+}
+
+test('a launchd restart waits for the booted-out label to leave before bootstrapping, and reads bootstrap\'s own answer', () => {
+  const l = fakeLaunchctl({ draining: 3 });
+  try {
+    assert.equal(bootOutAgent({ wait: 5000, step: 5 }), true);
+    assert.equal(l.loaded(), false, 'the old instance is gone');
+    assert.deepEqual(l.calls().filter(c => c === 'print').length, 4, 'polled until the label left');
+    assert.equal(bootstrapAgent('/tmp/x.plist'), true);
+    assert.equal(l.loaded(), true, 'the new instance is registered');
+    assert.ok(!l.calls().includes('load'), 'bootstrap answered, so load was never tried');
+  } finally { l.restore(); }
+});
+
+test('a launchd restart that bootstraps while the label is still registered is what it used to do, and fails', () => {
+  const l = fakeLaunchctl({ draining: 1000 });
+  try {
+    assert.equal(bootstrapAgent('/tmp/x.plist'), false, 'bootstrap refused (5), load exited 0 and loaded nothing: not believed');
+    assert.deepEqual(l.calls(), ['bootstrap', 'load', 'print']);
+    assert.equal(bootOutAgent({ wait: 60, step: 5 }), false, 'a label that will not leave within the wait is reported, not assumed gone');
+  } finally { l.restore(); }
+});
+
+test('a launchd restart believes `load` only when the label is there after it', () => {
+  const l = fakeLaunchctl({ draining: 0, bootstrapRefuses: true, loadWorks: true });
+  try {
+    assert.equal(bootOutAgent({ wait: 1000, step: 5 }), true);
+    assert.equal(bootstrapAgent('/tmp/x.plist'), true, 'bootstrap refused, load loaded it: the label answers print');
+    assert.ok(BOOTOUT_WAIT_MS > 20_000, 'the wait outlasts launchd\'s own ExitTimeOut (20 s), after which it SIGKILLs and the label leaves');
+  } finally { l.restore(); }
 });
