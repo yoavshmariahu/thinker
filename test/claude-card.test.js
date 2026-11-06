@@ -22,7 +22,7 @@ const D = path.delimiter;
 test('the card folder ships beside the CLI, with a manifest and one hooks module', () => {
   assert.equal(claudeCardDir(CLI), MOD);
   const manifest = JSON.parse(fs.readFileSync(path.join(MOD, '.claude-plugin', 'plugin.json'), 'utf8'));
-  assert.equal(manifest.name, 'thinker-card');
+  assert.equal(manifest.name, 'thinker');   // the desktop app labels a pinned status line with this name
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(MOD, 'hooks', 'hooks.json'), 'utf8')).modules, ['./register.tsx']);
   assert.ok(fs.existsSync(path.join(MOD, 'hooks', 'register.tsx')));
 });
@@ -160,7 +160,8 @@ test('the status row says what the ledger says, in the same words and the same d
   assert.match(src, /tail: statusTail\(line\)/);
   // the desktop app draws no tail but does draw the engine's status line under the prompt (seen live,
   // 2026-11-06), so there the line is `$.ui.status`, on that surface alone, and /thinker-hide clears it
-  assert.match(src, /\$\.ui\.status\(line && hiddenOn !== dayKey\(Date\.now\(\)\) \? line : undefined\)/);
+  assert.match(src, /\$\.ui\.status\(line && hiddenOn !== dayKey\(Date\.now\(\)\) \? desktopStatus\(line\) : undefined\)/);
+  assert.match(src, /desktopStatus = \(line: string\) => line\.replace\(\/\^thinker: \/, ''\)/, 'the app heads the line with the plugin name, so the line drops its own');
   assert.match(src, /if \(surface !== 'desktop'\) return/);
   assert.match(src, /name: 'thinker-hide'/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');

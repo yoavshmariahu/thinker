@@ -44,7 +44,7 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
 }
 const end = (turnId: string, text = answer) => ({ answer: text, durationMs: 1, isAborted: false, turnId, reason: 'answer' as const })
 const mount = ($: any, surface: 'terminal' | 'desktop', text = answer) =>
-  $.ui.mount({ plugin: 'thinker-card', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
+  $.ui.mount({ plugin: 'thinker', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
 
 // the ledger as src/savings-ledger.js writes it; `day` is stamped in the person's own timezone
 const today = () => {
@@ -57,7 +57,7 @@ const ledger = (day = today()) => ({ at: Date.now(), day, today: { cost: 3.65, t
 const HINT = { component: 'PromptHint' as const, props: { hint: '~/src/talker  main', isDraft: false, isWorking: false } }
 const row = async ($: any, status: (string | undefined)[], surface: 'terminal' | 'desktop' = 'terminal') => {
   await $.session.start({ cwd: '/r', surface, isInteractive: true })
-  const ui = await $.ui.mount({ plugin: 'thinker-card', surface, ...HINT })
+  const ui = await $.ui.mount({ plugin: 'thinker', surface, ...HINT })
   const tail = status.at(-1)
   await ui.unmount()
   return tail
@@ -122,7 +122,7 @@ test('on the desktop the figures are the status line under the prompt, and no ta
   const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
   engine(on, { savings: ledger(), status, pinned })
   expect(await row($, status, 'desktop')).toBeUndefined()   // the desktop draws no tail
-  expect(pinned.at(-1)).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+  expect(pinned.at(-1)).toBe('saved today ~$3.65 · lifetime ~$849')   // the app heads it with the plugin's name
 })
 
 test('the terminal pins no status line: one figure, one place', async ($, on) => {

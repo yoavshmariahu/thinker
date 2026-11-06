@@ -446,7 +446,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   note that `$.ui.status` "cannot be placed" stands for the terminal, where it never showed. A status line
   carries no button, so the dismissal is `/thinker-hide`, registered on the desktop alone: it clears the
   line for the rest of the day, the day kept in the mod's store (`HIDDEN_KEY`) across sessions, and the
-  next day the line is back.
+  next day the line is back. The app heads a pinned line with the plugin's name, which the mod cannot
+  suppress, so the card mod is named `thinker` (it was `thinker-card`) and the desktop line drops its own
+  `thinker: ` (`desktopStatus`): `thinker  saved today ~$1.14 · lifetime ~$849`, never thinker twice.
 - **The status line says the name, not the brain** (the owner's ask, 2026-11-06): `thinker: ...`, where
   the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
   lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by

@@ -182,9 +182,12 @@ export const HIDDEN_KEY = 'savings-hidden-on'
 // The desktop door: the engine's own status line under the prompt (`$.ui.status`), which the Claude
 // desktop app draws and the terminal does not place (the terminal's door is the tail below). Text
 // alone, so the dismissal is a command rather than a button. Cleared with `undefined` once hidden.
+// The desktop app heads the line with the plugin's name (`thinker`, plugin.json), so the line itself
+// drops the `thinker: ` the terminal's row carries (`desktopStatus`): it would read thinker twice.
+export const desktopStatus = (line: string) => line.replace(/^thinker: /, '')
 const showStatus = ($: any, surface: string) => {
   if (surface !== 'desktop') return
-  $.ui.status(line && hiddenOn !== dayKey(Date.now()) ? line : undefined)
+  $.ui.status(line && hiddenOn !== dayKey(Date.now()) ? desktopStatus(line) : undefined)
 }
 
 // Read the ledger and, if it says something new, have the row drawn again.
