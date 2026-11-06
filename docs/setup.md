@@ -121,6 +121,21 @@ machine-wide, including scheduled uploads, set `"telemetry": false` in
 `~/.thinker/install.json` (or `$THINKER_HOME/install.json`); updates preserve it.
 Repository configuration also supports `"telemetry": false`.
 
+A report carries a pseudonymous device ID so two installations on one machine are
+not counted as two machines. It is a thinker-specific hash of the OS machine
+identifier (macOS `IOPlatformUUID`, Linux `/etc/machine-id`, Windows
+`MachineGuid`); the identifier itself never leaves the machine. Where the OS has
+none -- a container ships an empty `/etc/machine-id` -- it is derived from the
+user name and the email `git config user.email` or `GIT_AUTHOR_EMAIL` gives, and
+saved under `$THINKER_HOME/state/device-id`. With neither, the device stays
+unknown rather than guessed: a guess would merge every container into one device.
+
+`THINKER_DEVICE_ID=<any string>` names the device yourself, which is what a CI
+runner pool, a devcontainer image or a cloud workspace needs -- each run is a new
+machine to the OS, so without it they are either unknown or one device per run.
+The value is hashed before it is sent, so a hostname or an account name in it
+discloses nothing.
+
 For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
 [the telemetry operations guide](../infra/metrics/README.md).
 

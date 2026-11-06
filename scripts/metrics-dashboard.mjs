@@ -85,6 +85,18 @@ const diagnosticQuestions = [
   { name: 'Feedback · latest snapshots', display: 'table', sql: 'SELECT sum(feedback_useful) AS useful, sum(feedback_not_useful) AS not_useful, sum(feedback_corrections) AS corrections FROM v_latest_installs' },
   { name: 'Versions · latest installation snapshots', display: 'bar', sql: "SELECT coalesce(version, 'unknown') AS version, count(*) AS installations FROM v_latest_installs GROUP BY 1 ORDER BY 2 DESC", settings: { 'graph.dimensions': ['version'], 'graph.metrics': ['installations'] } },
   { name: 'Data freshness and device coverage', display: 'table', sql: 'SELECT max(received_at) AS latest_arrival, max(timestamp) AS latest_client_report, count(*) FILTER (WHERE device_id IS NULL) AS installations_without_device_id, min(period_hours) AS shortest_snapshot_hours, max(period_hours) AS longest_snapshot_hours FROM v_latest_installs' },
+  // An unknown device is not a mystery: the client says which door gave it its id, and from 0.2.23 what
+  // kind of machine it ran on. Every device-less snapshot in production on 2026-11-05 was linux, and all
+  // of them were an ephemeral container, a client older than device IDs, or an error report stored as a
+  // snapshot (the view now keeps those out; the column here is what remains).
+  { name: 'Why a device is unknown · latest snapshots', display: 'table', fullWidth: true, description: "A device ID needs the OS machine identifier, or an email to derive one from. A container ships an empty /etc/machine-id, and an image with no git email has nothing left to hash -- thinker leaves it unknown rather than guessing, because a guess would merge every container into one device. THINKER_DEVICE_ID lets such a fleet name itself.", sql: `SELECT coalesce(raw_json->>'deviceSource', 'none') AS device_source,
+       coalesce(raw_json->'clients'->'machine'->>'container', 'not reported') AS container,
+       coalesce(raw_json->'clients'->'machine'->>'installIdStable', 'not reported') AS install_id_stable,
+       platform, count(*) AS installations,
+       count(*) FILTER (WHERE device_id IS NULL) AS without_device_id,
+       max(version) AS newest_version
+FROM v_latest_installs GROUP BY 1, 2, 3, 4 ORDER BY without_device_id DESC, installations DESC` },
+  { name: 'Error reports stored as snapshots · excluded', display: 'table', description: 'Error reports that reached the metrics path before /errors was deployed. They carry no device and no metrics, so each one that was an install\'s newest row used to become its latest snapshot. v_snapshots keeps them out of every installation and device view; they are still in reports, which is the only copy of the payloads until the errors table is deployed.', sql: "SELECT install_id, count(*) AS rows, min(timestamp) AS first_seen, max(timestamp) AS last_seen, max(version) AS version FROM v_misrouted_errors GROUP BY 1 ORDER BY last_seen DESC" },
   { name: 'Latest installation snapshots', display: 'table', fullWidth: true, sql: 'SELECT install_id, device_id, timestamp, platform, version, period_hours, cache_total_notes, requests_total, requests_answered, sessions_distilled FROM v_latest_installs ORDER BY timestamp DESC' },
   { name: 'Snapshot patterns · inspect potential test data', display: 'table', sql: 'SELECT cache_total_notes, requests_total, tokens_served, assessed_confirmed, tokens_avoided, sessions_distilled, count(*) AS installations FROM v_latest_installs GROUP BY 1,2,3,4,5,6 ORDER BY count(*) DESC' },
   { name: 'Upload types', display: 'bar', sql: "SELECT CASE WHEN event IS NULL OR event IN ('undefined', '') THEN 'Unknown' ELSE event END AS upload_type, count(*) AS uploads FROM reports GROUP BY 1 ORDER BY 2 DESC", settings: { 'graph.dimensions': ['upload_type'], 'graph.metrics': ['uploads'] } },
@@ -125,10 +137,10 @@ const filterDefs = [
 ];
 function dataset(question, database) {
   const where = 'WHERE 1=1 ' + filterDefs.map(([id, , expression]) => `[[AND ${expression} = {{${id}}}]]`).join(' ');
-  const ctes = ['v_latest_installs', 'v_latest_devices', 'reports'].map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
+  const ctes = ['v_latest_installs', 'v_latest_devices', 'v_snapshots', 'reports'].map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
   let sql = question.sql;
   if (question.name === 'Note kinds · latest snapshots') sql = "SELECT k.key AS kind, sum(k.value::bigint) AS total_notes FROM v_latest_installs CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(raw_json #> '{cacheSize,kinds}') = 'object' THEN raw_json #> '{cacheSize,kinds}' ELSE '{}'::jsonb END) k GROUP BY 1 ORDER BY 2 DESC";
-  sql = sql.replace(/\b(FROM|JOIN)\s+(v_latest_installs|v_latest_devices|reports)\b/gi, '$1 filtered_$2');
+  sql = sql.replace(/\b(FROM|JOIN)\s+(v_latest_installs|v_latest_devices|v_snapshots|reports)\b/gi, '$1 filtered_$2');
   return { database, type: 'native', native: { query: `WITH ${ctes}\n${sql}`, 'template-tags': Object.fromEntries(filterDefs.map(([id, name]) =>
     [id, { id, name: id, 'display-name': name, type: 'text', required: false }])) } };
 }
@@ -198,7 +210,7 @@ export async function provision({ call = api, config = state, persist = save, re
       values_source_config: { values: [...new Set(filterValues.data.rows.map(row => row[index] ?? 'unknown'))].sort().map(value => [value, value]) } }));
   if (state.dashboardVersion !== 7) {
     const cards = [{ id: -1, row: 0, col: 0, size_x: 24, size_y: 3, card_id: null,
-      visualization_settings: { virtual_card: { display: 'text' }, text: '## Thinker overview\nLive PostgreSQL data · read-only connection · use the refresh control for the latest reports.\n\n**Read these totals carefully:** Installation IDs are not people. Historical reports may include test data. Usage, cache, learning, and savings cards sum the latest snapshot per installation; they are not lifetime totals and may overlap across installations on the same device. Savings are estimates. Missing device IDs are unknown, not zero users.' } }];
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## Thinker overview\nLive PostgreSQL data · read-only connection · use the refresh control for the latest reports.\n\n**Read these totals carefully:** Installation IDs are not people. Historical reports may include test data. Usage, cache, learning, and savings cards sum the latest snapshot per installation; they are not lifetime totals and may overlap across installations on the same device. Savings are estimates. Missing device IDs are unknown, not zero users -- see "Why a device is unknown" for which door failed on each.' } }];
     let row = 7, col = 0;
     diagnosticQuestions.slice(0, -1).forEach((q, i) => {
       if (i < 4) {
