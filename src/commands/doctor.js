@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { thinkerHome, detectInstall, isScheduled } from '../update.js';
-import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents, staleRepoInstructions, stripRepoWiring } from '../clients.js';
+import { USER_SCOPE_CLIENTS, detectClients, inferWiring, refreshWiring, pruneInstalls, prunedLines, installClient, trustCodexUser, enableCodexSubagents, staleRepoInstructions, stripRepoWiring, registersMcp } from '../clients.js';
 import { HOOKS } from '../git-hooks.js';
 import { postCommitHook } from '../maintain.js';
 import { gitHookPath } from '../store.js';
@@ -135,8 +135,11 @@ async function runChecks(ctx) {
   for (const client of detected) {
     let w = null; try { w = inferWiring(null, client, { scope: 'user' }); } catch {}
     if (!w || (!w.hooks && !w.mcp)) { unwired.push(client); continue; }
-    const parts = [w.hooks && 'hooks', w.mcp && 'MCP server', w.hooks && !w.learn && 'learning off'].filter(Boolean);
-    if (w.hooks && w.mcp) { add(`agent ${client}`, 'ok', parts.join(', ')); continue; }
+    // An agent thinker registers no MCP server for (`registersMcp`: Windsurf) is fully wired on its
+    // hooks alone. Asking it for one warned for ever, since the [--fix] below cannot install it.
+    const wantsMcp = registersMcp(client);
+    const parts = [w.hooks && 'hooks', w.mcp && 'MCP server', w.hooks && !wantsMcp && 'no MCP server to register', w.hooks && !w.learn && 'learning off'].filter(Boolean);
+    if (w.hooks && (w.mcp || !wantsMcp)) { add(`agent ${client}`, 'ok', parts.join(', ')); continue; }
     const lacking = w.hooks ? 'the MCP server is not registered' : 'the hooks are not installed';
     // wired to another copy: that copy's doctor repairs it, so one agent never runs two copies
     const realApp = realpath(appDir) + path.sep;

@@ -112,3 +112,20 @@ test('desktop doctor detects unanswered and abandoned requests without taking or
   assert.match(desktopLearningCheck(store, { now }).detail, /worker stopped/);
   assert.equal(fs.readFileSync(claim, 'utf8'), '{}');
 });
+
+// Windsurf gets hooks and no MCP server (clients.js:registersMcp). Doctor used to call that a gap and
+// offer a [--fix] that installClient could not carry out, so the warning returned on every run.
+test('doctor calls Windsurf fully wired on its hooks, there being no MCP server to register', t => {
+  const { home, run } = machine(t);
+  fs.mkdirSync(path.join(home, '.codeium', 'windsurf'), { recursive: true });
+  const connect = run('connect', '--clients', 'windsurf');
+  assert.equal(connect.status, 0, connect.stderr);
+
+  const checks = JSON.parse(run('doctor', '--json').stdout);
+  const windsurf = byName(checks, 'agent windsurf');
+  assert.equal(windsurf.status, 'ok');
+  assert.match(windsurf.detail, /hooks/);
+  assert.match(windsurf.detail, /no MCP server to register/);
+  assert.ok(!windsurf.fixable, 'nothing to fix: the fix could never register one');
+  assert.ok(!/MCP server is not registered/.test(JSON.stringify(checks)));
+});
