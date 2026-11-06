@@ -66,11 +66,11 @@ const row = async ($: any, status: (string | undefined)[], surface: 'terminal' |
 test('the figures ride the status row as its tail, with the engine\'s own line kept', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
-  expect(await row($, status)).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+  expect(await row($, status)).toBe('thinker: saved today $3.65 · lifetime $849')
 })
 
 test('the tail is the line and nothing else: the engine places it, and collapses what it is padded with', () => {
-  const line = 'thinker: lifetime ~$849'
+  const line = 'thinker: lifetime $849'
   expect(statusTail(line)).toBe(line)
   // the engine's own `clean`, as it runs before the tail is drawn: padding a tail to the right edge
   // of the row cannot work, so the mod does not pretend to (register.tsx:statusTail)
@@ -85,13 +85,13 @@ test('the status row is read again at the end of every turn, served or not', asy
   await $.turn.complete(end('t1'))
   expect(await row($, status)).toBeDefined()
   await $.turn.complete(end('t2', 'Another answer.'))
-  expect((await row($, status))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: saved today $3.65 · lifetime $849')
 })
 
 test('a ledger stamped on another day says lifetime alone', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger('2026-01-01'), status })
-  expect((await row($, status))?.trimStart()).toBe('thinker: lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: lifetime $849')
 })
 
 test('no ledger yet leaves the row to the engine', async ($, on) => {
@@ -122,7 +122,7 @@ test('on the desktop the figures are the status line under the prompt, and no ta
   const status: (string | undefined)[] = [], pinned: (string | undefined)[] = []
   engine(on, { savings: ledger(), status, pinned })
   expect(await row($, status, 'desktop')).toBeUndefined()   // the desktop draws no tail
-  expect(pinned.at(-1)).toBe('saved today ~$3.65 · lifetime ~$849')   // the app heads it with the plugin's name
+  expect(pinned.at(-1)).toBe('saved today $3.65 · lifetime $849')   // the app heads it with the plugin's name
 })
 
 test('the terminal pins no status line: one figure, one place', async ($, on) => {

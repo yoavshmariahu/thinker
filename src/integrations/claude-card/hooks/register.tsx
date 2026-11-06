@@ -127,7 +127,7 @@ export const cardHeader = (n: number, tokens: number, prompts = 0) =>
 // holds the two sentences together). Both figures are already formatted; `today` is null when the kept
 // ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
 export const savingsStatus = (today: string | null, lifetime: string) =>
-  `thinker: ${today ? `saved today ~${today} · ` : ''}lifetime ~${lifetime}`
+  `thinker: ${today ? `saved today ${today} · ` : ''}lifetime ${lifetime}`
 
 // The figures as the tail of the engine's own status row, which is the whole of what a mod may say
 // about how they are drawn. The engine takes the string and nothing else: it collapses every run of

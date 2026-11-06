@@ -91,16 +91,16 @@ test('a figure stamped on another day says lifetime alone, and says it the same 
   const { store } = machine(t, { now, servedAt: [now] });
   const l = computeSavings(store, { now });
   const line = savingsLine(l, { now });
-  assert.match(line, /^saved today ~\$[\d.]+ · lifetime ~\$[\d.]+$/);
+  assert.match(line, /^saved today \$[\d.]+ · lifetime \$[\d.]+$/);
   assert.equal(savingsStatus(l, { now }), `thinker: ${line}`);
   // tomorrow, the same file: today's figure belongs to a day that has passed, so it is not said
   const tomorrow = now + DAY;
-  assert.equal(savingsLine(l, { now: tomorrow }), `lifetime ~${formatDollars(l.lifetime.cost)}`);
+  assert.equal(savingsLine(l, { now: tomorrow }), `lifetime ${formatDollars(l.lifetime.cost)}`);
   assert.equal(readSavings(store, { now: writeSavings(store, l) && tomorrow }).sameDay, false);
   // and a cache that has saved nothing says nothing at all, rather than ~$0.00
   assert.equal(savingsLine({ day: dayKey(now), today: { cost: 0, tokens: 0 }, lifetime: { cost: 0, tokens: 0, unpricedTokens: 0 } }, { now }), '');
   assert.equal(savingsLine(null), '');
-  assert.match(savingsDetail(l.lifetime), /cache hits ~\$[\d.]+ \(~\d+k? tokens\) · context cleared/);
+  assert.match(savingsDetail(l.lifetime), /cache hits \$[\d.]+ \(\d+k? tokens\) · context cleared/);
 });
 
 test('the kept ledger is read back, goes stale with the clock, and one refresh runs at a time', t => {
@@ -139,8 +139,8 @@ test('`thinker savings` prints the split, the caveat and the same figures as --j
   const env = { ...process.env, THINKER_TEST: '1', THINKER_HOME: home, THINKER_PROXY_LOG: process.env.THINKER_PROXY_LOG };
   const run = args => execFileSync(process.execPath, [path.join(ROOT, 'src', 'cli.js'), 'savings', ...args, '--repo', repo], { env, encoding: 'utf8' });
   const text = run([]);
-  assert.match(text, /^thinker savings · saved today ~\$[\d.]+ · lifetime ~\$[\d.]+$/m);
-  assert.match(text, /Today .*cache hits ~\$[\d.]+ .*context cleared ~\$[\d.]+/);
+  assert.match(text, /^thinker savings · saved today \$[\d.]+ · lifetime \$[\d.]+$/m);
+  assert.match(text, /Today .*cache hits \$[\d.]+ .*context cleared \$[\d.]+/);
   assert.match(text, /Lifetime /);
   assert.match(text, /not a bill/, 'the caveat travels with the figure');
   assert.match(text, /cache hits are an estimate of reading avoided/);
@@ -176,14 +176,14 @@ test('through the Stop hook: the line carries the money in Codex, the card mod c
 
   // Codex CLI and a Claude Code without the mod: the summary line, with the figures on the end
   const line = JSON.parse(stop('codex', 'c1')).systemMessage;
-  assert.match(line, / · saved today ~\$[\d.]+ · lifetime ~\$[\d.]+$/, line);
+  assert.match(line, / · saved today \$[\d.]+ · lifetime \$[\d.]+$/, line);
 
   // Claude Code with the card mod running: the statusline has it, so the line does not say it twice
   fs.mkdirSync(path.join(home, 'state', 'claude-card'), { recursive: true });
   fs.writeFileSync(path.join(home, 'state', 'claude-card', 'c2'), '');
   fs.rmSync(path.join(home, 'state', 'notice.json'), { force: true });
   const carded = stop('claude', 'c2');
-  assert.doesNotMatch(carded, /lifetime ~\$/, carded);
+  assert.doesNotMatch(carded, /lifetime \$/, carded);
 
   // and switched-off notices leave every door quiet, the money with them
   fs.rmSync(path.join(home, 'state', 'notice.json'), { force: true });
