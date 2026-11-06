@@ -62,7 +62,18 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // the last spent 1,542,268 tokens to save 168,646, and the two late cuts were the whole of a +38% loss.
 // The floor is deliberately tight because the two errors are not symmetric: a cut refused costs nothing
 // but the saving it would have made, while a cut taken wrongly pays a full prefix rewrite up front.
-export const PAYBACK = 20;
+//
+// 25 since 2026-11-06, because 20 cut nothing. Every priced boundary this machine reached in the two days
+// after the cut landed -- 30 of them, in 4 conversations -- was refused, at paybacks of 21 to 64, and the
+// cheapest point in the whole of one 960-message conversation prices at 23: at a 400k context the results
+// are spread through the history, so the tail from the first replaced one is always larger than what the
+// cut takes out, and no earlier moment is cheaper (23, 25, 27, 32, 28 as it grows). Those boundaries sat
+// in sessions that went on to make 283, 81 and 53 more calls, so the first boundary of the longest would
+// have returned 2,729,718 tokens against its write. Three facts hold the number down to 25: the four cuts
+// of the +38% session needed 14, 32, 66 and 82 calls, so 25 re-admits none of the ones that lost; the cost
+// side is not overstated (one cut's predicted tail of 566,723 against the 548,009 the API then wrote); and
+// nothing here reads how long a session has run, which is what made REMAINING wrong.
+export const PAYBACK = 25;
 
 export const MIN_CHARS = 200;
 // What these words must carry, found 2026-11-04 by reading what the model did with the old ones
@@ -159,7 +170,7 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   if (ahead && t.cut) rec.cut = t.cut;
   if (t.clear) {
     rec.clears++; rec.chars += t.clientCut?.chars || 0;
-    events.push({ clear: true, tokens: Math.round(t.tokens || 0), recache: Math.round(t.recache || 0), cost: Math.round(t.cost || 0), saving: Math.round(t.saving || 0), ...(t.cold ? { cold: true } : {}), results: t.clientCut?.cut || 0 });
+    events.push({ clear: true, tokens: Math.round(t.tokens || 0), recache: Math.round(t.recache || 0), cost: Math.round(t.cost || 0), payback: t.payback ?? null, ...(t.cold ? { cold: true } : {}), results: t.clientCut?.cut || 0 });
   }
   // what the cut is worth on this call: the tokens it took out, read at this model's rate
   if (rec.cut.length && usage) rec.saved += (t.clientCut?.tokens || 0) * readRate(rec.model);

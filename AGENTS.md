@@ -207,10 +207,37 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   call of a turn has a tail of 3k-14k and repays in 3-7 calls, where the same cut one call later carries the
   turn's own results in its tail (44k-58k) and repays in 18-94. The sweet spot is not a tuning knob; it falls
   out of pricing the tail honestly.
-- **A cut must repay inside `PAYBACK` (20) later calls**, and nothing is assumed about how long the session runs.
+- **A cut must repay inside `PAYBACK` (25) later calls**, and nothing is assumed about how long the session runs.
   The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
   so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
   the saving it would have made, a wrong one pays a full prefix rewrite up front.
+- **The floor is the whole policy, and at 20 it cut nothing** (2026-11-06). In the two days after the cut landed
+  this machine's Claude path made no cut at all: 30 priced boundaries in 4 conversations, every one refused at a
+  payback of 21 to 64. The floor is the only reason -- the cost side is not overstated (one cut's predicted tail
+  of 566,723 against the 548,009 the API then wrote), and there is no cheaper moment to wait for: priced along the
+  whole of one 960-message conversation the paybacks run 23, 25, 27, 32, 28, never lower, because at a 400k
+  context the results are spread through the history and the tail from the first replaced one is always larger
+  than what the cut takes out. Those boundaries sat in sessions that went on to make 283, 81 and 53 further
+  calls, so the first boundary of the longest would have returned 2,729,718 tokens against its write. 25 is the
+  smallest value that makes any cut here, and it re-admits none of the cuts that lost: the four of the +38%
+  session needed 14, 32, 66 and 82 calls.
+- **What was tried instead and thrown away** (2026-11-06): crediting a cut with the write it spares as well as
+  the read (`savedPerCall(model, ttl, share)`, the share of its context a conversation is measured to write
+  back). It is arithmetically right -- counting the read alone is right only for a conversation that never
+  rewrites its context, and 84.5% of this machine's write tokens are in calls rewriting 85% of theirs -- but it
+  changed 0 of those 30 decisions, because the conversations that reach the trigger are the ones that rewrite
+  least: median share 4.60% under 140k of context, 1.96% at 140k-300k, 0.81% over 300k, where the cheapest
+  boundary needed 1.05%. It cost two constants, three record fields, evidence gathering in `cutResponse`, a
+  monotone merge and a documented divergence between the two doors, for no change in behaviour. If it comes
+  back it must be measured per conversation and never as a machine-wide constant -- and it can only lower a
+  payback, so it never refuses a cut the read alone would make.
+- **Growth inside a turn is invisible to both the trigger and the decision**, and on this machine's agents that
+  is most of the growth. `measurePrompt` reports the prompt less the turn in progress, and `decideCut` only
+  decides at a boundary, so a turn that runs 139 calls is one decision: the first boundaries of the three
+  refused conversations sat at 337,692, 278,106 and 139,609 tokens of context -- the last of them 391 tokens
+  under the trigger. Not changed here, because a mid-turn cut moves the set inside a turn, which is the
+  MANDATORY invariant above and a measured failure (4 mid-turn moves before `conversationKey`, 0 after). It is
+  the next thing to look at if the floor is not enough, and it needs the holdout and cache-write judgement.
 - **The ratchet is the conversation's, and it is held under concurrency** (2026-11-05; `proxy.js:conversationKey`,
   `cutting.js:mergeCut`, `cutStore.update`). One machine runs many agents through one proxy, and the record the
   ratchet lives in was keyed on `x-claude-code-session-id`, which Claude Code sends for everything a session does:
