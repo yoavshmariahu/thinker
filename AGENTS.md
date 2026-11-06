@@ -1251,12 +1251,13 @@ right inside `<THINKER_HOME>/tools` and the engine would otherwise have asked (`
 rule of the person's own still stands). Nothing is written into anyone's permission settings: a settings rule written at
 connect was the first answer and was taken out the same day (the owner's call: the grant belongs to the thing that put the
 pointer there, and leaves with it). Proven end to end with the hook alone, no `--allowedTools`. **Proven end to end** through the proxy with the schema
-stripped (Haiku, `claude -p`, the mod loaded): with Agent moved to disk the model called it from memory without opening the
+stripped (Haiku, `claude -p`, the mod loaded): with a tool reference for Agent the model called it from memory without opening the
 file and the call passed; with ReportFindings, whose schema it did not know, it read the file first and then made a
 correctly shaped call that the tool answered. **It is not called "switched off" anywhere** (the owner's ask, the same
-day): the action is `ACTS.disk` "Move to disk" in the weekly suggestion, `thinker context`, the installer's multi-select
+day): the action is `ACTS.ref` "Create tool reference" in the weekly suggestion, `thinker context`, the installer's multi-select
 and the Find Savings row; the page's confirmation and review paragraph say the tool stays callable; the harness's own reply
-opens "Moved to disk"; Recent activity says "Moved to disk"; and the recall line never names a tool moved to disk, since
+opens "Tool reference created" and says the definition is looked up when needed; Recent activity says "Tool reference
+created"; and the recall line never names a referenced tool, since
 the pointer is in every prompt already. `test/cli-ui-sync.test.js` holds the page, the command and the installer to it. Not done: an MCP server still goes off
 by its `mcp__<server>__*` deny, since Claude Code already defers those definitions behind ToolSearch; and the mod's
 `isDeferred: true` answer, which would put a built-in tool behind ToolSearch with its exact schema, is the engine's own

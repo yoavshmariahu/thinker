@@ -158,7 +158,7 @@ test('machineChanges: a section never applied is removed in its repository, a to
   assert.deepEqual(p2.map(p => [p.title, p.act, p.targets.map(x => x.checkout)]), [['J', 'compress', ['/c1']], ['Artifact', 'off', ['/c1', '/c2']], ['x', 'off', []]], 'the MCP server nothing switches off has no target');
   assert.equal(pickLine(p2[2]), 'Switch off the MCP server "x"');
   assert.deepEqual(await applyMachinePicks([p2[2]]), [], 'and nothing to apply');
-  assert.equal(pickLine(p2[1]), 'Move to disk the built-in tool "Artifact" in 2 repositories', 'a built-in tool is moved to disk, not switched off');
+  assert.equal(pickLine(p2[1]), 'Create tool reference for the built-in tool "Artifact" in 2 repositories', 'a built-in tool gets a tool reference, not switched off');
   assert.match(pickNote(p2[0]), /needed in 40% of prompts, a model call in the background$/);
   // applied: the section left to a job of its own in repository a (context-suggest.js:startSectionJob, as the page's
   // Apply does), recorded there as running at once, so an install does not sit through a model call per repository;

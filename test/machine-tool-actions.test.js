@@ -36,7 +36,7 @@ test('tool switches use user settings, are visible in another repository, and un
   write(path.join(home, '.claude.json'), { mcpServers: { docs: { command: 'docs', env: { TOKEN: 'kept' } } } });
   const opts = { home: th, userHome: home, global: true, any: true, usage: usage(source('tool', 'Workflow'), source('mcp', 'docs')) };
   const said = switchOffNow(a, 'Workflow tool,docs MCP server', opts);
-  assert.match(said, /^Moved to disk for every repository.*Workflow/); assert.match(said, /Switched off here and in every repository.*docs/);
+  assert.match(said, /^Tool reference created for every repository.*Workflow/); assert.match(said, /Switched off here and in every repository.*docs/);
   // the server by a user-level deny; the built-in tool by its definition on disk and the machine's registry (tool-stubs.js)
   assert.deepEqual(JSON.parse(fs.readFileSync(settings)).permissions, { deny: ['Read(.env)', 'mcp__docs__*'] });
   assert.ok(fs.existsSync(toolFile(th, 'Workflow')));

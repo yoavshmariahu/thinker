@@ -291,7 +291,7 @@ export const register: Register = (on) => {
     const r = await next(e)
     try {
       if (r?.decision !== 'ask' || (await $.env.get('THINKER_TEST')) === '1') return r
-      if (isToolFile((e.input as any)?.file_path, await toolsDir($))) return { decision: 'allow', reason: 'thinker: the definition of a tool moved to disk' }
+      if (isToolFile((e.input as any)?.file_path, await toolsDir($))) return { decision: 'allow', reason: 'thinker: the definition of a referenced tool' }
     } catch {}
     return r
   })

@@ -80,9 +80,9 @@ export const ACTS = {
   compress: { act: 'compress', text: 'Compress' },
   remove: { act: 'remove', text: 'Remove' },
   off: { act: 'off', text: 'Switch off' },
-  // a built-in tool is not switched off (2026-11-06, tool-stubs.js): its definition goes to disk and a pointer takes its
-  // place in every prompt, and the tool stays callable. The same `act`, since the switch and its undo are the same.
-  disk: { act: 'off', text: 'Move to disk' },
+  // a built-in tool is not switched off (2026-11-06, tool-stubs.js): a tool reference is created, its definition is looked
+  // up when needed, and the tool stays callable. The same `act`, since the switch and its undo are the same.
+  ref: { act: 'off', text: 'Create tool reference' },
   on: { act: 'on', text: 'Turn back on' },
 };
 const flagged = r => !r.off && (r.waste === 'high' || r.waste === 'medium') && r.wasted > 0;
@@ -118,8 +118,8 @@ function partChanges(view, { all = false } = {}) {
   for (const s of view.tools || []) if (take(s)) out.push({
     kind: 'tool', view: s.group === 'builtin' ? 'builtin' : 'custom', waste: s.waste, key: `${s.client}:${s.key}`, sourceKey: s.key, label: s.label, repo: s.repo, off: Boolean(s.off),
     title: `${s.name}${s.kind === 'mcp' ? ' MCP server' : s.kind === 'plugin' ? ' plugin' : ' tool'}`, saving: s.wasted, windowSaving: s.wastedWindow, text: String(s.text || '').slice(0, 1200),
-    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: s.group === 'builtin' ? 'move its definition to disk, read by the agent before its first call' : 'switch it off here',
-    builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: s.group === 'builtin' && !s.off && s.label ? [ACTS.disk] : switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
+    why: `${s.usedShare != null ? `needed in ${Math.round(100 * s.usedShare)}% of prompts` : `used in ${s.used} of ${s.loaded} sessions`}; ~${formatTokens(s.tokens)} tokens in every model call`, action: s.group === 'builtin' ? 'create a tool reference; the definition is looked up when needed' : 'switch it off here',
+    builtin: s.group === 'builtin', sessions: s.loaded || 0, prompts: s.prompts || 0, options: s.group === 'builtin' && !s.off && s.label ? [ACTS.ref] : switchOpts(s), ...describePart({ kind: 'tool', name: s.name, builtin: s.group === 'builtin', toolKind: s.kind, text: s.text }),
   });
   // A tool's output is not a change anyone is offered (2026-11-04, the owner's call). The clearing is thinker's
   // compression and it is on by default (cutting.js, applied by proxy.js on every request): it takes out the results
@@ -524,7 +524,7 @@ export function contextSuggestOffer(store, { now = Date.now(), env = process.env
   const page = url ? suggestionsUrl(url, repoId, { from: 'suggestion' }) : null;
   const where = page ? `at ${page} (thinker's page on this machine, just started)` : 'by running `thinker ui` (Context, All)';
   const lead = `thinker read the last ${p.days} days of agent sessions in this repository (${p.sessions} sessions) and found ${p.changes.length === 1 ? 'one change' : `${p.changes.length} changes`} to what loads into every session${windowCost ? `, together worth about ${windowCost} over those ${p.days} days` : ''}: ~${formatTokens(perPrompt)} input tokens in every prompt here, ~${formatTokens(total)} over those ${p.days} days.${windowCost && !thin ? ` The dollars are those tokens at the providers' list prices, cache reads at their own rate, as thinker's Report prices them; a subscription bills none of it by the token.` : ''}`;
-  const pageLine = `Every part of the context is a row ${where}, where these changes come already checked with the actions suggested below: each one can be reviewed in full -- a section's diff before it is written -- and nothing is applied until Apply is pressed${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: a built-in tool is not switched off but moved to disk (its definition in a file the agent reads before its first call, and the tool still callable), which is worth seeing in full, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
+  const pageLine = `Every part of the context is a row ${where}, where these changes come already checked with the actions suggested below: each one can be reviewed in full -- a section's diff before it is written -- and nothing is applied until Apply is pressed${builtin.length ? `, including ${builtin.map(c => c.title).join(', ')}: a built-in tool is not switched off: a tool reference is created and its definition is looked up when needed (the tool still callable), which is worth seeing in full, so ${builtin.length === 1 ? 'that one is' : 'those are'} decided there, not here` : ''}.`;
   // Nothing a picker may offer, or too little to interrupt for: the lines and the page link, and no question. The
   // person hears it once, in one line of their agent's own answer, and the page is there when they want it.
   if (thin) return `<thinker-context-suggestions>\n${lead}\n${lines ? `${lines}\n` : ''}${pageLine}\nMention this to the user in one line starting "${SIGNATURE}:" and go on with the task. Do not ask them about it as a question, and do not make any of these changes yourself.\n</thinker-context-suggestions>`;
@@ -596,11 +596,11 @@ export async function approveChanges(store, changes, { via = VIA.command, pr, sp
       return /^Turned back on/.test(r) ? { result: 'Turned back on from the next session on', undo: c.label ? { kind: 'on', label: c.label, builtin: Boolean(c.builtin), global: c.kind === 'tool' } : null } : { error: r };
     }
     const r = switchSources(store, { labels: [c.label], builtin: Boolean(c.builtin), global: c.kind === 'tool' });
-    if (c.builtin) return /^Moved to disk/.test(r) && !/Not switched off/.test(r) ? { result: 'Moved to disk for all repositories from the next session on; the tool stays callable', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
+    if (c.builtin) return /^Tool reference created/.test(r) && !/Not switched off/.test(r) ? { result: 'Tool reference created for all repositories from the next session on; the definition is looked up when needed', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
     return /^Switched off here/.test(r) && !/Not switched off/.test(r) ? { result: c.scope === 'machine' ? 'Switched off across all repositories from the next session on' : 'Switched off from the next session on', undo: { kind: 'off', key: c.sourceKey || c.name } } : { error: r.replace(/^Not switched off: /, '') };
   };
   for (const c of changes) {
-    if (c.scope === 'machine' && c.default?.act === 'off' && changeHistory(store).find(e => e.scope === 'machine' && e.key === c.key && !e.revertedAt)?.act === 'off') { said.push(`${c.title}: already ${c.builtin ? 'moved to disk' : 'switched off'} across all repositories`); continue; }
+    if (c.scope === 'machine' && c.default?.act === 'off' && changeHistory(store).find(e => e.scope === 'machine' && e.key === c.key && !e.revertedAt)?.act === 'off') { said.push(`${c.title}: already ${c.builtin ? 'referenced' : 'switched off'} across all repositories`); continue; }
     let m; try { m = await make(c); } catch (e) { m = { error: String(e.message || e).split('\n')[0] }; }
     said.push(`${c.title}: ${m.error || m.result}`);
     if (!m.error) record(store, [entryOf(store, c, 'approved', m.result, at, m.undo, { tokens: m.tokens || null, via: viaOf(via) })]);

@@ -719,7 +719,7 @@ export async function recallCard(cards, prompt, { floor = RECALL.floor, k = RECA
 // in a session, or nothing.
 export async function harnessRecall(store, prompt, { session, client, scoreFn } = {}) {
   if (!recallOn(store)) return '';
-  // a tool moved to disk needs no recall: the pointer in its definition is in every prompt already (tool-stubs.js)
+  // a referenced tool needs no recall: the reference in its definition is in every prompt already (tool-stubs.js)
   const st = readHarnessState(store), cards = (st.applied || []).filter(a => a.undo?.key !== 'tool-stub' && (!client || (a.client || 'claude') === client)).flatMap(a => a.cards || []);
   if (!cards.length) return '';
   const said = new Set(st.recalled?.[session] || []);
@@ -923,8 +923,8 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   const tokens = done.reduce((t, d) => t + d.tokens, 0);
   store.log({ op: 'harness-off', via, chosen: chosen.length, switched: done.length, tokens });
   const files = done.filter(d => !['desktop-connector', 'tool-stub'].includes(d.undo.key)), desk = done.filter(d => d.undo.key === 'desktop-connector'), stubs = done.filter(d => d.undo.key === 'tool-stub');
-  // a built-in tool is not switched off: its definition is on disk and a pointer stands in every prompt (tool-stubs.js)
-  const disk = stubs.length ? `Moved to disk for every repository from the next session on: ${stubs.map(d => `${d.name} (${d.undo.file})`).join(', ')}, about ${formatTokens(stubs.reduce((t, d) => t + d.tokens, 0))} tokens a prompt. Each prompt carries one line pointing at the file, the agent reads it before its first call, and the tool stays callable. \`thinker harness --undo\` puts the definition back.` : '';
+  // a built-in tool is not switched off: a tool reference is created and the definition is looked up when needed (tool-stubs.js)
+  const disk = stubs.length ? `Tool reference created for every repository from the next session on: ${stubs.map(d => `${d.name} (${d.undo.file})`).join(', ')}, about ${formatTokens(stubs.reduce((t, d) => t + d.tokens, 0))} tokens a prompt. The tool definition is looked up when needed: each prompt carries the reference, the agent reads the file before its first call, and the tool stays callable. \`thinker harness --undo\` puts the definition back.` : '';
   const line = files.length ? `Switched off here${global ? ' and in every repository' : ''} from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
   // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
   const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} chosen: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';
