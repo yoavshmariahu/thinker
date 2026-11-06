@@ -301,8 +301,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   it is streaming, launchd refuses a `bootstrap` of the label while it is still registered ("Bootstrap failed: 5:
   Input/output error"), and the `load` fallback prints "Load failed" and exits 0, which `run` took for success.
   Reproduced on a throwaway label. So the bootout waits for the label to leave (`BOOTOUT_WAIT_MS`, 25 s, past
-  launchd's own 20 s ExitTimeOut), bootstrap's own exit code is read, and `load` is believed only when the label
-  answers `launchctl print` afterwards. The proxy's SIGTERM handler drains (`server.close`), which is what makes
+  launchd's own 20 s ExitTimeOut), bootstrap's own exit code is read, and `load` is believed only when `launchctl print` then names a
+  running instance that is not the one being replaced (`agentInstance`): the label answering is not enough, since
+  the old instance answers it too while it drains. The proxy's SIGTERM handler drains (`server.close`), which is what makes
   the gap as long as the longest answer in flight; that is kept, since cutting an answer mid-stream is the worse
   failure. `test/proxy-service.test.js` runs both against a fake `launchctl` with launchd's shape.
 - **The ratchet.** A cut is a set of `tool_use` ids kept per conversation on disk (`cutStore`). The agent resends the
