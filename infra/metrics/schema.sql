@@ -59,8 +59,23 @@ CREATE INDEX IF NOT EXISTS idx_reports_ts ON reports (timestamp);
 CREATE INDEX IF NOT EXISTS idx_reports_event ON reports (event);
 CREATE INDEX IF NOT EXISTS idx_reports_platform ON reports (platform);
 
+-- The rows that are snapshots of an installation. An error report that reached the metrics path before
+-- `/errors` was deployed was stored here too (32 rows on four installs by 2026-11-05): no device, no event,
+-- every metric zero. Whenever one was an install's newest row it became that install's latest snapshot, so
+-- a live install read as device-unknown with nothing measured -- three of them did on 2026-11-05, all four
+-- send a device ID on their real reports. They keep their place in `reports` (a report is immutable here
+-- and the payloads are the only copy until the errors table is deployed) and are read through
+-- `v_misrouted_errors`. The client now routes by shape as well as by path (infra/metrics/handler.mjs).
+CREATE OR REPLACE VIEW v_snapshots AS
+SELECT * FROM reports
+WHERE NOT (raw_json ? 'errors' AND NOT raw_json ? 'event' AND NOT raw_json ? 'cacheSize');
+
+CREATE OR REPLACE VIEW v_misrouted_errors AS
+SELECT * FROM reports
+WHERE raw_json ? 'errors' AND NOT raw_json ? 'event' AND NOT raw_json ? 'cacheSize';
+
 CREATE OR REPLACE VIEW v_latest_installs AS
-SELECT DISTINCT ON (install_id) * FROM reports
+SELECT DISTINCT ON (install_id) * FROM v_snapshots
 ORDER BY install_id, timestamp DESC, file_key DESC;
 
 CREATE OR REPLACE VIEW v_active_installs AS
@@ -68,7 +83,7 @@ SELECT * FROM v_latest_installs
 WHERE requests_total > 0 OR cache_total_notes > 0 OR sessions_distilled > 0;
 
 CREATE OR REPLACE VIEW v_latest_devices AS
-SELECT DISTINCT ON (device_id) * FROM reports
+SELECT DISTINCT ON (device_id) * FROM v_snapshots
 WHERE device_id IS NOT NULL
 ORDER BY device_id, timestamp DESC, file_key DESC;
 
@@ -76,7 +91,7 @@ CREATE OR REPLACE VIEW v_hourly_volume AS
 SELECT date_trunc('hour', timestamp AT TIME ZONE 'UTC') AS hour_utc,
        count(*) AS reports_count, count(DISTINCT install_id) AS unique_installs,
        sum(requests_total) AS total_requests, sum(tokens_served) AS total_tokens_served
-FROM reports GROUP BY 1;
+FROM v_snapshots GROUP BY 1;
 
 -- One row per device, its latest report: what thinker is worth per merged pull request out there.
 -- Each report is a 30-day window, so these are rates, never a running total.

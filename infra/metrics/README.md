@@ -42,7 +42,26 @@ SELECT platform, count(*) AS devices FROM v_latest_devices GROUP BY platform;
 ```
 
 `v_latest_devices` provides one latest snapshot per known device; it excludes
-unknown devices. Reports are rolling snapshots, so adding every installation's
+unknown devices.
+
+Both it and `v_latest_installs` read `v_snapshots`, the rows that are snapshots
+of an installation. An error report that reached the metrics path before the
+`/errors` route was deployed was stored in `reports` too: 32 rows on four
+installs by 2026-11-05, each with no device, no event and every metric zero.
+A snapshot view takes an install's newest row, so each such row that was newest
+replaced a live install's real snapshot -- three installs were reading as
+device-unknown with nothing measured, and all four send a device ID on their
+ordinary reports. They stay in `reports` (a report is immutable here, and the
+payloads are the only copy of them until `error_reports` is deployed) and are
+read through `v_misrouted_errors`. The client routes by shape as well as by path
+now, so a route that moves again cannot repeat it.
+
+Why a device is unknown is on the diagnostics dashboard, from the client's own
+`deviceSource` (`os`, `saved`, `user`, `set`, or absent) beside the machine block
+0.2.23 and later send (`container`, `installIdStable`). Every device-less
+snapshot in production on 2026-11-05 was Linux: ephemeral containers with an
+empty `/etc/machine-id` and no git email, clients older than device IDs, and the
+misrouted error reports above. `THINKER_DEVICE_ID` lets such a fleet name itself. Reports are rolling snapshots, so adding every installation's
 values on a shared device can still double-count usage. `npm test` sets
 `THINKER_TEST=1`; this and Node's inherited `NODE_TEST_CONTEXT` block network
 telemetry except to loopback test servers. Background jobs obey the same guard.
