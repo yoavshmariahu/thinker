@@ -1226,6 +1226,29 @@ skill's present text is not counted (`skillFileTime`). Duplicates: `skills.js:de
 - Per-file skill recommendations, their evidence collector/seed/preview commands, and their model-backed outcome judge are removed.
 - `thinker prs`, note learning/refresh, instruction-file analysis/judging, questions, and other product behavior retain their existing implementations.
 
+**A switched-off tool keeps its definition on disk, and the prompt carries a pointer (2026-11-06, the owner's ask; `src/tool-stubs.js`).**
+Until then switching a built-in tool off put its bare name in `permissions.deny`: the definition left every prompt, and the
+tool itself with it, so a request that needed it had nothing to call. Now the switch writes the definition
+(`<THINKER_HOME>/tools/<Name>.json`: description and input schema) and the name into the machine's registry
+(`<THINKER_HOME>/state/tool-stubs.json`); no settings file is touched, and the tool stays callable. What the model sees of
+it is one sentence (`pointer`) naming the file, so it reads the definition before its first call, in that session alone,
+instead of carrying it in every prompt of every session (Artifact is 21.6k chars of description). Two doors, one sentence,
+as the clearing has: the proxy replaces the tool's entry in each request it forwards, description and schema both
+(`stubTools` from `transformRequest`, held-out sessions included, since the switch is the person's decision and not the
+clearing's experiment; the row carries `stubbed: {tools, chars}`), and the clearing mod answers `tool.describe` with the
+same sentence inside every Claude Code session, desktop included, where a mod can rewrite a description but not a schema.
+`test/claude-clear.test.js` holds the mod's copy to `pointer`. Whichever door first sees the definition as the engine built
+it completes the file (`writeDefinition`; a pointer is never written as a description), because the switch itself has only
+what the transcript recorded: on 2.1.319 the `prompt_snapshot` carries the description in full and an empty schema. The
+schema the proxy sends in its place refuses nothing; Claude Code checks a call against the tool's own schema and says what
+was wrong, so a call made without reading the file costs one round trip. `harnessSavings` counts a stubbed tool as gone
+from every session since, less `STUB_TOKENS`, because the transcript still records the definition the engine built. The
+registry entry is `scope: machine` whatever door switched it, as the proxy is one per machine; `thinker harness --undo`
+removes the name and the file, and the next request carries the definition again. Not done: an MCP server still goes off
+by its `mcp__<server>__*` deny, since Claude Code already defers those definitions behind ToolSearch; and the mod's
+`isDeferred: true` answer, which would put a built-in tool behind ToolSearch with its exact schema, is the engine's own
+way of the same thing and was not taken, the ask being a file the model reads.
+
 **Built-in tools in the harness advice (off until an experiment, 2026-10-20).** With `harness: { builtinTools: true }`
 in `.thinker/config.json` (or `THINKER_HARNESS_BUILTIN_TOOLS=on`; `=off` wins over the config), the harness counts
 Claude Code's own tools as sources beside plugins, skills and MCP servers: their definitions from the transcript's

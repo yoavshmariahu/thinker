@@ -1,4 +1,5 @@
 import { discoverRepos } from './machine.js';
+import { addStub, removeStub, stubbedNames, toolFile, STUB_TOKENS } from './tool-stubs.js';
 import { readScopedState, writeScopedState } from './scoped-state.js';
 // What an agent's harness loads into every session, against what the sessions use: MCP servers,
 // plugins and skills that cost context each time and are never called. "thinker loads what this
@@ -195,7 +196,7 @@ export function claudeSessionHarness(file, records) {
 const desktopFor = home => desktopRecords(desktopSessionsDir(home));
 
 // Where each source is switched on: Claude Code's settings and MCP files for this repository.
-export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = MANAGED[process.platform] } = {}) {
+export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = MANAGED[process.platform], thinkerHome: tHome = thinkerHome() } = {}) {
   const json = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
   const dirs = d => { try { return fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() || e.isSymbolicLink()).map(e => e.name); } catch { return []; } };
   const cp = claudePaths(home), key = projectKey(repo);
@@ -225,7 +226,9 @@ export function claudeHarnessConfig(repo, { home = os.homedir(), managedFile = M
   for (const n of Object.keys(managed.skillOverrides || {})) skills.set(n, { scope: 'managed' });
   // a bare tool name in permissions.deny takes the tool out of the session ("Bash(rm:*)" only narrows it)
   const denied = new Set([managed, ...settings.map(([, j]) => j)].flatMap(j => j.permissions?.deny || []).filter(d => /^\w+$/.test(d)));
-  return { servers, plugins, skills, overrides, denied, key, paths: cp };
+  // a tool whose definition is on disk and replaced by a pointer in every request (tool-stubs.js): off, as a denied one is
+  const stubbed = stubbedNames(tHome);
+  return { servers, plugins, skills, overrides, denied, stubbed, key, paths: cp };
 }
 
 // The middle value, or 0 for none: a session's model calls vary tenfold, and the mean follows the long ones.
@@ -248,14 +251,14 @@ export function checkouts(repo) {
 export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome(), builtinTools = builtinToolsOn(repo) } = {}) {
   if (!sessions) cursor ??= cursorSnapshots(tHome, { sinceMs: days * 86400_000 });
   sessions ??= [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
-  const claude = claudeUsage(repo, { days, home, sessions: sessions.filter(s => s.client === 'claude') });
+  const claude = claudeUsage(repo, { days, home, thinkerHome: tHome, sessions: sessions.filter(s => s.client === 'claude') });
   const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
   return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, prompts: (claude.prompts || 0) + (codex.prompts || 0) + cur.sessions, promptsByClient: { claude: claude.prompts || 0, codex: codex.prompts || 0, cursor: cur.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
-function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
+function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHome: tHome = thinkerHome() } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
-  const config = claudeHarnessConfig(repo, { home });
+  const config = claudeHarnessConfig(repo, { home, thinkerHome: tHome });
   const rows = new Map();
   const row = key => {
     if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
@@ -282,6 +285,8 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
       tokens.set(group(k), (tokens.get(group(k)) || 0) + t);
       if (k.startsWith('skill:') && group(k) !== k) row(group(k)).skills.add(k.slice(6));
       if (h.texts.has(k)) row(group(k)).texts[k] = h.texts.get(k).slice(0, CARD_CHARS);
+      // the newest transcript that carried a built-in tool's definition: what the switch writes to disk (apply)
+      if (k.startsWith('tool:')) { const r = row(k); if (!r.fileAt || s.mtime > r.fileAt) { r.file = s.file; r.fileAt = s.mtime; } }
     }
     // `loaded`: each source's tokens a call, so the Report can cost one source a session before and since it was switched off (report.js:actionEffect)
     timeline.push({ t: s.mtime, session: s.session, client: 'claude', calls: h.calls, parts: partsOf(tokens), loaded: Object.fromEntries(tokens) });
@@ -297,9 +302,9 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions } = {}) {
 
 // What a source is and where it is switched on, so the advice names the setting to change.
 // `off`: switched off already, by a setting written since those sessions ran.
-function describe(key, { servers, plugins, skills, overrides, connectors, denied }, members) {
+function describe(key, { servers, plugins, skills, overrides, connectors, denied, stubbed }, members) {
   const name = key.slice(key.indexOf(':') + 1);
-  if (key.startsWith('tool:')) return { name, kind: 'tool', scope: 'builtin', off: Boolean(denied?.has(name)) };
+  if (key.startsWith('tool:')) return { name, kind: 'tool', scope: 'builtin', off: Boolean(denied?.has(name) || stubbed?.has(name)) };
   if (key.startsWith('desktop:')) return { name: DESKTOP_SECTIONS[key]?.name || name, kind: 'desktop', scope: 'app', where: DESKTOP_SECTIONS[key]?.where, off: false };
   const hidden = n => ['off', 'user-invocable-only'].includes(overrides[n]);
   if (key.startsWith('plugin:')) {
@@ -364,7 +369,7 @@ function action(s) {
     case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
-    case 'tool': return `"permissions": {"deny": ["${s.name}"]} in .claude/settings.local.json (the tool and its definition leave new Claude Code sessions here; not verified for the desktop app's own tools, which \`claude -p\` does not carry: \`thinker harness\` reports whether a switch took effect)`;
+    case 'tool': return `its definition written to ${toolFile(thinkerHome(), s.name)} and replaced in every request by one sentence naming that file (by the proxy, and by thinker's clearing mod inside a desktop session); the tool stays callable, and the model reads the file before its first call; for every repository on this machine, from the next session`;
   }
 }
 
@@ -412,7 +417,7 @@ export const readHarnessState = store => readScopedState(stateFile(store), 'appl
 const saveState = (store, st) => writeScopedState(stateFile(store), 'applied', st);
 
 // What the question needs of a source, and nothing that could hold a secret.
-const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts });
+const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts, file: s.file });
 
 // The sources a switch may name: the advice, or every source with a local switch (`any`: the Find Savings
 // rows, which offer a switch whatever the use). Each carries the model calls of a typical session of its
@@ -465,6 +470,24 @@ function excludeFromGit(repo, file) {
   } catch {}
 }
 const addTo = (list, v) => { const a = Array.isArray(list) ? list : []; return a.includes(v) ? a : [...a, v]; };
+
+// A built-in tool's definition as the transcript recorded it (the `prompt_snapshot` attachment, which carries the
+// description in full and, on 2.1.319, an empty schema): what the switch writes to disk, until the proxy or the
+// mod sees the definition as the engine built it and completes the file (tool-stubs.js:writeDefinition).
+export function readToolDefinition(file, name) {
+  if (!file || !name) return null;
+  let text = ''; try { text = fs.readFileSync(file, 'utf8'); } catch { return null; }
+  let found = null;
+  for (const line of text.split('\n')) {
+    if (!line.includes('"prompt_snapshot"') || !line.includes(`"${name}"`)) continue;
+    let j; try { j = JSON.parse(line); } catch { continue; }
+    const t = (Array.isArray(j?.attachment?.tools) ? j.attachment.tools : []).find(d => d?.name === name);
+    if (t) found = t; // the newest snapshot of the session wins
+  }
+  if (!found) return null;
+  const schema = [found.input_schema, found.schema].find(x => x && typeof x === 'object' && Object.keys(x).length) || {};
+  return { name, description: String(found.description || ''), input_schema: schema };
+}
 
 // Switch one source off; returns what to undo it with, the values it replaced included. A plugin or skill
 // goes off in this checkout (its settings.local.json), an MCP server in the repository, every worktree
@@ -523,17 +546,25 @@ function apply(repo, s, { userHome, home, now, backups, overrides = {}, global =
     }, ctx);
     return done({ file: local, key: 'skillOverrides', ids: names, ...(plugin ? { plugin: { id: plugin, prev } } : {}) });
   }
+  // A built-in tool keeps its definition on disk and is sent as a pointer to it (tool-stubs.js): the proxy
+  // replaces its entry in every request, the clearing mod its description inside a desktop session, and the
+  // tool stays callable. The registry is the machine's, whatever `global` says, as the proxy is. Until
+  // 2026-11-06 the name went into permissions.deny, which took the tool itself out with its definition.
+  if (s.how === 'tool') {
+    const def = readToolDefinition(s.file, s.name) || { name: s.name, description: s.texts?.[s.key] || '', input_schema: {} };
+    const { file } = addStub(home || thinkerHome(), s.name, def, { at: now });
+    return { key: 'tool-stub', id: s.name, file };
+  }
   // A user-level deny removes this server's tools across every project, including project-defined
   // servers, without removing credentials or touching its route. Bare-name denies remove definitions.
   // https://code.claude.com/docs/en/permissions#tool-name-wildcards
-  if (global && ['mcp', 'mcpjson', 'tool'].includes(s.how)) {
-    const id = s.how === 'tool' ? s.name : `mcp__${s.name}__*`;
+  if (global && ['mcp', 'mcpjson'].includes(s.how)) {
+    const id = `mcp__${s.name}__*`;
     let added = false;
     editJson(local, j => { const p = j.permissions ||= {}; added = !(p.deny || []).includes(id); p.deny = addTo(p.deny, id); }, ctx);
     return { file: local, key: 'permissions.deny', id, added };
   }
   if (s.how === 'mcpjson') { editJson(local, j => { j.disabledMcpjsonServers = addTo(j.disabledMcpjsonServers, s.name); }, ctx); return done({ file: local, key: 'disabledMcpjsonServers', id: s.name }); }
-  if (s.how === 'tool') { editJson(local, j => { (j.permissions ||= {}).deny = addTo(j.permissions.deny, s.name); }, ctx); return done({ file: local, key: 'permissions.deny', id: s.name }); }
   if (s.how === 'mcp') {
     const key = projectKey(repo);
     editJson(claudeJson, j => { const p = ((j.projects ||= {})[key] ||= {}); p.disabledMcpServers = addTo(p.disabledMcpServers, s.name); },
@@ -588,6 +619,7 @@ export function undoHarness(store, { home, userHome = os.homedir(), now = Date.n
     try {
       if (u.key === 'codex') { for (const o of u.overrides || []) applyCodex(o.repo, o.source, ctx, o); applyCodex(store.repo, u.source, ctx, u); back.unshift(a.name); continue; }
       if (u.key === 'desktop-connector') { app.unshift(a.name); continue; }
+      if (u.key === 'tool-stub') { removeStub(home || thinkerHome(), u.id); back.unshift(a.name); continue; }
       if (u.key === 'cursor') { editCursorMcp({ name: u.name, thinkerHome: home || thinkerHome(), home: userHome, write: writeTheirs }, true); back.unshift(a.name); continue; }
       editJson(u.file, j => {
         if (u.key === 'enabledPlugins') { if (j.enabledPlugins?.[u.id] === false) { if (u.prev === undefined) delete j.enabledPlugins[u.id]; else j.enabledPlugins[u.id] = u.prev; } }
@@ -643,14 +675,15 @@ export const recallOn = store => {
 };
 
 // One card per thing the person can bring back by name: a skill each (a plugin's too), a server whole.
-export function cardsFor(s, { repo } = {}) {
+export function cardsFor(s, { repo, thinkerHome: tHome = thinkerHome() } = {}) {
   const card = (key, name, text, back, use, file) => ({ id: key, name, text: String(text || name).slice(0, CARD_CHARS), back, ...(use ? { use } : {}), ...(file ? { file } : {}) });
   // a Codex skill switched off is out of the listing, not out of the checkout: the agent can still read it now
   const skillFile = s.client === 'codex' && s.kind === 'skill' && s.dir && /^[^\n\r`<>]{1,400}$/.test(s.dir) ? path.join(s.dir, 'SKILL.md') : null;
   if (s.client === 'codex') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` brings it back from the next Codex session`, skillFile && `read ${skillFile} and follow it`, skillFile)];
   if (s.client === 'cursor') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `\`thinker harness --undo ${s.key}\` puts it back in ~/.cursor/mcp.json, for the next Cursor chat`)];
   if (s.kind === 'mcp') return [card(s.key, s.name, s.texts?.[`mcp:${serverKey(s.name)}`] || Object.values(s.texts || {})[0], `\`/mcp enable ${s.name}\` brings it back in this session`)];
-  if (s.kind === 'tool') return [card(s.key, s.name, s.texts?.[s.key], `\`thinker harness --undo ${s.name}\` brings it back from the next session`)];
+  // a stubbed tool is still callable: the pointer in its place says to read the file first (tool-stubs.js)
+  if (s.kind === 'tool') return [card(s.key, s.name, s.texts?.[s.key], `\`thinker harness --undo ${s.name}\` puts its full definition back in every prompt from the next session`, `read ${toolFile(tHome, s.name)} and call ${s.name} as that file says`)];
   if (s.how === 'desktop-connector') return [card(s.key, s.name, Object.values(s.texts || {}).join(' '), `the + menu → Connectors turns it back on (in the desktop app you can call ${CONNECTOR_TOOL} with connector ${JSON.stringify(s.id)} and enabled true, from the next turn)`)];
   const back = s.how === 'plugin' || (s.how === 'skills' && s.kind === 'plugin') ? n => `the ${s.name} plugin is off here: \`thinker harness --undo\` (or "enabledPlugins": {"${s.how === 'plugin' ? s.id : `${s.name}@inline`}": true} in .claude/settings.local.json) brings it back from the next session` : n => `\`/${n}\` still runs it`;
   // a skill of the repository's own keeps its file, whose headings and code terms the lexical matcher reads
@@ -779,10 +812,14 @@ export function harnessSavings(store, { sessions, cursor, home = os.homedir(), t
       return { key: a.key, client: 'cursor', name: a.name, kind: a.kind, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent: after.length - still, stillLoaded: still, tokens: (after.length - still) * a.tokens, inputTokens: 0 };
     }
     const has = keysOf(a), after = read.filter(h => h.client === (a.client || 'claude') && Date.parse(h.start) > Date.parse(a.at) && (a.undo?.key !== 'desktop-connector' || h.desktop) && (h.client !== 'codex' || (a.evidenceKeys || [a.key.slice(6)]).every(k => h.coverage.has(k.split(':')[0]))));
-    const still = after.filter(h => [...h.loaded.keys()].some(has));
+    // a stubbed tool is in every transcript still: the engine records the definition it built, and the pointer
+    // replaces it on the way out (the proxy's rows carry the exact characters, `stubbed`), so each session since
+    // saved the definition less the pointer
+    const stub = a.undo?.key === 'tool-stub', per = stub ? Math.max(0, a.tokens - STUB_TOKENS) : a.tokens;
+    const still = stub ? [] : after.filter(h => [...h.loaded.keys()].some(has));
     const absent = after.length - still.length, calls = after.filter(h => !still.includes(h)).reduce((n, h) => n + h.calls, 0);
-    total += absent * a.tokens; input += calls * a.tokens;
-    return { key: a.key, client: a.client || 'claude', name: a.name, kind: a.kind, scope: a.undo?.key === 'desktop-connector' ? 'desktop' : undefined, at: a.at, tokensPerSession: a.tokens, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * a.tokens, inputTokens: calls * a.tokens };
+    total += absent * per; input += calls * per;
+    return { key: a.key, client: a.client || 'claude', name: a.name, kind: a.kind, scope: a.undo?.key === 'desktop-connector' ? 'desktop' : undefined, at: a.at, tokensPerSession: per, sessions: after.length, absent, stillLoaded: still.length, tokens: absent * per, inputTokens: calls * per };
   });
   return { sources: out, sessions: read.filter(h => Date.parse(h.start) > since).length + cursor.filter(s => Date.parse(s.at) > since).length, tokens: total, inputTokens: input };
 }
@@ -876,7 +913,7 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   const backups = new Map(), done = [], failed = [], overrides = claudeHarnessConfig(store.repo, { home: userHome }).overrides;
   for (const s of chosen) {
     if ((st.applied || []).some(a => a.scope === 'machine' && a.key === s.key && (a.client || 'claude') === (s.client || 'claude'))) continue;
-    try { done.push({ ...(global ? { scope: 'machine' } : {}), client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides, global }), cards: cardsFor(s, { repo: store.repo }).map(c => global ? { ...c, back: `\`thinker harness --undo ${s.key}\` brings it back across repositories from the next session` } : c) }); }
+    try { done.push({ ...(global || s.how === 'tool' ? { scope: 'machine' } : {}), client: s.client || 'claude', evidenceKeys: s.evidenceKeys, key: s.key, members: s.members, name: s.name, kind: s.kind, tokens: s.tokens, at, undo: apply(store.repo, s, { userHome, home, now, backups, overrides, global }), cards: cardsFor(s, { repo: store.repo, thinkerHome: home || thinkerHome() }).map(c => global ? { ...c, back: `\`thinker harness --undo ${s.key}\` brings it back across repositories from the next session` } : c) }); }
     catch (e) { failed.push(`${s.name} (${e.message})`); }
   }
   (st.applied ||= []).push(...done);

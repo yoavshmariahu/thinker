@@ -10,6 +10,7 @@ import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { COLD_MS, WRITE_1H, PAYBACK, readRate } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
+import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -98,6 +99,19 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   for (const m of ['claude-opus-5-5', 'claude-opus-5', 'opus', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'gpt-6-astra']) assert.equal(modRead(m), readRate(m), `the mod's read rate for ${m} is clearing.js's`);
   assert.ok(/export const writeRatio = \(model: string\) => 2 \/ readRate\(model\)/.test(s), 'the write is WRITE_1H over the read');
   assert.equal(WRITE_1H, 2);
+});
+
+// The second thing the two doors hold together: a switched-off tool's definition is sent as one sentence naming
+// its file (tool-stubs.js:pointer, the proxy's door); the mod answers tool.describe with the same sentence.
+test('the mod sends a switched-off tool as the sentence the proxy sends, naming the same file', () => {
+  const s = src();
+  assert.equal(modConst(s, 'POINTER_OPENS'), POINTER_OPENS, 'the clause the two doors recognise a pointer by');
+  const m = s.match(/export const toolPointer = \(name: string, file: string\) => `(.+)`\n/);
+  assert.ok(m, 'toolPointer is one template literal');
+  const said = new Function('name', 'file', 'POINTER_OPENS', 'return `' + m[1] + '`')('Artifact', '/h/tools/Artifact.json', POINTER_OPENS);
+  assert.equal(said, pointer('Artifact', '/h/tools/Artifact.json'));
+  assert.ok(s.includes("on('tool.describe'"), 'the mod answers tool.describe');
+  assert.ok(s.includes('state/tool-stubs.json'), 'from the registry the switch writes');
 });
 
 test('an automatic clear that would be refused is never started, so the engine prints no skip line', () => {

@@ -23,12 +23,14 @@
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
+import os from 'node:os';
 import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
+import { stubTools, stubReader } from './tool-stubs.js';
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
@@ -379,14 +381,22 @@ export function conversationKey(session, j) {
 export function transformRequest(method, url, headers, body, cfg) {
   if (cfg.protocol === 'responses') return transformResponses(method, url, headers, body, cfg);
   if (method !== 'POST' || !/^\/v1\/messages(\?|$)/.test(url) || !body.length) return { body, reason: 'other' };
-  if (heldOut(sessionOf(headers), cfg.holdout)) return { body, reason: 'holdout' };
   let j;
   try { j = JSON.parse(body); } catch { return { body, reason: 'unparsed' }; }
   if (!j || !Array.isArray(j.messages)) return { body, reason: 'other' };
+  // A switched-off tool's definition is replaced by the sentence that names its file (tool-stubs.js), on
+  // every request, held-out ones included: the switch is the person's own decision, not the clearing's
+  // experiment, and the same definition sent in full and as a stub in turn would rewrite the cache.
+  const st = cfg.stubs ? stubTools(j.tools, cfg.stubs.read(), { seen: cfg.stubs.seen }) : null;
+  const stubbed = st?.replaced.length ? { tools: st.replaced.map(r => r.name), chars: st.chars } : null;
+  if (stubbed) j.tools = st.tools;
+  // what goes upstream when the cut leaves the messages alone: the agent's bytes, unless a stub changed them
+  const asCame = reason => stubbed ? { body: Buffer.from(JSON.stringify(j)), stubbed, ...reason } : { body, ...reason };
+  if (heldOut(sessionOf(headers), cfg.holdout)) return asCame({ reason: 'holdout' });
   const cm = j.context_management && typeof j.context_management === 'object' ? j.context_management : {};
   const edits = Array.isArray(cm.edits) ? cm.edits : [];
   // an agent clearing for itself is left alone: two mechanisms over one conversation is nobody's policy
-  if (edits.some(e => e && e.type === AGENT_CLEAR_TYPE)) return { body, reason: 'agent-clears' };
+  if (edits.some(e => e && e.type === AGENT_CLEAR_TYPE)) return asCame({ reason: 'agent-clears' });
   // Thinker cuts the context itself (cutting.js): one decision at a turn boundary, then the same set
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
   // the record is the conversation's, not the session's (`conversationKey`), and the store is asked for it
@@ -396,7 +406,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
   const applied = applyCut(j.messages, d.cut);
-  if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}) };
+  if (!applied.cut) return asCame({ reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
@@ -405,7 +415,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const actions = cutActions(j.messages, d.cut);
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
-    cut: d.cut, changed: !!d.clear, addBeta: false, actions,
+    cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
@@ -488,7 +498,7 @@ const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clien
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
   // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
   // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
   // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
@@ -530,6 +540,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   });
   // the cut's record, one per session, on disk: a restarted proxy re-applies the same set (cutting.js)
   const cutting = cutStore(clearingDir);
+  // the switched-off tools whose definitions live on disk (tool-stubs.js): the registry is the machine's, read when it changes
+  if (!cfg.stubs) cfg = { ...cfg, stubs: stubsHome ? stubReader(stubsHome) : null };
   const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   const server = http.createServer((req, res) => {
@@ -661,7 +673,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk

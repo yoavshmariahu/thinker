@@ -259,7 +259,41 @@ function schedule($: any, from: string, tokens = 0) {
   })
 }
 
+// --- a switched-off tool, sent as a pointer to its definition on disk (src/tool-stubs.js) -------------------
+// The proxy replaces a registered tool's entry in every request it forwards; a desktop session never reaches
+// it, so this hook answers `tool.describe` for the same tools with the same sentence (a mod can rewrite a
+// description, not a schema). The registry is the machine's, read once a session; the file the switch wrote
+// holds what a transcript recorded, so the definition as the engine built it is written over it here, once.
+// The sentence is tool-stubs.js:pointer, held to it by test/claude-clear.test.js.
+export const POINTER_OPENS = 'thinker keeps this tool\'s full definition out of the prompt.'
+export const toolPointer = (name: string, file: string) => `${name}: ${POINTER_OPENS} Before the first call to it in this session, read ${file} (what it does and the schema of its input), then call it as that file says.`
+let stubs: Record<string, { file: string }> | null = null
+const stubsOf = async ($: any) => {
+  if (stubs) return stubs
+  try {
+    const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+    const j = JSON.parse(String(await $.fs.read(`${home}/state/tool-stubs.json`)))
+    stubs = j && typeof j.tools === 'object' && j.tools ? j.tools : {}
+  } catch { stubs = {} }
+  return stubs
+}
+
 export const register: Register = (on) => {
+  on('tool.describe', async ($, e, next) => {
+    const r = await next(e)
+    try {
+      if ((await $.env.get('THINKER_TEST')) === '1') return r
+      const s = (await stubsOf($))[e.tool]
+      if (!s?.file || !r?.description || r.description.includes(POINTER_OPENS)) return r
+      try {
+        let cur: any = null
+        try { cur = JSON.parse(String(await $.fs.read(s.file))) } catch {}
+        if (cur?.description !== r.description) await $.fs.write(s.file, JSON.stringify({ name: e.tool, description: r.description, input_schema: cur?.input_schema ?? {} }, null, 2) + '\n')
+      } catch {}
+      return { ...r, description: toolPointer(e.tool, s.file) }
+    } catch { return r }
+  })
+
   on('session.start', async ($, e, next) => {
     const r = await next(e)
     try {

@@ -11,6 +11,7 @@ import http from 'node:http';
 import { createUiServer } from '../src/ui/server.js';
 import { switchOffNow, setHarnessSettings, harnessSettings, projectKey, harnessRecall, sessionHarness, harnessUsage, harnessAdvice, harnessSavings, harnessView, skillCosts, serverKey, undoHarness, readHarnessState } from '../src/harness.js';
 import { setDiskCache } from '../src/disk-cache.js';
+import { toolFile, stubbedNames, STUB_TOKENS } from '../src/tool-stubs.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const long = n => 'x'.repeat(n);
@@ -158,10 +159,11 @@ test('a plugin no setting names goes off as <name>@inline as well as skill by sk
   assert.deepEqual(after.enabledPlugins, { 'other@m': true }); assert.deepEqual(after.skillOverrides, {});
 });
 
-test('a built-in tool never called goes off by permissions.deny, only under harness.builtinTools; core tools and ToolSearch never', t => {
+test('a built-in tool never called keeps its definition on disk and is sent as a pointer, only under harness.builtinTools; core tools and ToolSearch never', t => {
   const dir = tmp('thinker-harness-'); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const store = checkout(t), h = home(t), th = tmp('thinker-harness-th-'); t.after(() => fs.rmSync(th, { recursive: true, force: true }));
-  const def = name => ({ name, description: `${name} ${long(2000)}`, input_schema: { type: 'object' } });
+  // as Claude Code records them (2.1.319): the description in full, the schema empty
+  const def = name => ({ name, description: `${name} ${long(2000)}`, schema: {} });
   const snapshot = { type: 'attachment', cwd: '/r', attachment: { type: 'prompt_snapshot', tools: ['Bash', 'ToolSearch', 'AskUserQuestion', 'Workflow', 'Agent', 'mcp__rea__x'].map(def) } };
   const sessions = [...Array(10).keys()].map(i => { const f = path.join(dir, `b${i}.jsonl`); fs.writeFileSync(f, [snapshot, call('Bash'), ...(i < 3 ? [call('Agent')] : [])].map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `b${i}`, mtime: Date.now() }; });
   const h0 = sessionHarness(sessions[0].file);
@@ -170,17 +172,32 @@ test('a built-in tool never called goes off by permissions.deny, only under harn
   assert.deepEqual(harnessAdvice(harnessUsage(store.repo, { home: h, sessions, builtinTools: false })).filter(a => a.kind === 'tool'), [], 'off by default');
   const usage = harnessUsage(store.repo, { home: h, sessions, builtinTools: true });
   assert.deepEqual(harnessAdvice(usage).filter(a => a.kind === 'tool').map(a => a.name), ['Workflow'], 'Agent is called in 3 of 10');
+  assert.match(harnessAdvice(usage)[0].action, /tools\/Workflow\.json .*stays callable/);
   // a built-in tool is switched off from the Find Savings page alone (a row with what the tool is, and a
-  // confirmation), which is switchOffNow with any
+  // confirmation), which is switchOffNow with any. No settings file is touched: the definition goes to disk,
+  // the name into the machine's registry, and the proxy and the mod send a pointer in its place (tool-stubs.js)
   const local = path.join(store.repo, '.claude', 'settings.local.json');
   fs.mkdirSync(path.dirname(local), { recursive: true });
   fs.writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] } }));
   assert.match(switchOffNow(store, 'Workflow tool', { home: th, userHome: h, now: T0, usage, any: true }), /Switched off/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)', 'Workflow']);
-  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true }).sources.find(s => s.key === 'tool:Workflow').off, true, 'a denied tool reads as off');
-  assert.match(readHarnessState(store).applied[0].cards[0].back, /thinker harness --undo Workflow/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)'], 'no deny: the tool stays callable');
+  const file = toolFile(th, 'Workflow');
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')), { name: 'Workflow', description: `Workflow ${long(2000)}`, input_schema: {} }, 'the definition as the newest transcript recorded it');
+  assert.deepEqual([...stubbedNames(th)], ['Workflow']);
+  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true, thinkerHome: th }).sources.find(s => s.key === 'tool:Workflow').off, true, 'a stubbed tool reads as off');
+  const applied = readHarnessState(store).applied[0];
+  assert.equal(applied.scope, 'machine', 'the registry is the machine\'s');
+  assert.deepEqual(applied.undo, { key: 'tool-stub', id: 'Workflow', file });
+  assert.match(applied.cards[0].back, /thinker harness --undo Workflow/);
+  assert.match(applied.cards[0].use, /read .*tools\/Workflow\.json and call Workflow/);
+  // every session since saved the definition less the pointer, though the transcript still records the definition
+  const after = [...Array(4).keys()].map(i => { const f = path.join(dir, `c${i}.jsonl`); fs.writeFileSync(f, [{ ...snapshot, timestamp: new Date(T0 + 3600_000).toISOString() }, call('Bash')].map(j => JSON.stringify(j)).join('\n') + '\n'); return { client: 'claude', file: f, session: `c${i}`, mtime: T0 + 3600_000 }; });
+  const saved = harnessSavings(store, { sessions: after, home: h, thinkerHome: th });
+  assert.equal(saved.sources[0].absent, 4); assert.equal(saved.sources[0].stillLoaded, 0);
+  assert.equal(saved.sources[0].tokensPerSession, applied.tokens - STUB_TOKENS);
   assert.match(undoHarness(store, { home: th, userHome: h, now: T0 }), /Turned back on, from the next session on: Workflow/);
-  assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)']);
+  assert.ok(!fs.existsSync(file)); assert.deepEqual([...stubbedNames(th)], []);
+  assert.equal(harnessUsage(store.repo, { home: h, sessions, builtinTools: true, thinkerHome: th }).sources.find(s => s.key === 'tool:Workflow').off, false);
 });
 
 test('switching off takes the chosen sources out of this repository alone, with a backup, and --undo turns them back on', t => {
