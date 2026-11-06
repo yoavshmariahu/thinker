@@ -35,6 +35,21 @@ test('lifetime savings use shared report values and captions in CLI, page and fo
   assert.match(read('usage.js'), /estFiles:/, 'future servings carry historical per-file sizes');
 });
 
+test('the footers, the ledger and the Report page price one thing the same way', async () => {
+  // The footers say money, which the rest of the product deliberately does not (src/prices.js). The one
+  // thing that keeps that honest is that every surface reads report-savings.js:weeklySavings, so a figure
+  // under a prompt can never contradict the table in `thinker report`. savings-ledger.test.js checks the
+  // arithmetic; this holds the wiring.
+  assert.match(read('savings-ledger.js'), /weeklySavings/);
+  assert.match(read('savings-ledger.js'), /SAVINGS_SERIES/, 'both of the Report\'s series, never one');
+  for (const file of ['commands/hooks.js', 'notice-card.js']) assert.match(read(file), /savings-ledger\.js/);
+  // and every door says it in the ledger's own words
+  for (const [file, fn] of [['commands/savings.js', 'savingsLine'], ['commands/hooks.js', 'savingsLine'], ['notice-card.js', 'savingsLine']]) assert.match(read(file), new RegExp(fn));
+  // the command the hooks start in the background is the one a person can run by hand
+  assert.match(read('savings-ledger.js'), /'savings', '--refresh', '--quiet'/);
+  assert.match(read('cli.js'), /savings \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');
+});
+
 test('Codex proxy is wired by the default service and shares the existing thresholds', async () => {
   const { proxyConfig, PROXY_DEFAULTS } = await import('../src/proxy.js');
   const cfg = proxyConfig({ protocol: 'responses', upstream: 'https://api.openai.com/v1' }, {});

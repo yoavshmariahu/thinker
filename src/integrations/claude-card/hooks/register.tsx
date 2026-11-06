@@ -5,12 +5,22 @@
 // reopened included. `thinker connect` names this folder in CLAUDE_CODE_PLUGIN_DIRS
 // (clients.js:claudeCardDir); a session this mod runs in is marked under thinker's home, and the
 // Stop hook leaves its own collapsed cache-hit line out there (claude-card.js:claudeCardActive).
+//
+// It also pins what thinker has saved -- today and over the whole log -- as this plugin's status line
+// under the prompt, which is the one surface that can keep a figure on screen instead of saying it
+// once and scrolling away. That is why Claude Code's footer is here and not in the Stop hook's line:
+// the figures are a running total, so they belong somewhere permanent, and the hook leaves them out
+// where this mod runs (commands/hooks.js). The numbers are read off the ledger thinker's hooks keep
+// refreshed (src/savings-ledger.js) -- this mod only ever reads one small file.
 import type { Register } from 'claude-code'
 
 export type Note = { title: string; id: string }
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
 export type Card = { tail: string; titles: string[]; tokens: number; at: number; prompts?: number; compression?: Saving }
+// the kept ledger, as src/savings-ledger.js writes it
+export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
+export type Ledger = { at: number; day: string; today: Cell; lifetime: Cell }
 
 // Each served note is headed `### [kind] Title  (id: …)` inside a `<thinker-cache>` block; the titles
 // listed under "Other cached titles" were not served.
@@ -50,6 +60,18 @@ export function formatTokens(n: number): string {
   if (n >= 10000) return `${Math.round(n / 1000)}k`
   if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`
   return `${Math.round(n)}`
+}
+
+// A dollar figure for people, as prices.js:formatDollars writes it; the mod has its own copy because
+// it runs inside Claude Code, and test/claude-card.test.js holds the two texts together.
+export function formatDollars(d: number): string {
+  if (d == null || !Number.isFinite(d)) return '–'
+  const a = Math.abs(d), s = d < 0 ? '−' : ''
+  if (a >= 10000) return `${s}$${(a / 1000).toFixed(1).replace(/\.0$/, '')}k`
+  if (a >= 100) return `${s}$${Math.round(a)}`
+  if (a >= 10) return `${s}$${a.toFixed(1)}`
+  if (a >= 0.01 || a === 0) return `${s}$${a.toFixed(2)}`
+  return `${s}$${a.toFixed(3)}`
 }
 
 // The checkout whose cache holds the notes: a linked worktree's `.git` is a file naming the main
@@ -93,6 +115,48 @@ async function markSession($: any): Promise<void> {
 
 export const cardHeader = (n: number, tokens: number, prompts = 0) =>
   `${n} ${n === 1 ? 'note' : 'notes'} ${prompts > 1 ? `over the last ${prompts} prompts` : 'this turn'}${tokens ? ` · Estimated tokens saved: ~${formatTokens(tokens)}` : ''}`
+
+// The status line's words, as src/savings-ledger.js:savingsStatus writes them (test/claude-card.test.js
+// holds the two sentences together). Both figures are already formatted; `today` is null when the kept
+// ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
+export const savingsStatus = (today: string | null, lifetime: string) =>
+  `🧠 ${today ? `saved today ~${today} · ` : ''}lifetime ~${lifetime}`
+
+// The person's own day, in their own timezone, as the ledger stamps it (savings-ledger.js:dayKey).
+export const dayKey = (now: number): string => {
+  const d = new Date(now)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const thinkerHome = async ($: any): Promise<string> => (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+
+// Switched-off notices switch the status line off too (commands/hooks.js:noticeOn holds the same rule):
+// a person who asked thinker to be quiet did not ask for a figure pinned under their prompt for ever.
+async function noticeOn($: any): Promise<boolean> {
+  if ((await $.env.get('THINKER_NOTICE')) === 'off') return false
+  try {
+    const cfg = JSON.parse(String(await $.fs.read(`${await cacheRoot($)}/.thinker/config.json`)))
+    return cfg.notice !== false && cfg.notice !== 'off'
+  } catch { return true }   // no config, or none readable: the notices are on by default
+}
+
+// What the hooks keep in the ledger, or null when there is none yet (a fresh install, before the
+// first refresh has run) or when it holds nothing worth saying.
+async function savings($: any, { now = Date.now() } = {}): Promise<string> {
+  if (!(await noticeOn($))) return ''
+  let l: Ledger
+  try { l = JSON.parse(String(await $.fs.read(`${await thinkerHome($)}/state/savings.json`))) } catch { return '' }
+  if (!l?.lifetime || (!l.lifetime.tokens && !l.lifetime.unpricedTokens)) return ''
+  const today = l.day === dayKey(now) && Number.isFinite(l.today?.cost) ? formatDollars(l.today.cost) : null
+  return savingsStatus(today, formatDollars(l.lifetime.cost))
+}
+
+// Pinned under the prompt until the next call replaces it. Read at the start of the session and again
+// at the end of every turn: the hooks refresh the ledger in the background, so the line follows the
+// day's work without this mod ever doing the counting.
+async function pinSavings($: any): Promise<void> {
+  try { const line = await savings($); if (line) $.ui.status(line) } catch {}
+}
 
 // The context proxy's clearing, drawn beside the notes (src/compression.js holds the same rule; the figures
 // are the API's own `cleared_input_tokens`, which the proxy writes per session as it sees them). The wait:
@@ -161,7 +225,7 @@ export const register: Register = on => {
   let sinceClear = -1
   cards = null
 
-  on('session.start', async ($, e, next) => { await markSession($); return next(e) })
+  on('session.start', async ($, e, next) => { await markSession($); await pinSavings($); return next(e) })
 
   // a hook's JSON additionalContext (the late notes after a tool) is in the folded result
   on('classic.PostToolUse', async ($, e, next) => {
@@ -198,6 +262,9 @@ export const register: Register = on => {
           $.ui.invalidate('ui.render')
         }
       }
+      // every turn, card or no card: the Stop hook has just started the ledger's refresh, and the
+      // line is what the person reads between summaries. One file read, no counting here.
+      await pinSavings($)
     }
     return next(e)
   })

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { beginTurn, trackTurn, peekTurn, createNote } from '../src/ops.js';
 import { noticeCard, noticeCardOn } from '../src/notice-card.js';
+import { dayKey } from '../src/savings-ledger.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const env = { ...process.env, THINKER_TEST: '1', THINKER_NOTICE_CARD: '1', THINKER_LOG: 'off', THINKER_NO_BG_VERIFY: '1' };
@@ -108,3 +109,27 @@ test('normal Codex prompt supplies the reference; tools update it and stop never
   assert.doesNotMatch(hook('tool', { tool_name: 'Read', tool_input: { file_path: 'code.js' } }), /visualize/);
 });
 
+
+test('the Codex desktop card carries the money, its split and its caveat', t => {
+  enable(t); const store = fixture(t);
+  const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-card-home-')));
+  const before = process.env.THINKER_HOME;
+  process.env.THINKER_HOME = home;
+  t.after(() => { fs.rmSync(home, { recursive: true, force: true }); if (before === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = before; });
+  const day = dayKey(Date.now());
+  const ledger = { at: Date.now(), day, today: { cost: 3.65, tokens: 5_636_787, cache: { cost: 3.65, tokens: 5_636_787 }, cleared: { cost: 0, tokens: 0 } },
+    lifetime: { cost: 849.2, tokens: 1_339_960_865, cache: { cost: 21.7, tokens: 37_961_726 }, cleared: { cost: 827.5, tokens: 1_301_999_139 } } };
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'state', 'savings.json'), JSON.stringify(ledger));
+  const file = ref(noticeCard(store, { client: 'codex', session: 's1', turn: 1, notes: [two] }));
+  const html = fs.readFileSync(file, 'utf8');
+  assert.match(html, /saved today ~\$3\.65 · lifetime ~\$849/);
+  assert.match(html, /Today: cache hits ~\$3\.65/);
+  assert.match(html, /Lifetime: cache hits ~\$21\.7 .*context cleared ~\$828/);
+  assert.match(html, /not a bill/);
+  assert.match(html, /thinker savings/, 'the card points at the command that prints it in full');
+  // no ledger: the cards are drawn exactly as they were before
+  fs.rmSync(path.join(home, 'state', 'savings.json'));
+  const plain = fs.readFileSync(ref(noticeCard(store, { client: 'codex', session: 's2', turn: 1, notes: [two] })), 'utf8');
+  assert.doesNotMatch(plain, /lifetime/);
+});

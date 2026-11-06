@@ -88,18 +88,25 @@ export function formatSeconds(s) {
 // every prompt was noise, and so was one at the end of every turn: a summary comes due every
 // `prompts` prompts and at most once a day (notice-cadence.js), and `prompts` here is how many
 // have passed since the last one, so the line says what span it covers.
-export function turnNotice(repo, notes, { input, prompts = 0 } = {}) {
+//
+// `savings` is the money line (savings-ledger.js:savingsLine), handed in already worded because the
+// ledger reads this file. It rides the summary rather than coming due on its own: the figures are a
+// running total, not something that happened in this turn, and a line of their own under every answer
+// is the noise the cadence exists to prevent. Where the Claude Code card mod draws, the statusline
+// carries them instead and keeps them on screen (integrations/claude-card/hooks/register.tsx).
+export function turnNotice(repo, notes, { input, prompts = 0, savings = '' } = {}) {
   const span = prompts > 1 ? `over the last ${prompts} prompts` : 'this turn';
-  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} ${span} · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}`;
+  const money = savings ? ` · ${savings}` : '';
+  if (input) return `🧠 thinker: ${notes?.length ? `${notes.length} ${notes.length === 1 ? 'note' : 'notes'} ${span} · ` : ''}estimated input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? '' : ' (one-read fallback; no lifetime data)'}${money}`;
   const hits = (notes || []).length;
   if (!hits) return '';
   const { calls, tokens } = cacheHitSavings(repo, notes);
   const noun = `${hits} ${hits === 1 ? 'note' : 'notes'} ${span}`;
   // Notes that rest only on configuration point at no code to read: say how many there were
   // and stop, rather than print `~0 tokens of code` or a figure the note's length invented.
-  if (!tokens) return `🧠 thinker: ${noun}`;
+  if (!tokens) return `🧠 thinker: ${noun}${money}`;
   const files = calls ? `${calls} ${calls === 1 ? 'file' : 'files'}, ` : '';
-  return `🧠 thinker: ${noun} (pointing at ${files}~${formatTokens(tokens)} tokens of code)`;
+  return `🧠 thinker: ${noun} (pointing at ${files}~${formatTokens(tokens)} tokens of code)${money}`;
 }
 
 // The context proxy's saving, said the way a cache hit is said (compression.js). Nothing until the clearing
@@ -111,7 +118,10 @@ export function compressionNotice(state) {
   return `\u{1F5DC} thinker: ${compressionHeader(s, formatTokens)}`;
 }
 
-export function turnFooterMarkdown(repo, notes, { input, prompts = 0 } = {}) {
+// Cursor's card, which the agent is asked to write at the bottom of its own reply because Cursor's
+// Stop hook has no message field (clients.js:stopOutput). `savings` is the money line, which becomes a
+// row of its own: the head is already long, and the figures are about the machine rather than the turn.
+export function turnFooterMarkdown(repo, notes, { input, prompts = 0, savings = '' } = {}) {
   const unique = [...new Map((notes || []).filter(Boolean).map(n => [n.id || n.title, n])).values()];
   if (!unique.length) return '';
   const { tokens } = cacheHitSavings(repo, unique);
@@ -120,7 +130,8 @@ export function turnFooterMarkdown(repo, notes, { input, prompts = 0 } = {}) {
   const detail = input ? `*est. input saved this session: ~${formatTokens(input.tokens)} tokens${input.covered ? ', including re-reads' : ', one-read fallback'}*` : tokens ? `*est. savings: ~${formatTokens(tokens)} tokens*` : '';
   const titles = unique.slice(0, 2).map(n => String(n.title || n.id).replace(/[`|]/g, '')).join(', ') + (unique.length > 2 ? ` (+${unique.length - 2} more)` : '');
   const head = `🧠 **thinker** · ${noun}${detail ? ` · ${detail}` : ''}`;
-  return titles ? `| ${head} |\n| :--- |\n| ${titles} |` : `| ${head} |\n| :--- |`;
+  const rows = [titles, savings ? `*${savings}*` : ''].filter(Boolean).map(r => `| ${r} |`).join('\n');
+  return rows ? `| ${head} |\n| :--- |\n${rows}` : `| ${head} |\n| :--- |`;
 }
 
 

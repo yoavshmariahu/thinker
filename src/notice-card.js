@@ -7,6 +7,7 @@ import { desktopApp, subagentHarness } from './app-host.js';
 import { cacheHitSavings, formatTokens } from './usage.js';
 import { CARD_TOOLS, compressionDir, compressionSaving, compressionTools, markCompressionTurn } from './compression.js';
 import { noticeDue, noticeShown } from './notice-cadence.js';
+import { readSavings, savingsDetail, savingsLine } from './savings-ledger.js';
 
 export function noticeCardOn(store, client, { env = process.env, app = () => desktopApp('codex') } = {}) {
   const cfg = store.config();
@@ -56,8 +57,24 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     </details>
   </div>
 `;
+    // The money under the cards: saved today and over the whole log, read off the kept ledger
+    // (savings-ledger.js). Codex desktop is the one client with no statusline thinker can pin, so the
+    // figures ride the card here as they ride the summary line elsewhere. The split is behind the
+    // summary, never the total alone, and the caveat with it.
+    const l = (() => { try { return readSavings(store); } catch { return null; } })();
+    const money = savingsLine(l);
+    const savings = !money ? '' : `  <div class="card">
+    <div class="viz-row"><span aria-hidden="true">💰</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Saved</span></div>
+    <p class="tabular-nums">${escape(money)}</p>
+    <details><summary class="cursor-interaction">What this counts</summary>
+      <p class="text-small">Today: ${escape(savingsDetail(l.today))}.</p>
+      <p class="text-small">Lifetime: ${escape(savingsDetail(l.lifetime))}, over every repository on this machine.</p>
+      <p class="text-small">An API-list-price equivalent at the providers' published rates, not a bill: the same two series as <code>thinker report</code>. <code>thinker savings</code> prints them in full.</p>
+    </details>
+  </div>
+`;
     const html = `<section id="thinker-${key}" aria-label="Thinker">
-${hit}${compressed}</section>
+${hit}${compressed}${savings}</section>
 `;
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const temp = `${file}.${randomUUID()}.tmp`;
