@@ -10,6 +10,11 @@ const HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, X-Thinker-Version',
 };
 
+// What only an error report has: a list of errors, and none of the blocks a metrics snapshot is made of.
+export const looksLikeErrorReport = data =>
+  Array.isArray(data?.errors) && data.errors.length > 0 &&
+  data.event === undefined && data.cacheSize === undefined && data.effectiveness === undefined;
+
 export function createHandler(write, writeMessage, writeErrors) {
   return async function handler(event, context = {}) {
     context.callbackWaitsForEmptyEventLoop = false;
@@ -44,6 +49,23 @@ export function createHandler(write, writeMessage, writeErrors) {
       } catch (err) {
         if (err instanceof InvalidReport) return reply(422, { error: err.message });
         console.error('Failed to record error report:', err.code || err.name);
+        return reply(500, { error: 'Failed to record error report' });
+      }
+    }
+    // An error report that reached the wrong path is still an error report. Until the `/errors` route was
+    // deployed, `$default` sent it here and it was stored as an installation snapshot: 32 such rows on four
+    // installs by 2026-11-05, each one device-less, event-less and all-zero, and each one that became an
+    // install's newest row replaced that install's real snapshot in `v_latest_installs`. Routed by shape as
+    // well as by path, so a route that moves again cannot do this.
+    if (looksLikeErrorReport(data)) {
+      try {
+        const report = normalizeErrorReport(data);
+        const id = event.requestContext?.requestId || context.awsRequestId || randomUUID();
+        await writeErrors(`errors/${id}`, report, new Date().toISOString());
+        return reply(202, { status: 'accepted', count: report.errors.length });
+      } catch (err) {
+        if (err instanceof InvalidReport) return reply(422, { error: err.message });
+        console.error('Failed to record misrouted error report:', err.code || err.name);
         return reply(500, { error: 'Failed to record error report' });
       }
     }

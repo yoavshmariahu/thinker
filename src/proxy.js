@@ -350,6 +350,30 @@ export function heldOut(session, share) {
 const AGENT_CLEAR_TYPE = 'clear_tool_uses_20250919';
 const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map(s => s.trim()).includes(EDIT_BETA);
 const sessionOf = headers => headers['x-claude-code-session-id'] || null;
+// A session is not a conversation, and the cut's record belongs to the conversation.
+//
+// Claude Code sends one `x-claude-code-session-id` for everything a session does: the person's own
+// thread, each subagent's thread, and the small side calls it makes beside them (a title, a summary).
+// Each of those is a conversation with a turn count of its own, so keyed on the session alone they
+// shared one record and one reservation. Measured on this machine's proxy log, the 12 days to
+// 2026-11-05: 13 of 968 sessions had two conversations interleaved within a turn, and the clobber is
+// not subtle -- a side call's first and only turn writes `turn: 1`, and the next request of the
+// person's thread, still inside turn 7, reads the boundary as new and may cut mid-turn at exactly the
+// moment a cut is most expensive. Simulated the same day: the set moved on a mid-turn request.
+//
+// The conversation is named by its own first user message, which every later request of it resends
+// unchanged -- its text alone, because Claude Code moves `cache_control` markers between calls and a
+// hash over the blocks would change with them. Two conversations opened with the same words (two
+// subagents given one prompt) still share a record; that is the residue, and it is the narrow case.
+export function conversationKey(session, j) {
+  if (!session) return null;                                 // no session, no reliable ratchet
+  const first = (Array.isArray(j?.messages) ? j.messages : []).find(m => m?.role === 'user');
+  const c = first?.content;
+  const text = typeof c === 'string' ? c
+    : Array.isArray(c) ? c.filter(b => b?.type === 'text').map(b => b?.text || '').join('\n') : '';
+  if (!text) return session;
+  return `${session}#${crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
+}
 
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
 export function transformRequest(method, url, headers, body, cfg) {
@@ -365,7 +389,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (edits.some(e => e && e.type === AGENT_CLEAR_TYPE)) return { body, reason: 'agent-clears' };
   // Thinker cuts the context itself (cutting.js): one decision at a turn boundary, then the same set
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
-  const rec = cfg.cutRecord || freshCut('');
+  // the record is the conversation's, not the session's (`conversationKey`), and the store is asked for it
+  // here because this is the first point the body has been parsed
+  const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
@@ -522,8 +548,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = cutRejected;
-      let cutRec = requestCfg.protocol !== 'responses' && sessionOf(req.headers) ? cutting.read(sessionOf(req.headers)) : null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, cutRecord: cutRec, readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      // The record is read inside the transform, which is where the conversation can be told from the
+      // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
+      let cutRec = null;
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
       // Reserve the boundary's decision before forwarding, including a decision not to cut.
       // Retries and concurrent requests in this turn must reuse the same set, even when a
       // later tool result would make a previously refused candidate profitable.
@@ -628,8 +656,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
             if (tap && cutRec && Array.isArray(t.cut) && ures.statusCode >= 200 && ures.statusCode < 300) {
-              for (const ev of cutResponse(cutRec, requestCfg, t, usage)) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
-              (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
+              // through the store's read-modify-write, so the counters land on the record as it is now: another
+              // request of this conversation may have reserved the next boundary while this answer streamed
+              const store = t.protocol === 'responses' ? responseCutting : cutting;
+              for (const ev of store.update(cutRec.session, rec => cutResponse(rec, requestCfg, t, usage))) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
             }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP

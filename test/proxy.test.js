@@ -492,6 +492,106 @@ test('THINKER_PROXY_DUMP writes every request as sent, with the edit and the usa
 
 
 
+// Many agents at once, through one proxy. The ratchet is per conversation and it may not move inside a
+// turn (AGENTS.md, MANDATORY); what follows is that rule under the two interleavings this machine's log
+// shows -- a session's side call beside the person's own thread, and an answer that lands after the next
+// boundary has already been reserved. Both reproduced before the fix: the first moved the set on a
+// mid-turn request, the second put it back to nothing and lost a call from the count.
+
+// one conversation of a session: its own first message, which is what names it, then results old enough
+// to cut and a fresh prompt -- turn 2, a boundary
+const conversation = (name, { tail = [], n = 10 } = {}) => {
+  const ms = [{ role: 'user', content: [{ type: 'text', text: `${name}: do the thing` }] }];
+  for (let i = 0; i < n; i++) ms.push(
+    { role: 'assistant', content: [{ type: 'tool_use', id: `${name}-${i}`, name: 'Read', input: { file_path: `/x/${i}` } }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: `${name}-${i}`, content: 'x'.repeat(40000) }] });
+  ms.push({ role: 'user', content: [{ type: 'text', text: 'next' }] }, ...tail);
+  return Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true }));
+};
+// The tool calls of the turn in progress: small ones, which is what makes this the dangerous shape. They
+// are cheap to leave in the tail and they push the older results out of the newest `keepMin`, so a
+// boundary priced here pays easily -- and a boundary priced here is the bug. Three echoes and a grep is
+// an ordinary turn.
+const live = (name, n) => Array.from({ length: n }, (_, i) => [
+  { role: 'assistant', content: [{ type: 'tool_use', id: `${name}-live${i}`, name: 'Bash', input: { command: `echo ${i}` } }] },
+  { role: 'user', content: [{ type: 'tool_result', tool_use_id: `${name}-live${i}`, content: 'y'.repeat(1200) }] }]).flat();
+// which results went up as a placeholder: the cut set, as the API saw it
+const placeheld = sent => {
+  const j = JSON.parse(sent.body.toString('utf8'));
+  const out = [];
+  for (const m of j.messages) for (const b of Array.isArray(m.content) ? m.content : []) {
+    const text = Array.isArray(b?.content) ? b.content[0]?.text : null;
+    if (b?.type === 'tool_result' && typeof text === 'string' && text.startsWith('[tool result removed by thinker')) out.push(b.tool_use_id);
+  }
+  return out;
+};
+const clearingDir = p => path.join(path.dirname(p.logFile), 'clearing');
+const records = p => { try { return fs.readdirSync(clearingDir(p)).filter(f => f.endsWith('.json')); } catch { return []; } };
+const record = (p, f = records(p)[0]) => { try { return JSON.parse(fs.readFileSync(path.join(clearingDir(p), f), 'utf8')); } catch { return null; } };
+
+test('a side call of the session leaves the cut set of the person\'s own conversation where it was', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    // the boundary: the cut is decided, reserved, and sent
+    await send(p.port, { data: conversation('mine') });
+    const set = placeheld(up.seen.at(-1));
+    assert.ok(set.length >= 6, `the boundary cut something (${set.length})`);
+
+    // The same `x-claude-code-session-id`, a conversation of its own: a title, a summary, a subagent's
+    // thread. One turn, nothing to cut -- and keyed on the session alone its `turn: 1` landed in the
+    // record the person's thread reserves its boundary with.
+    await send(p.port, { data: Buffer.from(JSON.stringify({ model: 'claude-haiku-5-5', messages: [{ role: 'user', content: [{ type: 'text', text: 'write a title for this session' }] }], stream: true })) });
+
+    // the person's conversation again, mid-turn, with a fresh result a boundary would cut
+    await send(p.port, { data: conversation('mine', { tail: live('mine', 3) }) });
+    assert.deepEqual(placeheld(up.seen.at(-1)), set, 'the same set, byte for byte, inside the turn');
+    assert.ok(!placeheld(up.seen.at(-1)).some(id => id.includes('live')), 'and the turn\'s own results are untouched');
+
+    const cuts = rows(p.logFile).filter(r => r.op === 'proxy-cut' && r.clear);
+    assert.equal(cuts.length, 1, 'one cut in all: the side call did not open a second one mid-turn');
+    assert.equal(records(p).length, 2, 'a record each, because a session is not a conversation');
+  } finally { p.server.close(); up.server.close(); }
+});
+
+// the first answer is held until the test lets it go, so a second request of the same conversation
+// passes a boundary while the first is still streaming
+function heldUpstream() {
+  const seen = [], held = [];
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      seen.push({ url: req.url, body: Buffer.concat(chunks) });
+      const answer = () => { res.writeHead(200, { 'content-type': 'text/event-stream' }); for (const s of SSE) res.write(s); res.end(); };
+      if (seen.length === 1) held.push(answer); else answer();
+    });
+  });
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, seen, held, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+test('an answer that lands after the next boundary leaves the reservation and the count alone', async () => {
+  const up = await heldUpstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    const first = send(p.port, { data: conversation('mine') });          // turn 2, answer held open
+    await until(() => up.seen.length === 1);
+    // the agent goes on: the turn closes and the next one opens, which is a boundary of its own
+    await send(p.port, { data: conversation('mine', { tail: [...live('mine', 3), { role: 'user', content: [{ type: 'text', text: 'and now this' }] }] }) });
+    const reserved = record(p);
+    assert.equal(reserved.turn, 3, 'the second request reserved the new boundary');
+
+    up.held.pop()();                                                     // the first answer lands at last
+    await first;
+    await until(() => record(p)?.calls === 2);
+    const end = record(p);
+    assert.equal(end.turn, 3, 'the late answer did not put the boundary back');
+    assert.deepEqual(end.cut, reserved.cut, 'nor the set, which is what holds the prompt cache in a turn');
+    assert.equal(end.calls, 2, 'and neither call was lost from the count');
+    assert.ok(end.saved >= reserved.saved, 'what the cut saved is not rolled back either');
+  } finally { p.server.close(); up.server.close(); }
+});
+
 // What the cut saved has to reach the person, and between 2026-11-04 and 2026-11-05 none of it did: the
 // API-side clearing reported `cleared` on each response and every door read that, the cut asks the API for
 // nothing, and the field the cut filled instead was read by nobody. The session record stopped being

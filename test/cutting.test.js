@@ -3,7 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder } from '../src/cutting.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -152,4 +155,59 @@ test('a turn boundary re-edits nothing older: the write leak that cost ~50k a tu
     before.forEach((m, i) => assert.equal(JSON.stringify(after[i]), JSON.stringify(m),
       `${what}: message ${i} must be byte-identical, or everything below it is written again`));
   }
+});
+
+// Two requests of one conversation in the proxy at once. The record is the reservation that keeps the
+// set from moving inside a turn, so a write may never undo one: the simulation of 2026-11-05 had an
+// overlapping request's late answer put the set back to 0 ids mid-turn (`mergeCut`, `cutStore.update`).
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-cut-'));
+
+test('a record never goes backwards: the turn, the set, and every counter', () => {
+  const at = Date.now();
+  const reserved = { ...freshCut('c1'), turn: 7, cut: ['a', 'b'], calls: 9, clears: 2, saved: 500, chars: 40, at };
+  const behind = { ...freshCut('c1'), turn: 6, cut: ['a'], calls: 4, clears: 1, saved: 10, chars: 10, at: at - 1000 };
+  const m = mergeCut(reserved, behind);
+  assert.equal(m.turn, 7, 'the boundary a later request reserved stands');
+  assert.deepEqual(m.cut, ['a', 'b'], 'and so does the set it reserved');
+  assert.deepEqual([m.calls, m.clears, m.saved, m.chars], [9, 2, 500, 40], 'no counter is rolled back');
+  assert.equal(m.at, at);
+  // at the same boundary both requests decided the same set; a union cannot shrink it either way
+  assert.deepEqual(mergeCut({ ...reserved, turn: 7 }, { ...behind, turn: 7, cut: ['c'] }).cut, ['a', 'b', 'c']);
+  // the turn moving on is the one case where the newer set replaces the older
+  assert.deepEqual(mergeCut(reserved, { ...behind, turn: 8, cut: ['a', 'b', 'c'] }).cut, ['a', 'b', 'c']);
+  assert.deepEqual(mergeCut(null, behind).cut, ['a'], 'a first write has nothing to merge with');
+  assert.equal(mergeCut({ ...reserved, session: 'other' }, behind).turn, 6, 'another conversation is not merged in');
+});
+
+test('the store merges a stale writer and counts an increment on the freshest record', () => {
+  const dir = tmp();
+  const store = cutStore(dir);
+  // request A reads, reserves the boundary, and its answer is still streaming
+  const a = store.read('c1');
+  a.turn = 5; a.cut = ['x'];
+  store.write(a);
+  // request B reads what A reserved, reserves the next boundary, and is answered first
+  const b = store.read('c1');
+  assert.deepEqual([b.turn, b.cut], [5, ['x']], 'B starts from the reservation, not from nothing');
+  b.turn = 6; b.cut = ['x', 'y'];
+  store.write(b);
+  store.update('c1', rec => cutResponse(rec, {}, { turn: 6, cut: ['x', 'y'], model: 'claude-opus-5-5' }, { read: 1 }));
+  // A's answer lands now, with the record A read minutes ago
+  store.update('c1', rec => cutResponse(rec, {}, { turn: 5, cut: ['x'] }, { read: 1 }));
+  const rec = store.read('c1');
+  assert.equal(rec.turn, 6, 'the late answer did not put the turn back');
+  assert.deepEqual(rec.cut, ['x', 'y'], 'nor the set, which is what keeps the cache within a turn');
+  assert.equal(rec.calls, 2, 'and both calls were counted');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'c1.json'), 'utf8')).turn, 6, 'the disk says the same');
+});
+
+test('a record is renamed into place, so a reader never sees half of one', () => {
+  const dir = tmp();
+  const store = cutStore(dir);
+  store.write({ ...freshCut('c1'), turn: 2, cut: ['x'] });
+  assert.deepEqual(fs.readdirSync(dir), ['c1.json'], 'nothing is left behind but the record itself');
+  // the other proxy of a handover reads the file while this one writes it
+  const read = () => JSON.parse(fs.readFileSync(path.join(dir, 'c1.json'), 'utf8'));
+  for (let i = 3; i < 60; i++) { store.write({ ...freshCut('c1'), turn: i, cut: ['x', `y${i}`] }); assert.ok(read().turn >= 2); }
+  assert.equal(cutStore(dir).read('c1').turn, 59, 'and a fresh process reads the latest');
 });

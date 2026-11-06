@@ -126,8 +126,12 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const events = [];
   rec.calls++; rec.at = now;
   if (t.model) rec.model = t.model;
-  if (t.turn != null) rec.turn = t.turn;
-  if (t.cut) rec.cut = t.cut;
+  // Monotonic, because this runs when the answer lands and by then another request of the same
+  // conversation may have reserved the next boundary already: a record read before that reservation
+  // would otherwise roll it back here, and the set would move inside a turn (`mergeCut`).
+  const ahead = t.turn == null || t.turn >= (rec.turn || 0);
+  if (ahead && t.turn != null) rec.turn = t.turn;
+  if (ahead && t.cut) rec.cut = t.cut;
   if (t.clear) {
     rec.clears++; rec.chars += t.clientCut?.chars || 0;
     events.push({ clear: true, tokens: Math.round(t.tokens || 0), recache: Math.round(t.recache || 0), cost: Math.round(t.cost || 0), saving: Math.round(t.saving || 0), ...(t.cold ? { cold: true } : {}), results: t.clientCut?.cut || 0 });
@@ -138,32 +142,78 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
 }
 
 export const KEEP_FILES = 400, KEEP_DAYS = 2;
+
+// Two requests of one conversation can be in the proxy at once: a retry the agent sent after a reset, a
+// subagent's call, or simply the answer to request N arriving after request N+1 has already reserved its
+// boundary. Each request holds the clone of the record it read, so the last writer used to win outright,
+// and a clone read before a reservation rolled that reservation back when its own answer landed -- the
+// ratchet moving inside a turn, which is the one thing it exists to prevent (AGENTS.md, MANDATORY).
+// Simulated on this repository 2026-11-05 with two interleaved requests of one session: the cut set went
+// from 7 ids back to 0 mid-turn, and `saved`, `calls` and `clears` lost the overlapping request's share.
+// So a write merges with what is stored instead of replacing it, and the merge only ever goes forward:
+// the turn rises, the set is the one the furthest-on turn reserved (their union where the turn is equal,
+// since both reserved the same boundary), and no counter goes down.
+const upto = (a, b) => Math.max(a || 0, b || 0);
+export function mergeCut(prev, rec) {
+  if (!prev || prev.session !== rec.session) return { ...rec };
+  const ahead = (rec.turn || 0) >= (prev.turn || 0);
+  return { ...prev, ...rec,
+    cut: ahead ? [...new Set([...(prev.cut || []), ...(rec.cut || [])])] : [...(prev.cut || [])],
+    turn: upto(prev.turn, rec.turn), at: upto(prev.at, rec.at),
+    calls: upto(prev.calls, rec.calls), clears: upto(prev.clears, rec.clears),
+    saved: upto(prev.saved, rec.saved), written: upto(prev.written, rec.written),
+    chars: upto(prev.chars, rec.chars), model: rec.model || prev.model || null };
+}
+
 export function cutStore(dir) {
   const file = session => path.join(dir, `${String(session).replace(/[^\w.-]/g, '_')}.json`);
   let writes = 0;
   const memory = new Map();
-  return {
+  // the freshest record there is: this process's own memory first, then the disk a restart left behind
+  const stored = session => {
+    if (memory.has(session)) return structuredClone(memory.get(session));
+    if (!dir) return null;
+    try { const r = JSON.parse(fs.readFileSync(file(session), 'utf8')); if (r && Array.isArray(r.cut)) return { ...freshCut(session), ...r }; } catch { /* no record yet */ }
+    return null;
+  };
+  const store = {
     read(session) {
       if (!session) return freshCut(session);
-      if (memory.has(session)) return structuredClone(memory.get(session));
-      if (!dir) return freshCut(session);
-      try { const r = JSON.parse(fs.readFileSync(file(session), 'utf8')); if (r && Array.isArray(r.cut)) return { ...freshCut(session), ...r }; } catch { /* no record yet */ }
-      return freshCut(session);
+      return stored(session) || freshCut(session);
     },
     write(rec) {
-      if (!rec?.session) return;
+      if (!rec?.session) return rec;
+      const merged = mergeCut(stored(rec.session), rec);
       // Also hold the reservation in memory: a missing/unwritable log must not let
       // the cut set drift within this process. Disk provides restart continuity.
-      memory.delete(rec.session); memory.set(rec.session, structuredClone(rec));
+      memory.delete(merged.session); memory.set(merged.session, structuredClone(merged));
       if (memory.size > KEEP_FILES) memory.delete(memory.keys().next().value);
-      if (!dir) return;
-      try {
-        fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(file(rec.session), JSON.stringify(rec));
-        if (++writes % 50 === 0) prune(dir);
-      } catch { /* a record is never worth a failed request */ }
+      if (dir) {
+        try {
+          fs.mkdirSync(dir, { recursive: true });
+          // Written beside the record and renamed over it, so a concurrent reader -- another proxy
+          // mid-handover, `thinker proxy report` -- reads one whole record or the one before it,
+          // never half of one. Rename is atomic within a directory on every filesystem we run on.
+          const f = file(merged.session), tmp = `${f}.${process.pid}.tmp`;
+          fs.writeFileSync(tmp, JSON.stringify(merged));
+          fs.renameSync(tmp, f);
+          if (++writes % 50 === 0) prune(dir);
+        } catch { /* a record is never worth a failed request */ }
+      }
+      // The caller keeps the merged view, so what it reserved and what is stored are one thing.
+      return Object.assign(rec, merged);
+    },
+    // Read-modify-write for the counters, so an increment lands on the freshest record rather than on a
+    // clone read before another request of the same conversation wrote. Nothing awaits inside, so no
+    // other request of this process can interleave between the read and the write.
+    update(session, fn) {
+      const rec = store.read(session);
+      const out = fn(rec);
+      store.write(rec);
+      return out;
     },
   };
+  return store;
 }
 function prune(dir) {
   try {

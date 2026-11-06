@@ -48,6 +48,13 @@ export function normalizeReport(key, data, receivedAt) {
       typeof data.installId !== 'string' || !data.installId.trim() || data.installId.length > 256) {
     throw new InvalidReport('Missing or invalid installId');
   }
+  // An error report is not a snapshot of an installation, and one stored as one is worse than one lost: it
+  // has no device and no metrics, so whenever it is an install's newest row it becomes that install's
+  // latest snapshot (`v_latest_installs`) and the install reads as device-unknown with nothing measured.
+  // The handler routes these by shape now; this is the floor under it (infra/metrics/handler.mjs).
+  if (Array.isArray(data.errors) && data.errors.length && data.event === undefined && data.cacheSize === undefined) {
+    throw new InvalidReport('Error report posted as a metrics report');
+  }
   const timestamp = data.timestamp ?? receivedAt;
   if (typeof timestamp !== 'string' || !Number.isFinite(Date.parse(timestamp))) {
     throw new InvalidReport('Missing or invalid timestamp');
