@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -81,8 +81,43 @@ test('a clear that would be refused is never started: no compaction turn, so no 
   expect(worthIt(some, DEFAULTS, 'auto')).toBe(false)
   expect(worthIt(some, DEFAULTS, 'manual')).toBe(true)
   expect(worthIt(some, { ...DEFAULTS, clearAtLeast: 100 }, 'auto')).toBe(true)
-  // the transcript could not be read: schedule as before and let the engine's skip stand
-  expect(worthIt(null, DEFAULTS, 'auto')).toBe(true)
+  // the window could not be read: a hand-run clear may try, the automatic one never guesses
+  expect(worthIt(null, DEFAULTS, 'auto')).toBe(false)
+  expect(worthIt(null, DEFAULTS, 'manual')).toBe(true)
+})
+
+test('the check reads the live window, so what an earlier clear left as placeholders is not counted again', () => {
+  // what the next request is built from, after a clear: the old results are placeholders already
+  const api = [
+    { role: 'user', content: [{ type: 'text', text: 'read things' }] },
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'a', name: 'Read', input: { file_path: '/x' } }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: placeholder(400000) }] },
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'b', name: 'Bash', input: {} }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'b', content: [{ type: 'text', text: big(900) }], is_error: true }] },
+    { role: 'user', content: [{ type: 'text', text: 'now this' }] },
+    { role: 'assistant', content: [{ type: 'tool_use', id: 'c', name: 'Read', input: {} }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'c', content: big(5000) }] },
+  ]
+  const rows = liveRows(api) as any[]
+  expect(rows.length).toBe(api.length)
+  expect(rows[0].text).toBe('read things')
+  expect(rows[1].toolUses).toEqual([{ tool_use_id: 'a', tool: 'Read', input: { file_path: '/x' } }])
+  expect(rows[4].toolResults).toEqual([{ tool_use_id: 'b', text: big(900), isError: true }])
+  const c = clearOld(rows, { keepMin: 0 })
+  // the placeholder is under MIN_CHARS and stays; only the 900-char result is new to clear
+  expect(c.cleared).toBe(1)
+  expect(worthIt(c, DEFAULTS, 'auto')).toBe(false)
+})
+
+test('an automatic attempt that did not clear holds the next until the context grows by clearAtLeast', () => {
+  // nothing held: due from the trigger on
+  expect(autoDue(DEFAULTS.trigger - 1, DEFAULTS, 0)).toBe(false)
+  expect(autoDue(DEFAULTS.trigger, DEFAULTS, 0)).toBe(true)
+  // refused at 200k: the next turn ends at the same context, and at 250k, and says nothing; at 300k it may try once more
+  const holdUntil = 200000 + DEFAULTS.clearAtLeast
+  expect(autoDue(200000, DEFAULTS, holdUntil)).toBe(false)
+  expect(autoDue(250000, DEFAULTS, holdUntil)).toBe(false)
+  expect(autoDue(300000, DEFAULTS, holdUntil)).toBe(true)
 })
 
 test('a clear is made when it repays its write inside PAYBACK calls, and nothing is assumed about session length', () => {
