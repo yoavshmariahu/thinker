@@ -552,7 +552,7 @@ plugin on a machine without thinker does nothing.
   Cline's and Droid's Anthropic base URL), each request carries the
   API's `clear_tool_uses` edit, with the beta header it needs added when the agent does not send it (Claude Code
   does; the others do not, so until 2026-10-24 the proxy served Claude Code alone), so the server drops old tool results from the context on its side once they
-  amount to `--clear-at-least` (80k tokens) and the context has reached `--trigger` (100k). `--keep` says
+  amount to `--clear-at-least` (60k tokens) and the context has reached `--trigger` (140k). `--keep` says
   what a clear leaves: `turn`, the default, now the `--keep-min` (3) newest tool uses, a constant; until
   2026-11-02 it was the count of the request's current turn's tool uses, which grew by one a call, and every
   increment made the server restore one earlier result and write the cache again from the system prompt

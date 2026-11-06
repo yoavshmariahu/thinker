@@ -160,7 +160,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   thinking and with empty arguments, 6 results and 62k tokens cleared, the next call answered with thinking of its
   own, no 400, a 129.5k cache write for the rewrite. The API lets a previous turn's thinking go; the October
   breakage was an in-place edit of the history with no compaction boundary.
-- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 100k, keep the newest turn and 3 results,
+- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
   the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
   first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
@@ -225,6 +225,19 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   lose, and the size floor is the lever (60k is +14%; 80k less, because it admits the band where the fixed part
   of the tail -- the live turn and the protected results -- weighs most). A refusal for size now carries
   `candidate` on its row, so the next such question is read off the log rather than rebuilt from transcripts.
+- **The size floor is 60k, from 100k** (2026-11-06; `PROXY_DEFAULTS.clearAtLeast`, mirrored by the mod's
+  `CLEAR_AT_LEAST`). The floor, not the trigger, is what gates a cut: old results are about a third of a
+  conversation's context on this machine, so 100k of them needs roughly 300k of context, and every boundary the
+  proxy priced in the five days to 2026-11-06 sat at 200k or more while 43 past the trigger were refused for size.
+  The payback ratio of a boundary is nearly independent of its size (cut over tail ran 0.62-0.75 at every context
+  measured), so a lower floor prices more boundaries at the same odds rather than worse ones. Replayed over the
+  same 145 sessions as the cold rule above: 60k is +14% net at list prices with no session made worse off; 80k is
+  less (+7%) and adds three losers, because it admits the band where the fixed part of the tail (the live turn
+  and the protected results, 44-58k here) weighs most against what is removed. With the cold rule the two together
+  are +18%. Not moved: the trigger (no effect, since the floor gates) and the payback floor (+$7-8 at 30 or 40,
+  with more losing sessions). Judge it by cache writes against the holdout over a window after it lands; each
+  extra cut is a cache break, and the cut arm's unexplained extra rewrites in the 28-turn pairing are still
+  unexplained.
 - **The floor is the whole policy, and at 20 it cut nothing** (2026-11-06). In the two days after the cut landed
   this machine's Claude path made no cut at all: 30 priced boundaries in 4 conversations, every one refused at a
   payback of 21 to 64. The floor is the only reason -- the cost side is not overstated (one cut's predicted tail

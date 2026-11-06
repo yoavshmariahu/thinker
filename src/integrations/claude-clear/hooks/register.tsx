@@ -16,7 +16,7 @@ import type { Register, SessionMessage } from 'claude-code'
 // the proxy's policy (proxy.js:PROXY_DEFAULTS, proxy-service.js:SERVICE_HOLDOUT, 2026-10-28);
 // test/claude-clear.test.js holds the two together
 export const TRIGGER = 140000
-export const CLEAR_AT_LEAST = 100000
+export const CLEAR_AT_LEAST = 60000
 export const KEEP_MIN = 3
 export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4

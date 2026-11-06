@@ -86,7 +86,7 @@ support still depends on the particular app and has not been tested live.
 - At least the newest three tool outputs stay (`--keep-min n`). Calls and IDs,
   user/developer messages, reasoning and encrypted compaction items stay intact.
   Image, file and mixed-content outputs stay intact.
-- Clearing starts at roughly 100,000 tokens and must remove roughly 80,000 tokens
+- Clearing starts at roughly 140,000 tokens and must remove roughly 60,000 tokens
   (`--trigger n`, `--clear-at-least n`). These are **UTF-8 request bytes divided by
   four**, not tokenizer counts. Instructions and tool schemas count toward the
   trigger; only replaceable tool-output bytes count toward the removal minimum.
