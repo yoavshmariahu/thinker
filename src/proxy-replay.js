@@ -46,10 +46,10 @@ const TOKENS_PER_CHAR = 1.44 / 4;
 // cost at the shipped policy's ask: +7.3% at list for a policy that was break-even at best.
 export const DEEP_MARGIN = 0.7;
 export const POLICIES = {
-  shipped: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'min' },
-  deep: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'turn', margin: DEEP_MARGIN },
-  freeze: { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN },
-  'freeze-thinking': { keep: 3, trigger: 140000, clearAtLeast: 100000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN, thinking: 'piggyback' },
+  shipped: { keep: 3, trigger: 140000, clearAtLeast: 60000, inputs: true, depth: 'min' },
+  deep: { keep: 3, trigger: 140000, clearAtLeast: 60000, inputs: true, depth: 'turn', margin: DEEP_MARGIN },
+  freeze: { keep: 3, trigger: 140000, clearAtLeast: 60000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN },
+  'freeze-thinking': { keep: 3, trigger: 140000, clearAtLeast: 60000, inputs: true, depth: 'freeze', margin: DEEP_MARGIN, thinking: 'piggyback' },
 };
 // `name=keep:3,trigger:100000,clear:80000;turn=keep:turn,trigger:60000,clear:60000,inputs:on,thinking:piggyback`
 export function parsePolicies(spec) {

@@ -403,6 +403,14 @@ const RULE_FILES = { windsurf: ['.windsurf/rules/thinker.md', '.devin/rules/thin
 const MCP_FILES = { copilot: '.github/mcp.json' };
 export const USER_SCOPE_CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'opencode', 'copilot', 'windsurf', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
+// Windsurf is the one agent thinker registers no MCP server for: it has no MCP file of its own
+// (`wiringFiles`), and `installClient` writes it hooks alone. The always-on CLI rule that once stood
+// in for one went with the workflow block (2026-10-22), and `installClient` deletes it where it is
+// left over. So nothing may read a missing MCP server there as a gap to repair: `thinker doctor` did,
+// warning "the MCP server is not registered" with a [--fix] that called `installClient` and changed
+// nothing, so the warning came back for ever (found on the owner's machine, 2026-11-06).
+export const registersMcp = client => client !== 'windsurf';
+
 // --- where each client reads its wiring ----------------------------------------------------------
 // Two scopes. `user` is the agent's own files, read in every checkout: ~/.claude/settings.json and
 // ~/.claude.json, ~/.codex/hooks.json and config.toml, ~/.gemini/settings.json, ~/.cursor/hooks.json
@@ -740,8 +748,8 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     }
     const server = f.mcp && readJsonOr(f.mcp, {}).mcpServers?.thinker;
     if (server) { w.mcp = true; const sc = mcpScript(server); if (sc) scripts.add(sc); }
-    // Windsurf has no MCP route from thinker: its global rules carry the command-line workflow
-    if (client === 'windsurf') w.mcp = instructionFiles(client, { scope }).some(x => readText(x).includes('<!-- thinker:'));
+    // Windsurf keeps no MCP server of thinker's (`registersMcp`): until 2026-11-06 this read one off a
+    // `<!-- thinker:` marker in its global rules, which no code has written since the workflow block went.
   }
   if ((client === 'windsurf' || client === 'copilot') && scope === 'repo') {
     for (const f of HOOK_FILES[client]) {

@@ -160,7 +160,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   thinking and with empty arguments, 6 results and 62k tokens cleared, the next call answered with thinking of its
   own, no 400, a 129.5k cache write for the rewrite. The API lets a previous turn's thinking go; the October
   breakage was an in-place edit of the history with no compaction boundary.
-- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 100k, keep the newest turn and 3 results,
+- Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
   the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
   first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
@@ -211,6 +211,33 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   The horizon this replaced (`REMAINING`, 40 rising to 90 with calls made) grew the longer a session had run,
   so the latest and largest cuts were valued the most generously. Tight on purpose: a refused cut costs only
   the saving it would have made, a wrong one pays a full prefix rewrite up front.
+- **A cold boundary cuts everything eligible, whatever the size** (2026-11-06; `decideCut`, the `cold` branch
+  before the trigger). Past the cache's hour the request writes its whole context again whether or not anything
+  is replaced, so the tail is free and the trigger and `clearAtLeast` have nothing to protect at that moment.
+  Replayed over this machine's last 14 days (145 sessions of 40+ calls, rebuilt from their transcripts; the
+  candidates match the proxy's own priced boundaries of 2026-11-05 within 0.5%), 41 cold boundaries had something
+  to cut and 9 cleared the 100k floor: the other 32 were refused for a cost of zero, and taking them is +12% net
+  at list prices with no session made worse off. The mod does not follow: its clear is a compaction turn queued
+  after the turn completes, so the request that would have been free has already gone and the cache is warm
+  again when it acts; its idle rule waives the payback alone (`register.tsx:clearPays`, the note above it).
+  The same replay, for the record: the trigger moves nothing (110k is +$3 on $452, since the size floor is what
+  gates and needs ~300k of context to be met), the payback floor buys $7-8 at 30 or 40 and adds sessions that
+  lose, and the size floor is the lever (60k is +14%; 80k less, because it admits the band where the fixed part
+  of the tail -- the live turn and the protected results -- weighs most). A refusal for size now carries
+  `candidate` on its row, so the next such question is read off the log rather than rebuilt from transcripts.
+- **The size floor is 60k, from 100k** (2026-11-06; `PROXY_DEFAULTS.clearAtLeast`, mirrored by the mod's
+  `CLEAR_AT_LEAST`). The floor, not the trigger, is what gates a cut: old results are about a third of a
+  conversation's context on this machine, so 100k of them needs roughly 300k of context, and every boundary the
+  proxy priced in the five days to 2026-11-06 sat at 200k or more while 43 past the trigger were refused for size.
+  The payback ratio of a boundary is nearly independent of its size (cut over tail ran 0.62-0.75 at every context
+  measured), so a lower floor prices more boundaries at the same odds rather than worse ones. Replayed over the
+  same 145 sessions as the cold rule above: 60k is +14% net at list prices with no session made worse off; 80k is
+  less (+7%) and adds three losers, because it admits the band where the fixed part of the tail (the live turn
+  and the protected results, 44-58k here) weighs most against what is removed. With the cold rule the two together
+  are +18%. Not moved: the trigger (no effect, since the floor gates) and the payback floor (+$7-8 at 30 or 40,
+  with more losing sessions). Judge it by cache writes against the holdout over a window after it lands; each
+  extra cut is a cache break, and the cut arm's unexplained extra rewrites in the 28-turn pairing are still
+  unexplained.
 - **The floor is the whole policy, and at 20 it cut nothing** (2026-11-06). In the two days after the cut landed
   this machine's Claude path made no cut at all: 30 priced boundaries in 4 conversations, every one refused at a
   payback of 21 to 64. The floor is the only reason -- the cost side is not overstated (one cut's predicted tail
@@ -263,6 +290,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   released, because the window that matters is between the SIGTERM and the new process recording its own version,
   where every other hook still reads the old state. Only the replacement of a **running** proxy is gated: a port
   with nothing on it is a broken route for every session and may never wait on another session's claim.
+- **A restart is a gap, so it happens only for a reason, and it has to actually come back** (2026-11-06;
+  `proxy-service.js:replaceReason`, `bootOutAgent`, `bootstrapAgent`). On this machine the proxy was taken down
+  seven times in a day with nothing listening on its port for 13 to 100 seconds each time -- ECONNREFUSED in
+  every other session's model calls, read as "the proxy is flaking" -- and the cause was two things together.
+  `thinker rewire` restarted the service whenever the proxy was on, and the background update runs rewire every
+  four hours whether or not it installed anything; so now rewire asks the same question the prompt hook asks
+  (`replaceReason`: is the running service this version with these flags) and restarts nothing that answers no.
+  And the restart itself did not come back: `launchctl bootout` answers before the proxy has drained the answers
+  it is streaming, launchd refuses a `bootstrap` of the label while it is still registered ("Bootstrap failed: 5:
+  Input/output error"), and the `load` fallback prints "Load failed" and exits 0, which `run` took for success.
+  Reproduced on a throwaway label. So the bootout waits for the label to leave (`BOOTOUT_WAIT_MS`, 25 s, past
+  launchd's own 20 s ExitTimeOut), bootstrap's own exit code is read, and `load` is believed only when `launchctl print` then names a
+  running instance that is not the one being replaced (`agentInstance`): the label answering is not enough, since
+  the old instance answers it too while it drains. The proxy's SIGTERM handler drains (`server.close`), which is what makes
+  the gap as long as the longest answer in flight; that is kept, since cutting an answer mid-stream is the worse
+  failure. `test/proxy-service.test.js` runs both against a fake `launchctl` with launchd's shape.
 - **The ratchet.** A cut is a set of `tool_use` ids kept per conversation on disk (`cutStore`). The agent resends the
   whole conversation on every request and knows nothing of this, so the set is re-applied to each one -- 1.9 ms
   on a 1 MB body, no tokens, and no rewrite, because the same ids give the same bytes. Within a turn the set
@@ -357,13 +400,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   --refresh` in the background at most every `REFRESH_MS` (10 min) under a lock, and every surface
   reads the kept ledger (`THINKER_HOME/state/savings.json`): the machine's, like the notice cadence,
   since lifetime means every checkout. No model call, so it runs the same inside a desktop app.
-- **The figures ride the engine's own status row, at its far right** (the owner's ask, 2026-11-06:
-  that row has empty space, and a row of thinker's own does not earn one). The door is `PromptHint`'s
-  `tail`: the engine keeps its line and its live pills and draws the tail dim at the end, cut where
-  the row ends. `$.ui.status` was the first home and cannot be placed -- it takes text and nothing
-  else. The padding is measured in cells, not characters, so a two-cell glyph does not push the line
-  off the row (`cells`, `statusTail`, held by the mod's own test). thinker still writes no
-  `statusLine` into the agent's settings: that surface is the person's, and often already theirs.
+- **The figures ride the engine's own status row, not a row of their own** (the owner's ask,
+  2026-11-06: that row has empty space, and a row of thinker's own does not earn one). The door is
+  `PromptHint`'s `tail`: the engine keeps its line and its live pills and draws the tail after them,
+  cut where the row ends. **Where on the row, and in what colour, is the engine's and not the mod's**:
+  it collapses every whitespace run in the tail to one space, trims it, and draws it in one
+  `<Text dimColor wrap="truncate">` behind a dim separator. So the tail is the line and nothing else
+  (`statusTail`) -- padding it to the right edge was tried, and the engine strips the padding; a green
+  figure is not available there either, and a mod that wants colour must draw its own tree (a card, or
+  the `AbovePrompt` band). `$.ui.status` was the first home and cannot be placed at all -- it takes
+  text and nothing else. thinker still writes no `statusLine` into the agent's settings: that surface
+  is the person's, and often already theirs.
+- **The status line says the name, not the brain** (the owner's ask, 2026-11-06): `thinker: ...`, where
+  the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
+  lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by
+  `test/claude-card.test.js`.
 - **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
   Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
   yet judged, minus anything judged unused or contradicted, priced from the model the session's
@@ -670,6 +721,7 @@ load the project file; existing dependency paths provide retrieval relevance.
 - `late` servings (edit hook) are logged only when they serve (`ops.js:lateLocked`).
 - `thinker usage [--here] [--days n] [--json]`.
 - Savings count only `confirmed` servings. Estimate, not measurement.
+- What a note points at is measured once and kept on the note as `reads` (`{files: [{path, tokens}], calls, tokens, at}`; `usage.js:readsOf`; a `LOCAL_FIELDS` entry, so a shared note's committed file never carries it): stamped by `createNote`, by every verification, and by `refresh` for a note that has none. `savingOf`, `cacheHitSavings`, the card mod and `delivery.js` read the record; the disk is read only for a note without one. The owner's ask, 2026-11-06: a figure recomputed from the disk at every turn is now in the note file, where a person can see what a note is credited with.
 - Not counted as reading (`usage.js:countsAsReading`): `.claude/`, `.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`, git internals, `.thinker/`, build/run output.
 - Anchors MUST be existing files (`ops.js:createNote`).
 - Build/run output is refused as anchor (`deps.js:TRANSIENT`): `node_modules/`, `dist/`, `coverage/`, `.next/`, `__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`.
@@ -710,10 +762,24 @@ What followed from the mark was the problem:
   a note at creation already (`ops.js:createNote`: an anchor must be an existing file), so `refresh`
   now applies the same rule to one whose files went away afterwards: `status: 'invalid'`,
   `invalidReason: 'anchors removed: …'`, logged `retire-gone`, no model call
-  (`ops.js:anchorsGone`). Nothing that was being served stops being served. A desired behavior, a
-  skill card and a note a person wrote are left alone — those are a person's to decide on, and they
-  stay stale with their banner. Found in a user's cache: 13 of 68 notes pointed at deleted files, nine
-  of them at a `docs/design/` directory that no longer existed.
+  (`ops.js:anchorsGone`). Nothing that was being served stops being served. Found in a user's cache:
+  13 of 68 notes pointed at deleted files, nine of them at a `docs/design/` directory that no longer
+  existed. Until 2026-11-06 a desired behavior, a skill card and a note a person wrote were left alone
+  as a person's to decide on, and stayed stale for good; **a dead note is dead whoever wrote it** (the
+  owner's call that day), and the text stays in the file for `thinker system --all` and `thinker list`.
+  A behavior follows its own rule: until the removal is merged the behavior is the truth and stays
+  stale, withheld (`refresh` asks `onDefaultBranch`); once it is merged, the code is, and the behavior is
+  retired and named at the end of the next turn (`retiredBehaviors` in `maintenanceNotice`). What set
+  it off: 22 of this repository's 489 notes were behaviors anchored to modules removed weeks before
+  (`src/impact.js`, `src/review.js`, `action/review/`), and three of them were `fresh` with **no deps
+  at all**, because `verifyBehavior`'s revision on merged code had dropped every missing file and
+  written the note back fresh -- a note with no anchor can never go stale, so it was served at every
+  matching prompt, and the Stop hook's line said "pointing at ~300 tokens of code", which was
+  `cacheHitSavings`'s floor for a note whose files are not on disk, not a measurement. The floor is
+  gone (a note with no file on disk counts nothing and the line says only how many notes), `refresh`
+  retires a note left with no deps at all, `verifyNote` retires rather than keeps a note whose every
+  dep went missing, and `verifyBehavior`'s revision on merged code is a retirement (verdict `retired`,
+  text and deps kept in `history`) when it would leave nothing to rest on.
 
 ### The one-time staleness reset
 
@@ -1479,8 +1545,11 @@ readable; new behaviors stay local.
   body is replaced (pointers of the new text join the deps), `revised` records
   the commit and reason, the old body goes to `history`, the verdict is
   `revised`, the notice says so and `.thinker/SYSTEM.md` is rewritten. A
-  behavior is never retired by verification, and never rewritten for code
-  that is not merged. On the server the clone sits at the default branch, so
+  behavior is never rewritten for code that is not merged, and retired only
+  when merged code removed every file it rested on (2026-11-06; the staleness
+  section above): then the truth the code tells is that the feature is gone,
+  and the behavior is retired with its text kept, verdict `retired`, or by
+  `refresh` with no model call. On the server the clone sits at the default branch, so
   the behaviors there follow every merge and sync out.
 - **Review** (`review.js:assessBehavior`, and the holistic prompt): the
   verdicts are `violation`, `consistent`, `unrelated` and `revised`; `revised`
@@ -1502,8 +1571,8 @@ readable; new behaviors stay local.
   run) with whether it was already violated before the change, rendered under
   "Desired behaviors" and in `--json`.
 - **This repository's own** (`thinker system`, `.thinker/SYSTEM.md`), written
-  2026-10-03: a review never writes to the cache; verification never rewrites
-  or retires a behavior; serving and assessment never rewrite a shared note's
+  2026-10-03: a review never writes to the cache; verification rewrites or
+  retires a behavior only to follow merged code; serving and assessment never rewrite a shared note's
   committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
   fixed); the prompt hooks serve no stale note (mutable).
 - **Serving.** A behavior is served like an invariant: at orientation with a

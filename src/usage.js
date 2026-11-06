@@ -40,38 +40,50 @@ export const SECONDS_PER_READ = 4;
 export const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.factory|\.qwen|\.kiro|\.clinerules|\.cline|\.kilo|\.kilocode|\.augment|\.goose|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/;
 export const countsAsReading = f => !NOT_READING.test(String(f || ''));
 
-export function savingOf(repo, note) {
-  let calls = 0, tokens = 0;
+// What a note points at, measured from the files it rests on: one read per file, at most MAX_FILES, its size
+// / 3.6 tokens capped at FILE_CAP; configuration and build output nothing (countsAsReading). Measured once and
+// kept on the note as `reads` (a LOCAL_FIELDS entry: this checkout's measurement, never shared) by
+// ops.js:createNote and by every verification, and by `refresh` for a note that has none yet -- the owner's ask,
+// 2026-11-06: a figure every door recomputed from the disk at every turn is in the note file now, where a
+// person can read what a note is credited with and where the ledger, the Stop hook's line and the card mod
+// all read one record. The disk is read only for a note without it.
+export function readsOf(repo, note) {
+  const files = [];
   for (const f of [...new Set((note?.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES)) {
     if (!countsAsReading(f)) continue;
-    try { const st = fs.statSync(path.join(repo, f)); if (!st.isFile()) continue; calls++; tokens += Math.min(Math.ceil(st.size / 3.6), FILE_CAP); } catch {}
+    try { const st = fs.statSync(path.join(repo, f)); if (!st.isFile()) continue; files.push({ path: f, tokens: Math.min(Math.ceil(st.size / 3.6), FILE_CAP) }); } catch {}
   }
-  return { calls, tokens };
+  return { files, calls: files.length, tokens: files.reduce((s, x) => s + x.tokens, 0), at: new Date().toISOString() };
+}
+const readsFor = (repo, note) => (Array.isArray(note?.reads?.files) ? note.reads : readsOf(repo, note));
+
+export function savingOf(repo, note) {
+  const r = readsFor(repo, note);
+  return { calls: r.calls || 0, tokens: r.tokens || 0 };
 }
 
 export function cacheHitSavings(repo, notes) {
   let calls = 0, tokens = 0, uncounted = 0;
   const seenFiles = new Set();
   for (const n of notes || []) {
+    for (const f of readsFor(repo, n).files || []) {
+      if (seenFiles.has(f.path)) continue;
+      seenFiles.add(f.path);
+      calls++;
+      tokens += f.tokens;
+    }
     for (const f of [...new Set((n?.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES)) {
-      if (seenFiles.has(f)) continue;
+      if (seenFiles.has(f) || countsAsReading(f)) continue;
       seenFiles.add(f);
-      if (!countsAsReading(f)) { uncounted++; continue; }
-      try {
-        const st = fs.statSync(path.join(repo, f));
-        if (!st.isFile()) continue;
-        calls++;
-        tokens += Math.min(Math.ceil(st.size / 3.6), FILE_CAP);
-      } catch {}
+      uncounted++;
     }
   }
-  // A note whose files are not on disk still stands for at least one read. A note anchored
-  // only to configuration stands for none, so the floor is not given to it: the answer is
-  // nothing counted, not a guess from the note's own length.
-  if (!tokens && !uncounted && notes?.length) {
-    tokens = notes.reduce((sum, n) => sum + Math.max(Math.ceil((n.body || '').length / 3.6) * 4, 300), 0);
-  }
-  const seconds = Math.max(calls, tokens ? 1 : 0) * SECONDS_PER_READ;
+  // A note whose files are not on disk points at nothing a session would read: nothing is counted. Until
+  // 2026-11-06 a floor of 300 tokens (or four times the note's own length) stood in for "at least one read",
+  // and a behavior whose anchors a merge had removed, served at every matching prompt, printed
+  // "pointing at ~300 tokens of code" under the answer; such a note is retired now (ops.js:anchorsGone),
+  // and a figure the note's length invented is not a saving.
+  const seconds = calls * SECONDS_PER_READ;
   return { calls, tokens, uncounted, seconds };
 }
 
@@ -170,9 +182,7 @@ export const servedFields = (store, notes, text) => {
   const extra = notes.length ? Math.max(0, tokens - parts.reduce((a, b) => a + b, 0)) / notes.length : 0;
   return { tokens, noteTokens: parts.map(n => Math.ceil(n + extra)),
     est: notes.map(n => { const s = savingOf(store.repo, n); return [s.calls, s.tokens]; }),
-    estFiles: notes.map(n => [...new Set((n.deps || []).map(d => d.path).filter(Boolean))].slice(0, MAX_FILES).filter(countsAsReading).flatMap(f => {
-      try { const st = fs.statSync(path.join(store.repo, f)); return st.isFile() ? [[f, Math.min(Math.ceil(st.size / 3.6), FILE_CAP)]] : []; } catch { return []; }
-    })),
+    estFiles: notes.map(n => (readsFor(store.repo, n).files || []).map(f => [f.path, f.tokens])),
   };
 };
 

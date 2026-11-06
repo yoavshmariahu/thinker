@@ -32,6 +32,7 @@ test('the card estimates as usage.js:cacheHitSavings does: same file cap, files 
   assert.match(src, new RegExp(`export const MAX_FILES = ${MAX_FILES}\\n`));
   assert.match(src, new RegExp(`export const FILE_CAP = ${FILE_CAP}\\n`));
   assert.ok(src.includes(`export const NOT_READING = ${NOT_READING}\n`), 'NOT_READING matches usage.js');
+  assert.ok(src.includes('note.reads?.files'), 'the card reads the measurement kept on the note (usage.js:readsOf) before the disk');
   assert.ok(src.includes('st.size / 3.6'), 'tokens per byte match');
 });
 
@@ -152,10 +153,11 @@ test('the status row says what the ledger says, in the same words and the same d
     const two = fs.readFileSync(from, 'utf8').match(new RegExp(`export (?:function|const) ${name}[\\s\\S]*?\\n}`))[0];
     assert.equal(strip(one), strip(two), `the mod's ${name} matches ${path.basename(from)}`);
   }
-  // the figures ride the engine's own status row through PromptHint's tail, at its far right, and
-  // thinker still writes no statusLine into the person's settings: that surface is theirs
+  // the figures ride the engine's own status row through PromptHint's tail -- where on the row is the
+  // engine's to decide -- and thinker still writes no statusLine into the person's settings: that
+  // surface is theirs
   assert.match(src, /component: 'PromptHint'/);
-  assert.match(src, /tail: statusTail\(e\.props\.hint \?\? '', line, columns\)/);
+  assert.match(src, /tail: statusTail\(line\)/);
   assert.doesNotMatch(src, /\$\.ui\.status\(/, 'a pinned line cannot be placed; the row can');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');
 });

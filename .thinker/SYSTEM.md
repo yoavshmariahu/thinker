@@ -4,11 +4,11 @@ Rules the code must uphold, kept as `behavior` notes in `.thinker/notes/` and ch
 
 ## Fixed
 
-### Verification never retires a desired behavior, and rewrites one only to match merged code
+### Verification rewrites or retires a desired behavior only to follow merged code
 
 *fixed; id `verification-never-rewrites-or-retires-a-desired-behavior`; **unverified***
 
-A `behavior` note is a rule a person wrote. When its deps change, src/ops.js:verifyNote hands it to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `moved` (deps re-pointed, history kept), and for code that no longer upholds it either `broken` or `revised`, decided by src/ops.js:onDefaultBranch: code that is not merged (a working tree, a branch, unpushed commits) leaves the text alone and sets status `violated` with the commit and reason; code merged on the default branch is the truth, and the behavior's body is replaced with what the code upholds now, the old body kept in `history` and `revised` recording the commit and reason. No path sets a behavior to `invalid`, lowers its confidence, or rewrites it for unmerged code; the ordinary verdicts `update` and `invalid` never reach a behavior.
+A `behavior` note is a rule a person wrote. When its deps change, src/ops.js:verifyNote hands it to src/ops.js:verifyBehavior, whose verdicts are `holds` (re-baseline), `moved` (deps re-pointed, history kept), and for code that no longer upholds it either `broken` or `revised`, decided by src/ops.js:onDefaultBranch: code that is not merged (a working tree, a branch, unpushed commits) leaves the text alone and sets status `violated` with the commit and reason; code merged on the default branch is the truth, and the behavior's body is replaced with what the code upholds now, the old body kept in `history` and `revised` recording the commit and reason. One path retires a behavior, and only for merged code: when every file it rested on is gone from the default branch, src/ops.js:refresh retires it with no model call (src/ops.js:anchorsGone), and a revision that would leave it with no dep at all is the verdict `retired` instead of a fresh behavior with nothing to rest on; the text and the deps go to `history`, and the person is named it at the end of the next turn. Nothing lowers a behavior's confidence or rewrites it for unmerged code; the ordinary verdicts `update` and `invalid` never reach a behavior.
 
 Upheld at: `src/ops.js:verifyNote`, `src/ops.js:verifyBehavior`, `src/ops.js:onDefaultBranch`
 

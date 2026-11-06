@@ -16,7 +16,7 @@ import type { Register, SessionMessage } from 'claude-code'
 // the proxy's policy (proxy.js:PROXY_DEFAULTS, proxy-service.js:SERVICE_HOLDOUT, 2026-10-28);
 // test/claude-clear.test.js holds the two together
 export const TRIGGER = 140000
-export const CLEAR_AT_LEAST = 100000
+export const CLEAR_AT_LEAST = 60000
 export const KEEP_MIN = 3
 export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4
@@ -78,6 +78,11 @@ export function policyOf(config: any): Policy {
 // (`calls` made so far), outweighs the write after it (`recache`, the context after the first row it changes); free
 // after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
 // never held back.
+// The proxy's cold rule goes further (cutting.js:decideCut, 2026-11-06): at a boundary past the cache's hour it
+// cuts everything eligible whatever the trigger or the size floor say, because that request rewrites the whole
+// context anyway. This door cannot: its clear is a compaction turn queued after a turn has completed, so the
+// request that would have been free has already been sent and the cache is warm again by the time it acts. The
+// idle rule below waives the payback alone, and the trigger and the floor stay in place here.
 export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, model = '' }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean; model?: string }) => {
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false

@@ -147,10 +147,21 @@ export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h',
   const same = { cut: rec.cut, clear: false };
   if (turn === rec.turn) return same;                        // mid-turn: never move the set
   if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn };  // one cut a session, as the mod reads it
+  const cold = rec.at > 0 && now - rec.at > COLD_MS;
+  // A cold boundary cuts everything eligible, whatever the size (2026-11-06). Past the cache's hour this
+  // request writes its whole context again whether or not anything is replaced, so the tail costs nothing
+  // and the trigger and the size floor are answering a question that does not arise: they exist to keep a
+  // rewrite from being paid for too little, and here no rewrite is being added. Replayed over this
+  // machine's last 14 days (145 sessions), 41 cold boundaries had something to cut and 9 of them cleared
+  // the 100k floor; the other 32 were refused for a cost of zero. Only a refusal the trigger made is left
+  // to the trigger: a cold boundary with nothing eligible is still nothing to cut.
+  if (cold && cand?.ids.length) {
+    const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
+    return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
+  }
   if (m.prompt < cfg.trigger) return { ...same, turn };      // nothing is big enough to be worth it
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0 };
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens };
-  const cold = rec.at > 0 && now - rec.at > COLD_MS;
   const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
   if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: p };
   return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
