@@ -177,7 +177,8 @@ export function pickLine(p) {
   const kind = p.kind === 'section' ? `${p.file || 'AGENTS.md'} section` : p.kind === 'tool' ? groupName[p.group] || 'tool' : what[p.kind];
   const client = p.client && p.client !== 'claude' ? `${p.client} ` : '';
   const where = p.targets.length > 1 ? ` in ${p.targets.length} repositories` : p.targets[0]?.name ? ` in ${p.targets[0].name}` : '';
-  return `${ACTS[p.act]?.text || p.act} the ${client}${kind} "${p.title}"${where}`;
+  const act = p.act === 'off' && p.kind === 'tool' && p.group === 'builtin' ? ACTS.ref : ACTS[p.act];
+  return `${act?.text || p.act}${act === ACTS.ref ? ' for' : ''} the ${client}${kind} "${p.title}"${where}`;
 }
 // what the row costs and how often it was used, beside the line
 export function pickNote(p) {

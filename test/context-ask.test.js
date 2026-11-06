@@ -48,13 +48,13 @@ test('in the terminal: the summary, the choice, the cuts with the page\'s addres
   assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=save&view=all&from=setup')), 'and the page\'s address, which opens with the same suggestions checked');
   assert.ok(!out.some(l => /thinker instructions --remove|thinker harness --off/.test(l)), 'no commands to type');
   const drawn = stdout.writes.join('');
-  assert.ok(drawn.includes('Switch off the built-in tool "Artifact" in 2 repositories'), drawn);
+  assert.ok(drawn.includes('Create tool reference for the built-in tool "Artifact" in 2 repositories'), drawn);
   assert.ok(drawn.includes('Remove the AGENTS.md section "API views" in r1'), drawn);
   assert.ok(drawn.includes('needed in 0% of prompts'), drawn);
-  assert.ok(drawn.includes('Switch off the built-in tool "Workflow"') && drawn.includes('nothing switches it off per repository'), 'a suggestion with no action is a disabled row');
+  assert.ok(drawn.includes('Create tool reference for the built-in tool "Workflow"') && drawn.includes('nothing switches it off per repository'), 'a suggestion with no action is a disabled row');
   // the suggestions come checked, as they do on the page (page.html:preselectRows): unchecking is the work, and
   // Enter is the Apply
-  assert.match(drawn, /\[x\].*Switch off the built-in tool "Artifact"/);
+  assert.match(drawn, /\[x\].*Create tool reference for the built-in tool "Artifact"/);
   assert.match(drawn, /\[x\].*Remove the AGENTS\.md section "API views"/);
   assert.ok(out.some(l => /Apply the checked\?/.test(l)), out.join('\n'));
   assert.match(drawn, /n clears all, Enter applies the checked/);

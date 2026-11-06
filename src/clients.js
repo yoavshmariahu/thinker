@@ -1095,14 +1095,16 @@ function uninstallRepoClient(repo, client) {
 // The one permission thinker asks Devin for: its own learn_next tool, which reads the learning queue and saves an
 // answer and nothing else. Returns whether the rule was added.
 export const DEVIN_LEARN_RULE = 'mcp__thinker__learn_next';
-function setDevinLearnRule(file, on) {
+const setDevinLearnRule = (file, on) => setAllowRule(file, DEVIN_LEARN_RULE, on);
+// One rule in a settings file's permissions.allow, on or off; the rest of the file as it was. Returns whether it was added.
+function setAllowRule(file, rule, on) {
   if (!on && !fs.existsSync(file)) return false;
   const list = v => (Array.isArray(v) ? v : []);
-  const had = list(readJsonOr(file, {}).permissions?.allow).includes(DEVIN_LEARN_RULE);
+  const had = list(readJsonOr(file, {}).permissions?.allow).includes(rule);
   if (had === !!on) return false;
   mergeJson(file, c => {
-    const allow = list(c.permissions?.allow).filter(r => r !== DEVIN_LEARN_RULE);
-    if (on) allow.push(DEVIN_LEARN_RULE);
+    const allow = list(c.permissions?.allow).filter(r => r !== rule);
+    if (on) allow.push(rule);
     const permissions = { ...(c.permissions || {}), allow };
     if (!allow.length) delete permissions.allow;
     const n = { ...c, permissions };
