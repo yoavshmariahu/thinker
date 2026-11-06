@@ -83,6 +83,33 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
+test('a cold boundary cuts everything eligible, whatever the trigger and the size floor say', () => {
+  // Past the cache's hour the request writes its whole context again whether or not anything is replaced, so
+  // the tail is free and the two floors have nothing to protect. Replayed over this machine's last 14 days,
+  // 41 cold boundaries had something to cut and only 9 cleared the 100k floor: 32 free cuts refused.
+  const cfg = { trigger: 140000, clearAtLeast: 100000 };
+  const cand = { ids: ['a', 'b'], tokens: 30000, recache: 90000, firstChanged: 0 };
+  const h = 65 * 60 * 1000 + 1;
+  const warm = freshCut('s'); warm.at = 1000; warm.turn = 1;
+  const refused = decideCut(warm, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + 60000, model: 'claude-opus-5' });
+  assert.equal(refused.clear, false, 'under the trigger and the floor, a warm boundary is refused');
+  const cold = freshCut('s'); cold.at = 1000; cold.turn = 1;
+  const d = decideCut(cold, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
+  assert.equal(d.clear, true, 'the same boundary past the hour is cut');
+  assert.deepEqual(d.cut, ['a', 'b']);
+  assert.equal(d.cold, true); assert.equal(d.cost, 0, 'and its rewrite is priced at nothing');
+  assert.equal(d.candidate, 30000);
+  // nothing eligible is still nothing to cut, cold or not
+  const empty = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 90000, turn: 2 }, { cand: { ids: [], tokens: 0, recache: 0 }, now: 1000 + h });
+  assert.equal(empty.clear, false);
+  // mid-turn the set never moves, cold or not
+  const mid = decideCut({ ...freshCut('s'), at: 1000, turn: 2 }, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h });
+  assert.equal(mid.clear, false);
+  // the one-cut-a-session reading (clearDeep off) still holds on a cold boundary
+  const once = decideCut({ ...freshCut('s'), at: 1000, turn: 1, cut: ['z'] }, { ...cfg, clearDeep: false }, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h });
+  assert.equal(once.clear, false);
+});
+
 test('the floor is 25 because 20 cut nothing, and 25 still refuses the cuts that lost', () => {
   // the real boundaries, from this machine's proxy log. The first is the cheapest the Claude path reached in
   // the two days after the cut landed: refused at 20, made at 25, in a session that then ran 283 more calls.
