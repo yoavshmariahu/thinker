@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
+import { idleRestartWatcher, requestRestart, restartWanted } from '../src/proxy-service.js';
 import { clearedBySession, compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
 import { TOKENS_PER_CHAR } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
@@ -667,4 +668,29 @@ test('a request the cut did not shorten claims no saving', async () => {
     assert.equal(clearedBySession(p.logFile).size, 0, 'and no session is credited with a clear that never happened');
     assert.equal(fs.existsSync(path.join(path.dirname(p.logFile), 'compression', 's1.json')), false);
   } finally { p.server.close(); up.server.close(); }
+});
+
+test('a restart waits for the answer in flight: the proxy counts its requests, and the watcher goes only when none is', async () => {
+  const slow = http.createServer((req, res) => { req.resume(); req.on('end', () => setTimeout(() => { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"ok":true}'); }, 400)); });
+  await new Promise(r => slow.listen(0, '127.0.0.1', r));
+  const { server, port } = await proxyTo(`http://127.0.0.1:${slow.address().port}`);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-idle-'));
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const order = [];
+  let stop = () => {};
+  try {
+    assert.deepEqual(server.load().inFlight, 0);
+    const pending = send(port);
+    await until(() => server.load().inFlight === 1);
+    requestRestart(home, { why: 'test', version: '0.0.1', args: 'x' });
+    stop = idleRestartWatcher({ home, load: () => server.load(), close: () => { order.push('close'); return new Promise(r => server.close(r)); }, exit: () => order.push('exit'), every: 10, idle: 50 });
+    await new Promise(r => setTimeout(r, 150));
+    assert.deepEqual(order, [], 'the answer is still streaming: the proxy stays');
+    const answer = await pending;
+    assert.equal(answer.status, 200, 'and it is answered in full');
+    assert.equal(server.load().inFlight, 0);
+    await until(() => order.length === 2, 3000);
+    assert.deepEqual(order, ['close', 'exit'], 'idle for the window: closed, then gone');
+    assert.ok(restartWanted(home), 'the marker is left for the new instance to clear when it listens');
+  } finally { stop(); slow.close(); try { server.close(); } catch {} fs.rmSync(home, { recursive: true, force: true }); }
 });

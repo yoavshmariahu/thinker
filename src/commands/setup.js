@@ -185,7 +185,9 @@ async function rewireCommand(ctx) {
         // started again only where it runs other code or other flags than this copy would start it with, or where
         // nothing listens: the background update runs this every four hours whether it installed anything or not,
         // and a restart is a gap in which every session's model calls are refused (proxy-service.js:bootOutAgent)
-        if (replaceReason() || !(await isListening(serviceState().port))) restartService({ cli });
+        const why = replaceReason();
+        if (why) restartService({ cli, why }); // the marker: it goes at its first idle moment
+        else if (!(await isListening(serviceState().port))) restartService({ cli, whenIdle: false });
       }
     } catch (e) { failed('your settings (proxy)', e); }
   }

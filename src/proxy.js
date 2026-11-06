@@ -547,7 +547,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   if (!cfg.stubs) cfg = { ...cfg, stubs: stubsHome ? stubReader(stubsHome) : null };
   const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
+  // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
+  let inFlight = 0, lastDone = Date.now();
   const server = http.createServer((req, res) => {
+    inFlight++; res.once('close', () => { inFlight--; lastDone = Date.now(); });
     let requestUrl = req.url, requestCfg = cfg;
     if (cfg.codex && (requestUrl.startsWith(`${CODEX_PROXY_PATH}/`) || requestUrl === CODEX_PROXY_PATH)) {
       requestUrl = requestUrl.slice(CODEX_PROXY_PATH.length) || '/';
@@ -743,6 +746,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     socket.on('error', () => socket.destroy());
     socket.end('HTTP/1.1 426 Upgrade Required\r\nConnection: close\r\nContent-Type: text/plain\r\n\r\nthinker proxy uses HTTP/SSE; set supports_websockets = false in the Codex provider.\n');
   });
+  server.load = () => ({ inFlight, idleMs: Date.now() - lastDone });
   server.on('close', () => { for (const agent of agents.values()) { agent.destroy(); agent.httpAgent.destroy(); agent.httpsAgent.destroy(); } });
   server.listen(cfg.port || 0, host, () => onListen?.(server.address()));
   return server;

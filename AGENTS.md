@@ -306,6 +306,28 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   the old instance answers it too while it drains. The proxy's SIGTERM handler drains (`server.close`), which is what makes
   the gap as long as the longest answer in flight; that is kept, since cutting an answer mid-stream is the worse
   failure. `test/proxy-service.test.js` runs both against a fake `launchctl` with launchd's shape.
+- **An update restarts the proxy when it is idle, not now** (2026-11-06; `proxy-service.js:requestRestart`,
+  `restartDue`, `idleRestartWatcher`; the watcher runs in the service's own process, `commands/proxy.js`). Even a
+  restart that comes back is a gap: the old process stops listening, drains the answers it is streaming (up to
+  launchd's 20 s cutoff), the new one boots, and every session's model calls are refused in between. Measured on
+  this machine: launchd's KeepAlive brings a cleanly exited process back in 0.93 s (7 s when it had run under ten
+  seconds), and Claude Code retries a refused connection by itself with a visible "Retrying in" line. So where the
+  service manager would start the same program line again -- an update, since the program is the app's path --
+  `restartService` writes `state/proxy-restart-wanted.json` and answers `pending` instead of booting out; the
+  proxy counts what it has in flight (`server.load()`), and at the first moment with nothing in flight and nothing
+  finished for `RESTART_IDLE_MS` (3 s) it closes its listener and exits 0, launchd starting it again on the new
+  code. Past `RESTART_PATIENCE_MS` (15 min) the first empty moment will do; past `RESTART_DEADLINE_MS` (1 h) it
+  drains as a bootout did. A proxy with no manager starts its own replacement before it exits (`respawn`). The
+  new instance clears the marker when it listens (`recordProxyListening`), and a marker that asks for what the
+  running process already is (same version, same flags) is cleared and ignored, so a hook repeating the ask every
+  prompt is harmless; `requestRestart` keeps the first ask's time so the patience runs from it. Booting out is kept
+  for what the manager cannot do: a changed program line (another port, other flags), a stand-down, and a port
+  with nothing listening on it (`whenIdle: false`, the dead-port branch of `ensureProxy` and of rewire). Not done:
+  a true handoff with no gap at all. Node on macOS refuses `reusePort` (ENOTSUP), so two proxies cannot share the
+  port; a supervisor holding the socket and passing it to a child over IPC would do it, at the cost of a process
+  whose own updates still need this path. The row is `proxy-restart-idle` in the proxy log. The instance that listens records `idleRestart: true` in the
+  service state; one from before this (nothing recorded) is booted out as before, since a marker left for it would
+  wait for ever -- so the first restart after this lands is still a bootout, and every one after it is idle.
 - **The ratchet.** A cut is a set of `tool_use` ids kept per conversation on disk (`cutStore`). The agent resends the
   whole conversation on every request and knows nothing of this, so the set is re-applied to each one -- 1.9 ms
   on a 1 MB body, no tokens, and no rewrite, because the same ids give the same bytes. Within a turn the set
