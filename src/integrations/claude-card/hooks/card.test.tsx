@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { servedNotes, cardHeader, cells, compressionHeader, compressionTools, statusTail, tailOf, shortTitle, TURNS_AFTER } from './register'
+import { servedNotes, cardHeader, compressionHeader, compressionTools, statusTail, tailOf, shortTitle, TURNS_AFTER } from './register'
 
 const bundle = `<thinker-cache>
 Notes about this repo from earlier sessions.
@@ -59,27 +59,20 @@ const row = async ($: any, status: (string | undefined)[], surface: 'terminal' |
   return tail
 }
 
-test('the figures sit at the far right of the status row, with the engine\'s own line kept', async ($, on) => {
+test('the figures ride the status row as its tail, with the engine\'s own line kept', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
-  const tail = await row($, status)
-  expect(tail?.trimEnd()).toBe(tail)                       // padding goes in front, never behind
-  expect(tail?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+  expect(await row($, status)).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
 })
 
-test('the figures end in the row\'s last cell, measured in cells so a wide glyph fits', () => {
-  // 🧠 is two cells wide: a line measured by length alone would be padded one cell too far
-  expect(cells('🧠 a')).toBe(4)
-  const line = '🧠 lifetime ~$849'
-  const hint = '~/src/talker  main'
-  const tail = statusTail(hint, line, 80)
-  expect(cells(hint) + cells(tail)).toBe(80)   // flush with the right edge, nothing spare
-  expect(tail.endsWith(line)).toBe(true)
-  // and at any width the row is wide enough for
-  for (const columns of [60, 81, 120, 200]) expect(cells(hint) + cells(statusTail(hint, line, columns))).toBe(columns)
-  // a row with no room for the padding puts the line straight after the engine's own
-  expect(statusTail('a'.repeat(70), line, 80)).toBe(` ${line}`)
-  expect(statusTail('', line, 0)).toBe(` ${line}`)
+test('the tail is the line and nothing else: the engine places it, and collapses what it is padded with', () => {
+  const line = 'thinker: lifetime ~$849'
+  expect(statusTail(line)).toBe(line)
+  // the engine's own `clean`, as it runs before the tail is drawn: padding a tail to the right edge
+  // of the row cannot work, so the mod does not pretend to (register.tsx:statusTail)
+  const clean = (s: string) => s.replace(/\s+/g, ' ').trim()
+  expect(clean(`${' '.repeat(40)}${line}`)).toBe(line)
+  expect(clean(statusTail(line))).toBe(statusTail(line))   // nothing in it for the engine to collapse
 })
 
 test('the status row is read again at the end of every turn, served or not', async ($, on) => {
@@ -88,13 +81,13 @@ test('the status row is read again at the end of every turn, served or not', asy
   await $.turn.complete(end('t1'))
   expect(await row($, status)).toBeDefined()
   await $.turn.complete(end('t2', 'Another answer.'))
-  expect((await row($, status))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
 })
 
 test('a ledger stamped on another day says lifetime alone', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger('2026-01-01'), status })
-  expect((await row($, status))?.trimStart()).toBe('🧠 lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('thinker: lifetime ~$849')
 })
 
 test('no ledger yet leaves the row to the engine', async ($, on) => {
@@ -124,7 +117,7 @@ test('notices switched off in the repository config leave the row alone', async 
 test('the figures reach the desktop app\'s status row too', async ($, on) => {
   const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
-  expect((await row($, status, 'desktop'))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+  expect((await row($, status, 'desktop'))?.trimStart()).toBe('thinker: saved today ~$3.65 · lifetime ~$849')
 })
 
 test('only the notes served count, not the titles listed for lookup', () => {
