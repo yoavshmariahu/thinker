@@ -101,8 +101,13 @@ test('an automatic clear that would be refused is never started, so the engine p
   const s = src();
   // read the conversation first (reported 2026-11-02: "not compacted: thinker-clear: N tokens to clear,
   // under 100,000" under answer after answer in a desktop session, once the context passed the trigger)
-  assert.ok(s.includes('$.session.messages()'), 'the mod reads the transcript before scheduling');
-  assert.ok(/if \(worthIt\(c, policy, 'auto'\) && \(!c \|\| clearPays\(policy, \{[^\n]*\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn, and one that pays');
+  // the live window, not the saved transcript: the saved rows keep every result from before a compaction
+  // boundary whole, so the check found 100k+ to clear that the compaction then refused, on every turn
+  // (reported 2026-11-05: a /compact and a skip line after every answer in Claude Desktop)
+  assert.ok(s.includes("$.session.messages({ as: 'api' })"), 'the mod reads the live window before scheduling');
+  assert.ok(!s.includes('$.session.messages()'), 'never the saved transcript');
+  assert.ok(/if \(c && worthIt\(c, policy, 'auto'\) && clearPays\(policy, \{[^\n]*\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn, and one that pays');
+  assert.ok(/if \(autoDue\(tokens, policy, holdUntil\)\)/.test(s), 'an attempt that did not clear holds the next');
   assert.ok(/worthIt\(await wouldClear\(\$, policy\), policy, 'manual'\)/.test(s), 'the command answers by itself instead of spending a turn');
 });
 

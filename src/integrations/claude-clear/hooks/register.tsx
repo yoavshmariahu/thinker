@@ -175,6 +175,8 @@ let out = 0          // tokens out of the prompt now, added to `saved` on every 
 let before = 0       // the context as the API last reported it, taken as the clear is scheduled and again as it runs
 let settle = false   // the first request after a clear sizes it for real
 let uses = 0
+let attemptAt = 0    // the context an automatic attempt was scheduled at
+let holdUntil = 0    // no automatic attempt below this context (autoDue)
 let state: State | null = null
 let file = ''
 
@@ -193,30 +195,65 @@ const describe = (c: Clear) => `cleared ${c.cleared} tool ${c.cleared === 1 ? 'r
 
 const contextTokens = async ($: any) => { try { return (await $.session.usage()).context.tokens ?? 0 } catch { return 0 } }
 
-// What a clear would take right now, read from the conversation before anything is started. The engine
+// The live window in the rows `session.compact` hands this mod. The rows form of `$.session.messages` is the transcript
+// as saved, which keeps every row from before a compaction boundary with its result whole; the API form is
+// what the next request is built from, so it holds the placeholders of an earlier clear and nothing from
+// before the engine's own compaction. Reading the saved rows, the check below found 100k+ to clear on every
+// turn that the compaction then refused, and each turn ended in a /compact and a "not compacted" line
+// (reported from Claude Desktop, 2026-11-05).
+const textOf = (c: any): string => typeof c === 'string' ? c : Array.isArray(c) ? c.map(b => (b?.type === 'text' ? String(b.text ?? '') : '')).join('') : ''
+export function liveRows(api: readonly any[]): SessionMessage[] {
+  return api.map(m => {
+    const blocks: any[] = Array.isArray(m?.content) ? m.content : [{ type: 'text', text: textOf(m?.content) }]
+    const text = blocks.filter(b => b?.type === 'text').map(b => String(b.text ?? '')).join('')
+    if (m?.role === 'assistant') {
+      const toolUses = blocks.filter(b => b?.type === 'tool_use').map(b => ({ tool_use_id: String(b.id), tool: String(b.name), input: b.input ?? {} }))
+      return { role: 'assistant', text, toolUses } as any
+    }
+    const toolResults = blocks.filter(b => b?.type === 'tool_result').map(b => ({ tool_use_id: String(b.tool_use_id), text: textOf(b.content), ...(b.is_error ? { isError: true } : {}) }))
+    return { role: 'user', text, toolUses: [], ...(toolResults.length ? { toolResults } : {}) } as any
+  })
+}
+
+// What a clear would take right now, read from the live window before anything is started. The engine
 // prints a skipped compaction under the answer ("not compacted: <reason>"), so an attempt that was never
 // going to clear enough became a line in the session every time the context grew past the trigger again
 // (reported from a desktop session, 2026-11-02). Checking first means the automatic clear says nothing at
-// all until it has something to do, and no turn is spent on a compaction that gets refused. Returns null
-// where the transcript cannot be read, which leaves the old behavior: schedule, and let the skip stand.
+// all until it has something to do. Returns null where the window cannot be read, and then the automatic
+// clear does nothing: a guess here is a line in the person's chat.
 async function wouldClear($: any, p: Policy): Promise<Clear | null> {
-  try { return clearOld((await $.session.messages()) as any, p) } catch { return null }
+  try {
+    const api = await $.session.messages({ as: 'api' })
+    return Array.isArray(api) ? clearOld(liveRows(api), p) : null
+  } catch { return null }
 }
 
 // enough to be worth a compaction turn: `clearAtLeast` for the automatic clear, anything at all by hand
+// (a transcript that cannot be read lets a hand-run clear try, never the automatic one)
 export const worthIt = (c: Clear | null, p: Policy, from: string) =>
-  !c || (c.cleared > 0 && (from !== 'auto' || c.tokens >= p.clearAtLeast))
+  !c ? from !== 'auto' : c.cleared > 0 && (from !== 'auto' || c.tokens >= p.clearAtLeast)
 
-function schedule($: any, from: string) {
-  pending = true; pendingFrom = from
+// The latch behind the check: an automatic attempt that did not clear (refused by the hook, or never taken
+// over) holds the next one until the context has grown by another `clearAtLeast`. However the check and the
+// compaction come to disagree again, the most the person sees is one line per 100k of new context, never one
+// per turn. A clear that went through lifts it.
+export const autoDue = (tokens: number, p: Policy, holdUntil: number) => tokens >= p.trigger && tokens >= holdUntil
+
+const hold = () => { if (pendingFrom === 'auto') holdUntil = attemptAt + policy.clearAtLeast }
+
+function schedule($: any, from: string, tokens = 0) {
+  pending = true; pendingFrom = from; attemptAt = tokens
   void contextTokens($).then(t => { if (t) before = t })
   $.clock.after(DELAY_MS, async () => {
     try {
       await $.command.run({ command: 'compact' })
-      if (pending) { pending = false; $.ui.toast('thinker-clear: /compact ran but this mod did not take it over') }
+      if (pending) {
+        pending = false; hold()
+        if (from === 'manual') $.ui.toast('thinker-clear: /compact ran but this mod did not take it over')
+      }
     } catch (err) {
-      pending = false
-      $.ui.toast(`thinker-clear: could not run /compact (${String((err as any)?.message ?? err)})`)
+      pending = false; hold()
+      if (from === 'manual') $.ui.toast(`thinker-clear: could not run /compact (${String((err as any)?.message ?? err)})`)
     }
   })
 }
@@ -276,13 +313,13 @@ export const register: Register = (on) => {
         inTurn = false
         lastTurnAt = Date.now()
         const tokens = (await $.session.usage()).context.tokens ?? 0
-        if (tokens >= policy.trigger) {
+        if (autoDue(tokens, policy, holdUntil)) {
           const c = await wouldClear($, policy)
           // the write a clear would make: the context after the first row it changes, less what it drops
           const recache = c ? Math.max(0, tokens - Math.round(c.prefixChars * TOKENS_PER_CHAR) - c.tokens) : 0
           // nothing worth clearing yet, or a write the session's remaining calls would not repay: say nothing
           let model = ''; try { model = await $.session.model() } catch {}
-          if (worthIt(c, policy, 'auto') && (!c || clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model }))) schedule($, 'auto')
+          if (c && worthIt(c, policy, 'auto') && clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model })) schedule($, 'auto', tokens)
         }
       } catch {}
     }
@@ -296,10 +333,11 @@ export const register: Register = (on) => {
     pending = false
     const c = clearOld(e.messages, policy)
     if (!c.cleared || (from === 'auto' && c.tokens < policy.clearAtLeast)) {
+      hold()
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }
     }
     const now = Date.now()
-    clearedAt = now
+    clearedAt = now; holdUntil = 0
     before = (await contextTokens($)) || before
     out = c.tokens; uses = c.cleared; settle = true
     const kinds: Kinds = { results: c.resultTokens, inputs: c.inputTokens, thinking: 0, total: c.tokens, measured: false }
