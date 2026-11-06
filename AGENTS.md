@@ -313,7 +313,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 
 **The savings footer: money, on the one surface that keeps it (2026-11-06, the owner's call):**
 - What thinker has saved is shown as dollars, today and over the whole log, in every client it has a
-  door into: the Claude Code status line (terminal and the desktop app), the Codex desktop card, the
+  door into: the Claude Code status row (terminal and the desktop app), the Codex desktop card, the
   Cursor table, and the end-of-turn line for Codex CLI and a Claude Code without the mod.
 - **Dollars are the exception, and stay honest by construction.** `prices.js` records the 2026-10-04
   decision that the product counts tokens, never dollars, because most agents run on a subscription.
@@ -330,12 +330,24 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   --refresh` in the background at most every `REFRESH_MS` (10 min) under a lock, and every surface
   reads the kept ledger (`THINKER_HOME/state/savings.json`): the machine's, like the notice cadence,
   since lifetime means every checkout. No model call, so it runs the same inside a desktop app.
-- The status line is `$.ui.status`, this plugin's own pinned line. thinker never writes `statusLine`
-  into the agent's settings: that surface is the person's, and often already theirs.
-- A ledger whose `day` has passed says lifetime alone rather than yesterday's figure as today's. A day
-  reads $0 until its sessions are assessed -- the estimate counts confirmed servings only, as the
-  Report does. Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status line too.
-- Where the card mod runs, the Stop hook leaves the money out of its line: the status line already has
+- **The figures ride the engine's own status row, at its far right** (the owner's ask, 2026-11-06:
+  that row has empty space, and a row of thinker's own does not earn one). The door is `PromptHint`'s
+  `tail`: the engine keeps its line and its live pills and draws the tail dim at the end, cut where
+  the row ends. `$.ui.status` was the first home and cannot be placed -- it takes text and nothing
+  else. The padding is measured in cells, not characters, so a two-cell glyph does not push the line
+  off the row (`cells`, `statusTail`, held by the mod's own test). thinker still writes no
+  `statusLine` into the agent's settings: that surface is the person's, and often already theirs.
+- **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
+  Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
+  yet judged, minus anything judged unused or contradicted, priced from the model the session's
+  transcript names. Measured on this machine: only 15% of the sessions ever served notes have been
+  assessed at all, and of those the median is assessed 72 minutes after its first serving, one in ten
+  past ten hours -- confirmed-only, a daily figure would read $0 all morning and then show a fraction
+  of the day. `provisionalSince` keeps that second pass to the sessions that can still matter: asking
+  it of every session took the ledger from 1.2 s to 7 s on a 611-session log.
+- A ledger whose `day` has passed says lifetime alone rather than yesterday's figure as today's.
+  Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status row too.
+- Where the card mod runs, the Stop hook leaves the money out of its line: the status row already has
   it, and one figure gets one voice per client.
 
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**

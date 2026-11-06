@@ -122,6 +122,22 @@ export const cardHeader = (n: number, tokens: number, prompts = 0) =>
 export const savingsStatus = (today: string | null, lifetime: string) =>
   `🧠 ${today ? `saved today ~${today} · ` : ''}lifetime ~${lifetime}`
 
+// How many cells a string takes on a terminal row: a wide glyph (emoji, CJK) takes two, so a line
+// measured by `length` alone would be padded one cell too far and lose its last character.
+export const cells = (s: string): number => {
+  let n = 0
+  for (const ch of s) n += /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]|[\u{1F300}-\u{1FAFF}]|[\u{2600}-\u{27BF}]/u.test(ch) ? 2 : 1
+  return n
+}
+
+// The figures on the status line's own row, at its far right: spaces to the row's end where it is wide
+// enough to hold them, else straight after the engine's line, which the engine cuts if even that does
+// not fit. One cell is left spare so a mismeasured glyph costs a space and not the last character.
+export const statusTail = (hint: string, line: string, columns: number): string => {
+  const room = columns - cells(hint) - cells(line) - 1
+  return room > 1 ? ' '.repeat(room) + line : ` ${line}`
+}
+
 // The person's own day, in their own timezone, as the ledger stamps it (savings-ledger.js:dayKey).
 export const dayKey = (now: number): string => {
   const d = new Date(now)
@@ -151,11 +167,17 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
   return savingsStatus(today, formatDollars(l.lifetime.cost))
 }
 
-// Pinned under the prompt until the next call replaces it. Read at the start of the session and again
-// at the end of every turn: the hooks refresh the ledger in the background, so the line follows the
-// day's work without this mod ever doing the counting.
-async function pinSavings($: any): Promise<void> {
-  try { const line = await savings($); if (line) $.ui.status(line) } catch {}
+// The line currently on screen, kept here because a `ui.render` hook draws on every frame and must
+// never read a file: the reads happen at the start of the session and at the end of each turn, and a
+// changed line asks for a redraw.
+let line = ''
+
+// Read the ledger and, if it says something new, have the band drawn again.
+async function readSavings($: any): Promise<void> {
+  try {
+    const next = await savings($)
+    if (next !== line) { line = next; $.ui.invalidate('ui.render') }
+  } catch {}
 }
 
 // The context proxy's clearing, drawn beside the notes (src/compression.js holds the same rule; the figures
@@ -224,8 +246,9 @@ export const register: Register = on => {
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
   cards = null
+  line = ''
 
-  on('session.start', async ($, e, next) => { await markSession($); await pinSavings($); return next(e) })
+  on('session.start', async ($, e, next) => { await markSession($); await readSavings($); return next(e) })
 
   // a hook's JSON additionalContext (the late notes after a tool) is in the folded result
   on('classic.PostToolUse', async ($, e, next) => {
@@ -263,10 +286,24 @@ export const register: Register = on => {
         }
       }
       // every turn, card or no card: the Stop hook has just started the ledger's refresh, and the
-      // line is what the person reads between summaries. One file read, no counting here.
-      await pinSavings($)
+      // status row is what the person reads between summaries. One file read, no counting here.
+      await readSavings($)
     }
     return next(e)
+  })
+
+  // The figures ride the status line's own row, at its far right (the owner's ask, 2026-11-06: that
+  // row has empty space and a row of thinker's own does not earn one). `PromptHint`'s `tail` is the
+  // engine's own door for this: the engine keeps its line and its live pills and draws the tail dim at
+  // the end, cut where the row ends, so the row stays the engine's and thinker only fills the gap.
+  //
+  // `$.ui.status` was the first home for this and cannot be placed: it takes text and nothing else.
+  // thinker still writes no `statusLine` into the person's settings -- that surface is theirs.
+  // Nothing is read here; `line` was read when the turn ended (readSavings).
+  on('ui.render', { component: 'PromptHint' }, ($, e, next) => {
+    if (!line) return next(e)
+    const columns = e.viewport?.columns ?? 0
+    return next({ ...e, props: { ...e.props, tail: statusTail(e.props.hint ?? '', line, columns) } })
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {

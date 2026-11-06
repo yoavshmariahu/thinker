@@ -189,3 +189,51 @@ test('through the Stop hook: the line carries the money in Codex, the card mod c
     { input: JSON.stringify({ session_id: 'c3', cwd: repo }), encoding: 'utf8', env: { ...env, THINKER_NOTICE: 'off' } }).trim();
   assert.equal(off, '');
 });
+
+test('today counts what was served, lifetime only what was confirmed', t => {
+  // a fixed clock, as the windows tests use: an hour past midnight is in the future for a suite run
+  // in the small hours, and the estimate counts nothing dated after `now`
+  const now = Date.parse('2026-11-05T15:00:00Z');
+  const at = dayStart(now) + 3600_000;
+  // one serving today that nothing has assessed yet, and one the session said it did not use
+  const { store, home } = machine(t, { now, servedAt: [] });
+  for (const [id, verdict] of [['open', null], ['unused', 'unused']]) {
+    store.log({ op: 'orient', t: new Date(at).toISOString(), session: `s-${id}`, served: [id], tokens: 100, est: [[1, 1000]] });
+    if (verdict) store.log({ op: 'attest', t: new Date(at).toISOString(), session: `s-${id}`, model: 'claude-opus-5-5', applied: [{ id, verdict }] });
+  }
+  const l = computeSavings(store, { now });
+  // the unassessed serving counts today; the one assessed unused counts nowhere
+  assert.equal(l.today.cache.tokens, 900);
+  assert.equal(l.lifetime.cache.tokens, 0, 'nothing is confirmed yet, so the Report\'s estimate is still nothing');
+  // nothing names the model of a session nothing has assessed and whose agent keeps no transcript
+  // here, so those tokens are counted and named unpriced rather than guessed at another model's rate
+  assert.equal(l.today.cache.cost, 0);
+  assert.equal(l.today.unpricedTokens, 900);
+
+  // once the session is assessed, the same serving is in both windows, and counted once in each
+  store.log({ op: 'attest', t: new Date(now).toISOString(), session: 's-open', model: 'claude-opus-5-5', applied: [{ id: 'open', verdict: 'confirmed' }] });
+  const after = computeSavings(store, { now });
+  assert.equal(after.today.cache.tokens, 900, 'confirming it does not count it twice');
+  assert.equal(after.lifetime.cache.tokens, 900);
+});
+
+test('a session still running is priced from the transcript its agent keeps', t => {
+  // The ordinary Claude Code case, and the whole value of a daily figure rests on it: nothing has
+  // assessed the session, so no log line names its model, and the transcript is what does.
+  const now = Date.parse('2026-11-05T15:00:00Z');
+  const at = dayStart(now) + 3600_000;
+  const { store, home } = machine(t, { now, servedAt: [] });
+  const claude = path.join(home, 'claude');
+  const before = process.env.CLAUDE_CONFIG_DIR; process.env.CLAUDE_CONFIG_DIR = claude;
+  t.after(() => { if (before === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = before; });
+  const file = path.join(claude, 'projects', store.repo.replace(/[^A-Za-z0-9]/g, '-'), 's-live.jsonl');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', usage: { input_tokens: 1000 } } }) + '\n');
+  store.log({ op: 'orient', t: new Date(at).toISOString(), session: 's-live', served: ['live'], tokens: 100, est: [[1, 1000]] });
+  const l = computeSavings(store, { now });
+  assert.equal(l.today.cache.tokens, 900);
+  assert.ok(l.today.cache.cost > 0, 'priced at the model the transcript names');
+  assert.equal(l.today.unpricedTokens, 0);
+  // and the Report's own window still shows nothing: it counts confirmed servings only
+  assert.equal(l.lifetime.cache.tokens, 0);
+});

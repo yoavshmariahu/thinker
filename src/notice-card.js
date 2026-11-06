@@ -67,8 +67,8 @@ export function noticeCard(store, { client, session, turn, holdout, notes = [], 
     <div class="viz-row"><span aria-hidden="true">💰</span><strong style="font-weight:500">Thinker</strong><span class="viz-badge">Saved</span></div>
     <p class="tabular-nums">${escape(money)}</p>
     <details><summary class="cursor-interaction">What this counts</summary>
-      <p class="text-small">Today: ${escape(savingsDetail(l.today))}.</p>
-      <p class="text-small">Lifetime: ${escape(savingsDetail(l.lifetime))}, over every repository on this machine.</p>
+      <p class="text-small">Today: ${escape(savingsDetail(l.today))} — notes already served, less any a session said it did not use.</p>
+      <p class="text-small">Lifetime: ${escape(savingsDetail(l.lifetime))}, over every repository on this machine — servings a finished session confirmed, as <code>thinker report</code> counts them.</p>
       <p class="text-small">An API-list-price equivalent at the providers' published rates, not a bill: the same two series as <code>thinker report</code>. <code>thinker savings</code> prints them in full.</p>
     </details>
   </div>

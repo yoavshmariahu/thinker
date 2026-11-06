@@ -29,6 +29,10 @@ async function savingsCommand({ store, flags, out }) {
     if (cell.unpricedTokens) out(`  ${' '.repeat(9)} ~${formatTokens(cell.unpricedTokens)} tokens on models nobody priced are not in the total`);
   }
   out('');
+  // The two windows count servings differently and the difference is said, not buried: today would
+  // read nothing for most of a working day if it waited for the assessments (savings-ledger.js).
+  out('  Today counts notes already served, less any the session said it did not use; Lifetime counts only servings a finished');
+  out('  session confirmed, which is what `thinker report` shows. Cleared context is measured either way.');
   out(`  Counted over every repository on this machine${l.from ? `, from ${String(l.from).slice(0, 10)}` : ''}; read ${ago(Date.now() - l.at)}, refreshed every ${Math.round(REFRESH_MS / 60_000)} min while you work.`);
   // The caveat is the point of the command: these are the Report page's own two series, which is the
   // only reason a dollar figure is said at all (prices.js, savings-ledger.js).

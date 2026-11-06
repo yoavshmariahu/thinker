@@ -129,7 +129,7 @@ test('a session is carded only once the mod marked it, and old marks are cleared
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('the status line says what the ledger says, in the same words and the same dollars', () => {
+test('the status row says what the ledger says, in the same words and the same dollars', () => {
   const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
   // The mod runs inside Claude Code, so it carries its own copy of the sentence and of the two
   // helpers under it. These hold the copies to src/savings-ledger.js and src/prices.js.
@@ -152,7 +152,10 @@ test('the status line says what the ledger says, in the same words and the same 
     const two = fs.readFileSync(from, 'utf8').match(new RegExp(`export (?:function|const) ${name}[\\s\\S]*?\\n}`))[0];
     assert.equal(strip(one), strip(two), `the mod's ${name} matches ${path.basename(from)}`);
   }
-  // the status line is this plugin's own pinned line, not a takeover of the person's statusLine setting
-  assert.match(src, /\$\.ui\.status\(line\)/);
+  // the figures ride the engine's own status row through PromptHint's tail, at its far right, and
+  // thinker still writes no statusLine into the person's settings: that surface is theirs
+  assert.match(src, /component: 'PromptHint'/);
+  assert.match(src, /tail: statusTail\(e\.props\.hint \?\? '', line, columns\)/);
+  assert.doesNotMatch(src, /\$\.ui\.status\(/, 'a pinned line cannot be placed; the row can');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');
 });

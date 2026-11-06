@@ -68,21 +68,30 @@ function cellOf(series) {
 
 // The whole pass: the machine's log, the savings records of every repository in it, and the proxy's
 // clearing records, bucketed into the two windows. Read-only.
+//
+// The two windows select servings differently, and that is deliberate (the owner's call, 2026-11-06,
+// on this machine's own numbers): only 15% of the sessions that were ever served notes have been
+// assessed at all, and of those the median session is assessed 72 minutes after its first serving,
+// one in ten more than ten hours later. Confirmed-only, "today" would read $0 all morning and then
+// show a fraction of the day. So today counts what the running session's own footer counts -- served,
+// not yet judged, minus anything judged unused or contradicted -- while lifetime stays the confirmed
+// estimate the Report page shows, and `thinker savings` says which is which.
 export function computeSavings(store, { now = Date.now() } = {}) {
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const cache = [];
-  summarize(store, { all: true, now, onSaving: r => cache.push(r) });
+  const cache = [], open = [];
+  summarize(store, { all: true, now, onSaving: r => cache.push(r), onProvisional: r => open.push(r), provisionalSince: dayStart(now) });
   const events = readLog(store, { all: true });
   // The proxy's own log, as reportView reads it: a test with no home and no log of its own has none.
   const compression = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG
     ? [] : compressionRecords(proxyLogFile());
   // `origin: null` counts every repository's clearing: this is the machine's ledger, and a clear is not
-  // attributed to a checkout here as it is in a repository's report.
-  const windowOf = from => cellOf(weeklySavings({ columns: [{ t: from }], now, config, cache, events, compression, sessions: [], origin: null, ownership: events }));
+  // attributed to a checkout here as it is in a repository's report. The clearing series is measured
+  // either way -- the proxy reports what it took out -- so only the cache series differs by window.
+  const windowOf = (from, records) => cellOf(weeklySavings({ columns: [{ t: from }], now, config, cache: records, events, compression, sessions: [], origin: null, ownership: events }));
   return {
     at: now, day: dayKey(now),
-    today: windowOf(dayStart(now)),
-    lifetime: windowOf(0),
+    today: windowOf(dayStart(now), open),
+    lifetime: windowOf(0, cache),
     from: events[0]?.t || null,
   };
 }

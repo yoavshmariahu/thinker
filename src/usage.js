@@ -232,7 +232,13 @@ export function knownRepos(store, { all = false } = {}) {
   return [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts] }));
 }
 
-export function summarize(store, { days, all = false, onSaving, now = Date.now() } = {}) {
+// `onProvisional` is a second stream of savings records for the same sessions, selected the way the
+// running session's own footer selects them (sessionInputSavings): a serving not assessed yet counts,
+// one assessed unused or contradicted does not. The footer's "today" is read from it, because a day
+// whose sessions have not been distilled yet has no confirmed servings at all and would read $0 for
+// most of a working day (the owner's call, 2026-11-06). Every field of this summary, and the
+// `onSaving` stream the Report page reads, stay the confirmed estimate and are untouched by asking.
+export function summarize(store, { days, all = false, onSaving, onProvisional, provisionalSince, now = Date.now() } = {}) {
   const since = days ? new Date(now - days * 86400_000).toISOString() : '';
   const events = readLog(store, { all }).filter(e => e.t >= since && Date.parse(e.t) <= now);
   // The machine's log spans every checkout thinker has run in: some are gone, some moved, and a
@@ -449,6 +455,22 @@ export function summarize(store, { days, all = false, onSaving, now = Date.now()
       else if (v === 'contradicted') u.assessed.contradicted++;
       else if (v) u.assessed.unused++;
       else u.assessed.pending++;
+    }
+    // The footer's running figure, where it was asked for: the same records under the running
+    // session's rule, priced at the model the transcript still names for a session nothing has
+    // assessed yet. `x.model` is left alone -- resolving it here would change the confirmed estimate
+    // below, which is the Report page's, and the two must stay the same number.
+    // `provisionalSince` keeps this to the sessions that can still matter: the footer asks only about
+    // today, and reading every session's transcript for a figure about this morning took the pass from
+    // 1.2 s to 7 s on a 611-session log (2026-11-06).
+    if (onProvisional && (!provisionalSince || [...x.records.values()].some(n => Date.parse(n.at) >= provisionalSince))) {
+      const v = verdicts.get(key);
+      const open = [...x.records.values()].filter(n => !v?.has(n.id) || v.get(n.id) === 'confirmed');
+      if (open.length) {
+        const requests = x.named ? lifetimeRequests(sessionTranscriptFile(x.repo, x.session)) : [];
+        const model = x.model || (x.session ? sessionModel(x.repo, x.session) : null);
+        inputSavings(open, requests, { clears: sessionClears(sessionKey(x.session), requests), model, until: now, onSaving: onProvisional });
+      }
     }
     const confirmed = [...x.records.values()].filter(n => verdicts.get(key)?.get(n.id) === 'confirmed');
     if (confirmed.length) {

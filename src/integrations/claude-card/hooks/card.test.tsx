@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { servedNotes, cardHeader, compressionHeader, compressionTools, tailOf, shortTitle, TURNS_AFTER } from './register'
+import { servedNotes, cardHeader, cells, compressionHeader, compressionTools, statusTail, tailOf, shortTitle, TURNS_AFTER } from './register'
 
 const bundle = `<thinker-cache>
 Notes about this repo from earlier sessions.
@@ -16,10 +16,11 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout. (The prompt's notes arrive as a row a hook appends, which a test cannot raise.)
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as string[], env = {} as Record<string, string>, config = null as any } = {}) {
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], env = {} as Record<string, string>, config = null as any } = {}) {
   mock.store(on)
   mock.env(on, { HOME: '/home/me', ...env })
-  on('ui.status', ($, e) => { status.push(e.text as string); return { value: undefined } })
+  // the engine's own status row, beneath the mod: what the mod added to it is `tail`
+  on('ui.render', { component: 'PromptHint' }, ($, e) => { status.push(e.props.tail); const { Text } = $.ui.resolve(e); return <Text key="hint">{e.props.hint}</Text> })
   on('session.id', () => ({ value: 'sess-1' }))
   on('session.start', ($, e) => ({ cwd: e.cwd }))
   on('turn.complete', ($, e) => ({ text: e.answer }))
@@ -48,55 +49,79 @@ const today = () => {
 }
 const ledger = (day = today()) => ({ at: Date.now(), day, today: { cost: 3.65, tokens: 5_636_787 }, lifetime: { cost: 849.2, tokens: 1_339_960_865 } })
 
-test('the status line carries what was saved today and over the whole log', async ($, on) => {
-  const status: string[] = []
+// the status row as the engine hands it to the mod, and what the mod gave back
+const HINT = { component: 'PromptHint' as const, props: { hint: '~/src/talker  main', isDraft: false, isWorking: false } }
+const row = async ($: any, status: (string | undefined)[], surface: 'terminal' | 'desktop' = 'terminal') => {
+  await $.session.start({ cwd: '/r', surface, isInteractive: true })
+  const ui = await $.ui.mount({ plugin: 'thinker-card', surface, ...HINT })
+  const tail = status.at(-1)
+  await ui.unmount()
+  return tail
+}
+
+test('the figures sit at the far right of the status row, with the engine\'s own line kept', async ($, on) => {
+  const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(status.at(-1)).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
+  const tail = await row($, status)
+  expect(tail?.trimEnd()).toBe(tail)                       // padding goes in front, never behind
+  expect(tail?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
 })
 
-test('the status line is drawn again at the end of every turn, served or not', async ($, on) => {
-  const status: string[] = []
+test('the right edge is measured in cells, so a wide glyph does not push the line off the row', () => {
+  // 🧠 is two cells wide: a line measured by length alone would be padded one cell too far
+  expect(cells('🧠 a')).toBe(4)
+  const line = '🧠 lifetime ~$849'
+  const tail = statusTail('~/src/talker  main', line, 80)
+  expect(cells('~/src/talker  main') + cells(tail)).toBe(79)
+  expect(tail.endsWith(line)).toBe(true)
+  // a row with no room for the padding puts the line straight after the engine's own
+  expect(statusTail('a'.repeat(70), line, 80)).toBe(` ${line}`)
+  expect(statusTail('', line, 0)).toBe(` ${line}`)
+})
+
+test('the status row is read again at the end of every turn, served or not', async ($, on) => {
+  const status: (string | undefined)[] = []
   engine(on, { savings: ledger(), status })
   await $.turn.complete(end('t1'))
-  expect(status.length).toBe(1)
+  expect(await row($, status)).toBeDefined()
   await $.turn.complete(end('t2', 'Another answer.'))
-  expect(status.length).toBe(2)
+  expect((await row($, status))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
 })
 
 test('a ledger stamped on another day says lifetime alone', async ($, on) => {
-  const status: string[] = []
+  const status: (string | undefined)[] = []
   engine(on, { savings: ledger('2026-01-01'), status })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(status.at(-1)).toBe('🧠 lifetime ~$849')
+  expect((await row($, status))?.trimStart()).toBe('🧠 lifetime ~$849')
 })
 
-test('no ledger yet pins nothing', async ($, on) => {
-  const status: string[] = []
+test('no ledger yet leaves the row to the engine', async ($, on) => {
+  const status: (string | undefined)[] = []
   engine(on, { status })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(status.length).toBe(0)
+  expect(await row($, status)).toBeUndefined()
 })
 
-test('a cache with nothing saved yet pins nothing', async ($, on) => {
-  const status: string[] = []
+test('a cache with nothing saved yet leaves the row to the engine', async ($, on) => {
+  const status: (string | undefined)[] = []
   engine(on, { savings: { at: Date.now(), day: today(), today: { cost: 0, tokens: 0 }, lifetime: { cost: 0, tokens: 0 } }, status })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(status.length).toBe(0)
+  expect(await row($, status)).toBeUndefined()
 })
 
-test('notices switched off switch the status line off, by environment or by config', async ($, on) => {
-  const off: string[] = []
-  engine(on, { savings: ledger(), status: off, env: { THINKER_NOTICE: 'off' } })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(off.length).toBe(0)
+test('notices switched off leave the row alone, by environment or by config', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, env: { THINKER_NOTICE: 'off' } })
+  expect(await row($, status)).toBeUndefined()
 })
 
-test('notices switched off in the repository config switch the status line off', async ($, on) => {
-  const off: string[] = []
-  engine(on, { savings: ledger(), status: off, config: { notice: false } })
-  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })
-  expect(off.length).toBe(0)
+test('notices switched off in the repository config leave the row alone', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status, config: { notice: false } })
+  expect(await row($, status)).toBeUndefined()
+})
+
+test('the figures reach the desktop app\'s status row too', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: ledger(), status })
+  expect((await row($, status, 'desktop'))?.trimStart()).toBe('🧠 saved today ~$3.65 · lifetime ~$849')
 })
 
 test('only the notes served count, not the titles listed for lookup', () => {

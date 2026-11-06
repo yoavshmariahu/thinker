@@ -54,9 +54,9 @@ measured it. Details and the hook events behind each cell: [docs/agent-integrati
 
 You don't run thinker by hand. Once it is installed there are three ways in:
 
-- **What it has saved, where you work.** Claude Code pins a line under the prompt -- `🧠 saved today
-  ~$3.65 · lifetime ~$849` -- and the Codex, Cursor and Claude desktop apps carry the same two figures
-  with thinker's end-of-turn card. `thinker savings` prints them with the split: the reading the cache
+- **What it has saved, where you work.** Claude Code shows it at the far right of the status row --
+  `🧠 saved today ~$3.65 · lifetime ~$849` -- and the Codex, Cursor and Claude desktop apps carry the
+  same two figures with thinker's end-of-turn card. `thinker savings` prints them with the split: the reading the cache
   replaced, and the context the proxy cleared. They are API-list-price equivalents of context nobody
   had to read, at the providers' published rates, not a bill.
 - **A suggestion in your session.** About once a week, once a repository has ten sessions to read, your

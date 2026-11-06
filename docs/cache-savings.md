@@ -58,9 +58,9 @@ are not included in the new per-hit input estimate.
 ## The savings footer
 
 Every client thinker has a door into shows what it has saved, in dollars, for today and over the
-whole log: the Claude Code status line (terminal and desktop app), the Codex desktop card, the Cursor
-table, and the end-of-turn line in Codex CLI and in a Claude Code without the card mod. `thinker
-savings` prints the same figures with their split.
+whole log: the far right of the Claude Code status row (terminal and desktop app), the Codex desktop
+card, the Cursor table, and the end-of-turn line in Codex CLI and in a Claude Code without the card
+mod. `thinker savings` prints the same figures with their split.
 
 The footer does not compute anything of its own. `savings-ledger.js` asks the Report page's savings
 table (`report-savings.js:weeklySavings`) for two windows instead of six weeks, so both of its series
@@ -73,9 +73,14 @@ dominates the lifetime total. Surfaces with room show the split rather than the 
 API-list-price equivalents at the rates in `prices.js`, not measured billing: the rest of the product
 counts tokens for the reason recorded there, and this is the second exception after the Report page.
 
-A day's figure counts confirmed servings only, as the aggregate report does, so a day reads $0 until
-its sessions have been assessed. A ledger stamped on a day that has passed says lifetime alone rather
-than presenting yesterday's figure as today's.
+The two windows select servings differently, and every surface that explains itself says which is
+which. Lifetime counts servings a finished session confirmed, exactly as the aggregate report does.
+Today counts what has already been served, less anything a session reported unused or contradicted --
+the rule the running session's own footer uses -- priced at the model the session's transcript names.
+Waiting for the assessments would leave a daily figure at $0 for most of a working day: on the
+machine this was built on, only 15% of the sessions ever served notes have been assessed at all, and
+of those the median was assessed 72 minutes after its first serving. A ledger stamped on a day that
+has passed says lifetime alone rather than presenting yesterday's figure as today's.
 
 The ledger is the machine's (`THINKER_HOME/state/savings.json`), since lifetime spans every checkout.
 Working it out is a read of the whole log and of the sessions its savings records name, so no hook and
