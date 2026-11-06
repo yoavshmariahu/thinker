@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
+import { clearedBySession, compressionHeader, compressionSaving } from '../src/compression.js';
+import { TOKENS_PER_CHAR } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';
 
@@ -587,5 +589,55 @@ test('an answer that lands after the next boundary leaves the reservation and th
     assert.deepEqual(end.cut, reserved.cut, 'nor the set, which is what holds the prompt cache in a turn');
     assert.equal(end.calls, 2, 'and neither call was lost from the count');
     assert.ok(end.saved >= reserved.saved, 'what the cut saved is not rolled back either');
+  } finally { p.server.close(); up.server.close(); }
+});
+
+// What the cut saved has to reach the person, and between 2026-11-04 and 2026-11-05 none of it did: the
+// API-side clearing reported `cleared` on each response and every door read that, the cut asks the API for
+// nothing, and the field the cut filled instead was read by nobody. The session record stopped being
+// written, so the card, the Stop hook's line, `thinker proxy report` and `thinker prs` had nothing to say
+// about 666,516 tokens this machine had taken out.
+test('what the cut took out is on the row, in the session record, and summed as the saving', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    await send(p.port, { data: cuttable() });
+    // the saving is not the cut: it is every later call that reads the shorter prefix (compression.js)
+    await send(p.port, { data: cuttable() });
+    const cut = rows(p.logFile).filter(r => r.op === 'proxy' && r.clientCut);
+    assert.equal(cut.length, 2, 'both calls were shortened by the set');
+    for (const r of cut) {
+      assert.ok(r.cleared > 0, 'the row says what the prompt was shorter by');
+      assert.equal(r.cleared, r.clientCut.tokens, 'and the figure is the cut\'s own, the API having reported none');
+      assert.equal(r.cleared, Math.round(r.clientCut.chars * TOKENS_PER_CHAR), 'tied to the characters it replaced');
+      assert.equal(r.clearedUses, r.clientCut.cut, 'with the results it replaced beside it');
+      assert.equal(r.clientCut.inputChars, undefined, 'the call text is not the cut\'s business');
+      assert.equal(r.clientCut.thinking, undefined, 'nor the thinking');
+    }
+    // the session's record: what the card, the Stop hook's line and `thinker proxy report` read
+    const saved = clearedBySession(p.logFile).get('s1');
+    assert.equal(saved.requests, 2, 'counted on every call that read the shorter prefix, not once at the cut');
+    assert.equal(saved.cleared, cut[0].cleared + cut[1].cleared);
+    const file = path.join(path.dirname(p.logFile), 'compression', 's1.json');
+    assert.ok(fs.existsSync(file), 'and the record is written beside the log, for a card that may not read the log');
+    const state = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.equal(state.saved, saved.cleared, 'the record beside the log and the log agree');
+    assert.deepEqual(compressionSaving(state), null, 'and nothing is said yet: the saving comes due three turns on');
+    // what the card, the Stop hook's line and `thinker proxy report` will put to the person once it is due
+    const due = compressionSaving({ ...state, turns: 3 });
+    assert.equal(compressionHeader(due, n => n), `context cleared · ~${saved.cleared} tokens not re-read over 2 calls`);
+  } finally { p.server.close(); up.server.close(); }
+});
+
+test('a request the cut did not shorten claims no saving', async () => {
+  const up = await upstream();
+  const p = await proxyTo(up.url, CUTS);
+  try {
+    await send(p.port, { data: body() });                    // nothing in it old enough to cut
+    const r = rows(p.logFile).find(x => x.op === 'proxy');
+    assert.equal(r.cleared, 0, 'nothing was taken out of this prompt');
+    assert.equal(r.clearedUses, 0);
+    assert.equal(clearedBySession(p.logFile).size, 0, 'and no session is credited with a clear that never happened');
+    assert.equal(fs.existsSync(path.join(path.dirname(p.logFile), 'compression', 's1.json')), false);
   } finally { p.server.close(); up.server.close(); }
 });

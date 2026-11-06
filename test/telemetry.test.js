@@ -879,18 +879,22 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
       { at: at(2940_000), op: 'proxy', session: 's1', model: 'claude-opus-5', injected: true, input: 10, read: 100, write: 0, out: 1, retried: true, overheadMs: 1 },
       { at: at(40 * 86400_000), op: 'proxy', session: 'old', model: 'claude-opus-5', injected: true, input: 99_999, read: 0, write: 0, out: 0, cleared: 99_999, overheadMs: 2 },
       { at: at(2900_000), op: 'proxy-standdown', reason: 'the agent sent credentials that are not Anthropic\'s' },
+      // the cut's own row: no `cleared`, because the API was not asked (cutting.js:clearedOf). Every
+      // figure here read 0 for the whole of 0.2.22, with the cut working on the machines that sent it.
+      { at: at(2800_000), op: 'proxy', session: 's3', model: 'claude-opus-5', injected: true, keep: 'turn', input: 20, read: 150_000, write: 0, out: 10, clientCut: { cut: 4, chars: 60_000, tokens: 21_600 }, overheadMs: 3 },
     ];
     fs.writeFileSync(path.join(tmpHome, 'state', 'proxy.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
     const p = proxyMetrics({ home: tmpHome, now, env: {} });
     assert.equal(p.schemaVersion, 1); assert.equal(p.windowDays, 30);
     assert.equal(p.service.on, true);
     assert.equal(p.service.holdout, 0.15, 'the service holdout share the two sides come from');
-    assert.equal(p.sides.clearing.requests, 3, 'the request from 40 days ago is outside the window');
-    assert.equal(p.sides.clearing.cleared, 40_000);
-    assert.equal(p.sides.clearing.requestsCleared, 1);
+    assert.equal(p.sides.clearing.requests, 4, 'the request from 40 days ago is outside the window');
+    assert.equal(p.sides.clearing.cleared, 61_600, 'what the API cleared, plus what the cut took out itself');
+    assert.equal(p.sides.clearing.requestsCleared, 2);
     assert.equal(p.sides.holdout.requests, 1);
-    assert.equal(p.sides.clearing.billedInput, Math.round(1510 + 0.1 * 30_100 + 2 * 5000));
-    assert.equal(p.byModel['claude-opus-5'].clearing.requests, 3);
+    assert.equal(p.sides.clearing.billedInput, Math.round(1530 + 0.1 * 180_100 + 2 * 5000));
+    assert.equal(p.byModel['claude-opus-5'].clearing.requests, 4);
+    assert.equal(p.byModel['claude-opus-5'].clearing.cleared, 61_600, 'the per-model figure reads the same accessor');
     assert.equal(p.byModel['claude-opus-5'].holdout.requests, 1);
     assert.equal(p.errors.total, 3, 'tries that errored; the cancelled request is not one of them');
     assert.equal(p.errors.retried, 1);

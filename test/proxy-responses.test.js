@@ -123,6 +123,11 @@ test('HTTP transport preserves auth, streaming, errors and compact requests with
   assert.equal(rows[0].session, 'session-test'); assert.equal(rows[0].input, 250);
   assert.deepEqual([rows[0].write, rows[0].write30m, rows[0].write12h, rows[0].freshInput], [40, 10, 30, 10]);
   assert.deepEqual(rows[0].apiUsage, usage);
+  // Codex reads the same ledger: what its cut took out of this request, so the desktop card's second
+  // section and `thinker proxy report` have a figure for it too (`proxy.js:clearedBy`, 2026-11-05).
+  assert.equal(rows[0].cleared, Math.round(rows[0].clientCut.tokens), 'the saving is on the row, as a whole number of tokens');
+  assert.equal(rows[0].clearedUses, rows[0].clientCut.cut);
+  assert.ok(rows[0].cleared > 0);
   const dumpDir = path.join(dir, 'dumps', 'session-test');
   const dumps = fs.readdirSync(dumpDir).map(f => JSON.parse(fs.readFileSync(path.join(dumpDir, f))));
   assert.ok(dumps.length);

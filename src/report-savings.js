@@ -2,6 +2,7 @@
 // These are estimates, separate from billed usage: never add the series to each other.
 import { costOfInputSavings, listPrice } from './prices.js';
 import { sessionKey } from './usage.js';
+import { clearedOf, clearedEstimated } from './cutting.js';
 
 const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedTokens: 0, estimatedTokens: 0, hits: 0 });
 export const SAVINGS_SERIES = [['cache', 'Cache hits'], ['compression', 'Context compression']];
@@ -44,9 +45,10 @@ export function weeklySavings({ columns, now, config, cache = [], events = [], c
     const owner = origin && ownerAt(r);
     if (owner && owner !== origin) continue;
     if (!known.has(sessionKey(r.session)) || r.truncated || !(r.status >= 200 && r.status < 300)) continue;
-    // Anthropic reports tokens cleared; Responses records a byte-based estimate. Both
-    // count the shorter prefix on each request, including subsequent cached reads.
-    const estimated = r.protocol === 'responses', tokens = estimated ? r.estimatedRemovedTokens : r.cleared;
+    // Where the API cleared, it reported the tokens; since thinker cuts the context itself the row carries
+    // the cut's own count, and Responses a byte-based estimate. All three count the shorter prefix on each
+    // request, including subsequent cached reads (cutting.js:clearedOf).
+    const estimated = clearedEstimated(r), tokens = clearedOf(r);
     if (!Number.isFinite(tokens) || tokens < 0) continue;
     account(1, { ...r, estimated }, tokens, costOfInputSavings({ cacheRead: tokens }, listPrice(r.model, { config })));
   }

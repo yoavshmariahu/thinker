@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { TURNS_AFTER, clearingCostBySession, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
+import { TURNS_AFTER, clearedBySession, clearingCostBySession, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
 import { cutActions } from '../src/proxy.js';
 import { compressionNotice, formatTokens } from '../src/usage.js';
 
@@ -188,5 +188,43 @@ test('the clearing cost honours the window, so a report of today never charges y
   ].join('\n') + '\n');
   assert.equal(clearingCostBySession(log).get('s1').write, 250_000, 'the whole log by default');
   assert.equal(clearingCostBySession(log, { since: '2026-11-03T00:00:00.000Z' }).get('s1').write, 100_000);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// Since the cut (0.2.22) no row carries `cleared`: thinker takes the results out itself and the row
+// says so in `clientCut`. The record, what a pull request saved and what the rewrites after a clear
+// cost all read the same accessor now, so the figure survives the change of door.
+test('a cut row is a clear, and the record says the figure is thinker\'s own count', () => {
+  const dir = tmp();
+  const cut = row({ cleared: undefined, clearedUses: undefined, clientCut: { cut: 2, chars: 30000, tokens: 10800 } });
+  const first = noteCompression(dir, cut);
+  assert.equal(first.saved, 10800);
+  assert.equal(first.uses, 2);
+  assert.equal(first.estimated, true, 'never shown as a figure the API measured');
+  const second = noteCompression(dir, { ...cut, at: 'b', clientCut: { cut: 2, chars: 30000, tokens: 10800 } });
+  assert.equal(second.saved, 21600, 'every later call leaves those tokens out again');
+  assert.equal(second.recent.at(-1).cleared, 10800);
+  // nothing taken out is still not a clear
+  assert.equal(noteCompression(dir, row({ cleared: undefined, clientCut: { cut: 0, chars: 0, tokens: 0 } })), null);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('what a pull request saved, and what its rewrites cost, both see a cut row', () => {
+  const dir = tmp();
+  const file = path.join(dir, 'proxy.jsonl');
+  const rows = [
+    { at: '2026-11-05T10:00:00Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5', status: 200,
+      clientCut: { cut: 2, chars: 30000, tokens: 10800 }, input: 10, read: 20000, write: 0 },
+    // a call after the clear that wrote its prefix again: the cost side, charged from the first clear on
+    { at: '2026-11-05T10:01:00Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5', status: 200,
+      input: 10, read: 1000, write: 150000 },
+  ];
+  fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+  const saved = clearedBySession(file);
+  assert.equal(saved.get('s1').cleared, 10800);
+  assert.equal(saved.get('s1').requests, 1);
+  const cost = clearingCostBySession(file, {});
+  assert.equal(cost.get('s1').rewrites, 1, 'a rewrite after a cut is charged to the cut');
+  assert.ok(cost.get('s1').usd > 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });

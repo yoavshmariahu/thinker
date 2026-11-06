@@ -105,11 +105,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - The refusal count judges the model calls alone (`MESSAGES_PATH`): an agent sends more than those through the proxy, and a 200 on one of the others reset the count, so three refusals in a row never arrived.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
-- The proxy cleared and nothing said so. The API answers every cleared request with the tokens it left out of that
-  prompt (`cleared_input_tokens`), and the cleared set is cumulative within a conversation, so adding those up over a
-  session is the whole of the saving: **the tokens the server left out of each prompt since the clear, added up**.
-  Measured, not modelled, and gross like the cache-hit card's -- a clear also writes the prompt cache again, which
-  `thinker proxy replay` prices.
+- The proxy cleared and nothing said so. The cleared set is cumulative within a conversation, so adding up what each
+  prompt was shorter by over a session is the whole of the saving: **the tokens left out of each prompt since the
+  clear, added up**. Measured, not modelled, and gross like the cache-hit card's -- a clear also writes the prompt
+  cache again, which `thinker proxy replay` prices.
+- **The figure is the cut's own** (2026-11-05; `proxy.js:applyCut` returns `tokens`, `clearedBy` puts it on the row).
+  It used to be the API's: the API-side edit answered every cleared request with `cleared_input_tokens`, and every
+  door read `cleared` off the row from there. The cut asks the API for nothing, so from 2026-11-04 `usageTap`
+  returned `cleared: 0` on every request while the field the cut filled instead (`clientCut`) was read by nobody
+  outside `proxy.js` -- and `applyCut` did not even return the `tokens`, `inputChars` and `thinking` that row named.
+  So **every saving the cut made went unrecorded for a day**: no session record was written after 2026-11-04 04:01,
+  and the `proxy-cut` rows after it account for 666,516 tokens this machine took out that reached no card, no
+  `thinker proxy report` and no pull request. Both sides of the ledger gate on `cleared > 0`
+  (`clearedBySession`, `clearingCostBySession`), so a cut session was not reading as a loss -- it was reading as
+  nothing at all. Only a request the cut actually shortened carries the fields, and the figure is tied to the
+  characters it replaced, so a result left in place for being under `CUT_MIN_CHARS` is never claimed as a saving
+  (`test/proxy.test.js`, the two savings tests; the first fails against the code it replaced).
 - Written per session beside the log (`<THINKER_HOME>/state/compression/<session>.json`, `compression.js:noteCompression`
   from `startProxy`'s `log`), because the log is a megabyte within a week and no card may read it on a turn.
 - Not at the clear: the first cleared call saves nothing anybody would notice, since the saving is every *later* call

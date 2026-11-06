@@ -76,6 +76,31 @@ export const MIN_CHARS = 200;
 export const placeholder = chars =>
   `[tool result removed by thinker after use: ${chars} chars. You saw it in full at the time, so answers you already gave from it stand. Read it again if you need it now.]`;
 
+// What a logged request says was taken out of *that* prompt, whichever door did it. Until 0.2.22 the API
+// cleared and reported it (`cleared`, measured); since the cut, thinker does it itself and the row carries
+// its own count (`clientCut`, the replaced results' characters at TOKENS_PER_CHAR). Both describe the
+// cumulative set left out of this one prompt -- the set is re-applied to every request of the session -- so
+// a sum over a session's rows is what the clearing saved it, as it always was.
+//
+// `proxy.js:clearedBy` puts the cut's figure on the row as `cleared` from 2026-11-05, so a reader needs no
+// accessor for a row written after that. This is for the rows written before it: between 2026-11-04 and
+// that fix the cut filled `clientCut` alone, nothing read it, and those rows sit inside the 30-day window
+// every figure here is read over. Five readers asked `row.cleared > 0` and got 0 from all of them -- the
+// per-session record (`compression.js:noteCompression`), the log's two sides (`proxy.js:proxyReport`), the
+// telemetry (`telemetry.js:proxyMetrics`), what a pull request saved (`clearedBySession`) and what the
+// rewrites after a clear cost it (`clearingCostBySession`).
+// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js).
+export const clearedOf = r => Math.round(r?.protocol === 'responses'
+  ? (r?.estimatedRemovedTokens || r?.clientCut?.tokens || 0)
+  : (r?.cleared || r?.clientCut?.tokens || 0));
+export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
+// Whether that figure is the API's measurement or thinker's own count of what it removed. Kept on the
+// record so no door claims a measured number for an estimate (`compression.js`).
+// Keyed on the cut having done it, not on which field carries the figure: `clearedBy` writes the cut's own
+// count into `cleared`, the field the API used to fill, so asking whether `cleared` is set no longer tells
+// a measurement from an estimate. A row from the API-side era carries no `clientCut` at all.
+export const clearedEstimated = r => r?.protocol === 'responses' || r?.clientCut?.tokens > 0;
+
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
   saved: 0, written: 0, chars: 0, model: null, at: 0,

@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { isRewrite } from './cutting.js';
+import { isRewrite, clearedOf, clearedUsesOf, clearedEstimated } from './cutting.js';
 import { listPrice } from './prices.js';
 
 // Turns after the first clear of a session before the saving is shown. Three: enough that the figure is the
@@ -68,11 +68,14 @@ function prune(dir, { now = Date.now() } = {}) {
   } catch { /* nothing to prune */ }
 }
 
-// The proxy's side: one row of its log. Only a request the server actually cleared something from counts --
-// a row with `cleared: 0` is a request under the trigger, and saying a clear happened there would be a lie.
+// The proxy's side: one row of its log. Only a request something was actually taken out of counts -- a row
+// that cleared nothing is a request under the trigger, and saying a clear happened there would be a lie.
+// What was taken out is `cutting.js:clearedOf`: the API's own report where the API did the clearing, the
+// cut's own count since thinker does it itself.
 export function noteCompression(dir, row, { now = Date.now(), actions = null } = {}) {
   // a `compaction` row is Devin's own compactor measured from its session database (devin-compaction.js)
-  if (!dir || !row || !['proxy', 'compaction'].includes(row.op) || !row.session || !(row.cleared > 0)) return null;
+  const cleared = clearedOf(row);
+  if (!dir || !row || !['proxy', 'compaction'].includes(row.op) || !row.session || !(cleared > 0)) return null;
   const file = fileFor(dir, row.session);
   const prev = read(file);
   if (!prev) prune(dir, { now });
@@ -84,10 +87,13 @@ export function noteCompression(dir, row, { now = Date.now(), actions = null } =
     firstAt: prev?.firstAt || row.at,
     lastAt: row.at,
     requests: (prev?.requests || 0) + 1,
-    saved: (prev?.saved || 0) + row.cleared,
-    uses: (prev?.uses || 0) + (row.clearedUses || 0),
+    saved: (prev?.saved || 0) + cleared,
+    uses: (prev?.uses || 0) + clearedUsesOf(row),
+    // thinker's own count of what it removed, not a figure the API reported: said once on the record so no
+    // door shows it as measured (every row since the cut shipped is this)
+    ...(clearedEstimated(row) || prev?.estimated ? { estimated: true } : {}),
     ...(Array.isArray(actions) && actions.length ? { tools: actions.slice(0, TOP_TOOLS) } : prev?.tools ? { tools: prev.tools } : {}),
-    recent: [...(prev?.recent || []), { at: row.at, cleared: row.cleared, uses: row.clearedUses || 0 }].slice(-RECENT),
+    recent: [...(prev?.recent || []), { at: row.at, cleared, uses: clearedUsesOf(row) }].slice(-RECENT),
     ...(prev?.firstTurn != null ? { firstTurn: prev.firstTurn } : {}),
     ...(prev?.told ? { told: prev.told } : {}),
     ...(row.op === 'compaction' ? { kind: 'compaction' } : prev?.kind ? { kind: prev.kind } : {}),
@@ -203,7 +209,7 @@ export function clearingCostBySession(file, { since = '', config } = {}) {
   const out = new Map(), cleared = new Set();
   for (const r of compressionRecords(file)) {
     if (since && r.at && r.at < since) continue;
-    if (r.cleared > 0) cleared.add(r.session);
+    if (clearedOf(r) > 0) cleared.add(r.session);
     if (!cleared.has(r.session) || !isRewrite(r)) continue;
     const price = listPrice(r.model, { config });
     const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
@@ -218,9 +224,10 @@ export function clearingCostBySession(file, { since = '', config } = {}) {
 export function clearedBySession(file, { since = '' } = {}) {
   const out = new Map();
   for (const r of compressionRecords(file)) {
-    if (!(r.cleared > 0) || (since && r.at && r.at < since)) continue;
+    const cleared = clearedOf(r);
+    if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
     const prev = out.get(r.session) || { cleared: 0, requests: 0 };
-    out.set(r.session, { cleared: prev.cleared + r.cleared, requests: prev.requests + 1 });
+    out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1 });
   }
   return out;
 }
