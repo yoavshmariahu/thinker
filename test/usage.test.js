@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, turnNotice, SECONDS_PER_READ } from '../src/usage.js';
+import { readsOf, summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, turnNotice, SECONDS_PER_READ } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 // run with the environment set as given (undefined removes a variable), then put it back
@@ -182,8 +182,8 @@ test('the notice names the notes and the code they point at, not a saving', () =
 
   const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
   assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000, uncounted: 0, seconds: 2 * SECONDS_PER_READ });
-  // a note whose files are missing still stands for one read's worth of time
-  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
+  // a note whose files are missing points at nothing to read, and stands for no time either
+  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, 0);
 
 
   assert.doesNotMatch(turnNotice(one.repo, [one.get('n1')]), /saved|hit/, 'nothing is known to be saved when a note is served');
@@ -247,8 +247,29 @@ test('a note resting on the agent\'s own configuration is not credited with read
   assert.deepEqual(savingOf(one.repo, one.get('mixed')), savingOf(one.repo, one.get('code')));
   assert.equal(turnNotice(one.repo, [one.get('mixed')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
 
-  // a note whose code is merely missing from disk still stands for one read, as before
-  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, SECONDS_PER_READ);
+  // a note whose code is missing from disk points at nothing to read: no floor stands in for it (until
+  // 2026-11-06 one of 300 tokens did, and a behavior whose anchors were gone printed it at every turn)
+  assert.deepEqual(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]), { calls: 0, tokens: 0, uncounted: 0, seconds: 0 });
+  assert.equal(turnNotice(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]), '🧠 thinker: 1 note this turn');
+  assert.equal(cacheHitSavings(one.repo, [{ id: 'y', body: 'no deps at all', deps: [] }]).tokens, 0);
+});
+
+// The measurement is kept on the note (usage.js:readsOf, stamped by createNote and every verification; the owner's
+// ask, 2026-11-06): every door reads the record, and the disk only for a note that has none.
+test('a note carries its own reads record, and every door reads it before the disk', () => {
+  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
+  const stamped = { ...one.get('n1'), reads: { files: [{ path: 'elsewhere.js', tokens: 1234 }], calls: 1, tokens: 1234, at: '2026-11-06T00:00:00.000Z' } };
+  assert.deepEqual(savingOf(one.repo, stamped), { calls: 1, tokens: 1234 }, 'the record, not the files on disk');
+  assert.deepEqual(cacheHitSavings(one.repo, [stamped]), { calls: 1, tokens: 1234, uncounted: 0, seconds: SECONDS_PER_READ });
+  assert.equal(turnNotice(one.repo, [stamped]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1.2k tokens of code)');
+  // two notes naming one file in their records count it once
+  const twin = { ...one.get('n2'), reads: { files: [{ path: 'elsewhere.js', tokens: 1234 }, { path: 'more.js', tokens: 10 }], calls: 2, tokens: 1244 } };
+  assert.deepEqual(cacheHitSavings(one.repo, [stamped, twin]), { calls: 2, tokens: 1244, uncounted: 0, seconds: 2 * SECONDS_PER_READ });
+  // the disk is read for a note without one, as before
+  const measured = readsOf(one.repo, one.get('n1'));
+  assert.deepEqual(measured.files.map(f => f.path), ['a.js', 'b.js']);
+  assert.equal(measured.tokens, 7000); assert.equal(measured.calls, 2); assert.ok(measured.at);
+  assert.deepEqual(savingOf(one.repo, one.get('n1')), { calls: 2, tokens: 7000 });
 });
 
 

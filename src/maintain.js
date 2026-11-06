@@ -409,6 +409,7 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   }
   if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
   if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior is violated' : 'behaviors are violated'}; see thinker system`);
+  if (u.retiredBehaviors?.length) parts.push(`${u.retiredBehaviors.length} desired ${u.retiredBehaviors.length === 1 ? 'behavior' : 'behaviors'} retired, ${u.retiredBehaviors.length === 1 ? 'its' : 'their'} files being gone; see thinker system --all`);
   if (u.gaveUp?.length) parts.push(...u.gaveUp);
   if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly changed; verification deferred`);
   if (!parts.length) return '';

@@ -67,7 +67,8 @@ for (const cause of ['file removed', 'symbol not found', 'contradiction']) {
     else if (cause === 'symbol not found') fs.writeFileSync(f.file, 'export function different() {}\n');
     else f.store.put({ ...f.store.get(f.note.id), contradicted: { evidence: 'fetchRows does not keep rows ordered' } });
     const [note] = refresh(f.store);
-    assert.equal(note.status, 'stale');
+    // a note whose every file is gone is retired (ops.js:anchorsGone, 2026-11-06), the others stay stale: withheld either way
+    assert.equal(note.status, cause === 'file removed' ? 'invalid' : 'stale');
     assert.equal(note.recheck, undefined);
     assert.equal((await orient(f.store, { task: 'how are rows fetched', freshOnly: true })).included.length, 0);
     assert.equal((await lookup(f.store, { query: f.note.id })).included.length, 0);
