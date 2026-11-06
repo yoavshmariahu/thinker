@@ -397,9 +397,15 @@ export function transformRequest(method, url, headers, body, cfg) {
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
   const applied = applyCut(j.messages, d.cut);
   if (!applied.cut) return { body, reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}) };
+  // What each action's result was worth is read from the request as the agent sent it, before the cut
+  // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
+  // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
+  // was the placeholders' own size -- 59 tokens for a 42k-char read, 531 against a session's 1.48M saved.
+  // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
+  const actions = cutActions(j.messages, d.cut);
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3,
-    cut: d.cut, changed: !!d.clear, addBeta: false, actions: cutActions(applied.messages, d.cut),
+    cut: d.cut, changed: !!d.clear, addBeta: false, actions,
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
