@@ -50,8 +50,10 @@ export function shortTitle(title: string): string {
 }
 
 // thinker's estimate, as usage.js:cacheHitSavings makes it (test/claude-card.test.js holds the two
-// together): one read per file a note rests on, at most MAX_FILES a note, each file once, its size
-// / 3.6 tokens capped at FILE_CAP; agent configuration and build output count nothing.
+// together): the `reads` record kept on the note (usage.js:readsOf, measured when the note was made or
+// verified), each file once across the notes; measured from the disk only for a note that has none yet,
+// one read per file a note rests on, at most MAX_FILES a note, its size / 3.6 tokens capped at FILE_CAP,
+// agent configuration and build output counting nothing.
 export const MAX_FILES = 5
 export const FILE_CAP = 6000
 export const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.factory|\.qwen|\.kiro|\.clinerules|\.cline|\.kilo|\.kilocode|\.augment|\.goose|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/
@@ -91,10 +93,15 @@ async function estimate($: any, ids: readonly string[]): Promise<number> {
   const seen = new Set<string>()
   let tokens = 0
   for (const id of ids) {
-    let deps: { path?: string }[] = []
+    let note: { deps?: { path?: string }[]; reads?: { files?: { path: string; tokens: number }[] } } = {}
     for (const dir of ['.thinker/local/notes', '.thinker/notes']) {
-      try { deps = JSON.parse(String(await $.fs.read(`${root}/${dir}/${id}.json`))).deps ?? []; break } catch {}
+      try { note = JSON.parse(String(await $.fs.read(`${root}/${dir}/${id}.json`))); break } catch {}
     }
+    if (Array.isArray(note.reads?.files)) {
+      for (const f of note.reads.files) { if (seen.has(f.path)) continue; seen.add(f.path); tokens += f.tokens }
+      continue
+    }
+    const deps = note.deps ?? []
     for (const f of [...new Set(deps.map(d => d.path).filter((x): x is string => !!x))].slice(0, MAX_FILES)) {
       if (seen.has(f) || NOT_READING.test(f)) continue
       seen.add(f)

@@ -10,7 +10,7 @@ import { auditSkill, markSkillBroken } from './skills.js';
 import { hashDep, checkNote, symbolText, symbolBlock, repoFile, narrowAtCreation, TRANSIENT } from './deps.js';
 import { rank, pack, renderNote, estTokens, MIN_COVER, tokenize } from './rank.js';
 import { annotateFanout, fanout, callees, references, findDefinitions, findSymbols, outline, renderFanout, definitionOf } from './codegraph.js';
-import { servedFields } from './usage.js';
+import { servedFields, readsOf } from './usage.js';
 import { complete } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { anchoringGuard, explicitIdents } from './guard.js';
@@ -138,6 +138,7 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
     confidence: Math.max(0, Math.min(1, Number(input.confidence ?? 0.7))),
     status: 'fresh', uses: 0,
   };
+  note.reads = readsOf(repo, note); // what it points at, measured here and kept (usage.js:readsOf)
   store.put(note);
   try { linkNotes(store, note); } catch {}
   return { note, dropped };
@@ -150,10 +151,16 @@ export function createNote(store, input, { source = { type: 'agent' }, reuseId =
 // re-hashes a gone file to `missing` again). Thinker refuses such a note at creation already
 // (`createNote`: an anchor must be an existing file); this applies the same rule to one whose files went
 // away afterwards, with no model call. Nothing that was being served stops being served: these notes
-// were already withheld. A desired behavior and a skill card are a person's own, and so is a note someone
-// wrote by hand - those are left for a person to decide on. Returns the gone paths, or null.
+// were already withheld. A desired behavior follows the rule of behavior.js (`refresh` decides, with
+// onDefaultBranch): until the removal is merged the behavior is the truth and stays stale, withheld; once
+// it is merged the code is, and the behavior is retired with its text kept. Until 2026-11-06 a behavior,
+// a skill card and a note a person wrote were left stale for good instead, and 22 of this repository's
+// 489 notes were such behaviors, pointing at modules removed weeks before -- three of them `fresh` with no
+// deps at all, because a revision on merged code had dropped every missing file, so they could never go
+// stale and were served at every matching prompt as "~300 tokens of code" (usage.js:cacheHitSavings's
+// old floor). A dead note is dead whoever wrote it; the text stays in the file for `thinker system --all`
+// and `thinker list`. Returns the gone paths, or null.
 export function anchorsGone(note, changed) {
-  if (['behavior', 'skill'].includes(note.kind) || note.source?.type === 'human') return null;
   const paths = [...new Set((note.deps || []).map(d => d.path).filter(p => p && !TRANSIENT.test(p)))];
   if (!paths.length) return null;
   const removed = new Set(changed.filter(c => c.reason === 'file removed').map(c => c.path));
@@ -163,23 +170,38 @@ export function anchorsGone(note, changed) {
 // Code edits queue verification without withholding the note. Missing anchors and explicit
 // contradictions still withhold it. Old hash-only stale records migrate here without rebaselining.
 export function refresh(store, notes = store.list(), { persist = true, narrow = false } = {}) {
+  const retire = (n, gone) => {
+    const next = { ...n, status: 'invalid', invalidReason: `anchors removed: ${gone.slice(0, 3).join(', ') || 'none left'}` };
+    delete next.stale;
+    delete next.recheck;
+    delete next.violated;
+    if (persist) {
+      store.put(next);
+      store.log({ op: 'retire-gone', id: next.id, kind: next.kind, paths: gone.slice(0, 10) });
+      // a person's rule going quietly is worse than a line: named at the end of the next turn (maintain.js)
+      if (kindOf(n.kind) === 'behavior') noteUnreported(store, 'retiredBehaviors', { id: n.id, title: n.title, paths: gone.slice(0, 3) });
+    }
+    return next;
+  };
   return notes.map(n => {
     if (n.status === 'invalid') return n;
     // a broken skill (skills.js) stays as it is until its file changes or a person reviews it: a code
     // change alone does not put it back into audit
     if (n.status === 'broken') return n;
+    // nothing left to rest on: a verification dropped every file that went away (verifyBehavior's revision
+    // did, until 2026-11-06), and a note with no anchor can never go stale, so it was served for good
+    if (!(n.deps || []).some(d => d.path)) return retire(n, []);
+    // a note from before the measurement was kept on the note (2026-11-06), or a shared one this checkout has
+    // not measured: measured once here, whatever else this pass does to it, so no door reads the disk for it again
+    const hadReads = Array.isArray(n.reads?.files);
+    if (!hadReads) n = { ...n, reads: readsOf(store.repo, n) };
     const { changed, deps, upgraded } = checkNote(store.repo, n, { narrow });
     const wasWaiting = needsVerification(n);
     if (changed.length) {
-      // every file the note rests on is gone: retired here rather than left stale for good (above)
+      // every file the note rests on is gone: retired here rather than left stale for good (above); a
+      // desired behavior only once the removal is merged, since until then the behavior is the truth
       const gone = anchorsGone(n, changed);
-      if (gone) {
-        const next = { ...n, status: 'invalid', invalidReason: `anchors removed: ${gone.slice(0, 3).join(', ')}` };
-        delete next.stale;
-        delete next.recheck;
-        if (persist) { store.put(next); store.log({ op: 'retire-gone', id: next.id, kind: next.kind, paths: gone.slice(0, 10) }); }
-        return next;
-      }
+      if (gone && (kindOf(n.kind) !== 'behavior' || onDefaultBranch(store.repo, gone))) return retire(n, gone);
       const status = n.contradicted || missingAnchor(changed) ? 'stale' : 'pending';
       const field = status === 'stale' ? 'stale' : 'recheck';
       const waiting = { since: n.recheck?.since || n.stale?.since || new Date().toISOString(), changed };
@@ -188,19 +210,20 @@ export function refresh(store, notes = store.list(), { persist = true, narrow = 
       // still read as changed, and the verification sees symbols rather than the file
       const next = { ...n, status, [field]: waiting, ...(upgraded ? { deps } : {}) };
       delete next[field === 'stale' ? 'recheck' : 'stale'];
-      if (persist && (n.status !== status || upgraded || JSON.stringify(n[field]?.changed) !== JSON.stringify(changed))) store.put(next);
+      if (persist && (!hadReads || n.status !== status || upgraded || JSON.stringify(n[field]?.changed) !== JSON.stringify(changed))) store.put(next);
       return next;
     }
     // a contradicted note stays stale with no code change: only its verification clears it
     if (n.contradicted) {
       const next = { ...n, status: 'stale', stale: { since: n.stale?.since || n.recheck?.since || new Date().toISOString(), changed: [] } };
       delete next.recheck;
-      if (persist && (n.status !== 'stale' || n.recheck || n.stale?.changed?.length)) store.put(next);
+      if (persist && (!hadReads || n.status !== 'stale' || n.recheck || n.stale?.changed?.length)) store.put(next);
       return next;
     }
-    if (wasWaiting) { const next = { ...n, status: 'fresh', deps }; delete next.stale; delete next.recheck; if (persist) store.put(next); return next; }
+    if (wasWaiting) { const next = { ...n, status: 'fresh', deps, reads: readsOf(store.repo, n) }; delete next.stale; delete next.recheck; if (persist) store.put(next); return next; }
     // the parser now hashes a dep the regex hashed, and both see the same block: keep the parser's hash
     if (upgraded) { const next = { ...n, deps }; if (persist) store.put(next); return next; }
+    if (!hadReads && persist) store.put(n);
     return n;
   });
 }
@@ -1189,11 +1212,15 @@ export async function verifyNote(store, note, { model } = {}) {
   }
   // drop deps whose files disappeared; count references again for the symbols that changed
   next.deps = dropShadowedFileDeps((next.deps || []).filter(d => !d.missing));
-  if (v.verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); }
+  let verdict = v.verdict;
+  // every file it rested on is gone: a note with no anchor can never go stale again, so it would be served for
+  // good (refresh retires such a note too; this is the verdict that would have made one)
+  if (verdict !== 'invalid' && !next.deps.length) { verdict = 'invalid'; next = { ...next, status: 'invalid', invalidReason: `anchors removed: ${[...new Set((note.deps || []).map(d => d.path).filter(Boolean))].slice(0, 3).join(', ')}` }; }
+  if (verdict !== 'invalid') { const ch = new Set(changed.map(c => `${c.path}|${c.symbol || ''}`)); next.deps = next.deps.map(d => ch.has(`${d.path}|${d.symbol || ''}`) ? annotateFanout(repo, [d], { max: 1 })[0] : d); next.reads = readsOf(repo, next); }
   delete next.verifying; delete next.recheck; delete next.stale; delete next.contradicted;
   store.put(next);
-  store.log({ op: 'verify', id: note.id, verdict: v.verdict, contradicted: note.contradicted ? true : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
-  return { note: next, verdict: v.verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
+  store.log({ op: 'verify', id: note.id, verdict, contradicted: note.contradicted ? true : undefined, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });
+  return { note: next, verdict, reason: v.reason, cost: res.cost, tokens: tokensOf(res) };
 }
 
 // A desired behavior (behavior.js) is verified the other way round: the note is the ground truth and
@@ -1257,7 +1284,7 @@ export async function verifyBehavior(store, note, { model } = {}) {
       const { deps } = resolveDeps(repo, [...(note.deps || []).map(d => ({ path: d.path, symbol: d.symbol })), ...extractDeps(repo, body, [])]);
       next = { ...note, body, deps: rehash(deps.length ? deps : note.deps), status: 'fresh', verified: now, verifiedCommit: head, revised: { at: now, commit: head, reason }, history: [...(note.history || []), { at: now, reason: `revised to match the merged code: ${reason}`, prevBody: note.body }].slice(-5) };
       verdict = 'revised';
-      noteUnreported(store, 'revised', { id: note.id, title: note.title, reason, commit: head });
+      if (next.deps.length) noteUnreported(store, 'revised', { id: note.id, title: note.title, reason, commit: head });
     }
   }
   if (!next && verdict === 'broken') {
@@ -1266,7 +1293,17 @@ export async function verifyBehavior(store, note, { model } = {}) {
     noteUnreported(store, 'violated', { id: note.id, title: note.title, reason });
   }
   if (!next) { verdict = 'holds'; next = { ...note, deps: rehash(note.deps), status: 'fresh', verified: now, verifiedCommit: head }; }
+  // the merged code took away every file the behavior rested on: retired, its text kept, rather than written
+  // back as a fresh behavior with nothing to rest on -- which a revision did until 2026-11-06, leaving a note
+  // that could never go stale and was served for good (anchorsGone). Not merged: the behavior is still the
+  // truth and stays violated until the code changes again.
+  if (merged && next.status !== 'invalid' && !next.deps.length) {
+    verdict = 'retired';
+    next = { ...note, deps: [], status: 'invalid', invalidReason: `anchors removed${reason ? `: ${reason}` : ''}`, verified: now, verifiedCommit: head, history: [...(note.history || []), { at: now, reason: `retired: every file it rested on is gone from the merged code${reason ? ` (${reason})` : ''}`, prevBody: note.body, prevDeps: note.deps }].slice(-5) };
+    noteUnreported(store, 'retiredBehaviors', { id: note.id, title: note.title, reason, commit: head });
+  }
   if (verdict !== 'broken') delete next.violated;
+  if (next.status !== 'invalid') next.reads = readsOf(repo, next);
   delete next.stale; delete next.recheck; delete next.verifying;
   store.put(next);
   store.log({ op: 'verify', id: note.id, kind: 'behavior', verdict, merged, cost: res.cost, metered: true, changed: changed.map(c => `${c.path}${c.symbol ? ':' + c.symbol : ''} (${c.reason})`) });

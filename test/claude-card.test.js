@@ -32,6 +32,7 @@ test('the card estimates as usage.js:cacheHitSavings does: same file cap, files 
   assert.match(src, new RegExp(`export const MAX_FILES = ${MAX_FILES}\\n`));
   assert.match(src, new RegExp(`export const FILE_CAP = ${FILE_CAP}\\n`));
   assert.ok(src.includes(`export const NOT_READING = ${NOT_READING}\n`), 'NOT_READING matches usage.js');
+  assert.ok(src.includes('note.reads?.files'), 'the card reads the measurement kept on the note (usage.js:readsOf) before the disk');
   assert.ok(src.includes('st.size / 3.6'), 'tokens per byte match');
 });
 

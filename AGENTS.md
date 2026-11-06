@@ -705,6 +705,7 @@ load the project file; existing dependency paths provide retrieval relevance.
 - `late` servings (edit hook) are logged only when they serve (`ops.js:lateLocked`).
 - `thinker usage [--here] [--days n] [--json]`.
 - Savings count only `confirmed` servings. Estimate, not measurement.
+- What a note points at is measured once and kept on the note as `reads` (`{files: [{path, tokens}], calls, tokens, at}`; `usage.js:readsOf`; a `LOCAL_FIELDS` entry, so a shared note's committed file never carries it): stamped by `createNote`, by every verification, and by `refresh` for a note that has none. `savingOf`, `cacheHitSavings`, the card mod and `delivery.js` read the record; the disk is read only for a note without one. The owner's ask, 2026-11-06: a figure recomputed from the disk at every turn is now in the note file, where a person can see what a note is credited with.
 - Not counted as reading (`usage.js:countsAsReading`): `.claude/`, `.codex/`, `.cursor/`, `.gemini/`, `.mcp.json`, git internals, `.thinker/`, build/run output.
 - Anchors MUST be existing files (`ops.js:createNote`).
 - Build/run output is refused as anchor (`deps.js:TRANSIENT`): `node_modules/`, `dist/`, `coverage/`, `.next/`, `__pycache__/`, `bench/runs/`, `.thinker/`, `*.log`, `*.tmp`.
@@ -745,10 +746,24 @@ What followed from the mark was the problem:
   a note at creation already (`ops.js:createNote`: an anchor must be an existing file), so `refresh`
   now applies the same rule to one whose files went away afterwards: `status: 'invalid'`,
   `invalidReason: 'anchors removed: …'`, logged `retire-gone`, no model call
-  (`ops.js:anchorsGone`). Nothing that was being served stops being served. A desired behavior, a
-  skill card and a note a person wrote are left alone — those are a person's to decide on, and they
-  stay stale with their banner. Found in a user's cache: 13 of 68 notes pointed at deleted files, nine
-  of them at a `docs/design/` directory that no longer existed.
+  (`ops.js:anchorsGone`). Nothing that was being served stops being served. Found in a user's cache:
+  13 of 68 notes pointed at deleted files, nine of them at a `docs/design/` directory that no longer
+  existed. Until 2026-11-06 a desired behavior, a skill card and a note a person wrote were left alone
+  as a person's to decide on, and stayed stale for good; **a dead note is dead whoever wrote it** (the
+  owner's call that day), and the text stays in the file for `thinker system --all` and `thinker list`.
+  A behavior follows its own rule: until the removal is merged the behavior is the truth and stays
+  stale, withheld (`refresh` asks `onDefaultBranch`); once it is merged, the code is, and the behavior is
+  retired and named at the end of the next turn (`retiredBehaviors` in `maintenanceNotice`). What set
+  it off: 22 of this repository's 489 notes were behaviors anchored to modules removed weeks before
+  (`src/impact.js`, `src/review.js`, `action/review/`), and three of them were `fresh` with **no deps
+  at all**, because `verifyBehavior`'s revision on merged code had dropped every missing file and
+  written the note back fresh -- a note with no anchor can never go stale, so it was served at every
+  matching prompt, and the Stop hook's line said "pointing at ~300 tokens of code", which was
+  `cacheHitSavings`'s floor for a note whose files are not on disk, not a measurement. The floor is
+  gone (a note with no file on disk counts nothing and the line says only how many notes), `refresh`
+  retires a note left with no deps at all, `verifyNote` retires rather than keeps a note whose every
+  dep went missing, and `verifyBehavior`'s revision on merged code is a retirement (verdict `retired`,
+  text and deps kept in `history`) when it would leave nothing to rest on.
 
 ### The one-time staleness reset
 
@@ -1477,8 +1492,11 @@ readable; new behaviors stay local.
   body is replaced (pointers of the new text join the deps), `revised` records
   the commit and reason, the old body goes to `history`, the verdict is
   `revised`, the notice says so and `.thinker/SYSTEM.md` is rewritten. A
-  behavior is never retired by verification, and never rewritten for code
-  that is not merged. On the server the clone sits at the default branch, so
+  behavior is never rewritten for code that is not merged, and retired only
+  when merged code removed every file it rested on (2026-11-06; the staleness
+  section above): then the truth the code tells is that the feature is gone,
+  and the behavior is retired with its text kept, verdict `retired`, or by
+  `refresh` with no model call. On the server the clone sits at the default branch, so
   the behaviors there follow every merge and sync out.
 - **Review** (`review.js:assessBehavior`, and the holistic prompt): the
   verdicts are `violation`, `consistent`, `unrelated` and `revised`; `revised`
@@ -1500,8 +1518,8 @@ readable; new behaviors stay local.
   run) with whether it was already violated before the change, rendered under
   "Desired behaviors" and in `--json`.
 - **This repository's own** (`thinker system`, `.thinker/SYSTEM.md`), written
-  2026-10-03: a review never writes to the cache; verification never rewrites
-  or retires a behavior; serving and assessment never rewrite a shared note's
+  2026-10-03: a review never writes to the cache; verification rewrites or
+  retires a behavior only to follow merged code; serving and assessment never rewrite a shared note's
   committed file; `THINKER_TELEMETRY=off` and test runs send no telemetry (all
   fixed); the prompt hooks serve no stale note (mutable).
 - **Serving.** A behavior is served like an invariant: at orientation with a

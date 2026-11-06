@@ -73,6 +73,37 @@ test('a changed whole-file dep narrows to the named definitions, stale only on t
   assert.ok(nf === null || nf.changed.length === 0);
 });
 
+// A desired behavior is the truth until the removal is merged (behavior.js): in a working tree or on a branch
+// it stays stale and withheld, once the default branch has the removal it is retired with its text kept. And
+// a note left with no anchor at all (a revision on merged code dropped every missing file, until 2026-11-06)
+// can never go stale, so it is retired without a git call rather than served for good.
+test('a desired behavior whose anchors are all gone is withheld until the removal is merged, then retired; a note with no anchor at all is retired at once', () => {
+  const dir = gitRepo(); const store = new Store(dir).init();
+  const b = createNote(store, { title: 'rows are validated before saving', kind: 'behavior', answers: ['are rows validated before they are saved'], body: 'src/a.js:saveRows validates first.', deps: [{ path: 'src/a.js', symbol: 'saveRows' }] }, { source: { type: 'human' } }).note;
+  const bare = createNote(store, { title: 'the build is build.sh', kind: 'rule', answers: ['how is it built'], body: 'build.sh runs it.', deps: [{ path: 'build.sh' }] }, { source: { type: 'agent' } }).note;
+  // what it points at is measured at creation and kept on the note (usage.js:readsOf)
+  assert.deepEqual(b.reads.files.map(f => f.path), ['src/a.js']); assert.ok(b.reads.tokens > 0);
+  store.put({ ...store.get(bare.id), reads: undefined });
+  assert.deepEqual(refresh(store, [store.get(bare.id)])[0].reads.files.map(f => f.path), ['build.sh'], 'a note without one is measured once by refresh');
+  assert.ok(Array.isArray(store.get(bare.id).reads.files), 'and kept');
+  // and one whose file changed at the same time is measured too, pending or not
+  store.put({ ...store.get(bare.id), reads: undefined }); fs.appendFileSync(path.join(dir, 'build.sh'), 'echo done\n');
+  const pending = refresh(store, [store.get(bare.id)])[0];
+  assert.equal(pending.status, 'pending'); assert.deepEqual(store.get(bare.id).reads.files.map(f => f.path), ['build.sh']);
+  fs.rmSync(path.join(dir, 'src/a.js'));
+  assert.equal(refresh(store, [store.get(b.id)])[0].status, 'stale', 'removed in the working tree: withheld, not retired');
+  git(dir, 'add', '-A'); git(dir, 'commit', '-q', '-m', 'remove a.js');
+  const after = refresh(store, [store.get(b.id)])[0];
+  assert.equal(after.status, 'invalid');
+  assert.match(after.invalidReason, /anchors removed: src\/a\.js/);
+  assert.equal(store.get(b.id).body, b.body, 'the text is kept');
+  assert.equal(store.get(b.id).status, 'invalid', 'persisted');
+  store.put({ ...store.get(bare.id), deps: [] });
+  const gone = refresh(store, [store.get(bare.id)])[0];
+  assert.equal(gone.status, 'invalid');
+  assert.match(gone.invalidReason, /anchors removed: none left/);
+});
+
 test('a symbol dep the change altered keeps its stored hash in the deps checkNote returns, so persisting them cannot hide the change', () => {
   const dir = gitRepo(); const store = new Store(dir).init();
   const n = createNote(store, { title: 'saveRows returns two', kind: 'callpath', answers: ['saveRows'], body: 'src/a.js:saveRows returns 2', deps: [{ path: 'src/a.js', symbol: 'saveRows' }] }).note;
@@ -105,9 +136,9 @@ test('a note whose anchor files are all gone is retired, not left stale for ever
   assert.equal(by(gone.id).stale, undefined);
   assert.equal(store.get(gone.id).status, 'invalid', 'persisted');
   assert.equal(by(half.id).status, 'invalid', 'its one file is gone too');
-  // a note a person wrote is theirs to decide on
+  // a note a person wrote is dead the same way (until 2026-11-06 it was left stale for good)
   fs.rmSync(path.join(dir, 'build.sh'));
-  assert.equal(refresh(store, store.list()).find(n => n.id === mine.id).status, 'stale');
+  assert.equal(refresh(store, store.list()).find(n => n.id === mine.id).status, 'invalid');
   // a file that merely changed stays usable pending verification
   const other = new Store(dir);
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });

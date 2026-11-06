@@ -1,5 +1,5 @@
-// Desired behaviors (behavior.js): a person's rule the code must uphold until a change that breaks it is merged. Verification never retires
-// or rewrites one; a reviewing agent is served it; the repair hook, archiving and
+// Desired behaviors (behavior.js): a person's rule the code must uphold until a change that breaks it is merged. Verification rewrites
+// one only to match merged code, and retires one only when merged code removed every file it rested on; a reviewing agent is served it; the repair hook, archiving and
 // distillation leave it alone; lookup finds it by kind.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,6 +74,39 @@ test('lookup finds behaviors by kind: all of them with no query, the matching on
   assert.equal(none.included.length, 0);
 });
 
+// The merged code is the truth, and when it took away every file a behavior rested on the truth is that the
+// feature is gone: the behavior is retired with its text kept, by refresh with no model call, and by a verification
+// whose revision would leave nothing to rest on. Until 2026-11-06 that revision wrote a fresh behavior with no deps,
+// which could never go stale and was served at every matching prompt.
+test('verification: merged code that removed every file a behavior rested on retires it, with its text kept, and the person is told', async t => {
+  const { repo, store, commit, behavior, git } = fixture(t);
+  const n = behavior();
+  const m = behavior({ id: 'ctx-second', title: 'Validation runs before every command' });
+  fs.rmSync(path.join(repo, 'src/core.py')); commit('remove core');
+  // a verification whose revision leaves nothing to rest on is a retirement, not a fresh behavior with no deps
+  // (reached when the batch holds a note refresh has not seen since the removal; refresh itself is below)
+  const v = store.get(m.id); v.status = 'stale'; v.stale = { changed: [{ path: 'src/core.py', symbol: 'Command.invoke', reason: 'file removed' }, { path: 'src/core.py', symbol: 'validate', reason: 'file removed' }] }; store.put(v);
+  fakeModel(t, repo, { verdict: 'broken', reason: 'the command module was removed', body: 'Nothing validates a context any more; the command module is gone.' });
+  const res = await verifyNote(store, store.get(m.id), {});
+  assert.equal(res.verdict, 'retired');
+  const after = store.get(m.id);
+  assert.equal(after.status, 'invalid'); assert.deepEqual(after.deps, []); assert.match(after.invalidReason, /anchors removed: the command module was removed/);
+  assert.equal(after.body, m.body, 'the text is kept, not replaced by a body about nothing');
+  assert.equal(after.history.at(-1).prevBody, m.body); assert.match(after.history.at(-1).reason, /^retired: every file it rested on is gone from the merged code/);
+  assert.equal(after.verifiedCommit, git('rev-parse', 'HEAD'));
+  const told = maintenanceNotice(store);
+  assert.match(told, /1 desired behavior retired, its files being gone; see thinker system --all/);
+  assert.doesNotMatch(told, /revised/);
+  // refresh retires the other without a model call
+  const [r] = refresh(store, [store.get(n.id)]);
+  assert.equal(r.status, 'invalid'); assert.match(r.invalidReason, /anchors removed: src\/core\.py/);
+  assert.equal(store.get(n.id).body, n.body);
+  assert.equal(behaviorState(store.get(n.id)), 'retired');
+  assert.ok(!listBehaviors(store).some(b => b.id === n.id), 'not listed by default');
+  assert.ok(listBehaviors(store, { all: true }).some(b => b.id === n.id && b.state === 'retired'), 'listed with --all');
+  assert.match(maintenanceNotice(store), /1 desired behavior retired/);
+});
+
 test('verification: a behavior broken in a working tree or on a branch is violated and its text kept; broken by code merged on the default branch it is revised to match', async t => {
   const { repo, store, write, commit, behavior, git } = fixture(t);
   const n = behavior({ mutability: 'fixed' });
@@ -109,6 +142,7 @@ test('verification: a behavior broken in a working tree or on a branch is violat
   assert.equal(v.revised.commit, git('rev-parse', 'HEAD')); assert.equal(v.revised.reason, 'invoke no longer calls validate');
   assert.equal(v.history.at(-1).prevBody, n.body); assert.match(v.history.at(-1).reason, /revised to match the merged code/);
   assert.ok(v.deps.some(d => d.symbol === 'Command.main'), 'a pointer of the new text became a dep');
+  assert.deepEqual(v.reads.files.map(f => f.path), ['src/core.py'], 'what it points at is measured again on verification');
   assert.equal(behaviorState(v), 'holds');
   const revisedBody = v.body;
   assert.match(renderBehaviors(listBehaviors(store)), /holds\s+\[fixed, local, revised \d{4}-\d\d-\d\d to match [0-9a-f]{10}\]/);
