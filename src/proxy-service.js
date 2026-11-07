@@ -28,6 +28,7 @@ import { isTestMode } from './test-mode.js';
 import { containerKind, inContainer } from './container-kind.js';
 import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
+import { bedrockState, prepareBedrock, commitBedrock, wireBedrock, restoreBedrock } from './proxy-bedrock.js';
 
 export const SERVICE_HOLDOUT = 0.15;
 export const PROXY_LABEL = 'com.thinker.proxy';
@@ -91,7 +92,7 @@ export const proxyThrough = (home = thinkerHome()) => { const u = readMachineCon
 // the agent at the proxy keeps every request going to the same place, with the same credentials, plus the edit.
 export const isOwnRoute = (value, home = thinkerHome()) => isOwnUrl(value, home) || (!!value && trimUrl(value) === trimUrl(proxyThrough(home)));
 // a URL this machine's service had, trailing slash or not
-export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(String(value).replace(/\/+$/, ''));
+export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(String(value).replace(/\/+$/, '').replace(/\/bedrock$/, ''));
 export const logFile = (home = thinkerHome()) => path.join(home, 'state', 'proxy-service.log');
 // where the proxy writes a line per request it passes (proxy.js:startProxy); `thinker proxy report` and the
 // telemetry's proxy block read it
@@ -141,6 +142,7 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const cfg = readMachineConfig(home).proxy || {};
   const holdout = cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0;
   const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout), '--codex'];
+  if (bedrockState(home)) args.push('--bedrock');
   const upstream = proxyThrough(home);
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
@@ -520,12 +522,15 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
 // `ANTHROPIC_BASE_URL=https://api.anthropic.com` in every local session's environment, and on 2026-11-01 that
 // stood this machine's service down from inside a desktop session.
 export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [] } = {}) {
+  const bedrock = bedrockState(home);
+  if (bedrock?.managed.ANTHROPIC_BASE_URL && settings?.env?.CLAUDE_CODE_USE_BEDROCK !== '0') return 'The native Bedrock selection was changed in Claude settings; the token route has been left.';
+  if (bedrock?.managed.ANTHROPIC_BASE_URL && settings?.env?.ANTHROPIC_AUTH_TOKEN !== bedrock.localToken) return 'The local Bedrock proxy credential was changed in Claude settings.';
   const theirs = v => !!v && !isOwnRoute(v, home) && !isAnthropicHost(v);
   const inFile = settings?.env?.[PROXY_ENV];
   if (theirs(inFile)) return `${PROXY_ENV} is already ${inFile} in the settings`;
   if (theirs(env[PROXY_ENV])) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
-  for (const k of OTHER_ROUTES) if (cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
-  const [found] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1 });
+  for (const k of OTHER_ROUTES) if (!(bedrock && k === 'CLAUDE_CODE_USE_BEDROCK') && cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
+  const [found] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1, ignoreShellCloud: bedrock ? ['CLAUDE_CODE_USE_BEDROCK'] : [] });
   return found ? `${found.what} in ${found.where}` : null;
 }
 const setEnv = (settings, value) => {
@@ -612,6 +617,11 @@ function claudeFile(url, home, env, repos) {
   const read = readForWrite(f);
   if (read.why) return { file: f, skipped: read.why, unchanged: !url };
   const cur = read.value;
+  if (bedrockState(home)) {
+    if (!url) { const restored = restoreBedrock(home); takeReplaced(home, 'claude'); return restored; }
+    const why = claudeBlocker(cur, { home, env, repos });
+    return why ? { file: f, skipped: why } : wireBedrock(home, url);
+  }
   if (url) {
     const why = claudeBlocker(cur, { home, env, repos });
     if (why) return { file: f, skipped: why };
@@ -705,8 +715,23 @@ export function wireAgents(url, { home = thinkerHome(), env = process.env, agent
 // `thinker proxy on` (force), `connect`: the port once, the service, the agents' files.
 // A service that stood down (the person's own route, or the setting deleted) stays off until `thinker proxy on`
 // asks for it: rerunning the installer or `thinker connect` does not put it back.
-export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [], gateway } = {}) {
+export async function enableProxyService({ cli, home = thinkerHome(), env = process.env, manage, force = false, repos = [], gateway, bedrock } = {}) {
   let s = serviceState(home);
+  if (bedrock) {
+    if (gateway !== undefined) throw Error('--bedrock cannot be combined with --gateway or --upstream.');
+    const prepared = prepareBedrock(home, bedrock, env);
+    if (isOwnUrl(prepared.before.ANTHROPIC_BASE_URL, home)) prepared.before.ANTHROPIC_BASE_URL = s.replaced?.claude || null;
+    // Explicit consent covers the native Bedrock flag, never a separate gateway, policy or cloud provider.
+    const settings = readJson(prepared.settings);
+    for (const block of [settings.env, env]) {
+      if (block?.ANTHROPIC_BEDROCK_BASE_URL) throw Error('A custom Bedrock endpoint is configured; remove it before opting into the AWS token route.');
+      if (block?.ANTHROPIC_BASE_URL && !isOwnRoute(block.ANTHROPIC_BASE_URL, home) && !isAnthropicHost(block.ANTHROPIC_BASE_URL)) throw Error('A custom Claude route is already configured; remove it before opting into Bedrock.');
+      for (const k of OTHER_ROUTES.filter(k => k !== 'CLAUDE_CODE_USE_BEDROCK')) if (cloudOn(block?.[k])) throw Error('A different cloud provider is configured; leave it unchanged or remove it before opting into Bedrock.');
+    }
+    const [conflict] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1, ignoreShellCloud: ['CLAUDE_CODE_USE_BEDROCK'] });
+    if (conflict) throw Error(`Bedrock opt-in cannot override ${conflict.what} in ${conflict.where}.`);
+    commitBedrock(home, prepared);
+  }
   // Connect/setup can run before the next prompt observes a manual removal or a
   // new route. Preserve that answer before resetting wroteClaude and rewiring.
   if (s.enabled && !force) {
@@ -768,6 +793,7 @@ export function wiredLines(wired, url, upstream = null, { hint = true, home = th
 // not parsed out of a blocker's message: a cloud route cannot be helped, a gateway that speaks the Messages API
 // can, and the proxy never goes in front of one unasked (enableProxyService). null when there is nothing to say.
 export function gatewayHint({ home = thinkerHome(), env = process.env, repos = [] } = {}) {
+  if (cloudOn(env.CLAUDE_CODE_USE_BEDROCK)) return 'Claude Code uses native bedrock signing, so the proxy cannot clear that transport. To opt in to the token route, use `thinker proxy on --bedrock --region REGION --model BEDROCK_MODEL_ID --token-file PRIVATE_FILE`, then restart Claude Code. It requires a Bedrock API key or bearer token; proxy off restores the previous settings.';
   for (const k of CLOUD_VARS) if (cloudOn(env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which does not take the API's context-management edit, so the proxy cannot clear old tool results in those sessions.`;
   const found = ownGateway({ env, repos, isOwn: u => isOwnRoute(u, home) });
   if (!found?.url) return null;

@@ -82,11 +82,11 @@ export function routeFiles({ env = process.env, repos = [], home = env.HOME || o
 // whatever it does with it (an export, a wrapper function, an alias around `claude`). A line that names
 // thinker's own URL is the proxy's own doing and no evidence of anything, and one that names Anthropic's own
 // host sets the route to where it already was.
-export function shellRoute(text, { isOwn = () => false } = {}) {
+export function shellRoute(text, { isOwn = () => false, ignoreCloud = [] } = {}) {
   for (const line of String(text).split('\n')) {
     const code = line.replace(/^\s+/, '');
     if (!code || code.startsWith('#')) continue;
-    const v = ROUTE_VARS.find(name => code.includes(name));
+    const v = ROUTE_VARS.find(name => code.includes(name) && !ignoreCloud.includes(name));
     if (!v) continue;
     const value = new RegExp(`${v}[=\\s:]+["']?([^"'\\s;]+)`).exec(code)?.[1];
     if (value && (isOwn(value) || isAnthropicHost(value))) continue;
@@ -99,7 +99,7 @@ export function shellRoute(text, { isOwn = () => false } = {}) {
 // Every route this machine holds for Claude Code besides the settings file thinker writes, nearest first.
 // In test mode nothing outside the test's own directories is read: THINKER_ROUTE_HOME names the home to scan
 // (test/proxy-route.test.js), as CLAUDE_CONFIG_DIR names the settings directory.
-export function routeEvidence({ env = process.env, isOwn = () => false, repos = [], limit = 3 } = {}) {
+export function routeEvidence({ env = process.env, isOwn = () => false, repos = [], limit = 3, ignoreShellCloud = [] } = {}) {
   const home = env.THINKER_ROUTE_HOME || (isTestMode() ? null : env.HOME || os.homedir());
   if (!home) return [];
   const out = [];
@@ -108,7 +108,7 @@ export function routeEvidence({ env = process.env, isOwn = () => false, repos = 
     let what = null;
     try {
       if (!fs.statSync(file).isFile()) continue;
-      what = kind === 'settings' ? envRoute(readJson(file).env, { isOwn }) : shellRoute(fs.readFileSync(file, 'utf8').slice(0, 256_000), { isOwn });
+      what = kind === 'settings' ? envRoute(readJson(file).env, { isOwn }) : shellRoute(fs.readFileSync(file, 'utf8').slice(0, 256_000), { isOwn, ignoreCloud: ignoreShellCloud });
     } catch { continue; }
     if (what) out.push({ where: shortPath(file, home), ...what });
   }

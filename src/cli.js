@@ -282,6 +282,9 @@ const HELP = `thinker — knowledge cache for coding agents
                                  wires the agents inside, serving from the checkout you already mount.
                                  A rebuild wipes it: --devcontainer prints the lines that keep it
   proxy on [--gateway] [--upstream url] | off | status
+  proxy on --bedrock --region region --model bedrock-model-id --token-file path
+                                 Opt in to Bedrock Messages using a private API-key/token file (chmod 600).
+                                 Restart Claude Code after opting in; proxy off restores previous settings.
                                 the context proxy as a service of this machine (on by default from connect/setup; --no-proxy
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
                                  Codex uses its existing OpenAI login through HTTP/SSE; custom providers stay as configured.
