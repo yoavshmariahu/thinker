@@ -160,6 +160,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   thinking and with empty arguments, 6 results and 62k tokens cleared, the next call answered with thinking of its
   own, no 400, a 129.5k cache write for the rewrite. The API lets a previous turn's thinking go; the October
   breakage was an in-place edit of the history with no compaction boundary.
+- **The folder a session loads is never one an update replaces** (2026-11-06; `claude-card.js:installClaudeMods`,
+  `modDir`). Claude Code watches a mod's files and reloads it in every open session when they move, printing
+  "plugin.json changed -- reloaded" under the answer and running `session.start` again; it keys on the file event,
+  not the bytes. Every update renames a new tree over `~/.thinker/app`, where both mods lived, so every release
+  reloaded both mods in every open session -- three times in one session in a day, twice for a manifest whose bytes
+  had not changed. Reproduced live in tmux: a swap of the folder with identical bytes printed the line a second
+  later. So on an installed app `connect` and `rewire` copy each mod to `<THINKER_HOME>/plugins/<name>-<8 hex of
+  its files>`, renamed into place whole, and the settings name that folder. The same bytes give the same folder and
+  nothing is written, so a release that leaves a mod alone is silent; a changed mod gets a new folder and the
+  settings are repointed, which a session reads at its start, so an open session keeps what it loaded and gets the
+  new mod when next started, as it gets a changed hook. Folders no setting names go after `PRUNE_DAYS` (14). A git
+  checkout keeps naming its own source, so editing a mod there still reloads it live. Claude Code's own files in
+  the folder (`.claude-plugin/types`, `tsconfig.json`) are neither copied nor counted. `thinker uninstall --user`
+  removes the copies. The first rewire after this lands repoints the settings away from the app folder; the open
+  sessions of that day still watch the app and are reloaded one last time by the next update.
 - Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
   the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
