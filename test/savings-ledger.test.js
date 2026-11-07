@@ -54,6 +54,7 @@ function machine(t, { now = Date.now(), servedAt = [now], cleared = [], desktop 
     fs.mkdirSync(path.join(home, 'state', 'compression'), { recursive: true });
     fs.writeFileSync(path.join(home, 'state', 'compression', `${session}.json`), JSON.stringify({
       session, firstAt: d.at - 60_000, lastAt: d.at, requests: 5, saved: d.tokens, uses: 3, recent: [{ at: d.at - 60_000, cleared: d.tokens / 5, uses: 3 }],
+      ...(d.recordModel ? { model: d.recordModel, cost: { rewrites: 1, write: 100_000 } } : {}),
     }));
   }
   return { store, home, repo };
@@ -98,6 +99,17 @@ test('a clear made inside a desktop session counts, once, priced from the model 
   // a session whose model nobody logged is counted in tokens and named as unpriced, never guessed a rate
   assert.equal(l.lifetime.unpricedTokens, 20_000);
   assert.ok(Math.abs(l.lifetime.cleared.cost - l.today.cleared.cost) < 1e-12);
+});
+
+test('a desktop record that names its own model is priced from it, with nothing in the log to name one', t => {
+  const now = Date.parse('2026-11-05T15:00:00Z');
+  const at = dayStart(now) + 3600_000;
+  const { store } = machine(t, { now, servedAt: [at], desktop: [{ at, tokens: 80_000, model: null, recordModel: 'claude-opus-5-5' }] });
+  const l = computeSavings(store, { now });
+  assert.equal(l.today.cleared.tokens, 80_000);
+  assert.equal(l.lifetime.unpricedTokens, 0, 'the record\'s model prices it');
+  const { store: logged } = machine(t, { now, servedAt: [at], desktop: [{ at, tokens: 80_000 }] });
+  assert.ok(Math.abs(computeSavings(logged, { now }).today.cleared.cost - l.today.cleared.cost) < 1e-12, 'the same price whichever named the model');
 });
 
 test('the footers never disagree with the Report page: one window, the same two series', t => {

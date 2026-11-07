@@ -217,9 +217,10 @@ export function compressionRecords(file) {
 // `weeklySavings` adds up per row, and it is dated the session's last request (the figure accrues
 // through the session, so an earlier date would put a saving before it was made). A session the log does
 // have rows for is left to the log, since the proxy writes the same record beside its rows and counting
-// both would count the clear twice. The record carries no model: `modelOf` names it from the machine's
-// log, else the row is unpriced and the ledger says so rather than guessing a rate.
-export function desktopClearRows(dir, { covered = new Set(), modelOf = () => null, key = s => String(s) } = {}) {
+// both would count the clear twice. The mod keeps the model the API answered with on the record (since
+// 2026-11-06); a record from before that carries none, and `modelOf` names it from the machine's log, else
+// the row is unpriced and the ledger says so rather than guessing a rate.
+function desktopRecords(dir, { covered = new Set(), key = s => String(s) } = {}) {
   const out = [];
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return out; }
@@ -230,7 +231,28 @@ export function desktopClearRows(dir, { covered = new Set(), modelOf = () => nul
     const last = r.lastAt || r.firstAt;
     const at = typeof last === 'number' ? new Date(last).toISOString() : last;
     if (!Number.isFinite(Date.parse(at))) continue;
-    out.push({ op: 'proxy', session: r.session, at, model: modelOf(r.session) || null, status: 200, cleared: Math.round(r.saved), clearedUses: r.uses || 0, recorded: 'session' });
+    out.push({ record: r, at });
+  }
+  return out;
+}
+
+export function desktopClearRows(dir, { covered = new Set(), modelOf = () => null, key = s => String(s) } = {}) {
+  return desktopRecords(dir, { covered, key }).map(({ record: r, at }) =>
+    ({ op: 'proxy', session: r.session, at, model: r.model || modelOf(r.session) || null, status: 200, cleared: Math.round(r.saved), clearedUses: r.uses || 0, recorded: 'session' }));
+}
+
+// What a desktop session's clears cost, read from the record: the mod counts, on every request from its first
+// clear onward, the ones that rewrote their prefix and the cache-write tokens they carried (register.tsx:charge,
+// the proxy's own isRewrite), and keeps the model that answered. Priced as the proxy's rows are, below. A record
+// with no `cost` block is from before the mod counted it: no cost figure, rather than a zero that reads as free.
+export function desktopClearingCost(dir, { covered = new Set(), since = '', key = s => String(s), config } = {}) {
+  const out = new Map();
+  for (const { record: r, at } of desktopRecords(dir, { covered, key })) {
+    if (!r.cost || (since && at < since)) continue;
+    const x = { rewrites: r.cost.rewrites || 0, write: r.cost.write || 0, usd: 0, unpriced: 0, ...(r.model ? { model: r.model } : {}) };
+    const price = listPrice(r.model, { config });
+    if (price) x.usd += writeCostOf(x.write, price); else if (x.write > 0) x.unpriced++;
+    out.set(r.session, x);
   }
   return out;
 }
@@ -246,19 +268,26 @@ export function clearingRows(file, dir, { events = [], key = s => String(s) } = 
   return [...rows, ...desktopClearRows(dir, { covered, key, modelOf: id => models.get(key(id)) || null })];
 }
 
-export function clearingCostBySession(file, { since = '', config } = {}) {
-  const out = new Map(), cleared = new Set();
-  for (const r of compressionRecords(file)) {
+// a write after a clear is a one-hour write for the agents the proxy serves, as proxy-replay.js prices it
+const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6;
+
+// With `dir`, the sessions the log has no rows for are read from their records (desktopClearingCost): a clear
+// made inside a desktop session is charged its writes as a proxied one is, so no door shows it gross.
+export function clearingCostBySession(file, { since = '', config, dir = null, key = s => String(s) } = {}) {
+  const out = new Map(), cleared = new Set(), covered = new Set();
+  const rows = compressionRecords(file);
+  for (const r of rows) {
+    covered.add(key(r.session));
     if (since && r.at && r.at < since) continue;
     if (clearedOf(r) > 0) cleared.add(r.session);
     if (!cleared.has(r.session) || !isRewrite(r)) continue;
     const price = listPrice(r.model, { config });
     const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
     x.rewrites++; x.write += r.write || 0;
-    // a write after a clear is a one-hour write for the agents the proxy serves, as proxy-replay.js prices it
-    if (price) x.usd += (r.write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6; else x.unpriced++;
+    if (price) x.usd += writeCostOf(r.write, price); else x.unpriced++;
     out.set(r.session, x);
   }
+  if (dir) for (const [id, x] of desktopClearingCost(dir, { covered, since, key, config })) out.set(id, x);
   return out;
 }
 

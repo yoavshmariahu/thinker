@@ -204,6 +204,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   emptied call text estimated from their characters, and the thinking as the measured remainder, since a mod never
   sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
   cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
+- **What a desktop clear cost is measured too, from the record (2026-11-06; `register.tsx:charge`, `isRewrite`,
+  `LONG_CONTEXT`; `compression.js:desktopClearingCost`).** The netted figure (`clearingCostBySession`, read by
+  `delivery.js:rewriteCostFor` for `thinker prs`) charged a clear with the prompt-cache writes of the calls after
+  it, read from the proxy log's rows alone, so a desktop session's clear had no cost side and read as gross -- the
+  one figure the owner's rule forbids. The engine reports every request's usage to `turn.step` in the API's own
+  counts (`cache_creation_input_tokens`, `cache_read_input_tokens`, `input_tokens`, and the `model` that
+  answered), so on every request from the first clear onward the mod applies the proxy's own definition of a
+  rewrite (a context of `LONG_CONTEXT` or more, over half of it written; `test/claude-clear.test.js` holds the
+  mirror to `cutting.js` on sample calls) and keeps `cost: { rewrites, write }` and `model` on the record.
+  `clearingCostBySession` takes the card's state directory (`dir`) and reads those for the sessions the log has
+  no rows for, priced at the one-hour write rate as the proxy's rows are; `desktopClearRows` prices the saving
+  from the record's model before the log's `op: session` rows. Measured, not modelled: the writes are the API's
+  counts, and as on the proxy side a rewrite the clearing did not cause is charged to it anyway. Not measured: a
+  record from before this carries no `cost` and gets no cost figure (never a zero that reads as free), the card's
+  state files are pruned after two days where the log keeps months, and the ledger's clearing series is still
+  gross by design, as the Report's is; the netted figure lives in `thinker prs` and the PR comment.
 
 **The clearing: thinker cuts the context itself (MANDATORY, 2026-11-04; `src/cutting.js`, `src/proxy.js:applyCut`):**
 - The proxy replaces older tool results with a placeholder in the request it forwards. Nothing is asked of the

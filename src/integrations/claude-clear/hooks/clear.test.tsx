@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -139,4 +139,25 @@ test('a clear is made when it repays its write inside PAYBACK calls, and nothing
   // write no longer repays in time
   expect(writeRatio('claude-opus-5-5')).toBe(40)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(false)
+})
+
+test('a request that rewrote a long prefix is charged its write tokens; a cache read, a short context and no usage are not', () => {
+  const usage = (o: Partial<{ input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }>) =>
+    ({ input_tokens: 0, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'claude-opus-5-5', ...o })
+  expect(usageOf(usage({ input_tokens: 5, cache_read_input_tokens: 7, cache_creation_input_tokens: 9 }))).toEqual({ input: 5, read: 7, write: 9 })
+  expect(usageOf(null)).toBe(null)
+  // the proxy's definition (cutting.js:isRewrite): a long context, more than half of it written
+  expect(isRewrite({ read: 0, write: LONG_CONTEXT, input: 10 })).toBe(true)
+  expect(isRewrite({ read: LONG_CONTEXT, write: 1000, input: 10 })).toBe(false)
+  expect(isRewrite({ read: 0, write: LONG_CONTEXT / 2, input: 0 })).toBe(false)
+  let c = charge(undefined, null)
+  expect(c).toEqual({ rewrites: 0, write: 0 })
+  c = charge(c, usage({ cache_read_input_tokens: 200_000 }))
+  expect(c).toEqual({ rewrites: 0, write: 0 })
+  c = charge(c, usage({ cache_creation_input_tokens: 150_000, input_tokens: 10 }))
+  expect(c).toEqual({ rewrites: 1, write: 150_000 })
+  c = charge(c, usage({ cache_creation_input_tokens: 40_000 }))
+  expect(c).toEqual({ rewrites: 1, write: 150_000 })
+  c = charge(c, usage({ cache_creation_input_tokens: 120_000, cache_read_input_tokens: 1000 }))
+  expect(c).toEqual({ rewrites: 2, write: 270_000 })
 })

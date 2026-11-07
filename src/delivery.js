@@ -84,6 +84,8 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     x.served = x.notes.size; x.actedOn = actedOn;
     x.cleared = cleared(x.id);
     x.rewrite = rewriteCost(x.id);
+    // a desktop session's record names the model the API answered with, where no hook logged one
+    if (!x.model && x.rewrite?.model) x.model = x.rewrite.model;
     // Dollars, at the session's own model's list rates: a cleared token saved a cache read, a note the agent
     // acted on saved reading a file fresh, and the writes after a clear are what it cost (prices.js).
     const price = listPrice(x.model, { config });
@@ -113,12 +115,14 @@ export function clearedFor({ home = thinkerHome(), env = process.env, since = ''
 }
 
 // What the clearing cost in that session: the cache writes on the calls from its first clear onwards
-// (compression.js:clearingCostBySession). Only the proxy's log knows this -- the card's state files keep
-// what was saved and never what the rewrite cost -- so a session whose rows the log's tail no longer
-// reaches has no cost figure, and `costed` on the report says how many did.
+// (compression.js:clearingCostBySession). The proxy's log knows this for the sessions it served; a desktop
+// session never reaches the proxy, and its record (the clearing mod's, in the card's state directory) keeps
+// the same count since 2026-11-06, read where the log has no rows for the session. A session the log's tail
+// no longer reaches, or a record from before the mod counted, has no cost figure, and `costed` on the report
+// says how many did.
 export function rewriteCostFor({ home = thinkerHome(), env = process.env, since = '', config } = {}) {
   let logged = new Map();
-  try { for (const [id, x] of clearingCostBySession(proxyLogFile(home, env), { since, config })) logged.set(sessionKey(id), x); } catch { logged = new Map(); }
+  try { for (const [id, x] of clearingCostBySession(proxyLogFile(home, env), { since, config, dir: compressionDir(home), key: sessionKey })) logged.set(sessionKey(id), x); } catch { logged = new Map(); }
   return id => logged.get(id) || null;
 }
 

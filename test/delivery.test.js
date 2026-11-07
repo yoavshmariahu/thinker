@@ -68,6 +68,26 @@ test('a session is matched to the pull request of its branch, and carries its sa
   assert.match(text, /Merged with work recorded here: 1 of 1 merged in the repository/);
 });
 
+test('a desktop session\'s clear is netted against the writes its record counted, never shown gross', t => {
+  const { store, home } = fixture(t);
+  // a desktop session: no proxy rows, the mod's record alone, with the rewrites it counted and the model that answered
+  store.log({ op: 'orient', t: at(6), session: 'd1', served: ['n1'], est: [[1, 1000]], tokens: 100 });
+  store.log({ op: 'session', t: at(1), session: 'd1', client: 'claude', branch: 'agent/desktop', head: 'ddd1', turns: 8, totalTokens: 400_000, tokenCoverage: 'complete' });
+  const dir = path.join(home, 'state', 'compression');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'd1.json'), JSON.stringify({ session: 'd1', saved: 1_000_000, requests: 6, uses: 4, firstAt: Date.parse(at(5)), lastAt: Date.parse(at(1)), recent: [], cost: { rewrites: 2, write: 220_000 }, model: 'claude-opus-5-5' }));
+  pullRequest(store, { number: 13, title: 'Desktop work', branch: 'agent/desktop', commits: ['ddd1'] });
+
+  const p = deliveryReport(store, { now, home }).prs[0];
+  assert.equal(p.saved.cleared, 1_000_000, 'the record\'s saving, as before');
+  // Opus 5.5 at list: 1M cleared at the cache-read rate (a twentieth of $4/M) is $0.20; 220k written at the 1h rate ($8/M) is $1.76
+  assert.ok(Math.abs(p.cost.saved - 0.2) < 0.01, `saved ${p.cost.saved}`);
+  assert.ok(Math.abs(p.cost.rewrite - 1.76) < 0.01, `rewrite ${p.cost.rewrite}`);
+  assert.ok(Math.abs(p.cost.net - (0.2 - 1.76)) < 0.01, 'netted: a loss reads as a loss');
+  assert.equal(p.cost.priced, 1, 'priced from the model the record names, with no hook having logged one');
+  assert.equal(p.cost.unpriced, 0);
+});
+
 test('the branch alone links a session whose commits GitHub has not seen', t => {
   const { store, home } = fixture(t);
   session(store, { id: 's2', branch: 'agent/wip', head: 'local1' });

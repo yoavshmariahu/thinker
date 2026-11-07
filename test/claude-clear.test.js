@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -151,6 +151,26 @@ test('the mod writes the record the proxy writes, where the card and the report 
     for (const key of ['results', 'inputs', 'thinking', 'total', 'measured']) assert.ok(s.includes(`${key}:`), `kinds carry ${key}`);
     assert.ok(s.includes('kinds,'), 'the record carries kinds');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('the record keeps what the clear cost, counted as the proxy counts a rewrite, and the model that prices it', () => {
+  const s = src();
+  // one definition of a rewrite (cutting.js:isRewrite): the same long-context floor, and the same test on sample calls
+  assert.equal(modConst(s, 'LONG_CONTEXT'), LONG_CONTEXT, 'the mod\'s long-context floor is the proxy\'s');
+  const body = s.match(/export const isRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
+  assert.ok(body, 'the mod defines isRewrite');
+  const mine = new Function('LONG_CONTEXT', 'u', body)
+  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 0, write: 40_000, input: 10 }, { read: 60_000, write: 70_000, input: 0 }, null])
+    assert.equal(mine(LONG_CONTEXT, u), isRewrite(u), `the two doors agree on ${JSON.stringify(u)}`);
+  // counted on every request after a clear, from the usage the engine reports for that request, in the API's spelling
+  const step = s.slice(s.indexOf("on('turn.step'"), s.indexOf("on('turn.complete'"));
+  assert.ok(step.includes('state.cost = charge(state.cost, r?.usage)'), 'every request after a clear is charged');
+  assert.ok(step.includes('state.model = String(r.usage.model)'), 'the model that answered is kept');
+  for (const f of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) assert.ok(s.includes(`usage.${f}`), `reads ${f}`);
+  // and kept across clears in the same shape compression.js:clearingCostBySession returns
+  const record = s.slice(s.indexOf('state = {'));
+  assert.ok(record.includes('cost: state?.cost ?? { rewrites: 0, write: 0 }'), 'the record carries cost: { rewrites, write }');
+  assert.ok(record.includes('model: state.model'), 'the record carries the model');
 });
 
 test('the settings name one copy\'s clearing folder beside the card and keep every other plugin folder', () => {
