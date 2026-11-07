@@ -53,6 +53,10 @@ test('pull request metrics are numbers only, and name nothing', t => {
   assert.equal(d.hoursToMergeSamples, 2);
   assert.equal(d.hoursToMerge, 16);
   assert.equal(d.savedBuckets.reduce((n, b) => n + b.count, 0), 2);
+  // the netted dollars, as delivery.js prices them: saved less the cache rewrites after a clear, signed
+  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'costedPrs']) assert.equal(typeof d[k], 'number', k);
+  assert.equal(d.netUsd, Math.round((d.savedUsd - d.rewriteUsd) * 100) / 100);
+  assert.ok(d.costedPrs <= d.merged);
   for (const value of Object.values(d)) if (!Array.isArray(value)) assert.equal(typeof value, 'number');
   const json = JSON.stringify(d);
   for (const secret of ['PRIVATE', 'github.com', store.repo]) assert.ok(!json.includes(secret), `leaked ${secret}`);

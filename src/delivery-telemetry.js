@@ -1,4 +1,6 @@
-// What leaves the machine about pull requests: counts and token totals, nothing else.
+// What leaves the machine about pull requests: counts, token totals and the netted dollars at list prices
+// (delivery.js `summary.cost`: cleared at the cache-read rate plus reading avoided at the input rate, less
+// the cache writes after a clear), nothing else.
 //
 // Never the pull request's number, title, URL, branch, author or repository, and never a session id. A
 // person's work in progress stays on their machine; what is counted is how many pull requests thinker was
@@ -35,6 +37,10 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     merged: 0, mergedSeen: 0, mergedAssisted: 0, open: 0, worked: 0,
     clearedTokens: 0, readingTokens: 0, savedTokens: 0,
     agentTokens: 0, completeTokenPrs: 0,
+    // Dollars, netted, over the merged pull requests' sessions (the owner's ask, 2026-11-06: net savings per
+    // device on the dashboard). Signed: a loss reads as a loss. `costedPrs` is how many of the merged pull
+    // requests could be priced at all; a session known only from an observation names no model.
+    savedUsd: 0, rewriteUsd: 0, netUsd: 0, costedPrs: 0,
     linkedSessions: 0, unlinkedSessions: 0,
     hoursToMerge: 0, hoursToMergeSamples: 0,
     savedBuckets: SAVED_BUCKETS.map(upper => ({ upper, count: 0 })),
@@ -53,6 +59,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       out.merged += s.merged; out.mergedSeen += s.mergedSeen; out.mergedAssisted += s.mergedAssisted; out.open += s.open; out.worked += s.worked;
       out.clearedTokens += s.saved.cleared; out.readingTokens += s.saved.reading; out.savedTokens += s.saved.total;
       out.agentTokens += s.tokens.agent; out.completeTokenPrs += s.tokens.complete;
+      out.savedUsd += s.cost?.saved || 0; out.rewriteUsd += s.cost?.rewrite || 0; out.netUsd += s.cost?.net || 0; out.costedPrs += s.cost?.costed || 0;
       out.linkedSessions += s.sessions.linked; out.unlinkedSessions += s.sessions.unlinked;
       for (const p of report.prs.filter(p => p.sessions.length && p.mergedAt && p.mergedAt >= report.since)) {
         out.savedBuckets.find(b => b.upper === null || p.saved.total <= b.upper).count++;
@@ -62,5 +69,6 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
   }
   for (const k of ['clearedTokens', 'readingTokens', 'savedTokens', 'agentTokens']) out[k] = Math.round(out[k]);
   out.hoursToMerge = Math.round(out.hoursToMerge * 100) / 100;
+  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd']) out[k] = Math.round(out[k] * 100) / 100;
   return out;
 }

@@ -73,6 +73,14 @@ test('dashboard provisioning creates Token spend, maps its filters, and refreshe
   // the three bands are headed by text, and no card runs past the grid
   assert.ok(spend.dashcards.filter(c => !c.card_id).length >= 3, 'each band is introduced');
   for (const card of spend.dashcards) assert.ok(card.col + card.size_x <= 24, 'a card must fit the 24-column grid');
+  // each band's title sits above its first card and below the previous band's last: a card added to the end
+  // of a band may not slide under the next title (the proxy's trend line did, until 2026-11-06)
+  const rowOf = name => spend.dashcards.find(c => c.card_id === config.cards[name]).row;
+  const titleRow = prefix => spend.dashcards.find(c => !c.card_id && c.visualization_settings.text.startsWith(prefix)).row;
+  assert.ok(rowOf('Devices with the proxy on over time') < titleRow('## Who was shown'), 'the proxy band holds its own trend line');
+  assert.ok(titleRow('## Who was shown') <= rowOf('Devices shown a suggestion, and devices that took one · 30 days'));
+  assert.ok(rowOf('Compression by kind of result · 30 days') < titleRow('## What it measured'));
+  assert.ok(titleRow('## What it measured') <= rowOf('Net savings · 30 days'));
   const spendId = config.spendId;
   await provision(options);
   assert.equal(config.spendId, spendId);
@@ -99,6 +107,16 @@ test('every spend card that counts one door of the clearing counts the other, or
   }
   for (const name of MESSAGES_ONLY.keys()) {
     assert.ok(spendQuestions.some(q => q.name === name), `MESSAGES_ONLY names "${name}", which is no longer a card`);
+  }
+  // the daily series reads the day's own figure (telemetry.js:proxyMetrics byDay), never a 30-day sum by snapshot
+  for (const name of ['Tokens cleared by day', 'Tokens cleared by day and device']) {
+    const q = spendQuestions.find(q => q.name === name);
+    assert.ok(q && /proxy,byDay/.test(q.sql) && !/sides,clearing/.test(q.sql), `"${name}" reads byDay alone`);
+  }
+  // and the netted dollars per device come from the prs block, the one place they are computed (delivery.js)
+  for (const name of ['Net savings · 30 days', 'Net savings by device · 30 days']) {
+    const q = spendQuestions.find(q => q.name === name);
+    assert.ok(q && /prs,netUsd/.test(q.sql), `"${name}" reads the netted figure`);
   }
   // and the Codex door has cards of its own: what it cut, and why it left the rest alone
   assert.ok(spendQuestions.some(q => /sides,responses,clearing,removedTokens/.test(q.sql)), 'the Codex door reports what it removed, in tokens');

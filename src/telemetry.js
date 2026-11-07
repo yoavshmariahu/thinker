@@ -415,6 +415,12 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   const errors = { total: 0, retried: 0, recovered: 0, truncated: 0, byCode: {} };
   let cancelled = 0;
   const byModel = {};
+  // The clearing by UTC day, both doors (cutting.js:clearedOf), so a dashboard can show a day's own figure.
+  // Every snapshot carries the whole 30-day window in `sides`, so the daily series could not be read off the
+  // snapshots: two snapshots a day apart differ by what came in and by what rolled out, and nothing tells them
+  // apart. A day here is the requests the proxy edited that day, how many of them it actually took something
+  // out of, and the tokens it took out; days add up.
+  const byDay = {};
   const notes = { requests: 0, served: 0, replayed: 0 };
   // how often the proxy stepped aside rather than break a harness routed elsewhere (proxy.js:authWatch,
   // proxy-service.js:standDown). Reasons are sentences of thinker's own, never a path or a URL of the machine's.
@@ -440,6 +446,11 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     const m = byModel[r.model || 'unknown'] ||= {};
     const s = m[side] ||= { requests: 0, billedInput: 0, cleared: 0 };
     s.requests++; s.billedInput += billed(r); s.cleared += clearedOf(r);
+    if (r.injected && typeof r.at === 'string' && r.at.length >= 10) {
+      const d = byDay[r.at.slice(0, 10)] ||= { requests: 0, requestsCleared: 0, cleared: 0 };
+      const cleared = clearedOf(r);
+      d.requests++; if (cleared > 0) { d.requestsCleared++; d.cleared += cleared; }
+    }
   }
   return {
     schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS,
@@ -453,7 +464,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     offer,
     // the rewrite rates ride along (`rewrites` per side, `sessionsStopped`); the warning sentence stays on the machine
     sides: (({ warning, ...s }) => s)(proxyReport(rows, { since })),
-    byModel, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
+    byModel, byDay, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
   };
 }
 

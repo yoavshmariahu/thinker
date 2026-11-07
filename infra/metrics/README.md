@@ -512,6 +512,15 @@ one door must count the other or be named in `MESSAGES_ONLY`
 Clients from before `removedTokens` was summed send bytes alone, so that column is
 blank for them, which is not zero.
 
+`byDay` is the clearing by UTC day, both doors together (`src/cutting.js:clearedOf`):
+for each day of the window, the requests the proxy was clearing on, how many of them
+it actually took something out of, and the tokens it took out. It exists because the
+sums in `sides` cover the whole window on every snapshot, so no daily series could be
+read off them -- two snapshots a day apart differ by what came in *and* by what rolled
+out of the window. **Tokens cleared by day** and **Tokens cleared by day and device**
+read it off the latest snapshot per device; a day is its own figure there, so days add
+up. Clients from before the field send no days, which is not zero.
+
 `errors` is what happened to a request somebody was waiting for. `total` counts
 tries, so a request tried twice is two: `retried` is how many were tried again and
 `failed` (`total` − `retried`) is how many the agent saw fail. `truncated` is the
@@ -543,6 +552,17 @@ prompt, as the denominator; and how many of its repositories hold decisions and 
 report. The effects are read from the report each repository already keeps
 (`src/report-snapshot.js:historyEffects`), so a device whose repositories have no
 report of that code reports its decisions with no effect — counted, not measured.
+
+**Net savings** come from `raw_json.prs` (`src/delivery-telemetry.js`), not from these
+three blocks: `savedUsd`, `rewriteUsd` and `netUsd` are `delivery.js`'s own netted figure
+-- cleared tokens at the cache-read rate plus reading avoided at the input rate, less what
+the calls after a clear wrote into the prompt cache again, at list prices, over the
+sessions of the pull requests merged in the window -- and `costedPrs` is how many of those
+could be priced at all. **Net savings** and **Net savings by device** on the Token spend
+dashboard read them off the latest snapshot per device; the figure is signed, so a machine
+the clearing cost money shows a loss. The same computation prints as `thinker prs`, so the
+dashboard can never disagree with it. Clients from before the fields send no dollars,
+which is not zero.
 
 **What the figures are not.** A decision's before and after are its own cost a
 prompt over the sessions on each side of it, on one machine: anything else that
