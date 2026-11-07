@@ -160,6 +160,21 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   thinking and with empty arguments, 6 results and 62k tokens cleared, the next call answered with thinking of its
   own, no 400, a 129.5k cache write for the rewrite. The API lets a previous turn's thinking go; the October
   breakage was an in-place edit of the history with no compaction boundary.
+- **The folder a session loads is never one an update replaces** (2026-11-06; `claude-card.js:installClaudeMods`,
+  `modDir`). Claude Code watches a mod's files and reloads it in every open session when they move, printing
+  "plugin.json changed -- reloaded" under the answer and running `session.start` again; it keys on the file event,
+  not the bytes. Every update renames a new tree over `~/.thinker/app`, where both mods lived, so every release
+  reloaded both mods in every open session -- three times in one session in a day, twice for a manifest whose bytes
+  had not changed. Reproduced live in tmux: a swap of the folder with identical bytes printed the line a second
+  later. So on an installed app `connect` and `rewire` copy each mod to `<THINKER_HOME>/plugins/<name>-<8 hex of
+  its files>`, renamed into place whole, and the settings name that folder. The same bytes give the same folder and
+  nothing is written, so a release that leaves a mod alone is silent; a changed mod gets a new folder and the
+  settings are repointed, which a session reads at its start, so an open session keeps what it loaded and gets the
+  new mod when next started, as it gets a changed hook. Folders no setting names go after `PRUNE_DAYS` (14). A git
+  checkout keeps naming its own source, so editing a mod there still reloads it live. Claude Code's own files in
+  the folder (`.claude-plugin/types`, `tsconfig.json`) are neither copied nor counted. `thinker uninstall --user`
+  removes the copies. The first rewire after this lands repoints the settings away from the app folder; the open
+  sessions of that day still watch the app and are reloaded one last time by the next update.
 - Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
   the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
@@ -189,6 +204,22 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   emptied call text estimated from their characters, and the thinking as the measured remainder, since a mod never
   sees a thinking block. What is not measured: the holdout's question, whether the model reads again what was
   cleared; judge any change to the policy here as the proxy's is judged, by cache writes.
+- **What a desktop clear cost is measured too, from the record (2026-11-06; `register.tsx:charge`, `isRewrite`,
+  `LONG_CONTEXT`; `compression.js:desktopClearingCost`).** The netted figure (`clearingCostBySession`, read by
+  `delivery.js:rewriteCostFor` for `thinker prs`) charged a clear with the prompt-cache writes of the calls after
+  it, read from the proxy log's rows alone, so a desktop session's clear had no cost side and read as gross -- the
+  one figure the owner's rule forbids. The engine reports every request's usage to `turn.step` in the API's own
+  counts (`cache_creation_input_tokens`, `cache_read_input_tokens`, `input_tokens`, and the `model` that
+  answered), so on every request from the first clear onward the mod applies the proxy's own definition of a
+  rewrite (a context of `LONG_CONTEXT` or more, over half of it written; `test/claude-clear.test.js` holds the
+  mirror to `cutting.js` on sample calls) and keeps `cost: { rewrites, write }` and `model` on the record.
+  `clearingCostBySession` takes the card's state directory (`dir`) and reads those for the sessions the log has
+  no rows for, priced at the one-hour write rate as the proxy's rows are; `desktopClearRows` prices the saving
+  from the record's model before the log's `op: session` rows. Measured, not modelled: the writes are the API's
+  counts, and as on the proxy side a rewrite the clearing did not cause is charged to it anyway. Not measured: a
+  record from before this carries no `cost` and gets no cost figure (never a zero that reads as free), the card's
+  state files are pruned after two days where the log keeps months, and the ledger's clearing series is still
+  gross by design, as the Report's is; the netted figure lives in `thinker prs` and the PR comment.
 
 **The clearing: thinker cuts the context itself (MANDATORY, 2026-11-04; `src/cutting.js`, `src/proxy.js:applyCut`):**
 - The proxy replaces older tool results with a placeholder in the request it forwards. Nothing is asked of the
@@ -465,6 +496,16 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status row too.
 - Where the card mod runs, the Stop hook leaves the money out of its line: the status row already has
   it, and one figure gets one voice per client.
+- **A clear the proxy never saw is in the ledger too** (2026-11-06; `compression.js:desktopClearRows`,
+  `clearingRows`). The ledger and the Report priced cleared tokens from the proxy's log alone, and a
+  desktop session never reaches the proxy: the clearing mod writes `state/compression/<session>.json` and
+  no log row, so its clears were on the card under the answer and in `thinker proxy report` and nowhere
+  money is said -- one desktop session's 7.8M cleared tokens, in no footer and no Report. Now the records
+  of the sessions the log has no rows for are read as one row each, dated the session's last request
+  (`saved` accrues through the session), priced from the model the session's own `op: session` log rows
+  name, unpriced where none does; a session the log does have rows for is left to the log, since the proxy
+  writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
+  ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
 
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.

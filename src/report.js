@@ -17,14 +17,14 @@ import { findRepoSessions, instructionValue } from './instruction-value.js';
 import { harnessUsage } from './harness.js';
 import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
-import { summarize, readLog } from './usage.js';
+import { summarize, readLog, sessionKey } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
 import { repoId } from './store.js';
-import { compressionRecords } from './compression.js';
+import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
 
@@ -213,8 +213,10 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const actions = reportActions(store, from, sessionRows, now);
   const cacheReadings = [];
   const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
-  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : compressionRecords(proxyLogFile());
-  const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: readLog(store, { all: true }) });
+  const everyEvent = readLog(store, { all: true });
+  // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
+  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
+  const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,

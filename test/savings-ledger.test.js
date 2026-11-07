@@ -18,7 +18,7 @@ const DAY = 86400_000;
 
 // A machine with one repository, a serving the session acted on, and a clear the proxy recorded, each
 // at a time the test chooses: the ledger's whole job is putting them in the right window.
-function machine(t, { now = Date.now(), servedAt = [now], cleared = [] } = {}) {
+function machine(t, { now = Date.now(), servedAt = [now], cleared = [], desktop = [] } = {}) {
   const home = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-savings-home-')));
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-savings-repo-')));
   t.after(() => { for (const d of [home, repo]) fs.rmSync(d, { recursive: true, force: true }); });
@@ -46,6 +46,17 @@ function machine(t, { now = Date.now(), servedAt = [now], cleared = [] } = {}) {
       status: 200, cleared: c.tokens, clearedUses: i + 1,
     })).join('\n') + '\n');
   }
+  // a clear made inside a desktop session, which never reaches the proxy: the clearing mod's own record
+  // (compression.js:noteCompression's shape, a number for its times), and the session in the machine's log
+  for (const [i, d] of desktop.entries()) {
+    const session = d.session || `d${i}`;
+    store.log({ op: 'session', t: new Date(d.at).toISOString(), session, model: d.model === undefined ? 'claude-opus-5-5' : d.model });
+    fs.mkdirSync(path.join(home, 'state', 'compression'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'state', 'compression', `${session}.json`), JSON.stringify({
+      session, firstAt: d.at - 60_000, lastAt: d.at, requests: 5, saved: d.tokens, uses: 3, recent: [{ at: d.at - 60_000, cleared: d.tokens / 5, uses: 3 }],
+      ...(d.recordModel ? { model: d.recordModel, cost: { rewrites: 1, write: 100_000 } } : {}),
+    }));
+  }
   return { store, home, repo };
 }
 
@@ -71,10 +82,40 @@ test('the ledger splits what was saved today from the whole log, by series', t =
   assert.equal(l.from, new Date(earlier).toISOString());
 });
 
+test('a clear made inside a desktop session counts, once, priced from the model its log rows name', t => {
+  const now = Date.parse('2026-11-05T15:00:00Z');
+  const at = dayStart(now) + 3600_000, earlier = now - 3 * DAY;
+  // the proxy's session also has the record the proxy writes beside its rows: the log wins, the file is not added
+  const { store, home } = machine(t, { now, servedAt: [at], cleared: [{ at, tokens: 50_000 }], desktop: [{ at, tokens: 80_000 }, { at: earlier, tokens: 20_000, model: null }] });
+  fs.writeFileSync(path.join(home, 'state', 'compression', 'p.json'), JSON.stringify({ session: 'p', firstAt: new Date(at).toISOString(), lastAt: new Date(at).toISOString(), requests: 1, saved: 50_000, uses: 1, recent: [] }));
+  const l = computeSavings(store, { now });
+  assert.equal(l.today.cleared.tokens, 130_000, 'the proxy clear and the desktop clear, not the proxy one twice');
+  assert.equal(l.lifetime.cleared.tokens, 150_000);
+  // the desktop clear is priced as the proxy's is, at the cache-read rate of the model the session's log rows name
+  const perToken = l.today.cleared.cost / l.today.cleared.tokens;
+  assert.ok(perToken > 0);
+  const { store: proxyOnly } = machine(t, { now, servedAt: [at], cleared: [{ at, tokens: 130_000 }] });
+  assert.ok(Math.abs(computeSavings(proxyOnly, { now }).today.cleared.cost - l.today.cleared.cost) < 1e-9, 'the same tokens cost the same whichever door cleared them');
+  // a session whose model nobody logged is counted in tokens and named as unpriced, never guessed a rate
+  assert.equal(l.lifetime.unpricedTokens, 20_000);
+  assert.ok(Math.abs(l.lifetime.cleared.cost - l.today.cleared.cost) < 1e-12);
+});
+
+test('a desktop record that names its own model is priced from it, with nothing in the log to name one', t => {
+  const now = Date.parse('2026-11-05T15:00:00Z');
+  const at = dayStart(now) + 3600_000;
+  const { store } = machine(t, { now, servedAt: [at], desktop: [{ at, tokens: 80_000, model: null, recordModel: 'claude-opus-5-5' }] });
+  const l = computeSavings(store, { now });
+  assert.equal(l.today.cleared.tokens, 80_000);
+  assert.equal(l.lifetime.unpricedTokens, 0, 'the record\'s model prices it');
+  const { store: logged } = machine(t, { now, servedAt: [at], desktop: [{ at, tokens: 80_000 }] });
+  assert.ok(Math.abs(computeSavings(logged, { now }).today.cleared.cost - l.today.cleared.cost) < 1e-12, 'the same price whichever named the model');
+});
+
 test('the footers never disagree with the Report page: one window, the same two series', t => {
   const now = Date.parse('2026-11-05T15:00:00Z');
   const at = dayStart(now) + 3600_000;
-  const { store } = machine(t, { now, servedAt: [at], cleared: [{ at, tokens: 50_000 }] });
+  const { store } = machine(t, { now, servedAt: [at], cleared: [{ at, tokens: 50_000 }], desktop: [{ at, tokens: 80_000 }] });
   const l = computeSavings(store, { now });
   const v = reportView(store, { weeks: 6, now, includePrs: false });
   // the Report's week-by-week table, added up over its window, is the ledger's lifetime here

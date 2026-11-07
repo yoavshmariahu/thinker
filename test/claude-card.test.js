@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CARD_ENV, claudeCardDir, withCardDir, withoutCardDir, cardDirIn, claudeCardActive } from '../src/claude-card.js';
+import { CARD_ENV, MODS, PRUNE_DAYS, claudeCardDir, claudeClearDir, withCardDir, withoutCardDir, cardDirIn, clearDirIn, claudeCardActive, installClaudeMods, removeClaudeMods, modDigest } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { FILE_CAP, MAX_FILES, NOT_READING } from '../src/usage.js';
 import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
@@ -165,4 +165,96 @@ test('the status row says what the ledger says, in the same words and the same d
   assert.match(src, /if \(surface !== 'desktop'\) return/);
   assert.match(src, /name: 'thinker-hide'/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');
+});
+
+// An installed app is replaced whole by every update, and Claude Code reloads a mod in every open session
+// when its folder moves, bytes changed or not (reproduced live 2026-11-06: the swap of a folder with the
+// same bytes printed "plugin.json changed -- reloaded" in the session a second later). So the folder the
+// settings name is a copy outside the app, named by the mod's content.
+function fakeApp(home) {
+  const app = path.join(home, 'app', 'src');
+  fs.mkdirSync(app, { recursive: true });
+  fs.writeFileSync(path.join(app, 'cli.js'), '');
+  for (const name of MODS) fs.cpSync(path.join(ROOT, 'src', 'integrations', name), path.join(app, 'integrations', name), { recursive: true });
+  return path.join(app, 'cli.js');
+}
+const withHome = (home, fn) => {
+  const saved = process.env.THINKER_HOME; process.env.THINKER_HOME = home;
+  try { return fn(); } finally { if (saved === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = saved; }
+};
+
+test('a checkout names its own mod folders; an installed app names a copy outside the app, by content', () => {
+  assert.equal(claudeCardDir(CLI), MOD, 'a checkout: the source itself, so editing a mod reloads it live');
+  const home = tmp('thinker-mods-');
+  const cli = fakeApp(home);
+  const dir = claudeCardDir(cli, { home });
+  assert.match(dir, new RegExp(`^${home.replace(/[\\/]/g, '[\\\\/]')}[\\\\/]plugins[\\\\/]claude-card-[0-9a-f]{8}$`), dir);
+  assert.ok(cardDirIn({ env: { [CARD_ENV]: dir } }) === dir && clearDirIn({ env: { [CARD_ENV]: claudeClearDir(cli, { home }) } }), 'the settings matchers know the copy');
+  assert.ok(!fs.existsSync(dir), 'naming the folder writes nothing');
+  const first = installClaudeMods(cli, { home });
+  assert.equal(first['claude-card'].copied, true);
+  assert.equal(first['claude-card'].dir, dir);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'hooks')).sort(), fs.readdirSync(path.join(MOD, 'hooks')).sort(), 'the copy is the mod');
+  assert.equal(fs.readFileSync(path.join(dir, 'hooks', 'register.tsx'), 'utf8'), fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8'));
+  // Claude Code writes its own files into the folder it loads; they are not the mod and do not move the digest
+  fs.mkdirSync(path.join(dir, '.claude-plugin', 'types'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.claude-plugin', 'types', 'index.d.ts'), 'x'); fs.writeFileSync(path.join(dir, 'tsconfig.json'), '{}');
+  assert.equal(modDigest(dir), modDigest(path.join(home, 'app', 'src', 'integrations', 'claude-card')));
+  // the update: a new tree with the same bytes renamed over the app
+  const app = path.join(home, 'app');
+  fs.cpSync(app, `${app}.new`, { recursive: true }); fs.renameSync(app, `${app}.old`); fs.renameSync(`${app}.new`, app); fs.rmSync(`${app}.old`, { recursive: true });
+  const before = fs.statSync(path.join(dir, '.claude-plugin', 'plugin.json')).mtimeMs;
+  const again = installClaudeMods(cli, { home });
+  assert.equal(again['claude-card'].dir, dir, 'the same mod is the same folder');
+  assert.equal(again['claude-card'].copied, false, 'and nothing is written to it');
+  assert.equal(fs.statSync(path.join(dir, '.claude-plugin', 'plugin.json')).mtimeMs, before);
+  // a release that changes the mod: a new folder beside the old, which stays for a session still running it
+  fs.appendFileSync(path.join(app, 'src', 'integrations', 'claude-card', 'hooks', 'register.tsx'), '\n// changed\n');
+  const next = installClaudeMods(cli, { home });
+  assert.notEqual(next['claude-card'].dir, dir);
+  assert.ok(fs.existsSync(dir) && fs.existsSync(next['claude-card'].dir), 'both folders stand');
+  assert.deepEqual(next['claude-card'].pruned, []);
+  assert.equal(next['claude-clear'].dir, first['claude-clear'].dir, 'the mod that did not change keeps its folder');
+  // past PRUNE_DAYS the folder no setting names goes; the one in use never does
+  const stale = new Date(Date.now() - (PRUNE_DAYS + 1) * 86400e3);
+  fs.utimesSync(path.join(dir, '.claude-plugin', 'plugin.json'), stale, stale);
+  assert.deepEqual(installClaudeMods(cli, { home })['claude-card'].pruned, [dir]);
+  assert.ok(!fs.existsSync(dir) && fs.existsSync(next['claude-card'].dir));
+  removeClaudeMods({ home });
+  assert.ok(!fs.existsSync(path.join(home, 'plugins')), 'uninstall takes every copy out');
+  fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('connect on an installed app names the copies and repoints them only when a mod changed; uninstall removes them', () => {
+  const home = tmp('thinker-mods-wire-');
+  const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR };
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR;
+  try {
+    const settings = path.join(home, '.claude', 'settings.json');
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+    fs.writeFileSync(settings, JSON.stringify({ env: { A: '1' } }));
+    const cli = fakeApp(home);
+    const wire = () => withHome(home, () => installClient('claude', { scope: 'user', cli, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false }));
+    wire();
+    const read = () => JSON.parse(fs.readFileSync(settings, 'utf8'));
+    const card = claudeCardDir(cli, { home }), clear = claudeClearDir(cli, { home });
+    assert.equal(read().env[CARD_ENV], [card, clear].join(D));
+    assert.equal(read().env.A, '1');
+    assert.ok(fs.existsSync(path.join(card, 'hooks', 'register.tsx')) && fs.existsSync(path.join(clear, 'hooks', 'register.tsx')));
+    const mtime = fs.statSync(settings).mtimeMs;
+    wire();
+    assert.equal(fs.statSync(settings).mtimeMs, mtime, 'the same content rewrites no setting');
+    fs.appendFileSync(path.join(home, 'app', 'src', 'integrations', 'claude-clear', 'hooks', 'register.tsx'), '\n// changed\n');
+    wire();
+    const clear2 = claudeClearDir(cli, { home });
+    assert.notEqual(clear2, clear);
+    assert.equal(read().env[CARD_ENV], [card, clear2].join(D), 'the changed mod is repointed, the other kept');
+    assert.ok(fs.existsSync(clear), 'the folder a running session loaded is still there');
+    withHome(home, () => uninstallWiring({ scope: 'user' }));
+    assert.deepEqual(read().env, { A: '1' });
+    assert.ok(!fs.existsSync(path.join(home, 'plugins')));
+  } finally {
+    process.env.HOME = saved.HOME; if (saved.CLAUDE_CONFIG_DIR !== undefined) process.env.CLAUDE_CONFIG_DIR = saved.CLAUDE_CONFIG_DIR;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
