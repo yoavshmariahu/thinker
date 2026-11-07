@@ -14,6 +14,7 @@ import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
 import { compressionHeader } from '../compression.js';
+import { bedrockState } from '../proxy-bedrock.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
 
@@ -48,11 +49,17 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     // Anthropic's API, so the clearing reaches those sessions too (proxy-route.js:ownGateway). --upstream names one.
     // --no-gateway goes back to the API. Nothing but these puts the proxy in front of someone's gateway.
     const gateway = flags.upstream ? String(flags.upstream) : flags.gateway === true ? true : flags.gateway === false || flags['no-gateway'] ? false : undefined;
-    const p = await enableProxyService({ cli, force: true, gateway });
+    const bedrock = flags.bedrock ? { region: flags.region, model: flags.model, tokenFile: flags['token-file'] } : undefined;
+    if (!bedrock && (flags.region || flags['token-file'])) throw Error('--region and --token-file require --bedrock.');
+    let p;
+    try { p = await enableProxyService({ cli, force: true, gateway, bedrock, repos: repo ? [repo] : [] }); }
+    catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
     if (gateway === true && !p.upstream) { out('thinker proxy on --gateway: no model server of your own was found to forward to (no ANTHROPIC_BASE_URL in your settings, environment or shell files, or only Anthropic\'s own api.anthropic.com, which is the ordinary route). The proxy forwards to the API as usual.'); }
     out(`Context proxy on: ${p.url}${p.upstream ? ` -> ${p.upstream}${p.gatewayFrom ? ` (your route, from ${p.gatewayFrom})` : ''}` : ''}${p.listening === false ? ' (not listening yet; the next prompt starts it)' : ''}, kept running by ${p.service.type === 'hook' ? 'the prompt hook' : p.service.type}${p.service.reason ? ` (${p.service.reason})` : ''}.`);
     for (const l of wiredLines(p.wired, p.url, p.upstream)) out(`  ${l}`);
     for (const u of p.wired.unchanged) if (!u.absent) out(`  ${u.agent}: already pointed at it`);
+    const b = bedrockState(thinkerHome());
+    if (b) out(`Bedrock: ${p.url}/bedrock -> ${b.upstream}; model ${b.model}. Restart Claude Code to use the new route. All model aliases use this model. The private token file is reread on each request; replace its contents to rotate credentials. thinker proxy off restores the previous Claude settings.`);
     out(`Flags of the service: thinker ${serviceArgs().join(' ')} (proxy: { holdout, trigger, keep, keepMin, clearAtLeast } in ${path.join(thinkerHome(), 'config.json')} changes them; thinker proxy off turns it off).`);
     return;
   }
@@ -77,6 +84,8 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     const listening = await isListening(s.port);
     const through = proxyThrough();
     out(`Context proxy on: ${proxyUrl()}${through ? ` -> ${through} (a model server of your own)` : ''}, ${listening ? 'listening' : 'NOT listening (the next prompt starts it)'}; flags: thinker ${serviceArgs().join(' ')}.`);
+    const b = bedrockState(thinkerHome());
+    if (b) out(`Bedrock: ${proxyUrl()}/bedrock -> ${b.upstream}; model ${b.model}; credentials from a private token file (reread per request).`);
     flags.days ||= 30;
     pos[0] = 'report';
     return proxyCommand({ pos, flags, out, repo, HERE });
@@ -184,6 +193,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   } else if (wanted) { out(`thinker proxy: --notes needs a git checkout (${candidate || 'none'}).`); process.exitCode = 2; return; }
   const server = startProxy(cfg, {
     logFile, notes,
+    bedrock: flags.bedrock && serviceState().enabled && serviceState().port === cfg.port ? () => bedrockState(thinkerHome()) : null,
     // the service's own process: a routed harness that reaches it by mistake takes the proxy out of the agents'
     // settings, so the harness is whole again at the next session (proxy-service.js:standDown; no-op for a proxy
     // somebody started by hand on another port). `manage: false` leaves this process alone -- the service entry

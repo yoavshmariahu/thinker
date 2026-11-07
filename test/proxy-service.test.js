@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
+import { bedrockState } from '../src/proxy-bedrock.js';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
   wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
 
@@ -34,6 +35,86 @@ function fakeMachine() {
   const restore = () => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } fs.rmSync(root, { recursive: true, force: true }); };
   return { root, home, env, files, restore };
 }
+
+test('Bedrock opt-in wires token Messages, survives reconnect, and off restores native settings without storing AWS credentials', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    const original = { permissions: { deny: ['Bash'] }, env: { CLAUDE_CODE_USE_BEDROCK: '1', ANTHROPIC_MODEL: 'old-model', ANTHROPIC_AUTH_TOKEN: 'old-auth', KEEP: 'me' } };
+    fs.writeFileSync(m.files.claude, JSON.stringify(original));
+    const tokenFile = path.join(m.root, 'bedrock-token');
+    fs.writeFileSync(tokenFile, 'aws-secret-fixture', { mode: 0o600 });
+    const env = { ...m.env, CLAUDE_CODE_USE_BEDROCK: '1' };
+    const bedrock = { region: 'us-east-1', model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', tokenFile };
+    const p = await enableProxyService({ cli: CLI, home: m.home, env, manage: false, force: true, bedrock });
+    const wired = readJson(m.files.claude);
+    assert.equal(wired.env.ANTHROPIC_BASE_URL, p.url + '/bedrock');
+    assert.equal(wired.env.CLAUDE_CODE_USE_BEDROCK, '0');
+    assert.equal(wired.env.ANTHROPIC_MODEL, bedrock.model);
+    assert.equal(wired.env.ANTHROPIC_DEFAULT_HAIKU_MODEL, bedrock.model);
+    assert.deepEqual(wired.permissions, original.permissions);
+    assert.ok(!JSON.stringify(wired).includes('aws-secret-fixture'));
+    assert.ok(!fs.readFileSync(path.join(m.home, 'state/proxy-bedrock.json'), 'utf8').includes('aws-secret-fixture'));
+    assert.equal(fs.statSync(path.join(m.home, 'state/proxy-bedrock.json')).mode & 0o777, 0o600);
+    assert.ok(serviceArgs(m.home).includes('--bedrock'));
+    assert.equal(readJson(m.files.pi).providers.anthropic.baseUrl, p.url, 'other clients retain the ordinary route');
+    assert.equal(routeAppeared({ home: m.home, env }), null);
+    assert.equal(removedByHand({ home: m.home }), null);
+    await enableProxyService({ cli: CLI, home: m.home, env, manage: false });
+    assert.equal(readJson(m.files.claude).env.ANTHROPIC_BASE_URL, p.url + '/bedrock');
+    const edited = readJson(m.files.claude);
+    edited.env.ANTHROPIC_DEFAULT_HAIKU_MODEL = 'us.anthropic.user-selected-model';
+    fs.writeFileSync(m.files.claude, JSON.stringify(edited));
+    await enableProxyService({ cli: CLI, home: m.home, env, manage: false });
+    assert.equal(readJson(m.files.claude).env.ANTHROPIC_DEFAULT_HAIKU_MODEL, 'us.anthropic.user-selected-model');
+    disableProxyService({ home: m.home, manage: false });
+    assert.deepEqual(readJson(m.files.claude), { ...original, env: { ...original.env, ANTHROPIC_DEFAULT_HAIKU_MODEL: 'us.anthropic.user-selected-model' } }, 'off restores what it wrote and preserves later user edits');
+    assert.equal(bedrockState(m.home), null);
+    assert.equal(fs.readFileSync(tokenFile, 'utf8'), 'aws-secret-fixture', 'the user owns the credential file');
+  } finally { m.restore(); }
+});
+
+test('leaving Bedrock restores the gateway the proxy previously replaced', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    const original = { env: { ANTHROPIC_BASE_URL: 'https://gateway.example', ANTHROPIC_AUTH_TOKEN: 'gateway-token' } };
+    fs.writeFileSync(m.files.claude, JSON.stringify(original));
+    await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, gateway: original.env.ANTHROPIC_BASE_URL });
+    const tokenFile = path.join(m.root, 'token');
+    fs.writeFileSync(tokenFile, 'bedrock-fixture', { mode: 0o600 });
+    await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, force: true,
+      bedrock: { region: 'us-east-1', model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', tokenFile } });
+    disableProxyService({ home: m.home, manage: false });
+    assert.deepEqual(readJson(m.files.claude), original, 'a gateway token must not be sent to Anthropic after off');
+    assert.equal(serviceState(m.home).replaced?.claude, undefined);
+  } finally { m.restore(); }
+});
+
+test('Bedrock opt-in rejects missing credentials and competing routes before any settings change', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    const original = JSON.stringify({ env: { CLAUDE_CODE_USE_BEDROCK: '1' } });
+    fs.writeFileSync(m.files.claude, original);
+    const tokenFile = path.join(m.root, 'token');
+    const bedrock = { region: 'us-east-1', model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0', tokenFile };
+    await assert.rejects(enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, bedrock }), /token file/);
+    fs.writeFileSync(tokenFile, 'fixture', { mode: 0o600 });
+    fs.chmodSync(tokenFile, 0o644);
+    if (process.platform !== 'win32') await assert.rejects(enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, bedrock }), /private/);
+    fs.chmodSync(tokenFile, 0o600);
+    await assert.rejects(enableProxyService({ cli: CLI, home: m.home, env: { ...m.env, ANTHROPIC_BASE_URL: 'https://gateway.example' }, manage: false, bedrock }), /custom Claude route/);
+    fs.writeFileSync(path.join(m.root, '.zshrc'), 'export CLAUDE_CODE_USE_BEDROCK=1\nexport ANTHROPIC_BEDROCK_BASE_URL=https://custom-bedrock.example\n');
+    await assert.rejects(enableProxyService({ cli: CLI, home: m.home, env: { ...m.env, THINKER_ROUTE_HOME: m.root }, manage: false, bedrock }), /cannot override/);
+    fs.unlinkSync(path.join(m.root, '.zshrc'));
+    fs.writeFileSync(path.join(m.env.CLAUDE_CONFIG_DIR, 'settings.local.json'), original);
+    await assert.rejects(enableProxyService({ cli: CLI, home: m.home, env: { ...m.env, THINKER_ROUTE_HOME: m.root }, manage: false, bedrock }), /cannot override/);
+    assert.equal(fs.readFileSync(m.files.claude, 'utf8'), original);
+    assert.equal(bedrockState(m.home), null);
+    assert.equal(serviceState(m.home).enabled, undefined);
+  } finally { m.restore(); }
+});
 
 test('the state: off until enabled, the port kept, every port the service had is still ours', () => {
   const home = tmp('thinker-proxy-state-');

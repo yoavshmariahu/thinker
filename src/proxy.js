@@ -30,6 +30,7 @@ import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
+import { BEDROCK_PATH, bedrockRequest } from './proxy-bedrock.js';
 import { stubTools, stubReader } from './tool-stubs.js';
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
@@ -501,7 +502,7 @@ const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clien
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
 // `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
   // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
   // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
   // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
@@ -552,6 +553,19 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   const server = http.createServer((req, res) => {
     inFlight++; res.once('close', () => { inFlight--; lastDone = Date.now(); });
     let requestUrl = req.url, requestCfg = cfg;
+    if (requestUrl === BEDROCK_PATH || requestUrl.startsWith(BEDROCK_PATH + '/')) {
+      try {
+        const route = bedrockRequest(req, typeof bedrock === 'function' ? bedrock() : bedrock);
+        requestUrl = route.url;
+        req.headers = route.headers;
+        requestCfg = { ...cfg, protocol: 'anthropic', upstream: route.upstream };
+      } catch (e) {
+        req.resume();
+        res.writeHead(e.status || 503, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: e.message } }));
+        return;
+      }
+    }
     if (cfg.codex && (requestUrl.startsWith(`${CODEX_PROXY_PATH}/`) || requestUrl === CODEX_PROXY_PATH)) {
       requestUrl = requestUrl.slice(CODEX_PROXY_PATH.length) || '/';
       // Codex adds this header when using ChatGPT auth. API-key requests have none.

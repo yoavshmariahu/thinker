@@ -627,13 +627,37 @@ plugin on a machine without thinker does nothing.
   router speaks the API's `context-management` beta), the proxy sends that request again exactly as the agent wrote
   it and stops adding the edit, so the call succeeds and nothing is saved on it; `thinker proxy report` then says
   `edit-unsupported` rather than claiming no requests.
-- **Bedrock Messages with token authentication (mock verified, 2026-11-06):**
+- **Bedrock Messages with token authentication (explicit opt-in, 2026-11-06):**
   AWS documents an Anthropic-compatible `/anthropic/v1/messages` endpoint with API-key authentication
   ([AWS Messages API](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html)).
-  An explicitly configured proxy upstream ending in `/anthropic` can forward this request shape and its
-  token, replacing old results without re-signing a model request. This is distinct from Claude Code's
-  native Bedrock `InvokeModel` transport and IAM SigV4 signing: the existing cloud-route guard remains
-  in place, and no installer or user settings are changed by this test.
+  `thinker proxy on --bedrock` configures Claude Code to use this endpoint through the proxy, replacing old
+  results without signing model requests. It is opt-in: installing or updating Thinker never migrates a
+  native Bedrock/IAM setup. You need model access and a Bedrock API key or bearer token; an AWS IAM login
+  alone does not provide that token. Thinker neither provisions model access nor generates credentials.
+
+  Put the token in a private file (one token, no JSON; `chmod 600 ~/.config/bedrock-token`), then run:
+
+  ```sh
+  thinker proxy on --bedrock --region us-east-1 \
+    --model us.anthropic.claude-haiku-4-5-20251001-v1:0 \
+    --token-file ~/.config/bedrock-token
+  ```
+
+  Choose a model/inference-profile ID enabled in your account and region. Restart Claude Code after
+  enabling or disabling this route. Claude's base URL becomes the local `/bedrock` route and its native
+  Bedrock flag becomes `0`. All default model aliases initially use the explicit model, including background
+  calls, to avoid sending Anthropic's direct model names to AWS. You can then customize those aliases in
+  Claude settings with other Bedrock IDs. Custom gateways, another cloud provider, and conflicting project
+  or managed settings are left alone with an error. Other clients keep their existing proxy destinations.
+
+  The proxy reads the private token file on each request: rotate it by replacing its contents, keeping
+  permissions private. Short-lived tokens require renewal by your credential tooling; Thinker does not
+  silently fall back to another provider if a token is absent or expired. Claude settings hold a separate
+  local proxy credential, never the AWS token. No signed-in agent CLI is required to use the token file.
+  Service restarts reuse the configuration. `thinker proxy status` shows the region endpoint and model;
+  `thinker proxy off` and uninstall restore the previous Claude settings while preserving later user edits.
+  The token file remains yours and is not deleted. Opt-in configuration and restoration data are private
+  files under `THINKER_HOME/state`; tokens are not put in service arguments or proxy logs.
 
   Run `npm test -- test/proxy-bedrock.test.js` for the loopback-only compatibility checks. They need no
   AWS account, credentials, Python packages or paid model calls. The real proxy forwards to a mock
@@ -644,8 +668,16 @@ plugin on a machine without thinker does nothing.
   IDs, and access refusals passed through once without a route change or service stand-down. Test-only
   size thresholds make the fixture small; the shipped cut policy stays unchanged.
 
-  This establishes the local HTTP contract, not AWS acceptance of the edited request, Claude Code
-  provider configuration, token refresh, or savings. A preliminary live unchanged request succeeded;
+  The dedicated route also checks token rotation, refused local authentication, and missing credentials
+  without a fallback. Setup tests cover opt-in, reconnect, conflicting routes, and restoration. For the
+  installed Claude Code client, run `THINKER_TEST=1 node scripts/bedrock-claude-preflight.mjs`: it creates
+  isolated settings and fake credentials, starts the actual Thinker service command, and verifies that
+  Claude reaches a local mock through `/anthropic/v1/messages` with the selected Bedrock model. This passed
+  with native Bedrock enabled in the client's inherited environment; the opt-in settings selected the
+  Messages transport. It makes no AWS calls and removes its temporary configuration afterward.
+
+  Mock validation does not establish AWS acceptance of an edited request, account permissions, or savings.
+  A preliminary live unchanged request succeeded;
   the edited request was refused for missing Anthropic use-case onboarding in the test account. The
   account's model-access API confirmed the missing form. Live validation stopped there at the owner's
   request; it is not recorded as a successful Bedrock clearing test.

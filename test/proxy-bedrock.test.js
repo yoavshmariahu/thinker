@@ -33,7 +33,7 @@ function fixture() {
 async function harness(t, reply = {}) {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-bedrock-mock-'));
   const seen = [], standDown = [];
-  let proxy;
+  let proxy, bedrock;
   const upstream = http.createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -48,6 +48,12 @@ async function harness(t, reply = {}) {
   await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
   return {
     seen, standDown,
+    enableBedrock() {
+      const tokenFile = path.join(work, 'token');
+      fs.writeFileSync(tokenFile, 'bedrock-first-token', { mode: 0o600 });
+      bedrock = { tokenFile, localToken: 'local-client-token', upstream: `http://127.0.0.1:${upstream.address().port}/anthropic` };
+      return bedrock;
+    },
     async start(overrides = {}) {
       if (proxy) { await close(proxy); proxy = null; }
       return new Promise(resolve => {
@@ -55,7 +61,7 @@ async function harness(t, reply = {}) {
           upstream: `http://127.0.0.1:${upstream.address().port}/anthropic`,
           // Exercise transport with a small fixture, leaving production policy unchanged.
           trigger: 1, clearAtLeast: 1, holdout: 0, ...overrides }, {
-          logFile: path.join(work, 'proxy.jsonl'), stubsHome: work,
+          logFile: path.join(work, 'proxy.jsonl'), stubsHome: work, bedrock,
           onStandDown: reason => standDown.push(reason),
           onListen: a => resolve(`http://127.0.0.1:${a.port}`),
         });
@@ -63,6 +69,35 @@ async function harness(t, reply = {}) {
     },
   };
 }
+
+test('dedicated Bedrock route uses the private token, rotates without restart, and never falls back', async t => {
+  const h = await harness(t);
+  let url = await h.start();
+  const auth = { authorization: 'Bearer local-client-token', 'x-api-key': 'unrelated-client-secret' };
+  const wire = JSON.stringify(fixture());
+  assert.equal((await send(url + '/bedrock', wire, auth)).status, 404);
+  const state = h.enableBedrock();
+  url = await h.start();
+  assert.equal((await send(url + '/bedrock', wire, { authorization: 'AWS4-HMAC-SHA256 native-signature' })).status, 401);
+  assert.equal(h.seen.length, 0);
+  assert.equal((await send(url + '/bedrock', wire, auth)).text, SSE);
+  assert.equal(h.seen[0].headers['x-api-key'], 'bedrock-first-token');
+  assert.equal(h.seen[0].headers.authorization, undefined);
+  assert.equal(h.seen[0].url, '/anthropic/v1/messages');
+  assert.equal(JSON.parse(h.seen[0].body).messages[2].content[0].content[0].text, cutPlaceholder(4300));
+  fs.writeFileSync(state.tokenFile, 'bedrock-rotated-token');
+  assert.equal((await send(url + '/bedrock', wire, auth)).status, 200);
+  assert.equal(h.seen[1].headers['x-api-key'], 'bedrock-rotated-token');
+  assert.equal(h.seen[1].body, h.seen[0].body);
+  fs.writeFileSync(state.tokenFile, 'bad\u0000token');
+  assert.equal((await send(url + '/bedrock', wire, auth)).status, 503);
+  assert.equal(h.seen.length, 2, 'invalid header bytes never reach HTTP request construction');
+  fs.unlinkSync(state.tokenFile);
+  assert.equal((await send(url + '/bedrock', wire, auth)).status, 503);
+  assert.equal(h.seen.length, 2, 'missing credentials make no upstream request');
+  assert.equal((await send(url, wire, { 'x-api-key': 'ordinary-anthropic-key' })).status, 200);
+  assert.equal(h.seen[2].headers['x-api-key'], 'ordinary-anthropic-key', 'ordinary route retains its own credentials');
+});
 
 async function send(url, body, auth) {
   const response = await fetch(`${url}/v1/messages`, { method: 'POST',

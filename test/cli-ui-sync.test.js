@@ -18,6 +18,14 @@ const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'sr
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
+test('Bedrock opt-in flags belong to the shared CLI; page setup cannot enable them implicitly', () => {
+  assert.match(read('cli.js'), /proxy on --bedrock --region region --model bedrock-model-id --token-file path/);
+  assert.match(read('commands/proxy.js'), /tokenFile: flags\['token-file'\]/);
+  assert.match(read('setup/steps.js'), /enableProxyService\(/);
+  assert.doesNotMatch(read('setup/steps.js'), /bedrock:/);
+  assert.doesNotMatch(read('ui/page.html'), /--bedrock/);
+});
+
 test('lifetime savings use shared report values and captions in CLI, page and footer', async () => {
   const { cacheMetrics } = await import('../src/report.js');
   const usage = { assessed: { confirmed: 2 }, saved: { tokens: 1000, byModel: {}, input: { tokens: 88000, covered: 1, fallback: 1, sessions: 1, requests: 100 } } };
