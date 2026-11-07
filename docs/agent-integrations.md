@@ -627,6 +627,28 @@ plugin on a machine without thinker does nothing.
   router speaks the API's `context-management` beta), the proxy sends that request again exactly as the agent wrote
   it and stops adding the edit, so the call succeeds and nothing is saved on it; `thinker proxy report` then says
   `edit-unsupported` rather than claiming no requests.
+- **Bedrock Messages with token authentication (mock verified, 2026-11-06):**
+  AWS documents an Anthropic-compatible `/anthropic/v1/messages` endpoint with API-key authentication
+  ([AWS Messages API](https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html)).
+  An explicitly configured proxy upstream ending in `/anthropic` can forward this request shape and its
+  token, replacing old results without re-signing a model request. This is distinct from Claude Code's
+  native Bedrock `InvokeModel` transport and IAM SigV4 signing: the existing cloud-route guard remains
+  in place, and no installer or user settings are changed by this test.
+
+  Run `npm test -- test/proxy-bedrock.test.js` for the loopback-only compatibility checks. They need no
+  AWS account, credentials, Python packages or paid model calls. The real proxy forwards to a mock
+  `/anthropic/v1/messages` endpoint with fake `x-api-key` and `Authorization: Bearer` tokens. The tests
+  inspect the upstream's received bytes: the original request in holdout, exactly seven replaced results
+  with the newest three preserved, and identical cuts within the turn and after a proxy restart. They also
+  check unchanged authentication, absence of AWS signing headers, intact streamed responses and request
+  IDs, and access refusals passed through once without a route change or service stand-down. Test-only
+  size thresholds make the fixture small; the shipped cut policy stays unchanged.
+
+  This establishes the local HTTP contract, not AWS acceptance of the edited request, Claude Code
+  provider configuration, token refresh, or savings. A preliminary live unchanged request succeeded;
+  the edited request was refused for missing Anthropic use-case onboarding in the test account. The
+  account's model-access API confirmed the missing form. Live validation stopped there at the owner's
+  request; it is not recorded as a successful Bedrock clearing test.
 - **Codex / Responses tool-output clearing (on by default, 2026-10-25, owner's request):**
   install, `connect`, `setup`, and updates select a managed Codex provider on the shared service
   (`/codex`). It uses the existing ChatGPT or OpenAI API login over HTTP/SSE; custom providers and
