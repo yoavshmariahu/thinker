@@ -882,6 +882,8 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
       // the cut's own row: no `cleared`, because the API was not asked (cutting.js:clearedOf). Every
       // figure here read 0 for the whole of 0.2.22, with the cut working on the machines that sent it.
       { at: at(2800_000), op: 'proxy', session: 's3', model: 'claude-opus-5', injected: true, keep: 'turn', input: 20, read: 150_000, write: 0, out: 10, clientCut: { cut: 4, chars: 60_000, tokens: 21_600 }, overheadMs: 3 },
+      // the Codex door: cut by the proxy itself, its own estimate of what it removed (proxy-responses.js)
+      { at: at(2700_000), op: 'proxy', protocol: 'responses', session: 'c1', model: 'gpt-5.1-codex', injected: true, input: 50_000, read: 40_000, out: 200, removedBytes: 20_000, estimatedRemovedTokens: 5_000, overheadMs: 2 },
     ];
     fs.writeFileSync(path.join(tmpHome, 'state', 'proxy.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
     const p = proxyMetrics({ home: tmpHome, now, env: {} });
@@ -906,6 +908,13 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
     assert.equal(p.standDowns.length, 1, 'the proxy stepping aside is counted, not an error');
     assert.match(p.standDowns[0].reason, /not Anthropic/);
     assert.equal(p.service.standDown, null, 'this service is on');
+    // by day, both doors, so a dashboard can draw the day's own figure: the 30-day sums cannot be read by day
+    const days = Object.keys(p.byDay);
+    assert.ok(days.length >= 1 && days.length <= 2 && days.every(d => /^\d{4}-\d{2}-\d{2}$/.test(d)), `UTC days: ${days}`);
+    const total = (k) => Object.values(p.byDay).reduce((n, d) => n + d[k], 0);
+    assert.equal(total('cleared'), 66_600, 'the API\'s figure, the cut\'s own, and the Codex door\'s estimate; the row from 40 days ago is out');
+    assert.equal(total('requestsCleared'), 3);
+    assert.equal(total('requests'), 5, 'every request the proxy was clearing on, either door');
   } finally {
     removeTree(tmpRepo); removeTree(tmpHome);
   }

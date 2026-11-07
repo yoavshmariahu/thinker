@@ -137,9 +137,13 @@ const filterDefs = [
 ];
 function dataset(question, database) {
   const where = 'WHERE 1=1 ' + filterDefs.map(([id, , expression]) => `[[AND ${expression} = {{${id}}}]]`).join(' ');
-  const ctes = ['v_latest_installs', 'v_latest_devices', 'v_snapshots', 'reports'].map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
   let sql = question.sql;
   if (question.name === 'Note kinds · latest snapshots') sql = "SELECT k.key AS kind, sum(k.value::bigint) AS total_notes FROM v_latest_installs CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(raw_json #> '{cacheSize,kinds}') = 'object' THEN raw_json #> '{cacheSize,kinds}' ELSE '{}'::jsonb END) k GROUP BY 1 ORDER BY 2 DESC";
+  // A filtered copy of each source the query reads, and of those alone: Postgres resolves every CTE whether or
+  // not the query uses it, so a copy of a view the production database does not hold yet (`v_snapshots`, from
+  // #682, until its schema is deployed) failed every card, the ones reading `reports` alone included.
+  const tables = ['v_latest_installs', 'v_latest_devices', 'v_snapshots', 'reports'].filter(table => new RegExp(`\\b(FROM|JOIN)\\s+${table}\\b`, 'i').test(sql));
+  const ctes = tables.map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
   sql = sql.replace(/\b(FROM|JOIN)\s+(v_latest_installs|v_latest_devices|v_snapshots|reports)\b/gi, '$1 filtered_$2');
   return { database, type: 'native', native: { query: `WITH ${ctes}\n${sql}`, 'template-tags': Object.fromEntries(filterDefs.map(([id, name]) =>
     [id, { id, name: id, 'display-name': name, type: 'text', required: false }])) } };
@@ -180,13 +184,13 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.spend ? state.spendCardVersion === 2 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 3 : state.cardVersion === 8)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 3 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 3 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 3; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 2; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 3; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 3; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -328,14 +332,17 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'The context proxy, the actions people take on Find Savings to cut what a prompt costs, and what those actions measured as saved. 30 days on the latest snapshot per device. Clients before these blocks send nothing here, which is not zero.' })).id;
     save();
   }
-  if (state.spendDashboardVersion !== 3) {
+  if (state.spendDashboardVersion !== 4) {
     const band = (row, text) => ({ id: -(row + 1000), card_id: null, row, col: 0, size_x: 24, size_y: 3,
       visualization_settings: { virtual_card: { display: 'text' }, text } });
     const cards = [band(0, '## Where the tokens go, and what people cut\nThree bands: the proxy (what it clears and what that side costs against the held-out side), the actions taken on Find Savings, and what those decisions measured as saved. Every card reads the latest snapshot per known device (installation fallback) and covers 30 days.\n**Machines, not changes:** the second band opens with how many machines were shown a suggestion and how many took one. Every other card counts changes, so one machine deciding many times reads as uptake there.\n**Read the savings carefully:** a decision is measured by what the changed thing cost a prompt before it against since it, on the same machine, over the repository\'s own kept report. Other changes in that time move it too. Nothing here is a controlled comparison, and a device whose repositories hold no report is counted but not measured.')];
-    // the three bands, in the order the questions are written: proxy (12, four of them scalars: on, not
-    // running, requests, and the machines it actually cut for), actions (11, led by who was shown something
-    // and who took it), savings (the rest)
-    const bands = [[0, 12, 4, '## The proxy'], [12, 23, null, '## Who was shown a suggestion, and what people switched off, compressed or removed'], [23, spendQuestions.length, null, '## What it measured as saved']];
+    // the three bands, in the order the questions are written: proxy (four scalars first: on, not running,
+    // requests, and the machines it actually cut for), actions (led by who was shown something and who took
+    // it), savings. Each band's first question is named, so a card added to one band cannot slide into the next
+    // (until 2026-11-06 the proxy's last card sat under the actions band's title).
+    const startOf = name => { const i = spendQuestions.findIndex(q => q.name === name); if (i < 0) throw new Error(`no spend card "${name}"`); return i; };
+    const actionsFrom = startOf('Devices shown a suggestion, and devices that took one · 30 days'), savingsFrom = startOf('Net savings · 30 days');
+    const bands = [[0, actionsFrom, 4, '## The proxy'], [actionsFrom, savingsFrom, null, '## Who was shown a suggestion, and what people switched off, compressed or removed'], [savingsFrom, spendQuestions.length, null, '## What it measured as saved']];
     let row = 3;
     for (const [from, to, scalars, title] of bands) {
       if (from) { cards.push(band(row, title)); row += 3; }
@@ -354,7 +361,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (col) row += 8;
     }
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters, dashcards: cards });
-    state.spendDashboardVersion = 3; save();
+    state.spendDashboardVersion = 4; save();
   } else {
     const dashboard = await api(`/dashboard/${state.spendId}`);
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters: [...parameters,
