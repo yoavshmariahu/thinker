@@ -6,7 +6,9 @@ import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { startProxy, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
+import { bedrockBody } from '../src/proxy-bedrock.js';
 
 const MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
 const SSE = [
@@ -74,7 +76,9 @@ test('dedicated Bedrock route uses the private token, rotates without restart, a
   const h = await harness(t);
   let url = await h.start();
   const auth = { authorization: 'Bearer local-client-token', 'x-api-key': 'unrelated-client-secret' };
-  const wire = JSON.stringify(fixture());
+  const original = fixture();
+  original.metadata = { user_id: JSON.stringify({ device_id: 'device', account_uuid: '', session_id: 'session' }) };
+  const wire = JSON.stringify(original);
   assert.equal((await send(url + '/bedrock', wire, auth)).status, 404);
   const state = h.enableBedrock();
   url = await h.start();
@@ -84,6 +88,7 @@ test('dedicated Bedrock route uses the private token, rotates without restart, a
   assert.equal(h.seen[0].headers['x-api-key'], 'bedrock-first-token');
   assert.equal(h.seen[0].headers.authorization, undefined);
   assert.equal(h.seen[0].url, '/anthropic/v1/messages');
+  assert.equal(JSON.parse(h.seen[0].body).metadata.user_id, 'thinker_' + crypto.createHash('sha256').update(original.metadata.user_id).digest('hex'));
   assert.equal(JSON.parse(h.seen[0].body).messages[2].content[0].content[0].text, cutPlaceholder(4300));
   fs.writeFileSync(state.tokenFile, 'bedrock-rotated-token');
   assert.equal((await send(url + '/bedrock', wire, auth)).status, 200);
@@ -97,6 +102,22 @@ test('dedicated Bedrock route uses the private token, rotates without restart, a
   assert.equal(h.seen.length, 2, 'missing credentials make no upstream request');
   assert.equal((await send(url, wire, { 'x-api-key': 'ordinary-anthropic-key' })).status, 200);
   assert.equal(h.seen[2].headers['x-api-key'], 'ordinary-anthropic-key', 'ordinary route retains its own credentials');
+  assert.deepEqual(JSON.parse(h.seen[2].body).metadata, original.metadata, 'ordinary route never rewrites metadata');
+});
+
+test('Bedrock metadata adaptation leaves valid bytes and all model content intact', () => {
+  for (const id of ['simple-user_123', 'a'.repeat(256), '', undefined]) {
+    const raw = Buffer.from(JSON.stringify({ messages: fixture().messages, metadata: { user_id: id } }, null, 2));
+    assert.equal(bedrockBody(raw), raw);
+  }
+  for (const id of ['a'.repeat(257), '{"session_id":"s"}', 'emoji-😀']) {
+    const original = { ...fixture(), metadata: { user_id: id } };
+    const raw = Buffer.from(JSON.stringify(original));
+    const converted = JSON.parse(bedrockBody(raw));
+    assert.match(converted.metadata.user_id, /^thinker_[a-f0-9]{64}$/);
+    assert.deepEqual({ ...converted, metadata: original.metadata }, original);
+    assert.equal(bedrockBody(raw).toString(), bedrockBody(raw).toString());
+  }
 });
 
 async function send(url, body, auth) {

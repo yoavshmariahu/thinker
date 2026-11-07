@@ -100,3 +100,16 @@ export function bedrockRequest(req, state) {
   for (const key of ['authorization', 'x-amz-date', 'x-amz-security-token', 'x-amz-content-sha256', 'anthropic-beta']) delete headers[key];
   return { url, headers, upstream: state.upstream };
 }
+
+// Claude Code sends JSON encoded inside metadata.user_id. Bedrock maps it to request metadata,
+// whose values forbid quotes/braces (and are limited to 256 characters). Keep valid identifiers;
+// hash incompatible ones deterministically so attribution survives without changing model content.
+// https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html#BedrockRuntime-Converse-request-requestMetadata
+export function bedrockBody(raw) {
+  let body;
+  try { body = JSON.parse(raw); } catch { return raw; }
+  const id = body?.metadata?.user_id;
+  if (typeof id !== 'string' || /^[a-zA-Z0-9\s:_@$#=/+,.-]{0,256}$/.test(id)) return raw;
+  body.metadata.user_id = 'thinker_' + crypto.createHash('sha256').update(id).digest('hex');
+  return Buffer.from(JSON.stringify(body));
+}

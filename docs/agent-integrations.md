@@ -676,11 +676,28 @@ plugin on a machine without thinker does nothing.
   with native Bedrock enabled in the client's inherited environment; the opt-in settings selected the
   Messages transport. It makes no AWS calls and removes its temporary configuration afterward.
 
-  Mock validation does not establish AWS acceptance of an edited request, account permissions, or savings.
-  A preliminary live unchanged request succeeded;
-  the edited request was refused for missing Anthropic use-case onboarding in the test account. The
-  account's model-access API confirmed the missing form. Live validation stopped there at the owner's
-  request; it is not recorded as a successful Bedrock clearing test.
+  **Live compatibility verified, 2026-11-07:** after the owner approved AWS onboarding, Haiku 4.5 on
+  `bedrock-runtime.us-east-1.amazonaws.com` accepted the unchanged history (10,264 input tokens), seven
+  cleared results (4,265), and the identical cuts after a proxy restart (4,265). Each streamed `READY`.
+  The installed Claude Code 2.1.319 client then passed through the actual setup and service commands
+  (406 input tokens). The four successes totaled 19,200 input and 20 output tokens: $0.02123 at the
+  queried AWS regional rate card, not a posted invoice. The evidence is in
+  [`research/bedrock/2026-11-07-live.json`](../research/bedrock/2026-11-07-live.json).
+
+  The live client caught a compatibility failure the mock had missed: its `metadata.user_id` is a JSON
+  string, but Bedrock rejects quotes/braces in request metadata. The Bedrock transport now hashes an
+  incompatible identifier into a stable `thinker_<sha256>` value, leaving valid identifiers and the
+  conversation unchanged. Ordinary Anthropic routes do not perform this adaptation. The client passed
+  after that fix. A separate test-harness error (64 output tokens below the thinking budget) was corrected
+  by disabling thinking for the small smoke test; production thinking settings were not changed.
+
+  To repeat the paid check, run `THINKER_TEST=1 node scripts/bedrock-live-preflight.mjs --live --token-file
+  PRIVATE_FILE --output EMPTY_DIRECTORY`; add `--client-only` to repeat only the installed-client check.
+  It uses isolated settings, small test-only clearing thresholds, three synthetic requests capped at 64
+  output tokens and one Claude turn with a $0.25 client budget. It requires existing model access and a
+  valid token, makes real AWS calls, and preserves request dumps and API usage in the output directory.
+  This is one-model transport compatibility evidence, not a savings experiment or validation of long
+  sessions, the default trigger, thinking continuity across a clear, or other models.
 - **Codex / Responses tool-output clearing (on by default, 2026-10-25, owner's request):**
   install, `connect`, `setup`, and updates select a managed Codex provider on the shared service
   (`/codex`). It uses the existing ChatGPT or OpenAI API login over HTTP/SSE; custom providers and

@@ -1,0 +1,151 @@
+{
+  "dateUTC": "2026-11-07",
+  "baseCommit": "b34d915b1",
+  "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "region": "us-east-1",
+  "endpoint": "https://bedrock-runtime.us-east-1.amazonaws.com/anthropic",
+  "client": "Claude Code 2.1.319",
+  "results": [
+    {
+      "label": "unchanged",
+      "status": 200,
+      "requestId": "6edebec4-dc2d-4bcc-b452-fd81c0d7ebbd",
+      "answer": "READY",
+      "usage": {
+        "input_tokens": 10264,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 5,
+        "service_tier": "standard"
+      }
+    },
+    {
+      "label": "cut",
+      "status": 200,
+      "requestId": "b9644d81-405c-4df6-9668-795c5551299f",
+      "answer": "READY",
+      "usage": {
+        "input_tokens": 4265,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 5,
+        "service_tier": "standard"
+      }
+    },
+    {
+      "label": "restart",
+      "status": 200,
+      "requestId": "b43cda3c-3ff6-4788-a02c-2284f91c633a",
+      "answer": "READY",
+      "usage": {
+        "input_tokens": 4265,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "output_tokens": 5,
+        "service_tier": "standard"
+      }
+    },
+    {
+      "label": "installed-claude",
+      "exitCode": 0,
+      "result": "READY",
+      "usage": {
+        "input_tokens": 406,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 5,
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 0,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "",
+        "iterations": [],
+        "speed": "standard",
+        "fallback_credit": null
+      },
+      "modelUsage": {
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0": {
+          "inputTokens": 406,
+          "outputTokens": 5,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000431,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "clientReportedCostUSD": 0.000431
+    }
+  ],
+  "verification": {
+    "changedOldToolResults": 7,
+    "protectedNewestResults": 3,
+    "cutEqualsRestart": true,
+    "sentHashes": {
+      "baseline": "6923d89de7f55d2496d0d96070359274df852a6dba923d4a97425efdc499a490",
+      "cut": "f8745f369594e7a7f6b38076d8b699b18151ffcaffe38733651cfd583c45e6f9",
+      "restart": "f8745f369594e7a7f6b38076d8b699b18151ffcaffe38733651cfd583c45e6f9"
+    },
+    "clearingThresholds": "test-only trigger=1 and clearAtLeast=1; restart refuses new cuts at 1e9",
+    "installedClient": "actual proxy on command, actual proxy service, native Bedrock inherited flag=1, 64 output cap, thinking disabled for cheap smoke test"
+  },
+  "totalAPIUsage": {
+    "inputTokens": 19200,
+    "outputTokens": 20,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 0
+  },
+  "costAtAWSRateCardUSD": 0.02123,
+  "rateCard": {
+    "source": "AWS Bedrock ListFoundationModelAgreementOffers, PUBLIC offer, queried 2026-11-07",
+    "inputUSDPerMillion": 1.1,
+    "outputUSDPerMillion": 5.5,
+    "costIs": "usage multiplied by on-demand list rates, not a posted AWS invoice"
+  },
+  "rejectedRequests": [
+    {
+      "status": 404,
+      "reason": "new onboarding had not propagated; no model usage reported"
+    },
+    {
+      "status": 400,
+      "reason": "Claude Code JSON metadata.user_id rejected by Bedrock; fixed by deterministic compatible identifier"
+    },
+    {
+      "status": 400,
+      "reason": "test-only 64-output-token cap was below Claude thinking budget; disabled thinking for the smoke test"
+    }
+  ],
+  "limits": [
+    "one Haiku model, one region, tiny synthetic context",
+    "compatibility only; no evidence for savings or agent task quality",
+    "default trigger, thinking continuity across a clear, and other models were not exercised"
+  ]
+}
