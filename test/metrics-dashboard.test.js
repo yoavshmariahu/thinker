@@ -81,6 +81,10 @@ test('dashboard provisioning creates Token spend, maps its filters, and refreshe
   assert.ok(titleRow('## Who was shown') <= rowOf('Devices shown a suggestion, and devices that took one · 30 days'));
   assert.ok(rowOf('Compression by kind of result · 30 days') < titleRow('## What it measured'));
   assert.ok(titleRow('## What it measured') <= rowOf('Net savings · 30 days'));
+  // a card carries a filtered copy of the sources it reads and no other: a view missing from the database
+  // (v_snapshots, until #682's schema is deployed) may not fail a card that never reads it
+  const net = records.get(`/card/${config.cards['Net savings · 30 days']}`).dataset_query.native.query;
+  assert.ok(/filtered_v_latest_installs AS/.test(net) && !/v_snapshots|filtered_reports|v_latest_devices/.test(net), net.slice(0, 200));
   const spendId = config.spendId;
   await provision(options);
   assert.equal(config.spendId, spendId);

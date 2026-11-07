@@ -137,9 +137,13 @@ const filterDefs = [
 ];
 function dataset(question, database) {
   const where = 'WHERE 1=1 ' + filterDefs.map(([id, , expression]) => `[[AND ${expression} = {{${id}}}]]`).join(' ');
-  const ctes = ['v_latest_installs', 'v_latest_devices', 'v_snapshots', 'reports'].map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
   let sql = question.sql;
   if (question.name === 'Note kinds · latest snapshots') sql = "SELECT k.key AS kind, sum(k.value::bigint) AS total_notes FROM v_latest_installs CROSS JOIN LATERAL jsonb_each_text(CASE WHEN jsonb_typeof(raw_json #> '{cacheSize,kinds}') = 'object' THEN raw_json #> '{cacheSize,kinds}' ELSE '{}'::jsonb END) k GROUP BY 1 ORDER BY 2 DESC";
+  // A filtered copy of each source the query reads, and of those alone: Postgres resolves every CTE whether or
+  // not the query uses it, so a copy of a view the production database does not hold yet (`v_snapshots`, from
+  // #682, until its schema is deployed) failed every card, the ones reading `reports` alone included.
+  const tables = ['v_latest_installs', 'v_latest_devices', 'v_snapshots', 'reports'].filter(table => new RegExp(`\\b(FROM|JOIN)\\s+${table}\\b`, 'i').test(sql));
+  const ctes = tables.map(table => `filtered_${table} AS (SELECT * FROM ${table} ${where})`).join(', ');
   sql = sql.replace(/\b(FROM|JOIN)\s+(v_latest_installs|v_latest_devices|v_snapshots|reports)\b/gi, '$1 filtered_$2');
   return { database, type: 'native', native: { query: `WITH ${ctes}\n${sql}`, 'template-tags': Object.fromEntries(filterDefs.map(([id, name]) =>
     [id, { id, name: id, 'display-name': name, type: 'text', required: false }])) } };
