@@ -30,7 +30,7 @@ import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
-import { BEDROCK_PATH, bedrockRequest } from './proxy-bedrock.js';
+import { BEDROCK_PATH, bedrockRequest, bedrockBody } from './proxy-bedrock.js';
 import { stubTools, stubReader } from './tool-stubs.js';
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
@@ -552,13 +552,14 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
   let inFlight = 0, lastDone = Date.now();
   const server = http.createServer((req, res) => {
     inFlight++; res.once('close', () => { inFlight--; lastDone = Date.now(); });
-    let requestUrl = req.url, requestCfg = cfg;
+    let requestUrl = req.url, requestCfg = cfg, onBedrock = false;
     if (requestUrl === BEDROCK_PATH || requestUrl.startsWith(BEDROCK_PATH + '/')) {
       try {
         const route = bedrockRequest(req, typeof bedrock === 'function' ? bedrock() : bedrock);
         requestUrl = route.url;
         req.headers = route.headers;
         requestCfg = { ...cfg, protocol: 'anthropic', upstream: route.upstream };
+        onBedrock = true;
       } catch (e) {
         req.resume();
         res.writeHead(e.status || 503, { 'content-type': 'application/json' });
@@ -586,7 +587,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {
-      const raw = Buffer.concat(chunks);
+      const received = Buffer.concat(chunks);
+      const raw = onBedrock ? bedrockBody(received) : received;
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = cutRejected;
