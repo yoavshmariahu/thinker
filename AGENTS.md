@@ -943,6 +943,46 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    5 times in all, 11 of them stale or invalid, against what the distillation
    of the same session writes anyway.
 
+## The session profile (2026-11-07, `src/profile.js`, off until `learn: { mode: 'profile' }`)
+
+An alternative to the notes, under exploration at the owner's ask: what the person here is working on and how it
+goes, learned from a session's **prompts and the agent's answers alone** and loaded into a session at its start.
+Measured before it was built: inputs and outputs are 5% of a session's text here (median 1k chars of prompts,
+13k of answers, 255k of tool text over 40 sessions), the notes were served on 10% of prompts in 30 days and 47%
+of distillations saved nothing. The profile is the opposite bet, always present and never retrieved, and it is
+judged the same way the owner set for it: a per-session holdout, by corrections, prompts to done and tokens.
+
+- **Two stages, one ledger between them.** The end of a session (`distillFile` in profile mode; a turn-end
+  `--batch` waits, since an exchange's outcome is the prompt after it) pairs each prompt with the answers until
+  the next prompt (`exchanges`) and asks the model for observations: request, kind, approach, **outcome read from
+  the following prompt** (`accepted`, `corrected`, `redirected`, `abandoned`, `unknown`; the agent's own "done" is
+  a claim), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
+  a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
+  calls' *paths* name (`sessionDirs`, never their content; for the per-directory profiles to come). A compile is
+  due after 10 new observations or 3 days with any (`compileDue`; the first after 3): the previous profile, the
+  window newest first (at most 150) and the instruction files' headings in, five sections out: `workingOn`,
+  `howWeWork`, `whatWorks`, `whatFails`, `recentBugs`.
+- **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
+  hold is dropped, an entry with none goes, counts and dates come from the cited observations (count is distinct
+  sessions), `whatWorks` needs two observations, `whatFails` two or one correction with its reaction, a workstream
+  not seen in 21 days and a bug not seen in 14 leave. So a prompt can be changed and the profile recompiled from
+  the ledger without reading a transcript again (`thinker profile compile`).
+- **Models** (`PROFILE_MODELS`, `completeProfile`): Opus, then GPT-SOL, then the comparable model of whatever else is
+  signed in, each named by its provider id so `complete` pins it and the next rung is this module's, not the tier
+  table's (which answers an Opus tier with Luna on Codex). `learn.profileModel` pins one. The owner's call: quality
+  over cost here.
+- **Codex's approval assessor is not a session** (`ASSESSOR_PROMPT`, `ASSESSOR_SAY`): Codex writes a rollout of its
+  own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
+  file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
+  exchanges and no call. The note distiller still reads those files (not changed here).
+- **Rendered** (`renderProfile`, `profileBlock`) within about 800 tokens, the oldest workstreams going first when it
+  does not fit; dated, counted in sessions, and headed as learned, not instructions. **Not yet wired into the
+  hooks**: the mechanism lands first, the injection on turn 1 (and after a compaction) and the holdout follow.
+- The profile is this machine's: under `.thinker/local/`, never committed, and the log rows (`op: profile`,
+  `profile-compile`) carry counts and token figures, never its text. `thinker profile [show|ledger|compile|extract
+  <transcript>|rebuild --days 30]`; `rebuild --dry` lists the sessions and the chars it would read, and reads the
+  sessions of every worktree of the repository, since the cache is the main checkout's.
+
 ## The learning loop
 
 Each session both consumes and improves the cache:

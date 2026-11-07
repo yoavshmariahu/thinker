@@ -85,6 +85,11 @@ export async function completeProfile(opts, { have, config, completeFn = complet
 // What the hooks put into a prompt is not what anyone said.
 const INJECTED = /<(thinker-[\w-]+|system[-_]reminder|command-name|command-message|command-args|local-command-stdout|local-command-caveat)>[\s\S]*?<\/\1>/g;
 export const clean = text => String(text || '').replace(INJECTED, '').replace(/\n{3,}/g, '\n\n').trim();
+// Codex runs an approval assessor beside a session, a rollout of its own in the same cwd whose "prompts" are the
+// agent's history and whose "answers" are a risk verdict in JSON (79 of 79 in one such file here, 845k chars of
+// prompts). Nobody said any of it.
+const ASSESSOR_PROMPT = /^The following is the Codex agent history/;
+const ASSESSOR_SAY = /^\s*\{\s*"risk_level"/;
 const cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, Math.ceil(n * 0.6)) + ` …[${s.length - n} chars cut]… ` + s.slice(-Math.floor(n * 0.4)) : s; };
 
 // A prompt with the agent's answers until the next prompt, and that next prompt, which is where the
@@ -92,8 +97,8 @@ const cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, Ma
 export function exchanges(events) {
   const out = [];
   for (const e of events) {
-    if (e.t === 'prompt') { const text = clean(e.text); if (!text) continue; out.push({ turn: out.length + 1, prompt: text, answers: [], next: null }); }
-    else if (e.t === 'say' && out.length) { const text = clean(e.text); if (text) out.at(-1).answers.push(text); }
+    if (e.t === 'prompt') { const text = clean(e.text); if (!text || ASSESSOR_PROMPT.test(text)) continue; out.push({ turn: out.length + 1, prompt: text, answers: [], next: null }); }
+    else if (e.t === 'say' && out.length) { const text = clean(e.text); if (text && !ASSESSOR_SAY.test(text)) out.at(-1).answers.push(text); }
   }
   for (let i = 0; i + 1 < out.length; i++) out[i].next = out[i + 1].prompt;
   return out.filter(x => x.answers.length || x.next);
@@ -301,7 +306,7 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       const e = { obs: cited, count: new Set(obs.map(o => o.session || o.id)).size, firstSeen: new Date(ats[0]).toISOString().slice(0, 10), lastSeen: new Date(ats.at(-1)).toISOString().slice(0, 10) };
       if (s === 'whatWorks' || s === 'whatFails') { e.when = str(raw.when, 120); e[s === 'whatWorks' ? 'do' : 'avoid'] = str(raw[s === 'whatWorks' ? 'do' : 'avoid']); if (!e.when || !(e.do || e.avoid)) continue; }
       else { e.text = str(raw.text); if (!e.text) continue; }
-      const age = dayOf(ats.at(-1), now);
+      const age = (now - ats.at(-1)) / 86400_000;
       if (s === 'whatWorks' && cited.length < PROFILE.minEvidence) continue;
       if (s === 'whatFails' && cited.length < PROFILE.minEvidence && !obs.some(o => ['corrected', 'redirected', 'abandoned'].includes(o.outcome) && o.reaction)) continue;
       if (s === 'workingOn' && age > PROFILE.workingOnDays) continue;

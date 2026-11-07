@@ -3,12 +3,25 @@
 // `compile` compiles now, `ledger` lists the observations.
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels } from '../profile.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
 import { isWorkerPrompt } from '../session-llm.js';
 import { batchProgress } from '../progress.js';
+
+// The cache is the main checkout's and so is the profile, so a rebuild reads the sessions of every worktree of
+// the repository (each has a transcript folder of its own), then the hook-recorded traces of sessions none of them
+// has a transcript for.
+export function repoSessions(store, { sinceMs }) {
+  const roots = new Set([store.repo, store.home]);
+  try { for (const l of execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: store.home, stdio: ['ignore', 'pipe', 'ignore'] }).toString().split('\n')) if (l.startsWith('worktree ')) roots.add(l.slice(9)); } catch {}
+  const out = new Map();
+  for (const r of roots) for (const s of findSessions(r, { sinceMs })) if (!out.has(s.session)) out.set(s.session, s);
+  for (const s of findSessions(store.home, { sinceMs, storeDir: store.dir })) if (s.client === 'trace' && !out.has(s.session)) out.set(s.session, s);
+  return [...out.values()];
+}
 
 async function profileCommand(ctx) {
   const { pos, flags, repo, store, out } = ctx;
@@ -59,7 +72,7 @@ async function profileCommand(ctx) {
   if (sub === 'rebuild') {
     const days = Number(flags.days) || 30, max = Number(flags.max) || 60;
     const done = flags.again ? {} : extracted(store);
-    const sessions = findSessions(repo, { sinceMs: days * 86400_000, storeDir: store.dir }).filter(s => !done[s.session]).sort((a, b) => a.mtime - b.mtime).slice(-max);
+    const sessions = repoSessions(store, { sinceMs: days * 86400_000 }).filter(s => !done[s.session]).sort((a, b) => a.mtime - b.mtime).slice(-max);
     if (flags.dry) {
       let chars = 0;
       for (const s of sessions) { try { const { events } = parseTranscript(s.file); const xs = exchanges(events); const c = xs.reduce((a, x) => a + x.prompt.length + x.answers.join('').length, 0); chars += c; out(`${s.client.padEnd(7)} ${s.session}  ${xs.length} exchanges, ${Math.round(c / 1000)}k chars`); } catch {} }
