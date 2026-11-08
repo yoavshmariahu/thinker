@@ -45,7 +45,7 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
   const sessions = new Map();
   const of = key => {
-    if (!sessions.has(key)) sessions.set(key, { id: key, client: null, model: null, firstAt: null, lastAt: null, branches: new Set(), heads: new Set(), tokens: null, prompts: 0, complete: false });
+    if (!sessions.has(key)) sessions.set(key, { id: key, client: null, model: null, firstAt: null, lastAt: null, branches: new Set(), heads: new Set(), tokens: null, ownTokens: null, subagents: [], prompts: 0, complete: false });
     return sessions.get(key);
   };
   for (const e of events) {
@@ -60,14 +60,21 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       // Each turn logs the session again with the transcript's totals so far: the last record is the session.
       if (e.model) x.model = e.model;
       const total = e.totalTokens ?? e.tokens?.totalTokens;
-      if (finite(total)) { x.tokens = total; x.complete = e.tokenCoverage !== 'partial'; }
+      if (finite(total)) { x.ownTokens = total; x.complete = e.tokenCoverage !== 'partial'; }
       if (finite(e.turns)) x.prompts = Math.max(x.prompts, e.turns);
+      // the session's subagents, each on its own model (transcripts.js:subagentStats); the last row has them all
+      if (Array.isArray(e.subagents)) x.subagents = e.subagents.filter(a => a && typeof a === 'object');
     }
   }
   const cleared = clearedFor({ home, env, since });
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, env, since, config });
   for (const x of sessions.values()) {
+    // agent tokens: the person's own conversation and every subagent it ran, since each was a model call made for
+    // the same work; the parent's figure stays beside it (`ownTokens`), and a subagent with no counter is left out
+    const subTokens = x.subagents.reduce((a, s) => a + (finite(s.totalTokens) ? s.totalTokens : 0), 0);
+    x.subagentTokens = subTokens;
+    x.tokens = finite(x.ownTokens) ? x.ownTokens + subTokens : null;
     x.cleared = cleared(x.id);
     x.rewrite = rewriteCost(x.id);
     // a desktop session's record names the model the API answered with, where no hook logged one
@@ -249,7 +256,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
 }
 
 const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0 } });
-const summary = x => ({ id: x.id, cost: x.cost, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
+const summary = x => ({ id: x.id, cost: x.cost, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
 
 
 // ---------------------------------------------------------------------------
@@ -355,7 +362,7 @@ export function renderDelivery(r, { detail = false } = {}) {
     L.push(`  net             ${d(c.net)}${s.merged ? ` · ${d(s.meanNetPerMergedPr)} on the average one` : ''}`);
   }
   L.push('', 'What they cost');
-  L.push(`  agent tokens    ${n(s.tokens.agent)} over ${s.sessions.linked} linked ${s.sessions.linked === 1 ? 'session' : 'sessions'}: every prompt and every answer added up, the same way the saving is`);
+  L.push(`  agent tokens    ${n(s.tokens.agent)} over ${s.sessions.linked} linked ${s.sessions.linked === 1 ? 'session' : 'sessions'}: every prompt and every answer added up, subagents included, the same way the saving is`);
   L.push(`  average merged  ${n(s.meanTokensPerMergedPr)} tokens · ${s.meanHoursToMerge == null ? 'unknown' : s.meanHoursToMerge.toFixed(1) + 'h'} from opened to merged · ${s.tokens.complete}/${s.merged} with complete counters`);
   if (s.sessions.unlinked) L.push('', `${s.sessions.unlinked} ${s.sessions.unlinked === 1 ? 'session belongs' : 'sessions belong'} to no pull request yet. thinker prs sync reads them from GitHub; thinker prs link --session <id> --pr <n> says so by hand.`);
   // Only the pull requests some session here worked on: the repository's others have nothing to say.
@@ -364,7 +371,7 @@ export function renderDelivery(r, { detail = false } = {}) {
     L.push(`  saved      ${n(p.saved.cleared)} tokens cleared`);
     L.push(`  cost       ${n(p.tokens.agent)} agent tokens over ${p.sessions.length} ${p.sessions.length === 1 ? 'session' : 'sessions'}${p.sessions.length && !p.tokens.complete ? ' · incomplete counters' : ''}`);
     if (p.cost.priced) L.push(`  net        ${formatDollars(p.cost.net)} = ${formatDollars(p.cost.saved)} saved less ${formatDollars(p.cost.rewrite)} of cache writes after a clear${p.cost.unpriced ? ` (${p.cost.unpriced} ${p.cost.unpriced === 1 ? 'session' : 'sessions'} on an unpriced model)` : ''}`);
-    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${x.rewrites ? `${x.rewrites} ${x.rewrites === 1 ? 'rewrite' : 'rewrites'} after a clear · ` : ''}${Math.round(x.share * 100)}% (${x.link})`);
+    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens${x.subagents ? ` (${n(x.subagentTokens)} in ${x.subagents} ${x.subagents === 1 ? 'subagent' : 'subagents'})` : ''} · ${n(x.cleared)} cleared · ${x.rewrites ? `${x.rewrites} ${x.rewrites === 1 ? 'rewrite' : 'rewrites'} after a clear · ` : ''}${Math.round(x.share * 100)}% (${x.link})`);
   }
   for (const w of r.warnings) L.push(`Warning: ${w}`);
   if (!r.prs.length) L.push('', 'No pull requests recorded yet. Run thinker prs sync to read them from GitHub.');

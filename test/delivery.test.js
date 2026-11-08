@@ -203,6 +203,24 @@ test('the journal refuses a record it does not know and survives a torn line', t
   assert.equal(r.warnings.length, 1);
 });
 
+test('a session\'s subagents add their tokens to its agent tokens, on the last row that lists them', t => {
+  const { store, home } = fixture(t);
+  store.log({ op: 'session', t: at(5), session: 'sB', turns: 2, totalTokens: 1000, tokenCoverage: 'complete', subagents: [{ agent: 'a1', type: 'Explore', model: 'claude-sonnet-5-5', turns: 4, totalTokens: 300, tokenCoverage: 'complete' }] });
+  store.log({ op: 'session', t: at(1), session: 'sB', turns: 3, totalTokens: 1500, tokenCoverage: 'complete', subagents: [
+    { agent: 'a1', type: 'Explore', model: 'claude-sonnet-5-5', turns: 4, totalTokens: 300, tokenCoverage: 'complete' },
+    { agent: 'a2', type: 'general-purpose', model: 'claude-opus-5-5', turns: 9, totalTokens: 2000, tokenCoverage: 'complete' },
+    { agent: 'a3', type: 'Explore', model: 'claude-sonnet-5-5', turns: 1, totalTokens: null, tokenCoverage: 'partial' },
+  ] });
+  store.log({ op: 'session', t: at(1), session: 'sC', turns: 1, totalTokens: 10, tokenCoverage: 'complete' });
+  const x = sessionsOf(store, { home }).get('sB');
+  assert.equal(x.ownTokens, 1500, 'the parent\'s own figure stays');
+  assert.equal(x.subagentTokens, 2300, 'a subagent without a counter is left out, never zero');
+  assert.equal(x.tokens, 3800, 'agent tokens include the subagents');
+  assert.equal(x.subagents.length, 3);
+  const y = sessionsOf(store, { home }).get('sC');
+  assert.equal(y.tokens, 10); assert.equal(y.subagentTokens, 0); assert.deepEqual(y.subagents, []);
+});
+
 test('sessionsOf keeps the last token count a session reported', t => {
   const { store, home } = fixture(t);
   store.log({ op: 'session', t: at(5), session: 'sA', turns: 2, totalTokens: 1000, tokenCoverage: 'complete' });
