@@ -116,6 +116,14 @@ test('a session is carded only once the mod marked it, and old marks are cleared
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
+test('the mod polls the ledger file and reads it again only when it moved', () => {
+  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+  assert.match(src, /export const LEDGER_POLL_MS = 5_000/, 'a stat every five seconds, a read only on a move');
+  assert.match(src, /\$\.clock\.every\(LEDGER_POLL_MS, async \(\) => \{ if \(await ledgerMoved\(\$\)\) await readSavings\(\$, surface\) \}\)/, 'the poll reads through readSavings, so the row and the desktop line move together');
+  assert.match(src, /on\('session\.end', async \(\$, e, next\) => \{\n\s+poll\?\.cancel\(\)/, 'the poll stops with the session');
+  assert.match(src, /\$\.fs\.stat\(await ledgerFile\(\$\)\)/, 'the stamp is the file\'s own, not a clock of the mod\'s');
+});
+
 test('the status row says what the ledger says, in the same words and the same dollars', () => {
   const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
   // The mod runs inside Claude Code, so it carries its own copy of the sentence and of the two

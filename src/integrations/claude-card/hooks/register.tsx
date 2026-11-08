@@ -117,9 +117,25 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
 }
 
 // The line currently on screen, kept here because a `ui.render` hook draws on every frame and must
-// never read a file: the reads happen at the start of the session and at the end of each turn, and a
-// changed line asks for a redraw.
+// never read a file: the reads happen at the start of the session, at the end of each turn, and when
+// the ledger's file moves (the poll below), and a changed line asks for a redraw.
 let line = ''
+// The ledger is refreshed by the Stop hook in a detached process that takes about a second, so the read
+// at the end of the same turn lands before the write does: every session then showed the ledger as it
+// stood at its previous turn, and two open sessions disagreed until each had another turn (2026-11-08).
+// So the file's modification time is polled while the session is open, and a move reads it again. One
+// stat every LEDGER_POLL_MS, a read only when it moved; the runtime has no file watcher.
+export const LEDGER_POLL_MS = 5_000
+let ledgerAt = -1
+const ledgerFile = async ($: any) => `${await thinkerHome($)}/state/savings.json`
+// Whether the ledger's file has moved since it was last read; the stamp is kept either way.
+async function ledgerMoved($: any): Promise<boolean> {
+  let at = 0
+  try { at = Number((await $.fs.stat(await ledgerFile($)))?.mtimeMs) || 0 } catch { at = 0 }
+  if (at === ledgerAt) return false
+  ledgerAt = at
+  return true
+}
 // the day the person ran /thinker-hide, kept in the mod's store across sessions; the line is back the next day
 let hiddenOn = ''
 export const HIDDEN_KEY = 'savings-hidden-on'
@@ -138,6 +154,7 @@ const showStatus = ($: any, surface: string) => {
 // Read the ledger and, if it says something new, have the row drawn again.
 async function readSavings($: any, surface = ''): Promise<void> {
   try {
+    await ledgerMoved($)   // the stamp of what is read now, so the poll does not read it again
     const next = await savings($)
     if (next !== line) { line = next; $.ui.invalidate('ui.render') }
     showStatus($, surface)
@@ -209,6 +226,8 @@ export const register: Register = on => {
   let sinceClear = -1
   cards = null
   line = ''
+  ledgerAt = -1
+  let poll: { cancel: () => void } | null = null
 
   let surface = ''
   on('session.start', async ($, e, next) => {
@@ -219,6 +238,12 @@ export const register: Register = on => {
       hiddenOn = String((await $.store.get(HIDDEN_KEY)) ?? '')
     }
     await readSavings($, surface)
+    poll?.cancel()
+    poll = $.clock.every(LEDGER_POLL_MS, async () => { if (await ledgerMoved($)) await readSavings($, surface) })
+    return next(e)
+  })
+  on('session.end', async ($, e, next) => {
+    poll?.cancel(); poll = null
     return next(e)
   })
   on('command.run', { command: 'thinker-hide' }, async ($) => {
