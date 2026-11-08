@@ -745,7 +745,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 
 **Tabs and entry**
 - Tabs: Find Savings (`--tab save`), View Report (`--tab report`). Old `tab=context|changes|cache` open replacement view.
-- CLI only: `thinker list`, `show`, `archive`, `system`. Removed: `/api/usage`, `/api/cache`, `/api/behaviors`.
+- CLI only: `thinker profile`, `thinker usage`. Removed: `/api/usage`, `/api/cache`, `/api/behaviors`.
 - `thinker ui` opens `repo=all`; `--here` opens `repo=here`; `--all` accepted.
 - Page reads `repo=` (`page.html:hashRepo`). Link naming a repo id wins (`context-suggest.js:suggestionsUrl`).
 

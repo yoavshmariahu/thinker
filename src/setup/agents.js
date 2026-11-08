@@ -229,8 +229,8 @@ export async function selectAndAuthenticateAgent({
   readlineFn = null,
   stdin = process.stdin,
   stdout = process.stdout,
-  purpose = 'build the knowledge cache',
-  actionName = 'the cache build',
+  purpose = 'run model calls',
+  actionName = 'the run',
   allowSkip = false,
 } = {}) {
   const installedAgents = BUILD_AGENTS.filter(ag => Boolean(findBin(BINS[ag] || [])));

@@ -313,7 +313,7 @@ test('selectAndAuthenticateAgent prompts user when multiple agents installed in 
   assert.equal(res.ok, true);
   assert.ok(res.agent);
   const fullOut = outLines.join('\n');
-  assert.match(fullOut, /Available agents to build the knowledge cache:/);
+  assert.match(fullOut, /Available agents to run model calls:/);
   assert.match(fullOut, /Signed in/);
 });
 
@@ -452,7 +452,7 @@ test('selectAndAuthenticateAgent allows proceeding without the build when the us
 
   assert.equal(res.ok, true);
   assert.equal(res.skip, true);
-  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
+  assert.match(outLines.join('\n'), /Proceeding with the run skipped/);
 });
 
 test('selectAndAuthenticateAgent non-interactive errors instead of auto-fallback when chosen agent is unauthenticated', async () => {
@@ -520,7 +520,7 @@ test('selectAndAuthenticateAgent non-interactive skips the build when allowSkip 
 
   assert.equal(res.ok, true);
   assert.equal(res.skip, true);
-  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
+  assert.match(outLines.join('\n'), /Proceeding with the run skipped/);
 });
 
 class MockTTYStdin extends EventEmitter {
@@ -644,7 +644,7 @@ test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interac
   const res = await promise;
   assert.ok(res.ok);
   assert.ok(res.agent);
-  assert.match(outLines.join('\n'), /Available agents to build the knowledge cache:/);
+  assert.match(outLines.join('\n'), /Available agents to run model calls:/);
   assert.match(outLines.join('\n'), /Selected agent:/);
 });
 

@@ -458,6 +458,8 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
     for (const k of Object.keys(changes)) changes[k] += r.changes[k];
     if (onDisk && !landed++) { try { fs.appendFileSync(historyFile(store), JSON.stringify(onDisk) + '\n'); } catch {} } // the one replaced, once something replaces it
     writeAtomic(profileFile(store), JSON.stringify(current, null, 2));
+    // counts only, never the text: the step's size, what the patch did and what it cost (`thinker usage` sums these)
+    store.log({ op: 'profile-compile', observations: rows.length, pending: batch.length, full: !previous, sessions, changes: r.changes, entries: Object.fromEntries(SECTIONS.map(s => [s, current.sections[s].length])), tokens: r.tokens, cost: r.cost, model: current.model });
   }
   // the window is the file: observations past it go with the compile
   writeAtomic(ledgerFile(store), rows.map(r => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
@@ -564,7 +566,7 @@ export async function profileSession(store, events, { session, client, repoHint,
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
-    if (c.profile) { compiled = c; store.log({ op: 'profile-compile', observations: c.observations, pending: c.pending, steps: c.steps, changes: c.changes, sessions: c.sessions, entries: Object.fromEntries(SECTIONS.map(s => [s, c.profile.sections[s].length])), tokens: c.tokens, cost: c.cost, model: c.profile.model }); }
+    if (c.profile) compiled = c;
   }
   return { observations: rows, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }

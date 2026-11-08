@@ -5,21 +5,21 @@
   <link rel="canonical" href="https://thinker.sh/docs.html">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta name="description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="thinker">
   <meta property="og:url" content="https://thinker.sh/docs.html">
   <meta property="og:title" content="Documentation — thinker">
-  <meta property="og:description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta property="og:description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta property="og:image" content="https://thinker.sh/card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Three ways to save coding agent tokens: context compression, knowledge cache, instruction analysis.">
+  <meta property="og:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Documentation — thinker">
-  <meta name="twitter:description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta name="twitter:description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta name="twitter:image" content="https://thinker.sh/card.png">
-  <meta name="twitter:image:alt" content="Three ways to save coding agent tokens: context compression, knowledge cache, instruction analysis.">
+  <meta name="twitter:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -455,7 +455,7 @@
         </ul>
       </div>
       <div class="sidebar-group">
-        <div class="sidebar-heading">The knowledge cache</div>
+        <div class="sidebar-heading">The session profile</div>
         <ul class="sidebar-nav">
           <li class="sidebar-item"><a href="#notes">The session profile</a></li>
           <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
@@ -510,7 +510,7 @@
         <pre><code>npx thinkersh</code></pre>
         <p>Requires Node 20+, git, curl, tar and a <a href="#supported-agents">supported coding agent</a>. The installer connects your agents and shows where their context goes. Choose the browser or terminal to review suggested cuts.</p>
         <ol>
-          <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the knowledge cache learns as you work.</li>
+          <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the session profile learns as you work.</li>
           <li><strong>Find Savings:</strong> review the suggested instructions, skills and tools to shorten or switch off.</li>
           <li><strong>Apply your choices:</strong> preview instruction changes as a diff; in the browser, open a pull request to review and merge.</li>
           <li><strong>View Report:</strong> track tokens and costs week by week as you keep working.</li>
@@ -680,7 +680,7 @@ read any range: Read with offset and limit</span></pre>
 
 
 
-      <div class="part-label">The knowledge cache</div>
+      <div class="part-label">The session profile</div>
 
       <section id="notes">
         <h2>Start every session oriented.</h2>
