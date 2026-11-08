@@ -501,6 +501,18 @@ can force continuation, but that starts another model turn. Thinker does not do
 that just to show a notice. Their callbacks still clear turn state and perform
 learning when enabled. There is no claim of a visible stop notice in those hosts.
 
+## Exploration subagents on Sonnet
+
+Claude Code's built-in Explore subagent runs on the main conversation's model, so on an Opus or Fable session every
+file a delegated exploration reads is billed at that model's rate. `thinker connect` writes a user-scope
+`~/.claude/agents/Explore.md` (under `CLAUDE_CONFIG_DIR` when set) with `model: claude-sonnet-5-5`: a read-only agent that starts
+without CLAUDE.md, as the built-in does. Measured on 13 real exploration turns, Sonnet 5.5 found the same files as
+Opus 5.5 at 43% of the cost; Haiku was behind both, so it is not the default. The file carries a `thinker-explore`
+marker and only a marked file is ever rewritten or removed; an Explore.md of your own is left alone, and a project's
+`.claude/agents/Explore.md` wins over it in Claude Code's order. `THINKER_EXPLORE_MODEL=off` (or `haiku`, or a full
+model id) and `agents: { explore: false }` in `~/.thinker/config.json` change or remove it at the next connect or
+rewire; `thinker uninstall --user` removes it.
+
 ## Plugins, the pi package and the proxy
 
 Three more doors to the same hooks, each a pointer to the thinker installed on the machine
