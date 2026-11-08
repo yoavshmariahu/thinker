@@ -29,7 +29,7 @@
        the share done and a bar, white on near-black so it cannot be missed. It was a 4px line in grey small type under the
        tabs, and read as nothing happening. order: -1 puts it on the nav's first line; the negative margins bleed it to the
        edges of the sticky nav, so it is the first thing on the screen wherever the page is scrolled to. */
-    .scan-progress { order: -1; flex-basis: 100%; margin: -1.1rem -2rem .9rem; padding: .7rem 2rem .8rem; background: #111; color: #fff; }
+    .scan-progress { order: -1; flex: 0 0 calc(100% + 4rem); margin: -1.1rem -2rem .9rem; padding: .7rem 2rem .8rem; background: #111; color: #fff; }
     .scan-progress.paused { background: #1f2937; }
     .scan-progress.error { background: #7f1d1d; }
     .scan-row { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
@@ -329,7 +329,7 @@
 
     @media (max-width: 640px) {
       nav { padding: 0.85rem 1rem; }
-      .scan-progress { margin: -0.85rem -1rem .75rem; padding: .6rem 1rem .7rem; }
+      .scan-progress { flex-basis: calc(100% + 2rem); margin: -0.85rem -1rem .75rem; padding: .6rem 1rem .7rem; }
       main { padding: 1.5rem 1rem 3rem; }
       h1 { font-size: 1.5rem; }
       .brand-sub { display: none; }
