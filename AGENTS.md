@@ -1029,28 +1029,39 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure.
   What it cannot tell apart: a correction the profile caused from one it failed to prevent; read the lines with
   `show --why` before blaming it.
-- **Half the sessions, and the measure is the exchange** (2026-11-08, the owner's call; `PROFILE.holdoutRate` 0.5,
-  `learn: { profileHoldout }`, `THINKER_PROFILE_HOLDOUT`, `THINKER_HOLDOUT` over both; `compare`). It shipped the day
-  before at the notes' 15% and judged **corrected and redirected per session**, and neither could have answered the
-  question. Measured on this repository's first ledger (680 observations, 116 sessions, 2026-11-08): corrections run
-  at **0.313 of exchanges**, 1.84 a session with an sd of 2.49 and zero in 51 of the 116, and the ICC inside a session
-  is **~0** -- so the exchange is the unit, a count per session throws the information away and keeps the variance,
-  and the small side of an 85/15 split wastes most of what is left. What each design can see, at 80% power and 5
-  sessions a day here: a 30% change needs ~1250 sessions as a per-session count at 85/15 (248 days), ~640 as a count
-  at 50/50 (127 days), ~256 as a proportion at 85/15 (51 days), and **~130 as a proportion at 50/50 (26 days)** --
-  so the metric is the 5x and the split another 2x. So: half the sessions, `rate` =
-  (corrected + redirected) / observations, `delta` = shown less held out with a 95% two-proportion interval, and
-  `PROFILE.holdoutMinObs` (380) observations a side before the report says anything. An unbalanced split is for
-  catching a regression in something already known to work, which is where this goes when it ships.
-- **It can rule out harm; it cannot prove the gain** (the same day). The profile costs ~$0.24 a session on this
-  machine -- 1500 tokens in the prefix of every call (median 56 calls, at the cache-read rate) plus $0.066 of Opus to
-  extract and compile -- against a median session of $24.85 and $4.24 an exchange at list prices. So **break-even is a
-  3-12% drop in corrections**, depending on how much of a corrected exchange is wasted work, and no window on one
-  machine resolves 3-12%. `verdict` is therefore `harm` / `better` / `inconclusive` / `too-early` off the interval and
-  never a p-value dressed as a decision: the rule is to keep serving it unless the interval says it hurts, and to pool
-  across machines through the telemetry if the gain is ever to be shown. Two guardrails sit beside the rate, because a
-  ratio can be improved by making exchanges smaller and more numerous: exchanges per session and tokens per session,
-  neither of which may rise.
+- **Half the sessions, and the measure is cost per exchange** (2026-11-08, the owner's call; `PROFILE.holdoutRate`
+  0.5, `learn: { profileHoldout }`, `THINKER_PROFILE_HOLDOUT`, `THINKER_HOLDOUT` over both; `perExchange`,
+  `ratioInterval`, `compare`). It shipped the day before at the notes' 15%, judged **corrected and redirected per
+  session**, and neither could have answered the question. **The goal is to spend fewer tokens, so the metric is the
+  tokens a unit of work costs and nothing stands in for it**: a session's tokens over its exchanges, which takes the
+  length of a session out of the comparison (cv 0.97 against 1.96 for a session's tokens, over 111 measured sessions
+  here). Three rules, each from a measurement on this repository's first ledger:
+  - **A ratio of sums, never a mean of ratios** (the Report's own rule). The ratio of sums is $5.97 an exchange and
+    the mean of the per-session ratios $13.93: the mean weighs a cheap three-exchange session like a 40-exchange one.
+  - **Stratified by model, pooled by exchanges.** The models in play differ threefold an exchange (Astra $5.99,
+    Opus 5 $18.35, Fable $19.95), so an arm that drew more Astra sessions would read as a saving. Within-model ratios
+    weighted by each stratum's exchanges cut the bootstrap standard error from 11.3% to 9.6% on the same sessions.
+  - **The interval is bootstrapped, not assumed**: a ratio of two sums has no closed-form standard error worth
+    trusting on 111 skewed sessions, so `ratioInterval` resamples sessions inside each stratum on a fixed seed.
+  What it can see, at 7.8% standard error and 5 sessions a day: **a 30% drop in 235 sessions (47 days)**, 20% in 529
+  (105 days), 10% in 2118 (420 days). Why 50/50: at 85/15 the small side wastes most of the information, and an
+  unbalanced split is for catching a regression in something already known to work, which is where this goes when it
+  ships. `verdict` is `cheaper` / `costlier` / `inconclusive` / `too-early` off the interval, never a p-value dressed
+  as a decision.
+- **Corrections are a diagnostic, not the measure** (the same day). They were the headline for a day and should not
+  have been: they are a proxy for cost where the cost itself is measurable, and `redirected` does not mean what the
+  metric needed it to. Hand-read against the ledger's quoted reactions, `corrected` (141 rows) is clean, but of 12
+  sampled `redirected` (72 rows) about a third are the person moving on rather than the agent failing -- *"can you
+  make me a visual tool to play around with?"*, *"I'm going to move this convo over in the thinkerall repo"*,
+  *"when does the quota open?"* -- and `accepted` absorbs some failures (*"retry"*, *"ok please fix so that we stop
+  getting worse costs"*). The error has a **direction**: a profile that gets things right faster produces more
+  moving-on per session, which a corrected+redirected numerator counts as failure, so a working profile could read as
+  harm. `rate` stays on the report beside the cost figure, and 36 of 680 rows hand-read is a smell test, not a
+  validation -- that needs ~60 rows labelled blind and scored against the extractor, which nobody has done.
+- **Every session's last exchange is unmeasured.** An outcome is read from the *next* prompt, so the final exchange of
+  a session is always `unknown` (94 of 116 sessions end on one) -- and a person who gives up and closes the terminal
+  produces no correction at all. It falls on both arms alike so it does not bias the comparison, but it caps what any
+  outcome read from this ledger can mean.
 - **The cheaper check, which moves faster than the holdout** (the same day): of the 213 corrections and redirects in
   the first ledger, the share a profile line whose cited evidence *predates* them plausibly covers -- excluding the
   corrections that are themselves that line's evidence -- is **25% on a loose word match and 3% on a tight one**. The

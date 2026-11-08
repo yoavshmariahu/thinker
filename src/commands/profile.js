@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { listPrice } from '../prices.js';
 import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
 import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
@@ -54,36 +55,47 @@ async function profileCommand(ctx) {
     return;
   }
   if (sub === 'holdout') {
-    // the two arms, from the ledger (outcomes per session) and the log (what each session cost, its last `session` row)
+    // Cost per exchange, shown against held out. The sessions' tokens and dollars come from the log's own
+    // `session` rows (the last one of each session carries the totals), the exchange counts from the ledger.
     const days = Number(flags.days) || PROFILE.ledgerDays;
     const rows = readLedger(store, { days });
-    const h = holdoutReport(rows);
     const since = Date.now() - days * 86400_000;
     const last = new Map();
     for (const e of readLog(store, { all: true })) if (e.op === 'session' && e.profile && Date.parse(e.t) >= since) last.set(e.session, e);
-    const cost = arm => { const xs = [...last.values()].filter(e => e.profile === arm); const sum = k => xs.reduce((a, e) => a + (e[k] || 0), 0); return { sessions: xs.length, prompts: xs.length ? sum('turns') / xs.length : null, tokens: xs.length ? (sum('inputTokens') + sum('cacheReadTokens') + sum('cacheWriteTokens') + sum('outputTokens')) / xs.length : null }; };
-    const report = { days, shown: { ...h.shown, cost: cost('shown') }, holdout: { ...h.holdout, cost: cost('holdout') }, unknown: h.unknown, delta: h.delta, ci: h.ci, relative: h.relative, enough: h.enough, verdict: h.verdict, rate: Math.round(100 * profileHoldoutRate(store)) };
+    const cfg = store.config();
+    const sessions = new Map();
+    for (const [id, e] of last) {
+      const cr = e.cacheReadTokens || 0, cw = e.cacheWriteTokens || 0, out = e.outputTokens || 0;
+      const fresh = Math.max(0, (e.inputTokens || 0) - cr - cw);
+      const tokens = fresh + cr + cw + out;
+      const p = listPrice(e.model, { config: cfg });
+      const cost = p ? fresh * p.input / 1e6 + cr * p.cacheRead / 1e6 + cw * (p.cacheWrite1h ?? p.cacheWrite) / 1e6 + out * p.output / 1e6 : 0;
+      sessions.set(id, { tokens, cost, model: e.model || '?', prompts: e.turns || 0 });
+    }
+    const h = holdoutReport(rows, { sessions });
+    const report = { days, metric: 'tokens per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, delta: h.delta, ci: h.ci, relative: h.relative, corrections: h.corrections, enough: h.enough, verdict: h.verdict, rate: Math.round(100 * profileHoldoutRate(store)) };
     if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
-    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
+    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
+    const tk = v => v == null ? '–' : formatTokens(v), dol = v => v == null ? '–' : `$${v.toFixed(2)}`;
     out(`profile holdout over ${days} days, ${report.rate}% of sessions held out (shown the profile against shown nothing)`);
     out('');
-    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'observ.'.padStart(8)} ${'CORRECTED/EXCH'.padStart(14)} ${'exch./sess.'.padStart(11)} ${'prompts'.padStart(8)} ${'tokens/session'.padStart(14)}`);
-    for (const arm of ['shown', 'holdout']) { const a = report[arm]; out(`${arm.padEnd(8)} ${String(a.sessions).padStart(8)} ${String(a.observations).padStart(8)} ${pct(a.rate).padStart(14)} ${num(a.perSession).padStart(11)} ${num(a.cost.prompts, 0).padStart(8)} ${(a.cost.tokens == null ? '–' : formatTokens(a.cost.tokens)).padStart(14)}`); }
+    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'priced'.padStart(6)} ${'exch.'.padStart(6)} ${'TOKENS/EXCHANGE'.padStart(15)} ${'$/exch.'.padStart(8)} ${'corrected'.padStart(9)}`);
+    for (const arm of ['shown', 'holdout']) { const x = report[arm]; out(`${arm.padEnd(8)} ${String(x.sessions).padStart(8)} ${String(x.priced).padStart(6)} ${String(x.exchanges).padStart(6)} ${tk(x.tokens).padStart(15)} ${dol(x.cost).padStart(8)} ${pct(x.rate).padStart(9)}`); }
     out('');
-    // The one number the experiment turns on, and then what it supports.
-    const rel = h.relative == null ? '' : `, ${h.relative > 0 ? '+' : ''}${Math.round(100 * h.relative)}% relative`;
-    out(`corrections per exchange, shown less held out: ${pp(h.delta)}${h.ci ? ` (95% ${pp(h.ci[0])} to ${pp(h.ci[1])})` : ''}${rel}`);
+    const rel = h.relative == null ? '' : ` (${h.relative > 0 ? '+' : ''}${Math.round(100 * h.relative)}%)`;
+    out(`tokens per exchange, shown less held out: ${h.delta == null ? '–' : (h.delta > 0 ? '+' : '-') + tk(Math.abs(h.delta))}${rel}`);
+    if (h.ci) out(`  95% interval: ${h.delta > 0 ? '' : ''}${tk(h.ci[0])} to ${tk(h.ci[1])} (bootstrapped within each model)`);
     const says = {
-      'too-early': `too early: each side needs ${PROFILE.holdoutMinObs} observations (shown ${h.shown.observations}, held out ${h.holdout.observations}) before this reads as anything`,
+      'too-early': `too early: each side needs ${PROFILE.holdoutMinSessions} priced sessions (shown ${h.shown.priced}, held out ${h.holdout.priced})`,
       inconclusive: 'inconclusive: the interval straddles zero, so this window cannot tell the profile from nothing',
-      better: 'fewer corrections with the profile, over the whole interval',
-      harm: 'MORE corrections with the profile, over the whole interval: stop serving it',
+      cheaper: 'CHEAPER per exchange with the profile, over the whole interval',
+      costlier: 'COSTLIER per exchange with the profile, over the whole interval: stop serving it',
     };
     out(says[h.verdict]);
     out('');
-    out('break-even is a 3-12% drop in corrections, which no window on one machine can resolve: this rules out harm,');
-    out('it does not prove the gain. Read the two guardrails beside the rate -- exchanges per session and tokens per');
-    out('session must not rise -- and `thinker profile show --why` before crediting or blaming any line.');
+    out(`the profile costs about ${tk(PROFILE.renderChars / 4)} a call, so it pays for itself only by making the work`);
+    out('shorter. corrections per exchange is beside the measure as a diagnostic, never instead of it.');
+    if (h.corrections != null) out(`corrections, shown less held out: ${(h.corrections > 0 ? '+' : '') + (100 * h.corrections).toFixed(1)}pp`);
     if (h.unknown.observations) out(`\n${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
     return;
   }

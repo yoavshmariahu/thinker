@@ -562,43 +562,91 @@ export function profileArmOf(store, session) {
   if (!session || session === 'unknown' || !store.exists()) return null;
   return sessionState(store, session).st.profile?.arm || null;
 }
-// The two arms over the ledger. **The measure is corrections per exchange, not per session** (2026-11-08): an
-// exchange is the unit the profile acts on, every exchange carries an outcome, and measured on this repository's
-// first ledger the corrections inside one session are independent of each other (ICC ~0 over 680 observations in
-// 116 sessions), so a count per session throws the information away and keeps the variance. The numbers: a 30%
-// change needs ~380 observations a side as a proportion (26 days here) against ~320 sessions a side as a count
-// (127 days). `rate` is (corrected + redirected) / observations, and `delta` is the shown side's rate less the
-// held-out side's -- negative is the profile working -- with a 95% interval from the two-proportion standard error,
-// so a reader sees at once whether the window can carry a conclusion at all. Two guardrails sit beside it, because
-// the rate is a ratio and a profile could improve it by making exchanges smaller and more numerous: `perSession`
-// (exchanges per session) and the caller's tokens per session. Break-even is a 3-12% drop depending on how much of
-// a corrected exchange is wasted work, which is below what any window here can resolve -- so this report rules out
-// harm, and does not try to prove the gain.
-export function holdoutReport(rows) {
+// The two arms over the ledger. **The measure is cost per exchange** (2026-11-08, the owner's call): the goal is
+// to spend fewer tokens, so the metric is the tokens a unit of delivered work costs, and nothing stands in for it.
+// An exchange is one prompt and the answers to it, which is the smallest unit of work the person asked for; a
+// session's tokens divided by its exchanges takes the length of a session out of the comparison, which is most of
+// the variance (cv 0.97 against 1.96 for a session's tokens on this machine's 111 measured sessions).
+//
+// Three rules it is built on, each from a measurement:
+//  - **A ratio of sums, never a mean of ratios** (the Report's own rule). On this repository the ratio of sums is
+//    $15.11 an exchange and the mean of the per-session ratios is $13.93: the mean weighs a cheap three-exchange
+//    session like a 40-exchange one.
+//  - **Stratified by model, pooled by exchanges.** The models in play differ threefold an exchange (Astra $5.99,
+//    Opus 5 $18.35, Fable $19.95), so an arm that happened to draw more Astra sessions would read as a saving. A
+//    within-model ratio weighted by each stratum's exchanges removes that, and it cut the bootstrap standard error
+//    from 11.3% to 9.6% on the same sessions, which is a third off the sessions needed.
+//  - **The interval is bootstrapped, not assumed.** A ratio of two sums has no closed-form standard error worth
+//    trusting on 111 skewed sessions, so `ratioInterval` resamples sessions within each stratum.
+//
+// Corrections stay on the report as a diagnostic (`rate`), never as the headline: they are a proxy for cost, the
+// metric here is cost, and `redirected` conflates a bad result with the person moving on to the next thing.
+export function holdoutReport(rows, { sessions = new Map(), boots = 2000, seed = 1 } = {}) {
   const arms = { shown: [], holdout: [], unknown: [] };
   for (const r of rows) (arms[r.arm === 'shown' || r.arm === 'holdout' ? r.arm : 'unknown']).push(r);
   const bad = r => r.outcome === 'corrected' || r.outcome === 'redirected';
   const side = a => {
-    const sessions = new Set(a.map(r => r.session)).size, n = a.length;
+    const seen = new Set(a.map(r => r.session));
+    const n = a.length;
     const share = o => n ? a.filter(r => r.outcome === o).length / n : null;
-    return { sessions, observations: n, perSession: sessions ? n / sessions : null, rate: n ? a.filter(bad).length / n : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted') };
+    // one entry per session that both the ledger counted exchanges for and the log priced
+    const units = [...seen].map(id => ({ id, exchanges: a.filter(r => r.session === id).length, ...(sessions.get(id) || {}) })).filter(u => u.tokens > 0);
+    return { sessions: seen.size, observations: n, perSession: seen.size ? n / seen.size : null, rate: n ? a.filter(bad).length / n : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted'), priced: units.length, ...perExchange(units), interval: ratioInterval(units, { boots, seed }) };
   };
   const shown = side(arms.shown), holdout = side(arms.holdout);
-  return { shown, holdout, unknown: side(arms.unknown), ...compare(shown, holdout) };
+  return { shown, holdout, unknown: side(arms.unknown), ...compare(shown, holdout, { boots, seed }) };
 }
-// Shown against held out on the primary rate: the difference, its 95% interval, and whether the window carries it.
-// `enough` is the floor both sides must clear (`PROFILE.holdoutMinObs`); `verdict` is what the interval supports,
-// never a p-value dressed up as a decision: `harm` (the whole interval is above zero), `better` (all below),
-// `inconclusive` (it straddles), `too-early` (a side is under the floor).
-export function compare(shown, holdout) {
-  const enough = shown.observations >= PROFILE.holdoutMinObs && holdout.observations >= PROFILE.holdoutMinObs;
-  if (shown.rate == null || holdout.rate == null) return { delta: null, ci: null, enough, verdict: 'too-early' };
-  const delta = shown.rate - holdout.rate;
-  const v = (p, n) => n ? p * (1 - p) / n : 0;
-  const se = Math.sqrt(v(shown.rate, shown.observations) + v(holdout.rate, holdout.observations));
-  const ci = [delta - 1.96 * se, delta + 1.96 * se];
-  const verdict = !enough ? 'too-early' : ci[1] < 0 ? 'better' : ci[0] > 0 ? 'harm' : 'inconclusive';
-  return { delta, ci, relative: holdout.rate ? delta / holdout.rate : null, enough, verdict };
+// Tokens (and dollars, where every stratum is priced) an exchange costs: a ratio of sums inside each model, the
+// strata pooled by their exchanges. `units` is one object a session: {exchanges, tokens, cost, model}.
+export function perExchange(units) {
+  if (!units.length) return { tokens: null, cost: null, exchanges: 0, strata: 0 };
+  const by = new Map();
+  for (const u of units) { const k = u.model || '?'; if (!by.has(k)) by.set(k, []); by.get(k).push(u); }
+  let ex = 0, tok = 0, dol = 0, priced = true;
+  for (const [, us] of by) {
+    const e = us.reduce((a, u) => a + u.exchanges, 0);
+    if (!e) continue;
+    ex += e; tok += us.reduce((a, u) => a + u.tokens, 0);
+    if (us.some(u => !(u.cost > 0))) priced = false; else dol += us.reduce((a, u) => a + u.cost, 0);
+  }
+  return { tokens: ex ? tok / ex : null, cost: ex && priced ? dol / ex : null, exchanges: ex, strata: by.size };
+}
+// The bootstrap: resample sessions within each stratum, so the interval carries the skew the sessions actually have.
+export function ratioInterval(units, { boots = 2000, seed = 1, key = 'tokens' } = {}) {
+  if (units.length < 2) return null;
+  const by = new Map();
+  for (const u of units) { const k = u.model || '?'; if (!by.has(k)) by.set(k, []); by.get(k).push(u); }
+  let st = seed >>> 0 || 1;
+  const rnd = () => { st ^= st << 13; st ^= st >>> 17; st ^= st << 5; st >>>= 0; return st / 0x100000000; };
+  const out = [];
+  for (let b = 0; b < boots; b++) {
+    const draw = [];
+    for (const [, us] of by) for (let i = 0; i < us.length; i++) draw.push(us[Math.floor(rnd() * us.length)]);
+    const r = perExchange(draw)[key];
+    if (r != null) out.push(r);
+  }
+  if (out.length < 2) return null;
+  const mu = out.reduce((a, x) => a + x, 0) / out.length;
+  const sd = Math.sqrt(out.reduce((a, x) => a + (x - mu) ** 2, 0) / out.length);
+  return { se: sd, n: out.length };
+}
+// Shown against held out on cost per exchange. `delta` is shown less held out -- **negative is the profile paying
+// for itself** -- with a 95% interval from the two sides' bootstrapped standard errors. `verdict` is what the
+// interval supports and never a p-value dressed as a decision: `cheaper` (the whole interval is below zero),
+// `costlier` (all above), `inconclusive` (it straddles), `too-early` (a side has too few priced sessions).
+// Judged in tokens, because that is the goal and because a mixed-model arm has no honest single price; the dollar
+// figure rides along where every stratum of both arms is priced.
+export function compare(shown, holdout, { boots = 2000, seed = 1 } = {}) {
+  const enough = shown.priced >= PROFILE.holdoutMinSessions && holdout.priced >= PROFILE.holdoutMinSessions;
+  if (shown.tokens == null || holdout.tokens == null) return { delta: null, ci: null, relative: null, enough: false, verdict: 'too-early', corrections: null };
+  const delta = shown.tokens - holdout.tokens;
+  const a = shown.interval?.se ?? null, b = holdout.interval?.se ?? null;
+  const se = a != null && b != null ? Math.sqrt(a * a + b * b) : null;
+  const ci = se == null ? null : [delta - 1.96 * se, delta + 1.96 * se];
+  const verdict = !enough || !ci ? 'too-early' : ci[1] < 0 ? 'cheaper' : ci[0] > 0 ? 'costlier' : 'inconclusive';
+  // the proxy, kept beside the measure so a cost result can be read against it, never instead of it
+  const corrections = shown.rate == null || holdout.rate == null ? null : shown.rate - holdout.rate;
+  return { delta, ci, relative: holdout.tokens ? delta / holdout.tokens : null, enough, verdict, corrections };
 }
 
 // --- a session, end to end ------------------------------------------------
