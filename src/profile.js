@@ -42,6 +42,9 @@ export const PROFILE = {
 // whatFails entry, and on its own it held one line in four that two sessions supported. Folded.
 export const SECTIONS = ['workingOn', 'howWeWork', 'whatFails', 'recentBugs'];
 export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
+// What a session did with a line of the profile it was shown. `na` is the honest default: most lines have no
+// bearing on most sessions, and counting those as `ignored` would make every line look dead.
+export const LINE_VERDICTS = ['followed', 'ignored', 'contradicted', 'na'];
 export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
 // `learn: { mode: 'profile' }` in .thinker/config.json turns the profile on in place of the notes;
@@ -153,11 +156,34 @@ Fields:
 - bug: for a fix, the symptom and, where told, the cause and the fix, in one line. Empty otherwise.
 - topics: one to four short tags.
 - No file contents, no credentials; write a key or token as <token>.
-An empty list is the right answer for a session that decided nothing.`;
+An empty list is the right answer for a session that decided nothing.
+Judging the profile the session was shown:
+- You may be given the lines of a profile this session was shown at its start, each with an id. For each one, say what the session did with it. This is the measure of whether the profile is worth showing at all, so it is judged on evidence in the text, never on whether the line sounds useful.
+  - followed: the agent's work or words show it acted on the line. Quote the shortest thing that shows it.
+  - ignored: the line plainly applied to what was being done and the agent did not act on it. Not "the agent did not mention it" -- a line can be followed silently; the evidence must be that the agent did the thing the line told it not to do, or failed to do the thing the line asked for, in work the line clearly covered.
+  - contradicted: the agent did the opposite and the person had to correct it. This is the strongest evidence a line is not working.
+  - na: the line had no bearing on this session. **This is the default.** Most lines have nothing to do with most sessions, and marking those ignored would make every line look dead. Prefer na whenever you are unsure whether the line applied.
+- A line the person restated in their own prompt was not followed from the profile; that is the person doing the profile's job, which is worth knowing. Mark it ignored and quote their prompt.`;
 
 export const OBSERVATION_SCHEMA = {
   type: 'object',
   properties: {
+    // Per-line use of the profile the session was shown (empty when it was shown none): the signal that says
+    // whether a line is worth its place in the block at all, before any outcome metric can mean anything.
+    lines: {
+      type: 'array',
+      description: 'one entry per profile line the session was shown, in the order given; omit entirely if no profile was shown',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'the line id exactly as given' },
+          verdict: { type: 'string', enum: LINE_VERDICTS },
+          evidence: { type: 'string', description: 'for followed, ignored or contradicted: the shortest quote from a prompt or an answer that shows it; empty for na' },
+        },
+        required: ['id', 'verdict'],
+        additionalProperties: false,
+      },
+    },
     observations: {
       type: 'array',
       items: {
@@ -203,20 +229,30 @@ export function observationTimes(observations, xs) {
 }
 
 // One session's observations. `completeFn` is for tests; `have` and `config` pick the model ladder.
-export async function extractObservations(events, { repoHint = '', ended = true, accounting, completeFn, have, config } = {}) {
+export async function extractObservations(events, { repoHint = '', ended = true, shown = [], accounting, completeFn, have, config } = {}) {
   const xs = exchanges(events);
-  if (!xs.length) return { observations: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
+  if (!xs.length) return { observations: [], lines: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
   const input = extractionInput(xs);
-  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON.`;
+  // The lines this session was shown, so the same call that reads the session can say what was done with each.
+  // One call, not two: the extractor already has the whole session in front of it, and a second call would
+  // double what a session costs to read for a signal that rides along for a few hundred tokens.
+  const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] ${l.text}`).join('\n')}\n` : '';
+  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}.`;
   const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   const observations = observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean), xs);
-  return { observations, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
+  const ok = new Set(shown.map(l => l.id));
+  const seen = new Set();
+  // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
+  const lines = (res.json?.lines || []).filter(l => l && ok.has(l.id) && LINE_VERDICTS.includes(l.verdict) && !seen.has(l.id) && seen.add(l.id))
+    .map(l => ({ id: l.id, verdict: l.verdict, evidence: String(l.evidence || '').slice(0, 300) }));
+  return { observations, lines, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
 }
 
 // --- ledger ---------------------------------------------------------------
 export const profileDir = store => path.join(store.localDir, 'profile');
 const ledgerFile = store => path.join(profileDir(store), 'ledger.jsonl');
 const profileFile = store => path.join(profileDir(store), 'profile.json');
+const linesFile = store => path.join(profileDir(store), 'lines.jsonl');
 const historyFile = store => path.join(profileDir(store), 'history.jsonl');
 const extractedFile = store => path.join(profileDir(store), 'extracted.json');
 function writeAtomic(file, text) { fs.mkdirSync(path.dirname(file), { recursive: true }); const tmp = `${file}.${process.pid}.${randomBytes(3).toString('hex')}`; fs.writeFileSync(tmp, text); fs.renameSync(tmp, file); }
@@ -233,6 +269,56 @@ export function readLedger(store, { days = PROFILE.ledgerDays, now = Date.now() 
   for (const l of lines) { if (!l) continue; try { const o = JSON.parse(l); if (o?.id && Number.isFinite(Date.parse(o.at)) && dayOf(o.at, now) <= days) out.push(o); } catch {} }
   return out;
 }
+// --- what a session did with the lines it was shown ----------------------
+// The first question about a line is not whether it improved anything, it is whether the agent used it. A note
+// was assessed that way from the start (`confirmed` / `unused` / `contradicted` per serving) and the profile had
+// nothing of the kind for its first two days: a block of ten lines went into every prompt of every shown session
+// and no record said whether one of them was ever read. The holdout cannot answer it either -- its measure is one
+// number for the whole block, over 235 sessions, where this is one row per line per session: on a block of ten
+// lines, a week of sessions here is hundreds of rows against the holdout's forty.
+// Kept beside the ledger, same window, never committed.
+export function readLineVerdicts(store, { days = PROFILE.ledgerDays, now = Date.now() } = {}) {
+  let lines = []; try { lines = fs.readFileSync(linesFile(store), 'utf8').split('\n'); } catch { return []; }
+  const out = [];
+  for (const l of lines) { if (!l) continue; try { const o = JSON.parse(l); if (o?.id && o.session && Number.isFinite(Date.parse(o.at)) && dayOf(o.at, now) <= days) out.push(o); } catch {} }
+  return out;
+}
+// One row per (session, line). A session read again replaces its own rows, as the ledger does, so re-reading a
+// transcript never counts a verdict twice.
+export function appendLineVerdicts(store, verdicts, { session, client, model, at, now = Date.now() } = {}) {
+  if (!verdicts?.length || !session) return [];
+  const when = at || new Date(now).toISOString();
+  const rows = verdicts.map(v => ({ id: v.id, session, client: client || null, model: model || null, at: when, verdict: v.verdict, evidence: v.evidence || '' }));
+  const kept = readLineVerdicts(store, { now }).filter(r => r.session !== session);
+  writeAtomic(linesFile(store), [...kept, ...rows].map(r => JSON.stringify(r)).join('\n') + '\n');
+  return rows;
+}
+// Per line: the sessions that were shown it, and what they did with it. `applied` is the sessions where the line
+// had any bearing at all (anything but `na`) -- the denominator that matters, since a line's chance to be followed
+// only comes up in a session its subject arises in. `followRate` is followed over applied, null where nothing
+// applied, because 0 of 0 is not a failing line, it is an untested one.
+export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(), profile = null } = {}) {
+  const rows = readLineVerdicts(store, { days, now });
+  const by = new Map();
+  for (const r of rows) {
+    if (!by.has(r.id)) by.set(r.id, { id: r.id, shown: 0, followed: 0, ignored: 0, contradicted: 0, na: 0, evidence: [] });
+    const e = by.get(r.id);
+    e.shown++; e[r.verdict] = (e[r.verdict] || 0) + 1;
+    if (r.verdict !== 'na' && r.evidence) e.evidence.push({ verdict: r.verdict, text: r.evidence, session: r.session });
+  }
+  const text = new Map();
+  const prof = profile || readProfile(store);
+  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e) });
+  const out = [...by.values()].map(e => {
+    const applied = e.followed + e.ignored + e.contradicted;
+    return { ...e, applied, followRate: applied ? e.followed / applied : null, gone: !text.has(e.id), ...(text.get(e.id) || {}) };
+  });
+  // worst first: a line that was shown often, applied, and not followed is the one to cut or reword
+  out.sort((a, b) => (a.followRate ?? 2) - (b.followRate ?? 2) || b.applied - a.applied);
+  const applied = out.reduce((a, e) => a + e.applied, 0), followed = out.reduce((a, e) => a + e.followed, 0);
+  return { lines: out, sessions: new Set(rows.map(r => r.session)).size, verdicts: rows.length, applied, followed, followRate: applied ? followed / applied : null };
+}
+
 // Observations are appended with their session and the session's directories; the file is cut to the window
 // as it is written, so it never grows past what the compile reads. `at` is the time for an observation that
 // carries none of its own (a transcript without stamps).
@@ -472,23 +558,29 @@ const line = (s, e) => s === 'whatFails' ? `- When ${e.when}: avoid ${e.avoid}${
 // three), then the oldest bugs (to three), then the weakest lines of what went wrong (to four), then of how this
 // person works (to four), then whatever section is longest: the ways of working are the last thing to go.
 const TRIM = [['workingOn', 3], ['recentBugs', 3], ['whatFails', 4], ['howWeWork', 4]];
-export function renderProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
-  if (!profile?.sections) return '';
-  const lines = Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).map(e => line(s, e))]));
+// What a session is actually shown: the text, and **the ids of the entries that survived the trim**. The ids are
+// what makes the block measurable per line (`lines.jsonl`, `assessLines`): a line trimmed out of a session's block
+// was never shown there and must not be judged on it. One function does the fitting so the text and the ids can
+// never disagree; `renderProfile` is the text alone, which is what every older caller wants.
+export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
+  if (!profile?.sections) return { text: '', ids: [] };
+  const kept = Object.fromEntries(SECTIONS.map(s => [s, [...(profile.sections[s] || [])]]));
   const w = profile.window || {};
   const span = w.from && w.to ? `${w.from} to ${w.to}` : `the last ${w.days || PROFILE.ledgerDays} days`;
   const head = `Learned from ${w.sessions || 0} sessions in this repository, ${span} (compiled ${String(profile.compiledAt || '').slice(0, 10)}): what the person here is working on, how they want work done, and what went wrong before. Follow the stated ways of working; read the rest as context, not instructions. Counts are sessions.`;
-  const text = () => [head, ...SECTIONS.filter(s => lines[s].length).map(s => `## ${TITLES[s]}\n${lines[s].join('\n')}`)].join('\n\n');
+  const text = () => [head, ...SECTIONS.filter(s => kept[s].length).map(s => `## ${TITLES[s]}\n${kept[s].map(e => line(s, e)).join('\n')}`)].join('\n\n');
   while (text().length > maxChars) {
-    const s = TRIM.find(([s, floor]) => lines[s].length > floor)?.[0] || SECTIONS.filter(s => lines[s].length).sort((a, b) => lines[b].length - lines[a].length)[0];
+    const s = TRIM.find(([s, floor]) => kept[s].length > floor)?.[0] || SECTIONS.filter(s => kept[s].length).sort((a, b) => kept[b].length - kept[a].length)[0];
     if (!s) break;
-    lines[s].pop();
+    kept[s].pop();
   }
-  return SECTIONS.some(s => lines[s].length) ? text() : '';
+  if (!SECTIONS.some(s => kept[s].length)) return { text: '', ids: [] };
+  return { text: text(), ids: SECTIONS.flatMap(s => kept[s].map(e => e.id).filter(Boolean)) };
 }
+export function renderProfile(profile, opts = {}) { return fitProfile(profile, opts).text; }
 export function profileBlock(store) {
-  const text = renderProfile(readProfile(store));
-  return text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '';
+  const { text, ids } = fitProfile(readProfile(store));
+  return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids };
 }
 
 // --- serving, and the holdout ---------------------------------------------
@@ -542,7 +634,7 @@ export function compactionsSince(file, offset = 0) {
 // session is logged once, on its first prompt, so the arms can be counted from the log too.
 export function profileTurn(store, session, { transcript = null, client = null, now = Date.now() } = {}) {
   if (!session || session === 'unknown' || !profileConfig(store).enabled) return '';
-  const text = profileBlock(store);
+  const { text, ids } = profileBlock(store);
   if (!text) return '';
   return locked(store, session, () => {
     const { st, save } = sessionState(store, session);
@@ -550,16 +642,25 @@ export function profileTurn(store, session, { transcript = null, client = null, 
     let since = { count: 0, offset: p.offset || 0 };
     if (transcript && client === 'claude') { since = compactionsSince(transcript, p.offset || 0); p.compactions = (p.compactions || 0) + since.count; p.offset = since.offset; }
     const due = !p.told || p.compactions > p.toldAt;
-    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; }
+    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; p.shown = [...new Set([...(p.shown || []), ...ids])]; }
     const log = due && (p.arm === 'shown' || !p.told) && !p.loggedHoldout;
     if (due && p.arm === 'holdout') p.loggedHoldout = true;
     st.profile = p; save();
-    if (log) store.log({ op: 'profile-served', session, client, arm: p.arm, chars: p.arm === 'shown' ? text.length : 0, afterCompaction: p.compactions > 0 && p.told > 1 ? true : undefined, at: new Date(now).toISOString() });
+    if (log) store.log({ op: 'profile-served', session, client, arm: p.arm, chars: p.arm === 'shown' ? text.length : 0, lines: p.arm === 'shown' ? ids.length : 0, afterCompaction: p.compactions > 0 && p.told > 1 ? true : undefined, at: new Date(now).toISOString() });
     return due && p.arm === 'shown' ? text : '';
   });
 }
+// The entry ids a session was actually shown, across its injections (a compaction can bring a changed block back).
+// Neither this nor `profileArmOf` may ask `store.exists()`: that tests the **notes** directory, which the profile
+// does not use, so in a profile-only checkout both would answer nothing while the state file sat there with the
+// answer in it -- and `profileArmOf` answering null is every observation saved with no arm and a holdout that
+// measures nothing. Reading a session's own state file needs no notes.
+export function shownLines(store, session) {
+  if (!session || session === 'unknown') return [];
+  return sessionState(store, session).st.profile?.shown || [];
+}
 export function profileArmOf(store, session) {
-  if (!session || session === 'unknown' || !store.exists()) return null;
+  if (!session || session === 'unknown') return null;
   return sessionState(store, session).st.profile?.arm || null;
 }
 // The two arms over the ledger. **The measure is cost per exchange** (2026-11-08, the owner's call): the goal is
@@ -653,16 +754,23 @@ export function compare(shown, holdout, { boots = 2000, seed = 1 } = {}) {
 // Extract a session's observations into the ledger, then compile when due. The caller has parsed the transcript
 // and decided the session is done with (the end hook, or the catch-up over quiet sessions).
 export async function profileSession(store, events, { session, client, repoHint, ended = true, fromLine = 0, lineCount = 0, accounting = {}, completeFn, have, config, compile = true, now = Date.now() } = {}) {
-  const r = await extractObservations(events, { repoHint, ended, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
+  // the lines this session was shown, with the text it saw, so the same call can say what was done with each
+  const prof = readProfile(store);
+  const seen = new Set(shownLines(store, session));
+  const shown = seen.size && prof?.sections
+    ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id)).map(e => ({ id: e.id, text: line(sec, e) })))
+    : [];
+  const r = await extractObservations(events, { repoHint, ended, shown, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
   const dirs = sessionDirs(events, store.repo);
   const arm = profileArmOf(store, session);
   const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
+  const verdicts = appendLineVerdicts(store, r.lines, { session, client, model: r.model, now });
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
-  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
+  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
     if (c.profile) { compiled = c; store.log({ op: 'profile-compile', observations: c.observations, pending: c.pending, steps: c.steps, changes: c.changes, sessions: c.sessions, entries: Object.fromEntries(SECTIONS.map(s => [s, c.profile.sections[s].length])), tokens: c.tokens, cost: c.cost, model: c.profile.model }); }
   }
-  return { observations: rows, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
+  return { observations: rows, lines: verdicts, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }

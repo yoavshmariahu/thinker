@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { listPrice } from '../prices.js';
-import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
+import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport, lineReport } from '../profile.js';
 import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
@@ -52,6 +52,27 @@ async function profileCommand(ctx) {
     if (flags.json) { out(JSON.stringify(rows, null, 2)); return; }
     for (const r of rows) out(`${r.at.slice(0, 10)} ${r.id} ${r.kind.padEnd(13)} ${r.outcome.padEnd(10)} ${r.request}${r.lesson ? `\n    lesson: ${r.lesson}` : ''}${r.reaction ? `\n    reaction: "${r.reaction}"` : ''}`);
     out(`${rows.length} observations from ${new Set(rows.map(r => r.session)).size} sessions in the last ${Number(flags.days) || PROFILE.ledgerDays} days`);
+    return;
+  }
+  if (sub === 'lines') {
+    // What each line of the profile was used for. The first question about a line is whether the agent read it:
+    // a line nothing ever follows is costing its characters in every prompt of every session for nothing.
+    const days = Number(flags.days) || PROFILE.ledgerDays;
+    const rep = lineReport(store, { days });
+    if (flags.json) { out(JSON.stringify(rep, null, 2)); return; }
+    if (!rep.verdicts) { out(`no line verdicts yet: they are written when a session that was shown the profile is read (${days} days)`); return; }
+    out(`${rep.verdicts} verdicts on ${rep.lines.length} lines from ${rep.sessions} sessions shown the profile, last ${days} days`);
+    out(`followed in ${rep.followed} of the ${rep.applied} sessions a line had any bearing on${rep.followRate == null ? '' : ` (${Math.round(100 * rep.followRate)}%)`}`);
+    out('');
+    out(`${'line'.padEnd(6)} ${'shown'.padStart(5)} ${'applied'.padStart(7)} ${'followed'.padStart(8)} ${'ignored'.padStart(7)} ${'contra.'.padStart(7)} ${'rate'.padStart(6)}  text`);
+    for (const l of rep.lines) {
+      const rate = l.followRate == null ? '    –' : `${String(Math.round(100 * l.followRate)).padStart(4)}%`;
+      out(`${l.id.padEnd(6)} ${String(l.shown).padStart(5)} ${String(l.applied).padStart(7)} ${String(l.followed).padStart(8)} ${String(l.ignored).padStart(7)} ${String(l.contradicted).padStart(7)} ${rate.padStart(6)}  ${l.gone ? '(no longer in the profile) ' : ''}${(l.text || '').slice(0, 70)}`);
+      if (flags.why) for (const e of l.evidence.slice(0, 3)) out(`         ${e.verdict}: "${e.text.slice(0, 90)}"`);
+    }
+    out('');
+    out('applied is the sessions the line had any bearing on; a rate of – means it has never come up, which is an');
+    out('untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.');
     return;
   }
   if (sub === 'holdout') {

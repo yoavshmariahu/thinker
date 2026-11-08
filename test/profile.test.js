@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, applyPatch, relatedCited, compare, perExchange, ratioInterval, profileHoldoutRate, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, applyPatch, relatedCited, compare, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -179,7 +179,8 @@ test('a session end to end: observations into the ledger, a compile when due, th
   const p = readProfile(store);
   assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.sections.whatFails[0].id, 'f1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
-  assert.match(block, /^<thinker-profile>\n/); assert.match(block, /When adding a flag: avoid guessing its unit/); assert.match(block, /Learned from 1 sessions/);
+  assert.match(block.text, /^<thinker-profile>\n/); assert.match(block.text, /When adding a flag: avoid guessing its unit/); assert.match(block.text, /Learned from 1 sessions/);
+  assert.deepEqual(block.ids, ['w1', 'f1'], 'the block names the entries it actually rendered');
   // a profile from before entries carried ids is patched all the same
   const v2 = readProfile(store); for (const s of SECTIONS) for (const e of v2.sections[s]) delete e.id;
   fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify(v2));
@@ -281,6 +282,63 @@ test('the block goes into a shown session\'s first prompt and again after a comp
 });
 
 // The profile's holdout is half the sessions, and the measure is the exchange (2026-11-08).
+// The first question about a line is whether the agent used it (2026-11-08, the owner's ask).
+test('a session is assessed per profile line it was shown: the ids it saw, the verdicts, and what applied', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-lines-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ learn: { mode: 'profile' } }));
+  const store = new Store(dir);
+  const now = Date.now();
+  appendObservations(store, [fakeObs()], { session: 's0', now });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'Work in a worktree', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit', obs: readLedger(store).map(r => r.id) }], recentBugs: [] } }, model: 'fake-opus' }) });
+  // only what a session was actually shown may be judged on it
+  const prev = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0';
+  t.after(() => { if (prev === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = prev; });
+  const block = profileTurn(store, 'sA', { client: 'codex' });
+  assert.match(block, /Work in a worktree/);
+  assert.deepEqual(shownLines(store, 'sA').sort(), ['f1', 'w1'], 'the ids the session saw are kept on its state');
+  assert.deepEqual(shownLines(store, 'never-served'), [], 'a session shown nothing has no lines');
+  let asked = null;
+  await profileSession(store, session, {
+    session: 'sA', client: 'codex', compile: false, have: ['claude'],
+    completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [fakeObs()], lines: [
+      { id: 'w1', verdict: 'followed', evidence: 'made a worktree first' },
+      { id: 'f1', verdict: 'na', evidence: '' },
+      { id: 'nope', verdict: 'followed', evidence: 'invented' },
+      { id: 'w1', verdict: 'ignored', evidence: 'a second verdict on the same line' },
+    ] }, model: 'fake-opus' }; },
+  });
+  assert.match(asked, /THE PROFILE THIS SESSION WAS SHOWN \(2 lines\)/, 'the call carries the lines it must judge');
+  assert.match(asked, /\[w1\] - Work in a worktree/, 'with the id and the text the session saw');
+  const v = readLineVerdicts(store);
+  assert.deepEqual(v.map(r => [r.id, r.verdict]), [['w1', 'followed'], ['f1', 'na']], 'a line never shown is dropped, and the first verdict per line stands');
+  assert.equal(v[0].session, 'sA'); assert.equal(v[0].evidence, 'made a worktree first');
+  // the report: applied is the denominator, and 0 of 0 is untested, not failing
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'ignored', evidence: 'did it in the main checkout' }, { id: 'f1', verdict: 'na' }], { session: 'sB', now });
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'contradicted', evidence: 'the person had to say so' }], { session: 'sC', now });
+  const rep = lineReport(store);
+  const h1 = rep.lines.find(l => l.id === 'w1'), f1 = rep.lines.find(l => l.id === 'f1');
+  assert.deepEqual([h1.shown, h1.followed, h1.ignored, h1.contradicted, h1.applied], [3, 1, 1, 1, 3]);
+  assert.ok(Math.abs(h1.followRate - 1 / 3) < 1e-9, 'followed over the sessions the line applied in');
+  assert.equal(f1.applied, 0); assert.equal(f1.followRate, null, '0 of 0 applied is an untested line, never a failing one');
+  assert.equal(h1.section, 'workingOn'); assert.match(h1.text, /Work in a worktree/);
+  assert.equal(h1.evidence.length, 3, 'the quotes behind every verdict that was not na');
+  assert.equal(rep.sessions, 3); assert.equal(rep.applied, 3); assert.equal(rep.followed, 1);
+  assert.ok(Math.abs(rep.followRate - 1 / 3) < 1e-9);
+  // a line the profile no longer holds is marked, not dropped: its record is why it went
+  assert.equal(h1.gone, false);
+  appendLineVerdicts(store, [{ id: 'zz', verdict: 'ignored', evidence: 'x' }], { session: 'sD', now });
+  assert.equal(lineReport(store).lines.find(l => l.id === 'zz').gone, true);
+  // a session read again replaces its own rows, never counting a verdict twice
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'followed' }], { session: 'sC', now });
+  assert.equal(readLineVerdicts(store).filter(r => r.session === 'sC').length, 1);
+  assert.deepEqual(LINE_VERDICTS, ['followed', 'ignored', 'contradicted', 'na']);
+  // a session shown nothing is asked nothing about lines
+  const r2 = await profileSession(store, session, { session: 'fresh', client: 'codex', compile: false, have: ['claude'], completeFn: async ({ prompt }) => { assert.ok(!/THE PROFILE THIS SESSION WAS SHOWN/.test(prompt)); return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } });
+  assert.deepEqual(r2.lines, []);
+});
+
 test('the profile holdout is 50/50, and the report judges cost per exchange', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-holdout-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

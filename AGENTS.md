@@ -74,11 +74,16 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 - "Sign in a CLI" alone does not finish a feature.
 - Tests cover the desktop path (`appFn`, missing CLI login) beside the CLI path.
 
-**Cache and serving changes need an experiment (MANDATORY):**
-- Changes to cache sources (source, code or history selection, note kind) or note serving (ranking, cross-encoder, floors, slots, budgets, serving pool) ship off by default behind a config switch.
-- Enable by default only after an Artemis experiment: plan, owner approval, run. Compare with shipped strategy on same tasks. Report numbers and caveats.
-- Offline replays are not evidence. Measure outcomes in agent sessions.
-- Default-on switch = its own PR citing the experiment.
+**Cache and serving switches: the state, and why each is where it is.**
+The rule that stood here from 2026-10-16 to 2026-11-08 -- that a change to cache sources or note serving ships off
+behind a switch, and goes default-on only after an Artemis experiment citing it in its own PR -- is **removed, at the
+owner's instruction (2026-11-08)**. What it was for: a run of serving strategies that looked good offline and cost
+more in live sessions (the Jev reranker, serve-on-sight, the LLM reranker), so the rule made the experiment the price
+of a default. What it cost: the session profile is the clearest case -- the one honest measure of it needs 47 days on
+one machine, so the rule would have held a feature off by default for a quarter to buy a number nobody can act on.
+Judgement replaces it. The records below are kept because they say what is on, what is off and what measured it; they
+are no longer exceptions to anything.
+- Offline replays are still not evidence of a live gain, and a figure from one should say so.
 - Owner-approved freshness policy (2026-10-30): an ordinary dependency edit queues verification while
   the note remains usable (`status: pending`, `recheck`). Preserve its last verified dependency hashes,
   timestamp and commit until verification succeeds; do not silently rebaseline. Missing files/symbols
@@ -86,9 +91,9 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   and maintenance plus `thinker verify` handle both states, including the desktop session queue.
   This is the owner's explicit policy choice after cancelling the serving experiment; dense fallback,
   CE rescue and serve-stale switches remain off. A changed hash alone is not evidence of a wrong claim.
-- Owner-approved exception (2026-11-01, `devin-compaction.js`): Devin's own compaction threshold is written into its user config (`agent.compaction_threshold_tokens`) at `DEVIN_COMPACT_AT`, the proxy's trigger (140k), **on by default** with no experiment. Devin has no model endpoint, so its compactor is the only context reduction it can have; `devin: { compactAt: 0 }` (`THINKER_DEVIN_COMPACT_AT=off`) turns it off and restores what was there. Proven live at 140k: six turns of heavy reads peaked at 143k and fell to ~100k at each applied compaction, where the same workload without the key climbed to 297k (`docs/agent-integrations.md`). What each compaction took out is measured from Devin's session database either way, per later call as the proxy's clears are. Savings claims still need an experiment: judge by summary calls and cache rewrites, not tokens removed.
+- On by default, no experiment (2026-11-01, `devin-compaction.js`): Devin's own compaction threshold is written into its user config (`agent.compaction_threshold_tokens`) at `DEVIN_COMPACT_AT`, the proxy's trigger (140k), **on by default** with no experiment. Devin has no model endpoint, so its compactor is the only context reduction it can have; `devin: { compactAt: 0 }` (`THINKER_DEVIN_COMPACT_AT=off`) turns it off and restores what was there. Proven live at 140k: six turns of heavy reads peaked at 143k and fell to ~100k at each applied compaction, where the same workload without the key climbed to 297k (`docs/agent-integrations.md`). What each compaction took out is measured from Devin's session database either way, per later call as the proxy's clears are. Savings claims still need an experiment: judge by summary calls and cache rewrites, not tokens removed.
 - Off behind switches, awaiting an experiment (2026-10-28, `ops.js:servingConfig`, `serving` in `.thinker/config.json`): `denseFallback` (`THINKER_SERVE_DENSE_FALLBACK`) scores the notes with the local embedding model when no note shares a word with the request, serving the best above `denseFloor` (0.35, `pack`'s own `minRel`); `ceRescue` (`THINKER_SERVE_CE_RESCUE`) serves the best candidate the cross-encoder vetoed rather than nothing; `serveStale` (`THINKER_SERVE_STALE`) serves a stale match with its ⚠ banner instead of holding it back, which revises the mutable behavior "the prompt hooks serve no stale note". Environment wins over config. Each answers one measured miss reason; none is on until an Artemis experiment measures it in agent sessions.
-- Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
+- On by default, no experiment (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
 **The proxy never takes over someone else's route (MANDATORY, 2026-10-28):**
 - Many people run Claude Code against a model server of their own (smart routing to models) through `ANTHROPIC_BASE_URL` and a token minted for it. The proxy forwards to `api.anthropic.com`, so writing its URL into such a harness sends that token to Anthropic and every model call fails ("invalid bearer token"). That happened; it must not happen again.
@@ -1062,6 +1067,37 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   a session is always `unknown` (94 of 116 sessions end on one) -- and a person who gives up and closes the terminal
   produces no correction at all. It falls on both arms alike so it does not bias the comparison, but it caps what any
   outcome read from this ledger can mean.
+- **What a session did with each line it was shown** (2026-11-08, the owner's ask; `LINE_VERDICTS`, `shownLines`,
+  `appendLineVerdicts`, `lineReport`; `thinker profile lines [--why]`). The first question about a line is not
+  whether it improved anything, it is whether the agent read it -- a note was assessed that way from the start
+  (`confirmed` / `unused` / `contradicted` per serving) and the profile had nothing of the kind for its first two
+  days: a block of ten lines went into every prompt of every shown session and no record said whether one of them
+  was ever used. It is the opposite of the holdout on every axis: one row per line per session rather than one
+  number for the whole block, so a week here is hundreds of rows against the holdout's forty; it needs no arms and
+  no waiting; and it says *which* lines earn their place, which matters because `renderChars` is a fixed budget and
+  a dead line is holding a live one out.
+  - **The same model call, not a second one** (`extractObservations`'s `shown`): the extractor already has the
+    whole session in front of it, so the lines it was shown ride along in that prompt for a few hundred tokens.
+  - **Only what a session actually saw may be judged on it.** `fitProfile` trims the block to `renderChars`, so
+    `renderProfile` alone could not say what went in; it now returns the surviving entry ids beside the text, one
+    function doing the fitting so the two can never disagree, and `profileTurn` keeps them on the session's state
+    (`st.profile.shown`, across injections, since a compaction can bring a changed block back) and counts them on
+    the `profile-served` row. A verdict on an id the session was never shown is dropped, as is a second verdict on
+    the same line.
+  - **`na` is the default, and `applied` is the denominator.** Most lines have no bearing on most sessions, and
+    counting those as ignored would make every line look dead; `followRate` is followed over the sessions the line
+    had any bearing on, and `null` where none did, because 0 of 0 is an untested line and not a failing one.
+    `ignored` needs evidence that the agent did the thing the line forbade or failed to do what it asked in work
+    the line covered -- not merely that it never mentioned it, since a line can be followed silently. A line the
+    person restated in their own prompt is `ignored` with their prompt as the evidence: that is the person doing
+    the profile's job, which is the thing most worth knowing.
+  - What it cannot tell: `ignored` from `na` is a judgement, and it is the model's. Read `--why`, which prints the
+    quote behind every verdict, before cutting a line on this.
+- **A profile read may not ask `store.exists()`** (found building the above): it tests the **notes** directory,
+  which the profile does not use, and both `shownLines` and `profileArmOf` were gated on it. In a profile-only
+  checkout -- which is what the notes' removal makes ordinary -- `profileArmOf` would have answered null with the
+  arm sitting in the state file, so every observation would have been saved with no arm and the holdout would have
+  measured nothing at all, silently. Reading a session's own state file needs no notes.
 - **The cheaper check, which moves faster than the holdout** (the same day): of the 213 corrections and redirects in
   the first ledger, the share a profile line whose cited evidence *predates* them plausibly covers -- excluding the
   corrections that are themselves that line's evidence -- is **25% on a loose word match and 3% on a tight one**. The
