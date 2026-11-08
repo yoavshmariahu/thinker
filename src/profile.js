@@ -29,7 +29,7 @@ export const PROFILE = {
   minSessions: 2,       // sessions a howWeWork or whatFails entry needs, unless one observation states or corrects it outright
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
   recentBugDays: 14,
-  renderChars: 4000,    // about 1000 tokens at chars/4
+  renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6 },
   textChars: 240,
 };

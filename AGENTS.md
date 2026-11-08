@@ -1014,7 +1014,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
   file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
   exchanges and no call. The note distiller still reads those files (not changed here).
-- **Rendered** (`renderProfile`, `profileBlock`) within about 1000 tokens (`renderChars`; 800 until 2026-11-08, when
+- **Rendered** (`renderProfile`, `profileBlock`) within about 1500 tokens (`renderChars`, the owner's call on 2026-11-08 after seeing what 1000 dropped; 800 until that day, when
   the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
   the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest
   workstreams go first (to three), then the oldest bugs (to three), then the weakest of what went wrong (to four), then
