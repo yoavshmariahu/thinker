@@ -507,6 +507,30 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
   writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
   ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
 
+**Exploration subagents run on Sonnet (2026-11-08, the owner's call; `src/explore-agent.js`):**
+- Claude Code's built-in Explore subagent runs on the main conversation's model, so on an Opus or Fable session a
+  delegated exploration is billed at that model's rates. A user or project subagent named `Explore` overrides the
+  built-in one and keeps its own `model` (code.claude.com/docs/en/sub-agents), so `thinker connect` and `rewire` write
+  `<claude config dir>/agents/Explore.md` at user scope with `model: claude-sonnet-5-5` (the full id: the `sonnet` alias
+  resolved to Sonnet 5 on Claude Code 2.1.319, checked live), read-only (`disallowedTools`), starting
+  without CLAUDE.md as the built-in does, with a `<!-- thinker-explore -->` marker. Only a file carrying the marker is
+  ever rewritten or removed; a person's own Explore.md is left alone and named once in connect's output; a project's
+  `.claude/agents/Explore.md` wins in Claude Code's own order and is never touched. `thinker uninstall --user` removes
+  it. Off, or another model: `THINKER_EXPLORE_MODEL=off|haiku|<id>`, or `agents: { explore: false | "<model>" }` in
+  `THINKER_HOME/config.json`; the environment wins.
+- Why Sonnet (measured 2026-11-07, 13 of this machine's own exploration turns replayed as an exploration subagent
+  through `claude -p`, read-only, judged by recall of the files the parent went on to edit or name): Sonnet 5.5 and
+  Opus 5.5 tied (core recall 0.77 each, Sonnet ahead on precision and turns) at 43% of Opus's cost; Haiku 5.5 was 7
+  points of recall behind both at 8% of the cost. The parent's saving is the same whichever model explores, since the
+  results stay out of its prefix, so the explorer only has to be as good as the main model, and Sonnet was. Caveats:
+  13 tasks, one repository, HEAD already holding the fixes those turns produced.
+- Why it is worth having: on this machine's 28 days exploration results were ~10% of parent prefix dollars after the
+  cut, concentrated in turns of 10+ reads (8% of turns, 60% of the volume), and Explore had run 3 times, on Opus.
+  Subagents were 4% of spend, nearly all general-purpose on the parent's model. The judge of this change is the same
+  as the clearing's: exploration's share of parent prefix dollars and subagent usage over a window after it lands,
+  never the replay. Effort as a lever was measured and dropped the same week (a ceiling of 5-10% of high-effort spend,
+  and a top-level effort change breaks the prompt cache; the per-message form only moves at a turn boundary).
+
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
 - Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
@@ -592,6 +616,7 @@ agent session ──► distill ──► .thinker/local/notes/*.json ──► 
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
+| `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
 | `src/proxy-retry.js` | a request that never reached the upstream: the retryable codes, the ladder a dead resolver gets, the address a host last answered on |

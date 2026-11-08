@@ -45,6 +45,7 @@ import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { installClaudeMods, removeClaudeMods, withCardDir, withoutCardDir, cardDirIn, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
+import { installExploreAgent, removeExploreAgent } from './explore-agent.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -1339,6 +1340,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         const cur = readJsonOr(f.local, {});
         if (cardDirIn(cur) !== dir || clearDirIn(cur) !== clearDir) mergeJson(f.local, c => withClearDir(withCardDir(c, dir), clearDir));
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
+        // exploration subagents on a cheaper model: a user-scope Explore agent overrides the built-in one,
+        // which runs on the session's own model (explore-agent.js). A person's own Explore.md is left alone.
+        const ex = installExploreAgent({ claudeDir: claudeDir() });
+        if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
+        else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
       }
     }
   }
@@ -1592,7 +1598,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
-  if (scope === 'user') removeClaudeMods();
+  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); }
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {
