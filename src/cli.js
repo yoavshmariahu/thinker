@@ -151,7 +151,7 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --batch (end of a turn) leaves a small backlog for the end of the session
   learn [--days n] [--max n] [--idle-min n] [--maintain] [--dry]
                                  learn from new session evidence (edits, failures, corrections), with sampled full-trace audits
-  profile [show|ledger|compile|extract <transcript>|rebuild] [--days n] [--max n] [--again] [--session id] [--dry] [--json]
+  profile [show|ledger|compile|extract <transcript>|rebuild] [--why] [--full] [--days n] [--max n] [--again] [--session id] [--dry] [--json]
                                  the session profile (learn.mode "profile" in .thinker/config.json): what the person here is working on
                                  and how it went, read from prompts and answers alone; show it, list its observations, compile it,
                                  read one transcript, or rebuild from the sessions of the last --days (30)

@@ -958,20 +958,35 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the following prompt** (`accepted`, `corrected`, `redirected`, `unknown`; the agent's own "done" is a claim, and
   `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
   a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
-  calls' *paths* name (`sessionDirs`, never their content; for the per-directory profiles to come). A compile is
-  due after 10 new observations or 3 days with any (`compileDue`; the first after 3): the previous profile, the
-  window newest first (at most 150) and the instruction files' headings in, five sections out: `workingOn`,
-  `howWeWork`, `whatWorks`, `whatFails`, `recentBugs`.
+  calls' *paths* name (`sessionDirs`, never their content; for the per-directory profiles to come). A row's `at` is
+  **the session's own clock** (the prompt's stamp, which every parser now puts on the prompt event; `exchanges`
+  carries it, `observationTimes` dates each observation by its turn) and `seen` is when it was read into the ledger:
+  the window and every date in the profile go by `at`, whether a compile is due by `seen`. The first build stamped
+  rows with the extraction time, so every workstream and bug read as that night's and the recency rules meant nothing;
+  the 483 rows were redated from their transcripts without a model call. A compile is
+  due after 10 new observations or 3 days with any (`compileDue`; the first after 3), and is **incremental**
+  (`compileStep`): the previous profile, the observations it cites, and the observations new since it, in steps of
+  `compileBatch` (200) when the backlog is longer, each step merging into the profile the step before left and written
+  as it lands. The first build showed the compile the newest 150 of 483 observations and nothing else, which is where
+  most of the 110 corrections went; the incremental form sees every row once and stays bounded however long the
+  window. `thinker profile compile` compiles what is new; `--full` (and `rebuild`) starts from nothing over the whole
+  window, for a changed prompt. Four sections out: `workingOn`, `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
+  was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
+  on its own it held one line in four that two sessions supported.
 - **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
   hold is dropped, an entry with none goes, counts and dates come from the cited observations (count is distinct
-  sessions), `whatWorks` needs two observations, `whatFails` two or one correction with its reaction, a workstream
-  not seen in 21 days and a bug not seen in 14 leave. The compile is told the budget and the caps, that `approach`
-  is the agent's own account, that an `unknown` outcome supports `workingOn` and `recentBugs` only, that
-  `whatWorks` needs an acceptance after a correction or explicit praise, and that a rule the instruction files
+  sessions), a `howWeWork` line needs two **sessions** or one observation that states the preference in so many words
+  (`prefs`), a `whatFails` line two sessions or one correction with its reaction (the first build's floor counted
+  observations, and two from one session passed), a workstream
+  not seen in 21 days and a bug not seen in 14 leave. The compile is told the caps, that `approach`
+  is the agent's own account, that an `unknown` outcome supports `workingOn`, `recentBugs` and (through `prefs`)
+  `howWeWork` but never `whatFails`, that stated preferences and corrections repeated across sessions are the lines
+  worth most and that it need not ration since the code drops thin lines, and that a rule the instruction files
   state and agents still broke is kept and marked ("in AGENTS.md; still missed"): a line a fresh agent gains most
   from. Reviewed three times before the first build (2026-11-07): `abandoned` and `weight` went, the first because
-  no next prompt tells "moved on" from "dropped", the second because nothing read it. So a prompt can be changed and the profile recompiled from
-  the ledger without reading a transcript again (`thinker profile compile`).
+  no next prompt tells "moved on" from "dropped", the second because nothing read it. A prompt can be changed and the profile recompiled from
+  the ledger without reading a transcript again (`thinker profile compile --full`), and `thinker profile show --why`
+  prints each line over the observations it cites, which is how a compile is judged.
 - **Models** (`PROFILE_MODELS`, `completeProfile`): Opus and nothing else (the owner's call, 2026-11-07). A ladder of
   Opus, GPT-SOL and Gemini was built first and taken out the same day, after the first build timed one session out on
   Opus and read it with two other models: a profile built by three models is not one profile. The id names its
@@ -981,11 +996,14 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
   file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
   exchanges and no call. The note distiller still reads those files (not changed here).
-- **Rendered** (`renderProfile`, `profileBlock`) within about 800 tokens, the oldest workstreams going first when it
-  does not fit; dated, counted in sessions, and headed as learned, not instructions. **Not yet wired into the
+- **Rendered** (`renderProfile`, `profileBlock`) within about 1000 tokens (`renderChars`; 800 until 2026-11-08, when
+  the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
+  the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest
+  workstreams go first (to three), then the oldest bugs (to three), then the weakest of what went wrong (to four), then
+  of the ways of working (to four), then whatever is longest (`TRIM`). **Not yet wired into the
   hooks**: the mechanism lands first, the injection on turn 1 (and after a compaction) and the holdout follow.
 - The profile is this machine's: under `.thinker/local/`, never committed, and the log rows (`op: profile`,
-  `profile-compile`) carry counts and token figures, never its text. `thinker profile [show|ledger|compile|extract
+  `profile-compile`) carry counts and token figures, never its text. `thinker profile [show [--why]|ledger|compile [--full]|extract
   <transcript>|rebuild --days 30]`; `rebuild --dry` lists the sessions and the chars it would read, and reads the
   sessions of every worktree of the repository, since the cache is the main checkout's.
 

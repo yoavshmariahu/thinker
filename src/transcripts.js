@@ -117,6 +117,8 @@ const tool = (name, input, result, id) => {
   return { t: 'tool', id, name: n, input: toolInput(n, input), result: textOf(result), ...(imageTokensOf(result) || {}) };
 };
 // what agents wrap around the user's words
+// `at` (ms) on a prompt event: when it was made, where the transcript says (profile.js reads an observation's time off it)
+const stamp = (ev, ts) => { const at = Date.parse(ts); if (at) ev.at = at; return ev; };
 const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files|available_subagent_types|available_subagent_models|dynamic_tool_catalog|agent_skills|user_info|git_status|agent_transcripts|rules|summary_content)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
 
 function jsonLines(text) {
@@ -278,12 +280,12 @@ function parseMessages(rows, fromLine) {
     const role = j.type === 'user' || j.type === 'assistant' ? j.type : j.role;
     if (role !== 'user' && role !== 'assistant') return;
     const c = j.message?.content;
-    if (typeof c === 'string') { if (role === 'user' && !j.isMeta) { const t = cleanPrompt(c); if (t) events.push({ t: 'prompt', text: t }); } else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
+    if (typeof c === 'string') { if (role === 'user' && !j.isMeta) { const t = cleanPrompt(c); if (t) events.push(stamp({ t: 'prompt', text: t }, j.timestamp)); } else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
     if (!Array.isArray(c)) return;
     for (const b of c) {
       // Claude Code loads a skill as a meta message after the Skill call: keep the directory on the call (skills.js:skillsInvoked)
       if (b.type === 'text' && role === 'user' && j.isMeta && /^Base directory for this skill: /.test(String(b.text || ''))) { const last = events.findLast(e => e.t === 'tool' && e.name === 'Skill'); if (last) last.skillDir = String(b.text).split('\n')[0].slice('Base directory for this skill: '.length).trim(); continue; }
-      if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push({ t: 'prompt', text: t }); }
+      if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push(stamp({ t: 'prompt', text: t }, j.timestamp)); }
       else if (b.type === 'text' && role === 'assistant') events.push({ t: 'say', text: b.text });
       // `at`: when the call was made (ms), so a result is measured under the output compression in force then (tool-outputs.js)
       // `turn`: the model call the tool was called in (the count of assistant messages so far), so a part's use can be
@@ -311,7 +313,7 @@ function parseCodex(rows, fromLine) {
   const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 };
   const calls = [], lastUsages = []; let lastTotal = null, instructionTokens = 0, model = null, msgTurns = 0;
   const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
-  const prompt = text => { const t = cleanPrompt(text); if (t && !seenPrompts.has(t)) { seenPrompts.add(t); events.push({ t: 'prompt', text: t }); } };
+  const prompt = (text, ts) => { const t = cleanPrompt(text); if (t && !seenPrompts.has(t)) { seenPrompts.add(t); events.push(stamp({ t: 'prompt', text: t }, ts)); } };
   rows.forEach((j, i) => {
     if (!j) return;
     const p = j.payload || {};
@@ -338,11 +340,11 @@ function parseCodex(rows, fromLine) {
     if (j.type === 'response_item' && p.type === 'additional_tools') run.notes += est(p);
     if (i < fromLine) return;
     // rollout files
-    if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content));
-    else if (j.type === 'event_msg' && p.type === 'user_message') prompt(p.message);
+    if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content), j.timestamp);
+    else if (j.type === 'event_msg' && p.type === 'user_message') prompt(p.message, j.timestamp);
     else if (j.type === 'response_item') {
       if (p.type === 'message' && p.role === 'assistant') { const t = textOf(p.content); if (t) events.push({ t: 'say', text: t }); }
-      else if (p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (!/^<(environment_context|user_instructions|skills_instructions)/.test(t.trim())) prompt(t); }
+      else if (p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (!/^<(environment_context|user_instructions|skills_instructions)/.test(t.trim())) prompt(t, j.timestamp); }
       else if (p.type === 'function_call' || p.type === 'custom_tool_call' || p.type === 'local_shell_call') {
         const input = p.arguments ?? p.input ?? p.action ?? {};
         if (p.name === 'wait' || p.name === 'update_plan') return;
@@ -387,7 +389,7 @@ function parseGemini(j, fromLine) {
       run.agentText += est(text); for (const c of m.toolCalls || []) run.agentCalls += est(c.args ?? c.input ?? {});
     }
     if (i < fromLine) return;
-    if (role === 'user') { const t = cleanPrompt(text); if (t) events.push({ t: 'prompt', text: t }); }
+    if (role === 'user') { const t = cleanPrompt(text); if (t) events.push(stamp({ t: 'prompt', text: t }, m.timestamp)); }
     else {
       for (const c of m.toolCalls || []) events.push(tool(c.name, c.args ?? c.input, c.result ?? c.resultDisplay ?? c.output, c.id));
       if (text) events.push({ t: 'say', text });
@@ -404,7 +406,7 @@ function parseEvents(rows, fromLine) {
     if (j.cwd && !cwd) cwd = j.cwd;
     models.add(j.model);
     if (i < fromLine) return;
-    if (j.t === 'prompt') { const t = cleanPrompt(j.text); if (t) events.push({ t: 'prompt', text: t }); }
+    if (j.t === 'prompt') { const t = cleanPrompt(j.text); if (t) events.push(stamp({ t: 'prompt', text: t }, j.at)); }
     else if (j.t === 'say' && j.text) events.push({ t: 'say', text: String(j.text) });
     else if (j.t === 'tool') events.push(tool(j.name, j.input, j.result));
   });

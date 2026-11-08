@@ -1,6 +1,6 @@
 // thinker profile: the session profile by hand (profile.js). `show` prints what a session would be shown,
 // `extract` reads one transcript into the ledger, `rebuild` reads the window's sessions and compiles,
-// `compile` compiles now, `ledger` lists the observations.
+// `compile` compiles what is new (`--full`: the whole window again), `ledger` lists the observations.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -34,6 +34,14 @@ async function profileCommand(ctx) {
     const rows = readLedger(store);
     out(renderProfile(p));
     out('');
+    if (flags.why) { // each entry with the observations it cites: what the person asked and said
+      const byId = new Map(rows.map(r => [r.id, r]));
+      for (const s of SECTIONS) for (const e of p.sections[s] || []) {
+        out(`${s}: ${e.text || `when ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}`}`);
+        for (const id of e.obs) { const r = byId.get(id); if (!r) { out(`    ${id} (not in the window)`); continue; } out(`    ${r.at.slice(0, 10)} ${r.outcome.padEnd(10)} ${r.request.slice(0, 110)}${r.reaction ? `\n        reaction: "${r.reaction}"` : ''}${r.lesson ? `\n        lesson: ${r.lesson}` : ''}${r.prefs?.length ? `\n        prefs: ${r.prefs.join(' | ')}` : ''}`); }
+      }
+      out('');
+    }
     out(`compiled ${p.compiledAt.slice(0, 19).replace('T', ' ')} with ${p.model || 'an unknown model'} from ${p.window.observations} observations of ${p.window.sessions} sessions · ${rows.filter(r => Date.parse(r.at) > Date.parse(p.compiledAt)).length} new since · ${compileDue(store) ? 'a compile is due' : 'no compile due'} · mode ${cfg.enabled ? 'profile' : 'notes'} · models ${profileModels({ config: cfg }).join(' → ')}`);
     return;
   }
@@ -45,11 +53,11 @@ async function profileCommand(ctx) {
     return;
   }
   if (sub === 'compile') {
-    const r = await compileProfile(store, { dry: !!flags.dry, accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
-    if (r.dry) { out(`would compile ${r.observations} observations from ${r.sessions} sessions against ${r.headings} instruction headings${r.previous ? ' and the previous profile' : ''}; ${Math.round(r.chars / 1000)}k chars of input`); return; }
+    const r = await compileProfile(store, { dry: !!flags.dry, full: !!flags.full, accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
+    if (r.dry) { out(`would compile ${r.pending} ${r.previous ? 'new ' : ''}observations (${r.observations} in the window, from ${r.sessions} sessions) in ${r.steps} step${r.steps === 1 ? '' : 's'} against ${r.headings} instruction headings${r.previous ? ' and the previous profile' : ''}`); return; }
     if (r.skipped) { out(`nothing to compile: ${r.skipped}`); return; }
     out(renderProfile(r.profile));
-    out(`\ncompiled from ${r.observations} observations of ${r.sessions} sessions${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`);
+    out(`\ncompiled ${r.pending} observations in ${r.steps} step${r.steps === 1 ? '' : 's'} into a profile of ${r.observations} observations from ${r.sessions} sessions${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`);
     return;
   }
   if (sub === 'extract') {
@@ -100,12 +108,13 @@ async function profileCommand(ctx) {
     } finally { progress?.finish(); }
     out(`read ${n} sessions → ${obs} observations${failed ? `, ${failed} failed` : ''}${tokens ? `; ~${formatTokens(tokens)} tokens` : ''}`);
     if (readLedger(store).length) {
-      const c = await compileProfile(store, { accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
-      if (c.profile) { out(''); out(renderProfile(c.profile)); out(`\ncompiled from ${c.observations} observations of ${c.sessions} sessions${c.tokens ? `; ~${formatTokens(c.tokens)} tokens` : ''}`); }
+      // from nothing, over the whole window: a rebuild is what a changed prompt or a redone ledger asks for
+      const c = await compileProfile(store, { full: true, accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
+      if (c.profile) { out(''); out(renderProfile(c.profile)); out(`\ncompiled ${c.observations} observations from ${c.sessions} sessions in ${c.steps} step${c.steps === 1 ? '' : 's'}${c.tokens ? `; ~${formatTokens(c.tokens)} tokens` : ''}`); }
     }
     return;
   }
-  out(`thinker profile [show|ledger|compile|extract <transcript>|rebuild] (sections: ${SECTIONS.join(', ')})`);
+  out(`thinker profile [show [--why]|ledger|compile [--full]|extract <transcript>|rebuild] (sections: ${SECTIONS.join(', ')})`);
   process.exitCode = 2;
 }
 

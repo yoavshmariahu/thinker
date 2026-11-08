@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, exchanges, extractionInput, sessionDirs, tidyObservation, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -50,6 +50,12 @@ test('exchanges pair each prompt with the answers until the next prompt, which i
   const huge = extractionInput([{ turn: 1, prompt: 'p', answers: ['x'.repeat(500_000)], next: null }], { maxChars: 10_000 });
   assert.ok(huge.length < 12_000, 'a long answer loses its middle');
   assert.deepEqual(sessionDirs(session), ['src', 'src/commands'], 'directories come from the tool calls\' paths alone');
+  assert.equal(xs[0].at, null, 'a transcript without stamps gives no time');
+  const t0 = Date.parse('2026-11-01T10:00:00Z');
+  const stamped = exchanges([{ t: 'prompt', text: 'a', at: t0 }, { t: 'say', text: 'x' }, { t: 'prompt', text: 'b' }, { t: 'tool', name: 'Read', input: {}, at: t0 + 60_000 }, { t: 'say', text: 'y' }, { t: 'prompt', text: 'c' }, { t: 'say', text: 'z' }]);
+  assert.deepEqual(stamped.map(x => x.at), [t0, t0 + 60_000, t0 + 60_000], 'an unstamped prompt takes the first stamp after it, else the last before it');
+  const timed = observationTimes([{ turn: 2, request: 'r' }, { turn: 9, request: 'late' }], stamped);
+  assert.equal(timed[0].at, new Date(t0 + 60_000).toISOString()); assert.equal(timed[1].at, new Date(t0 + 60_000).toISOString(), 'a turn with no stamp takes the session\'s last');
 });
 
 test('a model\'s observation is held to the ledger\'s shape', () => {
@@ -79,46 +85,51 @@ test('the ledger keeps the window, names the session and its directories, and re
   const rows = readLedger(store, { now });
   assert.equal(rows.length, 1, 'the same session\'s same observation is written once');
   assert.equal(rows[0].session, 's1'); assert.deepEqual(rows[0].dirs, ['src']); assert.match(rows[0].id, /^obs-[0-9a-f]{10}$/);
+  assert.equal(rows[0].seen, new Date(now).toISOString(), 'seen is when the row was written');
+  appendObservations(store, [fakeObs({ turn: 7, at: iso(now, 9) })], { session: 's2', at: iso(now, 0), now });
+  const r7 = readLedger(store, { now }).find(r => r.turn === 7);
+  assert.equal(r7.at, iso(now, 9), 'an observation\'s own time (the session\'s clock) beats the fallback');
 });
 
-test('settle holds the profile to the ledger: citations, evidence floors, recency, counts from the observations', () => {
+test('settle holds the profile to the ledger: citations, evidence floors by session, recency, counts from the observations', () => {
   const now = Date.now();
   const rows = [
-    { id: 'a', at: iso(now, 1), session: 's1', outcome: 'corrected', reaction: 'wrong' },
-    { id: 'b', at: iso(now, 5), session: 's2', outcome: 'accepted', reaction: 'ok' },
-    { id: 'c', at: iso(now, 30), session: 's3', outcome: 'accepted', reaction: '' },
-    { id: 'd', at: iso(now, 2), session: 's1', outcome: 'unknown', reaction: '' },
+    { id: 'a', at: iso(now, 1), session: 's1', outcome: 'corrected', reaction: 'wrong', prefs: [] },
+    { id: 'b', at: iso(now, 5), session: 's2', outcome: 'accepted', reaction: 'ok', prefs: [] },
+    { id: 'c', at: iso(now, 30), session: 's3', outcome: 'accepted', reaction: '', prefs: [] },
+    { id: 'd', at: iso(now, 2), session: 's1', outcome: 'unknown', reaction: '', prefs: [] },
+    { id: 'e', at: iso(now, 3), session: 's4', outcome: 'unknown', reaction: '', prefs: ['no headers'] },
   ];
   const s = settle({
     workingOn: [{ text: 'current', obs: ['a', 'zzz'] }, { text: 'old', obs: ['c'] }, { text: 'uncited', obs: ['zzz'] }, { text: '', obs: ['a'] }],
-    howWeWork: [{ text: 'never push main', obs: ['a', 'b', 'c'] }],
-    whatWorks: [{ when: 'releases', do: 'x', obs: ['b'] }, { when: 'fixes', do: 'y', obs: ['b', 'c'] }],
-    whatFails: [{ when: 'flags', avoid: 'guessing the unit', obs: ['a'] }, { when: 'tests', avoid: 'z', obs: ['d'] }],
+    howWeWork: [{ text: 'never push main', obs: ['a', 'b', 'c'] }, { text: 'one session, inferred', obs: ['a', 'd'] }, { text: 'no headers', obs: ['e'] }],
+    whatFails: [{ when: 'flags', avoid: 'guessing the unit', instead: 'ask the unit', obs: ['a'] }, { when: 'tests', avoid: 'z', obs: ['d'] }, { when: 'two sessions', avoid: 'y', obs: ['b', 'c'] }, { when: 'one session, no words', avoid: 'x', obs: ['b'] }],
     recentBugs: [{ text: 'fresh', obs: ['a'] }, { text: 'stale', obs: ['c'] }],
   }, rows, { now });
   assert.deepEqual(s.workingOn.map(e => e.text), ['current'], 'an uncited entry, an empty one and a workstream past 21 days go');
   assert.deepEqual(s.workingOn[0].obs, ['a'], 'a citation the window does not hold is dropped');
+  assert.deepEqual(s.howWeWork.map(e => e.text), ['never push main', 'no headers'], 'two sessions, or one stated preference; two observations of one session are not two sessions');
   assert.equal(s.howWeWork[0].count, 3, 'count is distinct sessions among the citations'); assert.equal(s.howWeWork[0].firstSeen, iso(now, 30).slice(0, 10));
-  assert.deepEqual(s.whatWorks.map(e => e.when), ['fixes'], 'what works needs two observations');
-  assert.deepEqual(s.whatFails.map(e => e.when), ['flags'], 'one sharp correction with its reaction is enough; an unknown outcome is not');
+  assert.deepEqual(s.whatFails.map(e => e.when), ['two sessions', 'flags'], 'two sessions, or one correction in the person\'s words; most sessions first');
+  assert.equal(s.whatFails[1].instead, 'ask the unit');
   assert.deepEqual(s.recentBugs.map(e => e.text), ['fresh']);
   for (const k of SECTIONS) assert.ok(s[k].length <= PROFILE.perSection[k]);
 });
 
-test('render fits the budget by dropping the oldest workstreams first', () => {
-  const profile = { compiledAt: '2026-11-07T00:00:00Z', window: { sessions: 12, days: 60 }, sections: {
+test('render fits the budget by dropping the oldest workstreams first and the ways of working last', () => {
+  const profile = { compiledAt: '2026-11-07T00:00:00Z', window: { sessions: 12, days: 60, from: '2026-10-01', to: '2026-11-07' }, sections: {
     workingOn: Array.from({ length: 6 }, (_, i) => ({ text: `stream ${i} ${'x'.repeat(150)}`, firstSeen: '2026-11-01', lastSeen: `2026-11-0${6 - i}`, count: 1, obs: [] })),
-    howWeWork: [{ text: 'never push main', count: 4, obs: [] }],
-    whatWorks: [{ when: 'releases', do: 'use the script', count: 2, obs: [] }],
-    whatFails: [{ when: 'flags', avoid: 'guessing the unit', count: 1, obs: [] }],
+    howWeWork: Array.from({ length: 5 }, (_, i) => ({ text: `way ${i} ${'y'.repeat(100)}`, count: 5 - i, obs: [] })),
+    whatFails: [{ when: 'flags', avoid: 'guessing the unit', instead: 'ask', count: 1, obs: [] }],
     recentBugs: [{ text: 'a bug', lastSeen: '2026-11-06', obs: [] }],
   } };
   const full = renderProfile(profile);
-  assert.match(full, /## Working on/); assert.match(full, /When releases: use the script \(2\)/); assert.match(full, /When flags: avoid guessing the unit/); assert.match(full, /Learned from 12 sessions/);
-  const small = renderProfile(profile, { maxChars: 900 });
-  assert.ok(small.length <= 900);
+  assert.match(full, /## Working on/); assert.match(full, /When flags: avoid guessing the unit; instead: ask \(1\)/); assert.match(full, /Learned from 12 sessions in this repository, 2026-10-01 to 2026-11-07/);
+  assert.ok(full.indexOf('## How this person works') < full.indexOf('## What went wrong before'));
+  const small = renderProfile(profile, { maxChars: 1500 });
+  assert.ok(small.length <= 1500);
   assert.match(small, /stream 0/); assert.ok(!small.includes('stream 5'), 'the oldest workstream goes first');
-  assert.match(small, /never push main/, 'the other sections keep their lines while workingOn has more than two');
+  assert.match(small, /way 0/); assert.match(small, /way 3/, 'the ways of working keep four lines while workingOn has more than three');
   assert.equal(renderProfile(null), '');
 });
 
@@ -141,7 +152,7 @@ test('compile is due after ten new observations or three days with any, and firs
 test('a session end to end: observations into the ledger, a compile when due, the previous profile to history, and the block', async t => {
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   assert.equal(profileConfig(store).enabled, true);
-  const sections = { workingOn: [{ text: 'The report command grows a --since date flag', obs: [] }], howWeWork: [], whatWorks: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit; the person asked for a date', obs: [] }], recentBugs: [] };
+  const sections = { workingOn: [{ text: 'The report command grows a --since date flag', obs: [] }], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit; the person asked for a date', obs: [] }], recentBugs: [] };
   let seen = null;
   const completeFn = async opts => {
     if (opts.schema?.properties?.observations) { seen = opts.prompt; return { json: { observations: [fakeObs(), fakeObs({ turn: 2, request: 'open the PR', outcome: 'accepted', reaction: 'good', lesson: '' }), fakeObs({ turn: 3, request: 'x', outcome: 'unknown' })] }, model: 'fake-opus', tokens: { totalTokens: 15 } }; }
@@ -155,11 +166,12 @@ test('a session end to end: observations into the ledger, a compile when due, th
   assert.ok(seen && !seen.includes('src/report.js') && seen.includes('[2] USER: No, it should take a date'), 'the extraction reads prompts and answers only');
   assert.ok(r.compiled, 'three observations make the first compile due');
   const p = readProfile(store);
-  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus');
+  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
   assert.match(block, /^<thinker-profile>\n/); assert.match(block, /When adding a flag: avoid guessing its unit/); assert.match(block, /Learned from 1 sessions/);
-  // a second compile keeps history and drops what the new ledger no longer cites
-  const c = await compileProfile(store, { completeFn: async () => ({ json: { sections: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
+  // nothing new since the compile: nothing to do, unless the whole window is asked for again
+  assert.match((await compileProfile(store, { completeFn: async () => { throw new Error('not called'); }, have: ['claude'] })).skipped, /nothing new/);
+  const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { sections: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
   assert.equal(c.profile.sections.whatFails.length, 0);
   assert.equal(fs.readFileSync(path.join(store.localDir, 'profile', 'history.jsonl'), 'utf8').trim().split('\n').length, 1, 'the previous profile is kept');
   const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8');
@@ -186,4 +198,29 @@ test('in profile mode distillFile reads the session into the ledger and writes n
   assert.equal(state.line, 8, 'the transcript\'s lines are marked read, as for a distillation');
   await distillFile(ctx, file, { minExplore: 1, quiet: true, incremental: true, session: 's9', completeFn });
   assert.equal(calls, 1, 'nothing new in the transcript, no call');
+});
+
+test('a backlog is compiled in steps, each shown the profile so far and the observations it cites', async t => {
+  const { store } = tmpRepo(t);
+  const now = Date.now();
+  const was = PROFILE.compileBatch; PROFILE.compileBatch = 2; t.after(() => { PROFILE.compileBatch = was; });
+  for (let i = 0; i < 5; i++) appendObservations(store, [fakeObs({ turn: i + 1, request: `request ${i}`, at: iso(now, 5 - i) })], { session: `s${i}`, now: now - 1000 });
+  const prompts = [];
+  const completeFn = async opts => {
+    prompts.push(opts.prompt);
+    const ids = [...new Set([...opts.prompt.matchAll(/obs-[0-9a-f]{10}/g)].map(m => m[0]))]; // the rows shown and the previous profile's own citations
+    return { json: { sections: { workingOn: [], howWeWork: [{ text: 'open the PR when done', obs: ids }], whatFails: [], recentBugs: [] } }, model: 'fake-opus', tokens: { totalTokens: 7 } };
+  };
+  const r = await compileProfile(store, { now, completeFn, have: ['claude'] });
+  assert.equal(r.steps, 3); assert.equal(prompts.length, 3); assert.equal(r.tokens, 21);
+  assert.match(prompts[0], /PREVIOUS PROFILE \(compiled never\)/); assert.ok(!prompts[0].includes('OBSERVATIONS THE PREVIOUS PROFILE CITES'));
+  assert.match(prompts[1], /OBSERVATIONS THE PREVIOUS PROFILE CITES \(2\)/); assert.match(prompts[1], /NEW OBSERVATIONS \(2, from 2 sessions/);
+  assert.match(prompts[2], /OBSERVATIONS THE PREVIOUS PROFILE CITES \(2\)/, 'the cited rows shown are capped at a batch; the citations themselves are kept through the previous profile');
+  assert.match(prompts[0], /request 0/); assert.ok(!prompts[0].includes('request 2'), 'the oldest batch goes first');
+  assert.equal(r.profile.sections.howWeWork[0].count, 5, 'the last step re-cites everything the earlier ones found');
+  assert.equal(r.profile.window.observations, 5);
+  assert.equal(compileDue(store, { now }), false);
+  appendObservations(store, [fakeObs({ turn: 9, at: iso(now, 40) })], { session: 's9', now: now + 1000 });
+  const d = await compileProfile(store, { now: now + 2000, completeFn, have: ['claude'], dry: true });
+  assert.equal(d.pending, 1, 'an old session read today is new to the profile'); assert.equal(d.steps, 1);
 });
