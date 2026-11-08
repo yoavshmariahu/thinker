@@ -958,7 +958,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the following prompt** (`accepted`, `corrected`, `redirected`, `unknown`; the agent's own "done" is a claim, and
   `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
   a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
-  calls' *paths* name (`sessionDirs`, never their content; for the per-directory profiles to come). A row's `at` is
+  calls' *paths* name (`sessionDirs`, never their content; per-directory profiles are on hold until the one profile has been rolled out and read, the owner's call on 2026-11-08). A row's `at` is
   **the session's own clock** (the prompt's stamp, which every parser now puts on the prompt event; `exchanges`
   carries it, `observationTimes` dates each observation by its turn) and `seen` is when it was read into the ledger:
   the window and every date in the profile go by `at`, whether a compile is due by `seen`. The first build stamped
