@@ -9,9 +9,7 @@ import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { complete, resetFallback } from '../src/llm.js';
-import { distillEvents } from '../src/distill.js';
 import { Store } from '../src/store.js';
-import { createNote, refresh, verifyNote, phraseNotes } from '../src/ops.js';
 import { enableProxyService, serviceState } from '../src/proxy-service.js';
 
 const CLI = fileURLToPath(new URL('../src/cli.js', import.meta.url));
@@ -110,19 +108,6 @@ test('real Claude gateway preserves settings through connect, calls, proxy opt-i
   const call = () => complete({ prompt: 'Reply READY.', model: 'sonnet', timeoutMs: 20000, accounting: { store, purpose: 'gateway-smoke' } });
   assert.equal((await call()).text, 'READY');
   assert.ok(seen.some(r => r.body.model === 'fixture-sonnet' && r.body.context_management?.edits?.length), 'gateway mapping and proxy clearing edit reached the host');
-  phase = 'distill';
-  const distilled = await distillEvents([{ t: 'prompt', text: 'Explain multiplication.' }, { t: 'tool', name: 'Read', input: { file_path: 'math.js' }, result: fs.readFileSync(path.join(repo, 'math.js'), 'utf8') }], { accounting: { store, purpose: 'distill' } });
-  assert.equal(distilled.notes[0]?.title, NOTE.title);
-  const { note } = createNote(store, distilled.notes[0], { source: { type: 'human' } });
-  assert.ok(note, 'the distilled note resolves to the fixture code');
-  phase = 'phrase';
-  assert.deepEqual((await phraseNotes(store, [note])).done, [note.id]);
-  // Change the actual symbol to exercise pending verification, not merely a file-level comment.
-  fs.writeFileSync(path.join(repo, 'math.js'), 'export function multiply(a, b) { return Number(a) * Number(b); }\n');
-  refresh(store); assert.equal(store.get(note.id).status, 'pending');
-  phase = 'verify';
-  await verifyNote(store, store.get(note.id)); assert.equal(store.get(note.id).status, 'fresh');
-  assert.ok(seen.some(r => r.phase === 'verify' && r.body.model === 'fixture-haiku'));
   phase = 'plain'; rejectEdit = true;
   const beforeRefusal = seen.length;
   assert.equal((await call()).text, 'READY');

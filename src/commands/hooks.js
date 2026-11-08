@@ -327,7 +327,8 @@ async function hookCommand(ctx) {
         const compression = carded ? '' : compressionNotice(cleared);
         // The money goes with the summary, except where the card mod runs: there the statusline keeps it
         // on screen the whole session, and saying it twice in one client is two voices for one figure.
-        const notice = [carded ? '' : moneyLine(), compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
+        const money = carded ? '' : moneyLine();
+        const notice = [money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
         // The floors start again only once the person has actually been told: nothing to say yet, or a
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.

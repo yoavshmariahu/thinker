@@ -6,7 +6,6 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
-import { exploreCount, condense } from '../src/distill.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
 
@@ -97,7 +96,6 @@ test('Codex rollout and `codex exec --json` output', () => {
   const r = parseTranscript(rollout);
   assert.equal(r.format, 'codex'); assert.equal(r.cwd, '/r'); assert.equal(r.model, 'gpt-6-sol');
   assert.deepEqual(shape(r.events), ['prompt:where is x', 'Bash:rg -n def x src=src/x.py:1:def x', 'say:in src/x.py']);
-  assert.equal(exploreCount(r.events), 1);
 
   const stream = write([
     { type: 'thread.started', thread_id: 't' },
@@ -172,7 +170,6 @@ test('recorded trace round-trips and results missing from a record are refilled 
   assert.ok(r.events[1].result.startsWith('def x():'));
   assert.ok(r.events[2].result.includes('src/x.py:1:def x'));
   assert.equal(r.events[3].result, ''); // outside the repo: never read
-  assert.ok(condense(r.events).includes('READ'));
 });
 
 test('extractJson finds the object in fenced or chatty replies', () => {
@@ -285,14 +282,14 @@ test('learning hooks are installed for every agent and record the session', () =
 test('learn.sessions: false keeps session distillation off while maintenance goes on', () => {
   const dir = tmp();
   execFileSync('git', ['init', '-q'], { cwd: dir });
-  fs.mkdirSync(path.join(dir, '.thinker/notes'), { recursive: true });
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
   const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' };
   const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
   assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
   const both = run(['learn', '--maintain', '--dry']);
   assert.match(both, /learning from sessions is off/);
-  assert.match(both, /maintained: 0 re-verified/, 'maintenance still runs');
+  assert.match(both, /maintained: /, 'maintenance still runs');
   // the environment switch is stronger: nothing runs
   assert.match(execFileSync('node', [CLI, 'learn', '--maintain', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...env, THINKER_NO_LEARN: '1' } }), /switched off \(THINKER_NO_LEARN\)/);
 });

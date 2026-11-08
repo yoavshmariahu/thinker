@@ -457,9 +457,8 @@
       <div class="sidebar-group">
         <div class="sidebar-heading">The knowledge cache</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#notes">What a note is</a></li>
+          <li class="sidebar-item"><a href="#notes">The session profile</a></li>
           <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
-          <li class="sidebar-item"><a href="#skills">Skills</a></li>
         </ul>
       </div>
       <div class="sidebar-group">
@@ -499,7 +498,7 @@
         <ol>
           <li><strong><a href="#compression">Context compression.</a></strong> Clear older tool results so later calls carry less history.</li>
           <li><strong><a href="#context">Instruction file analysis.</a></strong> See which rules earn their place in every prompt, then review cuts to the rest.</li>
-          <li><strong><a href="#notes">Knowledge cache.</a></strong> Reuse what previous sessions learned, so the next task needs fewer searches and file reads.</li>
+          <li><strong><a href="#notes">Session profile.</a></strong> Start every session knowing what you are working on, how you want work done and what went wrong before.</li>
         </ol>
         <p>The saving adds up across model calls. Your token bill also depends on prompt-cache pricing and rewrites; Thinker reports tokens and costs so you can track the effect on your own work.</p>
         <pre><code>npx thinkersh</code></pre>
@@ -516,11 +515,11 @@
           <li><strong>Apply your choices:</strong> preview instruction changes as a diff; in the browser, open a pull request to review and merge.</li>
           <li><strong>View Report:</strong> track tokens and costs week by week as you keep working.</li>
         </ol>
-        <p>Keep working as usual. Thinker learns and checks notes in the background, and periodically suggests instruction and tool changes for you to review. Open <code>thinker ui</code> whenever you want to see savings or reports.</p>
+        <p>Keep working as usual. Thinker learns how you work in the background, and periodically suggests instruction and tool changes for you to review. Open <code>thinker ui</code> whenever you want to see savings or reports.</p>
         <details class="fold">
           <summary>What installation changes</summary>
           <p>Thinker installs under <code>~/.thinker</code> and connects your agents in their own settings. Its first report reads the last 30 days of sessions in your five most active repositories; generating that report needs no model call. In the browser, suggestions arrive checked for review. Instruction files and tool settings change only when you apply your choices. Context compression runs automatically where supported.</p>
-          <p>Each repository's cache starts empty and grows from your sessions. Notes are stored locally under <code>.thinker/</code>. Learning and verification use your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
+          <p>Each repository's profile starts empty and grows from your sessions. It is stored locally under <code>.thinker/local/</code>. Learning uses your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
           <p>Use <code>--no-ui</code> to stay in the terminal. With <code>--yes</code> or no terminal, the installer prints the report.</p>
         </details>
       </section>
@@ -757,18 +756,18 @@ read any range: Read with offset and limit</span></pre>
         <div class="table-scroll">
           <table>
             <thead>
-              <tr><th>Agent</th><th>Notes for the request</th><th>Notes on edited files</th><th>MCP tools</th><th>Wiring</th></tr>
+              <tr><th>Agent</th><th>The profile</th><th>Context clearing</th><th>Wiring</th></tr>
             </thead>
             <tbody>
-              <tr><td>Claude Code, and the Claude desktop app's Code tab</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Cursor</td><td>Through prompt hooks and the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
-              <tr><td>Devin CLI and Devin Desktop's local agent</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
-              <tr><td>Windsurf Cascade</td><td>A rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
-              <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
-              <tr><td>OpenCode</td><td>Plugin</td><td>Yes</td><td>Yes</td><td>The checkout</td></tr>
+              <tr><td>Claude Code, and the Claude desktop app's Code tab</td><td>First prompt, and after a compaction</td><td>Automatic: the proxy, or the mod inside the desktop app</td><td>Machine-wide</td></tr>
+              <tr><td>Codex CLI and the Codex desktop app</td><td>First prompt</td><td>Through the proxy's Codex route</td><td>Machine-wide</td></tr>
+              <tr><td>Gemini CLI</td><td>First prompt</td><td>No: Google's API only</td><td>Machine-wide</td></tr>
+              <tr><td>Cursor</td><td>With the first prompt; the CLI one tool call late</td><td>No: calls go through Cursor's servers</td><td>Machine-wide, plus a rule in the checkout</td></tr>
+              <tr><td>Devin CLI and Devin Desktop's local agent</td><td>First prompt</td><td>Devin's own compactor, set to the proxy's trigger</td><td>Machine-wide</td></tr>
+              <tr><td>Pi</td><td>Extension</td><td>Automatic: the proxy</td><td>The checkout</td></tr>
+              <tr><td>Windsurf Cascade</td><td>No: its hooks only record</td><td>No: Windsurf's servers</td><td>The checkout</td></tr>
+              <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>By hand, with your own Anthropic key</td><td>The checkout</td></tr>
+              <tr><td>OpenCode</td><td>Plugin</td><td>Automatic (<code>opencode.json</code>)</td><td>The checkout</td></tr>
             </tbody>
           </table>
         </div>
@@ -778,10 +777,10 @@ read any range: Read with offset and limit</span></pre>
         <details class="fold">
           <summary>Where each agent is wired</summary>
           <ul>
-            <li><strong>Claude Code:</strong> hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>. <code>UserPromptSubmit</code> adds the notes to the prompt, <code>PostToolUse</code> brings the notes on a file being edited, <code>Stop</code> and <code>SessionEnd</code> distill the session once in the background.</li>
+            <li><strong>Claude Code:</strong> hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>. <code>UserPromptSubmit</code> adds the profile to the first prompt, <code>Stop</code> and <code>SessionEnd</code> read the session once in the background.</li>
             <li><strong>Codex CLI:</strong> hooks in <code>~/.codex/hooks.json</code>, the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked trusted so Codex asks nothing before running them. The desktop app reads the same file.</li>
-            <li><strong>Gemini CLI:</strong> prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
-            <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result.</li>
+            <li><strong>Gemini CLI:</strong> prompt-time context and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
+            <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's CLI prompt hook cannot add context, so there the profile is handed over with the first tool result.</li>
             <li><strong>Devin:</strong> hooks in <code>~/.config/devin/config.json</code>, the MCP server in <code>~/.config/devin/mcp_config.json</code>, and one permission entry so the background subagent that does the learning may call thinker's own tool. The same files serve the CLI and Devin Desktop's local agent. Devin refuses to run in a workspace you have not trusted, so run <code>devin</code> once in the repository and accept the prompt.</li>
             <li><strong>Pi, Windsurf Cascade, Copilot CLI, OpenCode:</strong> nothing machine-wide. The installer, given <code>--clients pi,windsurf,copilot,opencode</code>, writes an extension, a hook file or a rule. Restart the host agent afterwards.</li>
           </ul>
@@ -829,7 +828,7 @@ read any range: Read with offset and limit</span></pre>
               <tr><td><code>harness</code></td><td><code>enabled</code> (switching skills and tools off writes the agent's settings; the page turns it on when you switch one off), <code>builtinTools</code> (offer Claude Code's built-in tools too)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (2), or <code>false</code> to rank by words alone</td></tr>
+              <tr><td><code>learn.profile</code></td><td><code>false</code> keeps the session profile off in this repository; <code>holdout</code> (0.15) is the share of sessions it is held out of</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code></td><td>The model for each kind of call</td></tr>
               <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
@@ -844,7 +843,7 @@ read any range: Read with offset and limit</span></pre>
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous hourly effectiveness metrics (cache hit rate, note count, estimated token savings, and the totals of the holdout comparison: prompt counts and summed tool calls and tokens of prompts with and without notes) to monitor cache quality. They also carry counts for the context proxy (requests through it, tokens the API cleared, errors, and the model ids it saw) and for the choices you make on Find Savings (how many changes were suggested, applied, dismissed or reverted, by kind of part, and the tokens a prompt each measured before and after). <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> The only part names in them are your agent's own built-in tools and common shell commands (<span class="code-comment">Grep</span>, <span class="code-comment">Bash:git</span>): never a section title, instruction file, skill name or MCP server name. Note ranking runs on your machine. Learning and verification use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous hourly effectiveness metrics (requests, sessions, the profile's two arms as counts, and what the clearing saved) to monitor quality. They also carry counts for the context proxy (requests through it, tokens the API cleared, errors, and the model ids it saw) and for the choices you make on Find Savings (how many changes were suggested, applied, dismissed or reverted, by kind of part, and the tokens a prompt each measured before and after). <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> The only part names in them are your agent's own built-in tools and common shell commands (<span class="code-comment">Grep</span>, <span class="code-comment">Bash:git</span>): never a section title, instruction file, skill name or MCP server name. Note ranking runs on your machine. Learning and verification use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
+import { seedProfile } from './fixtures/seed-profile.js';
 import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, markConnected, enableCodexSubagents, codexSubagentsOn, staleRepoInstructions } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';
@@ -24,11 +24,11 @@ function repo() {
   fs.mkdirSync(path.join(dir, 'src'));
   fs.writeFileSync(path.join(dir, 'src/upload.py'), 'class RateLimiter:\n    def allow(self, key):\n        return True\n\ndef upload_endpoint(request):\n    return RateLimiter().allow(request.user)\n');
   const store = new Store(dir).init();
-  // one note is enough here: the hooks serve from a cache once it holds SERVE_MIN_NOTES (ops.js), unless the repository lowers that.
+  // a profile with one line: what the prompt hook puts into a session's first prompt (profile.js)
   // No floors on the notices either: these tests are about each client's door, one turn at a time, and the cadence that
   // holds a summary back until 20 prompts and a day have passed has its own test (test/notice-cadence.test.js).
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1, notice: { everyPrompts: 0, everyHours: 0 } }));
-  createNote(store, { title: 'Where upload rate limiting happens', kind: 'location', answers: ['where is rate limiting for the upload endpoint', 'upload rate limiter'], body: 'Rate limiting for uploads is in src/upload.py:RateLimiter.allow, called from src/upload.py:upload_endpoint.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), holdout: 0, notice: { everyPrompts: 0, everyHours: 0 } }));
+  seedProfile(store);
   return dir;
 }
 const opts = dir => ({ repo: dir, cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'], env: { THINKER_REPO: dir } }, hooks: true, learn: false, late: true, shared: false, mcp: true });
@@ -147,7 +147,7 @@ test('prompt hook output matches what each client accepts', () => {
   const dir = repo();
   const codex = hook(dir, 'prompt', 'codex', { session_id: 's1', prompt: PROMPT, cwd: dir });
   // the bundle alone: no tool intro since 2026-10-22
-  assert.ok(codex.startsWith('<thinker-cache>') && !codex.includes('<thinker-tools>') && codex.includes('RateLimiter.allow'));
+  assert.ok(codex.startsWith('<thinker-profile>') && !codex.includes('<thinker-tools>') && codex.includes('RateLimiter.allow'));
   assert.ok(!codex.includes('🧠'), 'the prompt hook says nothing to the user; the stop hook sums the turn');
 
   const gem = JSON.parse(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: PROMPT, cwd: dir }));
@@ -156,63 +156,23 @@ test('prompt hook output matches what each client accepts', () => {
 
   // Claude Code takes the bundle as plain stdout; no JSON, no systemMessage
   const claude = hook(dir, 'prompt', 'claude', { session_id: 's4', prompt: PROMPT, cwd: dir });
-  assert.ok(claude.startsWith('<thinker-cache>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
+  assert.ok(claude.startsWith('<thinker-profile>') && claude.includes('RateLimiter.allow') && !claude.includes('🧠'));
 
   // nothing relevant: Gemini must get no stray text on stdout
   assert.equal(hook(dir, 'prompt', 'gemini', { session_id: 's2', prompt: 'hello' }), '');
 });
 
-test('stop hook tells the user what the turn saved, once, where the client can show it', () => {
-  const dir = repo();
-  const noLearn = ['--no-distill'];
-  assert.equal(hook(dir, 'stop', 'claude', { session_id: 't0', cwd: dir }, noLearn), '', 'nothing served: nothing said');
-
-  hook(dir, 'prompt', 'claude', { session_id: 't1', prompt: PROMPT, cwd: dir });
-  const claude = JSON.parse(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn));
-  assert.match(claude.systemMessage, /^🧠 thinker: 1 note this turn · estimated input saved this session: ~-?[\d,.]+k? tokens \(one-read fallback; no lifetime data\)$/);
-  assert.equal(Object.keys(claude).join(), 'systemMessage', 'no decision: the agent stops as it meant to');
-  assert.equal(hook(dir, 'stop', 'claude', { session_id: 't1', cwd: dir }, noLearn), '', 'the next turn starts from none');
-
-  // a session the Claude card mod marked shows its card instead (claude-card.js); others keep the line
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-card-'));
-  try {
-    fs.mkdirSync(path.join(home, 'state', 'claude-card'), { recursive: true });
-    fs.writeFileSync(path.join(home, 'state', 'claude-card', 'card-on'), '');
-    const env = { THINKER_HOME: home, THINKER_HOLDOUT: '0' };
-    assert.ok(hook(dir, 'prompt', 'claude', { session_id: 'card-on', prompt: PROMPT, cwd: dir }, [], env).includes('<thinker-cache>'));
-    assert.equal(hook(dir, 'stop', 'claude', { session_id: 'card-on', cwd: dir }, noLearn, env), '', 'carded: no collapsed line');
-    hook(dir, 'prompt', 'claude', { session_id: 'card-off', prompt: PROMPT, cwd: dir }, [], env);
-    assert.match(JSON.parse(hook(dir, 'stop', 'claude', { session_id: 'card-off', cwd: dir }, noLearn, env)).systemMessage, /1 note this turn/);
-  } finally { fs.rmSync(home, { recursive: true, force: true }); }
-
-  hook(dir, 'prompt', 'gemini', { session_id: 't2', prompt: PROMPT, cwd: dir });
-  assert.match(JSON.parse(hook(dir, 'stop', 'gemini', { session_id: 't2', cwd: dir }, noLearn)).systemMessage, /1 note this turn/);
-
-  // Codex supports systemMessage without restarting the agent.
-  hook(dir, 'prompt', 'codex', { session_id: 't3', prompt: PROMPT, cwd: dir });
-  const codex = JSON.parse(hook(dir, 'stop', 'codex', { session_id: 't3', cwd: dir }, noLearn));
-  assert.match(codex.systemMessage, /1 note this turn/);
-  assert.deepEqual(Object.keys(codex), ['systemMessage']);
-  assert.equal(hook(dir, 'stop', 'codex', { session_id: 't3', cwd: dir }, noLearn), '');
-
-  // turned off
-  hook(dir, 'prompt', 'claude', { session_id: 't4', prompt: PROMPT, cwd: dir });
-  const off = execFileSync('node', [CLI, 'hook', 'stop', '--client', 'claude', '--repo', dir, ...noLearn], { input: JSON.stringify({ session_id: 't4', cwd: dir }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }).trim();
-  assert.equal(off, '');
-});
-
-test('cursor gets the bundle with the prompt, as additional_context, once', () => {
+test('cursor gets the profile with the prompt, as additional_context, once', () => {
   const dir = repo();
   const first = JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g1', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }));
   assert.equal(first.continue, true);
   assert.ok(first.additional_context.includes('RateLimiter.allow'));
-  assert.match(first.additional_context, /\| 🧠 \*\*thinker\*\* · 1 note this turn · \*est\. input saved this session: ~-?[\d,.]+k? tokens, one-read fallback\* \|\n\| :--- \|\n\| Where upload rate limiting happens \|/);
+  assert.ok(!first.additional_context.includes('🧠 **thinker**'), 'no money line without a kept ledger');
   assert.equal(hook(dir, 'tool', 'cursor', { conversation_id: 'c1', generation_id: 'g1', tool_name: 'Grep', tool_input: { pattern: 'x' } }), '');
   // THINKER_NOTICE=off suppresses the in-chat footnote in Cursor
   const quiet = JSON.parse(execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'cursor', '--repo', dir], { input: JSON.stringify({ conversation_id: 'c1-quiet', generation_id: 'g1-quiet', prompt: PROMPT, workspace_roots: [dir], cursor_version: '3.0' }), encoding: 'utf8', env: { ...process.env, THINKER_NO_BG_VERIFY: '1', THINKER_NOTICE: 'off' } }));
   assert.ok(quiet.additional_context.includes('RateLimiter.allow'));
-  assert.doesNotMatch(quiet.additional_context, /🧠 \*\*thinker\*\*/);
-  // a prompt the cache has nothing for still answers {continue}
+  // a second prompt of the session: the profile went in with the first
   assert.deepEqual(JSON.parse(hook(dir, 'prompt', 'cursor', { conversation_id: 'c1', generation_id: 'g2', prompt: 'hello there', workspace_roots: [dir] })), { continue: true });
 });
 
@@ -237,16 +197,12 @@ test('toolFiles reads the different tool input shapes', () => {
   assert.deepEqual(toolFiles({ tool_input: { file_path: '/etc/passwd' } }, dir), []);
 });
 
-test('cursor without a prompt hook (agent -p): the first tool call orients from the transcript, once per turn', () => {
+test('cursor without a prompt hook (agent -p): a tool call adds nothing of its own', () => {
   const dir = repo();
   const transcript = path.join(dir, '.git', 'cursor-transcript.jsonl');
   fs.writeFileSync(transcript, JSON.stringify({ role: 'user', message: { content: [{ type: 'text', text: `<user_query>\n${PROMPT}\n</user_query>` }] } }) + '\n');
   const ev = { conversation_id: 'c5', generation_id: 'g5', tool_name: 'Grep', tool_input: { pattern: 'x' }, transcript_path: transcript };
-  assert.ok(JSON.parse(hook(dir, 'tool', 'cursor', ev)).additional_context.includes('RateLimiter.allow'));
-  assert.equal(hook(dir, 'tool', 'cursor', ev), '', 'a parallel tool call of the same turn');
-  // a turn the prompt hook ran for and served nothing (held out, no match) is not oriented again
-  hook(dir, 'prompt', 'cursor', { conversation_id: 'c6', generation_id: 'g6', prompt: 'hello there' });
-  assert.equal(hook(dir, 'tool', 'cursor', { ...ev, conversation_id: 'c6', generation_id: 'g6' }), '');
+  assert.equal(hook(dir, 'tool', 'cursor', ev), '', 'the orient-from-transcript fallback went with the notes');
 });
 
 // a home of its own for a test that wires the agents' settings: the user's own files are never touched
@@ -600,8 +556,8 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   const dir = repo();
   inHome(home, () => installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: ['/x/mcp.js'] }, hooks: true, learn: false, late: true, mcp: true }));
   // a checkout that is set up: the bundle, from the checkout the input names, not the hook's working directory
-  assert.match(userHook('prompt', { session_id: 's1', prompt: PROMPT, cwd: dir }), /<thinker-cache>[\s\S]*upload rate limiting/);
-  // a git checkout without a cache: nothing served (there are no notes), and the cache started there, empty
+  assert.match(userHook('prompt', { session_id: 's1', prompt: PROMPT, cwd: dir }), /<thinker-profile>[\s\S]*RateLimiter\.allow/);
+  // a git checkout without a cache: nothing served (there is no profile), and the cache started there, empty
   const other = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-nocache-')); execFileSync('git', ['init', '-q'], { cwd: other });
   assert.equal(userHook('prompt', { session_id: 's2', prompt: PROMPT, cwd: other }), '');
   assert.ok(fs.existsSync(path.join(other, '.thinker', 'config.json')));
@@ -634,7 +590,7 @@ test('a hook at user scope takes the checkout from the agent\'s input: notes whe
   fs.rmSync(path.join(dir, '.claude'), { recursive: true });
   // and THINKER_HOOKS=off silences it, for an arm that must see no notes
   assert.equal(execFileSync('node', [CLI, 'hook', 'prompt', '--client', 'claude', '--user'], { input: JSON.stringify({ session_id: 's7', prompt: PROMPT, cwd: dir }), encoding: 'utf8', env: { ...env, THINKER_HOOKS: 'off' }, cwd: os.tmpdir() }).trim(), '');
-  assert.match(userHook('prompt', { session_id: 's8', prompt: PROMPT, cwd: dir }), /<thinker-cache>/);
+  assert.match(userHook('prompt', { session_id: 's8', prompt: PROMPT, cwd: dir }), /<thinker-profile>/);
   const log = fs.readFileSync(path.join(dir, '.thinker/log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
   assert.ok(log.some(l => l.op === 'prune' && l.removed[0].what === 'repo-scope'));
 });
@@ -722,16 +678,6 @@ test('stop output follows native notice contracts and never requests continuatio
   for (const client of ['pi', 'opencode', 'windsurf']) assert.equal(stopOutput(client, 'cache hit'), 'cache hit');
   for (const client of ['cursor', 'copilot']) assert.equal(stopOutput(client, 'cache hit'), '');
   for (const client of parseClients('all')) assert.equal(stopOutput(client, ''), '');
-});
-
-test('CLI retrieval attributed to a Windsurf trajectory produces one visible stop notice', () => {
-  const dir = repo();
-  for (const command of ['orient', 'lookup']) {
-    execFileSync('node', [CLI, command, PROMPT, '--repo', dir, '--session', 'wind-hit'], { env: { ...process.env, THINKER_NO_BG_VERIFY: '1' } });
-    const event = { trajectory_id: 'wind-hit', agent_action_name: 'post_cascade_response', tool_info: { response: 'done' } };
-    assert.match(hook(dir, 'stop', 'windsurf', event, ['--no-distill']), /1 note this turn/);
-    assert.equal(hook(dir, 'stop', 'windsurf', event, ['--no-distill']), '');
-  }
 });
 
 test('a Codex MCP table whose thinker markers Codex dropped still counts as wired, and a rewire leaves it alone', () => {
@@ -894,11 +840,11 @@ test('a checkout\'s own CLAUDE.local.md workflow block goes once the user\'s CLA
   } finally { if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = prev; }
 });
 
-test('Codex still injects and emits a stop notice when AGENTS instructions mention queue tools', () => {
+test('Codex still gets the profile and a clean stop when AGENTS instructions mention queue tools', () => {
   const dir = repo(), session_id = 'codex-worker-docs';
   const prompt = `${PROMPT}; explain warmup_next and warmup_answer`;
   const output = hook(dir, 'prompt', 'codex', { session_id, prompt, cwd: dir }, ['--record']);
-  assert.match(output, /<thinker-cache>/);
+  assert.match(output, /<thinker-profile>/);
   const transcript = path.join(dir, 'codex.jsonl');
   const message = (role, text) => ({ type: 'response_item', payload: { type: 'message', role, content: [{ type: role === 'user' ? 'input_text' : 'output_text', text }] } });
   fs.writeFileSync(transcript, [
@@ -907,11 +853,9 @@ test('Codex still injects and emits a stop notice when AGENTS instructions menti
     message('assistant', 'Rate limiting lives in src/upload.py:RateLimiter.allow.'),
   ].map(e => JSON.stringify(e)).join('\n') + '\n');
   const stop = () => hook(dir, 'stop', 'codex', { session_id, cwd: dir, transcript_path: transcript }, ['--record', '--no-distill']);
-  const notice = JSON.parse(stop());
-  assert.match(notice.systemMessage, /🧠 thinker: 1 note this turn/);
-  assert.equal(notice.decision, undefined);
+  const notice = stop();
+  assert.ok(!notice || JSON.parse(notice).decision === undefined, 'no decision: the agent stops as it meant to');
   assert.ok(fs.existsSync(path.join(dir, '.thinker/state', `trace-${session_id}.jsonl`)), 'normal session trace is preserved');
-  assert.ok(!stop().includes('note this turn'), 'the notice is emitted once');
 });
 
 test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late notes for the next step, and allow Stop', () => {
@@ -926,7 +870,7 @@ test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late not
 
   // PreInvocation #1 reads USER_INPUT from transcriptPath and injects the cache bundle
   const pre1 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 1 }, ['--record'], env));
-  assert.match(pre1.injectSteps?.[0]?.systemMessage?.systemMessage || '', /<thinker-cache>[\s\S]*RateLimiter\.allow/);
+  assert.match(pre1.injectSteps?.[0]?.systemMessage?.systemMessage || '', /<thinker-profile>[\s\S]*RateLimiter\.allow/);
 
   // Mid-turn PreInvocation #2 (after a planner tool call) does not re-orient
   writeTranscript([
@@ -936,9 +880,7 @@ test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late not
   const pre2 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 2 }, ['--record'], env));
   assert.deepEqual(pre2, {});
 
-  // PostToolUse on editing src/upload.py returns {} and parks the file-anchored invariant note for the next PreInvocation
-  const store = new Store(dir);
-  createNote(store, { title: 'Upload rate limit key invariant', kind: 'invariant', answers: ['stricter rate limiting for the upload endpoint in upload.py'], body: 'In src/upload.py:RateLimiter.allow, reject empty keys before checking upload_endpoint quota.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  // PostToolUse on editing src/upload.py returns {}
   const postTool = JSON.parse(hook(dir, 'tool', 'gemini', {
     conversationId,
     workspacePaths: [dir],
@@ -948,7 +890,7 @@ test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late not
   assert.deepEqual(postTool, {});
 
   const pre3 = JSON.parse(hook(dir, 'prompt', 'gemini', { conversationId, workspacePaths: [dir], transcriptPath: transcript, invocationNum: 3 }, ['--record'], env));
-  assert.match(pre3.injectSteps?.[0]?.systemMessage?.systemMessage || '', /Upload rate limit key invariant/);
+  assert.deepEqual(pre3, {}, 'the profile went in with the first invocation; a tool hook parks nothing now');
 
   // Stop returns {"decision":"allow"} and records the session trace
   const stopRes = JSON.parse(hook(dir, 'stop', 'gemini', {
