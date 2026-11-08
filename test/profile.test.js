@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -126,8 +126,8 @@ test('render fits the budget by dropping the oldest workstreams first and the wa
   const full = renderProfile(profile);
   assert.match(full, /## Working on/); assert.match(full, /When flags: avoid guessing the unit; instead: ask \(1\)/); assert.match(full, /Learned from 12 sessions in this repository, 2026-10-01 to 2026-11-07/);
   assert.ok(full.indexOf('## How this person works') < full.indexOf('## What went wrong before'));
-  const small = renderProfile(profile, { maxChars: 1500 });
-  assert.ok(small.length <= 1500);
+  const small = renderProfile(profile, { maxChars: 1600 });
+  assert.ok(small.length <= 1600);
   assert.match(small, /stream 0/); assert.ok(!small.includes('stream 5'), 'the oldest workstream goes first');
   assert.match(small, /way 0/); assert.match(small, /way 3/, 'the ways of working keep four lines while workingOn has more than three');
   assert.equal(renderProfile(null), '');
@@ -312,4 +312,45 @@ test('through the hooks: the prompt hook puts the block ahead of everything else
   const rows = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
   assert.equal(rows.find(e => e.op === 'session' && e.session === 'h1')?.profile, 'shown');
   assert.equal(rows.filter(e => e.op === 'profile-served').length, 1);
+});
+
+test('skills: an exchange\'s Skill calls and typed skills ride with its observations, and a skills line rests on them', () => {
+  const evs = [
+    { t: 'prompt', text: '<command-name>/code-review</command-name>\n<command-message>code-review</command-message>\n<command-args>high</command-args>' },
+    { t: 'say', text: 'Two findings.' },
+    { t: 'prompt', text: '<command-name>/clear</command-name><command-message>clear</command-message><command-args></command-args>' },
+    { t: 'prompt', text: 'now price the models' },
+    { t: 'tool', name: 'Skill', input: { skill: 'claude-api', args: 'pricing' }, result: 'x' },
+    { t: 'tool', name: 'Skill', input: { skill: 'claude-api' }, result: 'x' },
+    { t: 'say', text: 'Priced.' },
+    { t: 'prompt', text: 'thanks' }, { t: 'say', text: 'ok' },
+  ];
+  const xs = exchanges(evs);
+  assert.deepEqual(xs.map(x => x.prompt), ['/code-review high', 'now price the models', 'thanks'], 'a typed skill is a prompt of its own; a built-in command makes no exchange');
+  assert.deepEqual(xs[0].skills, [{ name: 'code-review', by: 'person' }]);
+  assert.deepEqual(xs[1].skills, [{ name: 'claude-api', by: 'agent' }], 'two calls of one skill in one exchange are one use');
+  assert.match(extractionInput(xs), /SKILLS: \/claude-api \(called by the agent\)/);
+  assert.ok(!extractionInput(xs).includes('pricing'), 'the call\'s arguments never reach the extraction');
+  const obs = observationSkills([{ turn: 2, request: 'b' }, { turn: 1, request: 'a' }], xs);
+  assert.deepEqual(obs.map(o => o.skills.map(k => k.name)), [['claude-api'], ['code-review']], 'in the caller\'s order, each over the exchanges up to the next observation');
+  const now = Date.now();
+  const rows = [
+    { id: 'a', at: iso(now, 3), session: 's1', outcome: 'accepted', request: 'r', skills: [{ name: 'claude-api', by: 'agent' }], prefs: [] },
+    { id: 'b', at: iso(now, 2), session: 's2', outcome: 'corrected', request: 'r', skills: [{ name: 'claude-api', by: 'agent' }], prefs: [] },
+    { id: 'c', at: iso(now, 1), session: 's3', outcome: 'unknown', request: 'r', skills: [], prefs: ['always run /code-review before a PR'] },
+    { id: 'd', at: iso(now, 1), session: 's4', outcome: 'accepted', request: 'r', skills: [{ name: 'dataviz', by: 'agent' }], prefs: [] },
+  ];
+  const s = settle({ skills: [
+    { skill: 'claude-api', text: 'pricing lookups', obs: ['a', 'b'] },
+    { skill: '/code-review', text: 'wanted before every PR', obs: ['c'] },
+    { skill: 'dataviz', text: 'charts', obs: ['d'] },
+    { skill: 'made-up', text: 'x', obs: ['a'] },
+  ] }, rows, { now });
+  assert.deepEqual(s.skills.map(e => [e.id, e.skill, e.count, e.used, e.accepted, e.corrected]), [['s1', 'claude-api', 2, 2, 1, 1], ['s2', 'code-review', 1, 0, 0, 0]],
+    'two sessions, or the person naming the skill; one session of use is not enough; a skill no cited observation ran or named does not exist');
+  const text = renderProfile({ compiledAt: iso(now, 0), window: { sessions: 4 }, sections: { ...Object.fromEntries(SECTIONS.map(k => [k, []])), skills: s.skills } });
+  assert.match(text, /## Skills\n- \/claude-api: pricing lookups \(2 sessions; 1 accepted, 1 corrected\)\n- \/code-review: wanted before every PR \(named in 1 session\)/);
+  assert.match(ledgerText(rows.slice(0, 1)), /skills: \/claude-api \(agent\)/);
+  assert.match(skillTallyText(rows), /^- \/claude-api: 2 sessions, 2 observations; accepted 1, corrected 1$/m);
+  assert.equal(applyPatch({ sections: { workingOn: [] } }, { add: { skills: [{ skill: 'x', text: 'y', obs: ['a'] }] } }).skills.length, 1, 'a profile from before the section takes adds to it');
 });

@@ -686,7 +686,7 @@ read any range: Read with offset and limit</span></pre>
         <h2>Start every session oriented.</h2>
         <p>Thinker learns how you work in each repository and puts that into the first prompt of every session: what you are in the middle of, how you want work done and answers given, what went wrong before and the recent bugs. The agent starts knowing the person it works for, instead of learning it again through corrections.</p>
         <h3>What the profile is</h3>
-        <p>Four short sections, about 1,500 tokens, every line resting on observations from your own sessions and counted in sessions:</p>
+        <p>Five short sections, about 1,500 tokens, every line resting on observations from your own sessions and counted in sessions:</p>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Section</th><th>What it says</th></tr></thead>
@@ -695,6 +695,7 @@ read any range: Read with offset and limit</span></pre>
               <tr><td>How this person works</td><td>How you want work done and answers given: stated preferences first, then corrections repeated across sessions</td></tr>
               <tr><td>What went wrong before</td><td>"When doing X: avoid Y", with your own words quoted, and what you then accepted instead</td></tr>
               <tr><td>Recent bugs</td><td>The symptom, the cause where it was told, and whether the fix was accepted</td></tr>
+              <tr><td>Skills</td><td>Which skills are run here and by whom, what each is used for, and how it went by your reactions</td></tr>
             </tbody>
           </table>
         </div>

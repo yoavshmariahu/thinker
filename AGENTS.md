@@ -711,8 +711,8 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   rewriting form's 189k. One difference to know: built by patches, the recurring patterns ("answer short and plain",
   "validate live, not mocks", "don't call a capability impossible") land in `howWeWork` with their counts (12, 12, 6),
   and `whatFails` holds the specific recent corrections, newest replacing the oldest at the cap; the rewriting form
-  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Four sections: `workingOn`,
-  `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
+  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Five sections: `workingOn`,
+  `howWeWork`, `whatFails`, `recentBugs`, `skills` (below). `whatWorks`
   was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
   on its own it held one line in four that two sessions supported.
 - **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
@@ -738,6 +738,25 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
   file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
   exchanges and no call. The note distiller still reads those files (not changed here).
+- **Skills: which are run here, by whom, and how it went** (2026-11-08, the owner's ask; `exchanges` carries `skills`,
+  `observationSkills`, `skillTally`, the `skills` section). Each exchange records the skills it ran -- the agent's
+  `Skill` call, or a `/skill` the person typed, which Claude Code records as a command block (`clean` strips it, so a
+  prompt that is only the command keeps `/name args` as its text; Claude Code's own commands, `BUILTIN_COMMANDS`, and
+  `thinker-*` are not skills) -- as `{name, by: person|agent}`, two calls of one skill in one exchange being one use.
+  The extraction sees a `SKILLS:` line per exchange, never the call's arguments, and is told a reaction to such an
+  exchange is a reaction to the skill's result; the skills of an observation are attached **by code** from the
+  exchanges it spans, never written by the model. The compile is shown a computed tally per skill (sessions,
+  observations, how many the person typed, outcomes) and the observations that ran a skill that are not otherwise in
+  its sight (at most 40, newest first), and writes one line per skill: what it is used for and what the person said.
+  `settle` keeps a skills line only when a cited observation ran or named the skill (a pref, the request or the
+  reaction), takes its counts from those observations alone (`count` sessions, `used`, `accepted`, `corrected`), and
+  applies the usual floor: two sessions, or the person naming it. Rendered as `/name: text (N sessions; A accepted,
+  C corrected)`, or `(named in N sessions)` where it never ran; trimmed after the bugs (to three), before what went
+  wrong. Measured on this machine before it was built: 22 of 396 sessions in 60 days ran a skill (29 calls), and on
+  the ledger 18 of 116 sessions, `plugin-authoring` corrected 4 of 7 and `dataviz` 2 of 6 -- so the section is often
+  empty and that is right. `thinker profile backfill [--dry]` attaches skills to rows read before the ledger recorded
+  them, from the transcripts' SKILLS lines by turn, no model call (676 rows here). Codex and Cursor sessions carry no
+  skill calls yet. Not done: the skills available and never run, which the Find Savings rows already measure.
 - **Rendered** (`renderProfile`, `profileBlock`) within about 1500 tokens (`renderChars`, the owner's call on 2026-11-08 after seeing what 1000 dropped; 800 until that day, when
   the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
   the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest

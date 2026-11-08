@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
+import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
 import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
@@ -31,16 +31,17 @@ async function profileCommand(ctx) {
   if (sub === 'show') {
     const p = readProfile(store);
     if (flags.json) { out(JSON.stringify(p, null, 2)); return; }
-    if (!p) { out(`no profile yet${cfg.enabled ? '' : ' (learn.mode is not "profile": the sessions here are distilled into notes)'}; thinker profile rebuild --days 30 builds one from this repository's recent sessions`); return; }
+    if (!p) { out(`no profile yet${cfg.enabled ? '' : ' (the profile is off here: learn.profile is false)'}; thinker profile rebuild --days 30 builds one from this repository's recent sessions`); return; }
     const rows = readLedger(store);
     out(renderProfile(p));
     out('');
     if (flags.why) { // each entry with the observations it cites: what the person asked and said
       const byId = new Map(rows.map(r => [r.id, r]));
       for (const s of SECTIONS) for (const e of p.sections[s] || []) {
-        out(`${s}: ${e.text || `when ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}`}`);
+        out(`${s}: ${e.skill ? `/${e.skill}: ${e.text}` : e.text || `when ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}`}`);
         for (const id of e.obs) { const r = byId.get(id); if (!r) { out(`    ${id} (not in the window)`); continue; } out(`    ${r.at.slice(0, 10)} ${r.outcome.padEnd(10)} ${r.request.slice(0, 110)}${r.reaction ? `\n        reaction: "${r.reaction}"` : ''}${r.lesson ? `\n        lesson: ${r.lesson}` : ''}${r.prefs?.length ? `\n        prefs: ${r.prefs.join(' | ')}` : ''}`); }
       }
+      const tally = skillTallyText(rows); if (tally) out(`skill use in the window:\n${tally}`);
       out('');
     }
     out(`compiled ${p.compiledAt.slice(0, 19).replace('T', ' ')} with ${p.model || 'an unknown model'} from ${p.window.observations} observations of ${p.window.sessions} sessions · ${rows.filter(r => Date.parse(r.at) > Date.parse(p.compiledAt)).length} new since · ${compileDue(store) ? 'a compile is due' : 'no compile due'} · mode ${cfg.enabled ? 'profile' : 'notes'} · models ${profileModels({ config: cfg }).join(' → ')}`);
@@ -97,6 +98,24 @@ async function profileCommand(ctx) {
     out(`${r.observations.length} observations from ${r.exchanges} exchanges${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}${r.compiled ? '; profile compiled' : ''}`);
     return;
   }
+  if (sub === 'backfill') {
+    // skills onto the rows read before the ledger recorded them (2026-11-08): each session's transcript is read again
+    // for its SKILLS lines alone and the rows take theirs by turn; no model call, idempotent
+    const rows = readLedger(store);
+    const files = new Map(repoSessions(store, { sinceMs: (PROFILE.ledgerDays + 30) * 86400_000 }).map(s => [s.session, s]));
+    const bySession = new Map(); for (const r of rows) { if (!bySession.has(r.session)) bySession.set(r.session, []); bySession.get(r.session).push(r); }
+    let changed = 0, withSkills = 0, missing = 0;
+    for (const [session, group] of bySession) {
+      const s = files.get(session); if (!s || s.client === 'trace') { missing++; continue; }
+      let xs; try { xs = exchanges(parseTranscript(s.file).events); } catch { missing++; continue; }
+      const next = observationSkills(group, xs);
+      group.forEach((r, i) => { if (JSON.stringify(r.skills || null) !== JSON.stringify(next[i].skills)) { r.skills = next[i].skills; changed++; } if (next[i].skills.length) withSkills++; });
+    }
+    if (changed && !flags.dry) writeLedger(store, rows);
+    out(`${rows.length} observations from ${bySession.size} sessions: ${withSkills} ran a skill, ${changed} rows ${flags.dry ? 'would change' : 'changed'}${missing ? `, ${missing} sessions with no transcript to read` : ''}`);
+    const tally = skillTallyText(rows); if (tally) out(tally);
+    return;
+  }
   if (sub === 'rebuild') {
     const days = Number(flags.days) || 30, max = Number(flags.max) || 60;
     const done = flags.again ? {} : extracted(store);
@@ -135,7 +154,7 @@ async function profileCommand(ctx) {
     }
     return;
   }
-  out(`thinker profile [show [--why]|ledger|holdout|compile [--full]|extract <transcript>|rebuild] (sections: ${SECTIONS.join(', ')})`);
+  out(`thinker profile [show [--why]|ledger|holdout|compile [--full]|extract <transcript>|rebuild|backfill [--dry]] (sections: ${SECTIONS.join(', ')})`);
   process.exitCode = 2;
 }
 
