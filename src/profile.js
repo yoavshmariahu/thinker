@@ -32,7 +32,8 @@ export const PROFILE = {
   recentBugDays: 14,
   rebaseDays: 30,
   holdoutRate: 0.5,     // half the sessions, not the notes' 15%: see `profileHoldoutRate`
-  holdoutMinObs: 380,   // observations a side needs before the holdout says anything (a 30% change at this rate)
+  holdoutMinObs: 200,   // exchanges a side needs before the holdout says anything: at the pre-profile recurrence of 0.116 an exchange, a halving reads at ~480 a side, and under 200 the interval is noise either way
+  priorMax: 200,        // earlier statements the extractor is shown for recurrence, newest first
   holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6 },
@@ -163,7 +164,11 @@ Judging the profile the session was shown:
   - ignored: the line plainly applied to what was being done and the agent did not act on it. Not "the agent did not mention it" -- a line can be followed silently; the evidence must be that the agent did the thing the line told it not to do, or failed to do the thing the line asked for, in work the line clearly covered.
   - contradicted: the agent did the opposite and the person had to correct it. This is the strongest evidence a line is not working.
   - na: the line had no bearing on this session. **This is the default.** Most lines have nothing to do with most sessions, and marking those ignored would make every line look dead. Prefer na whenever you are unsure whether the line applied.
-- A line the person restated in their own prompt was not followed from the profile; that is the person doing the profile's job, which is worth knowing. Mark it ignored and quote their prompt.`;
+- A line the person restated in their own prompt was not followed from the profile; that is the person doing the profile's job, which is worth knowing. Mark it ignored and quote their prompt.
+Recurrence -- the person saying again what they have said before:
+- You may be given SAID BEFORE: things this person stated or corrected in earlier sessions, each with an id. Some are lines of the profile; most are single earlier statements. For each observation, repeats lists the ids it says again: a pref that restates one, a lesson or a correction that corrects the same thing, a request that re-asks for the same way of working. The same thing in other words is a repeat; a different thing on the same topic is not.
+- This is the profile's own score. The profile exists so that the person never has to say the same thing twice, and every repeat is one time they did. Be exact: a repeat you invent charges the profile with a failure it did not make, and one you miss hides one it did.
+- Whether the agent was shown the profile changes nothing here. The question is only whether the person said it again.`;
 
 export const OBSERVATION_SCHEMA = {
   type: 'object',
@@ -197,6 +202,7 @@ export const OBSERVATION_SCHEMA = {
           reaction: { type: 'string', description: 'the follow-up prompt that decided the outcome, quoted short; empty for unknown' },
           lesson: { type: 'string' },
           prefs: { type: 'array', items: { type: 'string' } },
+          repeats: { type: 'array', items: { type: 'string' }, description: 'ids from SAID BEFORE that this exchange\'s prefs, lesson or correction repeat: the person said or corrected the same thing again. Empty when nothing here was said before.' },
           topics: { type: 'array', items: { type: 'string' } },
           bug: { type: 'string' },
         },
@@ -218,6 +224,7 @@ export function tidyObservation(o) {
     request, kind: KINDS.includes(o.kind) ? o.kind : 'other',
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
     reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40), bug: str(o.bug, 300),
+    repeats: list(o.repeats, 12, 60),
   };
 }
 
@@ -229,17 +236,25 @@ export function observationTimes(observations, xs) {
 }
 
 // One session's observations. `completeFn` is for tests; `have` and `config` pick the model ladder.
-export async function extractObservations(events, { repoHint = '', ended = true, shown = [], accounting, completeFn, have, config } = {}) {
+export async function extractObservations(events, { repoHint = '', ended = true, shown = [], prior = [], accounting, completeFn, have, config } = {}) {
   const xs = exchanges(events);
   if (!xs.length) return { observations: [], lines: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
   const input = extractionInput(xs);
+  // What this person has said before, so the same call can mark what they said again (`repeats`). Against the
+  // ledger and not the profile alone: a profile that learned nothing would otherwise score perfectly, since the
+  // only repeats it could see would be of lines it holds (survivorship, the owner's point, 2026-11-08).
+  const said = prior.length ? `\nSAID BEFORE (${prior.length}; the profile's lines first, then single earlier statements):\n${prior.map(p => `[${p.id}] ${p.text}`).join('\n')}\n` : '';
   // The lines this session was shown, so the same call that reads the session can say what was done with each.
   // One call, not two: the extractor already has the whole session in front of it, and a second call would
   // double what a session costs to read for a signal that rides along for a few hundred tokens.
   const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] ${l.text}`).join('\n')}\n` : '';
-  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}.`;
+  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${said}${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}${prior.length ? ', each observation\'s `repeats` naming the SAID BEFORE ids it says again' : ''}.`;
   const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
-  const observations = observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean), xs);
+  // a repeat names only an id that was offered, and the row keeps which kind it was: a profile line (the serving
+  // failed) or a single earlier statement (the compile never learned it)
+  const known = new Map(prior.map(p => [p.id, p]));
+  const tag = o => { const ids = (o.repeats || []).filter(id => known.has(id)); return { ...o, repeats: { profile: ids.filter(id => known.get(id).inProfile), ledger: ids.filter(id => !known.get(id).inProfile) } }; };
+  const observations = observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean).map(tag), xs);
   const ok = new Set(shown.map(l => l.id));
   const seen = new Set();
   // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
@@ -269,6 +284,43 @@ export function readLedger(store, { days = PROFILE.ledgerDays, now = Date.now() 
   for (const l of lines) { if (!l) continue; try { const o = JSON.parse(l); if (o?.id && Number.isFinite(Date.parse(o.at)) && dayOf(o.at, now) <= days) out.push(o); } catch {} }
   return out;
 }
+// --- what this person has said before --------------------------------------
+// The reference for recurrence (`repeats` on an observation): the profile's lines and, behind them, every distinct
+// preference and lesson in the ledger that another session recorded. The ledger and not the profile alone, because
+// the profile is what survived the compile's floors, caps and trim -- a profile that learned nothing would be
+// repeated against nothing and score perfectly. Newest first, deduped on the words, capped at `priorMax` so the
+// block stays a few thousand tokens; a session's own earlier rows are left out (the same session saying a thing
+// twice is one session, not a recurrence across sessions).
+const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+export function priorStatements(store, { session = null, profile = null, rows = null, max = PROFILE.priorMax, now = Date.now() } = {}) {
+  const out = [], seen = new Set();
+  const add = (id, text, inProfile) => { const k = norm(text); if (!k || k.length < 12 || seen.has(k)) return; seen.add(k); out.push({ id, text: String(text).slice(0, PROFILE.textChars), inProfile }); };
+  const prof = profile || readProfile(store);
+  // the entry's own words, not the rendered line: the count and dates on a line would keep the same words from matching
+  for (const sec of ['howWeWork', 'whatFails']) for (const e of (prof?.sections?.[sec] || [])) if (e.id) add(e.id, sec === 'whatFails' ? `When ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}` : e.text, true);
+  const ledger = (rows || readLedger(store, { now })).filter(r => !session || r.session !== session).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const r of ledger) {
+    if (out.length >= max) break;
+    (r.prefs || []).forEach((t, i) => add(`${r.id}#p${i}`, t, false));
+    if (r.lesson) add(`${r.id}#l`, r.lesson, false);
+  }
+  return out.slice(0, max);
+}
+// The recurrences in a set of ledger rows: how often the person said again what they had said before, per
+// exchange, and of those how many were of a line the profile held (`served`: the agent had it and the person
+// still had to say it) against a statement the profile never learned (`unlearned`). An observation with a
+// repeat of both kinds counts once, as served. Rows from before `repeats` was extracted carry none and are
+// counted as exchanges with no recurrence, which understates the rate for them: `measured` says how many
+// rows could say.
+export function recurrence(rows) {
+  const measured = rows.filter(r => r.repeats && typeof r.repeats === 'object');
+  const n = measured.length;
+  const served = measured.filter(r => r.repeats.profile?.length).length;
+  const unlearned = measured.filter(r => !r.repeats.profile?.length && r.repeats.ledger?.length).length;
+  const any = served + unlearned;
+  return { exchanges: n, measured: n, recurrences: any, served, unlearned, rate: n ? any / n : null, servedRate: n ? served / n : null, unlearnedRate: n ? unlearned / n : null };
+}
+
 // --- what a session did with the lines it was shown ----------------------
 // The first question about a line is not whether it improved anything, it is whether the agent used it. A note
 // was assessed that way from the start (`confirmed` / `unused` / `contradicted` per serving) and the profile had
@@ -694,8 +746,24 @@ export function holdoutReport(rows, { sessions = new Map(), boots = 2000, seed =
     const units = [...seen].map(id => ({ id, exchanges: a.filter(r => r.session === id).length, ...(sessions.get(id) || {}) })).filter(u => u.tokens > 0);
     return { sessions: seen.size, observations: n, perSession: seen.size ? n / seen.size : null, rate: n ? a.filter(bad).length / n : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted'), priced: units.length, ...perExchange(units), interval: ratioInterval(units, { boots, seed }) };
   };
-  const shown = side(arms.shown), holdout = side(arms.holdout);
-  return { shown, holdout, unknown: side(arms.unknown), ...compare(shown, holdout, { boots, seed }) };
+  const shown = { ...side(arms.shown), recurrence: recurrence(arms.shown) }, holdout = { ...side(arms.holdout), recurrence: recurrence(arms.holdout) };
+  const unknown = { ...side(arms.unknown), recurrence: recurrence(arms.unknown) };
+  // The lead is recurrence (2026-11-08, the owner's call): the profile exists so the person never has to say the
+  // same thing twice, and `servedRate` is how often they did with the agent holding the line. `unlearnedRate` is
+  // the same across arms by construction, since the agent saw the statement in neither; a gap there is the
+  // extractor's, not the profile's. Cost per exchange stays as the second figure (`cost`).
+  return { shown, holdout, unknown, recurrence: compareRates(shown.recurrence, holdout.recurrence), cost: compare(shown, holdout, { boots, seed }) };
+}
+// Two proportions over exchanges, shown less held out, with a 95% interval: negative is the profile working.
+export function compareRates(a, b, { key = 'servedRate', n = 'measured', min = PROFILE.holdoutMinObs } = {}) {
+  const enough = a[n] >= min && b[n] >= min;
+  if (a[key] == null || b[key] == null) return { delta: null, ci: null, relative: null, enough: false, verdict: 'too-early' };
+  const delta = a[key] - b[key];
+  const v = (p, k) => k ? p * (1 - p) / k : 0;
+  const se = Math.sqrt(v(a[key], a[n]) + v(b[key], b[n]));
+  const ci = [delta - 1.96 * se, delta + 1.96 * se];
+  const verdict = !enough ? 'too-early' : ci[1] < 0 ? 'fewer' : ci[0] > 0 ? 'more' : 'inconclusive';
+  return { delta, ci, relative: b[key] ? delta / b[key] : null, enough, verdict, unlearned: { shown: a.unlearnedRate, holdout: b.unlearnedRate } };
 }
 // Tokens (and dollars, where every stratum is priced) an exchange costs: a ratio of sums inside each model, the
 // strata pooled by their exchanges. `units` is one object a session: {exchanges, tokens, cost, model}.
@@ -760,13 +828,15 @@ export async function profileSession(store, events, { session, client, repoHint,
   const shown = seen.size && prof?.sections
     ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id)).map(e => ({ id: e.id, text: line(sec, e) })))
     : [];
-  const r = await extractObservations(events, { repoHint, ended, shown, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
+  const prior = priorStatements(store, { session, profile: prof, now });
+  const r = await extractObservations(events, { repoHint, ended, shown, prior, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
   const dirs = sessionDirs(events, store.repo);
   const arm = profileArmOf(store, session);
   const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
   const verdicts = appendLineVerdicts(store, r.lines, { session, client, model: r.model, now });
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
-  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
+  const rec = recurrence(rows);
+  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, repeats: rec.recurrences || undefined, repeatsServed: rec.served || undefined, repeatsUnlearned: rec.unlearned || undefined, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });

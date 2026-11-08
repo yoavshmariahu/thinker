@@ -1072,6 +1072,29 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   unbalanced split is for catching a regression in something already known to work, which is where this goes when it
   ships. `verdict` is `cheaper` / `costlier` / `inconclusive` / `too-early` off the interval, never a p-value dressed
   as a decision.
+- **The lead measure is recurrence: the person saying again what they said before** (2026-11-08, the owner's
+  call; `repeats` on every observation, `priorStatements`, `recurrence`, `compareRates`; `thinker profile holdout`
+  leads with it). The profile's own counts said what the goal is: in 23 days here "answer short and plain" was
+  said in 17 sessions, "validate fixes live" in 13, "work in a worktree" in 8 -- **80 repeats across 118
+  sessions**, one in every nine exchanges spent telling a fresh agent what the last one was told. The profile
+  exists so that never happens, so its score is how often it still does. Why this and not cost: it is the
+  mechanism itself, not an echo of it, so the expected effect is large (the agent has the literal line) where
+  cost-per-exchange was hunting for 3-12%; the direction is unambiguous; a novel mistake is out of scope by
+  construction; and "did the person say X again" is read from the prompts alone, in the call that already runs,
+  and is a far surer judgement than "did the agent follow X".
+  - **Against the ledger, not the profile** (the owner's point, the same day): the profile is what survived the
+    compile's two-session floor, per-section caps and trim, so a repeat judged only against its lines would never
+    see what the compile failed to learn -- a profile that learned nothing would score perfectly. The extractor is
+    shown the profile's lines and, behind them, every distinct preference and lesson another session recorded
+    (`priorMax` 200, newest first, the session's own rows left out), and each repeat is kept as `profile` (a line
+    held it: the serving failed) or `ledger` (no line held it: the compile failed). Both count. The residual
+    survivorship is the ledger's own: what the extractor missed the first time, or outside the 60-day window.
+  - **`servedRate` is the holdout's question, `unlearnedRate` is a check on the extractor.** The agent saw the
+    unlearned statement in neither arm, so that rate must come out the same on both sides; a gap there is the
+    judge drifting, not the profile. Rows from before `repeats` was extracted are not measured (`measured`), so
+    the pre-profile baseline is the held-out arm, not the old ledger; `thinker profile rebuild` re-reads sessions
+    with the field if a backfilled baseline is ever wanted.
+  - Cost per exchange stays as the second figure, read the same way.
 - **Corrections are a diagnostic, not the measure** (the same day). They were the headline for a day and should not
   have been: they are a proxy for cost where the cost itself is measurable, and `redirected` does not mean what the
   metric needed it to. Hand-read against the ledger's quoted reactions, `corrected` (141 rows) is clean, but of 12

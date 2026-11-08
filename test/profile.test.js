@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, applyPatch, relatedCited, compare, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, applyPatch, relatedCited, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -275,7 +275,8 @@ test('the block goes into a shown session\'s first prompt and again after a comp
   const h = holdoutReport([...readLedger(store), { id: 'x', session: 'sC', arm: 'shown', outcome: 'accepted' }, { id: 'y', session: 'sC', arm: 'shown', outcome: 'corrected' }]);
   assert.equal(h.holdout.sessions, 1); assert.equal(h.holdout.corrected, 1); assert.equal(h.shown.observations, 2); assert.equal(h.shown.corrected, 0.5); assert.equal(h.unknown.observations, 1, 's0 was read before any arm');
   assert.equal(h.shown.rate, 0.5, 'corrections stay on the report as a diagnostic');
-  assert.equal(h.verdict, 'too-early', 'with no priced session on either side there is nothing to compare');
+  assert.equal(h.cost.verdict, 'too-early', 'with no priced session on either side there is nothing to compare');
+  assert.equal(h.recurrence.verdict, 'too-early', 'and with no measured exchanges no recurrence either');
   // off: nothing, whatever the state
   fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), '{}');
   assert.equal(profileTurn(new Store(dir), 'sD', {}), '', 'learn.mode off: no block');
@@ -337,6 +338,56 @@ test('a session is assessed per profile line it was shown: the ids it saw, the v
   // a session shown nothing is asked nothing about lines
   const r2 = await profileSession(store, session, { session: 'fresh', client: 'codex', compile: false, have: ['claude'], completeFn: async ({ prompt }) => { assert.ok(!/THE PROFILE THIS SESSION WAS SHOWN/.test(prompt)); return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } });
   assert.deepEqual(r2.lines, []);
+});
+
+// The lead metric: the person saying again what they said before (2026-11-08, the owner's call). Against the
+// ledger and not the profile alone, since the profile is what survived the compile: a profile that learned nothing
+// would be repeated against nothing and score perfectly.
+test('recurrence is judged against everything said before, split by whether a line held it, and compared by arm', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-recur-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ learn: { mode: 'profile' } }));
+  const store = new Store(dir);
+  const now = Date.now();
+  // two earlier sessions: one preference the compile kept as a line, one lesson it never learned
+  appendObservations(store, [fakeObs({ prefs: ['answer short and plain'], lesson: '' })], { session: 'old1', now: now - 2 * 86400_000 });
+  appendObservations(store, [fakeObs({ prefs: [], lesson: 'Validate the fix in the installed app before calling it done' })], { session: 'old2', now: now - 86400_000 });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'Answer short and plain', obs: readLedger(store).filter(r => r.session === 'old1').map(r => r.id) }], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }) });
+  const prior = priorStatements(store, { session: 'new', now });
+  assert.equal(prior[0].id, 'h1'); assert.equal(prior[0].inProfile, true, 'the profile\'s lines come first');
+  const lesson = prior.find(p => /installed app/.test(p.text));
+  assert.ok(lesson && !lesson.inProfile, 'a statement the compile never learned is still something said before');
+  assert.ok(!prior.some(p => /answer short and plain/i.test(p.text) && !p.inProfile), 'the same words are listed once, as the line');
+  assert.deepEqual(priorStatements(store, { session: 'old1', now }).filter(p => p.id.startsWith('obs-')).map(p => p.text), [lesson.text], 'a session\'s own rows are not its own prior');
+  // the extraction names what was said again, and the row keeps which kind
+  let asked = null;
+  const r = await profileSession(store, session, { session: 'new', client: 'codex', compile: false, have: ['claude'],
+    completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [
+      fakeObs({ turn: 1, request: 'a', prefs: ['keep it short'], repeats: ['h1'] }),
+      fakeObs({ turn: 2, request: 'b', lesson: 'test it in the real app', repeats: [lesson.id, 'made-up'] }),
+      fakeObs({ turn: 3, request: 'c', repeats: [] }),
+    ] }, model: 'fake-opus' }; } });
+  assert.match(asked, /SAID BEFORE \(2;/, 'the call carries what was said before');
+  assert.match(asked, /\[h1\] Answer short and plain/);
+  assert.deepEqual(r.observations.map(o => o.repeats), [{ profile: ['h1'], ledger: [] }, { profile: [], ledger: [lesson.id] }, { profile: [], ledger: [] }], 'an id never offered is dropped');
+  const rec = recurrence(r.observations);
+  assert.deepEqual([rec.measured, rec.recurrences, rec.served, rec.unlearned], [3, 2, 1, 1]);
+  assert.ok(Math.abs(rec.rate - 2 / 3) < 1e-9 && Math.abs(rec.servedRate - 1 / 3) < 1e-9);
+  assert.equal(recurrence([{ repeats: { profile: ['h1'], ledger: ['x'] } }]).served, 1, 'a repeat of both kinds counts once, as served');
+  assert.equal(recurrence(readLedger(store).filter(x => x.session === 'old1')).measured, 0, 'a row from before repeats were extracted is not measured');
+  // the arms: served is the profile\'s to answer for, unlearned the compile\'s and the same on both sides
+  const side = (n, served, unlearned) => ({ measured: n, servedRate: served / n, unlearnedRate: unlearned / n });
+  assert.equal(compareRates(side(400, 20, 40), side(400, 60, 40)).verdict, 'fewer');
+  assert.equal(compareRates(side(400, 60, 40), side(400, 20, 40)).verdict, 'more');
+  assert.equal(compareRates(side(400, 40, 40), side(400, 44, 40)).verdict, 'inconclusive');
+  assert.equal(compareRates(side(50, 2, 4), side(50, 10, 4)).verdict, 'too-early', 'the floor comes first');
+  const c = compareRates(side(400, 20, 40), side(400, 60, 40));
+  assert.ok(c.ci[0] < c.delta && c.delta < c.ci[1] && c.ci[1] < 0);
+  assert.ok(Math.abs(c.relative + 2 / 3) < 1e-9, 'relative to the held-out rate');
+  assert.deepEqual(c.unlearned, { shown: 0.1, holdout: 0.1 });
+  const h = holdoutReport([...r.observations.map(o => ({ ...o, arm: 'shown', session: 'new' }))]);
+  assert.equal(h.shown.recurrence.served, 1); assert.equal(h.recurrence.verdict, 'too-early');
 });
 
 test('the profile holdout is 50/50, and the report judges cost per exchange', t => {

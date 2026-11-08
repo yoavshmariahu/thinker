@@ -94,29 +94,31 @@ async function profileCommand(ctx) {
       sessions.set(id, { tokens, cost, model: e.model || '?', prompts: e.turns || 0 });
     }
     const h = holdoutReport(rows, { sessions });
-    const report = { days, metric: 'tokens per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, delta: h.delta, ci: h.ci, relative: h.relative, corrections: h.corrections, enough: h.enough, verdict: h.verdict, rate: Math.round(100 * profileHoldoutRate(store)) };
+    const report = { days, metric: 'recurrence per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, recurrence: h.recurrence, cost: h.cost, rate: Math.round(100 * profileHoldoutRate(store)) };
     if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
-    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
+    const pct = v => v == null ? '–' : `${(100 * v).toFixed(1)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`;
     const tk = v => v == null ? '–' : formatTokens(v), dol = v => v == null ? '–' : `$${v.toFixed(2)}`;
+    const rel = c => c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`;
     out(`profile holdout over ${days} days, ${report.rate}% of sessions held out (shown the profile against shown nothing)`);
     out('');
-    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'priced'.padStart(6)} ${'exch.'.padStart(6)} ${'TOKENS/EXCHANGE'.padStart(15)} ${'$/exch.'.padStart(8)} ${'corrected'.padStart(9)}`);
-    for (const arm of ['shown', 'holdout']) { const x = report[arm]; out(`${arm.padEnd(8)} ${String(x.sessions).padStart(8)} ${String(x.priced).padStart(6)} ${String(x.exchanges).padStart(6)} ${tk(x.tokens).padStart(15)} ${dol(x.cost).padStart(8)} ${pct(x.rate).padStart(9)}`); }
+    out('RECURRENCE: the person saying again what they said before, per exchange');
+    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'exch.'.padStart(6)} ${'SAID AGAIN'.padStart(10)} ${'of a line'.padStart(10)} ${'unlearned'.padStart(10)}`);
+    for (const arm of ['shown', 'holdout']) { const x = report[arm], r = x.recurrence; out(`${arm.padEnd(8)} ${String(x.sessions).padStart(8)} ${String(r.measured).padStart(6)} ${pct(r.rate).padStart(10)} ${pct(r.servedRate).padStart(10)} ${pct(r.unlearnedRate).padStart(10)}`); }
+    const r = h.recurrence;
+    out(`of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}${rel(r)}`);
+    out({
+      'too-early': `  too early: each side needs ${PROFILE.holdoutMinObs} measured exchanges (shown ${h.shown.recurrence.measured}, held out ${h.holdout.recurrence.measured})`,
+      inconclusive: '  inconclusive: the interval straddles zero, so this window cannot tell the profile from nothing',
+      fewer: '  FEWER repeats with the profile, over the whole interval: the agent holding the line spared the person saying it',
+      more: '  MORE repeats with the profile, over the whole interval: something is wrong, read `thinker profile lines --why`',
+    }[r.verdict]);
+    out('  "unlearned" is a repeat of something no line holds: the same in both arms by construction, and the compile\'s to fix, not the serving\'s.');
     out('');
-    const rel = h.relative == null ? '' : ` (${h.relative > 0 ? '+' : ''}${Math.round(100 * h.relative)}%)`;
-    out(`tokens per exchange, shown less held out: ${h.delta == null ? '–' : (h.delta > 0 ? '+' : '-') + tk(Math.abs(h.delta))}${rel}`);
-    if (h.ci) out(`  95% interval: ${h.delta > 0 ? '' : ''}${tk(h.ci[0])} to ${tk(h.ci[1])} (bootstrapped within each model)`);
-    const says = {
-      'too-early': `too early: each side needs ${PROFILE.holdoutMinSessions} priced sessions (shown ${h.shown.priced}, held out ${h.holdout.priced})`,
-      inconclusive: 'inconclusive: the interval straddles zero, so this window cannot tell the profile from nothing',
-      cheaper: 'CHEAPER per exchange with the profile, over the whole interval',
-      costlier: 'COSTLIER per exchange with the profile, over the whole interval: stop serving it',
-    };
-    out(says[h.verdict]);
-    out('');
-    out(`the profile costs about ${tk(PROFILE.renderChars / 4)} a call, so it pays for itself only by making the work`);
-    out('shorter. corrections per exchange is beside the measure as a diagnostic, never instead of it.');
-    if (h.corrections != null) out(`corrections, shown less held out: ${(h.corrections > 0 ? '+' : '') + (100 * h.corrections).toFixed(1)}pp`);
+    out('COST per exchange, stratified by model');
+    out(`${'arm'.padEnd(8)} ${'priced'.padStart(6)} ${'exch.'.padStart(6)} ${'tokens/exch.'.padStart(12)} ${'$/exch.'.padStart(8)} ${'corrected'.padStart(9)}`);
+    for (const arm of ['shown', 'holdout']) { const x = report[arm]; out(`${arm.padEnd(8)} ${String(x.priced).padStart(6)} ${String(x.exchanges).padStart(6)} ${tk(x.tokens).padStart(12)} ${dol(x.cost).padStart(8)} ${pct(x.rate).padStart(9)}`); }
+    const c = h.cost;
+    out(`tokens per exchange, shown less held out: ${c.delta == null ? '–' : (c.delta > 0 ? '+' : '-') + tk(Math.abs(c.delta))}${rel(c)}${c.ci ? `, 95% ${tk(c.ci[0])} to ${tk(c.ci[1])}` : ''}; ${c.verdict}`);
     if (h.unknown.observations) out(`\n${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
     return;
   }
