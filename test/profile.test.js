@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, applyPatch, relatedCited, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -133,20 +133,29 @@ test('render fits the budget by dropping the oldest workstreams first and the wa
   assert.equal(renderProfile(null), '');
 });
 
-test('compile is due after ten new observations or three days with any, and first after three', t => {
+test('compile is due whenever something new was read into the ledger, and first after one observation', t => {
   const { store } = tmpRepo(t);
   const now = Date.now();
   assert.equal(compileDue(store, { now }), false);
-  appendObservations(store, [fakeObs(), fakeObs({ turn: 2 }), fakeObs({ turn: 3 })], { session: 's1', at: iso(now, 1), now });
-  assert.equal(compileDue(store, { now }), true);
+  appendObservations(store, [fakeObs()], { session: 's1', at: iso(now, 1), now });
+  assert.equal(compileDue(store, { now }), true, 'one observation makes the first compile due');
   fs.mkdirSync(path.join(store.localDir, 'profile'), { recursive: true });
-  fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify({ compiledAt: iso(now, 0.5), sections: {} }));
+  fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify({ compiledAt: new Date(now + 1).toISOString(), sections: {} }));
   assert.equal(compileDue(store, { now }), false, 'nothing new since the compile');
-  appendObservations(store, [fakeObs({ turn: 4 })], { session: 's2', at: iso(now, 0.1), now });
-  assert.equal(compileDue(store, { now }), false, 'one new observation, hours old');
-  assert.equal(compileDue(store, { now: now + 3 * DAY }), true, 'three days on, anything new is due');
-  appendObservations(store, Array.from({ length: 10 }, (_, i) => fakeObs({ turn: 10 + i })), { session: 's3', at: iso(now, 0.1), now });
-  assert.equal(compileDue(store, { now }), true);
+  appendObservations(store, [fakeObs({ turn: 4, at: iso(now, 20) })], { session: 's2', now: now + 60_000 });
+  assert.equal(compileDue(store, { now: now + 60_000 }), true, 'a session read after the compile is due, however old the session');
+});
+
+test('a patch is merged into the profile as it stands: silence keeps, update adds evidence and changes named fields, drop removes, add appends', () => {
+  const previous = { sections: { workingOn: [{ id: 'w1', text: 'old stream', obs: ['a'] }], howWeWork: [{ id: 'h1', text: 'never push main', obs: ['a', 'b'] }, { id: 'h2', text: 'dup', obs: ['c'] }], whatFails: [{ id: 'f1', when: 'flags', avoid: 'guessing', obs: ['a'] }], recentBugs: [] } };
+  const out = applyPatch(previous, { keep: ['w1'], update: [{ id: 'h1', obs: ['d', 'a'] }, { id: 'f1', instead: 'ask', obs: [] }, { id: 'zz', obs: ['x'] }], drop: [{ id: 'h2', reason: 'says what h1 says' }], add: { workingOn: [{ text: 'new stream', obs: ['d'] }], howWeWork: [], whatFails: [], recentBugs: [] } });
+  assert.deepEqual(out.workingOn.map(e => e.text), ['old stream', 'new stream']);
+  assert.deepEqual(out.howWeWork.map(e => e.text), ['never push main'], 'the drop removed the duplicate');
+  assert.deepEqual(out.howWeWork[0].obs, ['a', 'b', 'd'], 'an update adds its observations once');
+  assert.equal(out.whatFails[0].instead, 'ask'); assert.equal(out.whatFails[0].avoid, 'guessing', 'fields not named stay');
+  assert.deepEqual(applyPatch(null, { add: { workingOn: [{ text: 'x', obs: ['a'] }] } }).workingOn.length, 1, 'from nothing, every entry is an add');
+  const rows = [{ id: 'a', at: '2026-11-01T00:00:00Z', topics: ['proxy'], dirs: ['src'] }, { id: 'b', at: '2026-11-02T00:00:00Z', topics: ['site'], dirs: ['site'] }, { id: 'n', at: '2026-11-03T00:00:00Z', topics: ['Proxy'], dirs: [] }];
+  assert.deepEqual(relatedCited(previous, [rows[2]], rows).map(r => r.id), ['a'], 'the evidence shown is what shares a topic or directory with the new rows');
 });
 
 test('a session end to end: observations into the ledger, a compile when due, the previous profile to history, and the block', async t => {
@@ -159,20 +168,21 @@ test('a session end to end: observations into the ledger, a compile when due, th
     const ids = readLedger(store).map(r => r.id);
     assert.match(opts.prompt, /AGENTS\.md: Pull requests/, 'the compile sees the instruction files\' headings');
     assert.match(opts.prompt, /obs-[0-9a-f]{10} \| \d{4}-\d{2}-\d{2} \| feature \| outcome=corrected \| dirs=src,src\/commands/);
-    return { json: { sections: { ...sections, workingOn: [{ ...sections.workingOn[0], obs: [ids[0]] }], whatFails: [{ ...sections.whatFails[0], obs: [ids[0]] }] } }, model: 'fake-opus', tokens: { totalTokens: 20 } };
+    assert.match(opts.prompt, /PROFILE SO FAR \(compiled never\)/);
+    return { json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [{ ...sections.workingOn[0], obs: [ids[0]] }], whatFails: [{ ...sections.whatFails[0], obs: [ids[0]] }] } }, model: 'fake-opus', tokens: { totalTokens: 20 } };
   };
   const r = await profileSession(store, session, { session: 's1', client: 'claude', repoHint: dir, completeFn, have: ['claude'] });
   assert.equal(r.observations.length, 3);
   assert.ok(seen && !seen.includes('src/report.js') && seen.includes('[2] USER: No, it should take a date'), 'the extraction reads prompts and answers only');
   assert.ok(r.compiled, 'three observations make the first compile due');
   const p = readProfile(store);
-  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.sections.whatFails[0].id, 'f1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
   assert.match(block, /^<thinker-profile>\n/); assert.match(block, /When adding a flag: avoid guessing its unit/); assert.match(block, /Learned from 1 sessions/);
   // nothing new since the compile: nothing to do, unless the whole window is asked for again
   assert.match((await compileProfile(store, { completeFn: async () => { throw new Error('not called'); }, have: ['claude'] })).skipped, /nothing new/);
-  const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { sections: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
-  assert.equal(c.profile.sections.whatFails.length, 0);
+  const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
+  assert.equal(c.profile.sections.whatFails.length, 0, 'a full compile starts from nothing');
   assert.equal(fs.readFileSync(path.join(store.localDir, 'profile', 'history.jsonl'), 'utf8').trim().split('\n').length, 1, 'the previous profile is kept');
   const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8');
   assert.match(log, /"op":"profile"/); assert.match(log, /"op":"profile-compile"/);
@@ -185,15 +195,15 @@ test('in profile mode distillFile reads the session into the ledger and writes n
   fs.writeFileSync(file, session.map(e => JSON.stringify(e)).join('\n') + '\n');
   const lines = [];
   const ctx = { repo: dir, store, out: l => lines.push(l) };
-  let calls = 0;
-  const completeFn = async () => { calls++; return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; };
+  let calls = 0, compiles = 0;
+  const completeFn = async opts => { if (opts.schema?.properties?.observations) { calls++; return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } compiles++; return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; };
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, batch: true, session: 's9', completeFn });
   assert.equal(calls, 0, 'a batch at the end of a turn makes no call in profile mode');
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, session: 's9', completeFn });
-  assert.equal(calls, 1);
+  assert.equal(calls, 1); assert.equal(compiles, 1, 'the first session with an observation compiles');
   assert.equal(readLedger(store).length, 1);
   assert.equal(store.list().length, 0, 'no note is written');
-  assert.ok(lines.some(l => /read 3 exchanges → 1 observations/.test(l)), lines.join('\n'));
+  assert.ok(lines.some(l => /read 3 exchanges → 1 observations; profile compiled/.test(l)), lines.join('\n'));
   const state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'session.json'), 'utf8'));
   assert.equal(state.line, 8, 'the transcript\'s lines are marked read, as for a distillation');
   await distillFile(ctx, file, { minExplore: 1, quiet: true, incremental: true, session: 's9', completeFn });
@@ -208,16 +218,19 @@ test('a backlog is compiled in steps, each shown the profile so far and the obse
   const prompts = [];
   const completeFn = async opts => {
     prompts.push(opts.prompt);
-    const ids = [...new Set([...opts.prompt.matchAll(/obs-[0-9a-f]{10}/g)].map(m => m[0]))]; // the rows shown and the previous profile's own citations
-    return { json: { sections: { workingOn: [], howWeWork: [{ text: 'open the PR when done', obs: ids }], whatFails: [], recentBugs: [] } }, model: 'fake-opus', tokens: { totalTokens: 7 } };
+    const ids = [...opts.prompt.matchAll(/^(obs-[0-9a-f]{10}) \|/gm)].map(m => m[1]); // the rows shown
+    const first = /PROFILE SO FAR \(compiled never\)/.test(opts.prompt);
+    const patch = first ? { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'open the PR when done', obs: ids }], whatFails: [], recentBugs: [] } } : { keep: ['h1'], update: [{ id: 'h1', obs: ids }], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } };
+    return { json: patch, model: 'fake-opus', tokens: { totalTokens: 7 } };
   };
   const r = await compileProfile(store, { now, completeFn, have: ['claude'] });
   assert.equal(r.steps, 3); assert.equal(prompts.length, 3); assert.equal(r.tokens, 21);
-  assert.match(prompts[0], /PREVIOUS PROFILE \(compiled never\)/); assert.ok(!prompts[0].includes('OBSERVATIONS THE PREVIOUS PROFILE CITES'));
-  assert.match(prompts[1], /OBSERVATIONS THE PREVIOUS PROFILE CITES \(2\)/); assert.match(prompts[1], /NEW OBSERVATIONS \(2, from 2 sessions/);
-  assert.match(prompts[2], /OBSERVATIONS THE PREVIOUS PROFILE CITES \(2\)/, 'the cited rows shown are capped at a batch; the citations themselves are kept through the previous profile');
+  assert.match(prompts[0], /PROFILE SO FAR \(compiled never\)/); assert.ok(!prompts[0].includes('OBSERVATIONS BEHIND'));
+  assert.match(prompts[1], /OBSERVATIONS BEHIND THE ENTRIES THESE MIGHT TOUCH \(2\)/, 'the fake observations share their topics'); assert.match(prompts[1], /NEW OBSERVATIONS \(2, from 2 sessions/);
+  assert.match(prompts[1], /"id":"h1"/, 'the profile so far carries entry ids for the patch');
+  assert.deepEqual(r.changes, { kept: 2, updated: 2, dropped: 0, added: 1 });
   assert.match(prompts[0], /request 0/); assert.ok(!prompts[0].includes('request 2'), 'the oldest batch goes first');
-  assert.equal(r.profile.sections.howWeWork[0].count, 5, 'the last step re-cites everything the earlier ones found');
+  assert.equal(r.profile.sections.howWeWork[0].count, 5, 'each update adds its evidence to the entry');
   assert.equal(r.profile.window.observations, 5);
   assert.equal(compileDue(store, { now }), false);
   appendObservations(store, [fakeObs({ turn: 9, at: iso(now, 40) })], { session: 's9', now: now + 1000 });

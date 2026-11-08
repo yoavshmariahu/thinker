@@ -5,7 +5,7 @@
 //
 //   session ──► exchanges (prompt, answers, the next prompt) ──► extract ──► ledger.jsonl (60 days)
 //                                                                               │
-//                                               profile.json ◄── compile ◄── new rows + previous profile
+//                                             profile.json ◄── patch ◄── new rows + profile so far
 //
 // The extraction never sees a tool call's content: the outcome of an exchange is read from the prompt
 // that follows it, and the agent's own "done" is a claim. Tool-call *paths* alone label an observation
@@ -24,9 +24,7 @@ import { areaOf } from './areas.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
-  compileEvery: 10,     // new observations that make a compile due
-  compileHours: 72,     // or this long since the last compile, with anything new at all
-  firstCompileAt: 3,    // the first compile waits for this many observations
+  firstCompileAt: 1,    // the first compile waits for this many observations (then: whenever anything new was read)
   compileBatch: 200,    // new observations one compile step is shown at most; a longer backlog takes several steps
   minSessions: 2,       // sessions a howWeWork or whatFails entry needs, unless one observation states or corrects it outright
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
@@ -249,27 +247,43 @@ export function markExtracted(store, session, { line = 0, at = new Date().toISOS
 }
 
 // --- compile --------------------------------------------------------------
-export const COMPILE_SYSTEM = `You compile a profile of one person's work in one repository from observations of their sessions with a coding agent. A future agent reads it at the start of every session, so that it knows what this person is in the middle of, how they want work done, and what has gone wrong here before. Write what would change what that agent does; leave out what would not.
+// The compile is a patch (2026-11-08, after the first steady-state look): the model is shown the profile as it
+// stands, each entry with an id, the new observations, and the observations behind the entries those might touch,
+// and returns keep / update / drop / add. An entry it does not mention is kept, so nothing is lost by silence; a
+// drop needs a reason; code merges the patch and `settle` applies the floors and the window. A full compile
+// (nothing to start from) is the same step with an empty profile, in batches. This replaced a step that rewrote the
+// whole profile each time: for ten new observations it sent the profile and up to 200 cited rows and wrote every
+// entry again (~60k tokens, twice the sessions' own extraction), and each rewrite could lose or drift an entry with
+// no new evidence behind the change.
+export const COMPILE_SYSTEM = `You maintain a profile of one person's work in one repository from observations of their sessions with a coding agent. A future agent reads it at the start of every session, so that it knows what this person is in the middle of, how they want work done, and what has gone wrong here before. Write what would change what that agent does; leave out what would not.
 
-You are given the previous profile, the observations it cites, and the observations that are new since it was compiled (on a first compile, all of them). Merge: keep an entry the observations still support, with its citations as they are (they stay valid whether or not their rows are shown) plus the new ones that support it; rewrite one the new observations change or sharpen; fold a new observation into the entry that says the same thing; drop an entry nothing supports. One entry over several observations beats several entries.
+You are given the profile as it stands, each entry with an id; the observations new since it was compiled; and, for the entries those might touch, the observations already behind them. Return a patch, not a profile:
+- keep: ids to carry unchanged. An id you do not mention is kept too; nothing is lost by silence.
+- update: an entry the new observations sharpen, extend or bring up to date: only the fields that change, and the new observation ids to add behind it. New evidence for a line that exists goes here, never into a near-duplicate entry.
+- drop: an entry the observations now contradict, or that says what another entry says, with the reason. Never for age: the code retires what the window no longer supports.
+- add: new entries, by section. One entry over several observations beats several entries.
 
 Sections, and the most lines each may have:
 - workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what it is and where it stands by the person's last reaction, not by the agent's account of finishing it. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
-- howWeWork (10): how this person wants work done and answers given: process, communication, the bar for evidence. The strongest evidence is a stated preference (prefs), then a correction repeated across sessions. Preferences that say one thing in different words become one line, near their words, citing them all. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Imperative and specific to this person: a line that could be written about any repository is not a profile line.
+- howWeWork (10): how this person wants work done and answers given: process, communication, the bar for evidence. The strongest evidence is a stated preference (prefs), then a correction repeated across sessions. Preferences that say one thing in different words become one line, near their words. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. One line, one rule: a stated preference and an instruction-file rule are two lines, never one. Imperative and specific to this person: a line that could be written about any repository is not a profile line.
 - whatFails (10): "when <kind of work>: avoid <this>", with the person's reaction quoted short in avoid, and instead = what the person then accepted, where a later approach to the same work was. From corrections and redirects. What recurs comes first; one sharp correction is enough when its lesson is specific.
 - recentBugs (6): one line each: the symptom, the cause where told, and whether the fix was accepted. For a session that meets the symptom again.
 
 Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
 - approach is the agent's own account. An observation with outcome unknown can support workingOn and recentBugs, and howWeWork through its prefs; it never supports whatFails.
-- Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. Return an empty list for a section with nothing solid.
+- Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
 - Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
 const entry = (props, required) => ({ type: 'array', items: { type: 'object', properties: { ...props, obs: { type: 'array', items: { type: 'string' } } }, required: [...required, 'obs'] } });
-export const PROFILE_SCHEMA = {
+const FIELDS = { whatFails: ['when', 'avoid', 'instead'], workingOn: ['text'], howWeWork: ['text'], recentBugs: ['text'] };
+export const PATCH_SCHEMA = {
   type: 'object',
   properties: {
-    sections: {
+    keep: { type: 'array', items: { type: 'string' } },
+    update: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, when: { type: 'string' }, avoid: { type: 'string' }, instead: { type: 'string' }, obs: { type: 'array', items: { type: 'string' }, description: 'observation ids to add behind the entry' } }, required: ['id', 'obs'] } },
+    drop: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, reason: { type: 'string' } }, required: ['id', 'reason'] } },
+    add: {
       type: 'object',
       properties: {
         workingOn: entry({ text: { type: 'string' } }, ['text']),
@@ -280,7 +294,7 @@ export const PROFILE_SCHEMA = {
       required: SECTIONS,
     },
   },
-  required: ['sections'],
+  required: ['keep', 'update', 'drop', 'add'],
 };
 
 // The headings of the repository's instruction files: what the profile must not repeat.
@@ -305,10 +319,34 @@ export function ledgerText(rows) {
   }).join('\n\n');
 }
 
-// What the model returned, held to the ledger: citations the window does not hold are dropped, an entry with
-// none goes, counts and dates come from the cited observations, the evidence floors apply, and each section is
-// capped. A how-we-work or what-fails line needs two sessions, unless one observation states the preference
-// outright (prefs) or corrects it in so many words (a correction with its reaction).
+// The patch merged into the profile as it stands: raw sections for `settle`. An entry not named is kept; an update
+// replaces the fields it names and adds its observations; a drop removes; adds come last.
+export function applyPatch(previous, patch) {
+  const prev = previous?.sections || {};
+  const updates = new Map((Array.isArray(patch?.update) ? patch.update : []).filter(u => u && typeof u === 'object').map(u => [String(u.id), u]));
+  const drops = new Set((Array.isArray(patch?.drop) ? patch.drop : []).map(d => String(d?.id)));
+  const out = {};
+  for (const s of SECTIONS) {
+    out[s] = [];
+    for (const e of Array.isArray(prev[s]) ? prev[s] : []) {
+      if (!e?.id || drops.has(e.id)) continue;
+      const u = updates.get(e.id);
+      if (!u) { out[s].push(e); continue; }
+      const next = { ...e, obs: [...new Set([...(e.obs || []), ...(Array.isArray(u.obs) ? u.obs : []).map(String)])] };
+      for (const f of FIELDS[s]) if (typeof u[f] === 'string' && u[f].trim()) next[f] = u[f];
+      out[s].push(next);
+    }
+    for (const a of Array.isArray(patch?.add?.[s]) ? patch.add[s] : []) out[s].push(a);
+  }
+  return out;
+}
+
+// What the patch left, held to the ledger: citations the window does not hold are dropped, an entry with none
+// goes, counts and dates come from the cited observations, the evidence floors apply, and each section is capped.
+// A how-we-work or what-fails line needs two sessions, unless one observation states the preference outright
+// (prefs) or corrects it in so many words (a correction with its reaction). Entries come out with ids for the
+// next patch (`w1`, `h2`, `f3`, `b4`).
+const PREFIX = { workingOn: 'w', howWeWork: 'h', whatFails: 'f', recentBugs: 'b' };
 export function settle(sections, rows, { now = Date.now() } = {}) {
   const byId = new Map(rows.map(r => [r.id, r]));
   const out = {};
@@ -331,49 +369,66 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       items.push(e);
     }
     items.sort(s === 'howWeWork' || s === 'whatFails' ? (a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen) : (a, b) => b.lastSeen.localeCompare(a.lastSeen) || b.count - a.count);
-    out[s] = items.slice(0, PROFILE.perSection[s]);
+    out[s] = items.slice(0, PROFILE.perSection[s]).map((e, i) => ({ id: `${PREFIX[s]}${i + 1}`, ...e }));
   }
   return out;
 }
 
 export function readProfile(store) { return readJson(profileFile(store)); }
+// A compile is due when anything was read into the ledger since the last one (the end of a session, in practice),
+// and first once `firstCompileAt` observations exist. It was ten observations or three days while a compile rewrote
+// the whole profile; a patch is cheap enough to run per session, which is where a profile built from few sessions
+// pays: the next session's first turn says what the last one did.
 export function compileDue(store, { now = Date.now() } = {}) {
   const rows = readLedger(store, { now });
   const p = readProfile(store);
   if (!p) return rows.length >= PROFILE.firstCompileAt;
   const since = Date.parse(p.compiledAt || 0);
-  const fresh = rows.filter(r => seenOf(r) > since).length;
-  return fresh >= PROFILE.compileEvery || (fresh > 0 && now - since >= PROFILE.compileHours * 3600_000);
+  return rows.some(r => seenOf(r) > since);
 }
 
 const dateOf = ms => new Date(ms).toISOString().slice(0, 10);
 const chunk = (a, n) => { const out = []; for (let i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; };
+const words = r => new Set([...(r.topics || []).map(t => t.toLowerCase()), ...(r.dirs || [])]);
 
-// One compile step: the previous profile, the observations it cites and a batch of new ones in; the settled profile out.
-async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config }) {
+// The observations behind the entries a batch might touch: those sharing a topic or a directory with a new row,
+// newest first, at most `max`. The rest of an entry's evidence stays valid through its citations.
+export function relatedCited(previous, batch, rows, { max = 40 } = {}) {
+  if (!previous) return [];
   const byId = new Map(rows.map(r => [r.id, r])), inBatch = new Set(batch.map(r => r.id));
-  const cited = previous ? [...new Set(SECTIONS.flatMap(s => (previous.sections?.[s] || []).flatMap(e => e.obs || [])))].filter(id => byId.has(id) && !inBatch.has(id)).map(id => byId.get(id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, PROFILE.compileBatch) : [];
+  const fresh = new Set(batch.flatMap(r => [...words(r)]));
+  const ids = [...new Set(SECTIONS.flatMap(s => (previous.sections?.[s] || []).flatMap(e => e.obs || [])))];
+  return ids.map(id => byId.get(id)).filter(r => r && !inBatch.has(r.id) && [...words(r)].some(w => fresh.has(w))).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, max);
+}
+
+// One compile step: the profile so far, a batch of new observations and the related evidence in; a patch out,
+// merged and settled.
+async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config }) {
+  const cited = relatedCited(previous, batch, rows);
   const headings = instructionHeadings(store.repo);
   const span = a => a.length ? `${dateOf(Math.min(...a.map(r => Date.parse(r.at))))} to ${dateOf(Math.max(...a.map(r => Date.parse(r.at))))}` : '';
+  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map(({ id, text, when, avoid, instead, count, firstSeen, lastSeen, obs }) => ({ id, ...(text ? { text } : { when, avoid, ...(instead ? { instead } : {}) }), sessions: count, firstSeen, lastSeen, obs }))])) : null;
   const input = [
     `Repository: ${path.basename(store.repo)}\nToday: ${dateOf(now)}`,
     `INSTRUCTION FILE HEADINGS (do not repeat what these cover):\n${headings.map(h => '- ' + h).join('\n') || '(none)'}`,
-    `PREVIOUS PROFILE (compiled ${previous?.compiledAt?.slice(0, 10) || 'never'}):\n${previous ? JSON.stringify(previous.sections) : '(none)'}`,
-    cited.length ? `OBSERVATIONS THE PREVIOUS PROFILE CITES (${cited.length}):\n\n${ledgerText(cited)}` : null,
-    `${previous ? 'NEW ' : ''}OBSERVATIONS (${batch.length}, from ${new Set(batch.map(r => r.session)).size} sessions, ${span(batch)}, newest first):\n\n${ledgerText(batch)}`,
-    'Return the profile JSON.',
+    `PROFILE SO FAR (compiled ${previous?.compiledAt?.slice(0, 10) || 'never'}):\n${shown ? JSON.stringify(shown) : '(none: every entry is an add)'}`,
+    cited.length ? `OBSERVATIONS BEHIND THE ENTRIES THESE MIGHT TOUCH (${cited.length}):\n\n${ledgerText(cited)}` : null,
+    `NEW OBSERVATIONS (${batch.length}, from ${new Set(batch.map(r => r.session)).size} sessions, ${span(batch)}, newest first):\n\n${ledgerText(batch)}`,
+    'Return the patch JSON.',
   ].filter(Boolean).join('\n\n');
-  const res = await completeProfile({ system: COMPILE_SYSTEM, prompt: input, schema: PROFILE_SCHEMA, maxTokens: 16000, thinkingTokens: 0, structuredRetries: 2, timeoutMs: 600_000, accounting }, { have, config, completeFn });
-  const sections = settle(res.json?.sections, rows, { now });
+  const res = await completeProfile({ system: COMPILE_SYSTEM, prompt: input, schema: PATCH_SCHEMA, maxTokens: 16000, thinkingTokens: 0, structuredRetries: 2, timeoutMs: 600_000, accounting }, { have, config, completeFn });
+  const patch = res.json || {};
+  const sections = settle(applyPatch(previous, patch), rows, { now });
   const ats = rows.map(r => Date.parse(r.at));
-  const profile = { version: 2, compiledAt: new Date(now).toISOString(), model: res.model || null, window: { days: PROFILE.ledgerDays, observations: rows.length, sessions: new Set(rows.map(r => r.session).filter(Boolean)).size, from: dateOf(Math.min(...ats)), to: dateOf(Math.max(...ats)) }, sections };
-  return { profile, tokens: tokensOf(res) || 0, cost: res.cost ?? null, chars: input.length };
+  const profile = { version: 3, compiledAt: new Date(now).toISOString(), model: res.model || null, window: { days: PROFILE.ledgerDays, observations: rows.length, sessions: new Set(rows.map(r => r.session).filter(Boolean)).size, from: dateOf(Math.min(...ats)), to: dateOf(Math.max(...ats)) }, sections };
+  const changes = { kept: (patch.keep || []).length, updated: (patch.update || []).length, dropped: (patch.drop || []).length, added: SECTIONS.reduce((n, s) => n + (patch.add?.[s]?.length || 0), 0) };
+  return { profile, tokens: tokensOf(res) || 0, cost: res.cost ?? null, chars: input.length, changes };
 }
 
-// A compile: the observations seen since the last one, in steps of `compileBatch`, each merged into the profile the
-// step before left; the previous profile goes to history. `full` starts from nothing over the whole window (a changed
+// A compile: the observations seen since the last one, patched into the profile, in steps of `compileBatch` when the
+// backlog is longer; the previous profile goes to history. `full` starts from nothing over the whole window (a changed
 // prompt, or `thinker profile rebuild`). `dry` returns what would be sent without a call. The profile is written
-// after every step, so a step that fails loses its own work alone. The compile's output is the long side (the first
+// after every step, so a step that fails loses its own work alone. The output is the long side of the call (a
 // 200-row step came back with no `sections` object at 8k tokens), so it gets 16k and a second attempt.
 export async function compileProfile(store, { now = Date.now(), accounting, completeFn, have, config, dry = false, full = false } = {}) {
   const rows = readLedger(store, { now });
@@ -387,15 +442,17 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
   if (!rows.length) return { skipped: 'no observations' };
   if (!pending.length) return { skipped: 'nothing new since the last compile (--full compiles the whole window again)' };
   let current = previous, tokens = 0, cost = 0, landed = 0;
+  const changes = { kept: 0, updated: 0, dropped: 0, added: 0 };
   for (const batch of batches) {
     const r = await compileStep(store, current, batch, rows, { now, accounting, completeFn, have, config });
     current = r.profile; tokens += r.tokens; cost += r.cost || 0;
+    for (const k of Object.keys(changes)) changes[k] += r.changes[k];
     if (onDisk && !landed++) { try { fs.appendFileSync(historyFile(store), JSON.stringify(onDisk) + '\n'); } catch {} } // the one replaced, once something replaces it
     writeAtomic(profileFile(store), JSON.stringify(current, null, 2));
   }
   // the window is the file: observations past it go with the compile
   writeAtomic(ledgerFile(store), rows.map(r => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
-  return { profile: current, tokens, cost: cost || null, observations: rows.length, pending: pending.length, steps: batches.length, sessions };
+  return { profile: current, tokens, cost: cost || null, observations: rows.length, pending: pending.length, steps: batches.length, sessions, changes };
 }
 
 // --- render ---------------------------------------------------------------
@@ -436,7 +493,7 @@ export async function profileSession(store, events, { session, client, repoHint,
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
-    if (c.profile) { compiled = c; store.log({ op: 'profile-compile', observations: c.observations, pending: c.pending, steps: c.steps, sessions: c.sessions, entries: Object.fromEntries(SECTIONS.map(s => [s, c.profile.sections[s].length])), tokens: c.tokens, cost: c.cost, model: c.profile.model }); }
+    if (c.profile) { compiled = c; store.log({ op: 'profile-compile', observations: c.observations, pending: c.pending, steps: c.steps, changes: c.changes, sessions: c.sessions, entries: Object.fromEntries(SECTIONS.map(s => [s, c.profile.sections[s].length])), tokens: c.tokens, cost: c.cost, model: c.profile.model }); }
   }
   return { observations: rows, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }

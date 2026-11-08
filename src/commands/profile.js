@@ -57,7 +57,7 @@ async function profileCommand(ctx) {
     if (r.dry) { out(`would compile ${r.pending} ${r.previous ? 'new ' : ''}observations (${r.observations} in the window, from ${r.sessions} sessions) in ${r.steps} step${r.steps === 1 ? '' : 's'} against ${r.headings} instruction headings${r.previous ? ' and the previous profile' : ''}`); return; }
     if (r.skipped) { out(`nothing to compile: ${r.skipped}`); return; }
     out(renderProfile(r.profile));
-    out(`\ncompiled ${r.pending} observations in ${r.steps} step${r.steps === 1 ? '' : 's'} into a profile of ${r.observations} observations from ${r.sessions} sessions${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`);
+    out(`\ncompiled ${r.pending} observations in ${r.steps} step${r.steps === 1 ? '' : 's'} into a profile of ${r.observations} observations from ${r.sessions} sessions (${r.changes.added} added, ${r.changes.updated} updated, ${r.changes.dropped} dropped)${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`);
     return;
   }
   if (sub === 'extract') {
