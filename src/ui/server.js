@@ -41,7 +41,7 @@ export const DEFAULT_PORT = 4848;
 
 // The repositories with a cache on this machine: this one, and every checkout the agents' transcripts
 // or the machine's log name that has a .thinker folder. A repository with several checkouts (clones,
-// worktrees) is read from the one holding the most notes, this one when they tie. `checkouts`: the ones
+// worktrees) is read from the one whose profile rests on the most observations, this one when they tie. `checkouts`: the ones
 // found before (keptCheckouts), instead of looking again.
 export function machineRepos(store, { home, checkouts } = {}) {
   const here = isGitCheckout(store.repo) && store.exists() ? store.repo : null;
@@ -49,7 +49,7 @@ export function machineRepos(store, { home, checkouts } = {}) {
   const add = c => { const o = repoId(c); if (!byOrigin.has(o)) byOrigin.set(o, new Set()); byOrigin.get(o).add(c); };
   if (here) add(here);
   for (const c of checkouts || discoverCheckouts(store, { home })) if (fs.existsSync(path.join(c, '.thinker'))) add(c);
-  const count = c => { try { return new Store(c, { readonly: true }).count(); } catch { return -1; } };
+  const count = c => { try { return fs.existsSync(path.join(c, '.thinker')) ? (JSON.parse(fs.readFileSync(path.join(c, '.thinker', 'local', 'profile', 'profile.json'), 'utf8')).window?.observations || 0) : -1; } catch { return fs.existsSync(path.join(c, '.thinker')) ? 0 : -1; } };
   const out = [];
   for (const [id, checkouts] of byOrigin) {
     const scored = [...checkouts].map(c => [c, count(c)]).filter(([, n]) => n >= 0).sort((a, b) => b[1] - a[1] || (b[0] === here) - (a[0] === here));

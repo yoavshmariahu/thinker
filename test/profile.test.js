@@ -196,7 +196,7 @@ test('a session end to end: observations into the ledger, a compile when due, th
   assert.ok(!log.includes('guessing its unit'), 'the log carries counts, never the profile\'s text');
 });
 
-test('in profile mode distillFile reads the session into the ledger and writes no note; a turn-end batch waits for the end', async t => {
+test('distillFile reads the session into the ledger; a turn-end batch waits for the end', async t => {
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   const file = path.join(dir, 'session.jsonl');
   fs.writeFileSync(file, session.map(e => JSON.stringify(e)).join('\n') + '\n');
@@ -205,11 +205,10 @@ test('in profile mode distillFile reads the session into the ledger and writes n
   let calls = 0, compiles = 0;
   const completeFn = async opts => { if (opts.schema?.properties?.observations) { calls++; return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } compiles++; return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; };
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, batch: true, session: 's9', completeFn });
-  assert.equal(calls, 0, 'a batch at the end of a turn makes no call in profile mode');
+  assert.equal(calls, 0, 'a batch at the end of a turn makes no call');
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, session: 's9', completeFn });
   assert.equal(calls, 1); assert.equal(compiles, 1, 'the first session with an observation compiles');
   assert.equal(readLedger(store).length, 1);
-  assert.equal(store.list().length, 0, 'no note is written');
   assert.ok(lines.some(l => /read 3 exchanges → 1 observations; profile compiled/.test(l)), lines.join('\n'));
   const state = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'session.json'), 'utf8'));
   assert.equal(state.line, 8, 'the transcript\'s lines are marked read, as for a distillation');

@@ -582,3 +582,12 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
   }
   return out.sort((a, b) => b.mtime - a.mtime);
 }
+
+// The Claude Code transcripts of a checkout, newest first: ~/.claude/projects/<encoded cwd>/*.jsonl.
+export function transcriptsFor(cwd) {
+  const enc = cwd.replace(/[\/.]/g, '-');
+  const dir = path.join(os.homedir(), '.claude', 'projects', enc);
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).map(f => path.join(dir, f))
+    .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+}

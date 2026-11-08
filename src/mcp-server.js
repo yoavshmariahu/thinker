@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// MCP server for thinker's own questions to the agent and the desktop app's learning queue (the notes go through the prompt hook). Started by mcp.js, which restarts it on the new code after an update.
+// MCP server for thinker's own questions to the agent and the desktop app's learning queue (the profile goes through the prompt hook). Started by mcp.js, which restarts it on the new code after an update.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -11,7 +11,6 @@ import { ensureTelemetryScheduled, reportTelemetrySchedule } from './telemetry-s
 import { maybeCheckDailyUpdateInBackground } from './update.js';
 import { maybeSendTelemetryInBackground, HOUR_MS } from './telemetry.js';
 import { isDisabledRepo } from './repo-switch.js';
-import { coveragePending, answerCoverage } from './coverage.js';
 import { proxyOfferPending, answerProxyOffer } from './proxy-offer.js';
 import { containersOfferPending, answerContainersOffer } from './containers-offer.js';
 import { errorOfferPending, answerErrorOffer } from './error-report.js';
@@ -77,7 +76,7 @@ async function ensureBound(args) {
   if (r && r !== repo) {
     if (isDisabledRepo(r)) return { reply: text('thinker is switched off for that repository and serves nothing there.') };
     binding = bind(r); await binding;
-    registerCoverageTool(); registerQueueTools();
+    registerQueueTools();
     return { bound: true };
   }
   if (store) return { bound: false };
@@ -91,11 +90,10 @@ const clientName = () => server.server.getClientVersion()?.name || 'mcp';
 // The agent's own tools (orient, lookup, find, drilldown, remember, behavior, feedback) were taken out on
 // 2026-10-22, at the owner's decision: the notes reach the agent through the prompt hook, and real sessions
 // rarely called the tools (AGENTS.md, Serving). What is left answers thinker's own questions (the weekly context
-// suggestion, coverage) and works the desktop app's learning queue (learn_next), each offered only while it has
+// suggestion) and works the desktop app's learning queue (learn_next), each offered only while it has
 // something to do.
 function registerTools() {
   registerContextTool();
-  registerCoverageTool();
   registerProxyTool();
   registerContainersTool();
   registerErrorsTool();
@@ -103,7 +101,7 @@ function registerTools() {
 }
 
 // The answer to the weekly context suggestion (context-suggest.js:contextSuggestOffer): offered only while one waits
-// for its answer here, like the coverage tool, and the way the harness question was answered until 2026-10-25. The
+// for its answer here, and the way the harness question was answered until 2026-10-25. The
 // agent asks the person with its own question tool and hands in what they chose; thinker resolves the numbers against
 // the list it showed and makes the changes, so nothing depends on the agent composing a command line, and the answer
 // is recorded whichever way it goes.
@@ -121,25 +119,6 @@ function registerContextTool() {
   }, async ({ choice, asked, cwd }) => {
     const { reply } = await ensureBound({ cwd }); if (reply) return reply;
     return text(await answerContextSuggestion(store, String(choice), { client: clientName(), asked: asked === 'chat' ? 'chat' : 'picker' }));
-  });
-}
-
-// The answer to a coverage suggestion (coverage.js:coverageOffer): offered only while one waits for its answer
-// here, so it costs nothing the rest of the time.
-let coverageTool;
-function registerCoverageTool() {
-  if (coverageTool || !store || !coveragePending(store)) return;
-  coverageTool = server.registerTool('coverage', {
-    title: 'Answer a coverage suggestion',
-    description: 'Only when a thinker-coverage-suggestion notice tells you to: records the user\'s answer and builds notes for the directories they chose, in the background.',
-    inputSchema: {
-      choice: z.string().describe('The directories the user chose, comma-separated, exactly as listed; or none; or never'),
-      asked: z.enum(['picker', 'chat']).optional().describe('Where the user answered: your question tool (picker) or chat'),
-      ...(late ? { cwd: z.string().optional().describe('Absolute path of the repository') } : {}),
-    },
-  }, async ({ choice, asked, cwd }) => {
-    const { reply } = await ensureBound({ cwd }); if (reply) return reply;
-    return text(await answerCoverage(store, String(choice), { client: clientName(), via: asked === 'chat' ? 'text' : 'picker' }));
   });
 }
 
@@ -187,8 +166,7 @@ function registerErrorsTool() {
   }, async ({ choice }) => text(await answerErrorOffer(String(choice), { store, client: clientName() })));
 }
 
-// Work read through this session (session-llm.js): in a desktop app, learning (session-work.js) or a coverage
-// build (coverage.js). Its subagent works the queue through one tool, learn_next: each call hands in the answer to
+// Work read through this session (session-llm.js): in a desktop app, learning (session-work.js). Its subagent works the queue through one tool, learn_next: each call hands in the answer to
 // the request it took last (none on the first) and takes the next one, one call a request. Until 2026-10-22 this was
 // two tools named after the warm-up, warmup_next and warmup_answer: two definitions in every desktop-app session and
 // two calls a request. Offered in a desktop app from the start, bound or not, or while such work runs,
@@ -225,7 +203,7 @@ function registerQueueTools() {
     if (r.error) return text(`${saved}The work could not start (${r.error}). Stop, and reply with that one line.`);
     if (r.request) return text(saved + requestText(r.request));
     if (r.waiting) return text(`${saved}Nothing has come yet: the work is still reading. Call learn_next again, with no answer.`);
-    return text(`${saved}The work is done: the cache holds ${s.list().length} notes. Stop.`);
+    return text(`${saved}The work is done. Stop.`);
   })];
 }
 
@@ -244,7 +222,7 @@ if (late) server.server.oninitialized = async () => {
         const r = checkoutOf(root.uri);
         if (!r || isDisabledRepo(r) || store) continue;
         binding = bind(r); await binding;
-        registerCoverageTool(); registerQueueTools();
+        registerQueueTools();
         break;
       }
     }

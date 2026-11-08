@@ -4,345 +4,60 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { readsOf, summarize, renderUsage, savingOf, cacheHitSavings, formatTokens, formatSeconds, turnNotice, SECONDS_PER_READ } from '../src/usage.js';
+import { summarize, renderUsage, readLog, knownRepos, sessionKey, normalizeClient, isoWeek, formatTokens, compressionNotice } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
-// run with the environment set as given (undefined removes a variable), then put it back
 function withEnv(vars, fn) {
   const prev = {}; for (const k in vars) { prev[k] = process.env[k]; if (vars[k] === undefined) delete process.env[k]; else process.env[k] = vars[k]; }
   try { return fn(); } finally { for (const k in prev) { if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k]; } }
 }
-function repoWith(notes) {
-  const dir = tmp('thinker-usage-');
-  fs.writeFileSync(path.join(dir, 'a.js'), 'x'.repeat(3600));
-  fs.writeFileSync(path.join(dir, 'b.js'), 'x'.repeat(360000));
-  fs.mkdirSync(path.join(dir, '.claude'), { recursive: true });
-  fs.writeFileSync(path.join(dir, '.claude', 'settings.local.json'), 'x'.repeat(720));
-  const store = new Store(dir).init();
-  for (const [id, deps] of Object.entries(notes)) store.put({ id, kind: 'location', title: id, body: 'body', deps: deps.map(p => ({ path: p })) });
-  return store;
-}
+const repo = () => new Store(tmp('thinker-usage-')).init();
 
 test('usage is kept in one log for the machine and summarized across repositories', () => {
   const home = tmp('thinker-home-');
-  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
-    const one = repoWith({ n1: ['a.js', 'b.js', 'gone.js'], n2: ['a.js'], n3: ['a.js'] });
-    const two = repoWith({ m1: ['a.js'] });
-    assert.deepEqual(savingOf(one.repo, one.get('n1')), { calls: 2, tokens: 1000 + 6000 });
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined }, () => {
+    const one = repo(), two = repo();
     assert.equal(logFile(one), path.join(home, 'log.jsonl'));
     assert.match(renderUsage(summarize(one, { all: true })), /No usage recorded on this machine/);
-
     // what this repository logged locally before the log was shared is moved into the machine's log
-    fs.writeFileSync(path.join(one.dir, 'log.jsonl'), JSON.stringify({ t: '2026-01-01T00:00:00.000Z', op: 'lookup', query: 'q', served: ['n2'] }) + '\n');
-    one.log({ op: 'orient', session: 's1', task: 't', served: ['n1', 'n2'], tokens: 500, est: [[2, 7000], [1, 1000]] });
-    one.log({ op: 'late', session: 's1', files: ['a.js'], served: ['n3'], tokens: 100, est: [[1, 1000]] });
-    one.log({ op: 'orient', session: 's1', task: 't2', served: ['n1'], tokens: 300, est: [[2, 7000]] });   // same note, same session: counted once
-    one.log({ op: 'orient', task: 'nothing found', served: [] });
-    one.log({ op: 'attest', session: 's1', applied: [{ id: 'n1', verdict: 'confirmed' }, { id: 'n2', verdict: 'unused' }] });
-    one.log({ op: 'distill', transcript: 'x', saved: ['n4'], merged: ['n1'], cost: 0.05 });
-    one.log({ op: 'mine-prs', slug: 'o/r', prs: 3, saved: 2, cost: 0.2 });
-    one.log({ op: 'verify', id: 'n1', verdict: 'still_valid', cost: 0.01 });
-    // the same session id in another repository is another session
-    two.log({ op: 'orient', session: 's1', task: 't', served: ['m1'], tokens: 50, est: [[1, 1000]] });
-    two.log({ op: 'attest', session: 's1', applied: [{ id: 'm1', verdict: 'confirmed' }] });
-
-    assert.equal(fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').length, 11);
-    assert.equal(fs.existsSync(path.join(one.dir, 'log.jsonl')), false);
-    assert.equal(fs.existsSync(path.join(one.dir, 'state', 'log-before-shared.jsonl')), true);
-    assert.equal(fs.existsSync(path.join(two.dir, 'log.jsonl')), false);
-
+    fs.writeFileSync(path.join(one.dir, 'log.jsonl'), JSON.stringify({ t: '2026-01-01T00:00:00.000Z', op: 'orient', session: 'old', task: 'q', served: [] }) + '\n');
+    one.log({ op: 'request', session: 's1', client: 'claude', task: 't' });
+    one.log({ op: 'request', session: 's1', client: 'claude', task: 't2' });
+    one.log({ op: 'request', client: 'codex', task: 'no session' });
+    one.log({ op: 'session', session: 's1', client: 'claude', turns: 2, inputTokens: 10 });
+    one.log({ op: 'session', session: 's2', client: 'codex', turns: 1 });
+    one.log({ op: 'model', phase: 'learning', purpose: 'profile-extract', provider: 'claude', model: 'claude-opus-5-5', tokens: { inputTokens: 1000, outputTokens: 200, totalTokens: 1200, cacheReadTokens: 0, cacheWriteTokens: 0 } });
+    one.log({ op: 'profile', session: 's1', observations: 4 });
+    one.log({ op: 'profile-compile', observations: 4 });
+    two.log({ op: 'request', session: 's1', client: 'cursor', task: 'elsewhere' });
+    const u = summarize(one, { all: true });
+    assert.equal(u.requests, 5, 'every prompt the hooks saw, the old orient rows included');
+    assert.equal(u.sessions, 4, 'the same session id in another repository is another session');
+    assert.deepEqual(u.clients.active, { claude: 2, codex: 1, cursor: 1, gemini: 0, mcp: 0, cli: 0, other: 1 });
+    assert.equal(u.spending.totalTokens, 1200); assert.equal(u.spending.byPurpose['profile-extract'].calls, 1);
+    assert.deepEqual(u.learned, { sessions: 1, observations: 4, compiles: 1 });
+    assert.equal(u.repos.length, 2);
     const here = summarize(one);
-    assert.equal(here.requests, 4); assert.equal(here.answered, 3); assert.equal(here.sessions, 1);
-    assert.deepEqual(here.servings, { prompt: 3, file: 1, lookup: 1 });
-    assert.deepEqual(here.assessed, { confirmed: 1, contradicted: 0, unused: 1, pending: 2 });
-    assert.deepEqual({ calls: here.saved.calls, tokens: here.saved.tokens, servings: here.saved.servings }, { calls: 2, tokens: 7000, servings: 1 });
-    assert.deepEqual(here.learned, { sessions: 1, notes: 1, merged: 1, prs: 3, prNotes: 2 });
-    assert.equal(Math.round(here.spending.reportedCost * 100) / 100, 0.26, 'provider-reported cost stays in the data, never shown or estimated');
-    assert.equal(here.top.find(t => t.id === 'n1').served, 2);
-    assert.match(renderUsage(here), /about 2 reads avoided/);
-
-    // from either repository, the machine's view is the same
-    for (const s of [one, two]) {
-      const all = summarize(s, { all: true });
-      assert.equal(all.requests, 5); assert.equal(all.sessions, 2);
-      assert.deepEqual({ calls: all.saved.calls, tokens: all.saved.tokens }, { calls: 3, tokens: 8000 });
-      assert.deepEqual(all.repos.map(r => [r.repo, r.notes, r.served, r.calls]), [[one.repo, 3, 5, 2], [two.repo, 1, 1, 1]]);
-      const text = renderUsage(all);
-      assert.match(text, /on this machine, 2 repositories/);
-      assert.match(text, /By repository/);
-      assert.match(text, /An estimate, not a measurement/);
-    }
-  });
-});
-
-test('experiments and THINKER_LOG keep events out of the machine log', () => {
-  const home = tmp('thinker-home-');
-  const store = repoWith({});
-  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: tmp('thinker-noteset-') }, () => {
-    assert.equal(logFile(store), path.join(store.dir, 'log.jsonl'));
-    store.log({ op: 'orient', task: 't', served: [] });
-  });
-  withEnv({ THINKER_HOME: home, THINKER_LOG: 'local', THINKER_NOTES_DIR: undefined }, () => store.log({ op: 'orient', task: 't', served: [] }));
-  withEnv({ THINKER_HOME: home, THINKER_LOG: 'off', THINKER_NOTES_DIR: undefined }, () => { assert.equal(logFile(store), null); store.log({ op: 'orient', task: 't', served: [] }); });
-  const other = path.join(home, 'elsewhere', 'x.jsonl');
-  withEnv({ THINKER_HOME: home, THINKER_LOG: other, THINKER_NOTES_DIR: undefined }, () => store.log({ op: 'orient', task: 't', served: [] }));
-  assert.equal(fs.existsSync(path.join(home, 'log.jsonl')), false);
-  assert.equal(fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').length, 2);
-  assert.equal(JSON.parse(fs.readFileSync(other, 'utf8')).repo, store.repo);
-});
-
-test('a repository is its origin: clones and worktrees count together', async () => {
-  const { repoId, normalizeOrigin } = await import('../src/store.js');
-  const { execFileSync } = await import('node:child_process');
-  for (const u of ['git@github.com:Owner/Repo.git', 'https://github.com/Owner/Repo', 'https://user:pw@github.com/owner/repo.git/', 'ssh://git@github.com/owner/repo.git', 'ssh://git@github.com:22/owner/repo'])
-    assert.equal(normalizeOrigin(u), 'github.com/owner/repo', u);
-  const git = (cwd, ...a) => execFileSync('git', a, { cwd, stdio: 'pipe', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' } });
-  const mk = origin => { const d = tmp('thinker-origin-'); git(d, 'init', '-q'); if (origin) git(d, 'remote', 'add', 'origin', origin); fs.writeFileSync(path.join(d, 'a.js'), 'x'); git(d, 'add', '.'); git(d, 'commit', '-q', '-m', 'x'); return d; };
-  const clone = mk('git@github.com:Owner/Repo.git'), again = mk('https://github.com/owner/repo'), bare = mk(), other = mk('https://github.com/owner/other.git');
-  const wt = path.join(tmp('thinker-wt-'), 'w'); git(clone, 'worktree', 'add', '-q', '--detach', wt);
-  assert.equal(repoId(clone), 'github.com/owner/repo');
-  assert.equal(repoId(again), 'github.com/owner/repo');
-  assert.equal(repoId(wt), 'github.com/owner/repo');
-  assert.equal(repoId(bare), bare);
-
-  const home = tmp('thinker-home-');
-  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
-    const a = new Store(clone).init(), w = new Store(wt), o = new Store(other), b = new Store(bare);
-    a.put({ id: 'n1', kind: 'location', title: 'n1', body: 'b', deps: [{ path: 'a.js' }] });
-    a.log({ op: 'orient', session: 's1', task: 't', served: ['n1'], tokens: 10, est: [[1, 1]] });
-    w.log({ op: 'orient', session: 's2', task: 't', served: ['n1'], tokens: 10, est: [[1, 1]] });
-    w.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });     // an event's own id is kept
-    o.log({ op: 'orient', session: 's3', task: 't', served: [] });
-    b.log({ op: 'orient', session: 's4', task: 't', served: [] });
-    // an event written before the origin was recorded is placed by its checkout
-    fs.appendFileSync(path.join(home, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), repo: again, op: 'orient', task: 't', served: [] }) + '\n');
-    const lines = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
-    assert.equal(lines[1].origin, 'github.com/owner/repo'); assert.equal(lines[1].repo, wt); assert.equal(lines[2].id, 'n1');
-
-    const all = summarize(a, { all: true });
-    assert.deepEqual(all.repos.map(r => [r.repo, r.requests, r.served, r.notes]).sort(), [[bare, 1, 0, 0], ['github.com/owner/other', 1, 0, 0], ['github.com/owner/repo', 3, 2, 1]].sort());
-    assert.equal(all.repos.find(r => r.repo === 'github.com/owner/repo').checkouts.length, 3);
-    // --here from the worktree covers every checkout of the repository
-    const here = summarize(w);
-    assert.equal(here.requests, 3); assert.equal(here.scope, 'github.com/owner/repo');
-    assert.match(renderUsage(here), /^thinker usage for github.com\/owner\/repo,/);
-    assert.match(renderUsage(all), /github\.com\/owner\/repo +1 +3 +2/);
-  });
-});
-
-test('assessments are logged under the session id, and older ones under a file name still match', async () => {
-  const { execFileSync } = await import('node:child_process');
-  const { fileURLToPath } = await import('node:url');
-  const { recordEvent, traceFile } = await import('../src/transcripts.js');
-  const { sessionKey } = await import('../src/usage.js');
-  const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
-  assert.equal(sessionKey('trace-abc.jsonl'), 'abc');
-  assert.equal(sessionKey('rollout-2026-09-27T10-00-00-0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'), '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b');
-  assert.equal(sessionKey('session-1.json'), 'session-1');
-  assert.equal(sessionKey('8c1552c5-1ea2-4551-946c-25fea13d296d'), '8c1552c5-1ea2-4551-946c-25fea13d296d');
-
-  const home = tmp('thinker-home-');
-  const store = repoWith({ n1: ['a.js'] });
-  execFileSync('git', ['init', '-q'], { cwd: store.repo });
-  const env = { THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined, THINKER_NO_LEARN: undefined };
-  // a session of an agent that gives no transcript: the hooks recorded it, and served n1 in it
-  withEnv(env, () => {
-    store.put({ ...store.get('n1'), servedIn: ['sess-1'] });
-    store.log({ op: 'orient', session: 'sess-1', task: 't', served: ['n1'], tokens: 10, est: [[1, 1000]] });
-    recordEvent(store.dir, 'sess-1', { t: 'prompt', text: 'where is a' });
-    for (let i = 0; i < 3; i++) recordEvent(store.dir, 'sess-1', { t: 'tool', name: 'Read', input: { file_path: 'a.js' }, result: 'x' });
-    recordEvent(store.dir, 'sess-1', { t: 'say', text: 'Following n1, I read a.js and confirmed its explanation.' });
-  });
-  const model = path.join(home, 'model.js');
-  fs.writeFileSync(model, `process.stdin.resume(); process.stdin.on('end', () => console.log(JSON.stringify({ notes: [], assessments: [{ id: 'n1', verdict: 'confirmed', evidence: 'read a.js', correction: '' }] })));`);
-  const childEnv = { ...process.env, THINKER_HOME: home, THINKER_LLM_CMD: `node ${model}` };
-  for (const k of ['THINKER_LOG', 'THINKER_NOTES_DIR', 'THINKER_NO_LEARN', 'THINKER_LLM', 'ANTHROPIC_API_KEY']) delete childEnv[k];
-  execFileSync('node', [CLI, 'distill', traceFile(store.dir, 'sess-1'), '--incremental', '--quiet', '--session', 'sess-1', '--repo', store.repo], { env: childEnv, stdio: 'pipe' });
-  withEnv(env, () => {
-    const log = fs.readFileSync(path.join(home, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
-    assert.equal(log.find(e => e.op === 'attest').session, 'sess-1');
-    const u = summarize(store);
-    assert.deepEqual(u.assessed, { confirmed: 1, contradicted: 0, unused: 0, pending: 0 });
-    assert.deepEqual({ calls: u.saved.calls, tokens: u.saved.tokens }, { calls: 1, tokens: 1000 });
-    // an assessment written before the fix, under the trace's file name
-    store.log({ op: 'orient', session: 'sess-2', task: 't', served: ['n1'], tokens: 10, est: [[1, 1000]] });
-    store.log({ op: 'attest', session: 'trace-sess-2', applied: [{ id: 'n1', verdict: 'confirmed' }] });
-    assert.equal(summarize(store).saved.calls, 2);
-  });
-});
-
-test('the notice names the notes and the code they point at, not a saving', () => {
-  assert.equal(formatTokens(450), '450');
-  assert.equal(formatTokens(1500), '1.5k');
-  assert.equal(formatTokens(10000), '10k');
-  assert.equal(formatTokens(24500), '25k');
-  assert.equal(formatSeconds(8), '8s');
-  assert.equal(formatSeconds(60), '1min');
-  assert.equal(formatSeconds(90), '1.5min');
-
-  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
-  assert.deepEqual(cacheHitSavings(one.repo, [one.get('n1'), one.get('n2')]), { calls: 2, tokens: 7000, uncounted: 0, seconds: 2 * SECONDS_PER_READ });
-  // a note whose files are missing points at nothing to read, and stands for no time either
-  assert.equal(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]).seconds, 0);
-
-
-  assert.doesNotMatch(turnNotice(one.repo, [one.get('n1')]), /saved|hit/, 'nothing is known to be saved when a note is served');
-});
-
-test('turn notice sums what the whole turn served', () => {
-  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
-  assert.equal(turnNotice(one.repo, []), '');
-  assert.equal(turnNotice(one.repo, [one.get('n1'), one.get('n2')]), '🧠 thinker: 2 notes this turn (pointing at 2 files, ~7k tokens of code)');
-  assert.equal(turnNotice(one.repo, [one.get('n2')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
-});
-
-test('the saving is counted by the model of the session, in tokens, and sessions that named no model are said', () => {
-  const home = tmp('thinker-home-');
-  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
-    const store = repoWith({ n1: ['b.js'], n2: ['b.js'], n3: ['b.js'] });
-    // a Claude Code session: 6,000 tokens of reading avoided, 500 tokens injected
-    store.log({ op: 'orient', session: 'fable', client: 'claude', task: 't', served: ['n1'], tokens: 500, est: [[1, 6000]] });
-    store.log({ op: 'attest', session: 'fable', client: 'claude', model: 'claude-fable-5-1', applied: [{ id: 'n1', verdict: 'confirmed' }] });
-    // a Codex session: counted the same way, on its own model
-    store.log({ op: 'orient', session: 'codex', client: 'codex', task: 't', served: ['n2'], tokens: 300, est: [[1, 6000]] });
-    store.log({ op: 'attest', session: 'codex', client: 'codex', model: 'gpt-6-sol', applied: [{ id: 'n2', verdict: 'confirmed' }] });
-    // an assessment that named no model
-    store.log({ op: 'orient', session: 'old', task: 't', served: ['n3'], tokens: 200, est: [[1, 6000]] });
-    store.log({ op: 'attest', session: 'old', applied: [{ id: 'n3', verdict: 'confirmed' }] });
-    // model work with and without a provider-reported cost: the tokens are summed; the cost stays data
-    store.log({ op: 'model', purpose: 'verify', phase: 'maintenance', provider: 'claude', model: 'claude-haiku-4-5', cost: 0.04, tokens: { inputTokens: 10000, outputTokens: 1000, totalTokens: 11000 } });
-    store.log({ op: 'model', purpose: 'distill', phase: 'learning', provider: 'codex', model: 'gpt-6-sol', cost: null, tokens: { inputTokens: 1000, outputTokens: 100, totalTokens: 1100 } });
-
-    const u = summarize(store);
-    assert.equal(u.saved.servings, 3); assert.equal(u.saved.tokens, 18000);
-    assert.deepEqual(u.saved.byModel, { 'claude-fable-5-1': { servings: 1, tokens: 6000 }, 'gpt-6-sol': { servings: 1, tokens: 6000 }, unknown: { servings: 1, tokens: 6000 } });
-    assert.equal(u.spending.totalTokens, 12100); assert.equal(u.spending.reportedCost, 0.04); assert.equal(u.spending.unknownCostCalls, 1);
-    assert.equal(u.saved.netAfterSpend, 18000 - 1000 - 12100);
+    assert.equal(here.requests, 4); assert.equal(here.scope, one.repo);
     const text = renderUsage(u);
-    assert.match(text, /by model\s+6,000 tokens on claude-fable-5-1 \(1 servings\), 6,000 tokens on gpt-6-sol \(1 servings\); 1 servings in sessions that named no model/);
-    assert.match(text, /after cache work\s+4,900 tokens/);
-    // nothing in dollars: the agents run on subscriptions as often as on metered keys, and a
-    // figure from API list prices told most people what they would not pay (2026-10-04)
-    assert.doesNotMatch(text, /\$|price|dollar/);
+    assert.match(text, /requests\s+5, in 4 sessions/); assert.match(text, /sessions read\s+1 into the profile: 4 observations, 1 compiles/); assert.match(text, /By repository/);
+    assert.equal(readLog(one).length, 9, 'the adopted local row and the eight logged'); assert.equal(readLog(one, { all: true }).length, 10);
+    assert.equal(knownRepos(one, { all: true }).length, 2);
   });
 });
 
-test('a note resting on the agent\'s own configuration is not credited with reading avoided', () => {
-  const one = repoWith({
-    cfg: ['.claude/settings.local.json'],
-    mixed: ['.claude/settings.local.json', 'a.js'],
-    code: ['a.js'],
-  });
-
-  // nobody learns the permission rules by reading the settings file: the anchor is not a read
-  assert.deepEqual(savingOf(one.repo, one.get('cfg')), { calls: 0, tokens: 0 });
-  assert.deepEqual(cacheHitSavings(one.repo, [one.get('cfg')]), { calls: 0, tokens: 0, uncounted: 1, seconds: 0 });
-  // and the notice says how many notes there were rather than `~0 tokens of code`
-  assert.equal(turnNotice(one.repo, [one.get('cfg')]), '🧠 thinker: 1 note this turn');
-
-  // the floor for a missing file must not sneak the figure back in
-  assert.doesNotMatch(turnNotice(one.repo, [one.get('cfg')]), /tokens of code/);
-
-  // a note resting on both counts only the code
-  assert.deepEqual(savingOf(one.repo, one.get('mixed')), savingOf(one.repo, one.get('code')));
-  assert.equal(turnNotice(one.repo, [one.get('mixed')]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1k tokens of code)');
-
-  // a note whose code is missing from disk points at nothing to read: no floor stands in for it (until
-  // 2026-11-06 one of 300 tokens did, and a behavior whose anchors were gone printed it at every turn)
-  assert.deepEqual(cacheHitSavings(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]), { calls: 0, tokens: 0, uncounted: 0, seconds: 0 });
-  assert.equal(turnNotice(one.repo, [{ id: 'x', body: 'some body', deps: [{ path: 'gone.js' }] }]), '🧠 thinker: 1 note this turn');
-  assert.equal(cacheHitSavings(one.repo, [{ id: 'y', body: 'no deps at all', deps: [] }]).tokens, 0);
+test('THINKER_LOG moves or silences the log', () => {
+  withEnv({ THINKER_HOME: undefined, THINKER_LOG: 'local' }, () => { const s = repo(); assert.equal(logFile(s), path.join(s.dir, 'log.jsonl')); });
+  withEnv({ THINKER_LOG: 'off' }, () => { const s = repo(); assert.equal(logFile(s), null); s.log({ op: 'request' }); assert.equal(readLog(s).length, 0); });
+  const f = path.join(tmp('thinker-log-'), 'my.jsonl');
+  withEnv({ THINKER_LOG: f }, () => { const s = repo(); assert.equal(logFile(s), f); });
 });
 
-// The measurement is kept on the note (usage.js:readsOf, stamped by createNote and every verification; the owner's
-// ask, 2026-11-06): every door reads the record, and the disk only for a note that has none.
-test('a note carries its own reads record, and every door reads it before the disk', () => {
-  const one = repoWith({ n1: ['a.js', 'b.js'], n2: ['a.js'] });
-  const stamped = { ...one.get('n1'), reads: { files: [{ path: 'elsewhere.js', tokens: 1234 }], calls: 1, tokens: 1234, at: '2026-11-06T00:00:00.000Z' } };
-  assert.deepEqual(savingOf(one.repo, stamped), { calls: 1, tokens: 1234 }, 'the record, not the files on disk');
-  assert.deepEqual(cacheHitSavings(one.repo, [stamped]), { calls: 1, tokens: 1234, uncounted: 0, seconds: SECONDS_PER_READ });
-  assert.equal(turnNotice(one.repo, [stamped]), '🧠 thinker: 1 note this turn (pointing at 1 file, ~1.2k tokens of code)');
-  // two notes naming one file in their records count it once
-  const twin = { ...one.get('n2'), reads: { files: [{ path: 'elsewhere.js', tokens: 1234 }, { path: 'more.js', tokens: 10 }], calls: 2, tokens: 1244 } };
-  assert.deepEqual(cacheHitSavings(one.repo, [stamped, twin]), { calls: 2, tokens: 1244, uncounted: 0, seconds: 2 * SECONDS_PER_READ });
-  // the disk is read for a note without one, as before
-  const measured = readsOf(one.repo, one.get('n1'));
-  assert.deepEqual(measured.files.map(f => f.path), ['a.js', 'b.js']);
-  assert.equal(measured.tokens, 7000); assert.equal(measured.calls, 2); assert.ok(measured.at);
-  assert.deepEqual(savingOf(one.repo, one.get('n1')), { calls: 2, tokens: 7000 });
-});
-
-
-test('new host integration files are not counted as code reading avoided', () => {
-  for (const file of ['.pi/extensions/thinker.js', '.opencode/plugins/thinker.js', '.windsurf/rules/thinker.md', '.devin/hooks.json', '.github/hooks/thinker.json', '.github/instructions/thinker.instructions.md']) {
-    assert.deepEqual(savingOf('/missing', { deps: [{ path: file }] }), { calls: 0, tokens: 0 });
-  }
-});
-
-test('a still_valid verdict later contradicted, or given while a contradiction stood, is counted', () => {
-  const home = tmp('thinker-home-');
-  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined, THINKER_NOTES_DIR: undefined }, () => {
-    const store = repoWith({ n1: ['a.js'], n2: ['a.js'], n3: ['a.js'] });
-    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
-    store.log({ op: 'distill', transcript: 'x', saved: [], merged: [], deferred: 1, contradicted: ['n1'] });
-    store.log({ op: 'feedback', id: 'n1', useful: false });            // the same pass is counted once
-    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });     // passed while the contradiction stood
-    store.log({ op: 'verify', id: 'n2', verdict: 'update' });
-    store.log({ op: 'feedback', id: 'n2', useful: true, corrected: true }); // after an update, not a pass
-    store.log({ op: 'verify', id: 'n3', verdict: 'still_valid' });
-    store.log({ op: 'feedback', id: 'n3', useful: true });             // a useful report flags nothing
-    const u = summarize(store);
-    assert.deepEqual(u.verifyChecks, { flaggedAfterPass: 1, passedWhileFlagged: 1 });
-    assert.match(renderUsage(u), /doubted passes  1 passed notes later contradicted or corrected; 1 passed while a contradiction stood/);
-  });
-});
-
-test('a request served nothing records why, and the summary counts the reasons', async () => {
-  const home = tmp('thinker-home-');
-  const { orient, lookup } = await import('../src/ops.js');
-  // withEnv puts the environment back when fn returns, before an async fn's awaits: set it for the whole test
-  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
-  process.env.THINKER_HOME = home; delete process.env.THINKER_LOG; delete process.env.THINKER_NOTES_DIR;
-  try {
-    const store = repoWith({ 'upload-rate-limit': ['a.js'] });
-    // nothing on the subject: the lexical ranking finds no note
-    await orient(store, { task: 'rename the billing currency column', client: 'claude', session: 's1' });
-    await lookup(store, { query: 'billing currency', client: 'mcp' });
-    // the prompt hook does not ask a cache below its serving threshold, and says so
-    store.log({ op: 'orient', session: 's2', client: 'claude', task: 'what', served: [], empty: 'too-few-notes' });
-    // older clients: `empty: true` is the threshold, and a held-out turn is held out
-    store.log({ op: 'orient', session: 's3', client: 'claude', task: 'fix the upload limit', served: [], empty: true });
-    store.log({ op: 'orient', session: 's4', client: 'claude', task: 'fix the upload limit', served: [], holdout: true });
-    store.log({ op: 'orient', session: 's5', client: 'claude', task: 'fix the upload limit', served: [] });
-    const logged = fs.readFileSync(logFile(store), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(e => e.op === 'orient' || e.op === 'lookup');
-    assert.deepEqual(logged.slice(0, 2).map(e => e.empty), ['no-match', 'no-match']);
-    const u = summarize(store);
-    assert.deepEqual(u.retrieval.emptyReasons, { 'no-match': 2, 'too-few-notes': 2, 'held-out': 1, unrecorded: 1 });
-    assert.equal(u.retrieval.emptyShortPrompts, 1, '"what"');
-    // the hit rate's denominator holds only the requests the cache was searched for: the two under
-    // the serving threshold were never asked and the held-out one was withheld on purpose
-    assert.equal(u.requests, 6);
-    assert.equal(u.attempted, 3, 'six requests less two too-few-notes and one held out');
-  } finally { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
-});
-
-test('the edit hook delivers notes without a request, and is counted as a delivery', async () => {
-  const home = tmp('thinker-home-');
-  const prev = { THINKER_HOME: process.env.THINKER_HOME, THINKER_LOG: process.env.THINKER_LOG, THINKER_NOTES_DIR: process.env.THINKER_NOTES_DIR };
-  process.env.THINKER_HOME = home; delete process.env.THINKER_LOG; delete process.env.THINKER_NOTES_DIR;
-  try {
-    const store = repoWith({ 'upload-rate-limit': ['a.js'] });
-    // a `late` serving is logged only when it serves something (ops.js:lateLocked returns before the
-    // log when it picks nothing), so it can go in neither side of the hit rate without inventing a hit
-    store.log({ op: 'late', on: 'edit', session: 's1', client: 'claude', files: ['a.js'], served: ['upload-rate-limit'] });
-    store.log({ op: 'orient', session: 's1', client: 'claude', task: 'fix the upload limit', served: [], empty: 'no-match' });
-    const u = summarize(store);
-    assert.equal(u.requests, 1, 'the edit hook asked nothing');
-    assert.equal(u.attempted, 1);
-    assert.equal(u.answered, 0);
-    // but the session was given a note, so the machine must not report nothing served
-    assert.equal(u.delivered, 1);
-    assert.equal(u.deliveredLate, 1);
-    assert.equal(u.servings.file, 1);
-  } finally { for (const [k, v] of Object.entries(prev)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+test('session keys, clients and weeks', () => {
+  assert.equal(sessionKey('trace-abc.jsonl'), 'abc');
+  assert.equal(sessionKey('rollout-2026-10-01T10-00-00-0192abcd-1234-1234-1234-123456789abc'), '0192abcd-1234-1234-1234-123456789abc');
+  assert.equal(normalizeClient('Claude Code'), 'claude'); assert.equal(normalizeClient(null, 'rollout-x'), 'codex'); assert.equal(normalizeClient('agy'), 'gemini'); assert.equal(normalizeClient('x'), 'other');
+  assert.equal(isoWeek(new Date(2026, 9, 14)), '2026-W42');
+  assert.equal(formatTokens(1_500_000), '1.5M');
+  assert.equal(compressionNotice(null), '');
 });

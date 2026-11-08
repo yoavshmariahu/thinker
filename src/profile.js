@@ -21,7 +21,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { complete, available, providerOfModel } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { areaOf } from './areas.js';
-import { sessionState, locked, holdoutRate } from './ops.js';
+import { sessionState, locked, holdoutRate } from './session-state.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -42,12 +42,13 @@ export const SECTIONS = ['workingOn', 'howWeWork', 'whatFails', 'recentBugs'];
 export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
 export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
-// `learn: { mode: 'profile' }` in .thinker/config.json turns the profile on in place of the notes;
-// THINKER_PROFILE=on|off wins over the config, for a harness.
+// On by default since 2026-11-08 (the owner's call; the knowledge notes it replaced went the same day): `learn: {
+// profile: false }` in .thinker/config.json turns it off for a repository, and THINKER_PROFILE=on|off wins over the
+// config, for a harness. The older `learn: { mode: 'profile' }` is still read as on.
 export function profileConfig(store) {
   const learn = store.config().learn || {};
   const env = process.env.THINKER_PROFILE;
-  const enabled = /^(on|1|true)$/i.test(env || '') ? true : /^(off|0|false)$/i.test(env || '') ? false : learn.mode === 'profile';
+  const enabled = /^(on|1|true)$/i.test(env || '') ? true : /^(off|0|false)$/i.test(env || '') ? false : learn.profile !== false && learn.sessions !== false;
   return { enabled, model: typeof learn.profileModel === 'string' ? learn.profileModel : null };
 }
 

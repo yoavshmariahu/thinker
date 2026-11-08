@@ -20,10 +20,6 @@ import {
   stepBanner,
   formatDuration,
   formatBytes,
-  estimateCacheBuild,
-  findRecentPrChange,
-  buildPrBenchmarkTask,
-  renderPrBenchmarkReport,
   runSetup,
   BUILD_AGENTS,
   getAgentDisplayName,
@@ -100,124 +96,6 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   assert.equal(formatDuration(90), '1m 30s');
   assert.equal(formatBytes(500), '500 B');
   assert.equal(formatBytes(1500), '1 KB');
-});
-
-test('estimateCacheBuild computes time, size, and storage locations', () => {
-  const repo = createMockGitRepo();
-  try {
-    const est = estimateCacheBuild(repo, { prs: 20 });
-    assert.equal(est.repoName, path.basename(repo));
-    assert.ok(est.commitCount >= 2);
-    assert.ok(est.fileCount >= 2);
-
-    // Storage paths
-    assert.match(est.storage.rootDir, /\.thinker/);
-    assert.match(est.storage.notesDir, /notes/);
-    assert.match(est.storage.prsFile, /prs\.json/);
-
-    // Size range
-    assert.ok(est.size.minNotes > 0);
-    assert.ok(est.size.maxNotes >= est.size.minNotes);
-    assert.match(est.size.notesRange, /notes/);
-    assert.match(est.size.bytesRange, /KB/);
-
-    // Timing
-    assert.ok(est.timing.totalSeconds > 0);
-    assert.ok(est.timing.formatted.length > 0);
-
-    // When skipped with flags
-    const estNoPrs = estimateCacheBuild(repo, { prs: 20, noPrs: true });
-    assert.equal(estNoPrs.timing.breakdown.prs, 'skipped');
-    assert.equal(estNoPrs.tokenEstimate, 0);
-    assert.equal('exploration' in estNoPrs.timing.breakdown, false);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('findRecentPrChange extracts PR info from commit history', () => {
-  const repo = createMockGitRepo();
-  try {
-    const pr = findRecentPrChange(repo);
-    assert.ok(pr, 'Found recent change');
-    assert.equal(pr.number, 42);
-    assert.match(pr.title, /feat\(api\): add request handler/);
-    assert.ok(pr.files.includes('src/api.js'));
-    assert.ok(pr.files.includes('src/index.js'));
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('findRecentPrChange extracts specific prNumber when requested', () => {
-  const repo = createMockGitRepo();
-  try {
-    const pr = findRecentPrChange(repo, { prNumber: 42 });
-    assert.ok(pr);
-    assert.equal(pr.number, 42);
-    assert.ok(pr.files.length >= 1);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('buildPrBenchmarkTask creates read-only architectural prompt', () => {
-  const pr = {
-    number: 105,
-    title: 'Fix race condition in session refresh',
-    body: 'Resolves token expiration collision under high concurrency.',
-    files: ['src/session.js', 'src/auth.js'],
-  };
-  const task = buildPrBenchmarkTask(pr);
-  assert.match(task, /PR #105: Fix race condition in session refresh/);
-  assert.match(task, /Resolves token expiration collision/);
-  assert.match(task, /Identify which specific files and symbols/);
-  assert.match(task, /invariants or conventions/);
-});
-
-test('renderPrBenchmarkReport formats side-by-side comparison table with target files metric', () => {
-  const record = {
-    task: 'PR #42: add request handler',
-    pr: {
-      number: 42,
-      title: 'add request handler',
-      files: ['src/api.js', 'src/index.js'],
-    },
-    agent: 'claude',
-    model: 'sonnet',
-    notes: ['api-endpoints'],
-    dir: '/tmp/thinker-benchmark-run',
-    runs: {
-      baseline: {
-        wallMs: 14_000,
-        turns: 4,
-        toolCalls: 8,
-        inputTokens: 12_000,
-        outputTokens: 1_200,
-        targetFilesFound: 1,
-        targetFilesTotal: 2,
-      },
-      cache: {
-        wallMs: 7_000,
-        turns: 2,
-        toolCalls: 3,
-        inputTokens: 4_500,
-        outputTokens: 900,
-        targetFilesFound: 2,
-        targetFilesTotal: 2,
-      },
-    },
-  };
-
-  const report = renderPrBenchmarkReport(record);
-  assert.match(report, /PR Change Benchmark Results/);
-  assert.match(report, /PR #42: add request handler/);
-  assert.match(report, /Wall Time\s+14\.0s\s+7\.0s\s+-50%/);
-  assert.match(report, /Agent Turns\s+4\s+2\s+-50%/);
-  assert.match(report, /Tool Calls\s+8\s+3\s+-62%/);
-  assert.match(report, /Input Tokens\s+12,000\s+4,500\s+-62%/);
-  assert.match(report, /Target Files Found\s+1\/2\s+2\/2\s+\+100%/);
-  assert.match(report, /Net Savings:\s+7,800 tokens saved · 7s faster/);
 });
 
 test('runSetup completes compact setup flow in clean repo', async () => {
@@ -815,21 +693,6 @@ class MockTTYStdout {
   }
   write(str) { this.writes.push(str); }
 }
-
-test('estimateCacheBuild times the pull requests it can mine, and indexing', () => {
-  const repo = createMockGitRepo();
-  try {
-    const est = estimateCacheBuild(repo, { prs: 40 });
-    assert.ok(est.timing.totalSeconds >= 8, `Expected totalSeconds >= 8, got ${est.timing.totalSeconds}`);
-    if (est.canMine) {
-      assert.match(est.timing.breakdown.prs, /[ms]/);
-      assert.equal(est.tokenEstimate, 40 * 14_000);
-    }
-    assert.match(est.timing.breakdown.indexing, /s/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
 
 test('selectMenu navigates options with arrow keys and selects with Enter in TTY mode', async () => {
   const stdin = new MockTTYStdin();

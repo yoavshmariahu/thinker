@@ -197,11 +197,8 @@ async function runChecks(ctx) {
     let configOk = true;
     const cfg = path.join(store.dir, 'config.json');
     if (fs.existsSync(cfg)) { try { JSON.parse(fs.readFileSync(cfg, 'utf8')); } catch (e) { configOk = false; add('config', 'fail', `${cfg} is not valid JSON: ${e.message}`); } }
-    let notes = [], bad = 0;
-    try { notes = store.list(); } catch (e) { add('notes', 'fail', e.message); }
-    try { for (const f of fs.readdirSync(store.notesDir)) if (f.endsWith('.json')) { try { JSON.parse(fs.readFileSync(path.join(store.notesDir, f), 'utf8')); } catch { bad++; } } } catch {}
     add('repository', 'ok', `set up in ${repo}`);
-    add('notes', bad ? 'warn' : 'ok', `${notes.length} note${notes.length === 1 ? '' : 's'}${bad ? `; ${bad} file${bad === 1 ? '' : 's'} in ${store.notesDir} unreadable` : notes.length ? '' : ' (the cache grows from your sessions)'}`);
+    try { const p = JSON.parse(fs.readFileSync(path.join(store.localDir, 'profile', 'profile.json'), 'utf8')); add('profile', 'ok', `a profile from ${p.window?.sessions || 0} sessions, compiled ${String(p.compiledAt || '').slice(0, 10)}`); } catch { add('profile', 'ok', 'no profile yet (it grows from your sessions)'); }
     if (configOk) wiringCheck('checkout wiring', repo, 'repo');
     // the checkout's own CLAUDE.local.md still carries a workflow block the user's CLAUDE.md also carries
     const twice = staleRepoInstructions(repo);

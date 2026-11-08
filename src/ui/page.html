@@ -397,55 +397,39 @@
       <div class="modal-body">
         <div class="faq-item">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
-          <p>The cache lives in the repository it describes, and it stays on your machine. Notes are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model. The Context report is read from the transcripts your agents already write; nothing is copied out of them.</p>
+          <p>Everything Thinker learns stays on your machine. The profile of how you work in a repository is under its <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log, the savings ledger and the proxy's records.</p>
           <p>Three things leave the machine, and nothing else:</p>
           <ul>
-            <li><b>Model calls go to the provider you already use for your agent.</b> Learning and verification run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key), or, in a desktop app (Claude Desktop, the Codex app, Cursor), through the app's own session. A session is distilled from a condensed transcript; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
-            <li><b>Telemetry is counts only.</b> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
-            <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
+            <li><b>Model calls go to the provider you already use for your agent.</b> Reading a session into the profile runs through your agent's own login (<code>claude</code>, or an Anthropic API key), or, in a desktop app (Claude Desktop, the Codex app, Cursor), through the app's own session. A session is read from its prompts and the agent's answers alone, never its tool calls or their results.</li>
+            <li><b>Telemetry is counts only.</b> An hourly report carries numbers: requests, sessions, what the clearing saved, the profile's two arms, token totals, with an install id and a hashed device id. It contains no code, profile text, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
+            <li><b>The ranking model is downloaded once at install</b> (about 23 MB) and runs on your machine.</li>
           </ul>
           <p>This page listens on 127.0.0.1 only.</p>
-          <p><b>A repository with sensitive content can be turned off</b> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, and nothing is written into it. <code>thinker enable</code> turns it back on.</p>
+          <p><b>A repository with sensitive content can be turned off</b> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is read, and nothing is written into it. <code>thinker enable</code> turns it back on.</p>
         </div>
 
         <div class="faq-item">
-          <h3>How does the cache work? What does it do to make my agents faster?</h3>
-          <p>A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:</p>
+          <h3>What does Thinker do in a session?</h3>
+          <p>Two things. It <b>clears what the agent has finished with</b> out of its context: older tool results are replaced in the requests the agent sends, so every later call reads a shorter prompt. That is where the cost is, and it is measured, not estimated. And it puts a <b>profile of how you work</b> in this repository into the session's first prompt: what you are in the middle of, how you want work done and answers given, what went wrong before and the recent bugs. The profile goes in again after a compaction, since a compaction summary keeps none of it.</p>
           <ul>
-            <li><b>On each request</b> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant. The agent starts at the code instead of searching for it.</li>
-            <li><b>On each file edit</b> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
-            <li><b>On demand</b>, the MCP tool <code>lookup</code> answers one open question or fetches a note the hook listed; skill cards are among the notes.</li>
-            <li><b>Changes queue a recheck.</b> Serving checks candidate notes against your working tree. Ordinary code edits leave notes usable pending verification. Missing anchors and reported contradictions are held back until resolved.</li>
-            <li><b>Once per session.</b> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
-          </ul>
-          <p>The cache keeps itself: each session is distilled once when it ends, pending and stale notes used or requested recently are re-verified every three days, notes the sessions never acted on are archived, and a note nobody was served in two weeks is deleted.</p>
-        </div>
-
-        <div class="faq-item">
-          <h3>Where do the notes come from? Can I build the cache up front?</h3>
-          <p>From your own sessions, and from nothing else. When a session ends, a model reads a condensed transcript of it (what was asked, read, run and changed) and saves what the session worked out that the next one would otherwise work out again, usually nothing or one note. The same call grades the notes the session was served: confirmed, contradicted (the note is corrected) or unused. A quiet session, with nothing served, no edit, no failure and little exploring, is skipped.</p>
-          <ul>
-            <li><b>There is no build step.</b> <code>thinker setup</code> connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
-            <li><b>The spend is bounded.</b> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
-            <li><b>You can add your own.</b> <code>thinker add</code> takes a note you wrote, and telling your agent to remember something makes it a note when the session is distilled.</li>
-            <li><b>You can stop it.</b> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
+            <li><b>The profile is learned from your sessions</b>, when they end: a model reads the prompts and the agent's answers, records what was asked and how you reacted, and patches the profile with it. About 1,500 tokens a session start, cached.</li>
+            <li><b>The spend is bounded.</b> One model call per session, through your agent's login, and learning stops at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
+            <li><b>You can stop it.</b> <code>{ "learn": { "profile": false } }</code> in the config stops the profile in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning. <code>thinker profile show</code> prints what a session is shown, <code>--why</code> the evidence behind each line.</li>
           </ul>
         </div>
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. A section you pick can be removed or compressed by a model: Apply starts it in the background and a pull request opens with the change (or, without a GitHub origin or <code>gh</code>, it is written to your working tree, uncommitted). Recent activity follows it, and counts what needs you: a change that failed to retry, a pull request to merge or close. The pull request is yours; closed, the section is suggested again. Nothing is cut on its own.</p>
+          <p>It shows you what to cut, and you decide. The Find Savings view here and <code>thinker context</code> list every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. A section you pick can be removed or compressed by a model: Apply starts it in the background and opens a pull request with the change, which Recent activity follows.</p>
         </div>
 
         <div class="faq-item">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
-            <li><b>At the end of each turn</b> one line says what was served and the code it pointed at. It does not say "saved": whether the agent acted on a note is known only once the session is assessed.</li>
+            <li><b>The savings are measured.</b> The status line, the cards and <code>thinker savings</code> say what the clearing saved today and over the whole log, at list prices; View Report here shows it week by week beside what a session costs.</li>
             <li><b>The Find Savings view here</b>, and <code>thinker context</code>, show where your agents' context goes: what each instruction section, skill and tool costs a prompt and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
-            <li><b><code>thinker usage</code></b>, and the cache's numbers under View Report here, show notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
-            <li><b>The holdout is measured, not estimated.</b> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout section compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
+            <li><b>The profile has a holdout.</b> 15% of sessions see no profile, chosen by a hash of the session id, and every observation learned from a session carries which side it was on. <code>thinker profile holdout</code> compares corrections and redirects per session on each side; fewer than twenty sessions a side is too few to read.</li>
           </ul>
-          <p>A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.</p>
         </div>
       </div>
     </div>
@@ -1268,8 +1252,8 @@ function renderActivityPrs(v) {
   // its own doubles the height of every row in the table.
   const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
   const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
-    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Reading avoided</th><th class="num">Saved</th><th class="num">Share</th><th class="num" title="What the clearing and the notes saved at list prices, less the cache writes the calls after a clear paid for. A cleared token saved a cache read; the rewrite paid for a cache write, at twenty times the price.">Net</th></tr></thead>
-    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${r.reading ? fmt(r.reading) : '<span class="muted">–</span>'}</td><td class="num">${r.saved ? fmt(r.saved) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td><td class="num"${r.net == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved less ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.net == null ? '<span class="muted">–</span>' : money(r.net)}</td></tr>`).join('')}</tbody></table>
+    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Share</th><th class="num" title="What the clearing saved at list prices, less the cache writes the calls after a clear paid for. A cleared token saved a cache read; the rewrite paid for a cache write, at twenty times the price.">Net</th></tr></thead>
+    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td><td class="num"${r.net == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved less ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.net == null ? '<span class="muted">–</span>' : money(r.net)}</td></tr>`).join('')}</tbody></table>
     ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-pr-all aria-expanded="${APR_ALL}">${APR_ALL ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
   swapBody(el, `<div class="kicker">Pull requests, over ${v.weeks || 6} weeks</div>` + prTable);
   el.querySelector('[data-pr-all]')?.addEventListener('click', () => { APR_ALL = !APR_ALL; renderActivityPrs(v); });
@@ -1377,7 +1361,7 @@ function prStatsTable(v) {
   }).join('')}</tr>`).join('');
   return `<figure class="ctx-figure pr-stats">${heading}
     <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th>Metric</th>${weeks.map((w, i) => `<th class="num">Week of ${dlabel(w.t)}${i === weeks.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured) + reading avoided (estimate). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
+    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
 function renderReport(v) {
@@ -1442,9 +1426,9 @@ function renderReport(v) {
   }) }));
   const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
   const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
-  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Cache/compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
-    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${s.key === 'cache' ? 'estimated' : 'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
-    <p class="savings-note">Cache: avoided reading minus note context. Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
+  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
+    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
+    <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
   swapBody(el, prStatsTable(v) + parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });

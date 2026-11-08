@@ -11,7 +11,6 @@ import { execFileSync, spawn } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { createUiServer } from '../src/ui/server.js';
 import { DEFAULT_DISTILL_MODEL } from '../src/llm.js';
-import { DEFAULT_DEPTH, DEFAULT_PRS, DEPTHS } from '../src/setup/estimate.js';
 import { buildModel } from '../src/setup/models.js';
 
 const SRC = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src');

@@ -9,7 +9,8 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize, readLog, knownRepos, holdoutOf } from './usage.js';
+import { summarize, readLog, knownRepos } from './usage.js';
+import { readLedger, holdoutReport } from './profile.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
 import { containerKind } from './container-kind.js';
@@ -98,158 +99,51 @@ export function getInstallId(home = thinkerHome()) {
     : newId;
 }
 
-// Notes on the machine now, in every checkout the machine's log has ever named (usage.js:knownRepos), not
-// only those with an event in the report's day: until 2026-10-17 the repositories came from the day's
-// events, so a machine with caches and a quiet day reported 0 notes, and up-to-date devices read as
-// installed and never used. Requests keep the daily window; the notes count does not.
+// The profiles on the machine now, in every checkout the machine's log has ever named (usage.js:knownRepos), not
+// only those with an event in the report's day: a machine with profiles and a quiet day must not read as installed
+// and never used. Counts only: how many repositories have a cache, how many a profile, and what the profiles rest
+// on. Until 2026-11-08 this counted the knowledge notes by kind, status and source.
 export function computeCacheMetrics(store, { home = thinkerHome(), all = true } = {}) {
   const repos = knownRepos(store, { all });
-  const kinds = {};
-  const statuses = { fresh: 0, stale: 0, invalid: 0 };
-  const sources = {};
-  const confidenceBuckets = { high: 0, medium: 0, low: 0 };
-  let totalDeps = 0;
-  let symbolDeps = 0;
-  let totalBytes = 0;
-  let totalNotes = 0;
-  // repositories with a cache on the machine now: the log also names checkouts long gone (486 temporary
-  // directories of test runs before 2026-10-04 on one machine, which reported 538 repositories)
-  let repositoriesCount = 0;
+  let repositoriesCount = 0, profiles = 0, observations = 0, sessions = 0;
+  const entries = { workingOn: 0, howWeWork: 0, whatFails: 0, recentBugs: 0 };
   const coveredCheckouts = new Set();
-
-  const recordNote = n => {
-    const k = n.kind || 'other';
-    kinds[k] = (kinds[k] || 0) + 1;
-    const bodyBytes = Buffer.byteLength(n.body || '', 'utf8');
-    const titleBytes = Buffer.byteLength(n.title || '', 'utf8');
-    totalBytes += bodyBytes + titleBytes;
-
-    const st = n.status || 'fresh';
-    statuses[st] = (statuses[st] || 0) + 1;
-
-    const src = n.source?.type || 'unknown';
-    sources[src] = (sources[src] || 0) + 1;
-
-    const conf = typeof n.confidence === 'number' ? n.confidence : 0.8;
-    if (conf >= 0.8) confidenceBuckets.high++;
-    else if (conf >= 0.5) confidenceBuckets.medium++;
-    else confidenceBuckets.low++;
-
-    for (const d of n.deps || []) {
-      totalDeps++;
-      if (d.symbol) symbolDeps++;
-    }
-  };
-
-  // Aggregate across all repositories on the machine; a repository's notes are those of the checkout
-  // holding the most (a worktree often has none of its own), as in usage.js:summarize. Only that checkout's
-  // notes are recorded: until 2026-10-19 every checkout's were, so a device with 317 notes and a score of
-  // old worktrees, whose copies no maintenance refreshes, reported 7,291 notes by status, 3,220 of them stale.
-  for (const r of repos) {
-    let most = [], cached = false;
-    for (const checkout of r.checkouts) {
+  const read = checkout => { try { return JSON.parse(fs.readFileSync(path.join(checkout, '.thinker', 'local', 'profile', 'profile.json'), 'utf8')); } catch { return null; } };
+  const count = checkouts => {
+    let cached = false, best = null;
+    for (const checkout of checkouts) {
       coveredCheckouts.add(path.resolve(checkout));
-      try {
-        const s = new Store(checkout, { readonly: true });
-        if (!s.exists()) continue;
-        cached = true;
-        const notes = s.list();
-        if (notes.length > most.length) most = notes;
-      } catch {}
+      if (!fs.existsSync(path.join(checkout, '.thinker'))) continue;
+      cached = true;
+      const p = read(checkout);
+      if (p && (p.window?.observations || 0) > (best?.window?.observations || -1)) best = p;
     }
-    for (const n of most) recordNote(n);
-    totalNotes += most.length;
-    if (cached) repositoriesCount++;
-  }
-
-  // If local store has notes and wasn't covered in summary.repos
-  if (store?.exists() && (!coveredCheckouts.size || !coveredCheckouts.has(path.resolve(store.repo)))) {
-    try {
-      const notes = store.list();
-      if (notes.length > 0) {
-        if (!coveredCheckouts.has(path.resolve(store.repo))) {
-          repositoriesCount++;
-          totalNotes += notes.length;
-        }
-        for (const n of notes) recordNote(n);
-      } else if (!repositoriesCount) {
-        repositoriesCount = 1;
-      }
-    } catch {}
-  }
-
-  return {
-    totalNotes,
-    totalBytes,
-    repositoriesCount,
-    kinds,
-    statuses,
-    sources,
-    confidenceBuckets,
-    symbolDepRatio: totalDeps > 0 ? Math.round((symbolDeps / totalDeps) * 1000) / 1000 : 0,
+    if (!cached) return;
+    repositoriesCount++;
+    if (!best) return;
+    profiles++; observations += best.window?.observations || 0; sessions += best.window?.sessions || 0;
+    for (const k of Object.keys(entries)) entries[k] += (best.sections?.[k] || []).length;
   };
+  for (const r of repos) count(r.checkouts);
+  if (store?.exists() && !coveredCheckouts.has(path.resolve(store.repo))) count([store.repo]);
+  return { schemaVersion: 2, repositoriesCount, profiles, observations, sessions, entries };
 }
 
-// The holdout comparison (usage.js:holdoutOf) over the last 30 days, as sums and prompt counts per
-// side, so that per-prompt averages can be pooled across installations (a mean of sums over counts;
-// medians cannot be combined). Schema 2 (2026-10-12): the unit is the prompt (turn), not the session;
-// `prompts` and `corrected` per side replace `sessions`. Numbers and model names only. A repository that opted out of telemetry is
-// left out even when another repository triggers the upload.
+// The profile's holdout (profile.js:holdoutReport) over every repository's ledger: observations per arm and the
+// share of them the person corrected or redirected, plus how often the block went into a session (`profile-served`
+// rows, 30 days). Counts only, no text.
+export function profileMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
+  const rows = [];
+  for (const r of knownRepos(store, { all })) for (const checkout of r.checkouts) { try { if (fs.existsSync(path.join(checkout, '.thinker'))) rows.push(...readLedger(new Store(checkout, { readonly: true }), { now })); } catch {} }
+  const h = holdoutReport(rows);
+  const side = s => ({ sessions: s.sessions, observations: s.observations, corrected: s.corrected, redirected: s.redirected, accepted: s.accepted });
+  const served = { shown: 0, holdout: 0, afterCompaction: 0 };
+  for (const e of readLog(store, { all })) if (e.op === 'profile-served' && e.t >= since) { if (e.arm === 'shown') served.shown++; else if (e.arm === 'holdout') served.holdout++; if (e.afterCompaction) served.afterCompaction++; }
+  return { schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, shown: side(h.shown), holdout: side(h.holdout), unknown: side(h.unknown), served };
+}
+
 export const HOLDOUT_WINDOW_DAYS = 30;
-
-// Re-verification over the last 30 days: the verdicts, and a lower bound on wrong `still_valid`
-// ones (usage.js, verifyChecks). A pass is doubted when the note is contradicted, corrected or
-// reported not useful before its next verification, which can be days later: the one-day usage
-// window of the report would miss most of them. Counts only, no note ids.
-export function verificationMetrics(store, { all = true } = {}) {
-  const u = summarize(store, { days: HOLDOUT_WINDOW_DAYS, all });
-  return {
-    schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS,
-    stillValid: u.verified.still_valid || 0, updated: u.verified.update || 0, retired: u.verified.invalid || 0,
-    passFlaggedLater: u.verifyChecks.flaggedAfterPass, passWhileFlagged: u.verifyChecks.passedWhileFlagged,
-  };
-}
-// Coverage suggestions over the last 30 days (coverage.js): the questions maintenance queued and the prompt hook
-// put to the person, how they answered (build, none, never, unanswered), the directories offered and chosen, the
-// builds started or not started (no signed-in agent), and the whole-directory understanding runs: files read,
-// notes saved, calls failed. Counts only, no directory names.
-export function coverageMetrics(store, { all = true, now = Date.now() } = {}) {
-  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
-  const m = { schemaVersion: 1, windowDays: HOLDOUT_WINDOW_DAYS, suggestions: 0, offers: 0, directoriesOffered: 0, answeredBuild: 0, answeredNone: 0, answeredNever: 0, unanswered: 0, directoriesChosen: 0,
-    buildsStarted: 0, buildsNotStarted: 0, tokensEstimated: 0, wholeRuns: 0, wholeFiles: 0, wholeNotes: 0, wholeCallsFailed: 0 };
-  for (const e of readLog(store, { all }).filter(e => e.t >= since)) {
-    if (e.op === 'coverage-suggest') m.suggestions++;
-    else if (e.op === 'coverage-offer') { m.offers++; m.directoriesOffered += e.dirs || 0; }
-    else if (e.op === 'coverage-answer') {
-      const k = { build: 'answeredBuild', none: 'answeredNone', never: 'answeredNever', unanswered: 'unanswered' }[e.choice];
-      if (k) m[k]++;
-      m.directoriesChosen += e.chosen || 0;
-    }
-    else if (e.op === 'coverage-build') { if (e.started) { m.buildsStarted++; m.tokensEstimated += e.tokens || 0; } else m.buildsNotStarted++; }
-    else if (e.op === 'understand' && e.whole) { m.wholeRuns++; m.wholeFiles += e.files || 0; m.wholeNotes += e.saved || 0; m.wholeCallsFailed += e.failed || 0; }
-  }
-  return m;
-}
-export function holdoutMetrics(store, { all = true, now = Date.now() } = {}) {
-  const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
-  const events = readLog(store, { all }).filter(e => e.t >= since);
-  const off = new Set(), seen = new Set();   // by origin: one opted-out checkout excludes its repository
-  for (const e of events) {
-    if (seen.has(e.repo)) continue;
-    seen.add(e.repo);
-    try { if ((e.repo === store.repo ? store : new Store(e.repo, { readonly: true })).config().telemetry === false) off.add(e.origin); } catch {}
-  }
-  const h = holdoutOf(events.filter(e => !off.has(e.origin)));
-  const side = t => ({ prompts: t.prompts, sessions: t.sessions, corrected: t.corrected, sums: t.sums, measured: t.measured });
-  const pair = g => ({ served: side(g.served), heldOut: side(g.heldOut) });
-  return {
-    schemaVersion: 2, unit: 'prompt', windowDays: HOLDOUT_WINDOW_DAYS,
-    ...pair(h), noNotes: h.noNotes, unmeasured: h.unmeasured,
-    byModel: Object.fromEntries(Object.entries(h.byModel).map(([m, g]) => [m, pair(g)])),
-    // keyed `client|model` (usage.js:normalizeClient), the dashboard splits it into harness and model
-    byClientModel: Object.fromEntries(Object.entries(h.byClientModel).map(([m, g]) => [m, pair(g)])),
-  };
-}
 
 // Whether the agents on this machine run thinker at all, for a device with caches and no cache request
 // (2026-10-16: three such devices, and nothing said whether their agents were wired or simply unused): each
@@ -421,7 +315,6 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   // apart. A day here is the requests the proxy edited that day, how many of them it actually took something
   // out of, and the tokens it took out; days add up.
   const byDay = {};
-  const notes = { requests: 0, served: 0, replayed: 0 };
   // how often the proxy stepped aside rather than break a harness routed elsewhere (proxy.js:authWatch,
   // proxy-service.js:standDown). Reasons are sentences of thinker's own, never a path or a URL of the machine's.
   const standDowns = [];
@@ -441,7 +334,6 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     }
     if (r.op !== 'proxy') continue;
     if (r.retried) errors.recovered++;   // tried again and answered (proxy.js:send)
-    if (r.notes != null) { notes.requests++; notes.served += r.notes || 0; notes.replayed += r.notesReplayed || 0; }
     const side = r.protocol === 'responses' ? 'responses' : r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : 'other';
     const m = byModel[r.model || 'unknown'] ||= {};
     const s = m[side] ||= { requests: 0, billedInput: 0, cleared: 0 };
@@ -464,7 +356,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     offer,
     // the rewrite rates ride along (`rewrites` per side, `sessionsStopped`); the warning sentence stays on the machine
     sides: (({ warning, ...s }) => s)(proxyReport(rows, { since })),
-    byModel, byDay, errors: { ...errors, failed: errors.total - errors.retried, cancelled }, notes,
+    byModel, byDay, errors: { ...errors, failed: errors.total - errors.retried, cancelled },
   };
 }
 
@@ -672,22 +564,6 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
   const cacheSize = computeCacheMetrics(store, { home, all });
   const d = u.distillationPerformance, spend = d.spending;
   const cls = u.clients || {};
-  const ret = u.retrieval || {};
-
-  const totalAssessed = (u.assessed.confirmed || 0) + (u.assessed.contradicted || 0) + (u.assessed.unused || 0);
-  const confirmationRate = totalAssessed > 0
-    ? Math.round(((u.assessed.confirmed || 0) / totalAssessed) * 1000) / 1000
-    : 0;
-
-  const hitRate = u.requests > 0
-    ? Math.round(((u.answered || 0) / u.requests) * 1000) / 1000
-    : 0;
-  // the hit rate over the requests the cache was actually searched for (usage.js:NOT_ATTEMPTED).
-  // `hitRate` keeps its old denominator so the series stays comparable across the release; read
-  // `attemptedHitRate` to judge retrieval.
-  const attemptedHitRate = u.attempted > 0
-    ? Math.round(((u.answered || 0) / u.attempted) * 1000) / 1000
-    : 0;
 
   const device = deviceIdentity({ home });
   const tokenSpend = spendMetrics(store, { all });
@@ -707,14 +583,8 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // regardless of the usage snapshot's periodHours (delivery-telemetry.js). Counts and tokens only.
     prs: deliveryMetrics(store, { all }),
 
-    // Prompts served notes against prompts held out, 30 days (holdoutMetrics).
-    holdout: holdoutMetrics(store, { all }),
-
-    // Re-verification verdicts and the passes later doubted, 30 days (verificationMetrics).
-    verification: verificationMetrics(store, { all }),
-
-    // coverage suggestions asked, answered and built, 30 days (coverageMetrics)
-    coverage: coverageMetrics(store, { all }),
+    // The profile: the sessions it was shown to against the ones held out, by what the person corrected, 30 days (profileMetrics).
+    profile: profileMetrics(store, { all }),
 
     // the context proxy, 30 days: the service here, the clearing side against the holdout side, by model (proxyMetrics)
     proxy: proxyMetrics({ home }),
@@ -730,8 +600,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       schemaVersion: 1,
       attempts: d.attempts, succeeded: d.succeeded, failed: d.failed,
       durationMs: d.durationMs, durationSamples: d.durationSamples,
-      legacySuccessfulRuns: Math.max(0, u.distillation.runs - d.succeeded),
-      noNewNotes: u.distillation.noNewNotes, noChanges: u.distillation.noChanges,
+      sessionsRead: u.learned.sessions, observations: u.learned.observations, compiles: u.learned.compiles,
       modelCalls: spend.calls, modelFailedCalls: spend.failed,
       reportedCostUsd: spend.calls > 0 && spend.calls === spend.unknownCostCalls ? null : spend.reportedCost,
       costKnownCalls: spend.calls - spend.unknownCostCalls, costUnknownCalls: spend.unknownCostCalls,
@@ -750,80 +619,12 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
       // the install id all make a count of 0 mean "not seen" rather than "not used"
       machine: machineFacts({ home }),
       activeRequests: cls.active || {},
-      servings: cls.servings || {},
       sessions: cls.sessions || {},
     },
 
-    retrieval: {
-      schemaVersion: 1,
-      requestsTotal: u.requests,
-      requestsAnswered: u.answered,
-      hitRate,
-      // requests the cache was asked, and the hit rate over them: `requestsTotal` also holds the
-      // requests a cache under its serving threshold was never asked and the ones the holdout
-      // withheld, neither of which retrieval failed at (usage.js:NOT_ATTEMPTED)
-      requestsAttempted: u.attempted,
-      attemptedHitRate,
-      // serving events that put a note in front of an agent, the edit hook's among them. A `late`
-      // serving is not a request and is logged only when it serves, so it is in neither side of the
-      // hit rate; without this a device served notes by the edit hook alone reports nothing served.
-      deliveries: u.delivered,
-      editHookDeliveries: u.deliveredLate,
-      emptyRequests: Math.max(0, u.requests - u.answered),
-      staleNotesServed: ret.staleServed || 0,
-      freshNotesServed: ret.freshServed || 0,
-      staleServingRate: ret.staleRate || 0,
-      guardTriggeredCount: ret.guardTriggered || 0,
-      guardUncoveredTerms: ret.guardUncoveredTerms || 0,
-      durationMs: ret.durationMs || 0,
-      durationSamples: ret.durationSamples || 0,
-      averageDurationMs: (ret.durationSamples || 0) > 0
-        ? Math.round(ret.durationMs / ret.durationSamples)
-        : null,
-      servedByKind: ret.servedByKind || {},
-      // why the empty requests were empty; too-few-notes: the cache was not asked at all (ops.js:EMPTY_REASONS)
-      emptyReasons: ret.emptyReasons || {},
-      emptyShortPrompts: ret.emptyShortPrompts || 0,
-    },
-
-    effectiveness: {
-      requestsTotal: u.requests,
-      requestsAnswered: u.answered,
-      hitRate,
-      requestsAttempted: u.attempted,
-      attemptedHitRate,
-      deliveries: u.delivered,
-      servings: {
-        prompt: u.servings.prompt,
-        file: u.servings.file,
-        lookup: u.servings.lookup,
-      },
-      tokensServed: u.tokensServed,
-      assessed: {
-        confirmed: u.assessed.confirmed,
-        contradicted: u.assessed.contradicted,
-        unused: u.assessed.unused,
-        pending: u.assessed.pending,
-        confirmationRate,
-      },
-      estimatedSavings: {
-        callsAvoided: u.saved.calls,
-        tokensAvoided: u.saved.tokens,
-        netTokensSaved: u.saved.net,
-      },
-      feedback: {
-        useful: u.feedback.useful,
-        notUseful: u.feedback.notUseful,
-        corrections: u.corrections,
-      },
-      lifecycle: {
-        sessionsDistilled: u.learned.sessions,
-        newNotes: u.learned.notes,
-        notesMerged: u.learned.merged,
-        prsMined: u.learned.prs,
-        staleVerified: (u.verified.still_valid || 0) + (u.verified.update || 0) + (u.verified.invalid || 0),
-      },
-    },
+    // requests and sessions, the denominators the dashboards count a machine as active by; the note servings and
+    // their assessments that stood here until 2026-11-08 went with the knowledge notes
+    activity: { schemaVersion: 1, requestsTotal: u.requests, sessions: u.sessions },
   };
 }
 

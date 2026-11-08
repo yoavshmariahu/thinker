@@ -10,14 +10,14 @@
 // measured input where their sum overshoots it; and, from the transcript itself, what the conversation costs
 // (transcripts.js:parseClaude `carried`: the system prompt, the agent's tool calls, its thinking kept in the context,
 // the prompts and replies), the rest of the input being Claude Code's own notes and the listings ("other").
-// Under the tables: the cache's four numbers (usage.js:summarize) with
+// Under the tables: the savings series, the decisions and the pull requests, with
 // its saving priced at the models it was made on. A session whose agent reports no usage (Cursor) is counted in no
 // column. Measurement only; nothing is served or written.
 import { findRepoSessions, instructionValue } from './instruction-value.js';
 import { harnessUsage } from './harness.js';
 import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
-import { summarize, readLog, sessionKey } from './usage.js';
+import { readLog, sessionKey } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
@@ -211,12 +211,10 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // `thinker report --json` and outputComparison
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
   const actions = reportActions(store, from, sessionRows, now);
-  const cacheReadings = [];
-  const usage = summarize(store, { days, now, onSaving: r => cacheReadings.push(r) });
   const everyEvent = readLog(store, { all: true });
   // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
-  const savings = weeklySavings({ columns, now, config, cache: cacheReadings, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
+  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
@@ -227,7 +225,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, outputRows: outRows, savings, cache: cacheMetrics(store, { days, config, usage }),
+    actions, outputRows: outRows, savings,
     prs, prWeekly: weeklyPrStats(prs, columns, now),
   };
 }
@@ -250,7 +248,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
   merged.sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
   return {
     days, merged: s.merged, mergedSeen: s.mergedSeen, mergedAssisted: s.mergedAssisted, worked: s.worked, open: s.open,
-    saved: { cleared: s.saved.cleared, reading: s.saved.reading, total: s.saved.total },
+    saved: { cleared: s.saved.cleared, total: s.saved.total },
     agent: s.tokens.agent, complete: s.tokens.complete,
     meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
     cost: s.cost, meanNet: s.meanNetPerMergedPr,
@@ -261,7 +259,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     rows: merged.map(p => ({
       number: p.number, title: p.title || null, url: p.url || null, mergedAt: p.mergedAt,
       sessions: p.sessions.length, prompts: p.tokens.prompts, complete: p.tokens.complete,
-      agent: p.tokens.agent, cleared: p.saved.cleared, reading: p.saved.reading.tokens, saved: p.saved.total,
+      agent: p.tokens.agent, cleared: p.saved.cleared, saved: p.saved.total,
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
@@ -370,46 +368,6 @@ export function withEffects(history, sessionRows = [], now = Date.now()) {
 export function reportActions(store, from, sessionRows = [], now = Date.now()) {
   return withEffects(changeHistory(store).filter(e => Date.parse(e.at) >= from), sessionRows, now).map(e => ({ ...e, repo: null }));
 }
-// The four numbers the Cache page showed (usage.js:summarize), over the report's window: what the notes saved in
-// dollars (lifetime net input at each request's observed input mix, or the holdout's per-model
-// input-price estimate where measured), the same in tokens, the cache hits, and the share of
-// judged servings the sessions acted on.
-export function cacheMetrics(store, { days, config, all = false, usage } = {}) {
-  const u = usage || summarize(store, { days, all });
-  const as = u.assessed || {}, judged = (as.confirmed || 0) + (as.contradicted || 0) + (as.unused || 0);
-  const ho = u.holdout, measured = Boolean(ho?.enough && ho.saved?.inputTokens != null);
-  const lifetime = measured ? null : u.saved?.input;
-  const priceIn = m => listPrice(m, { config })?.input;
-  let dollars = 0, unpricedTokens = 0;
-  if (measured) {
-    for (const [m, g] of Object.entries(ho.byModel || {})) {
-      const a = g.served?.perPrompt?.inputTokens, b = g.heldOut?.perPrompt?.inputTokens, n = g.served?.measured?.inputTokens;
-      if (a == null || b == null || !n) continue;
-      const t = (b - a) * n, p = priceIn(m); if (p == null) unpricedTokens += t; else dollars += t * p / 1e6;
-    }
-  } else if (lifetime?.byModel) {
-    for (const [m, counts] of Object.entries(lifetime.byModel)) {
-      const cost = costOfInputSavings(counts, listPrice(m, { config }));
-      if (cost == null) unpricedTokens += counts.tokens; else dollars += cost;
-    }
-  } else for (const [m, x] of Object.entries(u.saved?.byModel || {})) { const p = priceIn(m); if (p == null) unpricedTokens += x.tokens; else dollars += x.tokens * p / 1e6; }
-  return {
-    dollarsLabel: 'Estimated $ saved',
-    dollarsSaved: dollars, unpricedTokens: Math.round(unpricedTokens), measured,
-    tokensSaved: measured ? ho.saved.inputTokens : lifetime?.tokens ?? u.saved?.tokens ?? 0,
-    tokenLabel: measured ? 'Tokens saved' : 'Estimated input tokens saved',
-    tokenDescription: measured ? 'versus prompts with the notes withheld' : lifetime?.covered
-      ? 'Avoided reading and subsequent re-reads, minus cached-note context.'
-      : lifetime ? 'One-read estimate minus note context; lifetime data unavailable.' : 'tokens of code the agents did not read',
-    coverage: lifetime ? { hits: lifetime.covered, fallback: lifetime.fallback, sessions: lifetime.sessions, requests: lifetime.requests } : null,
-    dollarsDescription: !measured && lifetime?.byModel ? 'Total from cache hits, including repeated reads and subtracting note context, at estimated model input costs.' : null,
-    hits: Object.values(u.servings || {}).reduce((a, b) => a + b, 0), requests: u.requests || 0, answered: u.answered || 0,
-    // the hit rate is quoted over the requests the cache was asked, not every prompt (usage.js:NOT_ATTEMPTED)
-    attempted: u.attempted || 0,
-    acted: judged ? (as.confirmed || 0) / judged : null, judged,
-  };
-}
-
 // Every repository's report as one (the page's All repositories): the sums and the session counts add, so the
 // averages are over every session of the machine; the actions keep their repository's name.
 export function mergeReports(list) {
@@ -424,8 +382,6 @@ export function mergeReports(list) {
   const windowOf = m => m.cells.reduce((a, c) => a + c.tokens, 0);
   const providers = [...new Set(modelRows.map(m => m.provider))].map(name => ({ name, cells: sumCells(modelRows.filter(m => m.provider === name).map(m => m.cells)) })).sort((a, b) => b.cells.reduce((x, c) => x + c.tokens, 0) - a.cells.reduce((x, c) => x + c.tokens, 0));
   modelRows.sort((a, b) => providers.findIndex(p => p.name === a.provider) - providers.findIndex(p => p.name === b.provider) || windowOf(b) - windowOf(a));
-  const cache = views.map(v => v.cache), sum = k => cache.reduce((a, c) => a + (c[k] || 0), 0), judged = sum('judged');
-  const confirmed = cache.reduce((a, c) => a + (c.acted == null ? 0 : c.acted * c.judged), 0);
   const prs = mergePrSavings(list);
   return {
     all: true, weeks: first.weeks, days: first.days, from: first.from, to: first.to, pricedOn: first.pricedOn, costThresholds: COST_THRESHOLDS,
@@ -442,11 +398,6 @@ export function mergeReports(list) {
     totals: sumCells(views.map(v => v.totals)), sessionTotals: sumCells(views.map(v => v.sessionTotals)),
     providers, models: modelRows, unpriced: [...new Set(views.flatMap(v => v.unpriced))],
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
-    cache: { dollarsLabel: 'Estimated $ saved', dollarsSaved: sum('dollarsSaved'), unpricedTokens: sum('unpricedTokens'), measured: cache.every(c => c.measured), tokensSaved: sum('tokensSaved'), hits: sum('hits'), requests: sum('requests'), answered: sum('answered'), attempted: sum('attempted'), acted: judged ? confirmed / judged : null, judged,
-      tokenLabel: cache.every(c => c.measured) ? 'Tokens saved' : 'Estimated input tokens saved',
-      tokenDescription: cache.every(c => c.measured) ? 'versus prompts with the notes withheld' : 'Avoided reading and observed re-reads, minus note context; holdout comparisons where available.',
-      coverage: cache.some(c => c.coverage) ? Object.fromEntries(['hits', 'fallback', 'sessions', 'requests'].map(k => [k, cache.reduce((n, c) => n + (c.coverage?.[k] || 0), 0)])) : null,
-      dollarsDescription: cache.some(c => !c.measured) ? 'Total from cache hits, including repeated reads and subtracting note context; holdout comparisons where available.' : null },
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
@@ -465,7 +416,7 @@ function mergePrSavings(list) {
   const sum = f => parts.reduce((a, x) => a + (f(x.p) || 0), 0);
   const rows = parts.flatMap(x => x.p.rows.map(r => ({ ...r, repo: x.repo, repoName: x.name })));
   rows.sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
-  const saved = { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading), total: sum(p => p.saved.total) };
+  const saved = { cleared: sum(p => p.saved.cleared), total: sum(p => p.saved.total) };
   const agent = sum(p => p.agent);
   return {
     days: parts[0].p.days, merged: sum(p => p.merged), mergedSeen: sum(p => p.mergedSeen), mergedAssisted: sum(p => p.mergedAssisted),
@@ -486,7 +437,7 @@ function mergePrSavings(list) {
 
 const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.isFinite(x) && (signed || x >= 0)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 
-// The report as the command prints it: the three tables with their totals, the cache's numbers. The decisions are not here
+// The report as the command prints it: the three tables with their totals, the savings. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
 // context --history` carry them with what each saved (actionEffect, over the view's `sessionRows`).
 // `total`: the week's sum over its sessions instead of the average per prompt (the page's Total toggle)
@@ -533,12 +484,9 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
   L.push(`  ${cost ? '✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; ' : ''}a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
-  L.push('', 'Cache/compression effectiveness', ' '.repeat(32) + weeks);
+  L.push('', 'Compression effectiveness', ' '.repeat(32) + weeks);
   for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { cost, total, share }), share).padStart(W)).join('')}`);
-  L.push('  Cache: estimated avoided reading minus note context. Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
-  const c = v.cache;
-  L.push('', 'The cache', `  ${(c.dollarsLabel || '$ saved').padEnd(16)} ${formatDollars(c.dollarsSaved)}${c.unpricedTokens ? ` (+${formatTokens(c.unpricedTokens)} tokens on unpriced models)` : ''}`, `  tokens saved     ${formatTokens(c.tokensSaved)} ${c.tokenDescription || (c.measured ? 'input tokens, against prompts with the notes withheld' : 'tokens of code the agents did not read')}`, `  cache hits       ${formatTokens(c.hits)} notes served, for ${formatTokens(c.answered)} of ${formatTokens(c.attempted)} requests the cache was asked${c.requests > c.attempted ? ` (${formatTokens(c.requests - c.attempted)} not asked: too few notes, or held out)` : ''}`, `  acted on         ${c.acted == null ? '–' : `${Math.round(100 * c.acted)}%`} of ${formatTokens(c.judged)} servings the sessions were judged on`);
-  if (c.dollarsDescription) L.push(`  dollar basis     ${c.dollarsDescription}`);
+  L.push('  Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
   // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
   // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
   // dollar figure on a cleared token.
@@ -548,14 +496,14 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
     L.push('', 'Pull request stats · by merge week (current week so far)',
       '  Week of       PRs    Saved / PR    Tokens / PR    Complete counters');
     for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${value(w.savedPerPr).padStart(14)}${value(w.tokensPerPr).padStart(15)}    ${w.complete}/${w.merged}`);
-    L.push('  Merged PRs with work recorded here. Saved / PR: cleared (measured) + reading avoided (estimate).',
+    L.push('  Merged PRs with work recorded here. Saved / PR: cleared tokens (measured).',
       '  Tokens / PR averages recorded input and output over PRs with complete counters only.');
   }
   if (pr?.merged) {
     const share = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
     L.push('', 'Pull requests (tokens spent and saved on merged work)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
-      `  saved on them          ${formatTokens(pr.saved.total)} that never sat in a prompt: ${formatTokens(pr.saved.cleared)} cleared (measured), ${formatTokens(pr.saved.reading)} reading avoided (estimate)`,
+      `  saved on them          ${formatTokens(pr.saved.total)} cleared out of their prompts (measured)`,
       `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
       `  on the average one     ${formatTokens(pr.meanSaved || 0)} saved, ${pr.meanAgent == null ? '–' : formatTokens(pr.meanAgent)} spent${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       // The dollars are netted, and they are the only place a saving and its cost are the same unit: a cleared
@@ -567,10 +515,10 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
-      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'reading'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}${'net'.padStart(10)}`);
+      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'share'.padStart(8)}${'net'.padStart(10)}`);
       for (const r of pr.rows.slice(0, n)) {
         const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${(r.reading ? formatTokens(r.reading) : '–').padStart(11)}${(r.saved ? formatTokens(r.saved) : '–').padStart(11)}${share(r.share).padStart(8)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(10)}`);
+        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${share(r.share).padStart(8)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(10)}`);
       }
       if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
       if (pr.rows.slice(0, n).some(r => !r.complete)) L.push('  * a session of that pull request reported no counters, so its cost is partial.');
