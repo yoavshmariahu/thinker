@@ -943,6 +943,103 @@ rests on, each with a content hash), `source` (agent / human / pr / doc),
    5 times in all, 11 of them stale or invalid, against what the distillation
    of the same session writes anyway.
 
+## The session profile (2026-11-07, `src/profile.js`, off until `learn: { mode: 'profile' }`)
+
+An alternative to the notes, under exploration at the owner's ask: what the person here is working on and how it
+goes, learned from a session's **prompts and the agent's answers alone** and loaded into a session at its start.
+Measured before it was built: inputs and outputs are 5% of a session's text here (median 1k chars of prompts,
+13k of answers, 255k of tool text over 40 sessions), the notes were served on 10% of prompts in 30 days and 47%
+of distillations saved nothing. The profile is the opposite bet, always present and never retrieved, and it is
+judged the same way the owner set for it: a per-session holdout, by corrections, prompts to done and tokens.
+
+- **Two stages, one ledger between them.** The end of a session (`distillFile` in profile mode; a turn-end
+  `--batch` waits, since an exchange's outcome is the prompt after it) pairs each prompt with the answers until
+  the next prompt (`exchanges`) and asks the model for observations: request, kind, approach, **outcome read from
+  the following prompt** (`accepted`, `corrected`, `redirected`, `unknown`; the agent's own "done" is a claim, and
+  `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
+  a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
+  calls' *paths* name (`sessionDirs`, never their content; per-directory profiles are on hold until the one profile has been rolled out and read, the owner's call on 2026-11-08). A row's `at` is
+  **the session's own clock** (the prompt's stamp, which every parser now puts on the prompt event; `exchanges`
+  carries it, `observationTimes` dates each observation by its turn) and `seen` is when it was read into the ledger:
+  the window and every date in the profile go by `at`, whether a compile is due by `seen`. The first build stamped
+  rows with the extraction time, so every workstream and bug read as that night's and the recency rules meant nothing;
+  the 483 rows were redated from their transcripts without a model call. **A compile is a patch, once per session**
+  (`compileStep`, `applyPatch`, `PATCH_SCHEMA`; 2026-11-08): due whenever a session was read into the ledger
+  (`compileDue`; first after one observation), the model is shown the profile as it stands with an id on every entry
+  (`w1`, `h2`, `f3`, `b4`), the new observations, and the observations behind the entries those might touch (sharing a
+  topic or a directory with a new row, at most 40, `relatedCited`), and returns keep / update / drop / add. An entry it
+  does not name is kept, an update adds its observation ids and changes only the fields it names, a drop needs a
+  reason, and `settle` then applies the floors and the window to the merged result, so an entry nothing supports any
+  more leaves by code, never by the model's silence. A backlog longer than `compileBatch` (200) is patched in steps,
+  oldest first, each written as it lands; a full compile (`thinker profile compile --full`, `rebuild`; a changed prompt)
+  is the same step from an empty profile. Why a patch: the first steady-state look at a rewriting compile put it at
+  roughly 60k tokens for ten new observations (the profile, up to 200 cited rows and every entry written again), twice
+  what extracting the sessions cost, and every rewrite could lose or reword an entry with no new evidence behind the
+  change; the first build also showed the compile only the newest 150 of 483 observations, which is where most of
+  the 110 corrections went. Replayed on this repository's ledger the same day (a full compile with the last five
+  sessions held out, then each patched in alone): a patch ran 12k to 22k tokens (the profile's own JSON is a third
+  of the input, the related evidence most of the rest, the output under 2k), a session of one observation with no
+  reaction yet became a Working on line, the next session on the same work updated that line rather than adding one,
+  and five new observations with two corrections added a workstream, a what-went-wrong line, a bug and twelfth-session
+  evidence to "validate fixes live". The full compile over the same rows cost 153k tokens in three steps against the
+  rewriting form's 189k. One difference to know: built by patches, the recurring patterns ("answer short and plain",
+  "validate live, not mocks", "don't call a capability impossible") land in `howWeWork` with their counts (12, 12, 6),
+  and `whatFails` holds the specific recent corrections, newest replacing the oldest at the cap; the rewriting form
+  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Four sections: `workingOn`,
+  `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
+  was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
+  on its own it held one line in four that two sessions supported.
+- **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
+  hold is dropped, an entry with none goes, counts and dates come from the cited observations (count is distinct
+  sessions), a `howWeWork` line needs two **sessions** or one observation that states the preference in so many words
+  (`prefs`), a `whatFails` line two sessions or one correction with its reaction (the first build's floor counted
+  observations, and two from one session passed), a workstream
+  not seen in 21 days and a bug not seen in 14 leave. The compile is told the caps, that `approach`
+  is the agent's own account, that an `unknown` outcome supports `workingOn`, `recentBugs` and (through `prefs`)
+  `howWeWork` but never `whatFails`, that stated preferences and corrections repeated across sessions are the lines
+  worth most and that it need not ration since the code drops thin lines, and that a rule the instruction files
+  state and agents still broke is kept and marked ("in AGENTS.md; still missed"): a line a fresh agent gains most
+  from. Reviewed three times before the first build (2026-11-07): `abandoned` and `weight` went, the first because
+  no next prompt tells "moved on" from "dropped", the second because nothing read it. A prompt can be changed and the profile recompiled from
+  the ledger without reading a transcript again (`thinker profile compile --full`), and `thinker profile show --why`
+  prints each line over the observations it cites, which is how a compile is judged.
+- **Models** (`PROFILE_MODELS`, `completeProfile`): Opus and nothing else (the owner's call, 2026-11-07). A ladder of
+  Opus, GPT-SOL and Gemini was built first and taken out the same day, after the first build timed one session out on
+  Opus and read it with two other models: a profile built by three models is not one profile. The id names its
+  provider so `complete` pins it there, never the tier table's Luna fallback on Codex; `learn.profileModel` pins
+  another model. The calls get ten minutes, since a long session took Opus past the default five.
+- **Codex's approval assessor is not a session** (`ASSESSOR_PROMPT`, `ASSESSOR_SAY`): Codex writes a rollout of its
+  own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
+  file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
+  exchanges and no call. The note distiller still reads those files (not changed here).
+- **Rendered** (`renderProfile`, `profileBlock`) within about 1500 tokens (`renderChars`, the owner's call on 2026-11-08 after seeing what 1000 dropped; 800 until that day, when
+  the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
+  the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest
+  workstreams go first (to three), then the oldest bugs (to three), then the weakest of what went wrong (to four), then
+  of the ways of working (to four), then whatever is longest (`TRIM`).
+- **Served by the prompt hook, and held out by session** (2026-11-08; `profileTurn`, `profileArm`, `compactionsSince`,
+  `holdoutReport`; `thinker profile holdout`). With `learn.mode` on, the block goes into a session's first prompt ahead
+  of everything else the hook says, and again after each compaction, since a compaction summary keeps none of it: the
+  hook counts `compact_boundary` lines written to the Claude Code transcript since the byte it last read (a few bytes a
+  prompt, never a parse), and the other agents get it on the first prompt alone. A deterministic share of sessions
+  (`holdoutRate`, the notes' 15% by default; `THINKER_HOLDOUT`) is held out **whole**, not by turn as the notes are,
+  because the block is one injection that the rest of the session reads. The arm lives in the session's state file
+  (`st.profile`: arm, how many times told, compactions seen), the Stop hook's `session` row carries it (`profile:
+  shown|holdout`), one `profile-served` row is logged per injection and once for a held-out session (counts, never
+  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure:
+  `thinker profile holdout` puts corrected and redirected per session on each side beside prompts and tokens per
+  session from the log. Fewer than `holdoutMinSessions` (20) on a side is too few to read. What it cannot tell apart:
+  a correction the profile caused from one it failed to prevent; read the lines with `show --why` before blaming it.
+- **A full compile once a month** (`rebaseDays` 30, `rebasedAt` on the profile, carried by every patch): a compile that
+  finds the last from-nothing compile older than that starts from nothing over the whole window, so wording the patches
+  have carried for weeks is derived again from the rows. At this repository's volume that is 150k tokens of Opus;
+  `thinker profile rebuild --full` does it by hand, and a rebuild without `--full` patches the sessions it read into the
+  profile as their own ends would have.
+- The profile is this machine's: under `.thinker/local/`, never committed, and the log rows (`op: profile`,
+  `profile-compile`) carry counts and token figures, never its text. `thinker profile [show [--why]|ledger|compile [--full]|extract
+  <transcript>|rebuild --days 30]`; `rebuild --dry` lists the sessions and the chars it would read, and reads the
+  sessions of every worktree of the repository, since the cache is the main checkout's.
+
 ## The learning loop
 
 Each session both consumes and improves the cache:

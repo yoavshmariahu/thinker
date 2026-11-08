@@ -20,6 +20,7 @@ import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, format
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
 import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
+import { profileTurn, profileArmOf } from '../profile.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
 import { noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../notice-cadence.js';
@@ -253,20 +254,24 @@ async function hookCommand(ctx) {
         // it opens its turn, so the turn costs stay apart, and is served and logged nothing (ops.js:isHarnessEvent),
         // in a cache under the serving threshold too: until 2026-10-19 that one logged it as an unanswered request first
         if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }
+        // the session profile (profile.js), on a session's first prompt and again after a compaction, unless the
+        // session is held out; off until learn.mode is "profile". Ahead of everything else: it is the orientation.
+        let profile = ''; try { profile = profileTurn(store, session, { transcript: ev.transcript_path, client }); } catch {}
+        const lead = [profile, offer].filter(Boolean).join('\n\n');
         if (!servesNotes(store)) {
           store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: 'too-few-notes' });
-          const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
+          const code = codeFor([]); if (lead || code) emit([lead, code].filter(Boolean).join('\n\n')); return; }
         // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
         if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
         if (session !== 'unknown') rememberTask(store, session, ev.prompt);
         // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
         const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined });
         if (r.ceTimedOut) exitNow = true;
-        if (!r.included.length) { const code = codeFor([]); if (offer || code) emit([offer, code].filter(Boolean).join('\n\n')); return; }
+        if (!r.included.length) { const code = codeFor([]); if (lead || code) emit([lead, code].filter(Boolean).join('\n\n')); return; }
         // the titles of the notes not served went with lookup, which took their ids (2026-10-22)
         const text = `<thinker-cache>\n${cacheBundleIntro()}\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`;
         const card = noticeCard(store, { client, session, turn, holdout, notes: r.included });
-        emit([offer, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
+        emit([lead, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
       })();
       if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, said));
       if (exitNow) exitAfterOutput();
@@ -302,7 +307,7 @@ async function hookCommand(ctx) {
       const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
       if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
         const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; }
+        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; let profile = ''; try { profile = profileTurn(store, session, { client: 'cursor' }); } catch {} if (profile) p = [profile, p].filter(Boolean).join('\n\n'); }
       }
       if (p && !mcpCall) parts.push(p);
     }
@@ -389,7 +394,7 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
     const t = holdoutTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
     if (noticeOn(store)) {
       // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
       // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)

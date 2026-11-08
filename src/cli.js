@@ -15,6 +15,7 @@ import { commands as prsCommands } from './commands/prs.js';
 import { commands as cacheCommands } from './commands/cache.js';
 import { commands as skillsCommands } from './commands/skills.js';
 import { commands as learnCommands } from './commands/learn.js';
+import { commands as profileCommands } from './commands/profile.js';
 import { commands as hookCommands } from './commands/hooks.js';
 import { commands as setupCommands } from './commands/setup.js';
 import { commands as telemetryCommands } from './commands/telemetry.js';
@@ -150,6 +151,10 @@ const HELP = `thinker — knowledge cache for coding agents
                                  --batch (end of a turn) leaves a small backlog for the end of the session
   learn [--days n] [--max n] [--idle-min n] [--maintain] [--dry]
                                  learn from new session evidence (edits, failures, corrections), with sampled full-trace audits
+  profile [show|ledger|holdout|compile|extract <transcript>|rebuild] [--why] [--full] [--days n] [--max n] [--again] [--session id] [--dry] [--json]
+                                 the session profile (learn.mode "profile" in .thinker/config.json): what the person here is working on
+                                 and how it went, read from prompts and answers alone; show it, list its observations, compile it,
+                                 read one transcript, or rebuild from the sessions of the last --days (30)
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks
   outcome <session> good|bad [reason]           apply an outcome signal to the notes served in a session
   coverage [--answer <dirs|none|never>] [--via picker|text] [--client c]
@@ -331,10 +336,10 @@ function unknownFlags(c, given, help = HELP) {
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`,
 // `mine-prs`, `import`, `add`, `record`, `distill`: those build one. Not `hook` (quiet outside a
 // checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report'];
+const CACHE_COMMANDS = ['tools', 'symbols', 'orient', 'lookup', 'system', 'list', 'show', 'rm', 'check', 'archive', 'verify', 'phrase', 'learn', 'profile', 'maintain', 'session-work', 'export', 'health', 'relink', 'rehash', 'outcome', 'feedback', 'skills', 'instructions', 'context', 'explain', 'report'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
+const COMMANDS = { ...projectCommands, ...noteCommands, ...cacheCommands, ...skillsCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...benchmarkCommands, ...doctorCommands, ...coverageCommands, ...symbolsCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ast', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];

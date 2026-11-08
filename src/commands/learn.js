@@ -25,6 +25,7 @@ import { areasConfig } from '../areas.js';
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 import { isWorkerPrompt } from '../session-llm.js';
 import { instructionValueCheck, valueConfig } from '../instruction-value.js';
+import { profileConfig, profileSession, exchanges } from '../profile.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -178,7 +179,7 @@ export async function learn(ctx, { days, idleMin, max, dry, quiet }) {
   } finally { if (!dry) fs.rmSync(lock, { force: true }); }
 }
 
-export async function distillFile(ctx, file, { minExplore, dry, model, quiet, incremental, evidenceOnly, batch, format, session, phase = 'learning' }) {
+export async function distillFile(ctx, file, { minExplore, dry, model, quiet, incremental, evidenceOnly, batch, format, session, phase = 'learning', completeFn } = {}) {
   const { repo, store, out } = ctx;
   const stateDir = path.join(store.dir, 'state');
   const stateFile = path.join(stateDir, path.basename(file).replace(/\.jsonl?$/, '') + '.json');
@@ -186,6 +187,30 @@ export async function distillFile(ctx, file, { minExplore, dry, model, quiet, in
   const fromLine = incremental ? (state.line || 0) : 0;
   const { events, lineCount, model: sessionModel, format: fmt } = parseTranscript(file, { fromLine, format });
   hydrate(events, repo, { trace: session ? traceFile(store.dir, session) : null });
+  // In profile mode (profile.js; `learn: { mode: 'profile' }`) the session is read into the profile's ledger
+  // in place of the notes, from its prompts and answers alone. An exchange's outcome is the prompt after it,
+  // so a turn-end batch waits for the session's end or the catch-up over quiet sessions.
+  const profile = profileConfig(store);
+  if (profile.enabled) {
+    if (batch) { if (!quiet) out('profile mode: a session is read whole when it ends'); return; }
+    if (events.some(e => e.t === 'prompt' && isWorkerPrompt(e.text))) return;
+    const lock = stateFile + '.lock';
+    if (incremental && !dry) {
+      try { if (Date.now() - fs.statSync(lock).mtimeMs < 10 * 60_000) return; } catch {}
+      fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(lock, String(process.pid));
+    }
+    try {
+      if (!events.some(e => e.t === 'prompt') || !events.some(e => e.t === 'say')) { if (!quiet) out('nothing new said in the session; nothing to read into the profile'); }
+      else {
+        if (dry) { out(JSON.stringify({ exchanges: exchanges(events).length, fromLine }, null, 2)); return; }
+        if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
+        const r = await profileSession(store, events, { session: session || path.basename(file).replace(/\.jsonl?$/, ''), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, repoHint: repo, fromLine, lineCount, accounting: { phase, transcript: path.basename(file) }, completeFn, config: profile });
+        if (!quiet) { for (const o of r.observations) out(`observed ${o.kind.padEnd(13)} ${o.outcome.padEnd(10)} ${o.request}`); out(`read ${r.exchanges} exchanges → ${r.observations.length} observations${r.compiled ? '; profile compiled' : ''}${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`); }
+      }
+      if (incremental && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); }
+    } finally { if (incremental && !dry) fs.rmSync(lock, { force: true }); }
+    return;
+  }
   // decided before the lock, so a session-end distill right after is not turned away by it
   if (batch && !batchDue(events)) { if (!quiet) out('a small backlog since last distill; left for the end of the session'); return; }
   // a turn-end hook and a session-end hook can both ask for the same session
