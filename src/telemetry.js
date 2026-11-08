@@ -106,7 +106,7 @@ export function getInstallId(home = thinkerHome()) {
 export function computeCacheMetrics(store, { home = thinkerHome(), all = true } = {}) {
   const repos = knownRepos(store, { all });
   let repositoriesCount = 0, profiles = 0, observations = 0, sessions = 0;
-  const entries = { workingOn: 0, howWeWork: 0, whatFails: 0, recentBugs: 0 };
+  const entries = { workingOn: 0, howWeWork: 0, skills: 0 };
   const coveredCheckouts = new Set();
   const read = checkout => { try { return JSON.parse(fs.readFileSync(path.join(checkout, '.thinker', 'local', 'profile', 'profile.json'), 'utf8')); } catch { return null; } };
   const count = checkouts => {

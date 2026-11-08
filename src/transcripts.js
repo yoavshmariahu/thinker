@@ -119,6 +119,14 @@ const tool = (name, input, result, id) => {
 // what agents wrap around the user's words
 // `at` (ms) on a prompt event: when it was made, where the transcript says (profile.js reads an observation's time off it)
 const stamp = (ev, ts) => { const at = Date.parse(ts); if (at) ev.at = at; return ev; };
+// The person stopping the agent: Claude Code writes "[Request interrupted by user]" (or "... for tool use") as a user
+// message when Esc is pressed, and answers a refused tool call with a tool_result that says so. Neither is anyone
+// speaking, so neither is a prompt; both are an `interrupt` event, which the profile reads as the sharpest
+// correction a session records (profile.js:exchanges). Codex's `turn_aborted` is the same event (parseCodex).
+const INTERRUPTED = /^\s*\[Request interrupted by user( for tool use)?\]\s*$/;
+const REFUSED_TOOL = /^\s*(\[Request interrupted by user for tool use\]|The user doesn't want to proceed with this tool use\b)/;
+const interruptIn = content => { const t = typeof content === 'string' ? content : Array.isArray(content) ? content.map(b => b?.text || '').join('') : ''; return INTERRUPTED.test(t); };
+const refusedTool = content => { const t = typeof content === 'string' ? content : Array.isArray(content) ? content.map(b => typeof b === 'string' ? b : b?.text || '').join('') : ''; return REFUSED_TOOL.test(t); };
 const cleanPrompt = s => String(s || '').replace(/<(timestamp|environment_context|system[-_]reminder|thinker-cache|thinker-code|thinker-learning|thinker-new-repository|thinker-coverage-suggestion|open_and_recently_viewed_files|attached_files|available_subagent_types|available_subagent_models|dynamic_tool_catalog|agent_skills|user_info|git_status|agent_transcripts|rules|summary_content)>[\s\S]*?<\/\1>/g, '').replace(/<\/?user_query>/g, '').trim();
 
 function jsonLines(text) {
@@ -280,9 +288,10 @@ function parseMessages(rows, fromLine) {
     const role = j.type === 'user' || j.type === 'assistant' ? j.type : j.role;
     if (role !== 'user' && role !== 'assistant') return;
     const c = j.message?.content;
-    if (typeof c === 'string') { if (role === 'user' && !j.isMeta) { const t = cleanPrompt(c); if (t) events.push(stamp({ t: 'prompt', text: t }, j.timestamp)); } else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
+    if (typeof c === 'string') { if (role === 'user' && interruptIn(c)) events.push(stamp({ t: 'interrupt' }, j.timestamp)); else if (role === 'user' && !j.isMeta) { const t = cleanPrompt(c); if (t) events.push(stamp({ t: 'prompt', text: t }, j.timestamp)); } else if (role === 'assistant') events.push({ t: 'say', text: c }); return; }
     if (!Array.isArray(c)) return;
     for (const b of c) {
+      if (b.type === 'text' && role === 'user' && interruptIn(b.text)) { events.push(stamp({ t: 'interrupt' }, j.timestamp)); continue; }
       // Claude Code loads a skill as a meta message after the Skill call: keep the directory on the call (skills.js:skillsInvoked)
       if (b.type === 'text' && role === 'user' && j.isMeta && /^Base directory for this skill: /.test(String(b.text || ''))) { const last = events.findLast(e => e.t === 'tool' && e.name === 'Skill'); if (last) last.skillDir = String(b.text).split('\n')[0].slice('Base directory for this skill: '.length).trim(); continue; }
       if (b.type === 'text' && role === 'user' && !j.isMeta) { const t = cleanPrompt(b.text); if (t) events.push(stamp({ t: 'prompt', text: t }, j.timestamp)); }
@@ -291,7 +300,7 @@ function parseMessages(rows, fromLine) {
       // `turn`: the model call the tool was called in (the count of assistant messages so far), so a part's use can be
       // counted by prompts (instruction-value.js:appliedTurns)
       else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; ev.turn = messageUsage.size; events.push(ev); }
-      else if (b.type === 'tool_result') keepResult(results, b.tool_use_id, b.content);
+      else if (b.type === 'tool_result') { keepResult(results, b.tool_use_id, b.content); if (role === 'user' && refusedTool(b.content)) events.push(stamp({ t: 'interrupt' }, j.timestamp)); }
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
@@ -342,6 +351,7 @@ function parseCodex(rows, fromLine) {
     // rollout files
     if (j.type === 'event_msg' && p.type === 'item_completed' && p.item?.type === 'UserMessage') prompt(textOf(p.item.content), j.timestamp);
     else if (j.type === 'event_msg' && p.type === 'user_message') prompt(p.message, j.timestamp);
+    else if (j.type === 'event_msg' && p.type === 'turn_aborted' && (p.reason || 'interrupted') === 'interrupted') events.push(stamp({ t: 'interrupt' }, j.timestamp));
     else if (j.type === 'response_item') {
       if (p.type === 'message' && p.role === 'assistant') { const t = textOf(p.content); if (t) events.push({ t: 'say', text: t }); }
       else if (p.type === 'message' && p.role === 'user') { const t = textOf(p.content); if (!/^<(environment_context|user_instructions|skills_instructions)/.test(t.trim())) prompt(t, j.timestamp); }

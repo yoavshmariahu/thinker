@@ -14,6 +14,32 @@ const tmp = () => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker
 const write = (lines, name = 't.jsonl') => { const f = path.join(tmp(), name); fs.writeFileSync(f, lines.map(l => typeof l === 'string' ? l : JSON.stringify(l)).join('\n') + '\n'); return f; };
 const shape = events => events.map(e => e.t === 'tool' ? `${e.name}:${e.input.file_path || e.input.command || e.input.pattern}=${e.result}` : `${e.t}:${e.text}`);
 
+// The person stopping the agent is an `interrupt` event, never a prompt (2026-11-08; the profile reads it as a correction).
+test('an interrupted turn and a refused tool call are interrupt events, never prompts', () => {
+  const f = write([
+    { type: 'user', cwd: '/r', timestamp: '2026-11-06T19:36:00.000Z', message: { role: 'user', content: 'rename it' } },
+    { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'a', name: 'Edit', input: { file_path: 'src/x.py' } }] } },
+    { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'a', content: 'The user doesn\'t want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.' }] } },
+    { type: 'user', timestamp: '2026-11-06T19:36:43.002Z', message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] } },
+    { type: 'user', message: { role: 'user', content: 'only in src' } },
+    { type: 'assistant', message: { model: 'claude-opus-5-5', content: [{ type: 'text', text: 'working' }] } },
+    { type: 'user', message: { role: 'user', content: '[Request interrupted by user]' } },
+    { type: 'user', message: { role: 'user', content: 'stop, wrong branch' } },
+  ]);
+  const ev = parseTranscript(f).events;
+  assert.deepEqual(ev.map(e => e.t), ['prompt', 'tool', 'interrupt', 'interrupt', 'prompt', 'say', 'interrupt', 'prompt']);
+  assert.equal(ev[3].at, Date.parse('2026-11-06T19:36:43.002Z'), 'stamped like a prompt');
+  assert.ok(!ev.some(e => e.t === 'prompt' && /interrupted/i.test(e.text)), 'the marker is never a prompt');
+  const rollout = write([
+    { type: 'session_meta', payload: { cwd: '/r', id: 's' } },
+    { type: 'event_msg', timestamp: '2026-11-04T18:07:00.000Z', payload: { type: 'user_message', message: 'rename it' } },
+    { type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'renaming' }] } },
+    { type: 'event_msg', timestamp: '2026-11-04T18:07:19.085Z', payload: { type: 'turn_aborted', reason: 'interrupted', turn_id: 't1' } },
+    { type: 'event_msg', payload: { type: 'user_message', message: 'only in src' } },
+  ]);
+  assert.deepEqual(parseTranscript(rollout).events.map(e => e.t), ['prompt', 'say', 'interrupt', 'prompt'], 'Codex\'s turn_aborted is the same event');
+});
+
 test('tool names from every agent map to one vocabulary', () => {
   for (const [n, c] of [['read_file', 'Read'], ['Read', 'Read'], ['run_shell_command', 'Bash'], ['Shell', 'Bash'], ['exec', 'Bash'], ['search_file_content', 'Grep'], ['apply_patch', 'Edit'], ['replace', 'Edit'], ['write_file', 'Write'], ['list_directory', 'Glob']]) assert.equal(toolName(n), c);
   assert.equal(toolName('mcp__github__get_issue'), 'mcp__github__get_issue');
