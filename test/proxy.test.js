@@ -8,7 +8,7 @@ import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, t
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
 import { idleRestartWatcher, requestRestart, restartWanted } from '../src/proxy-service.js';
 import { clearedBySession, compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
-import { TOKENS_PER_CHAR } from '../src/proxy.js';
+import { TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';
 
@@ -620,7 +620,7 @@ test('what the cut took out is on the row, in the session record, and summed as 
     for (const r of cut) {
       assert.ok(r.cleared > 0, 'the row says what the prompt was shorter by');
       assert.equal(r.cleared, r.clientCut.tokens, 'and the figure is the cut\'s own, the API having reported none');
-      assert.equal(r.cleared, Math.round(r.clientCut.chars * TOKENS_PER_CHAR), 'tied to the characters it replaced');
+      assert.equal(r.cleared, Math.round(r.clientCut.chars * RESULT_TOKENS_PER_CHAR), 'tied to the characters it replaced, at a result\'s own rate');
       assert.equal(r.clearedUses, r.clientCut.cut, 'with the results it replaced beside it');
       assert.equal(r.clientCut.inputChars, undefined, 'the call text is not the cut\'s business');
       assert.equal(r.clientCut.thinking, undefined, 'nor the thinking');
@@ -651,7 +651,7 @@ test('the breakdown by action is what the results were worth, not what the place
     assert.equal(read.calls, row.clearedUses, 'every result the cut replaced is counted');
     // Each cut result is 40,000 chars; the placeholder that replaces it is ~150. Reading the breakdown off
     // the already-cut messages gave 59 tokens a call -- 531 against a session's 1.48M saved (#610..0.2.23).
-    assert.equal(read.tokens, Math.round(40000 * TOKENS_PER_CHAR) * read.calls, 'at the size they were when the agent sent them');
+    assert.equal(read.tokens, Math.round(40000 * RESULT_TOKENS_PER_CHAR) * read.calls, 'at the size they were when the agent sent them');
     assert.ok(Math.abs(read.tokens - row.cleared) <= read.calls, 'so the breakdown adds up to what the row says was taken out');
     assert.equal(compressionTools(state, n => n), `Read \u00d7${read.calls} (${read.tokens})`);
   } finally { p.server.close(); up.server.close(); }

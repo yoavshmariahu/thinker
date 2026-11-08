@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
@@ -215,7 +215,7 @@ test('a cut says what it took out, and every reader of the saving agrees on the 
   const cand = cutCandidates(ms, { keepMin: 3 });
   const applied = applyCut(ms, cand.ids);
   assert.ok(applied.cut > 0);
-  assert.equal(applied.tokens, Math.round(applied.chars * TOKENS_PER_CHAR), 'the row carries tokens, not undefined');
+  assert.equal(applied.tokens, Math.round(applied.chars * RESULT_TOKENS_PER_CHAR), 'the row carries tokens, not undefined');
 
   const t = transformRequest('POST', '/v1/messages', headers,
     Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms })),

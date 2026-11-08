@@ -45,6 +45,7 @@ import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { installClaudeMods, removeClaudeMods, withCardDir, withoutCardDir, cardDirIn, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
+import { installExploreAgent, removeExploreAgent } from './explore-agent.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -570,7 +571,7 @@ function setGooseExtension(file, entry) {
     const ind = b?.indent || '  ';
     const block = [`${ind}thinker:`, ...[
       'type: stdio', 'name: thinker', 'enabled: true', `cmd: ${JSON.stringify(entry.command)}`, `args: ${JSON.stringify(entry.args)}`,
-      `envs: ${JSON.stringify(entry.env || {})}`, 'env_keys: []', 'timeout: 300', 'description: "thinker: notes about the repository from earlier sessions"',
+      `envs: ${JSON.stringify(entry.env || {})}`, 'env_keys: []', 'timeout: 300', 'description: "thinker: context from earlier sessions in the repository"',
     ].map(l => ind + '  ' + l)];
     let at = lines.findIndex(l => /^extensions:\s*$/.test(l));
     if (at < 0) { while (lines.length && !lines.at(-1).trim()) lines.pop(); lines.push(...(lines.length ? [''] : []), 'extensions:'); at = lines.length - 1; }
@@ -1248,11 +1249,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
   const rel = file => label(file, o);
   if (client === 'devin' && learn && !mcp) {
     learn = false;
-    done.push('Devin: session learning needs thinker’s MCP server; --no-mcp connects note delivery only');
+    done.push('Devin: session learning needs thinker’s MCP server; --no-mcp connects the prompt hook only');
   }
   const rec = learn ? ' --record' : '';
   const stopFlags = learn ? rec : ' --no-distill';
-  const learned = learn ? ', sessions distilled into new notes when they end' : '';
+  const learned = learn ? ', sessions read into the profile when they end' : '';
   const localFiles = files => { if (scope === 'repo' && !shared && files.length) excludeLocally(repo, files.map(x => path.relative(repo, x))); };
 
   if (!USER_SCOPE_CLIENTS.includes(client) && scope !== 'repo') return done;
@@ -1279,7 +1280,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       if (learn || (!wind && (hooks || late))) for (const ev of tools) entries.push([ev, entry('tool', (!wind && late ? ' --late' : '') + rec)]);
       for (const ev of stops) entries.push([ev, entry('stop', stopFlags)]);
       mergeJson(f.hooks, c => ({ ...(!wind ? { version: 1 } : {}), ...c, hooks: setHooks(c.hooks, [prompt, ...tools, ...stops], entries) }));
-      done.push(`${client}: hooks in ${rel(f.hooks)}${wind ? '; Windsurf runs them in the workspace, where they find the repository' : '; prompt notes delivered after the first tool result'}`);
+      done.push(`${client}: hooks in ${rel(f.hooks)}${wind ? '; Windsurf runs them in the workspace, where they find the repository' : '; the profile delivered after the first tool result'}`);
     }
     if (client === 'copilot' && mcp) {
       mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('copilot', mcpEntry) } }));
@@ -1301,7 +1302,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       for (const ev of stops) entries.push([ev, entry('stop', stopFlags)]);
       mergeJson(path.join(repo, file), c => ({ ...(!wind ? { version: 1 } : {}), ...c, hooks: setHooks(c.hooks, [prompt, ...tools, ...stops], entries) }));
       generated.push(file);
-      done.push(`${client}: hooks in ${file}${wind ? '; recording only, retrieval uses the always-on rule' : '; prompt notes delivered after the first tool result'}`);
+      done.push(`${client}: hooks in ${file}${wind ? '; recording only, retrieval uses the always-on rule' : '; the profile delivered after the first tool result'}`);
     }
     // the CLI retrieval guidance these two had as an always-on rule went with the workflow block (2026-10-22)
     for (const file of RULE_FILES[client] || []) if (readText(path.join(repo, file)).includes('<!-- thinker -->')) { fs.unlinkSync(path.join(repo, file)); done.push(`${client}: removed ${file}`); }
@@ -1329,7 +1330,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // Claude Code runs both files: thinker's hooks live in one of them
       const other = target === f.local ? f.shared : f.local;
       if (other && stripThinkerHooks(other)) done.push(`Claude Code: removed thinker's hooks from ${rel(other)}; they are in ${rel(target)} now`);
-      done.push(`Claude Code: hooks in ${rel(target)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
+      done.push(`Claude Code: hooks in ${rel(target)}: the profile on the first prompt${late ? ', instruction sections while working' : ''}${learned}`);
       // the cache-hit card under each served answer (claude-card.js); one copy's folder, the user's settings only.
       // On an installed app the folders are copies outside the app, named by their content, so an update that
       // leaves a mod alone rewrites nothing and no open session reloads it (claude-card.js)
@@ -1339,6 +1340,12 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         const cur = readJsonOr(f.local, {});
         if (cardDirIn(cur) !== dir || clearDirIn(cur) !== clearDir) mergeJson(f.local, c => withClearDir(withCardDir(c, dir), clearDir));
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
+        // exploration subagents on a cheaper model: a user-scope Explore agent overrides the built-in one,
+        // which runs on the session's own model (explore-agent.js). A person's own Explore.md is left alone.
+        const ex = installExploreAgent({ claudeDir: claudeDir() });
+        if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
+        else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
+        else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
       }
     }
   }
@@ -1360,7 +1367,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       if (late || learn) entries.push(['PostToolUse', { hooks: [{ type: 'command', command: cmd('tool', (late ? ' --late' : '') + rec), timeout: 10 }] }]);
       entries.push(['Stop', { hooks: [{ type: 'command', command: cmd('stop', stopFlags), timeout: 10 }] }]);
       mergeJson(f.hooks, c => ({ ...c, hooks: setHooks(c.hooks, ['UserPromptSubmit', 'PostToolUse', 'PreToolUse', 'Stop'], entries) }));
-      done.push(`Codex: hooks in ${rel(f.hooks)}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
+      done.push(`Codex: hooks in ${rel(f.hooks)}: the profile on the first prompt${late ? ', instruction sections while working' : ''}${learned}`);
       generated.push(f.hooks);
     }
     localFiles(generated);
@@ -1395,7 +1402,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       }
     }
     if (mcp) done.push(`Gemini CLI: registered MCP server in ${rel(f.settings)}${f.agyMcp ? ` and ${rel(f.agyMcp)}` : ''}`);
-    if (hooks) done.push(`Gemini CLI: hooks in ${rel(f.settings)}${f.agyHooks ? ` and ${rel(f.agyHooks)}` : ''}: notes injected on each prompt${late ? ', file-keyed notes while working' : ''}${learned}`);
+    if (hooks) done.push(`Gemini CLI: hooks in ${rel(f.settings)}${f.agyHooks ? ` and ${rel(f.agyHooks)}` : ''}: the profile on the first prompt${late ? ', instruction sections while working' : ''}${learned}`);
     if (mcp || hooks) localFiles([f.settings]);
   }
 
@@ -1420,7 +1427,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // Cursor's shell hook cannot rewrite a command; the pre hook denies a test run once with the
       // wrapped command to run instead, and answers nothing unless the config asks for it
       mergeJson(f.hooks, c => ({ version: 1, ...c, hooks: setHooks(c.hooks, ['beforeSubmitPrompt', 'postToolUse', 'afterShellExecution', 'beforeShellExecution', 'stop', 'sessionEnd'], entries) }));
-      done.push(`Cursor: hooks in ${rel(f.hooks)}: notes for the request are delivered with the prompt${late ? ', then file-keyed notes while working' : ''}${learned}`);
+      done.push(`Cursor: hooks in ${rel(f.hooks)}: the profile is delivered with the first prompt${late ? ', instruction sections while working' : ''}${learned}`);
       generated.push(f.hooks);
     }
     localFiles(generated);
@@ -1462,7 +1469,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       if (wanted) mergeJson(manifest, c => ({ ...c, name: 'thinker', description: 'thinker: records sessions so the cache learns from them' }));
       else { fs.rmSync(goosePlugin(), { recursive: true, force: true }); dropGoosePlugin(f.yaml); }
     }
-    if (wanted) done.push(`${shaped.name}: hooks in ${rel(e.file)}: ${shaped.recordOnly ? 'sessions recorded for learning (Goose gives hooks no way to add context)' : `${shaped.prompt ? 'notes injected on each prompt' : 'no prompt hook in Auggie: the rules about a file come when it edits one'}${late ? ', file-keyed notes while working' : ''}${learned}`}`);
+    if (wanted) done.push(`${shaped.name}: hooks in ${rel(e.file)}: ${shaped.recordOnly ? 'sessions recorded for learning (Goose gives hooks no way to add context)' : `${shaped.prompt ? 'the profile on the first prompt' : 'no prompt hook in Auggie: nothing reaches it before its first edit'}${learned}`}`);
     if (mcp && client !== 'goose') {
       const file = ['droid', 'devin'].includes(client) ? f.mcp : f.settings;
       mergeJson(file, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry(client, mcpEntry) } }));
@@ -1491,7 +1498,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const text = JSON.stringify({ version: 'v1', hooks: items }, null, 2) + '\n';
       fs.mkdirSync(path.dirname(f.hooks), { recursive: true });
       if (readText(f.hooks) !== text) fs.writeFileSync(f.hooks, text);
-      done.push(`Kiro CLI: hooks in ${rel(f.hooks)} (the V3 engine: \`kiro-cli --v3\`, or chat.agentEngine = v3): notes injected on each prompt${learned}`);
+      done.push(`Kiro CLI: hooks in ${rel(f.hooks)} (the V3 engine: \`kiro-cli --v3\`, or chat.agentEngine = v3): the profile on the first prompt${learned}`);
     } else fs.rmSync(f.hooks, { force: true });
     if (mcp) { mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('kiro', mcpEntry) } })); done.push(`Kiro CLI: registered MCP server in ${rel(f.mcp)}`); }
   }
@@ -1507,7 +1514,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       if (fs.existsSync(file) && !isWrapper(file)) { if (hooks && plan[ev]) kept.push(ev); continue; }
       if (hooks && plan[ev]) writeWrapper(file, cmd(...plan[ev])); else fs.rmSync(file, { force: true });
     }
-    if (hooks) done.push(`Cline: hooks in ${rel(f.hookDir)}: notes added on each prompt in the editor (the CLI's prompt hook never sees the person's prompt)${late ? ', file-keyed notes while working' : ''}${learned}${kept.length ? `; left your own ${kept.join(', ')} hook${kept.length > 1 ? 's' : ''} in place` : ''}`);
+    if (hooks) done.push(`Cline: hooks in ${rel(f.hookDir)}: the profile on the first prompt in the editor (the CLI's prompt hook never sees the person's prompt)${learned}${kept.length ? `; left your own ${kept.join(', ')} hook${kept.length > 1 ? 's' : ''} in place` : ''}`);
     if (mcp) { mergeJson(f.mcp, c => ({ ...c, mcpServers: { ...(c.mcpServers || {}), thinker: mcpServerEntry('cline', mcpEntry) } })); done.push(`Cline: registered MCP server in ${rel(f.mcp)}`); }
   }
 
@@ -1592,7 +1599,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
-  if (scope === 'user') removeClaudeMods();
+  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); }
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

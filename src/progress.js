@@ -24,7 +24,7 @@ export function batchProgress({ dir, name, total, out, verbose = false, every = 
   const reasons = new Map();
   const started = Date.now();
   const elapsed = () => `${Math.round((Date.now() - started) / 1000)}s`;
-  const status = () => `${name}: ${completed}/${total} processed · ${saved} ${saved === 1 ? 'note' : 'notes'} saved${empty ? ` · ${empty} with no new notes` : ''}${failed ? ` · ${failed} failed` : ''}`;
+  const status = () => `${name}: ${completed}/${total} processed${saved ? ` · ${saved} saved` : ''}${empty ? ` · ${empty} with nothing new` : ''}${failed ? ` · ${failed} failed` : ''}`;
   const detail = record => {
     fs.appendFileSync(file, JSON.stringify({ time: new Date().toISOString(), ...record }) + '\n');
     if (verbose) out(`        ${oneLine(JSON.stringify(record))}`);

@@ -50,4 +50,4 @@ export function setRepoDisabled(repo, { disabled = true, name, home } = {}) {
 }
 
 // What a command says when it is run in a repository that is off.
-export const OFF_MESSAGE = 'thinker is switched off for this repository: no notes are served or learned here and nothing is written into it. `thinker enable` turns it back on.';
+export const OFF_MESSAGE = 'thinker is switched off for this repository: nothing is served or learned here and nothing is written into it. `thinker enable` turns it back on.';

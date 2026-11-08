@@ -6,7 +6,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, MODS, PRUNE_DAYS, claudeCardDir, claudeClearDir, withCardDir, withoutCardDir, cardDirIn, clearDirIn, claudeCardActive, installClaudeMods, removeClaudeMods, modDigest } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
-import { FILE_CAP, MAX_FILES, NOT_READING } from '../src/usage.js';
 import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
 import { NOTICE_PROMPTS, NOTICE_HOURS } from '../src/notice-cadence.js';
 import { formatTokens } from '../src/model-usage.js';
@@ -25,15 +24,6 @@ test('the card folder ships beside the CLI, with a manifest and one hooks module
   assert.equal(manifest.name, 'thinker');   // the desktop app labels a pinned status line with this name
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(MOD, 'hooks', 'hooks.json'), 'utf8')).modules, ['./register.tsx']);
   assert.ok(fs.existsSync(path.join(MOD, 'hooks', 'register.tsx')));
-});
-
-test('the card estimates as usage.js:cacheHitSavings does: same file cap, files per note and skipped paths', () => {
-  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
-  assert.match(src, new RegExp(`export const MAX_FILES = ${MAX_FILES}\\n`));
-  assert.match(src, new RegExp(`export const FILE_CAP = ${FILE_CAP}\\n`));
-  assert.ok(src.includes(`export const NOT_READING = ${NOT_READING}\n`), 'NOT_READING matches usage.js');
-  assert.ok(src.includes('note.reads?.files'), 'the card reads the measurement kept on the note (usage.js:readsOf) before the disk');
-  assert.ok(src.includes('st.size / 3.6'), 'tokens per byte match');
 });
 
 test('the card waits as long as the notice does, and words the saving the same way', () => {
@@ -63,14 +53,10 @@ test('the card comes due as the notice does, and speaks for the turns it held', 
   assert.match(src, new RegExp(`export const NOTICE_HOURS = ${NOTICE_HOURS}\\n`), 'the hours floor matches notice-cadence.js');
   assert.ok(src.includes('/state/notice.json'), 'one cadence for every door');
   assert.ok(!/countPrompt|st\.prompts = /.test(src), 'the Stop hook counts the prompts; the card only reads the count');
-  // a held turn keeps its notes for the next card, and the header says the span
+  // a held turn waits for the next card, which says the span
   assert.ok(src.includes('if (!(await noticeDue($))) held++'));
   assert.ok(src.includes('prompts: held + 1'));
-  const header = src.match(/export const cardHeader = \(n: number, tokens: number, prompts = 0\) =>\n  (.+)/);
-  assert.ok(header, 'the mod exports a header');
-  const build = (n, tokens, prompts) => new Function('n', 'tokens', 'prompts', 'formatTokens', `return ${header[1]};`)(n, tokens, prompts, formatTokens);
-  assert.equal(build(1, 7000, 0), '1 note this turn \u00b7 Estimated tokens saved: ~7k');
-  assert.equal(build(3, 0, 24), '3 notes over the last 24 prompts');
+  assert.ok(!src.includes('thinker-cache'), 'the notes went with the knowledge notes (2026-11-08)');
 });
 
 test('the settings name one copy\'s card folder and keep every other plugin folder', () => {
@@ -128,6 +114,14 @@ test('a session is carded only once the mod marked it, and old marks are cleared
     claudeCardActive('s1', { home });
     assert.deepEqual(fs.readdirSync(dir), ['s1']);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('the mod polls the ledger file and reads it again only when it moved', () => {
+  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+  assert.match(src, /export const LEDGER_POLL_MS = 5_000/, 'a stat every five seconds, a read only on a move');
+  assert.match(src, /\$\.clock\.every\(LEDGER_POLL_MS, async \(\) => \{ if \(await ledgerMoved\(\$\)\) await readSavings\(\$, surface\) \}\)/, 'the poll reads through readSavings, so the row and the desktop line move together');
+  assert.match(src, /on\('session\.end', async \(\$, e, next\) => \{\n\s+poll\?\.cancel\(\)/, 'the poll stops with the session');
+  assert.match(src, /\$\.fs\.stat\(await ledgerFile\(\$\)\)/, 'the stamp is the file\'s own, not a clock of the mod\'s');
 });
 
 test('the status row says what the ledger says, in the same words and the same dollars', () => {

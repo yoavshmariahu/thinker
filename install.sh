@@ -20,19 +20,17 @@
 #   -y, --yes           accept defaults and skip interactive confirmation prompts
 #   --clients <list>    coding agents to wire up: claude, codex, cursor, gemini, pi, windsurf, copilot, opencode, all or auto
 #                       (default auto)
-#   --cache <source>    cache built for this repo. One of: gh:<path in the thinker repo>, an https URL, a local file.
-#                       Omit if .thinker/notes is already in the repo.
-#   --no-learn          do not distill your own sessions into new notes (learning is on by default, for any of the
+#   --no-learn          do not read your own sessions into the profile (learning is on by default, for any of the
 #                       agents, and uses that agent's login; switch it off for evals)
-#   --late              also serve notes about files as the agent opens them
+#   --late              accepted for compatibility (the file-keyed notes it served went with the knowledge notes)
 #   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
-#   --no-git-hook       do not install the git post-commit hook (it re-checks and maintains notes after each commit)
+#   --no-git-hook       do not install the git post-commit hook (it runs maintenance after each commit)
 #   --no-ui             do not offer the browser for the Context report; it is shown in the terminal, with its suggestions to pick from
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
 #   --no-auto-update    do not schedule background auto-updates (every 4 hours)
 #   --no-modify-path    do not add THINKER_HOME/bin to PATH in your shell's and bash's startup files
-#   --uninstall         remove hooks and registration from this repo (add --purge to delete notes too); run outside
+#   --uninstall         remove hooks and registration from this repo (add --purge to delete the profile too); run outside
 #                       a repository, it removes the wiring from your agents' own settings
 #
 # Environment
@@ -342,9 +340,9 @@ EOF
 
   # whatever agents are on this machine are wired up, in their own settings
   [ -z "$clients" ] && clients="auto"
-  # The dependencies are always installed: the hooks rank notes with a local cross-encoder whose runtime is one
-  # of them, and the MCP server, registered for every agent, needs its SDK. Without npm the hooks still work,
-  # ranking by words alone, and the MCP server is left out (thinker connect registers it once npm ci has run).
+  # The dependencies are always installed: the harness recall ranks with a local cross-encoder whose runtime is
+  # one of them, and the MCP server, registered for every agent, needs its SDK. Without npm the hooks still work,
+  # and the MCP server is left out (thinker connect registers it once npm ci has run).
   if command -v npm >/dev/null; then
     mcp=1
     # the cd lives in a subshell: `spin` runs its command in this shell when there is no terminal (the piped
@@ -352,9 +350,9 @@ EOF
     # update deletes, and every command after it then died on a working directory that was gone (2026-10-28)
     install_deps() { ( cd "$home/app" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --silent ); }
     spin "Installing dependencies (the ranking runtime is most of it)" install_deps || die "npm ci failed in $home/app"
-    spin "Fetching the ranking model" "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); notes are ranked by words until 'thinker ranker fetch' succeeds."
+    spin "Fetching the ranking model" "$thinker" ranker fetch --quiet || say "  The ranking model could not be fetched (offline?); the recall ranks by words until 'thinker ranker fetch' succeeds."
   else
-    say "npm was not found: the dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev --ignore-scripts, then thinker ranker fetch and thinker connect). Notes are ranked by words alone until then."
+    say "npm was not found: the dependencies were not installed (cd \"$home/app\" && npm ci --omit=dev --ignore-scripts, then thinker ranker fetch and thinker connect)."
     mcp=0
   fi
 
@@ -403,13 +401,13 @@ EOF
       "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
       "Where your agents' context goes, any time: ${cyan}thinker ui${reset}." \
-      "${dim}Notes stay on this machine; Thinker uploads none.${reset}" "" \
+      "${dim}What it learns stays on this machine; Thinker uploads none.${reset}" "" \
       "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
   else
     say "Install complete: Thinker v$version, installed into $home and wired into your agents."
     say "Thinker now runs in every git repository on this machine."
     say "Where your agents' context goes, any time: thinker ui."
-    say "Notes stay on this machine; Thinker uploads none."
+    say "What it learns stays on this machine; Thinker uploads none."
   fi
 }
 

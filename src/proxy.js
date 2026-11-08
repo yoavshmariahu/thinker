@@ -157,6 +157,15 @@ export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}
 }
 // what a text block costs the model, for the proxy's own count: four characters are 1.44 tokens (report.js:CALIBRATION)
 export const TOKENS_PER_CHAR = 1.44 / 4;
+// What a tool result's characters cost, for the saving the cut reports (`applyCut`, `cutActions`). The
+// whole-prompt rate above is the Report's, measured over prose and code together; tool results tokenize
+// denser. Measured 2026-11-08 from Claude Code transcripts, each call's usage delta less the previous
+// answer's output over one result, 265 results of 4k+ chars (2.6M chars): median 0.433, weighted 0.445
+// (Bash 0.446, Read 0.445, Grep 0.578), so the figure at 0.36 ran a fifth short. The one clean live cut
+// the same day claimed 16,966 tokens where the API's context fell by 30,718. The decision's own
+// arithmetic (`cutCandidates`, `priceCut`) keeps the whole-prompt rate: the cut and the tail it prices
+// scale together, and moving the size floor's reach is a policy change with its own measurement.
+export const RESULT_TOKENS_PER_CHAR = 0.445;
 // the margin the proxy's count of the clearable results must clear by before it sends the thinking edit, since the
 // server counts exactly and the proxy estimates: a thinking clear on a request whose tool clear does not fire would break
 // the cache on its own
@@ -317,7 +326,7 @@ export function applyCut(messages, cut) {
   // here rather than worked out by a reader, because only this walk knows which results it replaced -- one
   // below `CUT_MIN_CHARS` is left in place, and a cut id whose result the agent no longer sends is not in
   // the prompt to save anything.
-  return { messages: out, cut: n, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged };
+  return { messages: out, cut: n, chars, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR), firstChanged };
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
@@ -329,7 +338,7 @@ export function cutActions(messages, cut) {
   for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) {
     if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
     const e = by.get(nameOf.get(b.tool_use_id) || 'tool');
-    if (e) e.tokens += Math.round(resultText(b).length * TOKENS_PER_CHAR);
+    if (e) e.tokens += Math.round(resultText(b).length * RESULT_TOKENS_PER_CHAR);
   }
   return [...by.values()].sort((a, b) => b.tokens - a.tokens);
 }
@@ -502,8 +511,7 @@ const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clien
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
-// `notes`: a proxy-notes.js NoteInjector; the notes for an agent with no prompt hook go into the last user turn
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes = null, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
   // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
   // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
   // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
@@ -605,7 +613,6 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, notes =
         (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
       }
       let n = null;
-      if (notes && requestCfg.protocol !== 'responses') { try { n = await notes.transform(req.method, req.url, req.headers, t.body); } catch { n = null; } if (n) { t.body = n.body; t.notes = n; if (t.reason === 'other') t.reason = 'notes'; } }
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;

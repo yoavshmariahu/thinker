@@ -112,7 +112,7 @@ function sessionRecords(store, sessions, { levelAt = null, key = '', onSession }
       r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
       changed = true;
     }
-    recs.push({ ...r, at: r.at || s.mtime, session: s.session, client: s.client, t: s.mtime });
+    recs.push({ ...r, at: r.at || s.mtime, session: s.session, client: s.client, t: s.mtime, parent: s.parent || null, agent: s.agent || null, type: s.type || null });
   }
   if (changed) {
     const ids = Object.keys(st).sort((a, b) => (st[a].mtime || 0) - (st[b].mtime || 0));
@@ -125,7 +125,7 @@ function sessionRecords(store, sessions, { levelAt = null, key = '', onSession }
 // what its tool outputs cost in input tokens
 export function sessionUsage(store, sessions, { levelAt = null, key = '', onSession } = {}) {
   // `by`: each tool's own cost in the session, so the Report can cost one tool's outputs a session before and since its compression (report.js:actionEffect)
-  return sessionRecords(store, sessions, { levelAt, key, onSession }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
+  return sessionRecords(store, sessions, { levelAt, key, onSession }).map(r => ({ session: r.session, t: r.t, client: r.client, parent: r.parent || null, agent: r.agent || null, type: r.type || null, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
 }
 // The rows of one tool linked: each carries `others`, the same tool's rows under its other settings (level, sessions,
 // from, to, perCall, perPrompt, wasted), so the page and the command compare a compressed tool with itself before.

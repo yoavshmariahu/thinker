@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
+import { seedProfile } from './fixtures/seed-profile.js';
 import { installClient, inferWiring, refreshWiring, uninstallWiring, detectClients, hookClient, normalizeHookEvent, wiringFiles } from '../src/clients.js';
 import { desktopApp, anyDesktopApp, subagentHarness } from '../src/app-host.js';
 import { pendingJobs, enqueueJob, startSessionWork } from '../src/session-work.js';
@@ -36,7 +36,7 @@ function fixture(t) {
   write(path.join(store.dir, 'config.json'), { ...store.config(), minNotes: 1, holdout: 0 });
   fs.mkdirSync(path.join(repo, 'src'));
   fs.writeFileSync(path.join(repo, 'src/upload.py'), 'class RateLimiter:\n    def allow(self, user):\n        return True\n');
-  createNote(store, { kind: 'rule', title: 'Upload rate limits are per user', body: 'src/upload.py:RateLimiter.allow keys upload rate limits on the user, never an IP address.', answers: ['upload rate limits per user'], deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  seedProfile(store, 'Upload rate limits are per user: src/upload.py:RateLimiter.allow keys upload rate limits on the user, never an IP address.');
   const hook = (what, ev, extra = [], client = 'devin') => execFileSync(process.execPath, [CLI, 'hook', what, '--client', client, '--repo', repo, ...extra], { cwd: home, input: JSON.stringify(ev), encoding: 'utf8', env }).trim();
   return { root, home, repo, env, store, hook };
 }
@@ -145,13 +145,11 @@ test('Devin injects notes in documented JSON, records actual outputs/errors and 
   assert.equal(fs.existsSync(path.join(store.dir, 'state', 'session-work.last')), false, 'test mode starts no background model process');
 });
 
-test('Devin post-tool context serves file notes; imported Claude hooks and unknown sessions do nothing', t => {
+test('Devin post-tool hooks record and add nothing; imported Claude hooks and unknown sessions do nothing', t => {
   const { hook, store, repo } = fixture(t);
   const ev = { session_id: 'd-edit', hook_event_name: 'PostToolUse', tool_name: 'edit', tool_input: { file_path: 'src/upload.py' }, tool_response: { success: true, output: 'edited', error: null } };
-  const out = JSON.parse(hook('tool', ev, ['--late', '--record']));
-  assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
-  assert.match(out.hookSpecificOutput.additionalContext, /per user/);
-  assert.equal(out.hookSpecificOutput.updatedInput, undefined);
+  const out = hook('tool', ev, ['--late', '--record']);
+  assert.ok(!out || !JSON.parse(out).hookSpecificOutput?.additionalContext, 'the file-keyed notes went with the knowledge notes');
   assert.equal(hook('prompt', { session_id: 'imported', prompt_id: 'p', hook_event_name: 'UserPromptSubmit', prompt: 'fix uploads' }, ['--record'], 'claude'), '');
   assert.equal(fs.existsSync(path.join(store.dir, 'state', 'trace-imported.jsonl')), false);
   assert.equal(hook('prompt', { prompt: 'fix uploads' }, ['--record']), '');

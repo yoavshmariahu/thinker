@@ -1,10 +1,9 @@
-// The Claude Code side of thinker's cache-hit card (the Codex desktop card is src/notice-card.js).
-// thinker's hooks hand their notes to the model as text; this mod reads them as the session keeps
-// them, and draws a card under the answer of each turn that was served notes. The card is kept by
-// the end of that answer's text, so it is drawn again whenever the transcript is, the session
-// reopened included. `thinker connect` names this folder in CLAUDE_CODE_PLUGIN_DIRS
+// The Claude Code side of thinker's card: what the context clearing saved, drawn under the answer once a
+// summary comes due. The card is kept by the end of that answer's text, so it is drawn again whenever the
+// transcript is, the session reopened included. `thinker connect` names this folder in CLAUDE_CODE_PLUGIN_DIRS
 // (clients.js:claudeCardDir); a session this mod runs in is marked under thinker's home, and the
-// Stop hook leaves its own collapsed cache-hit line out there (claude-card.js:claudeCardActive).
+// Stop hook leaves its own collapsed line out there (claude-card.js:claudeCardActive). Until 2026-11-08 the
+// card also listed the knowledge notes a turn was served; they went with the notes.
 //
 // It also pins what thinker has saved -- today and over the whole log -- as this plugin's status line
 // under the prompt, which is the one surface that can keep a figure on screen instead of saying it
@@ -14,25 +13,12 @@
 // refreshed (src/savings-ledger.js) -- this mod only ever reads one small file.
 import type { Register } from 'claude-code'
 
-export type Note = { title: string; id: string }
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-export type Card = { tail: string; titles: string[]; tokens: number; at: number; prompts?: number; compression?: Saving }
+export type Card = { tail: string; at: number; prompts?: number; compression: Saving }
 // the kept ledger, as src/savings-ledger.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
 export type Ledger = { at: number; day: string; today: Cell; lifetime: Cell }
-
-// Each served note is headed `### [kind] Title  (id: …)` inside a `<thinker-cache>` block; the titles
-// listed under "Other cached titles" were not served.
-export function servedNotes(texts: readonly string[] | undefined): Note[] {
-  const notes: Note[] = []
-  for (const c of texts ?? []) {
-    for (const block of c.match(/<thinker-cache>[\s\S]*?<\/thinker-cache>/g) ?? []) {
-      for (const m of block.matchAll(/^### \[[^\]]+\] (.+?)\s+\(id: ([^,)\s]+)/gm)) notes.push({ title: m[1], id: m[2] })
-    }
-  }
-  return notes
-}
 
 // every string inside a value, however a row nests its content
 export function strings(v: unknown, out: string[] = []): string[] {
@@ -42,21 +28,6 @@ export function strings(v: unknown, out: string[] = []): string[] {
   return out
 }
 
-// A title is often a headline and its explanation; the card shows the headline.
-export function shortTitle(title: string): string {
-  const m = title.match(/^(.{3,}?)(?::\s|;\s|\s—\s|\s--\s)/)
-  const head = (m ? m[1] : title).trim()
-  return head.length > 80 ? head.slice(0, 79).trimEnd() + '…' : head
-}
-
-// thinker's estimate, as usage.js:cacheHitSavings makes it (test/claude-card.test.js holds the two
-// together): the `reads` record kept on the note (usage.js:readsOf, measured when the note was made or
-// verified), each file once across the notes; measured from the disk only for a note that has none yet,
-// one read per file a note rests on, at most MAX_FILES a note, its size / 3.6 tokens capped at FILE_CAP,
-// agent configuration and build output counting nothing.
-export const MAX_FILES = 5
-export const FILE_CAP = 6000
-export const NOT_READING = /^(\.claude|\.codex|\.cursor|\.gemini|\.pi|\.windsurf|\.devin|\.opencode|\.vscode|\.idea|\.factory|\.qwen|\.kiro|\.clinerules|\.cline|\.kilo|\.kilocode|\.augment|\.goose|\.git|\.thinker|node_modules|dist|coverage)\/|^\.github\/(hooks|instructions)\/|^\.mcp\.json$|^bench\/runs\/|\.log$/
 export function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
   if (n >= 10000) return `${Math.round(n / 1000)}k`
@@ -76,8 +47,8 @@ export function formatDollars(d: number): string {
   return `${s}$${a.toFixed(3)}`
 }
 
-// The checkout whose cache holds the notes: a linked worktree's `.git` is a file naming the main
-// checkout's git directory, and the worktree uses the main checkout's cache (store.js).
+// The checkout whose cache this is: a linked worktree's `.git` is a file naming the main checkout's git
+// directory, and the worktree uses the main checkout's cache (store.js).
 async function cacheRoot($: any): Promise<string> {
   const repo = await $.session.repo().catch(() => null)
   const root: string = repo?.root ?? (await $.session.cwd())
@@ -88,29 +59,6 @@ async function cacheRoot($: any): Promise<string> {
   return root
 }
 
-async function estimate($: any, ids: readonly string[]): Promise<number> {
-  const root = await cacheRoot($)
-  const seen = new Set<string>()
-  let tokens = 0
-  for (const id of ids) {
-    let note: { deps?: { path?: string }[]; reads?: { files?: { path: string; tokens: number }[] } } = {}
-    for (const dir of ['.thinker/local/notes', '.thinker/notes']) {
-      try { note = JSON.parse(String(await $.fs.read(`${root}/${dir}/${id}.json`))); break } catch {}
-    }
-    if (Array.isArray(note.reads?.files)) {
-      for (const f of note.reads.files) { if (seen.has(f.path)) continue; seen.add(f.path); tokens += f.tokens }
-      continue
-    }
-    const deps = note.deps ?? []
-    for (const f of [...new Set(deps.map(d => d.path).filter((x): x is string => !!x))].slice(0, MAX_FILES)) {
-      if (seen.has(f) || NOT_READING.test(f)) continue
-      seen.add(f)
-      try { const st = await $.fs.stat(`${root}/${f}`); if (st.kind === 'file') tokens += Math.min(Math.ceil(st.size / 3.6), FILE_CAP) } catch {}
-    }
-  }
-  return tokens
-}
-
 // The Stop hook reads this mark to leave its collapsed line out of a session that shows the card.
 async function markSession($: any): Promise<void> {
   try {
@@ -119,9 +67,6 @@ async function markSession($: any): Promise<void> {
     if (id) await $.fs.write(`${home}/state/claude-card/${id}`, '')
   } catch {}
 }
-
-export const cardHeader = (n: number, tokens: number, prompts = 0) =>
-  `${n} ${n === 1 ? 'note' : 'notes'} ${prompts > 1 ? `over the last ${prompts} prompts` : 'this turn'}${tokens ? ` · Estimated tokens saved: ~${formatTokens(tokens)}` : ''}`
 
 // The status line's words, as src/savings-ledger.js:savingsStatus writes them (test/claude-card.test.js
 // holds the two sentences together). Both figures are already formatted; `today` is null when the kept
@@ -172,9 +117,25 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
 }
 
 // The line currently on screen, kept here because a `ui.render` hook draws on every frame and must
-// never read a file: the reads happen at the start of the session and at the end of each turn, and a
-// changed line asks for a redraw.
+// never read a file: the reads happen at the start of the session, at the end of each turn, and when
+// the ledger's file moves (the poll below), and a changed line asks for a redraw.
 let line = ''
+// The ledger is refreshed by the Stop hook in a detached process that takes about a second, so the read
+// at the end of the same turn lands before the write does: every session then showed the ledger as it
+// stood at its previous turn, and two open sessions disagreed until each had another turn (2026-11-08).
+// So the file's modification time is polled while the session is open, and a move reads it again. One
+// stat every LEDGER_POLL_MS, a read only when it moved; the runtime has no file watcher.
+export const LEDGER_POLL_MS = 5_000
+let ledgerAt = -1
+const ledgerFile = async ($: any) => `${await thinkerHome($)}/state/savings.json`
+// Whether the ledger's file has moved since it was last read; the stamp is kept either way.
+async function ledgerMoved($: any): Promise<boolean> {
+  let at = 0
+  try { at = Number((await $.fs.stat(await ledgerFile($)))?.mtimeMs) || 0 } catch { at = 0 }
+  if (at === ledgerAt) return false
+  ledgerAt = at
+  return true
+}
 // the day the person ran /thinker-hide, kept in the mod's store across sessions; the line is back the next day
 let hiddenOn = ''
 export const HIDDEN_KEY = 'savings-hidden-on'
@@ -193,13 +154,14 @@ const showStatus = ($: any, surface: string) => {
 // Read the ledger and, if it says something new, have the row drawn again.
 async function readSavings($: any, surface = ''): Promise<void> {
   try {
+    await ledgerMoved($)   // the stamp of what is read now, so the poll does not read it again
     const next = await savings($)
     if (next !== line) { line = next; $.ui.invalidate('ui.render') }
     showStatus($, surface)
   } catch {}
 }
 
-// The context proxy's clearing, drawn beside the notes (src/compression.js holds the same rule; the figures
+// The context proxy's clearing (src/compression.js holds the same rule; the figures
 // are the API's own `cleared_input_tokens`, which the proxy writes per session as it sees them). The wait:
 // the first cleared call saves nothing anybody would notice -- the saving is every later call that reads the
 // shorter prefix -- so the card appears TURNS_AFTER turns on, by when the figure is the clearing's return.
@@ -258,14 +220,14 @@ async function load($: any): Promise<Card[]> {
 }
 
 export const register: Register = on => {
-  // notes served since the last card was drawn, prompt-time and late: a held turn keeps them
-  let served: Note[] = []
-  // turns that served something and drew nothing, waiting for the next summary
+  // turns that had a saving to show and drew nothing, waiting for the next summary
   let held = 0
   // turns since the first one that saw the proxy clear anything in this session; -1 until then
   let sinceClear = -1
   cards = null
   line = ''
+  ledgerAt = -1
+  let poll: { cancel: () => void } | null = null
 
   let surface = ''
   on('session.start', async ($, e, next) => {
@@ -276,6 +238,12 @@ export const register: Register = on => {
       hiddenOn = String((await $.store.get(HIDDEN_KEY)) ?? '')
     }
     await readSavings($, surface)
+    poll?.cancel()
+    poll = $.clock.every(LEDGER_POLL_MS, async () => { if (await ledgerMoved($)) await readSavings($, surface) })
+    return next(e)
+  })
+  on('session.end', async ($, e, next) => {
+    poll?.cancel(); poll = null
     return next(e)
   })
   on('command.run', { command: 'thinker-hide' }, async ($) => {
@@ -285,37 +253,21 @@ export const register: Register = on => {
     return { text: 'thinker savings line hidden until tomorrow.' }
   })
 
-  // a hook's JSON additionalContext (the late notes after a tool) is in the folded result
-  on('classic.PostToolUse', async ($, e, next) => {
-    const r = await next(e)
-    served.push(...servedNotes(r.additionalContext))
-    return r
-  }).catch(($, e, next) => next(e))
-
-  // a hook's plain-text output (the prompt's notes) reaches the conversation as a row the session
-  // appends; only what a hook added counts, never a reply or a tool result that quotes a note
-  on('session.append', ($, e, next) => {
-    if (e.agentId === undefined && e.origin.kind === 'hook') served.push(...servedNotes(strings(e.message)))
-    return next(e)
-  }).catch(($, e, next) => next(e))
-
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
-      const byId = new Map(served.map(n => [n.id, n]))
       const state = await compressionState($)
       if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
       const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
-      if ((byId.size || compression) && tail) {
-        if (!(await noticeDue($))) held++   // the notes stay in `served` and come with the next card
+      if (compression && tail) {
+        if (!(await noticeDue($))) held++   // the saving comes with the next card
         else {
-          const tokens = byId.size ? await estimate($, [...byId.keys()]).catch(() => 0) : 0
-          const card: Card = { tail, titles: [...byId.values()].map(n => n.title), tokens, at: Date.now(), prompts: held + 1, ...(compression ? { compression } : {}) }
+          const card: Card = { tail, at: Date.now(), prompts: held + 1, compression }
           cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
           await $.store.set('cards', cards).catch(() => {})
           await markSession($)
           await noticeShown($)
-          served = []; held = 0
+          held = 0
           // the answer was drawn before the turn ended: draw it again, now with its card
           $.ui.invalidate('ui.render')
         }
@@ -347,20 +299,11 @@ export const register: Register = on => {
     if (e.props.isSummary) return drawn
     const tail = tailOf(e.props.text)
     const card = tail ? (await load($)).find(c => c.tail === tail) : undefined
-    if (!card) return drawn
+    if (!card?.compression) return drawn
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {drawn}
-        {card.titles.length ? (
-          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
-            <Text><Text bold>🧠 Thinker</Text><Text dimColor> · {cardHeader(card.titles.length, card.tokens, card.prompts ?? 0)}</Text></Text>
-            {card.titles.slice(0, 3).map((t, i) => (
-              <Text key={'t' + i} dimColor>• {shortTitle(t)}</Text>
-            ))}
-            {card.titles.length > 3 ? <Text dimColor>+{card.titles.length - 3} more</Text> : null}
-          </Box>
-        ) : null}
         {card.compression ? (
           <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
             <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>

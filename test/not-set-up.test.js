@@ -28,14 +28,14 @@ const fresh = t => {
 // out of the repository's git status.
 test('a git repository without .thinker gets a cache on first use, excluded from git status', t => {
   const dir = fresh(t);
-  const r = spawnSync(process.execPath, [CLI, 'orient', 'how do I run tests', '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [CLI, 'profile', 'show', '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /no matching notes/);
+  assert.match(r.stdout, /no profile yet/);
   assert.ok(fs.existsSync(path.join(dir, '.thinker', 'config.json')));
   assert.match(fs.readFileSync(path.join(dir, '.git', 'info', 'exclude'), 'utf8'), /^\.thinker\/config\.json$/m);
   const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: dir, encoding: 'utf8' });
   assert.ok(!status.includes('.thinker'), status);
-  for (const cmd of [['list'], ['check'], ['maintain', '--dry']]) {
+  for (const cmd of [['profile', 'ledger'], ['maintain', '--dry']]) {
     const r2 = spawnSync(process.execPath, [CLI, ...cmd, '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
     assert.equal(r2.status, 0, cmd.join(' ') + ': ' + r2.stderr);
   }
@@ -44,7 +44,7 @@ test('a git repository without .thinker gets a cache on first use, excluded from
 test('outside a git repository there is no cache, and nothing is created', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-no-git-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const r = spawnSync(process.execPath, [CLI, 'list', '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [CLI, 'profile', 'show', '--repo', dir], { env: { ...env, THINKER_HOME: path.join(dir, 'home') }, encoding: 'utf8' });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /not a git repository/);
   assert.ok(!fs.existsSync(path.join(dir, '.thinker')));

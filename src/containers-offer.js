@@ -103,8 +103,8 @@ export function containersOffer(store, { client, home = thinkerHome(), now = Dat
   store?.log?.({ op: 'containers-offer', client, agents: c.agents.length });
 
   const where = c.name || c.id;
-  const what = `thinker found a container on this machine, ${where}, running ${c.agents.join(' and ')}${c.inside ? ` on the checkout it mounts at ${c.inside}` : ''}. thinker is installed on the machine but not inside that container, and a container has its own home: the wiring here is not what the agent in there reads, so those sessions are served no notes and nothing is learned from them.`;
-  const offer = 'Saying yes copies this build in and wires the agents inside, which takes about 8 seconds and no network. The cache is the one in the checkout the container already mounts, so the notes and what it learns stay in the repository. A container rebuild wipes the install; thinker will print the lines that keep it.';
+  const what = `thinker found a container on this machine, ${where}, running ${c.agents.join(' and ')}${c.inside ? ` on the checkout it mounts at ${c.inside}` : ''}. thinker is installed on the machine but not inside that container, and a container has its own home: the wiring here is not what the agent in there reads, so those sessions get no clearing and no profile, and nothing is learned from them.`;
+  const offer = 'Saying yes copies this build in and wires the agents inside, which takes about 8 seconds and no network. The cache is the one in the checkout the container already mounts, so the profile and what it learns stay in the repository. A container rebuild wipes the install; thinker will print the lines that keep it.';
   const tool = QUESTION_TOOLS[client];
   const ask = tool && client !== 'codex'
     ? `Before you start on the request, ${askThrough(tool, QUESTION)}, with the options ${OPTIONS}, and this message as the question's context.`

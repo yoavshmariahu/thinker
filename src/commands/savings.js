@@ -21,7 +21,7 @@ async function savingsCommand({ store, flags, out }) {
   const l = kept?.current ? kept : writeSavings(store, computeSavings(store));
   if (flags.json) { out(JSON.stringify(l, null, 2)); return; }
   const line = savingsLine(l);
-  if (!line) { out('No savings recorded yet. thinker counts them as notes are served and as the context proxy clears.'); return; }
+  if (!line) { out('No savings recorded yet. thinker counts them as the context clearing runs.'); return; }
   out(`thinker savings · ${line}`);
   out('');
   for (const [label, cell] of [['Today', l.today], ['Lifetime', l.lifetime]]) {

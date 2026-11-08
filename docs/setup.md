@@ -59,33 +59,25 @@ For the measurements, actions and how each is undone, see [Find Savings](context
 
 **Everything else runs by itself.** From the install on, thinker runs in every git repository on this machine:
 a cache starts, empty, with the first agent session in a repository (kept out of `git status` through
-`.git/info/exclude`) and grows from your sessions. The hooks start serving from it once it holds a few notes
-(three; `minNotes` in `.thinker/config.json` changes that), so a young cache costs a session nothing. Each
-session is distilled once when it ends, through the agent's own login; stale notes are re-checked after
-commits and merges; nothing reads the repository's history into the cache. Inside a desktop app (Claude
-Desktop, the Codex app, Cursor), and wherever no agent CLI is signed in, Claude Code, Codex and Cursor learn
-through the session instead, on the app's own login and model: the agent starts a background subagent that
-answers thinker's queued model calls.
+`.git/info/exclude`) and grows from your sessions. Each session is read once when it ends, through the agent's own
+login, into a profile of how you work in that repository: what you are in the middle of, how you want work done and
+answers given, what went wrong before and the recent bugs. The profile goes into the first prompt of every later
+session, and again after a compaction. Inside a desktop app (Claude Desktop, the Codex app, Cursor), and wherever no
+agent CLI is signed in, Claude Code, Codex and Cursor learn through the session instead, on the app's own login and
+model: the agent starts a background subagent that answers thinker's queued model calls.
 
 Notes:
 
-- **Code parsing.** A note is tied to the functions and classes it describes, and
-  goes stale when one of them changes. For Python, JavaScript, TypeScript, Go
-  and Rust thinker finds those definitions with a tree-sitter parser, which
-  comes with the install (about 50 MB) and needs no setup. Other languages, and
-  code the parser cannot read, use a text heuristic. What it works out is cached
-  under `~/.thinker/cache`, so the first run after an install or update is slower
-  than the rest.
 - **Switching it off.** To turn thinker off in one repository (sensitive content, say), run `thinker disable`
-  there; `thinker enable` turns it back on. To remove it, see the [README](../README.md#uninstall).
+  there; `thinker enable` turns it back on. `{ "learn": { "profile": false } }` in `.thinker/config.json` keeps the
+  profile off in a repository while the rest runs. To remove it, see the [README](../README.md#uninstall).
 
-## Your local cache
+## Your local profile
 
-Thinker learns and stores notes locally in `.thinker/local/notes/`, which is
-ignored by Git. It does not publish notes or synchronize them with a team.
-Older committed notes remain readable; updates to those notes stay local.
-Local storage does not mean all processing is offline: learning and verification
-run through your configured agent or model provider.
+Thinker keeps the profile locally in `.thinker/local/profile/`, which is ignored by Git, and never publishes or
+synchronizes it. `thinker profile show` prints what a session is shown, `--why` the observations behind each line.
+Local storage does not mean all processing is offline: reading a session runs through your configured agent or
+model provider.
 
 ## Updates
 
@@ -102,7 +94,7 @@ to also skip the checks on use. Maintainers: see [Cutting a release](releases.md
 
 ## Metrics and telemetry
 
-Thinker records pseudonymous installation and effectiveness metrics (cache hit rate, notes count, estimated token savings) to track cache performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many prompts got notes and how many had them withheld, how many were followed by a correction, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning and verification send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
+Thinker records pseudonymous installation and effectiveness metrics (requests, sessions, what the clearing saved, the profile's two arms as counts) to track performance. Updated clients also send numeric 30-day delivery summaries: merged PR observations, recorded tokens, confirmed fixes, merge timing and measurement coverage. They also send the 30-day holdout comparison as totals: how many prompts got notes and how many had them withheld, how many were followed by a correction, and the summed tool calls, model turns and input and output tokens of each side, overall and per model name. Full PR evidence stays local. Reports include a persistent installation ID and a Thinker-specific device hash, so separate installations on the same OS instance can be grouped. The hash is derived locally from the OS machine identifier using HMAC-SHA256; the raw identifier is never sent. These telemetry reports contain no prompt text, note bodies, code snippets, file paths, or repository URLs. Learning and verification send what they need to your configured agent or model provider; disabling telemetry does not disable those model calls.
 
 The device hash is independent of `THINKER_HOME`. It can change after OS reinstallation, and cloned VMs may share an identifier. Where the OS identifier is unavailable, as in most Docker containers, the hash is derived the same way from your user name and git email (`git config --global user.email`), so a rebuilt container keeps its device; the reports say which (`deviceSource`: `os` or `user`), the email is never sent, and the hash is saved in `THINKER_HOME/state/device-id`. Without a git email the device remains unknown. Inside a container, updates and reports run when thinker is used rather than on a schedule. Test runs allow telemetry only to local test servers; they do not send it to production.
 

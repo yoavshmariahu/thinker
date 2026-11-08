@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, cacheMetrics, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
+import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
 import { weeklyPrStats } from '../src/report.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
@@ -24,7 +24,7 @@ function fixture(t) {
   return { repo, store, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-report-tx-')) };
 }
 // A Claude Code transcript with one tool call, on `model`, reporting `usage` on each of its two model turns
-function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
+function transcript(dir, name, { model, usage, mtime, client = 'claude', parent, agent }) {
   const rows = [
     { type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: ['You are an agent.'] } },
     { type: 'attachment', attachment: { type: 'environment', text: 'cwd is here' } },
@@ -33,9 +33,11 @@ function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
     { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'export const a = 1;\n' }] } },
     { type: 'assistant', message: { id: 'm2', role: 'assistant', model, usage, content: [{ type: 'text', text: 'done' }] } },
   ];
-  const file = path.join(dir, `${name}.jsonl`);
+  const file = parent ? path.join(dir, parent, 'subagents', `agent-${agent}.jsonl`) : path.join(dir, `${name}.jsonl`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
   fs.utimesSync(file, new Date(mtime), new Date(mtime));
+  if (parent) fs.writeFileSync(path.join(path.dirname(file), `agent-${agent}.meta.json`), JSON.stringify({ agentType: 'Explore' }));
   return { client, file, session: name, mtime };
 }
 const NOW = new Date('2026-10-22T12:00:00').getTime(), DAY = 86400_000;
@@ -166,7 +168,6 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.ok(Math.abs(v.sessionTotals[4].cost - costOf({ input: 4000, output: 20 }, listPrice('gpt-6-astra'))) < 1e-9, 'the unpriced session adds no cost');
   // the actions in the window, the cache's numbers over it
   assert.deepEqual(v.actions.map(a => a.id), ['h1']);
-  assert.equal(v.cache.hits, 0); assert.equal(v.cache.dollarsSaved, 0); assert.equal(v.cache.acted, null);
   // one row a measured session: its input, the four parts, and the things it cost (the files read with the calls, each
   // source loaded, each tool's outputs), for the actions' attribution
   assert.equal(v.sessionRows.length, 4, 'the Cursor session reports no usage and has no row');
@@ -218,7 +219,6 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /\b550\b/, 'the whole session a prompt: 1,100 over two calls'); }
   assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
   assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
-  assert.match(text, /mystery-9 \(unpriced\)/); assert.match(text, /Estimated \$ saved\s+\$0\.00/); assert.match(text, /per prompt \(one call to the model\), by week \(.*sessions, 0, 0, 0, 0, 4, 4 prompts\)/);
   // the prompt-cache rewrites by cause (transcripts.js:cacheRewrites): the fixture sessions are under 20k of context, so none
   assert.deepEqual(v.rewrites.map(p => p.key), REWRITES.map(([k]) => k)); assert.deepEqual(REWRITES, REWRITE_CAUSES);
   assert.equal(v.rewrites.reduce((a, p) => a + p.cells[last].n, 0), 0); assert.equal(v.rewriteTotals[last].tokens, 0);
@@ -251,21 +251,27 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal(mergeReports([]), null);
 });
 
-test('the cache\'s numbers price the saving at each model\'s input rate and keep the unpriced apart', t => {
-  const { store } = fixture(t);
-  const base = { assessed: { confirmed: 3, contradicted: 1, unused: 0 }, servings: { prompt: 5, file: 1 }, requests: 20, answered: 6 };
-  // the servings acted on: 500k tokens on Opus 5.5 at $4 a million, 500k on a model nobody priced
-  const est = cacheMetrics(store, { days: 35, usage: { ...base, saved: { tokens: 1e6, byModel: { 'claude-opus-5-5': { servings: 2, tokens: 500000 }, 'mystery-9': { servings: 1, tokens: 500000 } } } } });
-  assert.equal(est.measured, false); assert.equal(est.tokensSaved, 1e6); assert.equal(est.dollarsSaved, 2); assert.equal(est.unpricedTokens, 500000);
-  assert.equal(est.hits, 6); assert.equal(est.judged, 4); assert.equal(est.acted, 0.75); assert.equal(est.requests, 20);
-  // the holdout, where it is measured: (held-out − served) per prompt × the served prompts, by model
-  const ho = { enough: true, saved: { inputTokens: 300000 }, byModel: { 'claude-opus-5-5': { served: { perPrompt: { inputTokens: 1000 }, measured: { inputTokens: 100 } }, heldOut: { perPrompt: { inputTokens: 4000 } } } } };
-  const m = cacheMetrics(store, { days: 35, usage: { ...base, holdout: ho, saved: { tokens: 1e6, byModel: {} } } });
-  assert.equal(m.measured, true); assert.equal(m.tokensSaved, 300000); assert.equal(m.dollarsSaved, 300000 * 4 / 1e6); assert.equal(m.unpricedTokens, 0);
-  // read from the log: nothing served, nothing saved
-  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
-  const c = cacheMetrics(store, { days: 35 });
-  assert.equal(c.hits, 0); assert.equal(c.dollarsSaved, 0); assert.equal(c.acted, null);
+test('a subagent beside a session is costed at its own model and tied to its parent: its calls count, its session does not', t => {
+  const { store, dir } = fixture(t);
+  const thisWeek = weekStart(NOW) + DAY;
+  const sessions = [transcript(dir, 's1', { model: 'claude-opus-5-5', usage: OPUS, mtime: thisWeek })];
+  // an Explore subagent of s1 on Sonnet, found beside it (transcripts.js:subagentSessions), not passed in
+  transcript(dir, 'sub', { model: 'claude-sonnet-5-5', usage: OPUS, mtime: thisWeek + 60_000, parent: 's1', agent: 'a1b2c3d4e5f6a7b8c' });
+  const v = reportView(store, { now: NOW, sessions });
+  const last = 5;
+  assert.equal(v.columns[last].sessions, 1, 'one session');
+  assert.equal(v.columns[last].prompts, 4, 'its two calls and the subagent\'s two');
+  const sonnet = v.models.find(m => m.model === 'claude-sonnet-5-5'), opus = v.models.find(m => m.model === 'claude-opus-5-5');
+  assert.ok(sonnet && opus, `both models in the table: ${v.models.map(m => m.model)}`);
+  assert.equal(sonnet.cells[last].prompts, 2); assert.equal(sonnet.cells[last].sessions, 0, 'the subagent is no session of its own');
+  assert.equal(opus.cells[last].prompts, 2); assert.equal(opus.cells[last].sessions, 1);
+  assert.equal(sonnet.cells[last].tokens, opus.cells[last].tokens, 'the same usage, in tokens');
+  assert.ok(sonnet.cells[last].cost < opus.cells[last].cost, 'priced at Sonnet\'s rates, not the parent\'s');
+  assert.equal(v.sessionTotals[last].tokens, sonnet.cells[last].tokens + opus.cells[last].tokens, 'the whole includes the subagent');
+  // without the subagent file the Report is what it was
+  fs.rmSync(path.join(dir, 's1'), { recursive: true, force: true });
+  const v0 = reportView(store, { now: NOW, sessions });
+  assert.equal(v0.columns[last].prompts, 2); assert.ok(!v0.models.find(m => m.model === 'claude-sonnet-5-5'));
 });
 
 test('outputComparison: a compressed tool against itself before, the saving a prompt over the prompts since', () => {
@@ -341,7 +347,7 @@ const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, comp
   number: n, title, url: `https://example.test/${n}`, mergedAt: merged, hoursToMerge: hours,
   sessions: Array.from({ length: sessions }, (_, i) => ({ id: `s${n}-${i}` })),
   tokens: { agent, prompts: 10, unknownSessions: 0, complete },
-  saved: { cleared, reading: { calls: 0, tokens: reading, servings: 0 }, total: cleared + reading },
+  saved: { cleared, total: cleared },
   cost: { saved: usd, rewrite: rewrite, net: usd - rewrite, priced: usd || rewrite ? 1 : 0, unpriced: 0 },
 });
 const delivery = (prs, over) => {
@@ -352,7 +358,7 @@ const delivery = (prs, over) => {
   return { prs, summary: {
     merged: merged.length, mergedSeen: prs.filter(p => p.mergedAt).length, mergedAssisted: merged.filter(p => p.saved.total > 0).length,
     open: 0, worked: prs.filter(p => p.sessions.length).length,
-    saved: { cleared: sum(p => p.saved.cleared), reading: sum(p => p.saved.reading.tokens), total: sum(p => p.saved.total) },
+    saved: { cleared: sum(p => p.saved.cleared), total: sum(p => p.saved.total) },
     cost: { saved: sum(p => p.cost.saved), rewrite: sum(p => p.cost.rewrite), net: sum(p => p.cost.net), costed: merged.filter(p => p.cost.priced).length, basis: 'at list prices' },
     meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)),
     tokens: { agent: sum(p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
@@ -362,7 +368,7 @@ const delivery = (prs, over) => {
   } };
 };
 
-test('the Report band counts only the pull requests a session here worked on, and keeps the two savings apart', () => {
+test('the Report band counts only the pull requests a session here worked on', () => {
   const band = prSavings(null, { days: 42, delivery: delivery([
     pr(10, { merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000 }),
     pr(11, { merged: '2026-10-22T00:00:00Z', agent: 3_000_000, cleared: 0, reading: 0 }),
@@ -374,13 +380,13 @@ test('the Report band counts only the pull requests a session here worked on, an
   assert.equal(band.merged, 2);
   assert.equal(band.mergedSeen, 3, 'the repository\'s own merges are carried beside, for context');
   assert.equal(band.mergedAssisted, 1);
-  assert.deepEqual(band.saved, { cleared: 200_000, reading: 50_000, total: 250_000 });
+  assert.deepEqual(band.saved, { cleared: 200_000, total: 200_000 });
   assert.equal(band.agent, 4_000_000, 'the open pull request and the untouched one are not in the cost either');
-  near(band.share, 250_000 / 4_000_000, 'saved over what those pull requests cost');
+  near(band.share, 200_000 / 4_000_000, 'saved over what those pull requests cost');
   // newest merged first, and only the merged ones with work here
   assert.deepEqual(band.rows.map(r => r.number), [11, 10]);
-  assert.equal(band.rows[1].saved, 250_000);
-  near(band.rows[1].share, 0.25);
+  assert.equal(band.rows[1].saved, 200_000);
+  near(band.rows[1].share, 0.2);
   assert.equal(band.rows[0].share, 0, 'a pull request that saved nothing is a row, at zero, not a gap');
   assert.equal(band.days, 42);
 });
@@ -398,9 +404,9 @@ test('the band prices the saving net of the rewrites, and keeps the token figure
   })]) });
   for (const cost of [true, false]) {
     const text = renderReport(v, { cost }).join('\n'), band = text.slice(text.indexOf('Pull requests ('));
-    assert.ok(band.includes('250k'), `the saving is in tokens under ${cost ? 'cost' : 'tokens'}`);
+    assert.ok(band.includes('200k'), `the saving is in tokens under ${cost ? 'cost' : 'tokens'}`);
     assert.ok(band.includes('tokens spent and saved on merged work'));
-    assert.ok(/200k cleared \(measured\)/.test(band) && /50k reading avoided \(estimate\)/.test(band), 'measured and estimated are never silently added');
+    assert.ok(/200k cleared out of their prompts \(measured\)/.test(band), 'the saving is said to be measured');
     assert.match(band, /in dollars, netted\s+\$8/, 'the net is the saving less the rewrites, in both views');
     assert.ok(band.includes('$4'), 'what the rewrites cost is shown beside it, never folded away');
     assert.match(band, /\$8[.0]*\s*=\s*\$12/, 'the net leads and the gross is shown as its working, never on its own');

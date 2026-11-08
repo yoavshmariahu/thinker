@@ -20,10 +20,6 @@ import {
   stepBanner,
   formatDuration,
   formatBytes,
-  estimateCacheBuild,
-  findRecentPrChange,
-  buildPrBenchmarkTask,
-  renderPrBenchmarkReport,
   runSetup,
   BUILD_AGENTS,
   getAgentDisplayName,
@@ -32,13 +28,10 @@ import {
   checkAgentAuth,
   selectAndAuthenticateAgent,
   selectMenu,
-  stepPrBenchmark,
-  depthLimits,
   spinner,
   progressBar,
   finishBox,
 } from '../src/setup.js';
-import { isAuthError, cleanErrorMessage } from '../src/benchmark.js';
 
 // Auth and build execution are mocked below; binary discovery must also be
 // deterministic on machines without agent CLIs. Unexpected execution fails.
@@ -102,124 +95,6 @@ test('visual formatting helpers: stripAnsi, box, stepBanner', () => {
   assert.equal(formatBytes(1500), '1 KB');
 });
 
-test('estimateCacheBuild computes time, size, and storage locations', () => {
-  const repo = createMockGitRepo();
-  try {
-    const est = estimateCacheBuild(repo, { prs: 20 });
-    assert.equal(est.repoName, path.basename(repo));
-    assert.ok(est.commitCount >= 2);
-    assert.ok(est.fileCount >= 2);
-
-    // Storage paths
-    assert.match(est.storage.rootDir, /\.thinker/);
-    assert.match(est.storage.notesDir, /notes/);
-    assert.match(est.storage.prsFile, /prs\.json/);
-
-    // Size range
-    assert.ok(est.size.minNotes > 0);
-    assert.ok(est.size.maxNotes >= est.size.minNotes);
-    assert.match(est.size.notesRange, /notes/);
-    assert.match(est.size.bytesRange, /KB/);
-
-    // Timing
-    assert.ok(est.timing.totalSeconds > 0);
-    assert.ok(est.timing.formatted.length > 0);
-
-    // When skipped with flags
-    const estNoPrs = estimateCacheBuild(repo, { prs: 20, noPrs: true });
-    assert.equal(estNoPrs.timing.breakdown.prs, 'skipped');
-    assert.equal(estNoPrs.tokenEstimate, 0);
-    assert.equal('exploration' in estNoPrs.timing.breakdown, false);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('findRecentPrChange extracts PR info from commit history', () => {
-  const repo = createMockGitRepo();
-  try {
-    const pr = findRecentPrChange(repo);
-    assert.ok(pr, 'Found recent change');
-    assert.equal(pr.number, 42);
-    assert.match(pr.title, /feat\(api\): add request handler/);
-    assert.ok(pr.files.includes('src/api.js'));
-    assert.ok(pr.files.includes('src/index.js'));
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('findRecentPrChange extracts specific prNumber when requested', () => {
-  const repo = createMockGitRepo();
-  try {
-    const pr = findRecentPrChange(repo, { prNumber: 42 });
-    assert.ok(pr);
-    assert.equal(pr.number, 42);
-    assert.ok(pr.files.length >= 1);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('buildPrBenchmarkTask creates read-only architectural prompt', () => {
-  const pr = {
-    number: 105,
-    title: 'Fix race condition in session refresh',
-    body: 'Resolves token expiration collision under high concurrency.',
-    files: ['src/session.js', 'src/auth.js'],
-  };
-  const task = buildPrBenchmarkTask(pr);
-  assert.match(task, /PR #105: Fix race condition in session refresh/);
-  assert.match(task, /Resolves token expiration collision/);
-  assert.match(task, /Identify which specific files and symbols/);
-  assert.match(task, /invariants or conventions/);
-});
-
-test('renderPrBenchmarkReport formats side-by-side comparison table with target files metric', () => {
-  const record = {
-    task: 'PR #42: add request handler',
-    pr: {
-      number: 42,
-      title: 'add request handler',
-      files: ['src/api.js', 'src/index.js'],
-    },
-    agent: 'claude',
-    model: 'sonnet',
-    notes: ['api-endpoints'],
-    dir: '/tmp/thinker-benchmark-run',
-    runs: {
-      baseline: {
-        wallMs: 14_000,
-        turns: 4,
-        toolCalls: 8,
-        inputTokens: 12_000,
-        outputTokens: 1_200,
-        targetFilesFound: 1,
-        targetFilesTotal: 2,
-      },
-      cache: {
-        wallMs: 7_000,
-        turns: 2,
-        toolCalls: 3,
-        inputTokens: 4_500,
-        outputTokens: 900,
-        targetFilesFound: 2,
-        targetFilesTotal: 2,
-      },
-    },
-  };
-
-  const report = renderPrBenchmarkReport(record);
-  assert.match(report, /PR Change Benchmark Results/);
-  assert.match(report, /PR #42: add request handler/);
-  assert.match(report, /Wall Time\s+14\.0s\s+7\.0s\s+-50%/);
-  assert.match(report, /Agent Turns\s+4\s+2\s+-50%/);
-  assert.match(report, /Tool Calls\s+8\s+3\s+-62%/);
-  assert.match(report, /Input Tokens\s+12,000\s+4,500\s+-62%/);
-  assert.match(report, /Target Files Found\s+1\/2\s+2\/2\s+\+100%/);
-  assert.match(report, /Net Savings:\s+7,800 tokens saved · 7s faster/);
-});
-
 test('runSetup completes compact setup flow in clean repo', async () => {
   const repo = createMockGitRepo();
   const store = new Store(repo);
@@ -243,13 +118,13 @@ test('runSetup completes compact setup flow in clean repo', async () => {
     assert.match(fullOutput, /Claude Code\s+Connected/);
     // nothing is built: no build question, no estimate, no mining
     assert.doesNotMatch(fullOutput, /Choose how to start|Pre-flight estimates|Estimated build|PR Change Benchmark/);
-    assert.match(fullOutput, /Cache starts empty and grows from your sessions/);
+    assert.match(fullOutput, /profile of how you work here starts empty and grows from your sessions/);
     assert.match(fullOutput, /Thinker is ready\./);
     assert.match(fullOutput, /What was done[\s\S]*Restart your agent: start a new session in this repository/);
 
     // Verify .thinker storage on disk
     assert.ok(fs.existsSync(path.join(repo, '.thinker')));
-    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'notes')));
+    assert.ok(fs.existsSync(path.join(repo, '.thinker', 'local')));
     // the hooks go into the user's own settings, for every checkout
     assert.ok(fs.existsSync(path.join(process.env.HOME, '.claude', 'settings.json')));
     assert.ok(!fs.existsSync(path.join(repo, '.claude')));
@@ -438,7 +313,7 @@ test('selectAndAuthenticateAgent prompts user when multiple agents installed in 
   assert.equal(res.ok, true);
   assert.ok(res.agent);
   const fullOut = outLines.join('\n');
-  assert.match(fullOut, /Available agents to build the knowledge cache:/);
+  assert.match(fullOut, /Available agents to run model calls:/);
   assert.match(fullOut, /Signed in/);
 });
 
@@ -577,7 +452,7 @@ test('selectAndAuthenticateAgent allows proceeding without the build when the us
 
   assert.equal(res.ok, true);
   assert.equal(res.skip, true);
-  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
+  assert.match(outLines.join('\n'), /Proceeding with the run skipped/);
 });
 
 test('selectAndAuthenticateAgent non-interactive errors instead of auto-fallback when chosen agent is unauthenticated', async () => {
@@ -645,156 +520,7 @@ test('selectAndAuthenticateAgent non-interactive skips the build when allowSkip 
 
   assert.equal(res.ok, true);
   assert.equal(res.skip, true);
-  assert.match(outLines.join('\n'), /Proceeding with the cache build skipped/);
-});
-
-test('isAuthError and cleanErrorMessage correctly identify and format auth failure messages', () => {
-  const claudeRawErr = new Error(
-    'claude exited 1: {"type":"result","subtype":"success","is_error":true,"api_error_status":null,"duration_ms":238,"duration_api_ms":0,"num_turns":1,"result":"Not logged in · Please run /login","stop_reason":"stop_sequence","session_id":"a69454ff-5796-4961-8602-2bbd52bb8b97","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation":{"ephemeral'
-  );
-  assert.equal(isAuthError(claudeRawErr), true);
-  assert.equal(cleanErrorMessage(claudeRawErr), 'Not logged in · Please run /login');
-
-  const codexErr = new Error('Codex run failed: {"error":"401 Unauthorized"}');
-  assert.equal(isAuthError(codexErr), true);
-
-  const geminiErr = new Error('Gemini run failed: {"error":{"message":"Please sign in to continue"}}');
-  assert.equal(isAuthError(geminiErr), true);
-  assert.equal(cleanErrorMessage(geminiErr), 'Please sign in to continue');
-
-  const genericErr = new Error('File not found: math.js');
-  assert.equal(isAuthError(genericErr), false);
-  assert.equal(cleanErrorMessage(genericErr), 'File not found: math.js');
-});
-
-test('stepPrBenchmark non-interactive skips benchmark when no agent authenticated without throwing error', async () => {
-  const repo = createMockGitRepo();
-  const store = new Store(repo).init();
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-
-  const mockCheckAuth = () => ({
-    installed: true,
-    authenticated: false,
-    loginCmd: 'claude auth login',
-  });
-
-  try {
-    const res = await stepPrBenchmark({
-      repo,
-      store,
-      benchmarkFlag: true,
-      yes: true,
-      out,
-      checkAuthFn: mockCheckAuth,
-    });
-
-    assert.equal(res, null);
-    const fullOut = outLines.join('\n');
-    assert.match(fullOut, /is not signed in/);
-    assert.match(fullOut, /Benchmark skipped/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('stepPrBenchmark interactive prompts user to sign in and switches to alternative when declined', async () => {
-  const repo = createMockGitRepo();
-  const store = new Store(repo).init();
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-
-  const mockCheckAuth = (agent) => {
-    if (agent === 'codex') {
-      return { agent, installed: true, authenticated: true, account: 'dev@test.com' };
-    }
-    return { agent, installed: true, authenticated: false, loginCmd: `${agent} auth login` };
-  };
-
-  let promptStep = 0;
-  const mockReadline = () => ({
-    question: async () => {
-      promptStep++;
-      if (promptStep === 1) return 'n'; // Decline sign in to claude
-      if (promptStep === 2) return 'codex'; // Choose codex from alternatives
-      return 'y';
-    },
-    close: () => {},
-  });
-
-  const mockRunBenchmark = async (agent) => {
-    assert.equal(agent, 'codex');
-    return {
-      wallMs: 5000,
-      turns: 2,
-      toolCalls: 3,
-      inputTokens: 1000,
-      outputTokens: 200,
-      answer: 'Mock answer',
-    };
-  };
-
-  try {
-    const res = await stepPrBenchmark({
-      repo,
-      store,
-      agent: 'claude',
-      benchmarkFlag: true,
-      yes: false,
-      out,
-      checkAuthFn: mockCheckAuth,
-      readlineFn: mockReadline,
-      runBenchmarkFn: mockRunBenchmark,
-    });
-
-    assert.ok(res);
-    assert.equal(res.agent, 'codex');
-    const fullOut = outLines.join('\n');
-    assert.match(fullOut, /Switched to Codex CLI/);
-    assert.match(fullOut, /Running paired benchmark with Codex CLI/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
-
-test('stepPrBenchmark catches runtime auth errors from runBenchmarkAgent and reports actionable login command', async () => {
-  const repo = createMockGitRepo();
-  const store = new Store(repo).init();
-  const outLines = [];
-  const out = line => outLines.push(stripAnsi(line));
-
-  const mockCheckAuth = () => ({
-    installed: true,
-    authenticated: true,
-    loginCmd: 'claude auth login',
-  });
-
-  const mockRunBenchmarkFailsAuth = async () => {
-    throw new Error(
-      'claude exited 1: {"type":"result","subtype":"success","is_error":true,"api_error_status":null,"duration_ms":238,"duration_api_ms":0,"num_turns":1,"result":"Not logged in · Please run /login","stop_reason":"stop_sequence","session_id":"a69454ff-5796-4961-8602-2bbd52bb8b97","total_cost_usd":0,"usage":{"input_tokens":0,"cache_creation":{"ephemeral'
-    );
-  };
-
-  try {
-    const res = await stepPrBenchmark({
-      repo,
-      store,
-      agent: 'claude',
-      benchmarkFlag: true,
-      yes: true,
-      out,
-      checkAuthFn: mockCheckAuth,
-      runBenchmarkFn: mockRunBenchmarkFailsAuth,
-    });
-
-    assert.equal(res, null); // Gracefully returns null, does not crash!
-    const fullOut = outLines.join('\n');
-    assert.match(fullOut, /Benchmark stopped: .* reported an authentication issue/);
-    assert.match(fullOut, /Not logged in · Please run \/login/);
-    assert.match(fullOut, /claude auth login/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
+  assert.match(outLines.join('\n'), /Proceeding with the run skipped/);
 });
 
 class MockTTYStdin extends EventEmitter {
@@ -815,21 +541,6 @@ class MockTTYStdout {
   }
   write(str) { this.writes.push(str); }
 }
-
-test('estimateCacheBuild times the pull requests it can mine, and indexing', () => {
-  const repo = createMockGitRepo();
-  try {
-    const est = estimateCacheBuild(repo, { prs: 40 });
-    assert.ok(est.timing.totalSeconds >= 8, `Expected totalSeconds >= 8, got ${est.timing.totalSeconds}`);
-    if (est.canMine) {
-      assert.match(est.timing.breakdown.prs, /[ms]/);
-      assert.equal(est.tokenEstimate, 40 * 14_000);
-    }
-    assert.match(est.timing.breakdown.indexing, /s/);
-  } finally {
-    fs.rmSync(repo, { recursive: true, force: true });
-  }
-});
 
 test('selectMenu navigates options with arrow keys and selects with Enter in TTY mode', async () => {
   const stdin = new MockTTYStdin();
@@ -933,7 +644,7 @@ test('selectAndAuthenticateAgent uses arrow key navigation when stdin is interac
   const res = await promise;
   assert.ok(res.ok);
   assert.ok(res.agent);
-  assert.match(outLines.join('\n'), /Available agents to build the knowledge cache:/);
+  assert.match(outLines.join('\n'), /Available agents to run model calls:/);
   assert.match(outLines.join('\n'), /Selected agent:/);
 });
 
@@ -945,13 +656,6 @@ test('Escape in the harness menu cancels instead of accepting the default agent'
   const result = await promise;
   assert.equal(result.ok, false);
   assert.equal(result.error, 'cancelled');
-});
-
-test('a shallow build is 30% of the full one: pull requests, rounded up, at least one', () => {
-  assert.deepEqual(depthLimits({ depth: 'full', prs: 60 }), { prs: 60 });
-  assert.deepEqual(depthLimits({ depth: 'shallow', prs: 60 }), { prs: 18 });
-  assert.deepEqual(depthLimits({ depth: 'shallow', prs: 0 }), { prs: 0 }, 'nothing to build stays nothing');
-  assert.equal(depthLimits({ depth: 'shallow', prs: 1 }).prs, 1);
 });
 
 test('the spinner draws nothing off a terminal and the finish box says whether setup is done', () => {

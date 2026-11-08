@@ -28,8 +28,7 @@ function cleared(home, session, saved) {
 }
 
 // A session that was served two notes, acted on one, and ran on a branch.
-function session(store, { id, branch, head, tokens = 300_000, turns = 12, reading = 9000 }) {
-  store.log({ op: 'orient', t: at(6), session: id, served: ['n1', 'n2'], est: [[2, reading], [1, 500]], tokens: 700 });
+function session(store, { id, branch, head, tokens = 300_000, turns = 12 }) {
   store.log({ op: 'attest', t: at(2), session: id, model: 'claude-opus-5', applied: [{ id: 'n1', verdict: 'confirmed' }, { id: 'n2', verdict: 'unused' }] });
   store.log({ op: 'session', t: at(1), session: id, client: 'claude', branch, head, turns, totalTokens: tokens, tokenCoverage: 'complete' });
 }
@@ -50,21 +49,16 @@ test('a session is matched to the pull request of its branch, and carries its sa
   assert.equal(p.sessions.length, 1);
   assert.equal(p.sessions[0].link, 'commit');         // the head it sat on is one of the PR's commits
   assert.equal(p.saved.cleared, 120_000);             // measured
-  assert.equal(p.saved.reading.tokens, 9000);         // estimated, the confirmed serving only
-  assert.equal(p.saved.reading.servings, 1);
-  assert.equal(p.saved.total, 129_000);
+  assert.equal(p.saved.total, 120_000);
   assert.equal(p.tokens.agent, 300_000);
   assert.equal(p.tokens.complete, true);
-  assert.equal(p.notes.served, 2);
-  assert.equal(p.notes.actedOn, 1);
   assert.equal(p.hoursToMerge, 29);
   assert.equal(r.summary.merged, 1);
   assert.equal(r.summary.mergedAssisted, 1);
-  assert.equal(r.summary.saved.total, 129_000);
+  assert.equal(r.summary.saved.total, 120_000);
   assert.equal(r.summary.sessions.unlinked, 0);
   const text = renderDelivery(r, { detail: true });
-  assert.match(text, /cleared\s+120k tokens the API left out of their prompts \(measured\)/);
-  assert.match(text, /reading avoided\s+9k tokens of files the notes meant nobody read \(estimate\)/);
+  assert.match(text, /cleared\s+120k tokens the clearing left out of their prompts \(measured\)/);
   assert.match(text, /Merged with work recorded here: 1 of 1 merged in the repository/);
 });
 
@@ -142,7 +136,6 @@ test('an observation links a session that served nothing and was never assessed'
   const p = deliveryReport(store, { now, home }).prs[0];
   assert.equal(p.sessions.length, 1);
   assert.equal(p.saved.cleared, 40_000);
-  assert.equal(p.saved.reading.tokens, 0);
   assert.equal(p.tokens.complete, false);   // nothing counted this session's tokens
 });
 
@@ -208,6 +201,24 @@ test('the journal refuses a record it does not know and survives a torn line', t
   const r = readDelivery(store);
   assert.equal(r.events.length, 1);
   assert.equal(r.warnings.length, 1);
+});
+
+test('a session\'s subagents add their tokens to its agent tokens, on the last row that lists them', t => {
+  const { store, home } = fixture(t);
+  store.log({ op: 'session', t: at(5), session: 'sB', turns: 2, totalTokens: 1000, tokenCoverage: 'complete', subagents: [{ agent: 'a1', type: 'Explore', model: 'claude-sonnet-5-5', turns: 4, totalTokens: 300, tokenCoverage: 'complete' }] });
+  store.log({ op: 'session', t: at(1), session: 'sB', turns: 3, totalTokens: 1500, tokenCoverage: 'complete', subagents: [
+    { agent: 'a1', type: 'Explore', model: 'claude-sonnet-5-5', turns: 4, totalTokens: 300, tokenCoverage: 'complete' },
+    { agent: 'a2', type: 'general-purpose', model: 'claude-opus-5-5', turns: 9, totalTokens: 2000, tokenCoverage: 'complete' },
+    { agent: 'a3', type: 'Explore', model: 'claude-sonnet-5-5', turns: 1, totalTokens: null, tokenCoverage: 'partial' },
+  ] });
+  store.log({ op: 'session', t: at(1), session: 'sC', turns: 1, totalTokens: 10, tokenCoverage: 'complete' });
+  const x = sessionsOf(store, { home }).get('sB');
+  assert.equal(x.ownTokens, 1500, 'the parent\'s own figure stays');
+  assert.equal(x.subagentTokens, 2300, 'a subagent without a counter is left out, never zero');
+  assert.equal(x.tokens, 3800, 'agent tokens include the subagents');
+  assert.equal(x.subagents.length, 3);
+  const y = sessionsOf(store, { home }).get('sC');
+  assert.equal(y.tokens, 10); assert.equal(y.subagentTokens, 0); assert.deepEqual(y.subagents, []);
 });
 
 test('sessionsOf keeps the last token count a session reported', t => {

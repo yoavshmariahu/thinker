@@ -36,7 +36,6 @@ const metrics = {
   prs_worked: 'prs.worked',
   prs_linked_sessions: 'prs.linkedSessions',
   pr_cleared_tokens: 'prs.clearedTokens',
-  pr_reading_tokens: 'prs.readingTokens',
   pr_saved_tokens: 'prs.savedTokens',
   pr_agent_tokens: 'prs.agentTokens',
 };

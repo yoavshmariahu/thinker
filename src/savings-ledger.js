@@ -2,8 +2,8 @@
 //
 // The figures are the Report page's own savings table (report-savings.js:weeklySavings), asked for two
 // windows instead of six weeks: one column from midnight, one from the beginning of the log. Both rows
-// are counted -- the cache's avoided reading at each request's observed input mix, and the context
-// clearing at the prompt-cache read rate -- so the footer can never disagree with `thinker report`.
+// are counted -- the context clearing at the prompt-cache read rate -- so the footer can never disagree with
+// `thinker report`.
 // Nothing is priced here that is not priced there (the owner's call, 2026-11-05: the footer shows money,
 // which the rest of the product deliberately does not, and the one way to keep that honest is to show
 // the Report's own arithmetic rather than invent a second one). prices.js holds why dollars are rare:
@@ -25,7 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { isTestMode } from './test-mode.js';
-import { summarize, readLog, sessionKey } from './usage.js';
+import { readLog, sessionKey } from './usage.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, SAVINGS_SERIES } from './report-savings.js';
@@ -48,38 +48,26 @@ export const dayKey = (now = Date.now()) => {
 };
 export const dayStart = (now = Date.now()) => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cache: { cost: 0, tokens: 0 }, cleared: { cost: 0, tokens: 0 } });
+const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 } });
 
-// One window's two rows added up, and each kept beside the total: the split is what makes the total
-// readable (clearing moves far more tokens than avoided reading, at a fortieth of its price), and the
-// CLI and the cards show it. A row with observations but no price adds its tokens to `unpricedTokens`
-// rather than nothing, so an unpriced model is a gap the output can name, not a silent zero.
+// One window's row: the clearing, with the tokens behind the dollars. A row with observations but no price adds its
+// tokens to `unpricedTokens` rather than nothing, so an unpriced model is a gap the output can name, not a silent zero.
 function cellOf(series) {
   const out = emptyCell();
   for (const [key] of SAVINGS_SERIES) {
     const c = series.find(s => s.key === key)?.cells[0];
     if (!c) continue;
-    const to = key === 'cache' ? out.cache : out.cleared;
-    to.cost = c.cost; to.tokens = c.tokens;
+    if (key === 'compression') { out.cleared.cost = c.cost; out.cleared.tokens = c.tokens; }
     out.cost += c.cost; out.tokens += c.tokens; out.unpricedTokens += c.unpricedTokens || 0;
   }
   return out;
 }
 
-// The whole pass: the machine's log, the savings records of every repository in it, and the proxy's
-// clearing records, bucketed into the two windows. Read-only.
-//
-// The two windows select servings differently, and that is deliberate (the owner's call, 2026-11-06,
-// on this machine's own numbers): only 15% of the sessions that were ever served notes have been
-// assessed at all, and of those the median session is assessed 72 minutes after its first serving,
-// one in ten more than ten hours later. Confirmed-only, "today" would read $0 all morning and then
-// show a fraction of the day. So today counts what the running session's own footer counts -- served,
-// not yet judged, minus anything judged unused or contradicted -- while lifetime stays the confirmed
-// estimate the Report page shows, and `thinker savings` says which is which.
+// The whole pass: the machine's log and the proxy's clearing records, bucketed into the two windows. Read-only.
+// Both windows are measured the same way, since the proxy reports what it took out; the day's figure differed from
+// lifetime only while the cache series existed (it selected servings not yet assessed), which went on 2026-11-08.
 export function computeSavings(store, { now = Date.now() } = {}) {
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const cache = [], open = [];
-  summarize(store, { all: true, now, onSaving: r => cache.push(r), onProvisional: r => open.push(r), provisionalSince: dayStart(now) });
   const events = readLog(store, { all: true });
   // The proxy's own log, as reportView reads it, and the recorded clears of the sessions that never
   // reached the proxy (a desktop app's; compression.js:clearingRows). A test with no home and no log of
@@ -87,13 +75,12 @@ export function computeSavings(store, { now = Date.now() } = {}) {
   const compression = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG
     ? [] : clearingRows(proxyLogFile(), compressionDir(), { events, key: sessionKey });
   // `origin: null` counts every repository's clearing: this is the machine's ledger, and a clear is not
-  // attributed to a checkout here as it is in a repository's report. The clearing series is measured
-  // either way -- the proxy reports what it took out -- so only the cache series differs by window.
-  const windowOf = (from, records) => cellOf(weeklySavings({ columns: [{ t: from }], now, config, cache: records, events, compression, sessions: [], origin: null, ownership: events }));
+  // attributed to a checkout here as it is in a repository's report.
+  const windowOf = from => cellOf(weeklySavings({ columns: [{ t: from }], now, config, events, compression, sessions: [], origin: null, ownership: events }));
   return {
     at: now, day: dayKey(now),
-    today: windowOf(dayStart(now), open),
-    lifetime: windowOf(0, cache),
+    today: windowOf(dayStart(now)),
+    lifetime: windowOf(0),
     from: events[0]?.t || null,
   };
 }
@@ -176,5 +163,5 @@ export function savingsStatus(ledger, { now = Date.now() } = {}) {
 export function savingsDetail(cell) {
   if (!cell) return '';
   const row = (name, c) => `${name} ${formatDollars(c.cost)} (${formatTokens(c.tokens)} tokens)`;
-  return [row('cache hits', cell.cache), row('context cleared', cell.cleared)].join(' · ');
+  return row('context cleared', cell.cleared);
 }

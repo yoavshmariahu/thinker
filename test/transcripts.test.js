@@ -5,8 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
-import { exploreCount, condense } from '../src/distill.js';
+import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, subagentStats, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
 
@@ -97,7 +96,6 @@ test('Codex rollout and `codex exec --json` output', () => {
   const r = parseTranscript(rollout);
   assert.equal(r.format, 'codex'); assert.equal(r.cwd, '/r'); assert.equal(r.model, 'gpt-6-sol');
   assert.deepEqual(shape(r.events), ['prompt:where is x', 'Bash:rg -n def x src=src/x.py:1:def x', 'say:in src/x.py']);
-  assert.equal(exploreCount(r.events), 1);
 
   const stream = write([
     { type: 'thread.started', thread_id: 't' },
@@ -172,7 +170,6 @@ test('recorded trace round-trips and results missing from a record are refilled 
   assert.ok(r.events[1].result.startsWith('def x():'));
   assert.ok(r.events[2].result.includes('src/x.py:1:def x'));
   assert.equal(r.events[3].result, ''); // outside the repo: never read
-  assert.ok(condense(r.events).includes('READ'));
 });
 
 test('extractJson finds the object in fenced or chatty replies', () => {
@@ -257,6 +254,49 @@ test('findSessions finds each agent\'s sessions for the repo, and traces without
   } finally { process.env.HOME = old.HOME; if (old.CODEX_HOME) process.env.CODEX_HOME = old.CODEX_HOME; }
 });
 
+test('subagentSessions lists the subagent conversations beside a Claude session, tied to their parent, with their type', () => {
+  const home = tmp(), repo = path.join(tmp(), 'my.repo');
+  fs.mkdirSync(repo);
+  const put = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  const proj = path.join(home, '.claude/projects', repo.replace(/[\/.]/g, '-'));
+  put(path.join(proj, 'c1.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-a1b2c3d4e5f6a7b8c.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-a1b2c3d4e5f6a7b8c.meta.json'), JSON.stringify({ agentType: 'Explore', isBuiltIn: false }));
+  put(path.join(proj, 'c1/subagents/agent-ffffffffffffffff0.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-ffffffffffffffff0.prefix.json'), '{}');
+  put(path.join(proj, 'c2.jsonl'), '{}\n');
+  const old = process.env.HOME; process.env.HOME = home;
+  try {
+    const sessions = findSessions(repo);
+    assert.deepEqual(sessions.map(s => s.session).sort(), ['c1', 'c2'], 'findSessions itself lists the top-level files alone');
+    const subs = subagentSessions(sessions).sort((a, b) => a.agent.localeCompare(b.agent));
+    assert.deepEqual(subs.map(s => [s.client, s.session, s.parent, s.agent, s.type]), [
+      ['claude', 'c1/a1b2c3d4e5f6a7b8c', 'c1', 'a1b2c3d4e5f6a7b8c', 'Explore'],
+      ['claude', 'c1/ffffffffffffffff0', 'c1', 'ffffffffffffffff0', null],
+    ]);
+    assert.ok(subs.every(s => fs.existsSync(s.file) && s.mtime > 0));
+    assert.deepEqual(subagentSessions(subs), [], 'a subagent has no subagents of its own');
+    assert.deepEqual(subagentSessions([{ client: 'codex', file: '/x', session: 'z' }]), [], 'other agents have none');
+  } finally { process.env.HOME = old; }
+});
+
+test('subagentStats reads each subagent\'s own model and counters for the session log row', () => {
+  const proj = tmp();
+  const put = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  const row = (model, usage) => JSON.stringify({ type: 'assistant', message: { id: 'm' + Math.random(), role: 'assistant', model, usage, content: [{ type: 'text', text: 'ok' }] } }) + '\n';
+  put(path.join(proj, 'p1.jsonl'), row('claude-opus-5-5', { input_tokens: 100, output_tokens: 10 }));
+  put(path.join(proj, 'p1/subagents/agent-0123456789abcdef0.jsonl'), row('claude-sonnet-5-5', { input_tokens: 50, cache_read_input_tokens: 25, output_tokens: 5 }) + row('claude-sonnet-5-5', { input_tokens: 60, output_tokens: 6 }));
+  put(path.join(proj, 'p1/subagents/agent-0123456789abcdef0.meta.json'), JSON.stringify({ agentType: 'Explore' }));
+  put(path.join(proj, 'p1/subagents/agent-fedcba9876543210f.jsonl'), 'not json at all\n');
+  const subs = subagentStats(path.join(proj, 'p1.jsonl'), 'p1').sort((a, b) => a.agent.localeCompare(b.agent));
+  assert.equal(subs.length, 2, 'a transcript with no usable rows still yields an entry with empty counters');
+  const [a, b] = subs;
+  assert.equal(a.agent, '0123456789abcdef0'); assert.equal(a.type, 'Explore'); assert.equal(a.model, 'claude-sonnet-5-5');
+  assert.equal(a.turns, 2); assert.equal(a.inputTokens, 135, 'reads included, as the parent\'s are'); assert.equal(a.outputTokens, 11); assert.equal(a.totalTokens, 146); assert.equal(a.tokenCoverage, 'complete');
+  assert.equal(b.agent, 'fedcba9876543210f'); assert.equal(b.totalTokens, null); assert.equal(b.type, undefined);
+  assert.deepEqual(subagentStats(path.join(proj, 'none.jsonl'), 'none'), []);
+});
+
 test('learning hooks are installed for every agent and record the session', () => {
   const dir = tmp();
   execFileSync('git', ['init', '-q'], { cwd: dir });
@@ -285,14 +325,14 @@ test('learning hooks are installed for every agent and record the session', () =
 test('learn.sessions: false keeps session distillation off while maintenance goes on', () => {
   const dir = tmp();
   execFileSync('git', ['init', '-q'], { cwd: dir });
-  fs.mkdirSync(path.join(dir, '.thinker/notes'), { recursive: true });
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
   const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' };
   const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
   assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
   const both = run(['learn', '--maintain', '--dry']);
   assert.match(both, /learning from sessions is off/);
-  assert.match(both, /maintained: 0 re-verified/, 'maintenance still runs');
+  assert.match(both, /maintained: /, 'maintenance still runs');
   // the environment switch is stronger: nothing runs
   assert.match(execFileSync('node', [CLI, 'learn', '--maintain', '--dry', '--repo', dir], { encoding: 'utf8', env: { ...env, THINKER_NO_LEARN: '1' } }), /switched off \(THINKER_NO_LEARN\)/);
 });

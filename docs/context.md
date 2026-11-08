@@ -121,5 +121,5 @@ providers' list rates, so a switch of model shows in the trend. Under the tables
 Find Savings in those weeks, by date, to read the weeks against, and the cache's four numbers, its saving in
 dollars first. The report is kept in the checkout and made again in the background when it is older than ten
 minutes: the page says when it was measured and shows
-the newer figures when they are ready. The cache itself (the notes learned from your sessions, served to the agent as it works) looks after
+the newer figures when they are ready. The profile itself (learned from your sessions, put into each session's first prompt) looks after
 itself; its numbers are under View Report, and how it learns is in [usage and learning](usage.md).

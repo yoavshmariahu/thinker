@@ -1,7 +1,7 @@
 // Thinker setup flow: connect the coding agents and fetch the ranking model. Nothing is built: the cache
 // starts empty and grows from the sessions (since 2026-10-21; the warm-up that read merged pull requests
 // into it is gone). The flow is `runSetup` below; its parts are under src/setup/ (ui, agents, estimate,
-// steps, pr-benchmark), all re-exported here so nothing else needs to know the layout.
+// steps), all re-exported here so nothing else needs to know the layout.
 import { execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { maybeSendDailyTelemetryInBackground } from './telemetry.js';
@@ -11,9 +11,7 @@ import path from 'node:path';
 import { stepConnectClis, ignoreLocalState, openDashboard } from './setup/steps.js';
 export * from './setup/ui.js';
 export * from './setup/agents.js';
-export * from './setup/estimate.js';
 export * from './setup/steps.js';
-export * from './setup/pr-benchmark.js';
 
 // --- Main Guided Setup Orchestrator -------------------------------------
 
@@ -64,7 +62,7 @@ export async function runSetup({
     out,
   });
 
-  // The ranker: the model the hooks rank notes with is fetched once here (the installer and `thinker update` do
+  // The ranker: the model the harness recall ranks with is fetched once here (the installer and `thinker update` do
   // it too), so the first prompt does not pay the download
   try {
     const { rankerStatus, fetchRanker } = await import('./dense.js');
@@ -94,11 +92,6 @@ export async function runSetup({
     }
   } catch (e) { out(`  ${c.yellow('○')} Context report not made: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
 
-  // The desired behaviors come from the design documents (behavior-docs.js); setup asks the person nothing
-  // about them and only counts the drafts waiting for a decision.
-  const { pendingBehaviors } = await import('./behavior-workbench.js');
-  const left = pendingBehaviors(store).length;
-
   if (exportFile) {
     execFileSync('node', [cliPath, 'export', exportFile, '--repo', repo], { stdio: 'inherit' });
   }
@@ -110,21 +103,19 @@ export async function runSetup({
   const needsAttention = connections.some(result => result.status === 'error') || !connected.length;
   // What was done, then the one thing to do next: a session already running loaded its hooks and tools before this.
   const names = connected.map(result => result.name || result.client).join(', ');
-  const count = store.list().length;
   const done = [
     `${needsAttention ? c.yellow('!') : c.green('✓')} ${c.bold(needsAttention ? 'Setup finished with items to review.' : 'Thinker is ready.')}`,
     '',
     c.bold('What was done'),
     connected.length ? `• Connected ${names}: hooks and tools` : `• No agent connected: ${c.cyan('thinker setup --clients <agent>')}`,
-    `• Cache ${count ? `has ${count} note${count === 1 ? '' : 's'}` : 'starts empty'} and grows from your sessions`,
+    '• The profile of how you work here starts empty and grows from your sessions',
   ];
-  if (left) done.push(`• ${left} behavior draft${left === 1 ? '' : 's'} waiting for your decision`);
   done.push('');
   if (connected.length) done.push(c.bold('Restart your agent: start a new session in this repository'), c.bold('so its hooks and tools load.'), '');
-  done.push(`Notes, behaviors and usage in your browser: ${c.cyan('thinker ui')}`);
-  if (learn) done.push(c.dim('Ongoing learning uses your agent to save knowledge from sessions.'));
-  // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no note or behavior text leaves the machine
-  done.push(c.dim('Notes stay on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
+  done.push(`Savings and the report in your browser: ${c.cyan('thinker ui')}`);
+  if (learn) done.push(c.dim('Ongoing learning reads your sessions with your agent, when they end.'));
+  // telemetry carries counts only (telemetry.js:buildTelemetryPayload); no profile text leaves the machine
+  done.push(c.dim('The profile stays on this machine in .thinker/local/, which git ignores;'), c.dim('nothing needs committing and Thinker uploads none.'));
   out('\n' + finishBox(done, { ok: !needsAttention }) + '\n');
   // the page at the end, as before, unless the person was asked above and chose (the browser opened it already, the
   // terminal was their answer)

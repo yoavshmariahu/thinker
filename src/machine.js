@@ -8,7 +8,6 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store, findRepoRoot, repoId, isScratchCheckout, isGitCheckout } from './store.js';
 import { readLog } from './usage.js';
-import { isBehavior } from './behavior.js';
 import { activity } from './activity.js';
 import { isTestMode } from './test-mode.js';
 import { isDisabledRepo } from './repo-switch.js';
@@ -76,9 +75,9 @@ export const displayName = (id, checkout) => /^[^/]+\.[a-z]+\/[^/]/.test(id) ? S
 // Every repository the machine knows: from the agents' transcripts and thinker's log, one entry per
 // repository (its clones and worktrees share one history, so they are one line: `checkout` is the
 // main checkout, or the latest used, and `checkouts` all of them), newest use first. `store` is any
-// store, for reading the machine's log. `hasCache` says the repository's cache holds notes (`notes`
-// how many, over its checkouts); a .thinker folder alone says nothing, since every checkout an agent
-// has worked in gets one.
+// store, for reading the machine's log. `hasCache` says the repository has a profile (`observations` how many it
+// rests on, over its checkouts); a .thinker folder alone says nothing, since every checkout an agent has worked in
+// gets one.
 export function discoverRepos(store, { home, sinceMs, now = Date.now() } = {}) {
   const by = new Map();
   const touch = (checkout, t, sessions) => {
@@ -103,28 +102,24 @@ function repoRecord(id, cs, here) {
   const main = c => { try { return fs.statSync(path.join(c.checkout, '.git')).isDirectory() ? 1 : 0; } catch { return 0; } };
   cs.sort((a, b) => main(b) - main(a) || b.lastUsed - a.lastUsed);
   const lastUsed = Math.max(...cs.map(c => c.lastUsed));
-  // a cache exists when it holds notes: every checkout an agent worked in has a .thinker folder, most of them empty
-  const notes = cs.reduce((a, c) => a + (cacheStats(c.checkout)?.notes || 0), 0);
+  // a cache exists when it has learned something (a profile): every checkout an agent worked in has a .thinker folder
+  const observations = cs.reduce((a, c) => a + (cacheStats(c.checkout)?.observations || 0), 0);
   return {
     id, checkout: cs[0].checkout, checkouts: cs.map(c => c.checkout), name: displayName(id, cs[0].checkout),
     lastUsed: lastUsed ? new Date(lastUsed).toISOString() : null, sessions: cs.reduce((a, c) => a + c.sessions, 0),
-    current: cs.some(c => c.checkout === here), notes, hasCache: notes > 0,
+    current: cs.some(c => c.checkout === here), observations, hasCache: observations > 0,
     // switched off machine-wide (repo-switch.js)
     disabled: isDisabledRepo(cs[0].checkout),
   };
 }
 
-// What a cache holds, for the cache page's repository cards.
+// What a cache holds, for the page's repository cards: the profile's observations and when it was compiled.
 export function cacheStats(checkout) {
-  if (!fs.existsSync(path.join(checkout, '.thinker'))) return null;
-  let notes = []; try { notes = new Store(checkout, { readonly: true }).list(); } catch { return null; }
-  const live = notes.filter(n => n.status !== 'invalid' && !n.archived);
-  const plain = live.filter(n => !isBehavior(n));
-  const lastUsed = notes.map(n => n.lastUsed).filter(Boolean).sort().pop() || null;
+  const dir = path.join(checkout, '.thinker');
+  if (!fs.existsSync(dir)) return null;
+  let profile = null; try { profile = JSON.parse(fs.readFileSync(path.join(dir, 'local', 'profile', 'profile.json'), 'utf8')); } catch {}
   return {
-    notes: plain.length, fresh: plain.filter(n => n.status !== 'stale').length, stale: plain.filter(n => n.status === 'stale').length,
-    archived: notes.filter(n => n.archived && !isBehavior(n)).length, behaviors: live.filter(isBehavior).length,
-    hits: notes.reduce((a, n) => a + (n.uses || 0), 0), lastUsed,
-    activity: activity(path.join(checkout, '.thinker')),
+    observations: profile?.window?.observations || 0, sessions: profile?.window?.sessions || 0, compiledAt: profile?.compiledAt || null,
+    activity: activity(dir),
   };
 }

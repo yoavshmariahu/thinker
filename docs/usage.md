@@ -1,85 +1,22 @@
 # Usage, savings and learning
 
-What the cache costs, what it saves, and how it learns from your sessions. Where the agents'
+What thinker costs, what it saves, and how it learns from your sessions. Where the agents'
 context goes, and what to cut, is the [Find Savings page](context.md). Back to the [README](../README.md).
 
-## Cache usage and savings
+## Usage and savings
 
-The Report's estimated input savings now include observed re-reads and subtract
-carried note context. Coverage is shown beside the total; sessions without lifetime
-evidence use a one-read fallback. See [how cache savings are calculated](cache-savings.md)
-for the assumptions, clearing behavior, and compatibility of older JSON fields.
+`thinker usage` summarizes the machine's log: the requests the hooks saw, the sessions, which agents made them, and
+what learning spent in reported model tokens, for one repository or every repository on the machine (clones and
+worktrees sharing an origin count as one). What thinker saves is the context clearing's, and it is measured: the
+Report page (`thinker ui`, `thinker report`) shows it week by week beside what a session costs, and `thinker savings`
+says the figure the status line and the cards carry, today and over the whole log, at list prices.
 
-View Report on the page (`thinker ui`) shows the cache's numbers under the tables: its saving at list price,
-tokens saved, cache hits and the share of servings the sessions acted on. Behind them: notes served and how, what the
-sessions did with them, what learning and maintenance cost in reported model tokens, and an estimate of the
-reading avoided, for one repository or every repository on the machine (clones and worktrees sharing an origin
-count as one).
-
-One number in it is measured rather than estimated. The hooks serve nothing in
-15% of prompts (chosen by a hash of the session id and the turn's number, so
-every hook of a turn agrees; `holdout` in `.thinker/config.json` or
-`THINKER_HOLDOUT` changes the share or turns it off), and the stop hook records
-after every turn what the session has cost so far by its own transcript: tool
-calls, model turns, input tokens. A turn's cost is what that grew by. The holdout
-comparison compares the prompts that got notes with
-the ones that had notes withheld, as cost per prompt (the side's summed cost
-over its measured prompts) overall and per model, once twenty prompts stand on
-each side; and how often each side's prompt was followed by a correction. The
-unit is the prompt rather than the session because a session is as long as you
-keep it. Notes served on an earlier turn stay in the agent's context, so a
-held-out turn after a served one is partly treated: the difference is
-understated, never inflated. Prompts where nothing would have been served are
-on neither side. Telemetry, unless you opted out, sends the totals behind this
-comparison (prompt counts and summed tool calls, turns and tokens per side and
-per model, over 30 days), nothing about the prompts themselves. This is what
-the notes do for your own work, on your own repository, by your own agent, and
-it is the number to hold the cache's spending against.
-
-Once a week, at the first turn of the week, the agent shows you that number for
-the last 30 days across every repository on the machine, as one line: about how
-many fewer input tokens the prompts with notes cost than they would have at the
-held-out cost per prompt, with the two costs and the counts behind it. Nothing is
-shown until twenty prompts stand on each side. Claude Code, Codex and Gemini show
-the line as a message to you, outside the model's context; Cursor and Copilot
-have no such channel, so there it lives on the page.
-`THINKER_NOTICE=off` or `"notice": false` in the config turns it off with the
-other end-of-turn notices, which are themselves one summary every 20 prompts and
-at most one a day (`notice: { "everyPrompts": 20, "everyHours": 24 }`; see
-docs/agent-integrations.md).
-
-The report separates cache initialization (PR mining and phrasings; exploration in logs
-from before it was removed), ongoing session distillation, and maintenance. It records reported
-input/output tokens, provider prompt-cache reads/writes, and missing usage. Model calls that produce no notes, dry-run distillations, and
-failed attempts count too. Tokens reported before an invalid model answer are retained;
-failures without counters remain unknown. Nothing is given in dollars: the agents run on
-subscriptions as often as on metered keys, so a price from an API list would mislead.
-
-The token balance subtracts both injected notes and reported build/maintenance tokens
-from estimated file-reading tokens avoided. Savings still require a session assessment
-that the note was used. This is a token comparison: tokens of different models and of
-cached input are counted alike. Older logs omitted tokens and setup exploration,
-so historical totals cannot establish full payback. A limited date range also excludes
-setup spending outside that period.
-
-Session learning is the background distillation of each session. The distillation selects at most 12,000 characters of source evidence from the transcript:
-the first request, the last answer, failures and corrections with what followed
-them, and the most recent tool calls. Routine exploration and cache hits alone do not
-trigger discovery. Notes are assessed only when discussed explicitly or when a
-failure/correction touches their dependencies; omitted evidence stays unknown,
-not “unused.” Only returned assessments are checkpointed as assessed.
-
-`learn.auditRate` in `.thinker/config.json` selects a stable sample of sessions
-(default 0.05) for the fuller, 70,000-character trace path. Set it to 0 to disable
-sampling, or 1 to audit every eligible session. Small, uneventful sessions still
-skip learning; `learn.quietExplore: 0` retains an explicit opt-in to processing
-every eligible session. The log records `learningMode` (`evidence`, `assessment`,
-`audit`, or `full`) and trace size so quality and spending can be compared.
-
-Compact discovery requests at most 3,000 output tokens, assessment alone 1,500, and full distillation
-6,000. These bounds reduce input and output, not guarantee a measured saving or identical note quality.
-`distillModel` in `.thinker/config.json` chooses the model for session learning; `THINKER_LLM_MODEL`
-takes precedence.
+The profile has a measurement of its own. 15% of sessions see no profile (chosen by a hash of the session id;
+`holdout` in `.thinker/config.json` or `THINKER_HOLDOUT` changes the share or turns it off), and every observation
+read from a session carries which side it was on, so `thinker profile holdout` compares the two: corrections and
+redirects per session, observations per session, and from the log the prompts and tokens a session cost. Fewer than
+twenty sessions a side is too few to read. The estimated reading the knowledge notes avoided, and the per-prompt
+holdout that measured them, went with the notes on 2026-11-08.
 
 ## Pull requests, and what was saved on each
 
@@ -94,9 +31,7 @@ Merged with work recorded here: 22 of 90 merged in the repository
 Still open: 3
 
 Saved on those 22 merged pull requests
-  cleared         197M tokens the API left out of their prompts (measured)
-  reading avoided 177k tokens of files the notes meant nobody read (estimate)
-  together        197.2M tokens · 9.0M on the average one
+  cleared         197M tokens the clearing left out of their prompts (measured) · 9.0M on the average one
 
 What they cost
   agent tokens    865.4M over 29 linked sessions: every prompt and every answer added up,
@@ -107,10 +42,8 @@ What they cost
 `--detail` adds a block per pull request, with its sessions; `--pr <n>` takes one; `--json` is the
 data behind both.
 
-**Two savings, never blended silently.** *Cleared* is measured: the context proxy asks the API to drop
-the older tool results of a conversation, the API answers with the tokens it left out of that prompt,
-and those are added up over the pull request's sessions. *Reading avoided* is an estimate: one read per
-file behind each note a session was seen to act on. Both lines are always labelled.
+**The saving is measured.** The context proxy replaces the older tool results of a conversation in the requests it
+forwards, counts what it left out of each prompt, and those are added up over the pull request's sessions.
 
 **Matching a session to a pull request** needs nothing from you. A session is matched by a commit it
 was sitting on, or failing that by its branch. Where that is wrong or a session split across two pull
@@ -169,64 +102,13 @@ Set `"prComments": false` in `~/.thinker/config.json` to disable automatic comme
 or in a repository's `.thinker/config.json` to disable them there. Disabled repositories are skipped.
 Status/check/scheduling commands never post, and ordinary sync and maintenance remain read-only on
 GitHub. A GitHub Actions runner alone has none of this machine's records.
-Only the summary is published, with its window and machine scope; no session IDs, paths or note text.
+Only the summary is published, with its window and machine scope; no session IDs, paths or profile text.
 Each machine keeps its own comment, so figures from another machine are not overwritten. Avoid
 summing comments from machines with copied or overlapping session records.
 
 Other than an explicitly posted comment, the evidence stays local. The counts and token totals reach the telemetry if telemetry is on
 (`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
 title, URL, branch and author, the repository, and the session ids never do.
-
-## What the hooks serve, and the symbol table behind it
-
-Besides the notes, the post-tool hook can hand the agent two things about the
-code it is looking at. Both are new serving strategies, so both are **off until
-an experiment shows they help**, and both are turned on per repository in
-`.thinker/config.json`.
-
-```json
-{
-  "symbolTable":    { "enabled": true },
-  "onSight":        { "enabled": true, "perFile": 2, "perSession": 8 },
-  "onSightOutline": { "enabled": true, "perSession": 8, "maxLines": 40 }
-}
-```
-
-`onSight` serves understanding notes the first time a file comes into the
-agent's view. `onSightOutline` serves that file's own outline instead: what is
-defined in it and on which lines, functions and classes only, never imports or
-plain constants, at most `maxLines` lines and `perSession` files in a session,
-each file once. A file named in a search result with the line the search hit is
-outlined around that line — the enclosing definition is always included — rather
-than from the top, so a 600-definition file still answers the question that was
-asked. A bare listing (`rg --files`, `ls -R`) names dozens of files at once, so
-hits with lines take the session's budget first. When the tool searched for a
-single identifier and the checkout defines it in exactly one place, the block
-ends with where that is. Servings are written to the usage log as `late`
-servings with `"on": "outline"`, so a replay can count them apart from the notes.
-
-`symbolTable` is what makes that cheap. With it on, the checkout keeps a
-definition index under `.thinker/state/symbols/` (already outside git, like the
-rest of `state/`), and thinker's definition lookups — the anchoring guard, the
-on-sight outline — read it instead of running `git grep`
-over the tree and re-parsing what they hit. On PostHog (53,503 tracked files,
-43,427 of them code, 641,442 definitions) a definition lookup goes from about
-2.9 s for the first and 0.6–0.9 s for each one after, to 108 ms for the first in
-a process and 1–2 ms after; one file's outline costs 2 ms. The index is 62 MB
-there, and the whole-repository build that produces it takes about 95 s (11 s
-when the parser's own disk cache is already warm).
-
-The table is kept current without ever blocking a hook. One `git ls-files -s`
-(26 ms on PostHog) catches everything that moved in git's index; the files that
-changed are outlined again on the spot, up to `refreshFiles` (200) of them and
-`refreshMs` (2 s), and any file the caller names is hashed and outlined there
-and then, so a per-file answer is always exact. Unstaged edits elsewhere in the
-tree need a sweep that stats every file, which costs over a second on a
-checkout that size: it runs inline only once a measurement puts it under
-`sweepMs` (120 ms), and otherwise moves into the background. When more has
-changed than the table's delta holds (`maxDelta`, 400 files), or there is no
-table yet, a background build is started and the caller falls
-back to `git grep` meanwhile. A missing or half-built table is never an error.
 
 ## The context diet
 

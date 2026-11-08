@@ -20,6 +20,8 @@ export const CLEAR_AT_LEAST = 60000
 export const KEEP_MIN = 3
 export const HOLDOUT = 0.15
 export const TOKENS_PER_CHAR = 1.44 / 4
+// a tool result's own rate, for the breakdown's estimate of the results (proxy.js:RESULT_TOKENS_PER_CHAR, measured on results)
+export const RESULT_TOKENS_PER_CHAR = 0.445
 // a result under this is not worth a placeholder
 export const MIN_CHARS = 200
 // Clear, freeze what was cleared, and clear again when it pays (src/clearing.js: the proxy's policy and this door's,
@@ -167,9 +169,9 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   const changedAt = firstChanged
   const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
   const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
-  const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * TOKENS_PER_CHAR) }))
+  const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * RESULT_TOKENS_PER_CHAR) }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
-  const resultTokens = Math.round(chars * TOKENS_PER_CHAR), inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
+  const resultTokens = Math.round(chars * RESULT_TOKENS_PER_CHAR), inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
   return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens + inputTokens, resultTokens, inputTokens, rows, prefixChars, tools }
 }
 
