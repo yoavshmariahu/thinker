@@ -507,7 +507,9 @@ export function profileBlock(store) {
 // 0.313 of exchanges with an ICC of ~0 inside a session, so the unit that matters is the exchange and 15% of
 // sessions on the small side wastes most of the information. At 85/15 a 30% change needs ~1000 sessions here
 // (7 months at 5 a day); at 50/50, ~130 (26 days). An unbalanced split only makes sense once the thing is known
-// to work and the holdout is there to catch a regression; that is where this should go when it ships.
+// to work and the holdout is there to catch a regression; that is where this should go when it ships. The four
+// cells, for a 30% change at 95%/80%: 1251 sessions as a count at 85/15, 638 as a count at 50/50, 256 as a
+// proportion at 85/15, 131 as a proportion at 50/50.
 export function profileHoldoutRate(store) {
   const env = process.env.THINKER_HOLDOUT;
   if (env !== undefined && env !== '') return holdoutRate(store);

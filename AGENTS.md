@@ -1036,8 +1036,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   at **0.313 of exchanges**, 1.84 a session with an sd of 2.49 and zero in 51 of the 116, and the ICC inside a session
   is **~0** -- so the exchange is the unit, a count per session throws the information away and keeps the variance,
   and the small side of an 85/15 split wastes most of what is left. What each design can see, at 80% power and 5
-  sessions a day here: a 30% change needs ~1000 sessions at 85/15 (7 months) against ~130 at 50/50 (26 days), and as a
-  per-session count ~640 sessions (127 days) against ~130 as a proportion. So: half the sessions, `rate` =
+  sessions a day here: a 30% change needs ~1250 sessions as a per-session count at 85/15 (248 days), ~640 as a count
+  at 50/50 (127 days), ~256 as a proportion at 85/15 (51 days), and **~130 as a proportion at 50/50 (26 days)** --
+  so the metric is the 5x and the split another 2x. So: half the sessions, `rate` =
   (corrected + redirected) / observations, `delta` = shown less held out with a 95% two-proportion interval, and
   `PROFILE.holdoutMinObs` (380) observations a side before the report says anything. An unbalanced split is for
   catching a regression in something already known to work, which is where this goes when it ships.
