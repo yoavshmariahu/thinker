@@ -58,15 +58,14 @@ test('a model\'s observation is held to the ledger\'s shape', () => {
   assert.equal(o.turn, 2); assert.equal(o.kind, 'other'); assert.equal(o.outcome, 'unknown', 'an outcome outside the four is unknown'); assert.equal('weight' in o, false, 'nothing reads a weight, so none is kept'); assert.deepEqual(o.prefs, []); assert.deepEqual(o.topics, ['a', 'b']);
 });
 
-test('the model ladder is Opus, then GPT-SOL, then what else is signed in; the config pins one', async () => {
-  assert.deepEqual(profileModels({ have: ['claude', 'codex', 'gemini'] }), ['claude-opus-5-5', 'gpt-6-sol', 'gemini-3.1-pro']);
-  assert.deepEqual(profileModels({ have: ['codex'] }), ['gpt-6-sol']);
+test('the model is Opus and nothing else; the config pins another; a failed rung falls to the next', async () => {
+  assert.deepEqual(profileModels({ have: ['claude', 'codex', 'gemini'] }), ['claude-opus-5-5'], 'no GPT or Gemini rung (the owner\'s call, 2026-11-07)');
+  assert.deepEqual(profileModels({ have: ['codex'] }), [], 'no claude login, no profile');
   assert.deepEqual(profileModels({ have: ['anthropic', 'claude'] }), ['claude-opus-5-5'], 'the API key and the CLI are one rung');
   assert.deepEqual(profileModels({ have: ['codex'], config: { model: 'gpt-7' } }), ['gpt-7']);
   const tried = [];
-  const r = await completeProfile({ prompt: 'p' }, { have: ['claude', 'codex'], completeFn: async o => { tried.push(o.model); if (o.model.startsWith('claude')) throw new Error('limit reached'); return { json: {} }; } });
-  assert.deepEqual(tried, ['claude-opus-5-5', 'gpt-6-sol'], 'a failed rung falls to the next');
-  assert.ok(r);
+  await assert.rejects(completeProfile({ prompt: 'p' }, { have: ['claude', 'codex'], completeFn: async o => { tried.push(o.model); throw new Error('limit reached'); } }), /limit reached/);
+  assert.deepEqual(tried, ['claude-opus-5-5'], 'Opus fails, nothing else is tried');
   await assert.rejects(completeProfile({ prompt: 'p' }, { have: [], completeFn: async () => ({}) }), /no model available/);
 });
 

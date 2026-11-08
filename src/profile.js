@@ -49,16 +49,13 @@ export function profileConfig(store) {
 }
 
 // --- models ---------------------------------------------------------------
-// Opus, GPT-SOL as the fallback, and the comparable model of whatever else is signed in (the owner's call,
-// 2026-11-07: a high-quality profile over a cheap one). Each id names its provider, so `complete` pins it there
-// and the next rung is this module's choice, not the tier table's (which answers an Opus tier with Luna on Codex).
+// Opus and nothing else for now (the owner's call, 2026-11-07, after the first build fell down a ladder of Opus,
+// GPT-SOL and Gemini on one session that timed out: a profile built by three models is not one profile). Each id
+// names its provider, so `complete` pins it there rather than taking the tier table's fallback (Luna on Codex).
+// `learn.profileModel` pins another model. A longer ladder was tried and taken out the same day.
 export const PROFILE_MODELS = [
   ['claude', 'claude-opus-5-5'],
   ['anthropic', 'claude-opus-5-5'],
-  ['codex', 'gpt-6-sol'],
-  ['gemini', 'gemini-3.1-pro'],
-  ['cursor', 'opus'],
-  ['command', 'opus'],
 ];
 export function profileModels({ have = available(), config = {} } = {}) {
   if (config.model) return [config.model];
@@ -69,7 +66,7 @@ export function profileModels({ have = available(), config = {} } = {}) {
 }
 export async function completeProfile(opts, { have, config, completeFn = complete } = {}) {
   const models = profileModels({ have, config });
-  if (!models.length) throw new Error('no model available for the profile: sign in claude, codex or gemini, or set learn.profileModel');
+  if (!models.length) throw new Error('no model available for the profile: sign in the claude CLI or set ANTHROPIC_API_KEY, or set learn.profileModel');
   let last = null;
   for (const [i, model] of models.entries()) {
     try { return await completeFn({ ...opts, model: model === 'session' ? 'opus' : model }); }
@@ -196,7 +193,7 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   if (!xs.length) return { observations: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
   const input = extractionInput(xs);
   const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON.`;
-  const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, accounting }, { have, config, completeFn });
+  const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   const observations = (res.json?.observations || []).map(tidyObservation).filter(Boolean);
   return { observations, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
 }
@@ -341,7 +338,7 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
   const input = `Repository: ${path.basename(store.repo)}\nToday: ${new Date(now).toISOString().slice(0, 10)}\n\nINSTRUCTION FILE HEADINGS (do not repeat what these cover):\n${headings.map(h => '- ' + h).join('\n') || '(none)'}\n\nPREVIOUS PROFILE (compiled ${previous?.compiledAt?.slice(0, 10) || 'never'}):\n${previous ? JSON.stringify(previous.sections) : '(none)'}\n\nOBSERVATIONS (${rows.length} over the last ${PROFILE.ledgerDays} days, from ${sessions} sessions, newest first):\n\n${ledgerText(rows)}\n\nReturn the profile JSON.`;
   if (dry) return { dry: true, observations: rows.length, sessions, headings: headings.length, chars: input.length, previous: !!previous };
   if (!rows.length) return { skipped: 'no observations' };
-  const res = await completeProfile({ system: COMPILE_SYSTEM, prompt: input, schema: PROFILE_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, accounting }, { have, config, completeFn });
+  const res = await completeProfile({ system: COMPILE_SYSTEM, prompt: input, schema: PROFILE_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   const sections = settle(res.json?.sections, rows, { now });
   const profile = { version: 1, compiledAt: new Date(now).toISOString(), model: res.model || null, window: { days: PROFILE.ledgerDays, observations: rows.length, sessions }, sections };
   if (previous) { try { fs.appendFileSync(historyFile(store), JSON.stringify(previous) + '\n'); } catch {} }

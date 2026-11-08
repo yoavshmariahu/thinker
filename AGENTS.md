@@ -972,10 +972,11 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   from. Reviewed three times before the first build (2026-11-07): `abandoned` and `weight` went, the first because
   no next prompt tells "moved on" from "dropped", the second because nothing read it. So a prompt can be changed and the profile recompiled from
   the ledger without reading a transcript again (`thinker profile compile`).
-- **Models** (`PROFILE_MODELS`, `completeProfile`): Opus, then GPT-SOL, then the comparable model of whatever else is
-  signed in, each named by its provider id so `complete` pins it and the next rung is this module's, not the tier
-  table's (which answers an Opus tier with Luna on Codex). `learn.profileModel` pins one. The owner's call: quality
-  over cost here.
+- **Models** (`PROFILE_MODELS`, `completeProfile`): Opus and nothing else (the owner's call, 2026-11-07). A ladder of
+  Opus, GPT-SOL and Gemini was built first and taken out the same day, after the first build timed one session out on
+  Opus and read it with two other models: a profile built by three models is not one profile. The id names its
+  provider so `complete` pins it there, never the tier table's Luna fallback on Codex; `learn.profileModel` pins
+  another model. The calls get ten minutes, since a long session took Opus past the default five.
 - **Codex's approval assessor is not a session** (`ASSESSOR_PROMPT`, `ASSESSOR_SAY`): Codex writes a rollout of its
   own in the same cwd whose prompts are the agent's history and whose answers are a risk verdict in JSON; one such
   file here had 79 of 79 answers so, 845k chars of prompts. `exchanges` drops both, so a file of them is zero
