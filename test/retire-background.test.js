@@ -49,17 +49,6 @@ test('an update stops the mining an older version left running, its pending ques
   assert.equal(await gone(child.pid), true, 'the mining batch is stopped');
 });
 
-test('a repository that turned mining on keeps it', t => {
-  const { store } = repo(t);
-  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { prs: true } }));
-  fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
-  fs.writeFileSync(path.join(store.dir, 'state', 'commits.json'), JSON.stringify({ pending: { count: 30 } }));
-  assert.deepEqual(retireBackground(store), []);
-});
-
-// The two leftovers of the removed warm-up a user could still see in October 2026: a focus-area list
-// naming a directory that no longer existed, printed as "refreshed daily" when nothing had refreshed
-// it since 2026-10-21, and behavior drafts nothing surfaced after the build that wrote them went.
 test('an update drops the focus-area list and the behavior drafts the warm-up left behind', t => {
   const { store } = repo(t);
   const cfgFile = path.join(store.dir, 'config.json');

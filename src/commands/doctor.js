@@ -269,9 +269,6 @@ async function runChecks(ctx) {
   }
 
   // The parser comes with the dependencies; scheduled updates are optional
-  const { initAst } = await import('../ast.js');
-  const ast = await initAst();
-  add('tree-sitter', ast.available ? 'ok' : 'warn', ast.available ? ast.grammars.join(', ') : process.env.THINKER_AST === 'off' ? 'off (THINKER_AST=off), symbols found by regex' : `not loaded${ast.error ? ` (${ast.error})` : ''}, symbols found by regex (\`thinker ast install\`)`);
   if (install.type !== 'git') add('auto-update', isScheduled(home) ? 'ok' : 'warn', isScheduled(home) ? 'scheduled every 4 hours' : 'not scheduled (`thinker update --schedule`)');
 
   return checks;

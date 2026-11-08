@@ -581,7 +581,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // The pull requests this machine's sessions produced and what thinker saved on them, 30 days
     // regardless of the usage snapshot's periodHours (delivery-telemetry.js). Counts and tokens only.
-    prs: deliveryMetrics(store, { all }),
+    prs: deliveryMetrics(store, { all, home }),
 
     // The profile: the sessions it was shown to against the ones held out, by what the person corrected, 30 days (profileMetrics).
     profile: profileMetrics(store, { all }),

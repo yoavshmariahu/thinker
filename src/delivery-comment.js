@@ -25,7 +25,6 @@ export function renderSavingsComment(report, pr, marker, { config } = {}) {
       + ` the calls after a clear paid to write the prefix into the cache again.`;
   const savings = [
     ...(pr.saved.cleared ? [`**${formatTokens(pr.saved.cleared)} tokens cleared** (measured)`] : []),
-    ...(pr.saved.reading.tokens ? [`**${formatTokens(pr.saved.reading.tokens)} tokens of reading avoided** (estimated)`] : []),
   ];
   return [
     marker,

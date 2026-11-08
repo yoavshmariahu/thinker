@@ -28,7 +28,7 @@ test('--help prints the usage and runs nothing, on setup as on any command', t =
   for (const args of [['setup', '--help'], ['setup', '--build', '--help'], ['--help'], ['-h'], ['help'], ['doctor', '--help'], ['list', '--help']]) {
     const r = run(...args);
     assert.equal(r.status, 0, `${args.join(' ')}: ${r.stderr}`);
-    assert.match(r.stdout, /^thinker — knowledge cache for coding agents/, args.join(' '));
+    assert.match(r.stdout, /^thinker — saves tokens for coding agents/, args.join(' '));
     assert.match(r.stdout, /\n  setup \[--clients/);
   }
   assert.equal(snapshot(), before, 'no file was written in the home or the repository');

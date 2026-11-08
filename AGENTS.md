@@ -506,7 +506,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Telemetry and tests (MANDATORY):**
 - Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
-- It blocks production telemetry and automatic background work, keeps usage logs local, silences machine-wide hooks, and suppresses coverage offers (hooks, `orient` over MCP).
+- It blocks production telemetry and automatic background work, keeps usage logs local, silences machine-wide hooks, and suppresses the offers.
 - `THINKER_OFFERS=on`: restore offers, offer tests only.
 - `THINKER_TELEMETRY=off`: extra telemetry-only control.
 - Every child process must inherit these settings.
@@ -560,13 +560,11 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 | `src/clients.js`, `src/integrations/` | client adapters, extension handlers (`docs/agent-integrations.md`) |
 | `src/transcripts.js` | transcripts, one event form |
 | `src/prs.js` | PR mining |
-| `src/ops.js` | serve, merge, assess, link |
-| `src/deps.js` | dependencies, symbol hashing |
-| `src/ast.js` | tree-sitter boundaries (default); regex fallback in `deps.js` |
+| `src/session-state.js` | a session's turn counter, state file and lock for the hooks; the holdout share |
+| `src/profile.js`, `src/commands/profile.js` | the session profile: extraction, ledger, patch compile, render, serving and holdout |
+| `src/notes-retired.js` | removes what a checkout kept of the knowledge notes, once |
 | `src/disk-cache.js` | machine-wide results cache (`~/.thinker/cache`) |
-| `src/codegraph.js` | call graph: `fanout`, callers, callees, `findSymbols` |
-| `src/rank.js` | BM25, relevance gate, budget packing |
-| `src/distill.js` | transcript to notes and assessments |
+| `src/rank.js`, `src/dense.js` | BM25 and the cross-encoder the harness recall ranks with |
 | `src/maintain.js` | background maintenance, daily cap |
 | `src/skills.js`, `src/commands/skills.js` | SKILL.md cards; `thinker skills` (`docs/skills.md`) |
 | `src/instruction-value.js`, `src/context-view.js`, `src/commands/context.js` | `thinker context`, Context tab |
@@ -1070,7 +1068,7 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 - Prompt hook prunes gone or older copies (`olderOnly`), logs `op: "prune"`. Never delete old copy's files.
 - Wiring follows installed version (`clients.js:refreshWiring`, `inferWiring`, `installClient`). Rewrite only this copy's entries; leave hand-tuned commands. Skip temp-dir checkouts.
 - `thinker update` runs `thinker rewire`. Manual: `thinker rewire [--here] [--dry]`.
-- Cursor: `beforeSubmitPrompt` returns `additional_context`. Headless `agent -p` uses `postToolUse`; agent must call `orient`.
+- Cursor: `beforeSubmitPrompt` returns `additional_context`. Headless `agent -p` has no prompt hook, so the profile reaches it one tool call late through `postToolUse`.
 - Codex: `setup` sets `default_tools_approval_mode = "approve"` and trusts project and hooks in `config.toml` (`CODEX_HOME`, default `~/.codex`).
   - `--yes` skips the trust prompt; `--no-trust` leaves trust to the user.
   - Without a terminal, nothing is marked unless `--yes`.
@@ -1127,67 +1125,32 @@ that Codex stored is held in `test/clients.test.js`.
 
 ### Learning from any agent
 
-Learning works with all four agents, and with others through the generic
-path below. Nothing in it is tied to one vendor:
+Learning works with every agent that gives thinker a session, and with others through the generic path below.
+Nothing in it is tied to one vendor:
 
-- **Sessions.** `thinker distill` reads Claude Code, Codex, Cursor and Gemini
-  CLI transcripts (and the streamed output of their headless modes) and maps
-  them to one event form: prompt, tool call with result, agent message. Tool
-  names are mapped to one vocabulary, so `read_file`, `Read` and a shell `cat`
-  are all seen as reading.
-- **When.** Once per session, not per turn: each call carries the prompt,
-  schema and related notes whatever the size of the trace, and on 2026-10-03
-  one session was distilled 13 times. At the end of a turn (`Stop`,
-  `AfterAgent`, `stop`) the hook distills only a backlog near the trace limit
-  (`distill --batch`, `distill.js:batchDue`, 45,000 condensed chars); the end
-  of the session (Claude Code's `SessionEnd`, Cursor's `sessionEnd`) distills
-  the rest. Catch-up covers agents that fire no end: `thinker learn` finds
-  every session any of these agents ran in the repository and distills what
-  is new in those quiet for 20 minutes (`cli.js:LEARN_IDLE_MIN`). Hooks start
-  it in the background at most every ten minutes.
-- **What the agent's record leaves out.** Where an agent gives no transcript,
-  the hooks record the session themselves (`.thinker/state/trace-*.jsonl`).
-  Cursor records tool calls without their output; reads and searches are
-  repeated against the working tree when distilling.
-- **Model.** Distilling, verifying and PR mining run through whichever agent is installed, with the login it already
-  has: `claude -p`, `codex exec`, `agent -p` (Cursor) or `gemini -p`. A
-  session is distilled by the agent that ran it when possible. `THINKER_LLM`
-  picks one (`claude`, `codex`, `cursor`, `gemini`, `anthropic`, `openai`);
-  `THINKER_LLM_MODEL` names a model for the non-Claude ones;
-  `THINKER_LLM_BASE_URL` is any OpenAI-compatible `/chat/completions`
-  endpoint (token from the variable `THINKER_LLM_API_KEY_ENV` names), used
-  before the agents; `THINKER_LLM_CMD` is any command that reads a prompt on
-  stdin and prints the answer, told the tier, model and schema in
-  `THINKER_TIER`, `THINKER_MODEL` and `THINKER_SCHEMA` (docs/usage.md).
-- **Any other agent.** Pipe events to `thinker record <session>` as JSON lines
-  (`{"t":"prompt","text":…}`, `{"t":"tool","name":…,"input":…,"result":…}`,
-  `{"t":"say","text":…}`), then run `thinker learn`. Agents that speak MCP can
-  also correct notes with the `feedback` tool.
+- **Sessions.** `thinker distill` reads Claude Code, Codex, Cursor and Gemini CLI transcripts (and the streamed output
+  of their headless modes) and maps them to one event form: prompt, tool call with result, agent message
+  (`transcripts.js`). The profile reads the prompts and the agent's messages alone (`profile.js:exchanges`).
+- **When.** Once per session, when it ends (Claude Code's `SessionEnd`, Cursor's `sessionEnd`): an exchange's outcome is
+  the prompt after it, so a turn-end read would be guessing. Catch-up covers agents that fire no end: `thinker learn`
+  finds every session any of these agents ran in the repository and reads what is new in those quiet for 20 minutes
+  (`commands/hooks.js:LEARN_IDLE_MIN`). Hooks start it in the background at most every ten minutes.
+- **What the agent's record leaves out.** Where an agent gives no transcript, the hooks record the session themselves
+  (`.thinker/state/trace-*.jsonl`).
+- **Model.** The profile's reads and compiles run on Opus through the `claude` CLI or `ANTHROPIC_API_KEY`
+  (`profile.js:PROFILE_MODELS`; `learn.profileModel` pins another). `THINKER_LLM`, `THINKER_LLM_MODEL`,
+  `THINKER_LLM_BASE_URL` and `THINKER_LLM_CMD` still steer `llm.js:complete` for the other model calls (docs/usage.md).
+- **Any other agent.** Pipe events to `thinker record <session>` as JSON lines (`{"t":"prompt","text":…}`,
+  `{"t":"tool","name":…,"input":…,"result":…}`, `{"t":"say","text":…}`), then run `thinker learn`.
 
-### What was run live, on 2026-09-27
+Seen in the live runs of 2026-09-27 (the notes era; the hook wiring is what still stands):
 
-| | Claude Code | Codex CLI 0.157 | Cursor agent CLI | Gemini CLI |
-|---|---|---|---|---|
-| notes served in a session | yes | yes | yes | not installed here |
-| session turned into notes | yes | yes (hooks, trace and distilling through Codex ran; the short test session produced no notes) | yes (4 notes from 2 sessions, distilled through Cursor) | not installed here |
-
-Gemini support follows its documentation and is covered by unit tests on
-constructed input only. Seen in the live runs:
-
-- Codex did not run hooks from a project's `.codex/hooks.json` in
-  `codex exec` with only the project marked trusted, but ran the same hooks
-  from the user-level `hooks.json`. With the hooks marked as reviewed too
-  (what `setup` now writes), `codex exec` 0.157.1 loaded the
-  project's MCP server, called `orient` without asking and ran the project's
-  hooks.
-- Cursor's CLI (`agent -p`) fires `sessionStart`, `postToolUse`,
-  `afterShellExecution` and `sessionEnd`, but not `beforeSubmitPrompt` or
-  `stop`, and `postToolUse` carries a summary of the tool's output, not the
-  output. So thinker installs both the editor's and the CLI's events, takes
-  shell output from `afterShellExecution`, re-reads files when distilling,
-  and `setup` approves the MCP server (`agent mcp enable thinker`) so the
-  agent can call `orient` at the start. In the
-  test session it did both unprompted.
+- Codex did not run hooks from a project's `.codex/hooks.json` in `codex exec` with only the project marked trusted,
+  but ran the same hooks from the user-level `hooks.json`. With the hooks marked as reviewed too (what `setup` now
+  writes), `codex exec` 0.157.1 loaded the project's MCP server and ran the project's hooks.
+- Cursor's CLI (`agent -p`) fires `sessionStart`, `postToolUse`, `afterShellExecution` and `sessionEnd`, but not
+  `beforeSubmitPrompt` or `stop`, and `postToolUse` carries a summary of the tool's output, not the output. So thinker
+  installs both the editor's and the CLI's events and takes shell output from `afterShellExecution`.
 
 ## Jev, tried and removed
 

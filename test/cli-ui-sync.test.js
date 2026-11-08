@@ -25,33 +25,16 @@ test('Bedrock opt-in flags belong to the shared CLI; page setup cannot enable th
   assert.doesNotMatch(read('ui/page.html'), /--bedrock/);
 });
 
-test('lifetime savings use shared report values and captions in CLI, page and footer', async () => {
-  const { cacheMetrics } = await import('../src/report.js');
-  const usage = { assessed: { confirmed: 2 }, saved: { tokens: 1000, byModel: {}, input: { tokens: 88000, covered: 1, fallback: 1, sessions: 1, requests: 100 } } };
-  const c = cacheMetrics(null, { usage });
-  assert.equal(c.tokensSaved, 88000);
-  assert.equal(c.tokenLabel, 'Estimated input tokens saved');
-  assert.deepEqual(c.coverage, { hits: 1, fallback: 1, sessions: 1, requests: 100 });
-  for (const file of ['report.js', 'ui/page.html']) {
-    if (file === 'report.js') assert.match(read(file), /c\.tokenDescription/);
-    if (file === 'report.js') assert.match(read(file), /c\.dollarsLabel/);
-    assert.doesNotMatch(read(file), /Math\.max\(0, c\.(tokensSaved|dollarsSaved)\)/, 'negative net estimates must stay visible');
-  }
-  assert.match(read('commands/hooks.js'), /sessionInputSavings/);
-  assert.match(read('report-snapshot.js'), /'cache-savings\.js'/);
-  assert.match(read('usage.js'), /estFiles:/, 'future servings carry historical per-file sizes');
-});
-
 test('the footers, the ledger and the Report page price one thing the same way', async () => {
   // The footers say money, which the rest of the product deliberately does not (src/prices.js). The one
   // thing that keeps that honest is that every surface reads report-savings.js:weeklySavings, so a figure
   // under a prompt can never contradict the table in `thinker report`. savings-ledger.test.js checks the
   // arithmetic; this holds the wiring.
   assert.match(read('savings-ledger.js'), /weeklySavings/);
-  assert.match(read('savings-ledger.js'), /SAVINGS_SERIES/, 'both of the Report\'s series, never one');
-  for (const file of ['commands/hooks.js', 'notice-card.js']) assert.match(read(file), /savings-ledger\.js/);
+  assert.match(read('savings-ledger.js'), /SAVINGS_SERIES/, 'the Report\'s own series');
+  assert.match(read('commands/hooks.js'), /savings-ledger\.js/);
   // and every door says it in the ledger's own words
-  for (const [file, fn] of [['commands/savings.js', 'savingsLine'], ['commands/hooks.js', 'savingsLine'], ['notice-card.js', 'savingsLine']]) assert.match(read(file), new RegExp(fn));
+  for (const [file, fn] of [['commands/savings.js', 'savingsLine'], ['commands/hooks.js', 'savingsLine']]) assert.match(read(file), new RegExp(fn));
   // the command the hooks start in the background is the one a person can run by hand
   assert.match(read('savings-ledger.js'), /'savings', '--refresh', '--quiet'/);
   assert.match(read('cli.js'), /savings \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');
@@ -122,12 +105,6 @@ function page(t, dir) {
     },
   };
 }
-
-test('CLI and page agree that ordinary edits stay usable pending verification', () => {
-  assert.match(read('cli.js'), /ordinary edits stay usable pending verification/);
-  assert.match(read('ui/page.html'), /Ordinary code edits leave notes usable pending verification/);
-  assert.match(read('ui/page.html'), /Missing anchors and reported contradictions are held back/);
-});
 
 test('CLI and page expose the shared Claude Code, Codex and Cursor harness report and qualified undo controls', () => {
   assert.match(read('commands/harness.js'), /harnessUsage\(repo/);
@@ -326,7 +303,7 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   // it carries thinker's name in the question and in the header and no offer can hand-write one that does not
   // (2026-10-29, the owner's ask). A new question goes through the same helper.
   assert.match(read('repo-onboard.js'), /export const QUESTION_HEADER = 'thinker';/);
-  for (const f of ['context-suggest.js', 'coverage.js', 'proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
+  for (const f of ['context-suggest.js', 'proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
     const src = read(f);
     assert.match(src, /askThrough\(tool, /, `${f} asks through the labelled clause`);
     assert.match(src, /askInChat\(/, `${f} labels its chat fallback too`);
@@ -565,7 +542,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.equal((read('ui/page.html').match(/row\('Total \(the whole session\)', v\.sessionTotals, \{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}\)/g) || []).length, 3);
   assert.match(read('ui/page.html'), /\.\.\.otherRows\]\.join/); assert.match(read('report.js'), /for \(const p of rest\) L\.push\(line\(`  \$\{p\.name\}`, p\.cells, false, base, \{ key: p\.key, thresholds: true \}\)\);/, 'the kinds under Other input, indented');
   // Both doors show the weekly savings series from the shared report.
-  for (const f of ['report.js', 'ui/page.html']) assert.match(read(f), /Cache\/compression effectiveness/);
+  for (const f of ['report.js', 'ui/page.html']) assert.match(read(f), /Compression effectiveness/);
   assert.match(read('report.js'), /changeHistory\(store\)\.filter\(e => Date\.parse\(e\.at\) >= from\)/);
   // the page's tabs: Save (was Context, the chart gone) and Report (was Cache); the old names still open them
   assert.match(read('ui/page.html'), /data-tab="save">Find Savings</);
@@ -613,15 +590,14 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   // The command's window default is the module's, so help, report and telemetry cover the same days.
   assert.match(cmd, /flags\.days === undefined \? WINDOW_DAYS/);
   assert.equal(WINDOW_DAYS, 30);
-  // There is no page tab for it yet, so the help carries the whole explanation: both savings, and that one
-  // is measured and the other an estimate. A figure nobody can place is worse than no figure.
+  // There is no page tab for it yet, so the help carries the whole explanation, and says the saving is measured.
   assert.match(cli, /prs \[--days n\] \[--pr n\] \[--detail\] \[--json\]/);
   assert.match(cli, /prs sync \[--days n\] \[--pr n\]/);
   assert.match(cli, /prs link --session id --pr n/);
   assert.match(cli, /prs comment --pr n \[--days n\] \[--dry\] \[--json\]/);
   assert.match(cli, /prs auto \[--dry\] \[--json\]/);
   assert.match(cmd, /commentOnPr\(store, \{ pr, days, dry: !!flags\.dry \}\)/);
-  for (const phrase of [/\(measured\)/, /\(an estimate\)/]) assert.match(cli, phrase);
+  assert.match(cli, /\(measured\)/);
   // The page's second door is the Report tab's band, which reads the figures off the report view that
   // report.js already computed (prSavings). There is no endpoint of its own, and nothing on the page
   // recomputes them on a visit.
@@ -679,12 +655,10 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   assert.match(page, /See more metrics/);
   assert.match(page, /RMORE = false/);
   for (const phrase of ['merged with work here', 'share of their cost', 'on the average one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
-  // the same seven columns, in the same order
-  for (const c of ['Sessions', 'Its cost', 'Cleared', 'Reading avoided', 'Saved', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
-  // the command's columns are 11 characters wide, so the same six are abbreviated, in the same order
+  // the same columns, in the same order (the reading-avoided and saved columns went with the knowledge notes, 2026-11-08)
+  for (const c of ['Sessions', 'Its cost', 'Cleared', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
   const head = rep.slice(rep.indexOf("'Merged, newest first'"), rep.indexOf("'Merged, newest first'") + 400);
-  for (const c of ['sessions', 'its cost', 'cleared', 'reading', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
-  assert.ok(head.indexOf("'cleared'") < head.indexOf("'reading'") && head.indexOf("'reading'") < head.indexOf("'saved'"), 'in the page\'s order');
+  for (const c of ['sessions', 'its cost', 'cleared', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
   // Both doors describe the PR figures in tokens.
   assert.doesNotMatch(page, /Tokens spent and saved on merged pull requests|Of the work shipped here/);
   assert.ok(rep.includes('tokens spent and saved on merged work'));
@@ -755,9 +729,8 @@ test('the end-of-turn notices have one cadence, and the hooks read it from the m
   assert.deepEqual([NOTICE_PROMPTS, NOTICE_HOURS], [20, 24], 'one summary every 20 prompts and at most one a day');
   assert.deepEqual(noticeCadence({ config: () => ({}) }), { prompts: NOTICE_PROMPTS, hours: NOTICE_HOURS });
   const hooks = read('commands/hooks.js');
-  for (const fn of ['noticeDue', 'noticeShown', 'countPrompt', 'holdNotice', 'pendingNotice']) assert.match(hooks, new RegExp(fn));
+  for (const fn of ['noticeDue', 'noticeShown', 'countPrompt', 'holdNotice']) assert.match(hooks, new RegExp(fn));
   assert.doesNotMatch(hooks, /everyPrompts|everyHours|NOTICE_PROMPTS|NOTICE_HOURS/, 'the floors are the module\'s, never a second copy at a door');
-  assert.match(read('usage.js'), /over the last \$\{prompts\} prompts/, 'a held summary says the span it speaks for');
 });
 
 // Experiment-only validation has no UI control; normal page reports retain their shape.
