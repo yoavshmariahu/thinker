@@ -139,7 +139,7 @@ test('the cleared actions are the tool uses outside the kept window, biggest fir
     { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'd', content: 'w'.repeat(100) }] },
   ];
   // the cut names the ids it replaced, so the card reads them rather than re-deriving a keep window
-  assert.deepEqual(cutActions(messages, ['a', 'b', 'c']), [{ name: 'Bash', calls: 2, tokens: 17_280 }, { name: 'Read', calls: 1, tokens: 1440 }], 'what the cut took, by tool');
+  assert.deepEqual(cutActions(messages, ['a', 'b', 'c']), [{ name: 'Bash', calls: 2, tokens: 21_360 }, { name: 'Read', calls: 1, tokens: 1780 }], 'what the cut took, by tool, at a result\'s own rate (48k and 4k chars at 0.445)');
   assert.deepEqual(cutActions(messages, []), [], 'nothing cut, nothing to show');
   assert.deepEqual(cutActions(null, ['a']), [{ name: 'tool', calls: 1, tokens: 0 }]);
   assert.deepEqual(cutActions([{ role: 'assistant', content: [{ type: 'tool_use', id: 'z' }] }], ['z']), [{ name: 'tool', calls: 1, tokens: 0 }], 'a use with no name or result still counts');

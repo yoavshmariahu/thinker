@@ -114,6 +114,13 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   nothing at all. Only a request the cut actually shortened carries the fields, and the figure is tied to the
   characters it replaced, so a result left in place for being under `CUT_MIN_CHARS` is never claimed as a saving
   (`test/proxy.test.js`, the two savings tests; the first fails against the code it replaced).
+- **The figure's rate is a result's, not the prompt's** (2026-11-08; `proxy.js:RESULT_TOKENS_PER_CHAR`, 0.445,
+  mirrored by the clear mod for its breakdown). `TOKENS_PER_CHAR` (0.36) is the Report's whole-prompt calibration;
+  measured on 265 real tool results from transcript usage deltas, results run 0.433 median, 0.445 weighted, so the
+  reported saving was a fifth short (the one clean live cut: 16,966 claimed, 30,718 dropped by the API). The
+  decision's own arithmetic keeps 0.36: a cut and its tail scale together, and widening the size floor's reach is
+  a policy change. Still an estimate (`clearedEstimated`); the honest next step is the API's own usage deltas per
+  result, recorded in the cut record as the result first enters, which the proxy and the mod both see.
 - Written per session beside the log (`<THINKER_HOME>/state/compression/<session>.json`, `compression.js:noteCompression`
   from `startProxy`'s `log`), because the log is a megabyte within a week and no card may read it on a turn.
 - Not at the clear: the first cleared call saves nothing anybody would notice, since the saving is every *later* call
@@ -489,6 +496,12 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   Notices off (`THINKER_NOTICE=off`, `notice: false`) silences the status row too.
 - Where the card mod runs, the Stop hook leaves the money out of its line: the status row already has
   it, and one figure gets one voice per client.
+- **The row follows the file, not the turn** (2026-11-08; `register.tsx:LEDGER_POLL_MS`, `ledgerMoved`). The
+  Stop hook's refresh is a detached process of about a second, and the mod read the ledger at the end of the
+  same turn, before the write landed: every session showed the ledger as of its previous turn, and open
+  sessions disagreed until each had another turn. The mod now stats the ledger file every 5 s while the
+  session is open and reads it only when its modification time moved, cancelled at `session.end`; the runtime
+  has no file watcher. `test/claude-card.test.js` pins it.
 - **A clear the proxy never saw is in the ledger too** (2026-11-06; `compression.js:desktopClearRows`,
   `clearingRows`). The ledger and the Report priced cleared tokens from the proxy's log alone, and a
   desktop session never reaches the proxy: the clearing mod writes `state/compression/<session>.json` and

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
-import { PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
@@ -85,6 +85,7 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   assert.ok(policy.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
   // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
   assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
+  assert.equal(modConst(s, 'RESULT_TOKENS_PER_CHAR'), RESULT_TOKENS_PER_CHAR, 'a result\'s own rate matches proxy.js');
   assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
   // the floor itself: one policy, so a move on either door fails here until the other follows. Nothing pinned it
   // until 2026-11-06, the day the proxy's went from 20 to 25, which is exactly the divergence #588 cost a release.
