@@ -39,8 +39,10 @@ async function profileCommand(ctx) {
     if (flags.why) { // each entry with the observations it cites: what the person asked and said
       const byId = new Map(rows.map(r => [r.id, r]));
       for (const s of SECTIONS) for (const e of p.sections[s] || []) {
-        out(`${s}: ${e.skill ? `/${e.skill}: ${e.text}` : e.text || `when ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}`}`);
-        for (const id of e.obs) { const r = byId.get(id); if (!r) { out(`    ${id} (not in the window)`); continue; } out(`    ${r.at.slice(0, 10)} ${r.outcome.padEnd(10)} ${r.request.slice(0, 110)}${r.reaction ? `\n        reaction: "${r.reaction}"` : ''}${r.lesson ? `\n        lesson: ${r.lesson}` : ''}${r.prefs?.length ? `\n        prefs: ${r.prefs.join(' | ')}` : ''}`); }
+        // the counts and dates live here, not in the served block
+        const tally = e.skill && e.used ? `${e.count} sessions; ${e.accepted} accepted, ${e.corrected} corrected` : e.skill ? `named in ${e.count} sessions` : `${e.count} sessions, ${e.firstSeen} to ${e.lastSeen}`;
+        out(`${s}: ${e.skill ? `/${e.skill}: ${e.text}` : e.text} (${tally})`);
+        for (const id of e.obs) { const r = byId.get(id); if (!r) { out(`    ${id} (not in the window)`); continue; } out(`    ${r.at.slice(0, 10)} ${r.outcome.padEnd(10)}${r.interrupts ? ' [interrupted]' : ''} ${r.request.slice(0, 110)}${r.reaction ? `\n        reaction: "${r.reaction}"` : ''}${r.lesson ? `\n        lesson: ${r.lesson}` : ''}${r.prefs?.length ? `\n        prefs: ${r.prefs.join(' | ')}` : ''}`); }
       }
       const tally = skillTallyText(rows); if (tally) out(`skill use in the window:\n${tally}`);
       out('');
@@ -51,7 +53,7 @@ async function profileCommand(ctx) {
   if (sub === 'ledger') {
     const rows = readLedger(store, { days: Number(flags.days) || PROFILE.ledgerDays }).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
     if (flags.json) { out(JSON.stringify(rows, null, 2)); return; }
-    for (const r of rows) out(`${r.at.slice(0, 10)} ${r.id} ${r.kind.padEnd(13)} ${r.outcome.padEnd(10)} ${r.request}${r.lesson ? `\n    lesson: ${r.lesson}` : ''}${r.reaction ? `\n    reaction: "${r.reaction}"` : ''}`);
+    for (const r of rows) out(`${r.at.slice(0, 10)} ${r.id} ${r.outcome.padEnd(10)}${r.interrupts ? ' [interrupted]' : ''} ${r.request}${r.lesson ? `\n    lesson: ${r.lesson}` : ''}${r.reaction ? `\n    reaction: "${r.reaction}"` : ''}`);
     out(`${rows.length} observations from ${new Set(rows.map(r => r.session)).size} sessions in the last ${Number(flags.days) || PROFILE.ledgerDays} days`);
     return;
   }
@@ -144,13 +146,13 @@ async function profileCommand(ctx) {
       return;
     }
     const r = await profileSession(store, events, { session, client: 'claude', repoHint: repo, lineCount, accounting: { phase: 'learning' }, config: cfg });
-    for (const o of r.observations) out(`${o.id} ${o.kind.padEnd(13)} ${o.outcome.padEnd(10)} ${o.request}${o.lesson ? `\n    lesson: ${o.lesson}` : ''}`);
+    for (const o of r.observations) out(`${o.id} ${o.outcome.padEnd(10)}${o.interrupts ? ' [interrupted]' : ''} ${o.request}${o.lesson ? `\n    lesson: ${o.lesson}` : ''}`);
     out(`${r.observations.length} observations from ${r.exchanges} exchanges${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}${r.compiled ? '; profile compiled' : ''}`);
     return;
   }
   if (sub === 'backfill') {
-    // skills onto the rows read before the ledger recorded them (2026-11-08): each session's transcript is read again
-    // for its SKILLS lines alone and the rows take theirs by turn; no model call, idempotent
+    // skills and interrupts onto the rows read before the ledger recorded them (2026-11-08): each session's transcript
+    // is read again for its SKILLS and INTERRUPTED lines alone and the rows take theirs by turn; no model call, idempotent
     const rows = readLedger(store);
     const files = new Map(repoSessions(store, { sinceMs: (PROFILE.ledgerDays + 30) * 86400_000 }).map(s => [s.session, s]));
     const bySession = new Map(); for (const r of rows) { if (!bySession.has(r.session)) bySession.set(r.session, []); bySession.get(r.session).push(r); }
@@ -159,7 +161,7 @@ async function profileCommand(ctx) {
       const s = files.get(session); if (!s || s.client === 'trace') { missing++; continue; }
       let xs; try { xs = exchanges(parseTranscript(s.file).events); } catch { missing++; continue; }
       const next = observationSkills(group, xs);
-      group.forEach((r, i) => { if (JSON.stringify(r.skills || null) !== JSON.stringify(next[i].skills)) { r.skills = next[i].skills; changed++; } if (next[i].skills.length) withSkills++; });
+      group.forEach((r, i) => { if (JSON.stringify(r.skills || null) !== JSON.stringify(next[i].skills) || (r.interrupts || 0) !== next[i].interrupts) { r.skills = next[i].skills; r.interrupts = next[i].interrupts; changed++; } if (next[i].skills.length) withSkills++; });
     }
     if (changed && !flags.dry) writeLedger(store, rows);
     out(`${rows.length} observations from ${bySession.size} sessions: ${withSkills} ran a skill, ${changed} rows ${flags.dry ? 'would change' : 'changed'}${missing ? `, ${missing} sessions with no transcript to read` : ''}`);

@@ -132,7 +132,7 @@ export async function distillFile(ctx, file, { dry, quiet, incremental, batch, f
       if (dry) { out(JSON.stringify({ exchanges: exchanges(events).length, fromLine }, null, 2)); return; }
       if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
       const r = await profileSession(store, events, { session: session || path.basename(file).replace(/\.jsonl?$/, ''), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, repoHint: repo, fromLine, lineCount, accounting: { phase, transcript: path.basename(file) }, completeFn });
-      if (!quiet) { for (const o of r.observations) out(`observed ${o.kind.padEnd(13)} ${o.outcome.padEnd(10)} ${o.request}`); out(`read ${r.exchanges} exchanges → ${r.observations.length} observations${r.compiled ? '; profile compiled' : ''}${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`); }
+      if (!quiet) { for (const o of r.observations) out(`observed ${o.outcome.padEnd(10)}${o.interrupts ? ' [interrupted]' : ''} ${o.request}`); out(`read ${r.exchanges} exchanges → ${r.observations.length} observations${r.compiled ? '; profile compiled' : ''}${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`); }
     }
     if (incremental && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); }
   } finally { if (incremental && !dry) fs.rmSync(lock, { force: true }); }

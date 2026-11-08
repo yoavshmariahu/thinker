@@ -27,29 +27,30 @@ export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
   firstCompileAt: 1,    // the first compile waits for this many observations (then: whenever anything new was read)
   compileBatch: 200,    // new observations one compile step is shown at most; a longer backlog takes several steps
-  minSessions: 2,       // sessions a howWeWork or whatFails entry needs, unless one observation states or corrects it outright
+  minSessions: 2,       // sessions a howWeWork entry needs, unless one observation states it, corrects it outright or was interrupted
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
-  recentBugDays: 14,
+  compileHours: 24,     // a compile is due at most once a day (the owner's call, 2026-11-08): a profile patched at every session end moved several times a day here
   rebaseDays: 30,
   holdoutRate: 0.5,     // half the sessions, not the notes' 15%: see `profileHoldoutRate`
   holdoutMinObs: 200,   // exchanges a side needs before the holdout says anything: at the pre-profile recurrence of 0.116 an exchange, a halving reads at ~480 a side, and under 200 the interval is noise either way
   priorMax: 200,        // earlier statements the extractor is shown for recurrence, newest first
   holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
-  perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6, skills: 6 },
+  perSection: { workingOn: 6, howWeWork: 12, skills: 6 },
   textChars: 240,
 };
-// whatWorks was a fifth section until 2026-11-08: "an approach accepted after a correction" is the `instead` of a
-// whatFails entry, and on its own it held one line in four that two sessions supported. Folded.
-// `skills` is the fifth (2026-11-08, the owner's ask): which skills are run in this repository, by whom, and how it went
-// by the person's reactions. Measured on this machine first: 22 of 396 sessions in 60 days ran a skill (29 calls),
-// so the section is often empty, and a line needs two sessions or the person naming the skill, as the others do.
-export const SECTIONS = ['workingOn', 'howWeWork', 'whatFails', 'recentBugs', 'skills'];
+// Three sections (2026-11-08, the owner's call, after reading this repository's own profile). `whatFails` went:
+// it was the howWeWork rule in negative form, and the compile wrote both, so the top three rules were each paid
+// for twice in the served block. A correction now feeds a howWeWork line that says what to do. `recentBugs` went
+// too: the agent's own account of a fix, rendered as fact, for a session that rarely meets the symptom again.
+// `whatWorks` had gone earlier the same day (one line in four that two sessions supported). `skills` stays (the
+// owner's ask): which skills are run in this repository, by whom, and how it went by the person's reactions;
+// 22 of 396 sessions in 60 days ran one here, so the section is often empty.
+export const SECTIONS = ['workingOn', 'howWeWork', 'skills'];
 export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
 // What a session did with a line of the profile it was shown. `na` is the honest default: most lines have no
 // bearing on most sessions, and counting those as `ignored` would make every line look dead.
 export const LINE_VERDICTS = ['followed', 'ignored', 'contradicted', 'na'];
-export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
 // On by default since 2026-11-08 (the owner's call; the knowledge notes it replaced went the same day): `learn: {
 // profile: false }` in .thinker/config.json turns it off for a repository, and THINKER_PROFILE=on|off wins over the
@@ -118,10 +119,17 @@ function typedSkill(raw) {
   return { name, args: String(m[2] || '').replace(/\s+/g, ' ').trim().slice(0, 200) };
 }
 const addSkill = (x, k) => { if (!x.skills.some(s => s.name === k.name && s.by === k.by)) x.skills.push(k); };
+// The person stopping the agent mid-turn (Esc in Claude Code, which writes "[Request interrupted by user]" as a user
+// message, or refuses a tool call; Codex's `turn_aborted`). The parsers emit it as an `interrupt` event
+// (transcripts.js); the marker text is matched too, for traces and older parsers. It is the sharpest correction a
+// session records -- 216 of them in this checkout's transcripts -- and until 2026-11-08 it arrived as a USER line
+// the extractor was told to treat as nobody speaking. It marks the exchange it cut short, never starts one.
+const INTERRUPT = /^\[Request interrupted by user( for tool use)?\]$/;
 export function exchanges(events) {
   const out = [];
   for (const e of events) {
     const at = Number.isFinite(e.at) && e.at > 0 ? e.at : null;
+    if (e.t === 'interrupt' || (e.t === 'prompt' && INTERRUPT.test(String(e.text || '').trim()))) { if (out.length) { out.at(-1).interrupted = true; if (at && !out.at(-1).at) out.at(-1).at = at; } continue; }
     if (e.t === 'prompt') {
       const typed = typedSkill(e.text);
       let text = clean(e.text); if (!text && typed) text = `/${typed.name}${typed.args ? ' ' + typed.args : ''}`;
@@ -142,20 +150,59 @@ export function extractionInput(xs, { maxChars = 120_000 } = {}) {
   const parts = xs.map(x => {
     const answers = x.answers.join('\n---\n');
     const skills = x.skills?.length ? `\n    SKILLS: ${x.skills.map(s => `/${s.name} (${s.by === 'person' ? 'typed by the person' : 'called by the agent'})`).join(', ')}` : '';
-    return `[${x.turn}] USER: ${cut(x.prompt, Math.min(2500, per / 3))}\n    AGENT: ${cut(answers, per - Math.min(2500, per / 3) - 100) || '(no answer recorded)'}${skills}`;
+    const stopped = x.interrupted ? '\n    INTERRUPTED: the person stopped the agent here, before it finished' : '';
+    return `[${x.turn}] USER: ${cut(x.prompt, Math.min(2500, per / 3))}\n    AGENT: ${cut(answers, per - Math.min(2500, per / 3) - 100) || '(no answer recorded)'}${stopped}${skills}`;
   });
   return parts.join('\n\n');
 }
 
-// The directories the session worked in, from the paths of its tool calls alone (never their content).
+// The directories the session worked in, from the paths of its tool calls alone (never their content), relative
+// to the repository whichever checkout of it the session ran in. A path is placed by the git checkout that holds
+// it (`checkoutOf`: the nearest parent with a `.git`), and counts only when that checkout is the repository or one
+// of its worktrees (`mainCheckout` follows a worktree's `.git` file home). Until 2026-11-08 the path was stripped of
+// the store's own path alone, so a session in `.worktrees/<x>` or a scratch directory labelled its rows `/Users`
+// or `/private` (219 and 22 of 689 rows here) and 442 rows had nothing; `relatedCited` then matched on `/Users`.
+// A relative path is taken as the repository's own. A path in another repository, or outside any, is nobody's.
+// A worktree removed since the session ran has no `.git` left, so its paths place under the main checkout as
+// `.worktrees/<name>/...` (this repository's own convention, gitignored): that prefix is dropped, since 152 of the
+// 291 paths in this checkout's last 40 sessions were in worktrees that no longer exist.
+const real = p => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+function checkoutOf(dir, cache) {
+  if (cache.has(dir)) return cache.get(dir);
+  let d = dir, found = null;
+  for (;;) { if (fs.existsSync(path.join(d, '.git'))) { found = d; break; } const up = path.dirname(d); if (up === d) break; d = up; }
+  cache.set(dir, found);
+  return found;
+}
+export function mainCheckout(top) {
+  const g = path.join(top, '.git');
+  try {
+    if (fs.statSync(g).isDirectory()) return top;
+    const m = /^gitdir:\s*(.+)$/m.exec(fs.readFileSync(g, 'utf8'));
+    if (!m) return top;
+    const gitdir = path.resolve(top, m[1].trim());
+    const main = gitdir.replace(/[\\/]\.git[\\/]worktrees[\\/][^\\/]+$/, '');
+    return main === gitdir ? top : main;
+  } catch { return top; }
+}
 export function sessionDirs(events, repo = '') {
-  const dirs = new Set();
-  const rel = p => { p = String(p || ''); if (repo && p.startsWith(repo + '/')) p = p.slice(repo.length + 1); return p.replace(/^\.\//, ''); };
+  const dirs = new Set(), cache = new Map();
+  const home = repo ? real(mainCheckout(checkoutOf(real(repo), cache) || real(repo))) : null;
+  const rel = p => {
+    p = String(p || '').replace(/^\.\//, '');
+    if (!path.isAbsolute(p)) return p;
+    const top = checkoutOf(path.dirname(p), cache);
+    if (!top) return null;
+    if (home && real(mainCheckout(top)) !== home) return null;
+    return path.relative(top, p).replace(/^\.worktrees\/[^/]+\//, '');
+  };
   for (const e of events) {
     if (e.t !== 'tool') continue;
     const inp = e.input || {};
     const p = inp.file_path || inp.path || inp.notebook_path;
-    if (p && /\.\w+$/.test(String(p))) { const d = areaOf(rel(p)); if (d) dirs.add(d); }
+    if (!p || !/\.\w+$/.test(String(p))) continue;
+    const r = rel(p); if (!r || r.startsWith('..')) continue;
+    const d = areaOf(r); if (d) dirs.add(d);
   }
   return [...dirs].sort();
 }
@@ -165,21 +212,21 @@ export const EXTRACT_SYSTEM = `You read one session between a person and a codin
 
 Reading an exchange:
 - The outcome of exchange [n] is the person's reaction in [n+1]. The agent's own words ("done", "tests pass") never decide it.
-  - accepted: the reaction approves the result, uses it, or asks for the next step of the same work.
+  - accepted: the reaction approves the result without reservation, uses it, or asks for the next step of the same work. A reaction that approves one part and changes, drops or objects to another is redirected or corrected, never accepted. A question about the result is unknown unless it objects.
   - corrected: the reaction says the result is wrong, incomplete or not what was asked, or asks to undo or redo it.
   - redirected: the reaction changes the goal or the approach in response to the result, without calling it wrong.
   - unknown: no reaction yet (the last exchange), a next prompt about something else, or a reaction you cannot read. When in doubt, unknown.
 - A USER line that is not the person speaking (a tool's report, a system or harness notice, a pasted log or document with no request) is neither a request nor a reaction.
 - A SKILLS line names the skills run in the exchange and by whom (typed by the person, or called by the agent). The reaction to that exchange is a reaction to the skill's result too. Where the person speaks of a skill (asks for one by name, says to stop using one), put it in prefs naming the skill.
+- An INTERRUPTED line means the person stopped the agent before it finished. That is a reaction in itself: the outcome is never accepted. Read the next prompt for which it is: corrected when it objects, undoes or redoes; redirected when it changes course or supplies what the agent lacked; unknown only when there is no next prompt. An interruption followed by a correction is the clearest lesson a session records: always write the lesson.
 - One observation per exchange that did work or made a decision. A question answered, a greeting or a bare command produces none. Exchanges on one task may become one observation: its turn is the first, its outcome the last reaction.
 
 Fields:
-- request: what was asked, in the person's words where they are short. kind: the closest label.
+- request: what was asked, in the person's words where they are short.
 - approach: what the agent says it did, in one or two lines. This is the agent's account, recorded as such.
 - reaction: the person's words that decided the outcome, quoted, under 160 characters. Empty for unknown.
 - lesson: one line, only from a reaction: after a correction, what should have been done; after an acceptance that followed a correction on the same work, what worked. Never from the agent's account alone. Written as an instruction for next time.
 - prefs: how the person says they want work done or answers given ("never push main", "don't ask, just do it", "no headers"), near their words. Stated only, never inferred from behaviour.
-- bug: for a fix, the symptom and, where told, the cause and the fix, in one line. Empty otherwise.
 - topics: one to four short tags.
 - No file contents, no credentials; write a key or token as <token>.
 An empty list is the right answer for a session that decided nothing.
@@ -221,7 +268,6 @@ export const OBSERVATION_SCHEMA = {
         properties: {
           turn: { type: 'number', description: 'the exchange number the observation starts at' },
           request: { type: 'string' },
-          kind: { type: 'string', enum: KINDS },
           approach: { type: 'string', description: 'what the agent did, as it told it, one or two lines' },
           outcome: { type: 'string', enum: OUTCOMES },
           reaction: { type: 'string', description: 'the follow-up prompt that decided the outcome, quoted short; empty for unknown' },
@@ -229,9 +275,8 @@ export const OBSERVATION_SCHEMA = {
           prefs: { type: 'array', items: { type: 'string' } },
           repeats: { type: 'array', items: { type: 'string' }, description: 'ids from SAID BEFORE that this exchange\'s prefs, lesson or correction repeat: the person said or corrected the same thing again. Empty when nothing here was said before.' },
           topics: { type: 'array', items: { type: 'string' } },
-          bug: { type: 'string' },
         },
-        required: ['turn', 'request', 'kind', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics', 'bug'],
+        required: ['turn', 'request', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics'],
       },
     },
   },
@@ -246,9 +291,9 @@ export function tidyObservation(o) {
   const request = str(o.request); if (!request) return null;
   return {
     turn: Number.isFinite(Number(o.turn)) ? Math.max(1, Math.round(Number(o.turn))) : 1,
-    request, kind: KINDS.includes(o.kind) ? o.kind : 'other',
+    request,
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
-    reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40), bug: str(o.bug, 300),
+    reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40),
     repeats: list(o.repeats, 12, 60),
   };
 }
@@ -260,17 +305,18 @@ export function observationTimes(observations, xs) {
   return observations.map(o => { const at = byTurn.get(o.turn) || last; return at ? { ...o, at: new Date(at).toISOString() } : o; });
 }
 
-// Which skills ran under an observation: those of its exchange and of the exchanges up to the next observation's,
-// since one observation may span several exchanges. Attached by code from the SKILLS lines, never by the model;
-// returned in the caller's order, each with `skills` (possibly empty). Also what `thinker profile backfill` runs over
-// rows read before the ledger recorded skills.
+// Which skills ran under an observation, and how many times the person interrupted it: those of its exchange and
+// of the exchanges up to the next observation's, since one observation may span several exchanges. Attached by
+// code from the SKILLS and INTERRUPTED lines, never by the model; returned in the caller's order, each with `skills`
+// (possibly empty) and `interrupts` (a count). Also what `thinker profile backfill` runs over rows read before the
+// ledger recorded them.
 export function observationSkills(observations, xs) {
   const turns = [...new Set(observations.map(o => Number(o.turn) || 1))].sort((a, b) => a - b);
   return observations.map(o => {
     const from = Number(o.turn) || 1, to = turns.find(t => t > from) ?? Infinity;
-    const skills = [];
-    for (const x of xs) if (x.turn >= from && x.turn < to) for (const k of x.skills || []) if (!skills.some(s => s.name === k.name && s.by === k.by)) skills.push({ name: k.name, by: k.by });
-    return { ...o, skills };
+    const skills = []; let interrupts = 0;
+    for (const x of xs) if (x.turn >= from && x.turn < to) { if (x.interrupted) interrupts++; for (const k of x.skills || []) if (!skills.some(s => s.name === k.name && s.by === k.by)) skills.push({ name: k.name, by: k.by }); }
+    return { ...o, skills, interrupts };
   });
 }
 
@@ -336,7 +382,7 @@ export function priorStatements(store, { session = null, profile = null, rows = 
   const add = (id, text, inProfile) => { const k = norm(text); if (!k || k.length < 12 || seen.has(k)) return; seen.add(k); out.push({ id, text: String(text).slice(0, PROFILE.textChars), inProfile }); };
   const prof = profile || readProfile(store);
   // the entry's own words, not the rendered line: the count and dates on a line would keep the same words from matching
-  for (const sec of ['howWeWork', 'whatFails']) for (const e of (prof?.sections?.[sec] || [])) if (e.id) add(e.id, sec === 'whatFails' ? `When ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}` : e.text, true);
+  for (const e of (prof?.sections?.howWeWork || [])) if (e.id) add(e.id, e.text, true);
   const ledger = (rows || readLedger(store, { now })).filter(r => !session || r.session !== session).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   for (const r of ledger) {
     if (out.length >= max) break;
@@ -449,32 +495,28 @@ You are given the profile as it stands, each entry with an id; the observations 
 
 Sections, and the most lines each may have:
 - workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what it is and where it stands by the person's last reaction, not by the agent's account of finishing it. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
-- howWeWork (10): how this person wants work done and answers given: process, communication, the bar for evidence. The strongest evidence is a stated preference (prefs), then a correction repeated across sessions. Preferences that say one thing in different words become one line, near their words. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. One line, one rule: a stated preference and an instruction-file rule are two lines, never one. Imperative and specific to this person: a line that could be written about any repository is not a profile line.
-- whatFails (10): "when <kind of work>: avoid <this>", with the person's reaction quoted short in avoid, and instead = what the person then accepted, where a later approach to the same work was. From corrections and redirects. What recurs comes first; one sharp correction is enough when its lesson is specific.
-- recentBugs (6): one line each: the symptom, the cause where told, and whether the fix was accepted. For a session that meets the symptom again.
+- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). The strongest evidence is a stated preference (prefs), then a correction repeated across sessions, then one sharp correction whose lesson is specific. A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
 - skills (6): one line per skill run in this repository (a skills line on an observation, or a pref naming it): what it is used for here, how it has gone by the person's reactions, and what the person has said about it. skill = the name as given, without the slash. The use counts below are computed and shown beside the line; write what they do not say. Never a skill no observation ran or named.
 
 Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
-- approach is the agent's own account. An observation with outcome unknown can support workingOn, recentBugs and skills, and howWeWork through its prefs; it never supports whatFails.
+- approach is the agent's own account. An observation with outcome unknown can support workingOn and skills, and howWeWork through its prefs alone. An interrupted observation (the person stopped the agent) is a correction whatever its outcome says.
 - Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
 - Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
 const entry = (props, required) => ({ type: 'array', items: { type: 'object', properties: { ...props, obs: { type: 'array', items: { type: 'string' } } }, required: [...required, 'obs'] } });
-const FIELDS = { whatFails: ['when', 'avoid', 'instead'], workingOn: ['text'], howWeWork: ['text'], recentBugs: ['text'], skills: ['text'] };
+const FIELDS = { workingOn: ['text'], howWeWork: ['text'], skills: ['text'] };
 export const PATCH_SCHEMA = {
   type: 'object',
   properties: {
     keep: { type: 'array', items: { type: 'string' } },
-    update: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, when: { type: 'string' }, avoid: { type: 'string' }, instead: { type: 'string' }, obs: { type: 'array', items: { type: 'string' }, description: 'observation ids to add behind the entry' } }, required: ['id', 'obs'] } },
+    update: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, text: { type: 'string' }, obs: { type: 'array', items: { type: 'string' }, description: 'observation ids to add behind the entry' } }, required: ['id', 'obs'] } },
     drop: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' }, reason: { type: 'string' } }, required: ['id', 'reason'] } },
     add: {
       type: 'object',
       properties: {
         workingOn: entry({ text: { type: 'string' } }, ['text']),
         howWeWork: entry({ text: { type: 'string' } }, ['text']),
-        whatFails: entry({ when: { type: 'string' }, avoid: { type: 'string' }, instead: { type: 'string', description: 'what was accepted afterwards, where known; else empty' } }, ['when', 'avoid']),
-        recentBugs: entry({ text: { type: 'string' } }, ['text']),
         skills: entry({ skill: { type: 'string', description: 'the skill\'s name, without the slash' }, text: { type: 'string' } }, ['skill', 'text']),
       },
       required: SECTIONS,
@@ -499,8 +541,8 @@ export function instructionHeadings(repo, { max = 80 } = {}) {
 export function ledgerText(rows) {
   const sorted = [...rows].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return sorted.map(r => {
-    const head = `${r.id} | ${String(r.at).slice(0, 10)} | ${r.kind} | outcome=${r.outcome}${r.dirs?.length ? ` | dirs=${r.dirs.slice(0, 4).join(',')}` : ''}`;
-    const lines = [`  request: ${r.request}`, r.approach && `  approach: ${r.approach}`, r.reaction && `  reaction: "${r.reaction}"`, r.lesson && `  lesson: ${r.lesson}`, r.prefs?.length && `  prefs: ${r.prefs.join(' | ')}`, r.bug && `  bug: ${r.bug}`, r.skills?.length && `  skills: ${r.skills.map(k => `/${k.name} (${k.by})`).join(', ')}`, r.topics?.length && `  topics: ${r.topics.join(', ')}`].filter(Boolean);
+    const head = `${r.id} | ${String(r.at).slice(0, 10)} | outcome=${r.outcome}${r.interrupts ? ` | interrupted by the person${r.interrupts > 1 ? ` x${r.interrupts}` : ''}` : ''}${r.dirs?.length ? ` | dirs=${r.dirs.slice(0, 4).join(',')}` : ''}`;
+    const lines = [`  request: ${r.request}`, r.approach && `  approach: ${r.approach}`, r.reaction && `  reaction: "${r.reaction}"`, r.lesson && `  lesson: ${r.lesson}`, r.prefs?.length && `  prefs: ${r.prefs.join(' | ')}`, r.skills?.length && `  skills: ${r.skills.map(k => `/${k.name} (${k.by})`).join(', ')}`, r.topics?.length && `  topics: ${r.topics.join(', ')}`].filter(Boolean);
     return [head, ...lines].join('\n');
   }).join('\n\n');
 }
@@ -542,10 +584,10 @@ export function applyPatch(previous, patch) {
 
 // What the patch left, held to the ledger: citations the window does not hold are dropped, an entry with none
 // goes, counts and dates come from the cited observations, the evidence floors apply, and each section is capped.
-// A how-we-work or what-fails line needs two sessions, unless one observation states the preference outright
-// (prefs) or corrects it in so many words (a correction with its reaction). Entries come out with ids for the
-// next patch (`w1`, `h2`, `f3`, `b4`).
-const PREFIX = { workingOn: 'w', howWeWork: 'h', whatFails: 'f', recentBugs: 'b', skills: 's' };
+// A how-we-work line needs two sessions, unless one observation states the preference outright (prefs), corrects
+// it in so many words (a correction with its reaction), or was interrupted by the person. Entries come out with ids
+// for the next patch (`w1`, `h2`, `s3`).
+const PREFIX = { workingOn: 'w', howWeWork: 'h', skills: 's' };
 export function settle(sections, rows, { now = Date.now() } = {}) {
   const byId = new Map(rows.map(r => [r.id, r]));
   const out = {};
@@ -558,8 +600,7 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       const obs = cited.map(id => byId.get(id));
       const ats = obs.map(o => Date.parse(o.at)).sort((a, b) => a - b);
       const e = { obs: cited, count: new Set(obs.map(o => o.session || o.id)).size, firstSeen: new Date(ats[0]).toISOString().slice(0, 10), lastSeen: new Date(ats.at(-1)).toISOString().slice(0, 10) };
-      if (s === 'whatFails') { e.when = str(raw.when, 120); e.avoid = str(raw.avoid); if (str(raw.instead)) e.instead = str(raw.instead, 160); if (!e.when || !e.avoid) continue; }
-      else if (s === 'skills') {
+      if (s === 'skills') {
         // the line rests on the observations that ran the skill or named it (a pref, the request, the reaction); its
         // counts are measured from those, never written by the model
         e.skill = skillName(raw.skill); e.text = str(raw.text); if (!e.skill || !e.text) continue;
@@ -573,28 +614,29 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       }
       else { e.text = str(raw.text); if (!e.text) continue; }
       const age = (now - ats.at(-1)) / 86400_000;
-      if (s === 'howWeWork' && e.count < PROFILE.minSessions && !obs.some(o => o.prefs?.length)) continue;
-      if (s === 'whatFails' && e.count < PROFILE.minSessions && !obs.some(o => ['corrected', 'redirected'].includes(o.outcome) && o.reaction)) continue;
+      if (s === 'howWeWork' && e.count < PROFILE.minSessions && !obs.some(o => o.prefs?.length || o.interrupts > 0 || (['corrected', 'redirected'].includes(o.outcome) && o.reaction))) continue;
       if (s === 'workingOn' && age > PROFILE.workingOnDays) continue;
-      if (s === 'recentBugs' && age > PROFILE.recentBugDays) continue;
       items.push(e);
     }
-    items.sort(s === 'howWeWork' || s === 'whatFails' || s === 'skills' ? (a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen) : (a, b) => b.lastSeen.localeCompare(a.lastSeen) || b.count - a.count);
+    items.sort(s === 'howWeWork' || s === 'skills' ? (a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen) : (a, b) => b.lastSeen.localeCompare(a.lastSeen) || b.count - a.count);
     out[s] = items.slice(0, PROFILE.perSection[s]).map((e, i) => ({ id: `${PREFIX[s]}${i + 1}`, ...e }));
   }
   return out;
 }
 
 export function readProfile(store) { return readJson(profileFile(store)); }
-// A compile is due when anything was read into the ledger since the last one (the end of a session, in practice),
-// and first once `firstCompileAt` observations exist. It was ten observations or three days while a compile rewrote
-// the whole profile; a patch is cheap enough to run per session, which is where a profile built from few sessions
-// pays: the next session's first turn says what the last one did.
+// A compile is due when something was read into the ledger since the last one and the last one is at least
+// `compileHours` old; the first comes once `firstCompileAt` observations exist. It was once per session from
+// 2026-11-08 morning to that evening: at this repository's pace (sessions in parallel across worktrees) the profile
+// moved several times a day and a workstream line could say one thing at noon and its opposite by three. Once a day
+// is the owner's call: the ledger still takes every session as it ends, the profile follows a day behind.
+// `thinker profile compile` and `rebuild` compile by hand whenever asked.
 export function compileDue(store, { now = Date.now() } = {}) {
   const rows = readLedger(store, { now });
   const p = readProfile(store);
   if (!p) return rows.length >= PROFILE.firstCompileAt;
   const since = Date.parse(p.compiledAt || 0);
+  if (now - since < PROFILE.compileHours * 3600_000) return false;
   return rows.some(r => seenOf(r) > since);
 }
 
@@ -624,7 +666,7 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   const ranSkill = rows.filter(r => r.skills?.length && !seen.has(r.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 40);
   const headings = instructionHeadings(store.repo);
   const span = a => a.length ? `${dateOf(Math.min(...a.map(r => Date.parse(r.at))))} to ${dateOf(Math.max(...a.map(r => Date.parse(r.at))))}` : '';
-  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map(({ id, skill, text, when, avoid, instead, count, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), ...(text ? { text } : { when, avoid, ...(instead ? { instead } : {}) }), sessions: count, firstSeen, lastSeen, obs }))])) : null;
+  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map(({ id, skill, text, count, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), text, sessions: count, firstSeen, lastSeen, obs }))])) : null;
   const tally = skillTallyText(rows);
   const input = [
     `Repository: ${path.basename(store.repo)}\nToday: ${dateOf(now)}`,
@@ -681,13 +723,15 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
 }
 
 // --- render ---------------------------------------------------------------
-const TITLES = { workingOn: 'Working on', howWeWork: 'How this person works', whatFails: 'What went wrong before', recentBugs: 'Recent bugs', skills: 'Skills' };
-const skillLine = e => `- /${e.skill}: ${e.text} (${e.used ? `${plural(e.count, 'session')}; ${e.accepted} accepted, ${e.corrected} corrected` : `named in ${plural(e.count, 'session')}`})`;
-const line = (s, e) => s === 'skills' ? skillLine(e) : s === 'whatFails' ? `- When ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''} (${e.count})` : s === 'workingOn' ? `- ${e.text} (since ${e.firstSeen}, last ${e.lastSeen})` : s === 'recentBugs' ? `- ${e.text} (${e.lastSeen})` : `- ${e.text} (${e.count})`;
+// The served line is the text and nothing else (the owner's call, 2026-11-08): the counts, the dates and the
+// skills' outcome tallies were a fifth of the block and told the agent nothing it could act on. They are
+// `thinker profile show --why`'s, with the evidence.
+const TITLES = { workingOn: 'Working on', howWeWork: 'How this person works', skills: 'Skills' };
+const line = (s, e) => s === 'skills' ? `- /${e.skill}: ${e.text}` : `- ${e.text}`;
 // The block a session is shown, within renderChars. When it does not fit, the oldest workstreams go first (down to
-// three), then the oldest bugs (to three), then the least-used skills (to three), then the weakest lines of what went wrong (to four), then of how this
-// person works (to four), then whatever section is longest: the ways of working are the last thing to go.
-const TRIM = [['workingOn', 3], ['recentBugs', 3], ['skills', 3], ['whatFails', 4], ['howWeWork', 4]];
+// three), then the least-used skills (to three), then the weakest ways of working (to four), then whatever section
+// is longest: the ways of working are the last thing to go.
+const TRIM = [['workingOn', 3], ['skills', 3], ['howWeWork', 4]];
 // What a session is actually shown: the text, and **the ids of the entries that survived the trim**. The ids are
 // what makes the block measurable per line (`lines.jsonl`, `assessLines`): a line trimmed out of a session's block
 // was never shown there and must not be judged on it. One function does the fitting so the text and the ids can
@@ -696,8 +740,7 @@ export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
   if (!profile?.sections) return { text: '', ids: [] };
   const kept = Object.fromEntries(SECTIONS.map(s => [s, [...(profile.sections[s] || [])]]));
   const w = profile.window || {};
-  const span = w.from && w.to ? `${w.from} to ${w.to}` : `the last ${w.days || PROFILE.ledgerDays} days`;
-  const head = `Learned from ${w.sessions || 0} sessions in this repository, ${span} (compiled ${String(profile.compiledAt || '').slice(0, 10)}): what the person here is working on, how they want work done, what went wrong before, and which skills are run here. Follow the stated ways of working; read the rest as context, not instructions. Counts are sessions.`;
+  const head = `About the person here, from ${plural(w.sessions || 0, 'session')} in this repository. Follow how they work; the rest is context.`;
   const text = () => [head, ...SECTIONS.filter(s => kept[s].length).map(s => `## ${TITLES[s]}\n${kept[s].map(e => line(s, e)).join('\n')}`)].join('\n\n');
   while (text().length > maxChars) {
     const s = TRIM.find(([s, floor]) => kept[s].length > floor)?.[0] || SECTIONS.filter(s => kept[s].length).sort((a, b) => kept[b].length - kept[a].length)[0];

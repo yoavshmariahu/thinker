@@ -30,7 +30,7 @@ const session = [
   { t: 'prompt', text: 'good. now open the PR' },
   { t: 'say', text: 'Opened PR #12.' },
 ];
-const fakeObs = (over = {}) => ({ turn: 1, request: 'Add a --since flag', kind: 'feature', approach: 'added the flag as days', outcome: 'corrected', reaction: 'it should take a date, not a number of days', lesson: 'A --since flag takes a date, not a count of days', prefs: ['open the PR when done'], topics: ['report', 'cli'], bug: '', ...over });
+const fakeObs = (over = {}) => ({ turn: 1, request: 'Add a --since flag', approach: 'added the flag as days', outcome: 'corrected', reaction: 'it should take a date, not a number of days', lesson: 'A --since flag takes a date, not a count of days', prefs: ['open the PR when done'], topics: ['report', 'cli'], ...over });
 const fakeComplete = ({ observations, sections }) => async opts => {
   if (opts.schema?.properties?.observations) return { json: { observations: observations || [fakeObs()] }, model: 'fake-opus', usage: { input_tokens: 10, output_tokens: 5 }, tokens: { totalTokens: 15 } };
   return { json: { sections }, model: 'fake-opus', tokens: { totalTokens: 20 } };
@@ -60,8 +60,8 @@ test('exchanges pair each prompt with the answers until the next prompt, which i
 
 test('a model\'s observation is held to the ledger\'s shape', () => {
   assert.equal(tidyObservation({ request: '' }), null);
-  const o = tidyObservation({ turn: '2', request: 'x', kind: 'nonsense', outcome: 'abandoned', weight: 7, prefs: 'not a list', topics: ['a', 'a', 'b'] });
-  assert.equal(o.turn, 2); assert.equal(o.kind, 'other'); assert.equal(o.outcome, 'unknown', 'an outcome outside the four is unknown'); assert.equal('weight' in o, false, 'nothing reads a weight, so none is kept'); assert.deepEqual(o.prefs, []); assert.deepEqual(o.topics, ['a', 'b']);
+  const o = tidyObservation({ turn: '2', request: 'x', kind: 'feature', bug: 'a bug', outcome: 'abandoned', weight: 7, prefs: 'not a list', topics: ['a', 'a', 'b'] });
+  assert.equal(o.turn, 2); assert.equal('kind' in o, false, 'kind went: nothing read it'); assert.equal('bug' in o, false, 'bug went with recentBugs'); assert.equal(o.outcome, 'unknown', 'an outcome outside the four is unknown'); assert.equal('weight' in o, false, 'nothing reads a weight, so none is kept'); assert.deepEqual(o.prefs, []); assert.deepEqual(o.topics, ['a', 'b']);
 });
 
 test('the model is Opus and nothing else; the config pins another; a failed rung falls to the next', async () => {
@@ -99,41 +99,45 @@ test('settle holds the profile to the ledger: citations, evidence floors by sess
     { id: 'c', at: iso(now, 30), session: 's3', outcome: 'accepted', reaction: '', prefs: [] },
     { id: 'd', at: iso(now, 2), session: 's1', outcome: 'unknown', reaction: '', prefs: [] },
     { id: 'e', at: iso(now, 3), session: 's4', outcome: 'unknown', reaction: '', prefs: ['no headers'] },
+    { id: 'f', at: iso(now, 4), session: 's5', outcome: 'unknown', reaction: '', prefs: [], interrupts: 1 },
+    { id: 'g', at: iso(now, 6), session: 's6', outcome: 'redirected', reaction: '', prefs: [] },
   ];
   const s = settle({
     workingOn: [{ text: 'current', obs: ['a', 'zzz'] }, { text: 'old', obs: ['c'] }, { text: 'uncited', obs: ['zzz'] }, { text: '', obs: ['a'] }],
-    howWeWork: [{ text: 'never push main', obs: ['a', 'b', 'c'] }, { text: 'one session, inferred', obs: ['a', 'd'] }, { text: 'no headers', obs: ['e'] }],
-    whatFails: [{ when: 'flags', avoid: 'guessing the unit', instead: 'ask the unit', obs: ['a'] }, { when: 'tests', avoid: 'z', obs: ['d'] }, { when: 'two sessions', avoid: 'y', obs: ['b', 'c'] }, { when: 'one session, no words', avoid: 'x', obs: ['b'] }],
-    recentBugs: [{ text: 'fresh', obs: ['a'] }, { text: 'stale', obs: ['c'] }],
+    howWeWork: [{ text: 'never push main', obs: ['a', 'b', 'c'] }, { text: 'one correction, in words', obs: ['a', 'd'] }, { text: 'one session, inferred', obs: ['d'] }, { text: 'no headers', obs: ['e'] }, { text: 'interrupted once', obs: ['f'] }, { text: 'redirected, no words', obs: ['g'] }],
+    whatFails: [{ when: 'gone', avoid: 'x', obs: ['a'] }],
   }, rows, { now });
   assert.deepEqual(s.workingOn.map(e => e.text), ['current'], 'an uncited entry, an empty one and a workstream past 21 days go');
   assert.deepEqual(s.workingOn[0].obs, ['a'], 'a citation the window does not hold is dropped');
-  assert.deepEqual(s.howWeWork.map(e => e.text), ['never push main', 'no headers'], 'two sessions, or one stated preference; two observations of one session are not two sessions');
+  assert.deepEqual(s.howWeWork.map(e => e.text), ['never push main', 'one correction, in words', 'no headers', 'interrupted once'],
+    'two sessions, or one stated preference, one correction with the person\'s words, or one interruption; two observations of one session are not two sessions; most sessions first, then newest');
   assert.equal(s.howWeWork[0].count, 3, 'count is distinct sessions among the citations'); assert.equal(s.howWeWork[0].firstSeen, iso(now, 30).slice(0, 10));
-  assert.deepEqual(s.whatFails.map(e => e.when), ['two sessions', 'flags'], 'two sessions, or one correction in the person\'s words; most sessions first');
-  assert.equal(s.whatFails[1].instead, 'ask the unit');
-  assert.deepEqual(s.recentBugs.map(e => e.text), ['fresh']);
+  assert.equal('whatFails' in s, false, 'a section that went is not settled');
+  assert.deepEqual(Object.keys(s), SECTIONS);
   for (const k of SECTIONS) assert.ok(s[k].length <= PROFILE.perSection[k]);
 });
 
-test('render fits the budget by dropping the oldest workstreams first and the ways of working last', () => {
+test('render is the text alone, and fits the budget by dropping the oldest workstreams first and the ways of working last', () => {
   const profile = { compiledAt: '2026-11-07T00:00:00Z', window: { sessions: 12, days: 60, from: '2026-10-01', to: '2026-11-07' }, sections: {
     workingOn: Array.from({ length: 6 }, (_, i) => ({ text: `stream ${i} ${'x'.repeat(150)}`, firstSeen: '2026-11-01', lastSeen: `2026-11-0${6 - i}`, count: 1, obs: [] })),
     howWeWork: Array.from({ length: 5 }, (_, i) => ({ text: `way ${i} ${'y'.repeat(100)}`, count: 5 - i, obs: [] })),
-    whatFails: [{ when: 'flags', avoid: 'guessing the unit', instead: 'ask', count: 1, obs: [] }],
-    recentBugs: [{ text: 'a bug', lastSeen: '2026-11-06', obs: [] }],
+    skills: [{ skill: 'dataviz', text: 'charts for the site', count: 3, used: 3, accepted: 2, corrected: 1, obs: [] }],
+    whatFails: [{ when: 'gone', avoid: 'x', count: 1, obs: [] }],
   } };
   const full = renderProfile(profile);
-  assert.match(full, /## Working on/); assert.match(full, /When flags: avoid guessing the unit; instead: ask \(1\)/); assert.match(full, /Learned from 12 sessions in this repository, 2026-10-01 to 2026-11-07/);
-  assert.ok(full.indexOf('## How this person works') < full.indexOf('## What went wrong before'));
+  assert.match(full, /^About the person here, from 12 sessions in this repository\. Follow how they work; the rest is context\.\n\n## Working on\n- stream 0 x+\n/, 'one sentence of header; a line is its text');
+  assert.match(full, /\n- way 0 y+\n/, 'no count on a rule'); assert.match(full, /\n## Skills\n- \/dataviz: charts for the site$/, 'no tally on a skill');
+  assert.ok(!/\d{4}-\d{2}-\d{2}|\(\d+\)|sessions;/.test(full.replace(/^[^\n]*\n/, '')), 'no dates, counts or tallies anywhere in the served block');
+  assert.ok(!full.includes('gone'), 'a section that went is not rendered');
   const small = renderProfile(profile, { maxChars: 1600 });
   assert.ok(small.length <= 1600);
   assert.match(small, /stream 0/); assert.ok(!small.includes('stream 5'), 'the oldest workstream goes first');
   assert.match(small, /way 0/); assert.match(small, /way 3/, 'the ways of working keep four lines while workingOn has more than three');
   assert.equal(renderProfile(null), '');
+  assert.equal(renderProfile({ window: { sessions: 1 }, sections: { workingOn: [{ text: 'x', obs: [] }] } }).split('\n')[0], 'About the person here, from 1 session in this repository. Follow how they work; the rest is context.');
 });
 
-test('compile is due whenever something new was read into the ledger, and first after one observation', t => {
+test('compile is due once a day when something new was read into the ledger, and first after one observation', t => {
   const { store } = tmpRepo(t);
   const now = Date.now();
   assert.equal(compileDue(store, { now }), false);
@@ -143,16 +147,23 @@ test('compile is due whenever something new was read into the ledger, and first 
   fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify({ compiledAt: new Date(now + 1).toISOString(), sections: {} }));
   assert.equal(compileDue(store, { now }), false, 'nothing new since the compile');
   appendObservations(store, [fakeObs({ turn: 4, at: iso(now, 20) })], { session: 's2', now: now + 60_000 });
-  assert.equal(compileDue(store, { now: now + 60_000 }), true, 'a session read after the compile is due, however old the session');
+  assert.equal(compileDue(store, { now: now + 60_000 }), false, 'a session read a minute after the compile waits: once a day (the owner\'s call)');
+  assert.equal(compileDue(store, { now: now + 23 * 3600_000 }), false);
+  assert.equal(compileDue(store, { now: now + PROFILE.compileHours * 3600_000 + 1 }), true, 'a day on, a session read after the compile is due, however old the session');
+  fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify({ compiledAt: new Date(now - 3 * DAY).toISOString(), sections: {} }));
+  assert.equal(compileDue(store, { now }), true, 'and nothing new since an old compile is still nothing to do');
+  fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify({ compiledAt: new Date(now + 2 * DAY).toISOString(), sections: {} }));
+  assert.equal(compileDue(store, { now: now + 3 * DAY }), false, 'nothing read since the compile, nothing due');
 });
 
 test('a patch is merged into the profile as it stands: silence keeps, update adds evidence and changes named fields, drop removes, add appends', () => {
-  const previous = { sections: { workingOn: [{ id: 'w1', text: 'old stream', obs: ['a'] }], howWeWork: [{ id: 'h1', text: 'never push main', obs: ['a', 'b'] }, { id: 'h2', text: 'dup', obs: ['c'] }], whatFails: [{ id: 'f1', when: 'flags', avoid: 'guessing', obs: ['a'] }], recentBugs: [] } };
-  const out = applyPatch(previous, { keep: ['w1'], update: [{ id: 'h1', obs: ['d', 'a'] }, { id: 'f1', instead: 'ask', obs: [] }, { id: 'zz', obs: ['x'] }], drop: [{ id: 'h2', reason: 'says what h1 says' }], add: { workingOn: [{ text: 'new stream', obs: ['d'] }], howWeWork: [], whatFails: [], recentBugs: [] } });
+  const previous = { sections: { workingOn: [{ id: 'w1', text: 'old stream', obs: ['a'] }], howWeWork: [{ id: 'h1', text: 'never push main', obs: ['a', 'b'] }, { id: 'h2', text: 'dup', obs: ['c'] }], skills: [{ id: 's1', skill: 'dataviz', text: 'charts', obs: ['a'] }], whatFails: [{ id: 'f1', when: 'flags', avoid: 'guessing', obs: ['a'] }] } };
+  const out = applyPatch(previous, { keep: ['w1'], update: [{ id: 'h1', obs: ['d', 'a'] }, { id: 's1', text: 'charts for the site', obs: [] }, { id: 'zz', obs: ['x'] }], drop: [{ id: 'h2', reason: 'says what h1 says' }], add: { workingOn: [{ text: 'new stream', obs: ['d'] }], howWeWork: [], skills: [] } });
   assert.deepEqual(out.workingOn.map(e => e.text), ['old stream', 'new stream']);
   assert.deepEqual(out.howWeWork.map(e => e.text), ['never push main'], 'the drop removed the duplicate');
   assert.deepEqual(out.howWeWork[0].obs, ['a', 'b', 'd'], 'an update adds its observations once');
-  assert.equal(out.whatFails[0].instead, 'ask'); assert.equal(out.whatFails[0].avoid, 'guessing', 'fields not named stay');
+  assert.equal(out.skills[0].text, 'charts for the site'); assert.equal(out.skills[0].skill, 'dataviz', 'fields not named stay');
+  assert.equal('whatFails' in out, false, 'a section that went is not carried');
   assert.deepEqual(applyPatch(null, { add: { workingOn: [{ text: 'x', obs: ['a'] }] } }).workingOn.length, 1, 'from nothing, every entry is an add');
   assert.deepEqual(applyPatch({ sections: { howWeWork: [{ text: 'no id', obs: ['a'] }] } }, {}).howWeWork.length, 0, 'an entry without an id cannot be kept by a patch (compileStep gives older profiles ids first)');
   const rows = [{ id: 'a', at: '2026-11-01T00:00:00Z', topics: ['proxy'], dirs: ['src'] }, { id: 'b', at: '2026-11-02T00:00:00Z', topics: ['site'], dirs: ['site'] }, { id: 'n', at: '2026-11-03T00:00:00Z', topics: ['Proxy'], dirs: [] }];
@@ -162,39 +173,39 @@ test('a patch is merged into the profile as it stands: silence keeps, update add
 test('a session end to end: observations into the ledger, a compile when due, the previous profile to history, and the block', async t => {
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   assert.equal(profileConfig(store).enabled, true);
-  const sections = { workingOn: [{ text: 'The report command grows a --since date flag', obs: [] }], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit; the person asked for a date', obs: [] }], recentBugs: [] };
+  const sections = { workingOn: [{ text: 'The report command grows a --since date flag', obs: [] }], howWeWork: [{ text: 'A --since flag takes a date, not a count of days', obs: [] }], skills: [] };
   let seen = null;
   const completeFn = async opts => {
     if (opts.schema?.properties?.observations) { seen = opts.prompt; return { json: { observations: [fakeObs(), fakeObs({ turn: 2, request: 'open the PR', outcome: 'accepted', reaction: 'good', lesson: '' }), fakeObs({ turn: 3, request: 'x', outcome: 'unknown' })] }, model: 'fake-opus', tokens: { totalTokens: 15 } }; }
     const ids = readLedger(store).map(r => r.id);
     assert.match(opts.prompt, /AGENTS\.md: Pull requests/, 'the compile sees the instruction files\' headings');
-    assert.match(opts.prompt, /obs-[0-9a-f]{10} \| \d{4}-\d{2}-\d{2} \| feature \| outcome=corrected \| dirs=src,src\/commands/);
+    assert.match(opts.prompt, /obs-[0-9a-f]{10} \| \d{4}-\d{2}-\d{2} \| outcome=corrected \| dirs=src,src\/commands/);
     assert.match(opts.prompt, /PROFILE SO FAR \(compiled never\)/);
-    return { json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [{ ...sections.workingOn[0], obs: [ids[0]] }], whatFails: [{ ...sections.whatFails[0], obs: [ids[0]] }] } }, model: 'fake-opus', tokens: { totalTokens: 20 } };
+    return { json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [{ ...sections.workingOn[0], obs: [ids[0]] }], howWeWork: [{ ...sections.howWeWork[0], obs: [ids[0]] }] } }, model: 'fake-opus', tokens: { totalTokens: 20 } };
   };
   const r = await profileSession(store, session, { session: 's1', client: 'claude', repoHint: dir, completeFn, have: ['claude'] });
   assert.equal(r.observations.length, 3);
   assert.ok(seen && !seen.includes('src/report.js') && seen.includes('[2] USER: No, it should take a date'), 'the extraction reads prompts and answers only');
   assert.ok(r.compiled, 'three observations make the first compile due');
   const p = readProfile(store);
-  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.sections.whatFails[0].id, 'f1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.howWeWork[0].count, 1, 'one correction with the person\'s words carries a rule'); assert.equal(p.sections.howWeWork[0].id, 'h1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
-  assert.match(block.text, /^<thinker-profile>\n/); assert.match(block.text, /When adding a flag: avoid guessing its unit/); assert.match(block.text, /Learned from 1 sessions/);
-  assert.deepEqual(block.ids, ['w1', 'f1'], 'the block names the entries it actually rendered');
+  assert.match(block.text, /^<thinker-profile>\n/); assert.match(block.text, /- A --since flag takes a date, not a count of days\n?/); assert.match(block.text, /from 1 session in this repository/);
+  assert.deepEqual(block.ids, ['w1', 'h1'], 'the block names the entries it actually rendered');
   // a profile from before entries carried ids is patched all the same
   const v2 = readProfile(store); for (const s of SECTIONS) for (const e of v2.sections[s]) delete e.id;
   fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify(v2));
   appendObservations(store, [fakeObs({ turn: 7, request: 'later' })], { session: 's2', now: Date.now() + 5000 });
-  const v3 = await compileProfile(store, { now: Date.now() + 6000, completeFn: async opts => { assert.match(opts.prompt, /"id":"w1"/); return { json: { keep: ['w1', 'f1'], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; }, have: ['claude'] });
+  const v3 = await compileProfile(store, { now: Date.now() + 6000, completeFn: async opts => { assert.match(opts.prompt, /"id":"w1"/); return { json: { keep: ['w1', 'h1'], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; }, have: ['claude'] });
   assert.equal(v3.profile.sections.workingOn.length, 1, 'the old entries are kept under the ids they were given');
   // nothing new since the compile: nothing to do, unless the whole window is asked for again
   assert.match((await compileProfile(store, { completeFn: async () => { throw new Error('not called'); }, have: ['claude'] })).skipped, /nothing new/);
-  const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
-  assert.equal(c.profile.sections.whatFails.length, 0, 'a full compile starts from nothing');
+  const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [], howWeWork: [] } }, model: 'fake-opus' }), have: ['claude'] });
+  assert.equal(c.profile.sections.howWeWork.length, 0, 'a full compile starts from nothing');
   assert.equal(fs.readFileSync(path.join(store.localDir, 'profile', 'history.jsonl'), 'utf8').trim().split('\n').length, 2, 'each replaced profile is kept');
   const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8');
   assert.match(log, /"op":"profile"/); assert.match(log, /"op":"profile-compile"/);
-  assert.ok(!log.includes('guessing its unit'), 'the log carries counts, never the profile\'s text');
+  assert.ok(!log.includes('takes a date'), 'the log carries counts, never the profile\'s text');
 });
 
 test('distillFile reads the session into the ledger; a turn-end batch waits for the end', async t => {
@@ -204,7 +215,7 @@ test('distillFile reads the session into the ledger; a turn-end batch waits for 
   const lines = [];
   const ctx = { repo: dir, store, out: l => lines.push(l) };
   let calls = 0, compiles = 0;
-  const completeFn = async opts => { if (opts.schema?.properties?.observations) { calls++; return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } compiles++; return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; };
+  const completeFn = async opts => { if (opts.schema?.properties?.observations) { calls++; return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } compiles++; return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; };
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, batch: true, session: 's9', completeFn });
   assert.equal(calls, 0, 'a batch at the end of a turn makes no call');
   await distillFile(ctx, file, { minExplore: 1, quiet: false, incremental: true, session: 's9', completeFn });
@@ -227,7 +238,7 @@ test('a backlog is compiled in steps, each shown the profile so far and the obse
     prompts.push(opts.prompt);
     const ids = [...opts.prompt.matchAll(/^(obs-[0-9a-f]{10}) \|/gm)].map(m => m[1]); // the rows shown
     const first = /PROFILE SO FAR \(compiled never\)/.test(opts.prompt);
-    const patch = first ? { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'open the PR when done', obs: ids }], whatFails: [], recentBugs: [] } } : { keep: ['h1'], update: [{ id: 'h1', obs: ids }], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } };
+    const patch = first ? { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'open the PR when done', obs: ids }], skills: [] } } : { keep: ['h1'], update: [{ id: 'h1', obs: ids }], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } };
     return { json: patch, model: 'fake-opus', tokens: { totalTokens: 7 } };
   };
   const r = await compileProfile(store, { now, completeFn, have: ['claude'] });
@@ -249,13 +260,13 @@ test('the block goes into a shown session\'s first prompt and again after a comp
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   const now = Date.now();
   appendObservations(store, [fakeObs()], { session: 's0', now });
-  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit', obs: readLedger(store).map(r => r.id) }], recentBugs: [] } }, model: 'fake-opus' }) });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'A --since flag takes a date', obs: readLedger(store).map(r => r.id) }], skills: [] } }, model: 'fake-opus' }) });
   const transcript = path.join(dir, 't.jsonl');
   fs.writeFileSync(transcript, JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n');
   const prev = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0'; t.after(() => { if (prev === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = prev; });
   assert.equal(profileArm(store, 'any'), 'shown', 'no holdout: every session is shown');
   const first = profileTurn(store, 'sA', { transcript, client: 'claude' });
-  assert.match(first, /^<thinker-profile>\n/); assert.match(first, /When adding a flag: avoid guessing its unit/);
+  assert.match(first, /^<thinker-profile>\n/); assert.match(first, /A --since flag takes a date/);
   assert.equal(profileTurn(store, 'sA', { transcript, client: 'claude' }), '', 'told once');
   fs.appendFileSync(transcript, JSON.stringify({ type: 'system', subtype: 'compact_boundary' }) + '\n' + JSON.stringify({ type: 'user', message: { role: 'user', content: 'again' } }) + '\n');
   assert.match(profileTurn(store, 'sA', { transcript, client: 'claude' }), /^<thinker-profile>/, 'a compaction brings it back');
@@ -291,20 +302,20 @@ test('a session is assessed per profile line it was shown: the ids it saw, the v
   const store = new Store(dir);
   const now = Date.now();
   appendObservations(store, [fakeObs()], { session: 's0', now });
-  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'Work in a worktree', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit', obs: readLedger(store).map(r => r.id) }], recentBugs: [] } }, model: 'fake-opus' }) });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'Work in a worktree', obs: readLedger(store).map(r => r.id) }], howWeWork: [{ text: 'A --since flag takes a date', obs: readLedger(store).map(r => r.id) }], skills: [] } }, model: 'fake-opus' }) });
   // only what a session was actually shown may be judged on it
   const prev = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0';
   t.after(() => { if (prev === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = prev; });
   const block = profileTurn(store, 'sA', { client: 'codex' });
   assert.match(block, /Work in a worktree/);
-  assert.deepEqual(shownLines(store, 'sA').sort(), ['f1', 'w1'], 'the ids the session saw are kept on its state');
+  assert.deepEqual(shownLines(store, 'sA').sort(), ['h1', 'w1'], 'the ids the session saw are kept on its state');
   assert.deepEqual(shownLines(store, 'never-served'), [], 'a session shown nothing has no lines');
   let asked = null;
   await profileSession(store, session, {
     session: 'sA', client: 'codex', compile: false, have: ['claude'],
     completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [fakeObs()], lines: [
       { id: 'w1', verdict: 'followed', evidence: 'made a worktree first' },
-      { id: 'f1', verdict: 'na', evidence: '' },
+      { id: 'h1', verdict: 'na', evidence: '' },
       { id: 'nope', verdict: 'followed', evidence: 'invented' },
       { id: 'w1', verdict: 'ignored', evidence: 'a second verdict on the same line' },
     ] }, model: 'fake-opus' }; },
@@ -312,13 +323,13 @@ test('a session is assessed per profile line it was shown: the ids it saw, the v
   assert.match(asked, /THE PROFILE THIS SESSION WAS SHOWN \(2 lines\)/, 'the call carries the lines it must judge');
   assert.match(asked, /\[w1\] - Work in a worktree/, 'with the id and the text the session saw');
   const v = readLineVerdicts(store);
-  assert.deepEqual(v.map(r => [r.id, r.verdict]), [['w1', 'followed'], ['f1', 'na']], 'a line never shown is dropped, and the first verdict per line stands');
+  assert.deepEqual(v.map(r => [r.id, r.verdict]), [['w1', 'followed'], ['h1', 'na']], 'a line never shown is dropped, and the first verdict per line stands');
   assert.equal(v[0].session, 'sA'); assert.equal(v[0].evidence, 'made a worktree first');
   // the report: applied is the denominator, and 0 of 0 is untested, not failing
-  appendLineVerdicts(store, [{ id: 'w1', verdict: 'ignored', evidence: 'did it in the main checkout' }, { id: 'f1', verdict: 'na' }], { session: 'sB', now });
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'ignored', evidence: 'did it in the main checkout' }, { id: 'h1', verdict: 'na' }], { session: 'sB', now });
   appendLineVerdicts(store, [{ id: 'w1', verdict: 'contradicted', evidence: 'the person had to say so' }], { session: 'sC', now });
   const rep = lineReport(store);
-  const h1 = rep.lines.find(l => l.id === 'w1'), f1 = rep.lines.find(l => l.id === 'f1');
+  const h1 = rep.lines.find(l => l.id === 'w1'), f1 = rep.lines.find(l => l.id === 'h1');
   assert.deepEqual([h1.shown, h1.followed, h1.ignored, h1.contradicted, h1.applied], [3, 1, 1, 1, 3]);
   assert.ok(Math.abs(h1.followRate - 1 / 3) < 1e-9, 'followed over the sessions the line applied in');
   assert.equal(f1.applied, 0); assert.equal(f1.followRate, null, '0 of 0 applied is an untested line, never a failing one');
@@ -352,7 +363,7 @@ test('recurrence is judged against everything said before, split by whether a li
   // two earlier sessions: one preference the compile kept as a line, one lesson it never learned
   appendObservations(store, [fakeObs({ prefs: ['answer short and plain'], lesson: '' })], { session: 'old1', now: now - 2 * 86400_000 });
   appendObservations(store, [fakeObs({ prefs: [], lesson: 'Validate the fix in the installed app before calling it done' })], { session: 'old2', now: now - 86400_000 });
-  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'Answer short and plain', obs: readLedger(store).filter(r => r.session === 'old1').map(r => r.id) }], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }) });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'Answer short and plain', obs: readLedger(store).filter(r => r.session === 'old1').map(r => r.id) }], skills: [] } }, model: 'fake-opus' }) });
   const prior = priorStatements(store, { session: 'new', now });
   assert.equal(prior[0].id, 'h1'); assert.equal(prior[0].inProfile, true, 'the profile\'s lines come first');
   const lesson = prior.find(p => /installed app/.test(p.text));
@@ -445,7 +456,7 @@ test('a full compile from nothing is due again after rebaseDays, and rebasedAt i
   const { store } = tmpRepo(t);
   const now = Date.now();
   const calls = [];
-  const completeFn = async opts => { calls.push(/PROFILE SO FAR \(compiled never\)/.test(opts.prompt) ? 'full' : 'patch'); return { json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'x', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; };
+  const completeFn = async opts => { calls.push(/PROFILE SO FAR \(compiled never\)/.test(opts.prompt) ? 'full' : 'patch'); return { json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'x', obs: readLedger(store).map(r => r.id) }], howWeWork: [], skills: [] } }, model: 'fake-opus' }; };
   appendObservations(store, [fakeObs()], { session: 's1', now });
   const a = await compileProfile(store, { now, completeFn, have: ['claude'] });
   assert.equal(a.full, true); assert.equal(a.profile.rebasedAt, new Date(now).toISOString());
@@ -462,7 +473,7 @@ test('through the hooks: the prompt hook puts the block ahead of everything else
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   const now = Date.now();
   appendObservations(store, [fakeObs()], { session: 's0', now });
-  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'The report command grows a --since flag', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }) });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'The report command grows a --since flag', obs: readLedger(store).map(r => r.id) }], howWeWork: [], skills: [] } }, model: 'fake-opus' }) });
   const CLI = new URL('../src/cli.js', import.meta.url).pathname;
   const env = { ...process.env, THINKER_LOG: 'local', THINKER_HOLDOUT: '0', THINKER_NO_LEARN: '1', THINKER_TELEMETRY: 'off', THINKER_CE: 'off' };
   const transcript = path.join(dir, 't.jsonl');
@@ -497,6 +508,7 @@ test('skills: an exchange\'s Skill calls and typed skills ride with its observat
   assert.ok(!extractionInput(xs).includes('pricing'), 'the call\'s arguments never reach the extraction');
   const obs = observationSkills([{ turn: 2, request: 'b' }, { turn: 1, request: 'a' }], xs);
   assert.deepEqual(obs.map(o => o.skills.map(k => k.name)), [['claude-api'], ['code-review']], 'in the caller\'s order, each over the exchanges up to the next observation');
+  assert.deepEqual(obs.map(o => o.interrupts), [0, 0]);
   const now = Date.now();
   const rows = [
     { id: 'a', at: iso(now, 3), session: 's1', outcome: 'accepted', request: 'r', skills: [{ name: 'claude-api', by: 'agent' }], prefs: [] },
@@ -513,8 +525,65 @@ test('skills: an exchange\'s Skill calls and typed skills ride with its observat
   assert.deepEqual(s.skills.map(e => [e.id, e.skill, e.count, e.used, e.accepted, e.corrected]), [['s1', 'claude-api', 2, 2, 1, 1], ['s2', 'code-review', 1, 0, 0, 0]],
     'two sessions, or the person naming the skill; one session of use is not enough; a skill no cited observation ran or named does not exist');
   const text = renderProfile({ compiledAt: iso(now, 0), window: { sessions: 4 }, sections: { ...Object.fromEntries(SECTIONS.map(k => [k, []])), skills: s.skills } });
-  assert.match(text, /## Skills\n- \/claude-api: pricing lookups \(2 sessions; 1 accepted, 1 corrected\)\n- \/code-review: wanted before every PR \(named in 1 session\)/);
+  assert.match(text, /## Skills\n- \/claude-api: pricing lookups\n- \/code-review: wanted before every PR$/, 'the served line is the text; the tallies are --why\'s');
+  assert.deepEqual([s.skills[0].used, s.skills[0].accepted, s.skills[0].corrected], [2, 1, 1], 'and the tallies are still on the entry');
   assert.match(ledgerText(rows.slice(0, 1)), /skills: \/claude-api \(agent\)/);
   assert.match(skillTallyText(rows), /^- \/claude-api: 2 sessions, 2 observations; accepted 1, corrected 1$/m);
   assert.equal(applyPatch({ sections: { workingOn: [] } }, { add: { skills: [{ skill: 'x', text: 'y', obs: ['a'] }] } }).skills.length, 1, 'a profile from before the section takes adds to it');
+});
+
+// The person stopping the agent is the sharpest correction a session records, and until 2026-11-08 it arrived as a
+// USER line the extractor was told was nobody speaking (216 of them in this checkout's transcripts).
+test('an interruption marks the exchange it cut short, reaches the extraction, rides with the observation and carries a rule on its own', () => {
+  const evs = [
+    { t: 'prompt', text: 'rename the flag everywhere' },
+    { t: 'say', text: 'Renaming in src and the docs…' },
+    { t: 'interrupt', at: Date.parse('2026-11-01T10:00:00Z') },
+    { t: 'prompt', text: 'no, only in src; the docs are generated' },
+    { t: 'say', text: 'Done in src only.' },
+    { t: 'prompt', text: '[Request interrupted by user for tool use]' },
+    { t: 'prompt', text: 'good, now the test' },
+    { t: 'say', text: 'Added.' },
+  ];
+  const xs = exchanges(evs);
+  assert.deepEqual(xs.map(x => x.prompt), ['rename the flag everywhere', 'no, only in src; the docs are generated', 'good, now the test'], 'an interruption, as an event or as its marker text, is never an exchange');
+  assert.deepEqual(xs.map(x => !!x.interrupted), [true, true, false]);
+  assert.equal(xs[0].at, Date.parse('2026-11-01T10:00:00Z'), 'the interruption\'s stamp dates an unstamped exchange like any event');
+  const text = extractionInput(xs);
+  assert.match(text, /\[1\] USER: rename the flag everywhere\n    AGENT: Renaming in src and the docs…\n    INTERRUPTED: the person stopped the agent here, before it finished\n/);
+  assert.equal((text.match(/INTERRUPTED/g) || []).length, 2);
+  assert.ok(!text.includes('[Request interrupted'), 'the marker never reaches the extraction as words');
+  const obs = observationSkills([{ turn: 1, request: 'rename' }, { turn: 3, request: 'test' }], xs);
+  assert.deepEqual(obs.map(o => o.interrupts), [2, 0], 'attached by code over the exchanges the observation spans');
+  assert.match(ledgerText([{ id: 'a', at: '2026-11-01T00:00:00Z', outcome: 'corrected', request: 'r', interrupts: 2 }]), /\| outcome=corrected \| interrupted by the person x2/);
+  assert.ok(!ledgerText([{ id: 'a', at: '2026-11-01T00:00:00Z', outcome: 'accepted', request: 'r', interrupts: 0 }]).includes('interrupted'));
+  assert.equal(exchanges([{ t: 'interrupt' }, { t: 'prompt', text: 'hi' }, { t: 'say', text: 'x' }]).length, 1, 'an interruption before any prompt is nothing');
+});
+
+// Directories are the repository's, whichever checkout the session ran in (2026-11-08): the store's own path was
+// the only thing stripped, so worktree and scratch paths labelled rows `/Users` and `/private`.
+test('session directories are relative to the repository across its worktrees, drop a worktree that is gone, and ignore other repositories', t => {
+  const mk = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-dirs-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
+  const git = (dir, ...args) => execFileSync('git', ['-C', dir, '-c', 'user.email=t@t', '-c', 'user.name=t', ...args], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const repo = mk(), other = mk(), nowhere = mk();
+  git(repo, 'init', '-q'); git(repo, 'commit', '-q', '--allow-empty', '-m', 'init');
+  git(other, 'init', '-q');
+  const wt = path.join(repo, '.worktrees', 'live');
+  fs.mkdirSync(path.dirname(wt), { recursive: true }); git(repo, 'worktree', 'add', '-q', wt);
+  const tool = p => ({ t: 'tool', name: 'Read', input: { file_path: p }, result: '' });
+  const events = [
+    tool(path.join(repo, 'src', 'a.js')),                               // the main checkout
+    tool(path.join(wt, 'src', 'commands', 'b.js')),                     // a live worktree
+    tool(path.join(repo, '.worktrees', 'gone', 'src', 'ui', 'c.js')),   // a worktree removed since the session
+    tool(path.join(other, 'src', 'd.js')),                              // another repository
+    tool(path.join(nowhere, 'scratch', 'e.js')),                        // no repository at all
+    tool('test/f.test.js'),                                             // relative: the repository's own
+    tool(path.join(repo, 'README.md')),                                 // not code
+    { t: 'tool', name: 'Bash', input: { command: 'ls src/proxy' }, result: '' },
+  ];
+  assert.deepEqual(sessionDirs(events, repo), ['src', 'src/commands', 'src/ui', 'test']);
+  assert.deepEqual(sessionDirs(events, wt), ['src', 'src/commands', 'src/ui', 'test'], 'the store may be the worktree itself: the repository is the same');
+  assert.deepEqual(sessionDirs(events, fs.realpathSync(repo)), ['src', 'src/commands', 'src/ui', 'test'], 'real and given paths place alike');
+  assert.deepEqual(sessionDirs([tool(path.join(other, 'src', 'd.js'))], other), ['src'], 'the other repository\'s own paths are its own');
+  assert.deepEqual(sessionDirs(events), ['src', 'src/commands', 'src/ui', 'test'], 'with no repository given, any checkout places its own paths');
 });

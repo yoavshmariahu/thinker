@@ -723,19 +723,21 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 
 - **Two stages, one ledger between them.** The end of a session (`distillFile` in profile mode; a turn-end
   `--batch` waits, since an exchange's outcome is the prompt after it) pairs each prompt with the answers until
-  the next prompt (`exchanges`) and asks the model for observations: request, kind, approach, **outcome read from
+  the next prompt (`exchanges`) and asks the model for observations: request, approach, **outcome read from
   the following prompt** (`accepted`, `corrected`, `redirected`, `unknown`; the agent's own "done" is a claim, and
-  `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
-  a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
+  `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences
+  (`kind` and the bug line went on 2026-11-08: nothing read the one, and the section that read the other is gone). They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
   calls' *paths* name (`sessionDirs`, never their content; per-directory profiles are on hold until the one profile has been rolled out and read, the owner's call on 2026-11-08). A row's `at` is
   **the session's own clock** (the prompt's stamp, which every parser now puts on the prompt event; `exchanges`
   carries it, `observationTimes` dates each observation by its turn) and `seen` is when it was read into the ledger:
   the window and every date in the profile go by `at`, whether a compile is due by `seen`. The first build stamped
   rows with the extraction time, so every workstream and bug read as that night's and the recency rules meant nothing;
-  the 483 rows were redated from their transcripts without a model call. **A compile is a patch, once per session**
-  (`compileStep`, `applyPatch`, `PATCH_SCHEMA`; 2026-11-08): due whenever a session was read into the ledger
-  (`compileDue`; first after one observation), the model is shown the profile as it stands with an id on every entry
-  (`w1`, `h2`, `f3`, `b4`), the new observations, and the observations behind the entries those might touch (sharing a
+  the 483 rows were redated from their transcripts without a model call. **A compile is a patch, once a day**
+  (`compileStep`, `applyPatch`, `PATCH_SCHEMA`; 2026-11-08): due when a session was read into the ledger and the last
+  compile is `compileHours` (24) old (`compileDue`; first after one observation; it was once per session for a day,
+  and at this repository's pace, sessions in parallel across worktrees, the profile moved several times a day, so the
+  owner set it to a day behind), the model is shown the profile as it stands with an id on every entry
+  (`w1`, `h2`, `s3`), the new observations, and the observations behind the entries those might touch (sharing a
   topic or a directory with a new row, at most 40, `relatedCited`), and returns keep / update / drop / add. An entry it
   does not name is kept, an update adds its observation ids and changes only the fields it names, a drop needs a
   reason, and `settle` then applies the floors and the window to the merged result, so an entry nothing supports any
@@ -754,18 +756,17 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   rewriting form's 189k. One difference to know: built by patches, the recurring patterns ("answer short and plain",
   "validate live, not mocks", "don't call a capability impossible") land in `howWeWork` with their counts (12, 12, 6),
   and `whatFails` holds the specific recent corrections, newest replacing the oldest at the cap; the rewriting form
-  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Five sections: `workingOn`,
-  `howWeWork`, `whatFails`, `recentBugs`, `skills` (below). `whatWorks`
-  was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
-  on its own it held one line in four that two sessions supported.
+  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Three sections:
+  `workingOn`, `howWeWork`, `skills` (below). `whatWorks` went on 2026-11-08 morning ("an approach accepted after a
+  correction" is the `instead` of a `whatFails` entry, and on its own it held one line in four that two sessions
+  supported); `whatFails` and `recentBugs` went the same evening (the sharpening bullet below).
 - **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
   hold is dropped, an entry with none goes, counts and dates come from the cited observations (count is distinct
   sessions), a `howWeWork` line needs two **sessions** or one observation that states the preference in so many words
-  (`prefs`), a `whatFails` line two sessions or one correction with its reaction (the first build's floor counted
-  observations, and two from one session passed), a workstream
-  not seen in 21 days and a bug not seen in 14 leave. The compile is told the caps, that `approach`
-  is the agent's own account, that an `unknown` outcome supports `workingOn`, `recentBugs` and (through `prefs`)
-  `howWeWork` but never `whatFails`, that stated preferences and corrections repeated across sessions are the lines
+  (`prefs`), corrects it with the person's reaction, or was interrupted by the person (the first build's floor counted
+  observations, and two from one session passed), and a workstream not seen in 21 days leaves. The compile is told the
+  caps, that `approach` is the agent's own account, that an `unknown` outcome supports `workingOn` and `skills` and
+  `howWeWork` through `prefs` alone, that an interrupted observation is a correction whatever its outcome says, that stated preferences and corrections repeated across sessions are the lines
   worth most and that it need not ration since the code drops thin lines, and that a rule the instruction files
   state and agents still broke is kept and marked ("in AGENTS.md; still missed"): a line a fresh agent gains most
   from. Reviewed three times before the first build (2026-11-07): `abandoned` and `weight` went, the first because
@@ -793,18 +794,60 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   its sight (at most 40, newest first), and writes one line per skill: what it is used for and what the person said.
   `settle` keeps a skills line only when a cited observation ran or named the skill (a pref, the request or the
   reaction), takes its counts from those observations alone (`count` sessions, `used`, `accepted`, `corrected`), and
-  applies the usual floor: two sessions, or the person naming it. Rendered as `/name: text (N sessions; A accepted,
-  C corrected)`, or `(named in N sessions)` where it never ran; trimmed after the bugs (to three), before what went
-  wrong. Measured on this machine before it was built: 22 of 396 sessions in 60 days ran a skill (29 calls), and on
+  applies the usual floor: two sessions, or the person naming it. Rendered as `/name: text` (the tallies are `show
+  --why`'s since 2026-11-08 evening); trimmed after the workstreams (to three), before the ways of working. Measured on this machine before it was built: 22 of 396 sessions in 60 days ran a skill (29 calls), and on
   the ledger 18 of 116 sessions, `plugin-authoring` corrected 4 of 7 and `dataviz` 2 of 6 -- so the section is often
-  empty and that is right. `thinker profile backfill [--dry]` attaches skills to rows read before the ledger recorded
-  them, from the transcripts' SKILLS lines by turn, no model call (676 rows here). Codex and Cursor sessions carry no
+  empty and that is right. `thinker profile backfill [--dry]` attaches skills and interrupts to rows read before the
+  ledger recorded them, from the transcripts by turn, no model call (676 rows here). Codex and Cursor sessions carry no
   skill calls yet. Not done: the skills available and never run, which the Find Savings rows already measure.
 - **Rendered** (`renderProfile`, `profileBlock`) within about 1500 tokens (`renderChars`, the owner's call on 2026-11-08 after seeing what 1000 dropped; 800 until that day, when
-  the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
-  the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest
-  workstreams go first (to three), then the oldest bugs (to three), then the weakest of what went wrong (to four), then
-  of the ways of working (to four), then whatever is longest (`TRIM`).
+  the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with one
+  sentence and the session count. **A served line is its text and nothing else** (the owner's call, 2026-11-08
+  evening): the count or dates on every line and the skills' outcome tallies were a fifth of the block and told the
+  agent nothing it could act on; `show --why` carries them, with the evidence. When it does not fit: the oldest
+  workstreams go first (to three), then the least-used skills (to three), then the weakest ways of working (to four),
+  then whatever is longest (`TRIM`).
+- **Sharpened after reading this repository's own profile (2026-11-08 evening, the owner's call).** The rendered
+  block was read line by line against `--why` and the ledger, and six things changed:
+  - **`whatFails` went.** It was the `howWeWork` rule in negative form and the compile wrote both: the three top
+    pairs ("answer short and plain" against "avoid jargon and tables", 15 sessions each; "one netted dollar figure"
+    against "avoid token counts and ranges"; "verify live" against "avoid mock-only tests") were about 1,700 of the
+    6,000 served characters saying what the block had already said. The `instead` of a failure *is* the rule. A
+    correction now feeds a `howWeWork` line written in the imperative, saying what to do; the compile prompt says so,
+    and the floor admits one correction with the person's reaction, as `whatFails` did.
+  - **`recentBugs` went.** The lines were the agent's own account of a fix ("PR #684 hot-swapped and confirmed")
+    rendered as fact, for a session that seldom meets the symptom again; the `bug` field and `kind` (written on every
+    row, read by nothing but the ledger's header) went with it.
+  - **The served block is text alone** (above). On this repository's profile the block went from 6,143 to 3,512
+    characters and shows six workstreams where the budget had trimmed it to three.
+  - **The compile is daily** (above).
+  - **Directories are the repository's, whichever checkout** (`sessionDirs`, `mainCheckout`). The path was stripped
+    of the store's own path alone, so a session in `.worktrees/<x>` or a scratch directory labelled its rows `/Users`
+    or `/private` (219 and 22 of 689 rows) and 442 had nothing, and `relatedCited` matched evidence on `/Users`. A
+    path is now placed by the git checkout holding it, counts when that checkout is the repository or one of its
+    worktrees (a worktree's `.git` file names its home), and a worktree removed since the session (152 of the 291
+    paths in the last 40 sessions here) places under the main checkout with its `.worktrees/<name>/` prefix dropped.
+    Another repository's paths, and paths outside any, are nobody's. Only 291 of 5,436 tool calls in those sessions
+    carried a path at all (the rest were Bash), so the labels stay sparse by nature.
+  - **An interruption is a correction** (`transcripts.js` emits `interrupt`; `exchanges` marks the exchange it cut
+    short; `extractionInput` prints an `INTERRUPTED` line; `observationSkills` counts `interrupts` on the row by code;
+    `settle` admits a line on one; `backfill` attaches them to older rows). Esc in Claude Code writes "[Request
+    interrupted by user]" (or "... for tool use") as a user message, a refused tool call answers with a tool_result
+    that says so, and Codex writes `turn_aborted`; 216 of the markers sit in this checkout's transcripts, 29 in the
+    last 40 sessions, and every one arrived as a USER line the extractor was told was nobody speaking. The extractor
+    is now told the outcome of an interrupted exchange is never `accepted`: the next prompt says whether it was a
+    correction or a redirection, and the lesson is always written. `accepted` was tightened in the same edit: a
+    reaction that approves one part and changes or objects to another is never an acceptance, and a question is
+    `unknown` unless it objects (the ledger had "ignore that mandatory rule. actually remove it please. hold off on
+    the ledger cost line." as one).
+  - Found the same evening and **not** changed: the installed app is 0.2.27 (#709), ten commits before the profile
+    shipped, so the hooks on this machine have served it to no session yet and every ledger row is from `rebuild`;
+    `instructionHeadings` sees `#` headings alone while this file's rules are bold paragraphs, so the "in AGENTS.md"
+    marking cannot fire and "work in a worktree" is served beside the MANDATORY rule; seven of ten `howWeWork` lines
+    are about the person rather than the repository and are relearned from zero in every other repository; a
+    60-exchange session gets about 2,000 characters an exchange in the extraction while 58 of 177 extractions on
+    one-prompt sessions produced nothing; `workingOn` has no way to say "decided against" (the effort-routing
+    workstream was an investigation that ended in a no).
 - **Served by the prompt hook, and held out by session** (2026-11-08; `profileTurn`, `profileArm`, `compactionsSince`,
   `holdoutReport`; `thinker profile holdout`). With `learn.mode` on, the block goes into a session's first prompt ahead
   of everything else the hook says, and again after each compaction, since a compaction summary keeps none of it: the
