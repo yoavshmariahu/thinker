@@ -1022,14 +1022,43 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   of everything else the hook says, and again after each compaction, since a compaction summary keeps none of it: the
   hook counts `compact_boundary` lines written to the Claude Code transcript since the byte it last read (a few bytes a
   prompt, never a parse), and the other agents get it on the first prompt alone. A deterministic share of sessions
-  (`holdoutRate`, the notes' 15% by default; `THINKER_HOLDOUT`) is held out **whole**, not by turn as the notes are,
-  because the block is one injection that the rest of the session reads. The arm lives in the session's state file
+  (`profileHoldoutRate`) is held out **whole**, not by turn as the notes are, because the block is one injection that
+  the rest of the session reads. The arm lives in the session's state file
   (`st.profile`: arm, how many times told, compactions seen), the Stop hook's `session` row carries it (`profile:
   shown|holdout`), one `profile-served` row is logged per injection and once for a held-out session (counts, never
-  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure:
-  `thinker profile holdout` puts corrected and redirected per session on each side beside prompts and tokens per
-  session from the log. Fewer than `holdoutMinSessions` (20) on a side is too few to read. What it cannot tell apart:
-  a correction the profile caused from one it failed to prevent; read the lines with `show --why` before blaming it.
+  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure.
+  What it cannot tell apart: a correction the profile caused from one it failed to prevent; read the lines with
+  `show --why` before blaming it.
+- **Half the sessions, and the measure is the exchange** (2026-11-08, the owner's call; `PROFILE.holdoutRate` 0.5,
+  `learn: { profileHoldout }`, `THINKER_PROFILE_HOLDOUT`, `THINKER_HOLDOUT` over both; `compare`). It shipped the day
+  before at the notes' 15% and judged **corrected and redirected per session**, and neither could have answered the
+  question. Measured on this repository's first ledger (680 observations, 116 sessions, 2026-11-08): corrections run
+  at **0.313 of exchanges**, 1.84 a session with an sd of 2.49 and zero in 51 of the 116, and the ICC inside a session
+  is **~0** -- so the exchange is the unit, a count per session throws the information away and keeps the variance,
+  and the small side of an 85/15 split wastes most of what is left. What each design can see, at 80% power and 5
+  sessions a day here: a 30% change needs ~1000 sessions at 85/15 (7 months) against ~130 at 50/50 (26 days), and as a
+  per-session count ~640 sessions (127 days) against ~130 as a proportion. So: half the sessions, `rate` =
+  (corrected + redirected) / observations, `delta` = shown less held out with a 95% two-proportion interval, and
+  `PROFILE.holdoutMinObs` (380) observations a side before the report says anything. An unbalanced split is for
+  catching a regression in something already known to work, which is where this goes when it ships.
+- **It can rule out harm; it cannot prove the gain** (the same day). The profile costs ~$0.24 a session on this
+  machine -- 1500 tokens in the prefix of every call (median 56 calls, at the cache-read rate) plus $0.066 of Opus to
+  extract and compile -- against a median session of $24.85 and $4.24 an exchange at list prices. So **break-even is a
+  3-12% drop in corrections**, depending on how much of a corrected exchange is wasted work, and no window on one
+  machine resolves 3-12%. `verdict` is therefore `harm` / `better` / `inconclusive` / `too-early` off the interval and
+  never a p-value dressed as a decision: the rule is to keep serving it unless the interval says it hurts, and to pool
+  across machines through the telemetry if the gain is ever to be shown. Two guardrails sit beside the rate, because a
+  ratio can be improved by making exchanges smaller and more numerous: exchanges per session and tokens per session,
+  neither of which may rise.
+- **The cheaper check, which moves faster than the holdout** (the same day): of the 213 corrections and redirects in
+  the first ledger, the share a profile line whose cited evidence *predates* them plausibly covers -- excluding the
+  corrections that are themselves that line's evidence -- is **25% on a loose word match and 3% on a tight one**. The
+  lines read as retrospective descriptions of corrections already made rather than predictions of the next one, which
+  is the mechanism's own ceiling and is free to recompute from the ledger with no model call. If that ceiling stays
+  near 3% the holdout cannot pay for itself whatever it says, and the honest answer is to stop.
+- **Not measured, and known**: the extractor is the judge, and it is only partly blinded -- `clean` strips
+  `<thinker-profile>` from the prompts it reads, but the agent's own answers can name the profile, so the arm can
+  still leak through them. Nobody has counted how often.
 - **A full compile once a month** (`rebaseDays` 30, `rebasedAt` on the profile, carried by every patch): a compile that
   finds the last from-nothing compile older than that starts from nothing over the whole window, so wording the patches
   have carried for weeks is derived again from the rows. At this repository's volume that is 150k tokens of Opus;

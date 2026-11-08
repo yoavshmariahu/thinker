@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, applyPatch, relatedCited, compare, profileHoldoutRate, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -273,9 +273,47 @@ test('the block goes into a shown session\'s first prompt and again after a comp
   assert.equal(r.observations[0].arm, 'holdout');
   const h = holdoutReport([...readLedger(store), { id: 'x', session: 'sC', arm: 'shown', outcome: 'accepted' }, { id: 'y', session: 'sC', arm: 'shown', outcome: 'corrected' }]);
   assert.equal(h.holdout.sessions, 1); assert.equal(h.holdout.corrected, 1); assert.equal(h.shown.observations, 2); assert.equal(h.shown.corrected, 0.5); assert.equal(h.unknown.observations, 1, 's0 was read before any arm');
+  assert.equal(h.shown.rate, 0.5, 'the primary rate is corrected + redirected over observations, not over sessions');
+  assert.equal(h.verdict, 'too-early', `under ${PROFILE.holdoutMinObs} observations a side says nothing`);
   // off: nothing, whatever the state
   fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), '{}');
   assert.equal(profileTurn(new Store(dir), 'sD', {}), '', 'learn.mode off: no block');
+});
+
+// The profile's holdout is half the sessions, and the measure is the exchange (2026-11-08).
+test('the profile holdout is 50/50, and the report judges corrections per exchange', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-holdout-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  const keep = { h: process.env.THINKER_HOLDOUT, p: process.env.THINKER_PROFILE_HOLDOUT };
+  t.after(() => { for (const [k, v] of [['THINKER_HOLDOUT', keep.h], ['THINKER_PROFILE_HOLDOUT', keep.p]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  delete process.env.THINKER_HOLDOUT; delete process.env.THINKER_PROFILE_HOLDOUT;
+  const store = d => { fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify(d)); return new Store(dir); };
+  assert.equal(PROFILE.holdoutRate, 0.5, 'half, while it is being measured');
+  assert.equal(profileHoldoutRate(store({})), 0.5, "not the notes' 15%");
+  assert.equal(profileHoldoutRate(store({ holdout: 0.15 })), 0.5, "the notes' share does not reach the profile");
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: 0.2 } })), 0.2, 'learn.profileHoldout moves it');
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: false } })), 0, 'and false turns it off');
+  process.env.THINKER_PROFILE_HOLDOUT = '0.3';
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: 0.2 } })), 0.3, 'the variable wins over the config');
+  process.env.THINKER_HOLDOUT = '0';
+  assert.equal(profileHoldoutRate(store({})), 0, 'a harness turning every holdout off still turns this one off');
+  delete process.env.THINKER_HOLDOUT; delete process.env.THINKER_PROFILE_HOLDOUT;
+  // a share of sessions, both arms represented, and the same session always on the same side
+  const s = store({});
+  const arms = Array.from({ length: 400 }, (_, i) => profileArm(s, `sess-${i}`));
+  const held = arms.filter(a => a === 'holdout').length;
+  assert.ok(held > 150 && held < 250, `about half of 400 sessions held out, got ${held}`);
+  assert.equal(profileArm(s, 'sess-7'), arms[7], 'the arm is the session\'s, every time it is asked');
+  // the comparison: the interval decides, and the floor comes first
+  const side = (n, bad) => ({ observations: n, rate: bad / n });
+  assert.equal(compare(side(400, 100), side(400, 160)).verdict, 'better');
+  assert.equal(compare(side(400, 160), side(400, 100)).verdict, 'harm', 'more corrections with the profile is a result too');
+  assert.equal(compare(side(400, 120), side(400, 125)).verdict, 'inconclusive', 'a straddling interval concludes nothing');
+  assert.equal(compare(side(100, 25), side(100, 40)).verdict, 'too-early', 'the floor comes before the interval');
+  const c = compare(side(400, 100), side(400, 160));
+  assert.ok(c.ci[0] < c.delta && c.delta < c.ci[1] && c.ci[1] < 0, 'the interval brackets the difference');
+  assert.ok(Math.abs(c.relative + 0.375) < 0.01, 'relative is the difference over the held-out rate');
 });
 
 test('a full compile from nothing is due again after rebaseDays, and rebasedAt is carried by the patches between', async t => {
