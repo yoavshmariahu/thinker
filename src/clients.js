@@ -1344,6 +1344,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         // which runs on the session's own model (explore-agent.js). A person's own Explore.md is left alone.
         const ex = installExploreAgent({ claudeDir: claudeDir() });
         if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
+        else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
       }
     }

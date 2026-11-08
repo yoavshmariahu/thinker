@@ -500,7 +500,11 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
   ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
 
-**Exploration subagents run on Sonnet (2026-11-08, the owner's call; `src/explore-agent.js`):**
+**Exploration subagents on Sonnet, off by default (2026-11-08; `src/explore-agent.js`):**
+- **Off until the owner decides to ship it** (the same day, after #712 landed on by default: "not 100% sure I want to ship
+  it"). `exploreModel` returns null unless `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`
+  opts the machine in; a file written while it was on is removed at the next connect or rewire, and connect says so. The
+  delegation nudge that would make it worth having is a todo; the measurement doors (#716, #717) are in place.
 - Claude Code's built-in Explore subagent runs on the main conversation's model, so on an Opus or Fable session a
   delegated exploration is billed at that model's rates. A user or project subagent named `Explore` overrides the
   built-in one and keeps its own `model` (code.claude.com/docs/en/sub-agents), so `thinker connect` and `rewire` write
@@ -509,7 +513,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   without CLAUDE.md as the built-in does, with a `<!-- thinker-explore -->` marker. Only a file carrying the marker is
   ever rewritten or removed; a person's own Explore.md is left alone and named once in connect's output; a project's
   `.claude/agents/Explore.md` wins in Claude Code's own order and is never touched. `thinker uninstall --user` removes
-  it. Off, or another model: `THINKER_EXPLORE_MODEL=off|haiku|<id>`, or `agents: { explore: false | "<model>" }` in
+  it. On, or another model: `THINKER_EXPLORE_MODEL=on|haiku|<id>`, or `agents: { explore: true | "<model>" }` in
   `THINKER_HOME/config.json`; the environment wins.
 - Why Sonnet (measured 2026-11-07, 13 of this machine's own exploration turns replayed as an exploration subagent
   through `claude -p`, read-only, judged by recall of the files the parent went on to edit or name): Sonnet 5.5 and

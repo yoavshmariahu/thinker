@@ -30,7 +30,8 @@ test('the agent is named Explore, read-only, without CLAUDE.md, on Sonnet by def
 test('the model comes from the environment, then the machine config, then the default; off is off', () => {
   const home = tmp('thinker-explore-home-');
   try {
-    assert.equal(exploreModel({ env: {}, home }), 'claude-sonnet-5-5');
+    assert.equal(exploreModel({ env: {}, home }), null, 'off by default (the owner, 2026-11-08)');
+    assert.equal(exploreModel({ env: { THINKER_EXPLORE_MODEL: 'on' }, home }), 'claude-sonnet-5-5');
     assert.equal(exploreModel({ env: { THINKER_EXPLORE_MODEL: 'off' }, home }), null);
     assert.equal(exploreModel({ env: { THINKER_EXPLORE_MODEL: 'claude-haiku-5-5' }, home }), 'claude-haiku-5-5');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ agents: { explore: false } }));
@@ -39,7 +40,9 @@ test('the model comes from the environment, then the machine config, then the de
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ agents: { explore: 'opus' } }));
     assert.equal(exploreModel({ env: {}, home }), 'opus', 'the config names a model');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ agents: { explore: true } }));
-    assert.equal(exploreModel({ env: {}, home }), 'claude-sonnet-5-5', 'true is the default');
+    assert.equal(exploreModel({ env: {}, home }), 'claude-sonnet-5-5', 'true is the default model');
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ agents: {} }));
+    assert.equal(exploreModel({ env: {}, home }), null, 'an empty block is off');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -64,10 +67,10 @@ test('install writes once, rewrites on a model change, removes only its own file
   } finally { fs.rmSync(claudeDir, { recursive: true, force: true }); }
 });
 
-test('connect at user scope writes the Explore agent under the Claude config dir, and uninstall --user removes it', () => {
+test('connect at user scope writes the Explore agent under the Claude config dir once opted in, and uninstall --user removes it', () => {
   const home = tmp('thinker-explore-connect-');
   const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, THINKER_EXPLORE_MODEL: process.env.THINKER_EXPLORE_MODEL };
-  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; delete process.env.THINKER_EXPLORE_MODEL;
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; process.env.THINKER_EXPLORE_MODEL = 'on';
   try {
     fs.mkdirSync(path.join(home, '.claude'), { recursive: true });
     const done = installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
@@ -83,16 +86,19 @@ test('connect at user scope writes the Explore agent under the Claude config dir
   }
 });
 
-test('with the override off, connect writes nothing and removes a file thinker wrote before', () => {
+test('by default connect writes nothing and removes a file thinker wrote while it was on', () => {
   const home = tmp('thinker-explore-off-');
   const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, THINKER_EXPLORE_MODEL: process.env.THINKER_EXPLORE_MODEL };
-  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; process.env.THINKER_EXPLORE_MODEL = 'off';
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; delete process.env.THINKER_EXPLORE_MODEL;
   try {
     const file = path.join(home, '.claude', 'agents', 'Explore.md');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, renderExploreAgent('sonnet'));
-    installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
-    assert.ok(!fs.existsSync(file), 'off at connect removes the file thinker wrote');
+    const done = installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
+    assert.ok(!fs.existsSync(file), 'the default removes the file thinker wrote');
+    assert.ok(done.some(l => /removed .*Explore\.md/.test(l)), `connect says so: ${done.join(' | ')}`);
+    const again = installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
+    assert.ok(!again.some(l => /Explore/.test(l)), 'and says nothing when there is nothing to remove');
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(home, { recursive: true, force: true });
