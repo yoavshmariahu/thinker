@@ -383,7 +383,8 @@ const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sor
 // of the window, as the Report counts a prompt), the sessions that read it, how many it bore on (applied), and the
 // judged verdicts with the share followed. `prompts` names the denominator: the caller passes the whole window's
 // model calls (context-view.js, where the sessions that read no instruction file count too), else this reader's own.
-export function instructionValue(store, { days = 30, sessions, prompts } = {}) {
+// `onSession` is called with each session as it is passed (ui/scan-worker.js counts them for the page's progress)
+export function instructionValue(store, { days = 30, sessions, prompts, onSession } = {}) {
   const files = instructionFiles(store.repo);
   // no instruction file: the same shape, empty, so the Context view of such a repository still renders
   if (!files.length) return { file: null, files: [], tokens: 0, sessions: 0, prompts: 0, judged: 0, calls: 0, judge: valueConfig(store), sections: [], timeline: [], savings: { perPrompt: 0, sections: 0, share: 0, window: 0 } };
@@ -391,6 +392,7 @@ export function instructionValue(store, { days = 30, sessions, prompts } = {}) {
   sessions ??= findRepoSessions(store.repo, days);
   const recs = [];
   for (const s of sessions) {
+    onSession?.(s);
     if (!files.some(f => readsFile(f, s.client))) continue;
     const r = sessionRecord(store, st, s, secs, srcHash, files);
     if (r) recs.push({ ...r, session: s.session });

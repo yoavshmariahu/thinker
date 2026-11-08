@@ -124,7 +124,8 @@ export function weekColumns(now, weeks) {
 const cell = () => ({ tokens: 0, cost: 0, sessions: 0, priced: 0, prompts: 0, pricedPrompts: 0, n: 0 });
 const add = (c, tokens, cost, n = 0, p = 0, prompts = 0, pricedPrompts = 0) => { c.tokens += tokens; c.cost += cost || 0; c.sessions += n; c.priced += p; c.prompts += prompts; c.pricedPrompts += pricedPrompts; };
 
-export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions, includePrs = true } = {}) {
+// `onSession`: each of the three readers calls it with every session it passes (ui/scan-worker.js reads the page's progress off it)
+export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sessions, includePrs = true, onSession } = {}) {
   const cols = weekColumns(now, weeks), from = cols[0].t, days = Math.ceil((now - from) / DAY) + 1;
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
@@ -137,9 +138,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // and, for the actions' attribution (actionEffect), the things each session cost: the instruction files it read with its
   // model calls, each source it loaded (tokens a call times the calls, by the history's key), each tool's outputs
   const items = new Map(), item = id => { if (!items.has(id)) items.set(id, { calls: 0, files: [], sources: {}, outputs: {} }); return items.get(id); };
-  for (const r of instructionValue(store, { days, sessions }).timeline) if (r.session) { part(r.session).instructions = r.tokens * r.calls; Object.assign(item(r.session), { calls: r.calls, files: r.files || [] }); }
-  for (const r of harnessUsage(store.repo, { days, sessions }).timeline || []) if (r.session) { const c = Math.max(1, r.calls), p = r.parts; Object.assign(part(r.session), { custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c }); for (const [k, t] of Object.entries(r.loaded || {})) item(r.session).sources[`${r.client}:${k}`] = t * c; }
-  const rows = sessionUsage(store, sessions, timeline);
+  for (const r of instructionValue(store, { days, sessions, onSession }).timeline) if (r.session) { part(r.session).instructions = r.tokens * r.calls; Object.assign(item(r.session), { calls: r.calls, files: r.files || [] }); }
+  for (const r of harnessUsage(store.repo, { days, sessions, onSession }).timeline || []) if (r.session) { const c = Math.max(1, r.calls), p = r.parts; Object.assign(part(r.session), { custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c }); for (const [k, t] of Object.entries(r.loaded || {})) item(r.session).sources[`${r.client}:${k}`] = t * c; }
+  const rows = sessionUsage(store, sessions, { ...timeline, onSession });
   for (const r of rows) { part(r.session).outputs = r.outputs; item(r.session).outputs = r.by || {}; }
   const week = t => cols.findIndex(c => t >= c.t && t < c.end);
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0, prompts: 0, pricedPrompts: 0 }));

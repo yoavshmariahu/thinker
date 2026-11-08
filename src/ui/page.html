@@ -25,9 +25,25 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
-    .scan-progress { flex-basis: 100%; margin-top: .65rem; font-size: .75rem; color: #6b7280; }
-    .scan-progress progress { display: block; width: 100%; height: 4px; margin-top: .4rem; accent-color: #111; }
-    nav:has(.scan-progress:not([hidden])) { flex-wrap: wrap; }
+    /* While session data is read, a strip just under the header (2026-11-07, the owner's ask): the count, the share done and a
+       bar. It hangs off the bottom edge of the sticky nav (position: absolute; top: 100%), so it overlays the top of the page
+       and moves nothing: the brand, the tabs and the content below keep their places whether it is shown or not. The first
+       cut put it above the brand as a near-black band, which shoved the whole page down while it showed. Light, so it reads
+       as part of the header, with the bar along its lower edge. */
+    .scan-progress { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; background: rgba(250,250,250,0.96); backdrop-filter: blur(8px); border-bottom: 1px solid #e5e7eb; padding: .45rem 2rem .5rem; color: #111; }
+    .scan-progress.paused { background: rgba(254,249,195,0.97); }
+    .scan-progress.error { background: #fef2f2; color: #991b1b; }
+    .scan-row { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; font-size: .84rem; }
+    #scan-label { font-weight: 600; letter-spacing: -0.01em; }
+    #scan-pct { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #scan-pct:empty { display: none; }
+    .scan-note { color: #6b7280; }
+    .scan-note:empty { display: none; }
+    .scan-retry { background: #111; color: #fff; border: 0; border-radius: 6px; padding: .2rem .65rem; font-size: .78rem; font-weight: 600; cursor: pointer; }
+    .scan-progress progress { position: absolute; left: 0; right: 0; bottom: -1px; display: block; width: 100%; height: 4px; border: 0; overflow: hidden; accent-color: #111; background: #e5e7eb; }
+    .scan-progress progress::-webkit-progress-bar { background: #e5e7eb; }
+    .scan-progress progress::-webkit-progress-value { background: #111; transition: width .3s ease; }
+    .scan-progress progress::-moz-progress-bar { background: #111; }
     .brand { display: flex; align-items: center; gap: 0.55rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.12rem 0.5rem; line-height: 1.2; }
@@ -313,6 +329,7 @@
 
     @media (max-width: 640px) {
       nav { padding: 0.85rem 1rem; }
+      .scan-progress { padding: .4rem 1rem .45rem; }
       main { padding: 1.5rem 1rem 3rem; }
       h1 { font-size: 1.5rem; }
       .brand-sub { display: none; }
@@ -330,7 +347,10 @@
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
-    <div id="scan-progress" class="scan-progress" hidden><span id="scan-label" role="status" aria-live="polite"></span><button id="scan-retry" class="ctx-more" hidden>Retry</button><progress id="scan-bar" aria-label="Session data read"></progress></div>
+    <div id="scan-progress" class="scan-progress" hidden>
+      <div class="scan-row"><span id="scan-label" role="status" aria-live="polite"></span><span class="scan-note" id="scan-note"></span><button id="scan-retry" class="scan-retry" hidden>Retry</button><span id="scan-pct" aria-hidden="true"></span></div>
+      <progress id="scan-bar" aria-label="Session data read"></progress>
+    </div>
   </nav>
 
   <main>
@@ -547,19 +567,27 @@ const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"
 // repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
 // Poll lightweight revisions; fetch tables only when a checkpoint is ready.
 // A new tab/repository/window invalidates the old loop, including in-flight replies.
+// The strip under the header while session data is read: the sessions read of those found, the share done, what is left,
+// and a bar. It overlays the page (absolute, off the nav's lower edge), so nothing below moves when it comes and goes. The worker counts a session as it is read (scan-worker.js:progressOf), so the figures move through a
+// batch and not only at its checkpoints; the total is unknown (`Finding session data…`, an indeterminate bar) until every
+// repository asked has listed its sessions.
 function scanProgress(v) {
-  const el = $('#scan-progress'), bar = $('#scan-bar'), label = $('#scan-label'), p = v?.progress;
+  const el = $('#scan-progress'), bar = $('#scan-bar'), label = $('#scan-label'), pct = $('#scan-pct'), note = $('#scan-note'), p = v?.progress;
   el.hidden = !v || (!v.refreshing && !p?.error);
   $('#scan-retry').hidden = !p?.error;
   if (!el.hidden) {
+    const known = p?.total > 0 && p.completed != null, plain = !v.paused && !p?.error;
+    el.classList.toggle('paused', Boolean(v.paused)); el.classList.toggle('error', Boolean(p?.error));
     label.textContent = v.paused ? 'Newer figures are ready. Clear your selection to update them.' : p?.error ? `Could not finish reading session data: ${p.error}`
-      : p?.total == null ? `${p?.completed ? fmt(p.completed) + ' sessions read · ' : ''}Finding session data… Figures shown so far are partial.`
-      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions · Figures shown so far are partial.`;
-    if (p?.total > 0) { bar.max = p.total; bar.value = p.completed; }
+      : !known ? `Finding session data…${p?.completed ? ` ${fmt(p.completed)} sessions read so far` : ''}`
+      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions`;
+    pct.textContent = known && plain ? `${Math.floor(p.completed / p.total * 100)}%` : '';
+    note.textContent = !plain ? '' : known ? `· ${fmt(Math.max(0, p.total - p.completed))} to go · the figures below fill in as sessions are read`
+      : '· the figures below fill in as sessions are read';
+    if (known) { bar.max = p.total; bar.value = p.completed; }
     else bar.removeAttribute('value');
     bar.hidden = Boolean(p?.error || v.paused);
   }
-  navHeight();
 }
 async function progressiveView(url, receive, current, selected = () => false) {
   let revision = null, first = true;
@@ -1235,11 +1263,12 @@ function activityCheckBack(d) {
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
     let n; try { n = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`); } catch { return; }
     if (AREPO !== want || TAB !== 'activity' || AVIEW !== 'actions') return;
-    if (!n.measuring || n.promptAvg) renderActivity(n); else activityCheckBack({ ...n, tries });
+    if (!n.measuring || n.promptAvg) renderActivity(n); else { scanProgress(n.scan || null); activityCheckBack({ ...n, tries }); }
   }, 5000);
 }
 function renderActivity(d) {
   activityCheckBack(d);
+  scanProgress(d.measuring && d.scan ? d.scan : null);
   ACT = d;
   const el = $('#activity-body'), all = d.history || [], many = AREPO === 'all';
   const reverted = all.filter(e => e.revertedAt).length, hs = SHOW_REVERTED ? all : all.filter(e => !e.revertedAt);

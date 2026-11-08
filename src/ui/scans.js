@@ -15,7 +15,8 @@ export function uiScans({ workerFactory = () => new Worker(new URL('./scan-worke
       worker.on('message', message => {
         const job = jobs.get(message.id);
         if (!job) return;
-        Object.assign(job, message); job.revision++;
+        // a progress count alone moves no revision: the page reads the count off its stamp and fetches no table for it
+        Object.assign(job, message); if (message.view || message.done || message.error) job.revision++;
         if (job.resolve && message.done) {
           if (message.error) job.reject(new Error(message.error)); else job.resolve(message.repos);
           jobs.delete(message.id);
