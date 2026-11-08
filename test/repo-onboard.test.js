@@ -9,7 +9,6 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store, repoId } from '../src/store.js';
 import { desktopApp } from '../src/repo-onboard.js';
-import { createNote } from '../src/ops.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 const HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-onboard-home-'));

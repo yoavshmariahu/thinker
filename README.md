@@ -1,11 +1,11 @@
-![Three ways thinker saves coding agent tokens: context compression, knowledge cache, instruction analysis](docs/images/thinker-token-saving.gif)
+![How thinker saves coding agent tokens: context compression and instruction analysis](docs/images/thinker-token-saving.gif)
 
-Thinker helps your coding agent use fewer tokens. Find what it loads but rarely uses,
-review what to cut, and reuse what it learns about your code.
+Thinker helps your coding agent use fewer tokens and start every session oriented. Find what it loads but
+rarely uses, review what to cut, and let it learn how you work.
 
 - **Find savings.** See which instructions, skills and tools consume context without helping your sessions.
 - **Make the cuts.** Shorten instructions, switch off unused tools and compress long outputs. You review the changes.
-- **Keep the knowledge.** Thinker learns from your sessions and brings relevant notes into future tasks, checking them as the code changes.
+- **Start oriented.** Thinker learns from your sessions how you work in each repository, what you are in the middle of and what went wrong before, and puts that profile into every session's first prompt.
 
 ## Install
 
@@ -26,9 +26,9 @@ Requires Node 20+, git and a supported agent. Free and open source.
 Four things thinker does, and where each one reaches. "Automatic" means the installer wires it; "by hand" means
 the agent can take it once you point it there; a blank means the agent gives thinker no way in.
 
-| Agent | Tool output compression | Knowledge cache | Instruction file optimization | Token usage analytics |
+| Agent | Tool output compression | Session profile | Instruction file optimization | Token usage analytics |
 | --- | --- | --- | --- | --- |
-| Claude Code (CLI, VS Code, JetBrains) | automatic: the proxy clears the tool results the agent is done with, nothing to switch on | yes: notes on each prompt and on the files being edited, learned from every session | yes: every section, nested file and rule measured; cuts as pull requests | yes: tokens by part and by model, week by week |
+| Claude Code (CLI, VS Code, JetBrains) | automatic: the proxy clears the tool results the agent is done with, nothing to switch on | yes: on the first prompt, learned from every session | yes: every section, nested file and rule measured; cuts as pull requests | yes: tokens by part and by model, week by week |
 | Claude desktop app (Code tab) | automatic: old tool results cleared inside the session itself, nothing to switch on (Desktop sets its own API URL, so the proxy cannot sit in front of it) | yes, through the session itself | yes | yes |
 | Codex CLI and app | no: Codex speaks only OpenAI's API, and its hooks cannot rewrite a result | yes | the root AGENTS.md measured | yes |
 | Cursor (editor and `agent` CLI) | no: calls go through Cursor's servers | yes (the CLI one tool call late) | the root AGENTS.md measured | partial: Cursor reports no token usage |
@@ -39,10 +39,10 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | Qwen Code | by hand, on an Anthropic model provider | yes | | |
 | GitHub Copilot CLI, Copilot in VS Code | by hand (the CLI, with your own Anthropic key) | yes, one tool call late | | |
 | Cline | by hand: the Anthropic provider's custom base URL | yes (the CLI one tool call late) | | |
-| Kiro CLI | no: Kiro's own backend | notes on each prompt (V3 engine) | | |
-| Devin CLI and Devin Desktop's local agent | automatic: Devin's own compactor, set to the same 140k trigger the proxy uses (Devin exposes no model endpoint, so the proxy cannot sit in front of it) | yes: notes on each prompt and on the files being edited, learned from every session through Devin's own background subagent | | |
+| Kiro CLI | no: Kiro's own backend | yes (V3 engine) | | |
+| Devin CLI and Devin Desktop's local agent | automatic: Devin's own compactor, set to the same 140k trigger the proxy uses (Devin exposes no model endpoint, so the proxy cannot sit in front of it) | yes: on the first prompt, learned from every session through Devin's own background subagent | | |
 | Windsurf Cascade | no: Windsurf's servers | no: its hooks only record, for learning | | |
-| Auggie | no: Augment's servers | notes on the files being edited | | |
+| Auggie | no: Augment's servers | no: Auggie has no prompt hook | | |
 | Goose | by hand (`ANTHROPIC_HOST`) | no: its hooks only record, for learning | | |
 
 The compression is the API clearing tool results the agent has finished with, through a local proxy thinker keeps
@@ -68,15 +68,14 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   what you can cut; changes are previewed, instruction edits open as pull requests, and every cut has an
   undo. View Report tracks tokens week by week.
 
-Everything else runs by itself: the hooks bring relevant notes into each prompt, sessions are learned from
-when they end, code edits queue a recheck while notes stay usable, and thinker updates itself. Missing
-anchors and reported contradictions are held back until resolved. Reports and notes
-are stored locally; learning uses your existing agent's model access. See [setup and privacy](docs/setup.md).
+Everything else runs by itself: the hooks put the repository's profile into a session's first prompt, sessions
+are read into it when they end, and thinker updates itself. Reports and the profile are stored locally; learning
+uses your existing agent's model access. See [setup and privacy](docs/setup.md).
 
 ## Uninstall
 
 ```bash
-thinker uninstall --user --purge   # this repository's hooks and notes, and the machine-wide wiring
+thinker uninstall --user --purge   # this repository's hooks and profile, and the machine-wide wiring
 rm -rf ~/.thinker                  # the app, the ranking model and the usage log
 ```
 

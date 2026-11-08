@@ -1,13 +1,12 @@
 import { retireBackground } from '../retire-background.js';
-import { resetStaleMarks } from '../stale-reset.js';
+import { retireNotes } from '../notes-retired.js';
 import { Store } from '../store.js';
-// Setting a repository and this machine up: setup, uninstall, the tree-sitter parser (ast), and
+// Setting a repository and this machine up: setup, uninstall, the ranking model (ranker), and
 // updating thinker itself (update, upgrade, switch, branch).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { initAst, astDirs, GRAMMAR_NAMES } from '../ast.js';
 import { parseClients, uninstallClients, uninstallWiring, refreshWiring, connectFromCheckouts, connectDetected, CLIENTS, USER_SCOPE_CLIENTS } from '../clients.js';
 import { uninstallGitHooks } from '../git-hooks.js';
 import { runSetup, stepConnectClis } from '../setup.js';
@@ -50,7 +49,7 @@ async function connectCommand(ctx) {
 
 async function uninstallCommand(ctx) {
   const { flags, repo, store, out } = ctx;
-  // remove hooks, MCP registration and scheduled daily updates; notes stay unless --purge. The last report
+  // remove hooks, MCP registration and scheduled daily updates; the profile stays unless --purge. The last report
   // says so (`uninstall`), sent first while the repository's opt-out can still be read; telemetry off sends nothing.
   await sendTelemetry({ home: thinkerHome(), store, force: true, event: 'uninstall' });
   unscheduleDaily({ home: thinkerHome() });
@@ -60,7 +59,7 @@ async function uninstallCommand(ctx) {
   if (flags.purge) fs.rmSync(store.dir, { recursive: true, force: true });
   // --user: the machine-wide wiring in the agents' own settings goes too
   if (flags.user) { uninstallWiring({ scope: 'user' }); disableProxyService({ keepState: false }); }
-  out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (notes kept in .thinker/)'}`);
+  out(`removed thinker hooks and MCP registration from ${repo}${flags.user ? ' and from your own agent settings' : ''}${flags.purge ? ' and deleted .thinker/' : ' (the profile kept in .thinker/)'}`);
   await askUninstallFeedback(ctx);
 }
 // One optional question after an uninstall in a terminal: why. Enter skips it, and nothing is sent unless
@@ -77,7 +76,7 @@ export async function askUninstallFeedback({ flags, out }, { stdin = process.std
   out(r.sent ? '  Thank you, that was sent.' : `  It could not be sent${r.error ? ` (${r.error})` : ''}; you can open an issue at https://github.com/yoavshmariahu/thinker/issues instead.`);
 }
 
-// thinker ranker [status|fetch]: the cross-encoder the hooks rank with (dense.js). The installer, `thinker update`
+// thinker ranker [status|fetch]: the cross-encoder the harness recall ranks with (dense.js). The installer, `thinker update`
 // and `thinker setup` fetch it; this is the by-hand path and the check.
 async function rankerCommand(ctx) {
   const { pos, flags, out } = ctx;
@@ -87,36 +86,15 @@ async function rankerCommand(ctx) {
     if (!before.runtime) { out(`the ranking runtime (@huggingface/transformers) is not installed: ${before.error || ''}\nrun \`npm ci --omit=dev --ignore-scripts\` in thinker's app directory, or \`thinker update\``); process.exitCode = 1; return; }
     if (!before.model && !flags.quiet) out(`fetching ${before.modelName} (about 23 MB) into ${before.dir}…`);
     try { const st = await fetchRanker(); if (!flags.quiet) out(`ranker ready: ${st.modelName} in ${st.dir}`); }
-    catch (e) { out(`the ranking model could not be fetched: ${String(e.message).split('\n')[0].slice(0, 200)}\nnotes are ranked by words alone until it is; run \`thinker ranker fetch\` again when online`); process.exitCode = 1; }
+    catch (e) { out(`the ranking model could not be fetched: ${String(e.message).split('\n')[0].slice(0, 200)}\nthe recall ranks by words alone until it is; run \`thinker ranker fetch\` again when online`); process.exitCode = 1; }
     return;
   }
   const st = await rankerStatus();
-  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, ${CE_DEFAULTS.maxNotes} note${CE_DEFAULTS.maxNotes === 1 ? '' : 's'}, request cut to ${CE_DEFAULTS.queryTokens} tokens, fallback ${CE_DEFAULTS.fallbackFloor == null ? 'off' : 'best note at ≥ ' + CE_DEFAULTS.fallbackFloor}; \`ce\` in .thinker/config.json adjusts)`);
+  out(`ranker: ${st.runtime && st.model ? 'on' : 'off'} (${st.modelName}; floor ${CE_DEFAULTS.floor}, request cut to ${CE_DEFAULTS.queryTokens} tokens)`);
   out(`runtime: ${st.runtime ? 'installed' : 'missing' + (st.error ? ` (${st.error})` : '')}\nmodel: ${st.model ? 'present' : 'not fetched (thinker ranker fetch)'} in ${st.dir}`);
-  if (!(st.runtime && st.model)) out('until both are there the hooks rank by words alone');
+  if (!(st.runtime && st.model)) out('until both are there the recall ranks by words alone');
 }
 
-// thinker ast: whether the parser is loaded and from where. It comes with the dependencies; `install`
-// is kept for an install whose dependencies are missing (no npm at install time), and repairs it.
-async function astCommand(ctx) {
-  const { pos, out, HERE } = ctx;
-  if (pos[0] === 'install') {
-    let st = await initAst();
-    if (!st.available) {
-      const app = path.resolve(HERE, '..');
-      out(`installing thinker's dependencies in ${app} (the parser and its grammars are among them)…`);
-      const r = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--silent'], { cwd: app, stdio: 'inherit' });
-      if (r.status !== 0) { out('npm ci failed'); process.exit(1); }
-      st = await initAst();
-      if (!st.available) { out(`installed, but the parser did not load: ${st.error || 'unknown error'}`); process.exit(1); }
-    }
-    out(`tree-sitter ready: ${st.grammars.join(', ')}. Symbol hashes are upgraded in place as notes are served; \`thinker rehash\` does them all now.`);
-    return;
-  }
-  const st = await initAst();
-  out(st.available ? `tree-sitter: on (${st.dir}); grammars: ${st.grammars.join(', ')}` : `tree-sitter: off (regex heuristics in use)${process.env.THINKER_AST === 'off' ? ': THINKER_AST=off' : st.error ? `: ${st.error}` : ''}\nlooked in: ${astDirs().join(', ')}\nit comes with thinker's dependencies: thinker ast install   (grammars: ${GRAMMAR_NAMES.join(', ')})`);
-  return;
-}
 
 // The checkouts thinker has been wired into on this machine: every path the machine's log names
 // that still exists and is set up, and the current one. The log is the only record there is.
@@ -195,8 +173,8 @@ async function rewireCommand(ctx) {
     summary.repos++; refresh(r, 'repo', CLIENTS);
     // the background work an older version started that the new defaults no longer do (retire-background.js)
     try { const done = retireBackground(new Store(r), { dry }); if (done.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would stop' : 'stopped'} old background work: ${done.join('; ')}`); } catch (e) { failed(`${r} (background)`, e); }
-    // the one-time staleness reset (stale-reset.js): once per repository, guarded by its own marker
-    try { const r2 = resetStaleMarks(new Store(r), { dry }); if (r2?.cleared.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would clear' : 'cleared'} the stale mark on ${r2.cleared.length} ${r2.cleared.length === 1 ? 'note' : 'notes'}${r2.skipped.length ? `, ${r2.skipped.length} left stale` : ''}`); } catch (e) { failed(`${r} (stale reset)`, e); }
+    // what the checkout kept of the knowledge notes goes, once (notes-retired.js)
+    try { const r2 = retireNotes(new Store(r), { dry }); if (r2?.removed.length && !quiet && !flags.json) out(`${r}: ${dry ? 'would remove' : 'removed'} the knowledge notes it kept (${r2.files} files)`); } catch (e) { failed(`${r} (notes)`, e); }
   }
   if (!dry && summary.changed) store.log({ op: 'rewire', repos: summary.changed, files: summary.files.length });
   // agents the checkouts wire but the user's own settings do not yet: wired there now (clients.js:connectFromCheckouts)
@@ -455,7 +433,6 @@ export const commands = {
   'setup': setupCommand,
   'connect': connectCommand,
   'uninstall': uninstallCommand,
-  'ast': astCommand,
   'ranker': rankerCommand,
   'switch': updateCommand,
   'rewire': rewireCommand,

@@ -6,11 +6,9 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { updateInstructions } from '../src/agent-instructions.js';
-import { cacheBundleIntro, cacheUsageGuide, disabledTools } from '../src/cache-guidance.js';
 import { installClient, refreshWiring, uninstallClients } from '../src/clients.js';
 import { piExtension } from '../src/integrations/pi.js';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
 
 const cli = fileURLToPath(new URL('../src/cli.js', import.meta.url));
 const mcpEntry = { command: 'node', args: [fileURLToPath(new URL('../src/mcp.js', import.meta.url))] };
@@ -143,42 +141,5 @@ test('rewire takes the old workflow and rules out of a checkout and home no agen
   refreshWiring(null, { ...args, scope: 'user' });
   for (const f of user) assert.equal(read(f), 'mine\n', f);
   assert.deepEqual(refreshWiring(repo, args).changed, []);
-});
-
-test('the bundle header is one line naming no tool, and the guide names none either', () => {
-  const header = cacheBundleIntro();
-  assert.equal(header.split('\n').length, 1);
-  assert.match(header, /map, not a plan/);
-  for (const t of [header, cacheUsageGuide()]) assert.doesNotMatch(t, /\b(orient|lookup|find|drilldown|remember|feedback)\b|mcp__|ToolSearch/);
-  assert.match(cacheUsageGuide(), /<thinker-cache>/);
-});
-
-// the code tools stay switchable for the prompt hook's code (ops.js:codeForRequest)
-test('only orient and the code tools can be switched, orient on only where enabledTools names it', () => {
-  assert.deepEqual([...disabledTools({ disabledTools: [] })], ['orient']);
-  assert.deepEqual([...disabledTools({ disabledTools: ['find', 'lookup'] })].sort(), ['find', 'orient']);
-  assert.ok(!disabledTools({ enabledTools: ['orient'] }).has('orient'));
-});
-
-test('CLI feedback corrects an existing note; invalid input does not write, and a fresh checkout gets an empty cache', t => {
-  const { repo } = fixture(t);
-  fs.writeFileSync(path.join(repo, 'module.js'), 'export const version = 1;\n');
-  const store = new Store(repo).init();
-  const { note } = createNote(store, { kind: 'rule', title: 'Version rule', answers: ['version'], body: 'Old claim.', deps: [{ path: 'module.js' }] });
-  const run = input => spawnSync('node', [cli, 'feedback', '--repo', repo], { input: JSON.stringify(input), encoding: 'utf8', env: process.env });
-  const corrected = run({ id: note.id, useful: false, correction: 'Corrected claim.' });
-  assert.equal(corrected.status, 0, corrected.stderr);
-  assert.equal(store.get(note.id).body, 'Corrected claim.');
-  assert.ok(store.get(note.id).history.some(e => e.prevBody === 'Old claim.'));
-  const before = JSON.stringify(store.get(note.id));
-  assert.notEqual(run({ id: note.id, useful: 'false' }).status, 0);
-  assert.equal(JSON.stringify(store.get(note.id)), before);
-  assert.notEqual(run({ id: 'missing', useful: true }).status, 0);
-  // a git checkout without a cache gets one on first use (every git repository has a cache); the bad input still writes no note
-  const empty = fixture(t).repo;
-  const r = spawnSync('node', [cli, 'feedback', '--repo', empty], { input: '{}', encoding: 'utf8', env: process.env });
-  assert.notEqual(r.status, 0);
-  assert.ok(fs.existsSync(path.join(empty, '.thinker', 'config.json')));
-  assert.deepEqual(new Store(empty).list(), []);
 });
 

@@ -23,19 +23,19 @@ the rest) is not what the agent inside reads. When the container mounts the host
 pattern, so a login is not repeated -- the agent *does* read thinker's hooks, and every one of them names a
 path on the host that does not exist inside; each fails and the agent swallows it. Checked on 2026-11-05:
 running the host's hook command inside a `mcr.microsoft.com/devcontainers/javascript-node:22` container
-exits 1, with no trace anywhere. Either way the session is served no notes and nothing is learned from it,
+exits 1, with no trace anywhere. Either way the session gets no clearing and no profile, and nothing is learned from it,
 and the machine reports an agent used daily with no request against the cache.
 
 `thinker containers` lists the running containers that have a coding agent in them, what checkout each
 shares with this machine, and whether it can be wired. `thinker containers --install <id|name|all>` copies
 this build in (no network: `tar` over `docker exec`, the host's native modules left out, about 100 MB and
 8 seconds) and runs `connect` inside, so the agent's own files in the container name a path that exists
-there. The cache needs no copying: it lives in the checkout the container already mounts, so the notes and
+there. The cache needs no copying: it lives in the checkout the container already mounts, so the profile and
 what the session learns stay in the repository.
 
 Tested live on 2026-11-05 against that image, with the repository bind-mounted: detect, install, wire
-Claude Code and Codex inside, and the prompt hook there served a note out of the repository's cache with
-every pointer resolved against the code inside the container.
+Claude Code and Codex inside, and the prompt hook there ran against the repository's cache from inside the
+container.
 
 thinker asks about it itself, once. Maintenance looks at the machine at most daily (never the prompt hook:
 no prompt waits on `docker ps`) and records a container running an agent it is not inside; the next prompt
@@ -102,8 +102,7 @@ copy you want.
 - Hooks are merged into `~/.config/devin/config.json`, and the MCP server into
   `~/.config/devin/mcp_config.json` (`%APPDATA%\devin` on Windows). Existing hooks,
   model settings, permissions, routes and other MCP servers remain intact.
-- `UserPromptSubmit` delivers relevant notes; `PostToolUse` delivers file-related
-  notes and records tool inputs, output and errors. `Stop` checks the learning
+- `UserPromptSubmit` delivers the profile; `PostToolUse` records tool inputs, output and errors. `Stop` checks the learning
   backlog, and `SessionEnd` queues the remaining trace. Hooks do not rewrite commands.
 - Learning uses Devin's background `run_subagent` (`subagent_general`) and Thinker's `learn_next` MCP
   queue. No separate Claude/Codex login or API key is needed. Work queued when a
@@ -125,8 +124,8 @@ copy you want.
 - Print mode (`devin -p`) in the default permission mode rejects the first edit and ends
   the session without a final answer; such a session has nothing to distill. Use
   `--permission-mode accept-edits` (or an interactive session) for an end-to-end check.
-- `--no-learn` stops recording/learning, `--no-late` omits file-related notes, and
-  `--no-hooks` omits hook delivery. `--no-mcp` connects note delivery only and reports
+- `--no-learn` stops recording/learning, `--no-late` is accepted for compatibility, and
+  `--no-hooks` omits hook delivery. `--no-mcp` connects the hooks only and reports
   that session learning needs MCP. Rewire, doctor repair and uninstall recognize
   the adapter. Invalid JSON and JSON with comments are left unchanged with an error;
   automatic wiring currently requires plain JSON.
@@ -158,14 +157,13 @@ intact. The same sessions found the three faults fixed that day: the skill hook 
 by `connect`, the missing permission rule, and the record wiped by the worker's calls.
 Devin Desktop 3.11.238 (its bundled agent 3000.11.238, the **Devin CLI** entry of the
 Desktop's agent picker) was verified the same day on two local sessions: it reads the same
-`config.json` and `mcp_config.json`, the prompt hook served a note, reads, edits and the
+`config.json` and `mcp_config.json`, the prompt hook ran, reads, edits and the
 answer were recorded, the Desktop started the learning subagent on its own and the subagent
 answered a phrasing request and a distillation through `learn_next`. Not seen there: a
 `SessionEnd` event (the Desktop keeps a session open; the first session was distilled by
 the catch-up `learn` once it had been quiet twenty minutes). These are mechanism checks, not evidence of token
 savings or improved task correctness. Legacy Cascade is not claimed to have this automatic
-integration. The session model (SWE-1.6 Slow) answered every distillation request with no notes
-and no assessments, where a Claude dry run on one of the same records returned a confirmed
+integration. The session model (SWE-1.6 Slow) answered every learning request with nothing, where a Claude dry run on one of the same records returned a usable
 assessment: the loop runs, and what it learns from that model is an open question.
 
 **Devin Cloud is not supported (2026-11-02, the owner's call).** A cloud session runs on
@@ -302,13 +300,13 @@ been sent and no restricted build was requested or downloaded.
 ## No instructions, no agent tools
 
 Since 2026-10-22 thinker writes nothing into the agents' instruction files and offers the agent no MCP
-tools: the notes reach it through the prompt hook, under one line saying what they are. The workflow block
+tools: the profile reaches it through the prompt hook, headed as learned context, not instructions. The workflow block
 earlier versions wrote (in `~/.claude/CLAUDE.md`, `$CODEX_HOME/AGENTS.md`, `~/.gemini/GEMINI.md`, Cursor's
 `.cursor/rules/thinker.mdc`, Windsurf's and Copilot's rules and the other agents' global files) is taken out
 by the next `thinker update` (its `rewire`) and by the prompt hook's wiring check, leaving the rest of each
-file as it was. The MCP server stays registered: it answers thinker's own questions (coverage, harness) and,
+file as it was. The MCP server stays registered: it answers thinker's own questions (the context suggestion, the offers) and,
 in a desktop app, carries the learning queue (`learn_next`). Windsurf, which runs no prompt hook, gets no
-notes.
+profile.
 | Factory Droid | `~/.factory/AGENTS.md` |
 | Qwen Code | `~/.qwen/QWEN.md` (respects `QWEN_HOME`) |
 | Kiro CLI | `~/.kiro/steering/thinker.md` |
@@ -360,46 +358,11 @@ this checkout's setup and git hooks, the MCP server answering `tools/list`, and 
 ranking model. `thinker doctor --fix` repairs what it can (dependencies, missing or
 stale wiring, PATH, the model) and checks again.
 
-Pi, Windsurf and Copilot receive CLI commands rather than unavailable MCP tool
-names. They save notes with `thinker add note.json --source agent` and correct notes
-with `thinker feedback feedback.json` (or JSON on stdin):
-
-```json
-{"id":"note-id","useful":false,"correction":"Corrected body with file:Symbol pointers."}
-```
 
 The workflow respects disabled learning and tool controls. Installation tests cover
 all eight delivery paths, preservation of existing text, repeated installs, upgrade
 refresh, dry runs and removal. This verifies delivery, not that every model will
 follow every instruction.
-
-## Coverage
-
-| Client | Request context | File context | Learning capture | Follow-up retrieval |
-| --- | --- | --- | --- | --- |
-| Claude Code | Prompt hook | Post-tool hook | Native transcript | MCP |
-| Codex CLI | Prompt hook | Post-tool hook | Native transcript (the hook trace where it has no tool events) | MCP |
-| Gemini CLI | BeforeAgent | AfterTool | Native transcript | MCP |
-| Cursor | Prompt hook (`additional_context`; first tool call under `agent -p`) | Post-tool hook | Hook trace | MCP |
-| Pi | before_agent_start extension | tool_result extension | Prompt, tools, final answer; shutdown flush | none |
-| Devin CLI / Devin Local | UserPromptSubmit `hookSpecificOutput.additionalContext` | PostToolUse `hookSpecificOutput.additionalContext` | Prompt and tool results; session-end learning through the session queue | MCP (`~/.config/devin/mcp_config.json`) |
-| Windsurf Cascade | None (no prompt hook) | None | Prompt, reads, edits, commands, MCP results, response | none |
-| GitHub Copilot CLI | First successful tool after prompt | postToolUse | Prompt, tools/errors, stop/end | optional manual MCP |
-| OpenCode | chat.message plugin | tool.execute.after plugin | Prompt, successful tools, idle/end | MCP registered by plugin |
-| Copilot in VS Code (Local) | First tool call after the prompt (its UserPromptSubmit takes no context) | PostToolUse `hookSpecificOutput` | Prompt, tools, stop | MCP through the Copilot CLI's `mcp-config.json` (VS Code discovers it) |
-| Factory Droid | UserPromptSubmit, plain stdout (`~/.factory/hooks.json`, else the `hooks` of `settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (`~/.factory/mcp.json`) |
-| Qwen Code | UserPromptSubmit, plain stdout (`~/.qwen/settings.json`) | PostToolUse | Prompt, tools, stop/end | MCP (same file) |
-| Kiro CLI | UserPromptSubmit, plain stdout (V3 engine: `~/.kiro/hooks/thinker.json`) | none: Kiro ignores PostToolUse output | Prompt, tools, stop/end | MCP (`~/.kiro/settings/mcp.json`) |
-| Cline | UserPromptSubmit `contextModification` (extension); in the CLI, whose prompt hook fires only for its own `[SYSTEM]` nudges (3.0.73), the first tool call after the prompt | PostToolUse `contextModification` | Prompt, tools, task complete/cancel, shutdown | MCP (`~/.cline/data/settings/cline_mcp_settings.json`) |
-| Kilo Code | OpenCode's plugin (`~/.config/kilo/plugin/thinker.js`): chat.message | tool.execute.after | as OpenCode | MCP registered by plugin |
-| Auggie | none: Auggie has no prompt hook | PostToolUse `hookSpecificOutput` (`.sh` wrappers in `~/.augment/thinker`) | Tools; the prompt from the Stop hook's conversation data | MCP (`~/.augment/settings.json`) |
-| Goose | none: hooks give the model nothing | none | Prompt, tools (no output), stop/end, with learning on | MCP extension in `~/.config/goose/config.yaml` |
-
-File context is enabled with `--late`. Hook recording is enabled by default;
-`--no-learn` or `THINKER_NO_LEARN=1` disables it. Learning still requires an
-existing Thinker model backend (Anthropic API or a supported model CLI); these
-new hook integrations do not add model-provider adapters. Retrieval itself does
-not need model credentials.
 
 ## Desktop apps: model calls through the app, never a CLI
 
@@ -436,27 +399,25 @@ It checks pending learning jobs, retained failures, the live worker and unanswer
 model requests, and reports the last successful answer through the session queue.
 It does not start a CLI model probe for this path. An empty queue or installed MCP
 alone is not evidence that the app has answered a model request, and an answer is
-not proof that a new note was learned. Resume an app session to service waiting
+not proof that a session was read into the profile. Resume an app session to service waiting
 work; inspect `.thinker/state/session-work.log` for job failures. `doctor --fix`
 repairs wiring but does not launch background learning or discard failed jobs.
 
 ## End-of-turn notices
 
 All adapters install a stop callback when hooks are enabled, including with
-`--no-learn`. Notices describe notes actually served since the last one;
-an empty turn produces no cache-hit notice. `THINKER_NOTICE=off` or `notice: false`
+`--no-learn`. Notices describe what happened since the last one;
+an empty turn produces no notice. `THINKER_NOTICE=off` or `notice: false`
 in `.thinker/config.json` disables notices without disabling learning.
 
 A notice is a summary, not a line under every answer: one comes due when 20 prompts
 have passed since the last one **and** a day has gone by (`notice-cadence.js`). The
-first turn of a fresh cache speaks at once. While a summary waits, the notes served
-are collected and the line says what span it covers ("3 notes over the last 24
-prompts"); maintenance keeps its lines, and a stand-down or a broken skill is named
+first turn of a fresh cache speaks at once. While a summary waits, maintenance keeps its lines, and a stand-down or a broken skill is named
 in that summary rather than the turn it was found in. The cadence is the machine's,
 counted across every checkout, since what the person sees is one stream of messages;
 `notice: { "everyPrompts": 20, "everyHours": 24 }` in `.thinker/config.json` moves
 either floor, and 0 drops it. The cards come due the same way, so a box is not drawn
-under every answer either: the Claude Code card mod holds a turn's notes for the next
+under every answer either: the Claude Code card mod holds a turn's saving for the next
 card and says the span in its header, and the Codex desktop card waits before drawing
 a new one, while a card already referenced in the turn's answer is kept up to date.
 
@@ -481,7 +442,7 @@ while host support is being verified. `THINKER_NOTICE_CARD=off` disables cards;
 `THINKER_NOTICE=off` disables all notices.
 
 Cards are kept in `.thinker/state/notice-cards/`. One file per session and turn
-collects unique served notes and their existing code-size estimate. Misses and
+collects what the turn saved. Misses and
 held-out turns create no card. MCP without a hook session link reports only that
 retrieval. Previous cards remain on disk for chat history; removing the state
 folder may make those old cards unavailable. No extra model call or stop-hook
@@ -546,16 +507,6 @@ plugin on a machine without thinker does nothing.
   `src/integrations/pi.js` on the first event and serves every checkout as `thinker connect`'s extension
   does. Where that extension is in place (`~/.pi/agent/extensions/thinker.js`) the package stays quiet;
   without an installed thinker it says so once a session through pi's own notice.
-- **Notes through the proxy** (`thinker proxy --notes [--repo path]`, or `proxy: { notes: true }` in
-  `.thinker/config.json`; `src/proxy-notes.js`): for an agent that runs no prompt hook but honours a base
-  URL (Goose's `ANTHROPIC_HOST`, Aider's `ANTHROPIC_BASE_URL` and `OPENAI_BASE_URL`, any OpenAI-compatible
-  client; `--upstream` names the provider). Each request is the whole conversation: its last user turn is
-  the prompt, served once per conversation as the hook serves it (fresh notes, once, the holdout turn,
-  logged as client `proxy`) and put in front of that message's text; every later request of the
-  conversation gets the same text at the same turn, so the prompt cache keeps its prefix. A request
-  carrying a Claude Code session id is left to its hooks. Not reached: an agent whose calls go through its
-  vendor's servers (Windsurf, Auggie). Not covered: learning, since the proxy records no session. Off until
-  an experiment, like the rest of the proxy.
 - **Clearing old tool results through the proxy** (`thinker proxy --port n [--keep n|turn] [--trigger n]
   [--clear-at-least n]`): for any agent that speaks the Anthropic Messages API at a base URL the person can set
   (Claude Code's `ANTHROPIC_BASE_URL`, in the shell or in the `env` block of `~/.claude/settings.json`, which the
@@ -593,8 +544,7 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
-  **What it saved is shown in the session** (`src/compression.js`, 2026-10-29), the way the notes a turn was
-  served are: the API answers every cleared request with the tokens it left out of that prompt, and the cleared
+  **What it saved is shown in the session** (`src/compression.js`, 2026-10-29): the API answers every cleared request with the tokens it left out of that prompt, and the cleared
   set is cumulative within a conversation, so adding those up over a session is the whole of the saving, measured
   rather than modelled -- *the tokens the server left out of each prompt since the clear, added up*. The proxy
   writes them per session beside its log (`<THINKER_HOME>/state/compression/<session>.json`) so no card has to
@@ -602,7 +552,7 @@ plugin on a machine without thinker does nothing.
   (`TURNS_AFTER`), not at the clear: the first cleared call saves nothing anybody would notice, since the saving
   is every *later* call that reads the shorter prefix, and a card at that moment would show the cache rewrite and
   none of the return. Four doors, one sentence between them (`compressionHeader`, held together by
-  `test/claude-card.test.js`): the Claude Code card mod draws it under the answer beside the notes
+  `test/claude-card.test.js`): the Claude Code card mod draws it under the answer
   (`src/integrations/claude-card`), the Codex desktop card as a second section (`src/notice-card.js`), the Stop
   hook prints it where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report` prints it for the
   window. Like the cache-hit card's, the figure is gross: a clear also writes the prompt cache again from the
@@ -753,8 +703,7 @@ below are what `thinker setup --shared` and checkouts set up before 2026-10-15 u
 a checkout's own copy moves to the machine-wide one on its next prompt.
 
 - **Pi:** `.pi/extensions/thinker.js` loads Thinker's extension module. It adds a
-  custom context message and appends late notes to tool results without replacing
-  the original result. Uses the [extension event contracts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/extensions/types.ts).
+  custom context message without replacing tool results. Uses the [extension event contracts](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/src/core/extensions/types.ts).
   CLI follow-up retrieval works without an MCP extension or SDK dependency.
 - **Windsurf:** `.windsurf/hooks.json` records the documented `trajectory_id` and
   nested `tool_info` payloads. [Cascade hooks](https://docs.windsurf.com/windsurf/cascade/hooks)
@@ -767,7 +716,7 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
   summary. Retrieval depends on the agent following the rule.
 - **Copilot CLI:** `.github/hooks/thinker.json` uses native camelCase events and
   inputs. [Command prompt hooks discard output](https://docs.github.com/en/copilot/reference/hooks-reference),
-  so notes wait for a successful tool result, whose output accepts
+  so the profile waits for a successful tool result, whose output accepts
   `additionalContext`. A task that uses no tools receives no hook bundle; the
   instruction file `.github/instructions/thinker.instructions.md` provides CLI
   retrieval guidance. Hook payloads without a session ID are ignored rather than
@@ -798,7 +747,7 @@ recording, repeat installation, refresh, local excludes, and uninstall.
 host contracts, checking session isolation, preservation of tool output, options,
 and subprocess failure behavior. These are contract and subprocess tests, not
 live authenticated sessions in all four hosts. A release should smoke-test each
-supported host version with a known note, a prompt, a file read/edit, and session
+supported host version with a profile in place, a prompt, a file read/edit, and session
 end; inspect the trace and confirm the model actually received the context.
 
 ## Reducing tool and plugin context

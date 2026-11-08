@@ -35,7 +35,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     schemaVersion: 2, windowDays: WINDOW_DAYS,
     repositories: 0, repositoriesWithPrs: 0, unreadableRepositories: 0,
     merged: 0, mergedSeen: 0, mergedAssisted: 0, open: 0, worked: 0,
-    clearedTokens: 0, readingTokens: 0, savedTokens: 0,
+    clearedTokens: 0, savedTokens: 0,
     agentTokens: 0, completeTokenPrs: 0,
     // Dollars, netted, over the merged pull requests' sessions (the owner's ask, 2026-11-06: net savings per
     // device on the dashboard). Signed: a loss reads as a loss. `costedPrs` is how many of the merged pull
@@ -57,7 +57,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       if (report.prs.length) out.repositoriesWithPrs++;
       const s = report.summary;
       out.merged += s.merged; out.mergedSeen += s.mergedSeen; out.mergedAssisted += s.mergedAssisted; out.open += s.open; out.worked += s.worked;
-      out.clearedTokens += s.saved.cleared; out.readingTokens += s.saved.reading; out.savedTokens += s.saved.total;
+      out.clearedTokens += s.saved.cleared; out.savedTokens += s.saved.total;
       out.agentTokens += s.tokens.agent; out.completeTokenPrs += s.tokens.complete;
       out.savedUsd += s.cost?.saved || 0; out.rewriteUsd += s.cost?.rewrite || 0; out.netUsd += s.cost?.net || 0; out.costedPrs += s.cost?.costed || 0;
       out.linkedSessions += s.sessions.linked; out.unlinkedSessions += s.sessions.unlinked;
@@ -67,7 +67,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       }
     } catch { out.unreadableRepositories++; }
   }
-  for (const k of ['clearedTokens', 'readingTokens', 'savedTokens', 'agentTokens']) out[k] = Math.round(out[k]);
+  for (const k of ['clearedTokens', 'savedTokens', 'agentTokens']) out[k] = Math.round(out[k]);
   out.hoursToMerge = Math.round(out.hoursToMerge * 100) / 100;
   for (const k of ['savedUsd', 'rewriteUsd', 'netUsd']) out[k] = Math.round(out[k] * 100) / 100;
   return out;

@@ -72,10 +72,9 @@ async function telemetryCommand(ctx) {
   } catch {}
   out(`  Last sent:    ${lastSent}`);
   out(`  Install ID:   ${payload.installId}`);
-  out(`  Cache size:   ${payload.cacheSize.totalNotes} notes, ${(payload.cacheSize.totalBytes / 1024).toFixed(1)} KB across ${payload.cacheSize.repositoriesCount} repositories`);
-  out(`  Effectiveness:${payload.effectiveness.requestsTotal} requests, ${payload.effectiveness.requestsAnswered} answered (${(payload.effectiveness.hitRate * 100).toFixed(1)}% hit rate)`);
-  out(`  Confirmed:    ${payload.effectiveness.assessed.confirmed} of ${(payload.effectiveness.assessed.confirmed + payload.effectiveness.assessed.contradicted + payload.effectiveness.assessed.unused)} assessed (${(payload.effectiveness.assessed.confirmationRate * 100).toFixed(1)}%)`);
-  out(`  Net tokens:   ${payload.effectiveness.estimatedSavings.netTokensSaved >= 0 ? '+' : ''}${payload.effectiveness.estimatedSavings.netTokensSaved.toLocaleString()} tokens saved (estimate)`);
+  out(`  Caches:       ${payload.cacheSize.repositoriesCount} repositories, ${payload.cacheSize.profiles} with a profile (${payload.cacheSize.observations} observations)`);
+  out(`  Activity:     ${payload.activity.requestsTotal} requests in ${payload.activity.sessions} sessions`);
+  out(`  Profile:      shown in ${payload.profile.served.shown} sessions, held out of ${payload.profile.served.holdout} (30 days)`);
   if (payload.clients?.detected?.length) {
     const activeSummary = Object.entries(payload.clients.activeRequests || {}).filter(([_, n]) => n > 0).map(([c, n]) => `${c}:${n}`).join(', ') || 'none';
     out(`  Clients:      detected: ${payload.clients.detected.join(', ')}; active requests: ${activeSummary}`);

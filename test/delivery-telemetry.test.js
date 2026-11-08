@@ -44,8 +44,7 @@ test('pull request metrics are numbers only, and name nothing', t => {
   assert.equal(d.mergedAssisted, 2);
   assert.equal(d.worked, 2);
   assert.equal(d.clearedTokens, 150_000);        // measured
-  assert.equal(d.readingTokens, 18_000);         // estimated, one confirmed serving each
-  assert.equal(d.savedTokens, 168_000);
+  assert.equal(d.savedTokens, 150_000);
   assert.equal(d.agentTokens, 400_000);          // the session that reported none adds nothing
   assert.equal(d.completeTokenPrs, 1);
   assert.equal(d.linkedSessions, 2);
@@ -73,7 +72,6 @@ test('the payload carries them, and the metrics API promotes them to columns', t
   assert.equal(row.prs_merged_assisted, 1);
   assert.equal(row.pr_saved_tokens, payload.prs.savedTokens);
   assert.equal(row.pr_cleared_tokens, payload.prs.clearedTokens);
-  assert.equal(row.pr_reading_tokens, payload.prs.readingTokens);
   assert.equal(row.pr_agent_tokens, payload.prs.agentTokens);
   assert.equal(row.prs_linked_sessions, 1);
   assert.deepEqual(JSON.parse(row.raw_json).prs, payload.prs);

@@ -4,9 +4,10 @@ import { costOfInputSavings, listPrice } from './prices.js';
 import { sessionKey } from './usage.js';
 import { clearedOf, clearedEstimated } from './cutting.js';
 
-const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedTokens: 0, estimatedTokens: 0, hits: 0 });
-export const SAVINGS_SERIES = [['cache', 'Cache hits'], ['compression', 'Context compression']];
-export function weeklySavings({ columns, now, config, cache = [], events = [], compression = [], sessions = [], origin, ownership = [] }) {
+const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedTokens: 0, estimatedTokens: 0 });
+// One series since 2026-11-08: the cache-hits series (reading the notes avoided, an estimate) went with the notes.
+export const SAVINGS_SERIES = [['compression', 'Context compression']];
+export function weeklySavings({ columns, now, config, events = [], compression = [], sessions = [], origin, ownership = [] }) {
   const series = SAVINGS_SERIES.map(([key, name]) => ({ key, name, cells: columns.map(empty) }));
   const at = t => columns.findIndex((c, i) => t >= c.t && t < (columns[i + 1]?.t ?? Infinity) && t <= now);
   const account = (kind, r, tokens, cost) => {
@@ -18,13 +19,8 @@ export function weeklySavings({ columns, now, config, cache = [], events = [], c
     else { c.cost += cost; c.pricedEvents++; }
     if (r.estimated) c.estimatedTokens += tokens;
   };
-  for (const r of cache) account(0, r, r.tokens, costOfInputSavings(r, listPrice(r.model, { config })));
   const known = new Set(sessions.map(s => sessionKey(s.session)));
-  for (const e of events) {
-    if (e.session) known.add(sessionKey(e.session));
-    const w = at(Date.parse(e.t));
-    if (w >= 0 && ['orient', 'late', 'lookup'].includes(e.op)) series[0].cells[w].hits += e.served?.length || 0;
-  }
+  for (const e of events) if (e.session) known.add(sessionKey(e.session));
   // A session may visit several repositories. Attribute each request once, to the
   // last repository its hooks named before that request (or its first known one).
   const owners = new Map();
@@ -50,7 +46,7 @@ export function weeklySavings({ columns, now, config, cache = [], events = [], c
     // request, including subsequent cached reads (cutting.js:clearedOf).
     const estimated = clearedEstimated(r), tokens = clearedOf(r);
     if (!Number.isFinite(tokens) || tokens < 0) continue;
-    account(1, { ...r, estimated }, tokens, costOfInputSavings({ cacheRead: tokens }, listPrice(r.model, { config })));
+    account(0, { ...r, estimated }, tokens, costOfInputSavings({ cacheRead: tokens }, listPrice(r.model, { config })));
   }
   return series;
 }

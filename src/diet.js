@@ -16,11 +16,30 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { outlineText } from './codegraph.js';
-import { sessionState, locked } from './ops.js';
+import { sessionState, locked } from './session-state.js';
 import { classifyTestCommand, parseTestOutput, summarize, stripAnsi, testsConfig, logPathFor, pruneLogs } from './test-output.js';
 import { textOf } from './transcripts.js';
 import { bashProgram, toolKey } from './tool-outputs.js';
+
+// The definitions a file declares, by regex (the tree-sitter outline went with the code tools, 2026-11-08): what a
+// trimmed file's header names so the agent knows what else is in it.
+const DEF_WORDS = '(?:def|class|function\\*?|interface|type|enum|struct|trait|impl|fn|func|module|macro_rules!)';
+const NORM_KIND = { def: 'function', fn: 'function', func: 'function', 'function*': 'function', 'macro_rules!': 'macro' };
+export function outlineText(text, file, { limit = 80 } = {}) {
+  const out = []; const lines = String(text || '').split('\n');
+  const re = new RegExp(`^(\\s*)(?:export\\s+(?:default\\s+)?)?(?:pub(?:\\([^)]*\\))?\\s+)?(?:async\\s+)?(?:(${DEF_WORDS})\\s+([A-Za-z_]\\w*)|(?:const|let|var)\\s+([A-Za-z_]\\w*)\\s*[=:]\\s*(?:async\\s+)?(?:function|\\(|[A-Za-z_]\\w*\\s*=>)|([A-Za-z_]\\w*)\\s*\\([^)]*\\)\\s*\\{)`);
+  const parents = []; // [{name, indent}] for Python-style nesting
+  for (let i = 0; i < lines.length && out.length < limit; i++) {
+    const m = re.exec(lines[i]); if (!m) continue;
+    const indent = m[1].length; const name = m[3] || m[4] || m[5]; let kind = NORM_KIND[m[2]] || m[2] || (m[5] ? 'method' : 'const');
+    while (parents.length && parents[parents.length - 1].indent >= indent) parents.pop();
+    const parent = parents.length ? parents[parents.length - 1].name : null;
+    if (kind === 'function' && parent) kind = 'method';
+    out.push({ name, parent, kind, line: i + 1 });
+    if (/^(class|struct|impl|trait|interface|module|enum)$/.test(kind)) parents.push({ name, indent });
+  }
+  return out;
+}
 
 export const DIET = {
   enabled: false,

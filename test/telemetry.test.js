@@ -45,31 +45,6 @@ afterEach(() => {
   else process.env.THINKER_TELEMETRY = originalTelemetry;
 });
 
-test('distillation telemetry preserves measured outcomes and unknown provider cost', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-distillation-metrics-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-distillation-home-'));
-  try {
-    const store = new Store(tmpRepo).init();
-    store.log({ op: 'distill-run', failed: false, durationMs: 200 });
-    store.log({ op: 'distill-run', failed: true, durationMs: 800 });
-    store.log({ op: 'distill-run', failed: true, durationMs: 9999, dry: true });
-    store.log({ op: 'distill', saved: [], merged: [], metered: true });
-    store.log({ op: 'model', purpose: 'distill', cost: null, failed: true, usage: null });
-    const d = buildTelemetryPayload(store, { home: tmpHome, all: false }).distillation;
-    assert.equal(d.attempts, 2); assert.equal(d.failed, 1); assert.equal(d.succeeded, 1);
-    assert.equal(d.durationMs, 1000); assert.equal(d.durationSamples, 2);
-    assert.equal(d.reportedCostUsd, null); assert.equal(d.costUnknownCalls, 1);
-    assert.equal(d.reportedTokens, null); assert.equal(d.noChanges, 1);
-    store.log({ op: 'model', purpose: 'distill', cost: 0.03, usage: { input_tokens: 10, output_tokens: 5 } });
-    const partial = buildTelemetryPayload(store, { home: tmpHome, all: false }).distillation;
-    assert.equal(partial.reportedCostUsd, 0.03); assert.equal(partial.costKnownCalls, 1);
-    assert.equal(partial.costUnknownCalls, 1); assert.equal(partial.reportedTokens, 15);
-    assert.equal(partial.tokenUnknownCalls, 1);
-  } finally {
-    removeTree(tmpRepo); removeTree(tmpHome);
-  }
-});
-
 test('isTelemetryEnabled honors environment flags and config overrides', () => {
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-telem-home-'));
   try {
@@ -119,8 +94,6 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
   try {
     const store = new Store(tmpRepo).init();
-    store.put({ id: 'test-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
-    store.put({ id: 'test-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
 
     const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
 
@@ -128,15 +101,13 @@ test('buildTelemetryPayload constructs anonymous high-level metrics without sens
     assert.ok(payload.deviceId === null || /^v1:[a-f0-9]{64}$/.test(payload.deviceId));
     assert.ok(payload.version);
     assert.equal(payload.periodHours, 24);
-    assert.ok(payload.cacheSize.totalNotes >= 2);
-    assert.ok(payload.cacheSize.kinds.map >= 1);
-    assert.ok(payload.cacheSize.kinds.rule >= 1);
+    assert.ok(payload.cacheSize.repositoriesCount >= 1);
+    assert.equal(typeof payload.cacheSize.observations, 'number');
 
     // Assert effectiveness structure
-    assert.equal(typeof payload.effectiveness.requestsTotal, 'number');
-    assert.equal(typeof payload.effectiveness.hitRate, 'number');
-    assert.equal(typeof payload.effectiveness.tokensServed, 'number');
-    assert.equal(typeof payload.effectiveness.estimatedSavings.netTokensSaved, 'number');
+    assert.equal(typeof payload.activity.requestsTotal, 'number');
+    assert.equal(typeof payload.activity.sessions, 'number');
+    assert.ok(payload.profile && typeof payload.profile.served.shown === 'number');
 
     // Strict privacy guarantee: no sensitive code, file paths, or note contents
     const jsonStr = JSON.stringify(payload);
@@ -229,60 +200,6 @@ test('sendTelemetry handles network errors gracefully without crashing', async (
   }
 });
 
-test('computeCacheMetrics accurately counts local store notes on fresh install without prior log', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
-  const origHome = process.env.THINKER_HOME;
-  try {
-    process.env.THINKER_HOME = tmpHome;
-    const store = new Store(tmpRepo).init();
-    store.put({ id: 'test-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
-    store.put({ id: 'test-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
-
-    const metrics = computeCacheMetrics(store, { home: tmpHome, all: true });
-    assert.equal(metrics.totalNotes, 2, 'fresh installation must reflect local store notes');
-    assert.equal(metrics.repositoriesCount, 1, 'fresh installation must count the repository');
-    assert.equal(metrics.kinds.map, 1);
-    assert.equal(metrics.kinds.rule, 1);
-    assert.ok(metrics.totalBytes > 0);
-  } finally {
-    if (origHome) process.env.THINKER_HOME = origHome;
-    else delete process.env.THINKER_HOME;
-    removeTree(tmpRepo);
-    removeTree(tmpHome);
-  }
-});
-
-test('computeCacheMetrics counts the notes of a cache the log last named days ago: the report is a daily window, the notes are not', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
-  const idleRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-idle-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
-  const origHome = process.env.THINKER_HOME;
-  try {
-    process.env.THINKER_HOME = tmpHome;
-    const idle = new Store(idleRepo).init();
-    idle.put({ id: 'idle-note-1', kind: 'location', title: 'Route handling', body: 'router.js:handle handles requests' });
-    idle.put({ id: 'idle-note-2', kind: 'gotcha', title: 'Header parsing', body: 'headers.js:parse requires utf8' });
-    idle.log({ t: new Date(Date.now() - 3 * 86400_000).toISOString(), op: 'orient', client: 'claude', task: 'routes', served: ['idle-note-1'] });
-
-    // the hourly job runs outside any checkout: its own store holds nothing
-    const store = new Store(tmpRepo).init();
-    const metrics = computeCacheMetrics(store, { home: tmpHome, all: true });
-    assert.equal(metrics.totalNotes, 2, 'a quiet day must not empty the notes count');
-    assert.equal(metrics.repositoriesCount, 1);
-
-    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: true });
-    assert.equal(payload.cacheSize.totalNotes, 2);
-    assert.equal(payload.retrieval.requestsTotal, 0, 'requests keep the daily window');
-  } finally {
-    if (origHome) process.env.THINKER_HOME = origHome;
-    else delete process.env.THINKER_HOME;
-    removeTree(tmpRepo);
-    removeTree(idleRepo);
-    removeTree(tmpHome);
-  }
-});
-
 test('buildTelemetryPayload and sendTelemetry tag event type (install vs hourly vs daily)', async () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-repo-'));
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
@@ -343,7 +260,6 @@ test('cli setup sends installation telemetry in background', async () => {
 
   // Add a sample note to verify note counts
   const store = new Store(tmpRepo).init();
-  store.put({ id: 'note-1', kind: 'location', title: 'Location note', body: 'app.js handles routes' });
 
   const received = [];
   const server = http.createServer((req, res) => {
@@ -384,7 +300,6 @@ test('cli setup sends installation telemetry in background', async () => {
 
     assert.equal(received.length, 1, 'telemetry payload should be received');
     assert.equal(received[0].event, 'install');
-    assert.equal(received[0].cacheSize.totalNotes, 1);
     assert.equal(received[0].cacheSize.repositoriesCount, 1);
     // a CLI spawned by a test never leaves a real hourly job behind (it would report to production)
     assert.equal(telemetryScheduleState(tmpHome).type, undefined);
@@ -536,8 +451,8 @@ test('cli telemetry and telemetry --json run cleanly and show hourly event', () 
     assert.ok(parsed.clients);
     assert.equal(parsed.clients.schemaVersion, 1);
     assert.ok(Array.isArray(parsed.clients.detected));
-    assert.ok(parsed.retrieval);
-    assert.equal(parsed.retrieval.schemaVersion, 1);
+    assert.ok(parsed.activity);
+    assert.equal(parsed.activity.schemaVersion, 1);
   } finally {
     removeTree(tmpRepo);
     removeTree(tmpHome);
@@ -549,8 +464,6 @@ test('telemetry payload captures client adoption breakdown and detected clients'
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-clients-home-'));
   try {
     const store = new Store(tmpRepo).init();
-    store.put({ id: 'note-1', kind: 'location', title: 'Location note', body: 'body' });
-    store.put({ id: 'note-2', kind: 'howto', title: 'Howto note', body: 'body' });
 
     store.log({ op: 'orient', client: 'claude', session: 'sess-claude', served: ['note-1'] });
     store.log({ op: 'orient', client: 'cursor', session: 'sess-cursor', served: ['note-1', 'note-2'] });
@@ -567,124 +480,13 @@ test('telemetry payload captures client adoption breakdown and detected clients'
     assert.equal(payload.clients.activeRequests.cursor, 1);
     assert.equal(payload.clients.activeRequests.codex, 1);
     assert.equal(payload.clients.activeRequests.gemini, 1);
-    assert.equal(payload.clients.activeRequests.mcp, 1);
+    assert.equal(payload.clients.activeRequests.mcp, 0, 'a lookup was never a prompt');
 
-    assert.equal(payload.clients.servings.claude, 2);
-    assert.equal(payload.clients.servings.cursor, 2);
-    assert.equal(payload.clients.servings.codex, 1);
-    assert.equal(payload.clients.servings.gemini, 0);
-    assert.equal(payload.clients.servings.mcp, 1);
 
     assert.equal(payload.clients.sessions.claude, 1);
     assert.equal(payload.clients.sessions.cursor, 1);
     assert.equal(payload.clients.sessions.codex, 1);
-    assert.equal(payload.clients.sessions.gemini, 0);
-  } finally {
-    removeTree(tmpRepo);
-    removeTree(tmpHome);
-  }
-});
-
-test('telemetry payload captures retrieval quality metrics, staleness, and guard triggers', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-retrieval-repo-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-retrieval-home-'));
-  try {
-    const store = new Store(tmpRepo).init();
-    store.put({ id: 'n1', kind: 'callpath', title: 'Callpath note', body: 'body', status: 'stale' });
-    store.put({ id: 'n2', kind: 'gotcha', title: 'Gotcha note', body: 'body', status: 'fresh' });
-
-    // Request 1: 2 served (1 stale, 1 fresh), 2 uncovered terms, duration 45ms
-    store.log({ op: 'orient', client: 'claude', session: 's1', served: ['n1', 'n2'], stale: ['n1'], uncovered: ['foo_bar', 'baz_qux'], durationMs: 45 });
-    // Request 2: empty (0 notes served), duration 15ms
-    store.log({ op: 'orient', client: 'claude', session: 's2', served: [], durationMs: 15 });
-    // Request 3: lookup, 1 served fresh, duration 30ms
-    store.log({ op: 'lookup', client: 'mcp', served: ['n2'], durationMs: 30 });
-
-    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
-
-    assert.equal(payload.retrieval.schemaVersion, 1);
-    assert.equal(payload.retrieval.requestsTotal, 3);
-    assert.equal(payload.retrieval.requestsAnswered, 2);
-    assert.equal(payload.retrieval.emptyRequests, 1);
-    assert.equal(payload.retrieval.hitRate, 0.667);
-
-    assert.equal(payload.retrieval.staleNotesServed, 1);
-    assert.equal(payload.retrieval.freshNotesServed, 2);
-    assert.equal(payload.retrieval.staleServingRate, 0.333);
-
-    assert.equal(payload.retrieval.guardTriggeredCount, 1);
-    assert.equal(payload.retrieval.guardUncoveredTerms, 2);
-
-    assert.equal(payload.retrieval.durationMs, 90);
-    assert.equal(payload.retrieval.durationSamples, 3);
-    assert.equal(payload.retrieval.averageDurationMs, 30);
-
-    assert.equal(payload.retrieval.servedByKind.map, 1);
-    assert.equal(payload.retrieval.servedByKind.rule, 2);
-  } finally {
-    removeTree(tmpRepo);
-    removeTree(tmpHome);
-  }
-});
-
-test('cache topology metrics aggregate statuses, sources, and dependency granularity', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-topology-repo-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-topology-home-'));
-  try {
-    const store = new Store(tmpRepo).init();
-    store.put({
-      id: 'note-agent',
-      kind: 'location',
-      title: 'Agent note',
-      body: 'body',
-      status: 'fresh',
-      source: { type: 'agent' },
-      confidence: 0.9,
-      deps: [{ path: 'foo.js', symbol: 'func' }, { path: 'bar.js' }],
-    });
-    store.put({
-      id: 'note-pr',
-      kind: 'gotcha',
-      title: 'PR note',
-      body: 'body',
-      status: 'stale',
-      source: { type: 'pr' },
-      confidence: 0.6,
-      deps: [{ path: 'baz.js' }],
-    });
-
-    const metrics = computeCacheMetrics(store, { home: tmpHome, all: false });
-
-    assert.equal(metrics.totalNotes, 2);
-    assert.equal(metrics.statuses.fresh, 1);
-    assert.equal(metrics.statuses.stale, 1);
-    assert.equal(metrics.sources.agent, 1);
-    assert.equal(metrics.sources.pr, 1);
-    assert.equal(metrics.confidenceBuckets.high, 1);
-    assert.equal(metrics.confidenceBuckets.medium, 1);
-    assert.equal(metrics.confidenceBuckets.low, 0);
-    assert.equal(metrics.symbolDepRatio, 0.333); // 1 symbol dep out of 3 total deps
-  } finally {
-    removeTree(tmpRepo);
-    removeTree(tmpHome);
-  }
-});
-
-
-
-test('telemetry payload carries re-verification verdicts and doubted passes as 30-day counts', () => {
-  const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-verification-repo-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-verification-home-'));
-  try {
-    const store = new Store(tmpRepo).init();
-    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
-    store.log({ op: 'distill', transcript: 'x', saved: [], merged: [], deferred: 1, contradicted: ['n1'] });
-    store.log({ op: 'verify', id: 'n1', verdict: 'still_valid' });
-    store.log({ op: 'verify', id: 'n2', verdict: 'update' });
-    store.log({ op: 'verify', id: 'n3', verdict: 'invalid' });
-    const payload = buildTelemetryPayload(store, { home: tmpHome, days: 1, all: false });
-    assert.deepEqual(payload.verification, { schemaVersion: 1, windowDays: 30, stillValid: 2, updated: 1, retired: 1, passFlaggedLater: 1, passWhileFlagged: 1 });
-    assert.doesNotMatch(JSON.stringify(payload.verification), /n1|n2|n3/, 'counts only, no note ids');
+    assert.equal(payload.clients.sessions.gemini, 1, 'a prompt served nothing is still a session');
   } finally {
     removeTree(tmpRepo);
     removeTree(tmpHome);
@@ -806,60 +608,6 @@ test('telemetry says what kind of machine the counts were read on, and keeps one
   } finally { removeTree(h); }
 });
 
-test('computeCacheMetrics counts a repository\'s notes once, from its fullest checkout, not again for each worktree', () => {
-  const main = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-main-'));
-  const old = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-old-wt-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
-  const origHome = process.env.THINKER_HOME;
-  try {
-    process.env.THINKER_HOME = tmpHome;
-    for (const dir of [main, old]) {
-      execFileSync('git', ['-C', dir, 'init', '-q']);
-      execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'https://github.com/acme/app.git']);
-    }
-    const a = new Store(main).init();
-    for (const i of [1, 2, 3]) a.put({ id: `n${i}`, kind: 'rule', title: `Rule ${i}`, body: 'app.js:run' });
-    a.log({ op: 'orient', client: 'claude', task: 'run', served: ['n1'] });
-    // an old worktree: a copy of two of the notes, stale, which no maintenance there will refresh
-    const b = new Store(old).init();
-    for (const i of [1, 2]) b.put({ id: `n${i}`, kind: 'rule', title: `Rule ${i}`, body: 'app.js:run', status: 'stale' });
-    b.log({ op: 'orient', client: 'claude', task: 'run', served: [] });
-
-    const metrics = computeCacheMetrics(new Store(main), { home: tmpHome, all: true });
-    assert.equal(metrics.repositoriesCount, 1);
-    assert.equal(metrics.totalNotes, 3);
-    assert.deepEqual(metrics.statuses, { fresh: 3, stale: 0, invalid: 0 });
-    assert.equal(metrics.kinds.rule, 3);
-  } finally {
-    if (origHome) process.env.THINKER_HOME = origHome;
-    else delete process.env.THINKER_HOME;
-    for (const d of [main, old, tmpHome]) removeTree(d);
-  }
-});
-
-test('computeCacheMetrics counts the repositories with a cache now, not every checkout the log ever named', () => {
-  const live = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-live-'));
-  const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-gone-'));
-  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-home-'));
-  const origHome = process.env.THINKER_HOME;
-  try {
-    process.env.THINKER_HOME = tmpHome;
-    const a = new Store(live).init();
-    a.put({ id: 'n1', kind: 'rule', title: 'Rule', body: 'app.js:run' });
-    a.log({ op: 'orient', client: 'claude', task: 'run', served: [] });
-    new Store(gone).init().log({ op: 'orient', client: 'claude', task: 'run', served: [] });
-    removeTree(gone); // a test run's temporary checkout, long removed
-    const metrics = computeCacheMetrics(new Store(live), { home: tmpHome, all: true });
-    assert.equal(metrics.repositoriesCount, 1);
-    assert.equal(metrics.totalNotes, 1);
-  } finally {
-    if (origHome) process.env.THINKER_HOME = origHome;
-    else delete process.env.THINKER_HOME;
-    for (const d of [live, gone, tmpHome]) removeTree(d);
-  }
-});
-
-// --- token spend: the proxy, the actions taken and what they measured ---------------------------------------
 test('proxy telemetry reports the service, both sides of its holdout, the models and the errors', () => {
   const tmpRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-metrics-'));
   const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-home-'));

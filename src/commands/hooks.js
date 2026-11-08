@@ -2,30 +2,25 @@ import { isTestMode } from '../test-mode.js';
 import { gitContext, tryDelivery } from '../delivery-journal.js';
 // The hook entrypoints the agents call (clients.js installs them): prompt, tool and stop, with the
 // background catch-up they start. JSON on stdin, the client's answer on stdout.
-import { noticeCard } from '../notice-card.js';
-import { ceConfig } from '../dense.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { cacheBundleIntro, disabledTools } from '../cache-guidance.js';
-import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, orientedFile, agyTurnPrompt } from '../clients.js';
+import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, agyTurnPrompt } from '../clients.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
-import { parseTranscript, batchDue } from '../distill.js';
 import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { codeForRequest, orient, HOOK_BUDGET, servesNotes, rememberTask, outcome, looksLikeCorrection, lateNotes, onSightNotes, onSightConfig, onSightOutlines, onSightOutlineConfig, peekTurn, takeTurn, beginTurn, holdoutTurn, isHarnessEvent } from '../ops.js';
-import { recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
-import { turnNotice, turnFooterMarkdown, weeklyNotice, compressionNotice, formatTokens, sessionInputSavings } from '../usage.js';
+import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
+import { parseTranscript, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
+import { compressionNotice, formatTokens } from '../usage.js';
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
-import { inputNoticeChanged } from '../cache-savings.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
 import { profileTurn, profileArmOf } from '../profile.js';
+import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
-import { noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../notice-cadence.js';
+import { noticeDue, noticeShown, countPrompt, holdNotice } from '../notice-cadence.js';
 import { setupRepo } from '../repo-onboard.js';
-import { coverageOffer, recordAccess } from '../coverage.js';
 import { proxyOffer } from '../proxy-offer.js';
 import { containersOffer } from '../containers-offer.js';
 import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
@@ -133,19 +128,14 @@ async function hookCommand(ctx) {
       if (!noticeOn(store)) return '';
       try { return savingsLine(readSavings(store)); } catch { return ''; }
     };
-    // Cursor's stop hook has no user-facing message field (clients.js:stopOutput); when notes are served in
-    // Cursor, ask the agent to end its reply with a Markdown table card box.
-    // Cursor has no message field at the end of a turn, so the card is asked for in the agent's own
-    // reply -- which makes it the door the cadence has to hold back there (notice-cadence.js).
-    const cursorFootnote = notes => {
+    // Cursor has no message field at the end of a turn (clients.js:stopOutput), so what thinker has to say there
+    // is asked for in the agent's own reply, once the cadence says so (notice-cadence.js).
+    const cursorFootnote = () => {
       if (client !== 'cursor' || !noticeOn(store)) return '';
-      const due = noticeDue(store);
-      // held turns are counted once a turn, by the Stop hook below, which sees everything the turn served
-      if (!due.due) return '';
-      const held = pendingNotice(store);
-      const footer = turnFooterMarkdown(store.repo, [...held.ids.map(id => store.get(id)).filter(Boolean), ...(notes || [])], { input: sessionInputSavings(store, session), prompts: held.turns + 1, savings: moneyLine() });
-      if (footer) noticeShown(store);
-      return footer ? `\n\nEnd your reply to the user with this exact Markdown table at the very bottom (do not wrap it in a code block):\n${footer}` : '';
+      if (!noticeDue(store).due) return '';
+      const money = moneyLine();
+      if (money) noticeShown(store);
+      return money ? `\n\nEnd your reply to the user with this exact line at the very bottom: ${money}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
     if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy', 'devin'].includes(client) && session === 'unknown') return;
@@ -172,14 +162,9 @@ async function hookCommand(ctx) {
       if (isWorkerPrompt(ev.prompt)) { if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, '')); return; }
       // Cursor answers once, in JSON: {continue}, with the bundle as additional_context (clients.js:promptOutput)
       let said = '';
-      // the cross-encoder was abandoned at the deadline (ops.js:orient): the hook exits once it has written, since the
-      // inference in flight would otherwise keep the process alive past the host's limit
-      let exitNow = false;
       await (async () => {
         if (store.exists() && session !== 'unknown') tryDelivery(store, { op: 'observation', session, client, ...gitContext(repo) });
         if (parks || client === 'cursor' || client === 'agy') takePending(store.dir, session);
-        // the turn's prompt hook ran: the tool hook's fallback for Cursor modes without one stays out of it
-        if (client === 'cursor') { const f = orientedFile(store.dir, ev.generation_id || session); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, ''); }
         // what Cursor loaded into this chat, which its transcript does not record (harness-cursor.js)
         if (client === 'cursor' && harnessOn(store) && (!isTestMode() || process.env.THINKER_HOME)) { try { snapshotCursorInventory({ session, roots: [...(ev.workspace_roots || []), repo], transcript: ev.transcript_path, thinkerHome: thinkerHome() }); } catch {} }
         if (flags.record && store.exists()) { recordEvent(store.dir, session, { t: 'prompt', text: ev.prompt }); learnInBackground(ctx, client); }
@@ -188,6 +173,8 @@ async function hookCommand(ctx) {
         // were about 0.6 s of git and file reads, and the hook was being cut off at its 15 s limit on a loaded
         // machine (2026-10-22). `thinker update` runs `rewire` for every checkout as it is.
         if (store.exists() && wiringDue(path.join(store.dir, 'state', 'wiring-checked.json'), cli)) {
+          // what this checkout kept of the knowledge notes goes, once (notes-retired.js); `thinker rewire` does the same for the known checkouts
+          try { retireNotes(store); } catch {}
           // another, older copy of thinker still wired into this checkout fires on every prompt too: take its entries out
           try { const pruned = pruneInstalls(repo, { cli, mcpEntry: mcpEntry(), olderOnly: true }); if (pruned.length) { store.log({ op: 'prune', removed: pruned }); reportPruned(store, prunedLines(pruned)); } } catch {}
           // and the entries of this copy are rewritten when this version writes them differently (a new event, a changed command)
@@ -199,12 +186,8 @@ async function hookCommand(ctx) {
         if (store.exists() && userScope && wiringDue(path.join(thinkerHome(), 'state', 'wiring-checked-user.json'), cli)) { try { const w = refreshWiring(null, { scope: 'user', cli, mcpEntry: ctx.userMcpEntry() }); if (w.changed.length) { store.log({ op: 'rewire', scope: 'user', files: w.changed }); reportPruned(store, [`rewrote ${w.changed.join(', ')} for this version of thinker`]); } } catch {} }
         // Goose's hooks only record: what they print never reaches the model, so nothing is oriented or counted as served
         if (client === 'goose') return;
-        // Once per session, what the code tools are and how to reach them: only with the first bundle that
-        // serves a note. A session the cache has nothing for gets nothing at all (2026-10-07: on the Click
-        // canary the intro, the workflow text and the schemas were the whole cost of the arm the notes did
-        // not help). A held-out turn gets neither the intro nor the notes (ops.js:beginTurn): the holdout
-        // compares turns with thinker's help against turns without; the intro waits for a served turn.
-        const { turn, holdout } = store.exists() ? beginTurn(store, session) : { turn: 0, holdout: false };
+        // the session's next turn: its number is what the tool and stop hooks, the diet and the compression clock carry
+        const { turn } = store.exists() ? beginTurn(store, session) : { turn: 0 };
         // the request's identifiers, for the context diet (diet.js; off until an experiment)
         if (store.exists() && client === 'claude' && dietConfig(store).enabled) rememberTerms(store, session, { prompt: ev.prompt });
         const emit = text => { if (client === 'cursor' || client === 'agy' || (client === 'cline' && !parks)) said = text; else if (parks) parkPending(store.dir, session, text); else out(promptOutput(client, text)); };
@@ -214,67 +197,41 @@ async function hookCommand(ctx) {
         // queued learning of an app session (session-work.js): the runner starts and the agent is told to start
         // its subagent; the ancestry is walked only when jobs wait
         const work = !isTestMode() && !NO_LEARN && pendingJobs(store).length && desktopApp(subagentHarness(client)) ? startSessionWork(store, { cli, harness: subagentHarness(client) }) : '';
-        // a weekly suggestion of directories to cover (coverage.js)
         // never in a benchmark or test session (THINKER_TEST=1): an offer there is noise in the agent's context and an
         // eval runner marks the session invalid for it (2026-10-18); THINKER_OFFERS=on restores them, for the tests of the offers
         const offersOn = !isTestMode() || process.env.THINKER_OFFERS === 'on';
         // a trimmed copy of AGENTS.md an older version kept for this checkout goes (trimmed-copy-retired.js): four stats
         try { retireTrimmedCopy(store); } catch {}
         // a switched-off tool this request looks like it needs (harness.js:harnessRecall). Not an offer: a line for the
-        // agent, on with the harness, so it runs in test mode too. Gated as an offer, an eval arm had to turn every
-        // offer back on to measure it, and the warm-up offer then reached the agent (2026-10-19: a PostHog session
-        // stopped to ask about warming its empty cache, because offerStore reads the main checkout's answered mark)
+        // agent, on with the harness, so it runs in test mode too.
         const harnessHere = ['claude', 'codex', 'cursor'].includes(client) && !isHarnessEvent(ev.prompt);
         const recall = harnessHere ? await harnessRecall(store, ev.prompt || '', { session, client }) : '';
         // the names of the switched-off skills, once a session (harness.js:harnessIndex; off until an experiment), not an offer either
         const index = harnessHere ? harnessIndex(store, { session, client }) : '';
-        // the week's five highest-leverage context changes, one message with the local page's link (context-suggest.js):
-        // the one suggestion the person gets, instruction sections, skills, MCP servers and tool outputs ranked together
         // one question a prompt: the one-off repair offer first (proxy-offer.js, the owner-approved exception of
-        // 2026-10-28 to "one suggestion, not three"), then coverage, then the week's context suggestion
+        // 2026-10-28 to "one suggestion, not three"), then the week's context suggestion
         // what the context proxy has cleared out of this session, once the saving is old enough to mean something
         // (compression.js): not an offer and not a question, a statement of what is no longer in the context and
         // what it saved, said once a session because a block that changed every turn would rewrite the very
         // prompt cache the clearing exists to spare
         let clearing = '';
         if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
-        const offer = [offersOn ? (proxyOffer(store, { client }) || containersOffer(store, { client }) || errorOffer(store, { client }) || coverageOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
-        // Every git repository has a cache, started on first use and empty until it learns; the hooks serve
-        // from it once it holds a few notes (ops.js:SERVE_MIN_NOTES). A prompt served nothing is still a
-        // request: `thinker usage` and the telemetry count a machine as active by its requests, and a cache in
-        // daily use that has not learned yet must not read as a machine thinker never ran on (2026-10-12: seven
-        // of eight reporting devices read as idle for exactly this). Nothing is said.
-        // with `find` on, the definitions the request names come with the prompt, notes or not (ops.js:codeForRequest);
-        // a held-out turn gets none, like the notes
-        const codeFor = notes => {
-          if (holdout || disabledTools(store.config()).has('find')) return '';
-          try { const c = codeForRequest(store, ev.prompt || '', { notes }); if (c.items.length) store.log({ op: 'code', session: session === 'unknown' ? undefined : session, client, served: c.items.map(i => `${i.path}:${i.symbol}`), tokens: c.tokens }); return c.text; } catch { return ''; }
-        };
+        const offer = [offersOn ? (proxyOffer(store, { client }) || containersOffer(store, { client }) || errorOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // a harness event delivered as a prompt (a background task finished, a subagent reported) is no request:
-        // it opens its turn, so the turn costs stay apart, and is served and logged nothing (ops.js:isHarnessEvent),
-        // in a cache under the serving threshold too: until 2026-10-19 that one logged it as an unanswered request first
+        // it opens its turn, so the turn costs stay apart, and is served nothing (session-state.js:isHarnessEvent)
         if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }
-        // the session profile (profile.js), on a session's first prompt and again after a compaction, unless the
-        // session is held out; off until learn.mode is "profile". Ahead of everything else: it is the orientation.
+        // Every git repository has a cache; a prompt is a request whether or not anything is said back, so `thinker
+        // usage` and the telemetry count a machine as active by its requests (2026-10-12: seven of eight reporting
+        // devices read as idle without this).
+        store.log({ op: 'request', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200) });
+        // the session profile (profile.js): what the person here is working on and how they want work done, on a
+        // session's first prompt and again after a compaction, unless the session is held out. Ahead of everything
+        // else the hook says: it is the orientation.
         let profile = ''; try { profile = profileTurn(store, session, { transcript: ev.transcript_path, client }); } catch {}
-        const lead = [profile, offer].filter(Boolean).join('\n\n');
-        if (!servesNotes(store)) {
-          store.log({ op: 'orient', session: session === 'unknown' ? undefined : session, client, task: String(ev.prompt || '').slice(0, 200), served: [], empty: 'too-few-notes' });
-          const code = codeFor([]); if (lead || code) emit([lead, code].filter(Boolean).join('\n\n')); return; }
-        // outcome signal: a correction-shaped follow-up counts against the notes served earlier in this session
-        if (session !== 'unknown' && looksLikeCorrection(ev.prompt)) outcome(store, { session, turn: turn > 1 ? turn - 1 : undefined, positive: false, reason: 'correction prompt: ' + String(ev.prompt).slice(0, 80) });
-        if (session !== 'unknown') rememberTask(store, session, ev.prompt);
-        // a held-out turn is served nothing by the hooks, and what it would have been served is logged (ops.js:beginTurn)
-        const r = await orient(store, { task: ev.prompt || '', session: session === 'unknown' ? undefined : session, client, budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined });
-        if (r.ceTimedOut) exitNow = true;
-        if (!r.included.length) { const code = codeFor([]); if (lead || code) emit([lead, code].filter(Boolean).join('\n\n')); return; }
-        // the titles of the notes not served went with lookup, which took their ids (2026-10-22)
-        const text = `<thinker-cache>\n${cacheBundleIntro()}\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`;
-        const card = noticeCard(store, { client, session, turn, holdout, notes: r.included });
-        emit([lead, text, codeFor(r.included), card].filter(Boolean).join('\n\n'));
+        const text = [profile, offer, cursorFootnote()].filter(Boolean).join('\n\n');
+        if (text) emit(text);
       })();
       if (client === 'cursor' || client === 'cline' || client === 'agy') out(promptOutput(client, said));
-      if (exitNow) exitAfterOutput();
   } else if (pos[0] === 'tool') {
     // After a tool call: the agent opened files; serve notes anchored to them, once each.
     if (!store.exists()) return;
@@ -286,8 +243,6 @@ async function hookCommand(ctx) {
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
     if (flags.record && !(client === 'cursor' && toolName(ev.tool_name) === 'Bash')) { const name = toolName(ev.tool_name); recordEvent(store.dir, session, { t: 'tool', name, input: toolInput(name, ev.tool_input), result: ev.tool_response ?? ev.tool_output ?? ev.output }); }
-    // which directories the session works in, counted for the weekly coverage suggestion (coverage.js)
-    try { recordAccess(store, session, toolFiles(ev, repo)); } catch {}
     // Copilot failure hooks require a different output/exit protocol. Record the
     // failure but keep prompt context for the next successful tool result.
     if (client === 'copilot' && ev.error) { if (flags.record) learnInBackground(ctx, client); return; }
@@ -297,23 +252,11 @@ async function hookCommand(ctx) {
     // Cursor drops context added to an MCP call's result: wait for the next tool call,
     // unless the agent asked the cache itself, in which case it has the notes already
     const mcpCall = /^MCP:/i.test(ev.tool_name || '');
-    if (client === 'cursor' && mcpCall && !/orient|lookup/i.test(ev.tool_name)) { /* keep the bundle for the next call */ }
-    else if (client === 'cursor') {
-      let p = takePending(store.dir, session);
-      // the prompt hook does not run in every Cursor mode (`agent -p`): orient from the transcript's request
-      // instead, once per turn; the prompt hook marks the turns it ran for, and the first of parallel tool calls
-      // claims the rest (2026-10-15: unmarked, a held-out or empty turn was oriented again on every tool call)
-      const turn = orientedFile(store.dir, ev.generation_id || session);
-      const claim = () => { try { fs.mkdirSync(path.dirname(turn), { recursive: true }); fs.writeFileSync(turn, '', { flag: 'wx' }); return true; } catch { return false; } };
-      if (!p && !mcpCall && ev.transcript_path && fs.existsSync(ev.transcript_path) && servesNotes(store) && claim()) {
-        const task = parseTranscript(ev.transcript_path).events.filter(e => e.t === 'prompt').pop()?.text;
-        if (task && !isWorkerPrompt(task)) { const { turn, holdout } = beginTurn(store, session); const r = await orient(store, { task, session, client: 'cursor', budget: Number(flags.budget) || HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined, deadline: ceConfig(store).deadlineMs ?? undefined }); if (r.included.length) p = `<thinker-cache>\nNotes about this repo from earlier sessions; their code dependencies were re-hashed just now.\n\n${r.text}${cursorFootnote(r.included)}\n</thinker-cache>`; let profile = ''; try { profile = profileTurn(store, session, { client: 'cursor' }); } catch {} if (profile) p = [profile, p].filter(Boolean).join('\n\n'); }
-      }
-      if (p && !mcpCall) parts.push(p);
-    }
-    const t = holdoutTurn(store, session);
+    if (client === 'cursor' && mcpCall) { /* Cursor drops context added to an MCP call's result: keep it for the next call */ }
+    else if (client === 'cursor') { const p = takePending(store.dir, session); if (p) parts.push(p); }
+    const t = currentTurn(store, session);
     // the repository's instruction sections this tool call is about (instruction-sections.js; off until an experiment):
-    // the team's own text, not notes, so neither the notes' holdout nor an empty cache holds them back
+    // the team's own text
     if (sectionsConfig(store).enabled) {
       const name = toolName(ev.tool_name), input = toolInput(name, ev.tool_input), command = typeof input.command === 'string' ? input.command : Array.isArray(input.command) ? input.command.join(' ') : '';
       const named = toolFiles(ev, repo), patch = JSON.stringify(ev.tool_input ?? '');
@@ -331,33 +274,7 @@ async function hookCommand(ctx) {
       try { rememberTerms(store, session, { name, input }); } catch {}
       try { const d = dietResult(store, { session, repo, cwd: ev.cwd, name, input, response: ev.tool_response, cfg: diet, turn: t.turn || undefined, client }); if (d) { updated = d.output; updatedMcp = !!d.mcp; } } catch {}
     }
-    if ((client === 'claude' || flags.late) && !t.holdout && servesNotes(store)) {
-      const name = toolName(ev.tool_name), command = toolInput(name, ev.tool_input).command || '';
-      // an edit tool, or a shell command that writes a file in place
-      const edited = name === 'Edit' || name === 'Write' || (name === 'Bash' && /\b(sed|perl)\s+(-\w+\s+)*-\w*i\b|\btee\s|>{1,2}\s*[\w./-]+\.\w+/.test(command));
-      const r = lateNotes(store, { session, client, files: toolFiles(ev, repo), edited, turn: t.turn || undefined });
-      if (r.text) parts.push(r.text);
-      // understanding notes on the first sight of a file (ops.js:onSightNotes; off until an experiment)
-      let sightedNotes = [];
-      if (onSightConfig(store).enabled) {
-        const s = onSightNotes(store, { session, client, files: [...toolFiles(ev, repo), ...seenFiles(ev, repo)], turn: t.turn || undefined });
-        if (s.text) { parts.push(s.text); sightedNotes = s.included || []; }
-      }
-      if (client === 'cursor' && (r.included?.length || sightedNotes.length)) {
-        const turnNotes = peekTurn(store, session !== 'unknown' ? session : null).map(id => store.get(id)).filter(Boolean);
-        const fn = cursorFootnote(turnNotes.length ? turnNotes : [...(r.included || []), ...sightedNotes]);
-        if (fn) parts.push(fn.trim());
-      }
-      // and the file's own outline, from the symbol table (ops.js:onSightOutlines; off until an experiment)
-      if (onSightOutlineConfig(store).enabled) {
-        const sighted = [...toolFiles(ev, repo).map(file => ({ file, lines: [] })), ...seenHits(ev, repo)];
-        const o = onSightOutlines(store, { session, client, sighted, identifier: searchedIdentifier(ev), turn: t.turn || undefined });
-        if (o.text) parts.push(o.text);
-      }
-    }
-    const card = noticeCard(store, { client, session, ...t, notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean) });
-    if (card) parts.push(card);
-    // Antigravity's PostToolUse accepts only {} on stdout: park late notes for the next PreInvocation in the turn.
+    // Antigravity's PostToolUse accepts only {} on stdout: park what there is for the next PreInvocation in the turn.
     if (client === 'agy' && parts.length && session !== 'unknown') {
       const prev = takePending(store.dir, session);
       parkPending(store.dir, session, [prev, ...parts].filter(Boolean).join('\n\n'));
@@ -388,38 +305,30 @@ async function hookCommand(ctx) {
     // never a model call, so it runs the same inside a desktop app. Started here rather than at the
     // prompt so the figure a turn's own notes and clears belong to is in it by the next turn.
     if (noticeOn(store)) { try { refreshSavingsInBackground(store, { cli }); } catch (e) { recordError('hook.savings', e, { repo }); } }
-    // what the turn's servings saved, for the user; the ids are cleared so the next turn starts from none
-    noticeCard(store, { client, session, ...holdoutTurn(store, session), notes: peekTurn(store, session).map(id => store.get(id)).filter(Boolean), updateOnly: true });
-    const served = takeTurn(store, session !== 'unknown' ? session : null);
-    // what the session has cost so far, for the holdout comparison (usage.js:holdoutOf): the turn's cost is the
+    // what the session has cost so far, for the profile's holdout (profile.js:holdoutReport): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
-    const t = holdoutTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, holdout: t.holdout || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
+    const t = currentTurn(store, session);
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}) }; store.log(record); } catch {} }
     if (noticeOn(store)) {
-      // once a week, what the notes saved over the last 30 days (usage.js:weeklyNotice); not on a held-out turn
-      // where the card mod runs, the turn's notes are its card under the answer (claude-card.js)
+      // where the card mod runs, the status line carries the money the whole session (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);
       // what the context proxy's clearing left out of this session's prompts, a few turns after the clear
-      // (compression.js); the card mod draws it where it runs, as it does the turn's notes. The clock is
+      // (compression.js); the card mod draws it where it runs. The clock is
       // read every turn whether or not anything is said: it counts the person's turns since the clear, and
       // starting it at the first turn a summary came due would push the figure a day further off each time.
       let cleared = null;
       try { cleared = markCompressionTurn(compressionDir(), session, t.turn); } catch {}
-      // One summary every so many prompts, and at most one a day (notice-cadence.js). What this turn
-      // served waits with the rest until then; maintenance is not asked for its lines while it waits,
-      // since reading them clears its state (maintain.js:maintenanceNotice).
+      // One summary every so many prompts, and at most one a day (notice-cadence.js). Maintenance is not asked
+      // for its lines while a summary waits, since reading them clears its state (maintain.js:maintenanceNotice).
       countPrompt(store);
       const due = noticeDue(store);
-      if (!due.due) holdNotice(store, served);
+      if (!due.due) holdNotice(store, []);
       else {
         const compression = carded ? '' : compressionNotice(cleared);
-        const input = sessionInputSavings(store, session, { transcript: ev.transcript_path });
-        const changed = input?.covered && inputNoticeChanged(store.dir, session, input);
-        const held = pendingNotice(store);
-        const waiting = [...new Set([...held.ids, ...served])].map(id => store.get(id)).filter(Boolean);
         // The money goes with the summary, except where the card mod runs: there the statusline keeps it
         // on screen the whole session, and saying it twice in one client is two voices for one figure.
-        const notice = [(waiting.length && !carded) || changed ? turnNotice(store.repo, waiting, { input, prompts: held.turns + 1, savings: carded ? '' : moneyLine() }) : '', compression, NO_LEARN ? '' : maintenanceNotice(store), t.holdout ? '' : weeklyNotice(store)].filter(Boolean).join('\n');
+        const money = carded ? '' : moneyLine();
+        const notice = [money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
         // The floors start again only once the person has actually been told: nothing to say yet, or a
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.
@@ -443,35 +352,26 @@ async function hookCommand(ctx) {
     // Model work and background processes remain disabled below and in learnInBackground.
     if ((isTestMode() && process.env.THINKER_HOOKS !== 'on') || flags['no-distill'] || NO_LEARN || !sessionLearning()) return;
     if (!source || !fs.existsSync(source)) return;
-    // One distill per session, not per turn: each call carries a fixed prompt, so at the end of a turn
-    // only a backlog near the trace limit is distilled (`--batch`). The session's end distills the
-    // rest; where the agent fires no end, the catch-up run takes sessions that have gone quiet.
+    // A session is read into the profile whole, when it ends (profile.js: an exchange's outcome is the prompt after
+    // it). Where the agent fires no end, the catch-up run takes sessions that have gone quiet (learnInBackground).
     const ending = /^session_?end$/i.test(ev.hook_event_name || '');
     // inside a desktop app no agent CLI runs: the distill waits for the app's own session (session-work.js)
     const app = desktopApp(subagentHarness(client));
     if (app) {
       markAppSession(store, app);
-      const due = ending || (() => {
-        try {
-          const sf = path.join(store.dir, 'state', path.basename(source).replace(/\.jsonl?$/, '') + '.json');
-          const fromLine = fs.existsSync(sf) ? (JSON.parse(fs.readFileSync(sf, 'utf8')).line || 0) : 0;
-          return batchDue(parseTranscript(source, { fromLine }).events);
-        } catch { return false; }
-      })();
-      if (due) enqueueJob(store, `distill-${session}`, ['distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo]);
+      if (ending) enqueueJob(store, `distill-${session}`, ['distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo]);
       if (!ending) learnInBackground(ctx, client, { maintain: false });
       return;
     }
     if (isTestMode()) return;
-    // Sessions are distilled locally through the agent's own login.
-    // Distilling a session is a model call of its own (about 25k tokens); it draws on the same
-    // daily token cap as maintenance, so a long day of work cannot run through the agent's usage
+    if (!ending) { learnInBackground(ctx, client, { maintain: false }); return; }
+    // Reading a session is a model call of its own (about 25k tokens); it draws on the same daily token cap as
+    // maintenance, so a long day of work cannot run through the agent's usage
     const cap = withinDailyCap(store);
     if (!cap.ok) { store.log({ op: 'distill-skipped', reason: 'dailyTokens', spent: cap.spent, cap: cap.cap, session, client }); reportCapped(store, cap); return; }
-    const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo, ...(ending ? [] : ['--batch'])],
+    const child = spawn('node', [path.join(HERE, 'cli.js'), 'distill', source, '--incremental', '--quiet', '--session', session, '--repo', repo],
       { detached: true, stdio: 'ignore', env: { ...process.env, THINKER_LLM_PREFER: client === 'agy' ? 'gemini' : client } });
     child.unref();
-    if (!ending) learnInBackground(ctx, client, { maintain: false });
   }
   } finally {
     if (client === 'agy' && !printed) out(pos[0] === 'stop' ? '{"decision":"allow"}' : '{}');
@@ -480,7 +380,7 @@ async function hookCommand(ctx) {
 }
 
 // From a hook: start catch-up in the background, at most every ten minutes.
-// Only sessions quiet for LEARN_IDLE_MIN minutes: one still running is distilled when it ends or goes quiet.
+// Only sessions quiet for LEARN_IDLE_MIN minutes: one still running is read when it ends or goes quiet.
 const LEARN_IDLE_MIN = 20;
 
 export function learnInBackground(ctx, client, { maintain = true } = {}) {

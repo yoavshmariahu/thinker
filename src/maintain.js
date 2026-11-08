@@ -1,56 +1,24 @@
-import { needsVerification, verificationChanges } from './freshness.js';
-// Background maintenance of the cache: what a user would otherwise have to remember to
-// run. It re-verifies a few stale notes and writes phrasings for notes that lack them.
-// Since 2026-10-21 that is all it does by default (the owner's decision: the cache was not
-// paying for its background spend, and few people were running it): the notes come from the
-// sessions alone (mining merged pull requests and commits was removed the same day), and the
-// steps that read documents (design documents, skill files, the duplicate pass) are off until a
-// repository's config turns them on. It starts from the catch-up learning run (at most every ten minutes, from the
-// prompt hooks) and from the git post-commit hook. Batches run at most once every four hours,
-// on the next activity after they are due, and are bounded by daily caps on the
-// tokens learning and maintenance may use, so it can run unattended. A cap counts the
-// tokens the model calls of learning and maintenance reported in the machine's log; a call
-// that reported none counts as zero. Tokens, not dollars: the agents run on subscriptions as
-// often as on metered keys, and a dollar figure from list prices misled more than it warned.
+// Background maintenance: what a user would otherwise have to remember to run. Since the knowledge notes went
+// (2026-11-08) it spends no tokens of its own: it prunes state files no session will read again, reads the
+// repository's pull requests so `thinker prs` knows what the sessions delivered, looks for a container thinker is
+// not in, and schedules the weekly context suggestion. It starts from the catch-up learning run (at most every ten
+// minutes, from the prompt hooks) and from the git post-commit hook, and runs at most once every four hours, on the
+// next activity after it is due. The daily token cap it keeps is what the profile's reads of sessions are bounded
+// by (learn.js, profile.js): tokens, not dollars, since the agents run on subscriptions as often as on metered keys.
 import fs from 'node:fs';
 import path from 'node:path';
-import { refresh, verifyNote, phraseNotes, phraseKey, archiveNotes } from './ops.js';
-import { dedupeOn, dedupeNotes, DEDUPE_DEFAULTS } from './dedupe.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
-import { writeSystemMarkdown } from './behavior.js';
 import { isTestMode } from './test-mode.js';
-import { takeContradictions } from './learning-pending.js';
 import { pruneState } from './state-prune.js';
 import { syncPrs, ghAvailable, WINDOW_DAYS as DELIVERY_WINDOW_DAYS } from './delivery.js';
 import { recordError } from './error-report.js';
 
 export const DEFAULTS = {
   enabled: true,    // `maintain: { enabled: false }` in .thinker/config.json switches it off
-  // tokens of reported generative model usage per day, learning and maintenance together; 0: no cap.
-  // 10M is about $1 a day at Haiku 5.5 or GPT-6 Luna list prices (50M until 2026-10-21); a costlier
-  // distillModel, Sonnet (the default since 2026-10-15) among them, gets DAILY_TOKENS_COSTLY unless the
-  // config says otherwise
-  dailyTokens: 10_000_000,
-  // Verification is one batch every `verifyEveryDays` (2026-10-21; a few notes every four hours until then), of the
-  // Pending and stale notes used or requested in the last `verifyServedDays` (0: all), most used
-  // first, at most `verifyPerRun`. Pending notes remain usable while waiting for the batch.
-  verifyEveryDays: 3,
-  verifyPerRun: 50,
-  verifyServedDays: 3,
-  // a note nobody has been served in this many days (and older than that) is deleted, archived ones too; a desired
-  // behavior, a skill card and a note a person wrote are kept (0: never delete)
-  deleteUnusedDays: 30,
-  verifyChurn: 3,   // a note re-verified this many times in a week waits and is reported (0: never)
-  phrasePerRun: 8,  // notes given phrasings per run (one model call)
-  docs: false,      // read design documents that are new or changed into behaviors (behavior-docs.js); off since 2026-10-21
-  docsPerRun: 3,
-  skills: false,    // card the skill files (SKILL.md) that are new or changed, and settle duplicates (skills.js); off since 2026-10-21
-  skillsPerRun: 3,
-  // the weekly suggestion of directories to cover (coverage.js): a new cache-building strategy, off until an experiment
-  // shows it helps (AGENTS.md), and held there on 2026-10-25 (the owner's call: it was not effective enough to put to
-  // people); `maintain: { coverage: true }` in .thinker/config.json turns it on for a repository
-  coverage: false,
+  // tokens of reported generative model usage per day that learning may spend (the profile's reads of sessions,
+  // about 25k each on Opus); 0: no cap
+  dailyTokens: 2_000_000,
   // the one question about a container (containers-offer.js): on, because a session in a container is served
   // nothing at all and the weekly context message cannot carry it (it is built from the sessions thinker can
   // see). `maintain: { containers: false }` stops the machine being looked at.
@@ -58,32 +26,18 @@ export const DEFAULTS = {
   // the week's five highest-leverage context changes (context-suggest.js), passed on at the next prompt with a link to
   // the local page; no model call, nothing changed but by the person on the page. `maintain: { contextSuggest: false }`
   contextSuggest: true,
-  // merge notes that say the same thing in different words (dedupe.js): one model call a pair. On by default
-  // from 2026-10-19 to 2026-10-21, off since with the other background spend; `maintain: { dedupe: true }` or
-  // THINKER_DEDUPE=on turns it on
-  dedupe: false,
-  dedupePerRun: DEDUPE_DEFAULTS.perRun,       // candidate pairs judged per run (one model call each)
-  dedupeThreshold: DEDUPE_DEFAULTS.threshold, // cosine of the local embeddings, for notes resting on a file in common
-  archive: true,    // take notes the sessions showed are not worth serving out of serving and upkeep (ops.js:archiveNotes; `archive` in the config sets the rules)
   // read the repository's pull requests from GitHub, so `thinker prs` and the telemetry know what the
   // sessions here delivered (delivery.js). Free: the person's own `gh` login, read-only, no model call and
-  // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it
-  // off. Not `prs`, which is the mining step: that one writes notes and calls a model, and this one does not.
+  // no token. At most once a day, and only back to the last sync. `maintain: { prSync: false }` turns it off.
   prSync: true,
 };
 export const MAINTENANCE_INTERVAL_MS = 4 * 60 * 60_000;
 export const PRS_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 const LOCK_MS = 15 * 60_000;
 
-// The daily default for a distillation model that is not in the cheap class (Haiku, Luna, Flash):
-// about forty session distillations (2M until 2026-10-21).
-export const DAILY_TOKENS_COSTLY = 1_000_000;
-const CHEAP_MODEL = /haiku|luna|flash/i;
 export function maintainConfig(store) {
-  const cfg = store.config();
-  const c = cfg.maintain;
-  const dailyTokens = CHEAP_MODEL.test(cfg.distillModel || 'sonnet') ? DEFAULTS.dailyTokens : DAILY_TOKENS_COSTLY;
-  return { ...DEFAULTS, dailyTokens, ...(c && typeof c === 'object' ? c : {}) };
+  const c = store.config().maintain;
+  return { ...DEFAULTS, ...(c && typeof c === 'object' ? c : {}) };
 }
 
 // Tokens the model calls of learning and maintenance reported since local midnight.
@@ -131,64 +85,6 @@ export function reportCapped(store, { spent, cap }, { now = new Date() } = {}) {
   try { fs.mkdirSync(path.dirname(stateFile(store)), { recursive: true }); fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
 }
 
-// Verify calls per note in the last seven days, from the machine's log.
-export function verifyCounts(store, now = Date.now()) {
-  const since = new Date(now - 7 * 86400_000).toISOString();
-  const counts = new Map();
-  for (const e of readLog(store)) if (e.op === 'verify' && e.t >= since && e.id) counts.set(e.id, (counts.get(e.id) || 0) + 1);
-  return counts;
-}
-
-// Which changed notes the four-hour batch re-verifies: notes served lately, in
-// the order of how much they are served. Retrieval never starts verification.
-// A note that has had to be re-verified `verifyChurn`
-// times this week rests on code under active change; rewriting it again each day costs a call
-// per day and settles nothing, so it is left stale, with the ⚠ banner, and named once to the
-// user, who can narrow its pointers or retire it.
-export function pickStale(notes, cfg, { counts = new Map(), now = Date.now() } = {}) {
-  const recent = cfg.verifyServedDays > 0 ? now - cfg.verifyServedDays * 86400_000 : -Infinity;
-  const churning = [];
-  const stale = notes
-    .filter(n => needsVerification(n) && !n.archived && !(n.verifying && now - Date.parse(n.verifying) < 10 * 60_000))
-    // served recently, or held back from a request recently (ops.js:orient `heldAt`): a stale note the
-    // freshness rule withholds can never be served, so `lastUsed` alone deadlocked it out of ever
-    // being verified and it stayed stale for good
-    .filter(n => n.contradicted || recent === -Infinity || (n.lastUsed && Date.parse(n.lastUsed) >= recent) || (n.heldAt && Date.parse(n.heldAt) >= recent))
-    // a skill card whose own file changed is rewritten by the skills step of this run (skills.js:scanSkills), not audited
-    .filter(n => !(n.kind === 'skill' && n.skill?.file && verificationChanges(n).some(c => c.path === n.skill.file)))
-    .filter(n => { if (cfg.verifyChurn > 0 && (counts.get(n.id) || 0) >= cfg.verifyChurn) { churning.push(n); return false; } return true; })
-    // a note a session contradicted first: it is held back from serving until verified
-    .sort((a, b) => (b.contradicted ? 1 : 0) - (a.contradicted ? 1 : 0) || (b.uses || 0) - (a.uses || 0))
-    .slice(0, cfg.verifyPerRun);
-  return { stale, churning };
-}
-
-// Notes nobody has been served in `days`, made longer ago than that, deleted. A desired behavior (a person's), a skill
-// card (rewritten from its file) and a note a person added are kept; a note committed to the repository is archived
-// instead (its file is the team's). Logged as op "delete-unused" with the ids.
-export function deleteUnused(store, { days = DEFAULTS.deleteUnusedDays, dry = false, now = Date.now() } = {}) {
-  const cutoff = now - days * 86400_000;
-  const out = [];
-  for (const n of store.list()) {
-    if (['behavior', 'skill'].includes(n.kind) || n.source?.type === 'human') continue;
-    const made = Date.parse(n.created || ''), used = Date.parse(n.lastUsed || '');
-    if (!Number.isFinite(made) || made > cutoff) continue;
-    if (Number.isFinite(used) && used > cutoff) continue;
-    // a note a request wanted, which the freshness rule held back (ops.js:orient `heldAt`), is not a
-    // note nobody reads: deleting it would be deleting it for not being served when thinker itself is
-    // what refused to serve it
-    const held = Date.parse(n.heldAt || '');
-    if (Number.isFinite(held) && held > cutoff) continue;
-    out.push(n.id);
-    if (dry) continue;
-    // a note committed to the repository is the team's file: archived here (this checkout's state), never deleted
-    if (store.isShared(n.id)) { if (!n.archived) archiveNotes(store, { ids: [n.id] }); }
-    else store.remove(n.id);
-  }
-  if (out.length && !dry) store.log({ op: 'delete-unused', days, ids: out });
-  return out;
-}
-
 // A step that fails is named, with its message: the count alone ("1 failed") sent a person running the
 // steps by hand to find that the pull-request sync wanted a github.com origin (2026-11-01).
 const ERROR_MESSAGE = 200;
@@ -226,7 +122,7 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     state.startedAt = new Date(now).toISOString();
     fs.writeFileSync(stateFile(store), JSON.stringify(state));
   }
-  const r = { verified: 0, updated: 0, retired: 0, churning: [], archived: 0, merged: 0, phrased: 0, docs: 0, unstated: 0, skills: 0, skillsBroken: 0, prSynced: 0, tokens: 0, capped: false, errors: 0, errorList: [] };
+  const r = { prSynced: 0, tokens: 0, errors: 0, errorList: [] };
   // every swallowed step error: counted, named on the result and in the state file, and recorded for the
   // consent-gated error report (error-report.js, which scrubs paths and does nothing in test mode)
   const failed = (step, e) => {
@@ -236,20 +132,10 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
   };
   const spent = (fns.spentToday || spentToday)(store);
   const cap = withinDailyCap(store, { spentFn: () => spent }).cap;
-  const afford = () => !cap || cap - spent - r.tokens > 0;
   try {
-    // 1b. state files no session will read again (state-prune.js)
+    // 1. state files no session will read again (state-prune.js)
     if (!dry) { try { r.pruned = pruneState(store.dir, { now }).length; } catch (e) { failed('prune', e); } }
-    // 1c. archiving is free too: notes of a kind the sessions never acted on, and notes nobody was
-    // served in a month, leave serving and upkeep and stay for lookup by id (ops.js:archiveNotes)
-    if (cfg.archive !== false) { try { r.archived = (fns.archive || archiveNotes)(store, { dry }).length; } catch (e) { failed('archive', e); } }
-    // 1d. contradictions sessions reported (learning-pending.js): the notes are marked for verification
-    if (!dry) { try { takeContradictions(store); } catch (e) { failed('contradictions', e); } }
-    // 2. Re-hashing is free, even when the model budget is exhausted.
-    const notes = (fns.refresh || refresh)(store, store.list(), { narrow: true, persist: !dry }); // --dry writes nothing, statuses included
-    // 1e. notes nobody was served in two weeks are deleted (deleteUnused): free, and they cost upkeep for nothing
-    if (cfg.deleteUnusedDays > 0) { try { r.deleted = deleteUnused(store, { days: cfg.deleteUnusedDays, dry, now }).length; } catch (e) { failed('delete-unused', e); } }
-    // 1f. the repository's pull requests, so what a session delivered is known without anybody typing a
+    // 2. the repository's pull requests, so what a session delivered is known without anybody typing a
     // command (delivery.js). Free and model-free: the person's own gh login, read-only. Once a day, back to
     // the last sync, so the usual run is one listing page and a detail call for the branches worked on here.
     // A test never reaches GitHub; a test that injects its own reader is testing this step and does.
@@ -270,90 +156,16 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
         try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
       }
     }
-    // the verification batch is due every `verifyEveryDays`, or at once for a note a session contradicted
-    const lastBatch = Date.parse(state.verifiedAt || '');
-    // (a dry run previews the next batch, due or not)
-    const batchDue = dry || !(cfg.verifyEveryDays > 0) || !Number.isFinite(lastBatch) || now - lastBatch >= cfg.verifyEveryDays * 86400_000;
-    if (!batchDue) r.verifyNext = new Date(lastBatch + cfg.verifyEveryDays * 86400_000).toISOString();
-    if (afford() && (batchDue || notes.some(n => n.contradicted && n.status === 'stale'))) {
-      const picked = pickStale(notes, cfg, { counts: cfg.verifyChurn > 0 ? (fns.verifyCounts || verifyCounts)(store, now) : new Map(), now });
-      const stale = batchDue ? picked.stale : picked.stale.filter(n => n.contradicted), churning = picked.churning;
-      if (batchDue && !dry) state.verifiedAt = new Date(now).toISOString();
-      r.churning = churning.map(n => n.id);
-      for (const n of stale) {
-        if (!afford()) { r.capped = true; break; }
-        if (dry) { r.verified++; continue; }
-        try {
-          const v = await (fns.verify || verifyNote)(store, n, {});
-          r.tokens += v.tokens || 0; r.verified++;
-          if (v.verdict === 'update') r.updated++;
-          if (v.verdict === 'invalid') r.retired++;
-          if (v.verdict === 'broken' && n.kind === 'skill') r.skillsBroken++; // a skill out of date (skills.js:auditSkill); the notice names it
-          else if (v.verdict === 'broken') r.violated = (r.violated || 0) + 1; // the notice names it (ops.js:noteUnreported)
-          if (v.verdict === 'revised') r.revised = (r.revised || 0) + 1; // a behavior followed the merged code
-        } catch (e) { failed(`verify ${n.id}`, e); }
-      }
-    } else r.capped = true;
-    // 2b. notes that say the same thing in different words, merged (dedupe.js; off unless maintain.dedupe); before the
-    // phrasings, so a merged note is phrased for its new text in this run
-    if (dedupeOn(cfg) && afford()) {
-      try {
-        const d = await (fns.dedupe || dedupeNotes)(store, { perRun: cfg.dedupePerRun, threshold: cfg.dedupeThreshold, dry, afford });
-        r.merged = d.merged.length; r.tokens += d.tokens || 0;
-        // the pairs dedupe.js judged and swallowed itself: counted, and named as one entry
-        if (d.errors) { r.errors += d.errors; r.errorList.push({ step: 'dedupe', message: `${d.errors} pair ${d.errors === 1 ? 'judgment' : 'judgments'} failed` }); }
-        if (d.capped) r.capped = true;
-      } catch (e) { failed('dedupe', e); }
-    }
-    // 3. phrasings for notes that have none for their present text
-    if (afford()) {
-      const need = store.list().filter(n => n.status !== 'invalid' && !n.archived
-        && (!n.says?.length || !n.search || n.saysFor !== phraseKey(n))).slice(0, cfg.phrasePerRun);
-      if (need.length) {
-        if (dry) r.phrased = need.length;
-        else { try { const p = await (fns.phrase || phraseNotes)(store, need, { phase: 'maintenance' }); r.phrased = p.done.length; r.tokens += p.tokens || 0; } catch (e) { failed('phrase', e); } }
-      }
-    } else r.capped = true;
-    // 5. design documents that are new or changed since they were read: their behaviors follow them
-    if (cfg.docs !== false && fns.docs) {
-      if (afford()) {
-        if (!dry) { try { const d = await fns.docs({ limit: cfg.docsPerRun }); r.docs = d?.saved?.length || 0; r.unstated = d?.unstated?.length || 0; r.tokens += d?.tokens || 0; if (r.docs || r.unstated || d?.reworded?.length) { try { writeSystemMarkdown(store); } catch {} } } catch (e) { failed('docs', e); } }
-      } else r.capped = true;
-    }
-    // 6. skill files that are new or changed since they were carded; their duplicates settled (skills.js)
-    if (cfg.skills !== false && fns.skills) {
-      if (afford()) {
-        if (!dry) { try { const k = await fns.skills({ limit: cfg.skillsPerRun }); r.skills = (k?.saved?.length || 0) + (k?.updated?.length || 0); r.tokens += k?.tokens || 0; } catch (e) { failed('skills', e); } }
-      } else r.capped = true;
-    }
-    // 7. at most weekly, a question for the person: the directories their sessions work in that the cache covers
-    // little (coverage.js). No model call; the prompt hook asks it, and a build starts only on their answer.
-    if (cfg.coverage === true && !dry) {
-      try { const { scheduleSuggestion } = await (fns.coverage ? { scheduleSuggestion: fns.coverage } : import('./coverage.js')); const picks = scheduleSuggestion(store, { now }); if (picks) r.coverageSuggested = picks.length; } catch (e) { failed('coverage', e); }
-    }
-    // 7b. at most daily, and never from the prompt path: is an agent on this machine running in a container
+    // 3. at most daily, and never from the prompt path: is an agent on this machine running in a container
     // thinker is not inside (containers-offer.js)? The hook asks about what this records; a yes installs it.
     if (cfg.containers !== false && !dry) {
       try { const { scheduleContainersOffer } = await (fns.containers ? { scheduleContainersOffer: fns.containers } : import('./containers-offer.js')); const c = scheduleContainersOffer(store, { now }); if (c) r.containerFound = c.name || c.id; } catch (e) { failed('containers', e); }
     }
-    // 8. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
+    // 4. at most weekly, the five highest-leverage changes the Context view finds (context-suggest.js), for the next prompt
     if (cfg.contextSuggest !== false && !dry) {
       try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
     }
     const u = state.unreported || {};
-    // a behavior found broken during this run was written to the state file by the verification itself
-    // (ops.js:noteUnreported), after the state was read: keep it
-    const liveState = readState(store).unreported || {};
-    if (liveState.violated?.length) u.violated = liveState.violated;
-    if (liveState.revised?.length) u.revised = liveState.revised;
-    if (liveState.brokenSkills?.length) u.brokenSkills = liveState.brokenSkills;
-    if (r.revised && !dry) { try { writeSystemMarkdown(store); } catch {} }
-    for (const k of ['verified', 'updated', 'retired', 'archived', 'merged', 'phrased', 'docs', 'unstated', 'skills']) u[k] = (u[k] || 0) + r[k];
-    // churning notes are named once; a note named before is not named again until it settles
-    const named = new Set(state.churnNamed || []);
-    const fresh = r.churning.filter(id => !named.has(id));
-    if (fresh.length) u.churning = [...new Set([...(u.churning || []), ...fresh])];
-    state.churnNamed = r.churning;
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
     store.log({ op: 'maintain', ...r, spentBefore: spent, cap, dry });
@@ -387,16 +199,6 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
   const u = state.unreported;
   if (!u) return '';
   const parts = [];
-  const updated = u.updated || 0;
-  const retired = u.retired || 0;
-  if (u.verified) parts.push(`${u.verified} checked${updated ? `, ${updated} updated` : ''}${retired ? `, ${retired} retired` : ''}`);
-  if (u.phrased) parts.push(`${u.phrased} phrased`);
-  if (u.archived) parts.push(`${u.archived} archived`);
-  if (u.merged) parts.push(`${u.merged} duplicate ${u.merged === 1 ? 'note' : 'notes'} merged`);
-  if (u.docs) parts.push(`${u.docs} ${u.docs === 1 ? 'behavior' : 'behaviors'} from design documents; see thinker system`);
-  if (u.unstated) parts.push(`${u.unstated} ${u.unstated === 1 ? 'behavior' : 'behaviors'} no longer stated by a design document; keep or discard in thinker ui`);
-  if (u.skills) parts.push(`${u.skills} skill ${u.skills === 1 ? 'card' : 'cards'}`);
-  if (u.brokenSkills?.length) parts.push(`${u.brokenSkills.length} ${u.brokenSkills.length === 1 ? 'skill is' : 'skills are'} out of date (${u.brokenSkills.map(b => b.name || b.id).join(', ')}); not served until fixed or reviewed; see thinker skills`);
   if (u.pruned?.length) parts.push('Thinker setup updated');
   if (u.capped) {
     const day = capDay(now);
@@ -407,46 +209,34 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
     delete u.capped;
     try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
   }
-  if (u.revised?.length) parts.push(`${u.revised.length} desired ${u.revised.length === 1 ? 'behavior revised' : 'behaviors revised'}; see thinker system`);
-  if (u.violated?.length) parts.push(`${u.violated.length} desired ${u.violated.length === 1 ? 'behavior is violated' : 'behaviors are violated'}; see thinker system`);
-  if (u.retiredBehaviors?.length) parts.push(`${u.retiredBehaviors.length} desired ${u.retiredBehaviors.length === 1 ? 'behavior' : 'behaviors'} retired, ${u.retiredBehaviors.length === 1 ? 'its' : 'their'} files being gone; see thinker system --all`);
   if (u.gaveUp?.length) parts.push(...u.gaveUp);
-  if (u.churning?.length) parts.push(`${u.churning.length} ${u.churning.length === 1 ? 'note' : 'notes'} repeatedly changed; verification deferred`);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
   return `🧠 thinker: ${parts.join('; ')}`;
 }
 
-// After a commit: re-hash in the background; with learning on, one maintenance run instead.
+// After a commit: one maintenance run in the background.
 // Worktrees share the main repository's hooks, so the checkout is the one being committed
 // in, not the one the hook was installed from.
 export function postCommitHook(cli, repo, learn) {
   const quote = s => "'" + String(s).replace(/'/g, "'\\''") + "'";
-  return `#!/bin/sh\n# thinker: re-hash note dependencies${learn ? ' and maintain the cache' : ''} in the background\n` +
+  return `#!/bin/sh\n# thinker: maintain the cache in the background\n` +
     `[ "$THINKER_TEST" = 1 ] && exit 0\n` +
     `case "$THINKER_NO_LEARN" in 1|true|yes) exit 0 ;; esac\n` +
     `repo="$(git rev-parse --show-toplevel 2>/dev/null)"\n` +
     `[ -n "$repo" ] || repo=${quote(repo)}\n` +
-    `nohup node ${quote(cli)} ${learn ? 'maintain' : 'check'} --quiet --repo "$repo" >/dev/null 2>&1 &\n`;
+    `nohup node ${quote(cli)} maintain --quiet --repo "$repo" >/dev/null 2>&1 &\n`;
 }
 
 export function renderMaintain(r) {
   if (r.skipped) return `maintenance skipped (${r.skipped})`;
-  const bits = [`${r.verified} re-verified`];
-  if (r.updated) bits.push(`${r.updated} updated`);
-  if (r.retired) bits.push(`${r.retired} retired`);
-  if (r.violated) bits.push(`${r.violated} desired ${r.violated === 1 ? 'behavior' : 'behaviors'} found broken`);
-  if (r.revised) bits.push(`${r.revised} desired ${r.revised === 1 ? 'behavior' : 'behaviors'} revised to match the merged code`);
-  if (r.churning?.length) bits.push(`${r.churning.length} churning awaiting verification`);
-  if (r.archived) bits.push(`${r.archived} archived`);
-  if (r.merged) bits.push(`${r.merged} duplicates merged`);
-  bits.push(`${r.phrased} phrased`);
-  if (r.docs) bits.push(`${r.docs} from design documents`);
-  if (r.unstated) bits.push(`${r.unstated} no longer stated by a design document`);
-  if (r.skills) bits.push(`${r.skills} skill ${r.skills === 1 ? 'card' : 'cards'}`);
-  if (r.skillsBroken) bits.push(`${r.skillsBroken} ${r.skillsBroken === 1 ? 'skill' : 'skills'} found out of date`);
-  return `maintained: ${bits.join(', ')}${r.tokens ? ` (~${formatTokens(r.tokens)} tokens)` : ''}${r.capped ? '; daily token cap reached' : ''}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
+  const bits = [];
+  if (r.pruned) bits.push(`${r.pruned} state ${r.pruned === 1 ? 'file' : 'files'} pruned`);
+  if (r.prSynced) bits.push(`${r.prSynced} pull ${r.prSynced === 1 ? 'request' : 'requests'} read`);
+  if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
+  if (r.contextSuggested) bits.push(`${r.contextSuggested} context ${r.contextSuggested === 1 ? 'change' : 'changes'} suggested`);
+  return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
 }
 
 // "(pr-sync: Reading pull requests needs a github.com origin)": the first three, on the one line

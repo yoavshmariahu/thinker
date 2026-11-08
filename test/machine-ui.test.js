@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { execFileSync, spawn } from 'node:child_process';
+import { seedProfile } from './fixtures/seed-profile.js';
 import { Store } from '../src/store.js';
 import { batchProgress } from '../src/progress.js';
 import { activity, cancelActivity, latestBatch, batchEta } from '../src/activity.js';
@@ -55,11 +56,11 @@ test('the agents\' transcripts name the repositories they worked in', t => {
   assert.equal(found[0].sessions, 3);
   assert.equal(found[0].hasCache, false);
   assert.equal(cacheStats(dir), null, 'no cache, no stats');
-  // an empty .thinker folder (every checkout an agent worked in has one) is no cache; notes are
+  // an empty .thinker folder (every checkout an agent worked in has one) is no cache; a profile is
   const st = new Store(dir).init();
-  assert.equal(discoverRepos(store, { home })[0].hasCache, false, 'a folder without notes is not a cache');
-  st.put({ id: 'n1', title: 'a note', kind: 'rule', answers: [], body: 'src/a.js:a is one', deps: [{ path: 'src/a.js', symbol: 'a' }], source: { type: 'session', ref: 's' }, confidence: 0.8, status: 'fresh' });
-  assert.equal(discoverRepos(store, { home })[0].hasCache, true, 'a folder with a note is');
+  assert.equal(discoverRepos(store, { home })[0].hasCache, false, 'a folder without a profile is not a cache');
+  seedProfile(st);
+  assert.equal(discoverRepos(store, { home })[0].hasCache, true, 'a folder with a profile is');
 });
 
 test('a running batch is the cache\'s activity, with its count, and stopping it closes the file', async t => {

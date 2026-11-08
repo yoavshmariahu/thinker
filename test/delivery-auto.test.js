@@ -22,8 +22,10 @@ function fixture(t) {
   execFileSync('git', ['init', '-q', dir]);
   execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/owner/repo.git'], { cwd: dir });
   const store = new Store(dir).init(), home = path.join(dir, 'home');
-  fs.mkdirSync(home);
-  store.log({ op: 'orient', t: at(-2), session: 'session1', branch: 'fix', head: 'sha1', served: ['note1'], est: [[1, 9000]] });
+  fs.mkdirSync(path.join(home, 'state', 'compression'), { recursive: true });
+  // the session's saving: what the clearing left out of its prompts (compression.js's record)
+  fs.writeFileSync(path.join(home, 'state', 'compression', 'session1.json'), JSON.stringify({ session: 'session1', saved: 120_000, requests: 4, firstAt: at(-3), lastAt: at(-2) }));
+  store.log({ op: 'request', t: at(-2), session: 'session1', branch: 'fix', head: 'sha1' });
   store.log({ op: 'attest', t: at(-1), session: 'session1', model: 'claude-opus-5', applied: [{ id: 'note1', verdict: 'confirmed' }] });
   const pull = { number: 42, state: 'closed', created_at: at(-5), updated_at: at(-1), merged_at: at(-1), head: { ref: 'fix', sha: 'sha1' }, base: { sha: 'base' } };
   const reads = [], writes = [], comments = [];

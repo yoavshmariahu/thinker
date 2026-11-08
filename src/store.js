@@ -1,27 +1,12 @@
 import { isTestMode } from './test-mode.js';
-// Note store: one JSON file per note. A repository's shared notes are under <repo>/.thinker/notes/
-// (legacy committed content), a checkout's own under .thinker/local/.
+// A repository's cache directory: .thinker/ (config, state, this checkout's local data under .thinker/local/,
+// which is where the session profile lives) and the machine's log. The note store that lived here went with the
+// knowledge notes on 2026-11-08; what a checkout holds now is the profile's ledger and state files.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import crypto from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 
-// Four kinds of note. `map`: where things are and how control flows (what an agent would otherwise
-// grep and read for). `howto`: how to build, test, run, with the non-obvious flags. `rule`: what a
-// change must respect: an invariant, a convention, a trap, a fix not to undo, a reason, things that
-// change together. `behavior`: a desired behavior of the system, written by a person (behavior.js):
-// the code must conform to it, never the other way round; `mutability` says whether a change may
-// revise it. Until October 2026 there were eleven kinds; the old names are read as the new ones
-// (KIND_ALIAS) wherever a note is read, so committed notes and benchmark notesets stay as they are.
-export const KINDS = ['map', 'howto', 'rule', 'behavior', 'skill'];
-// `skill`: a card for a skill file (SKILL.md) the agents invoke by name (skills.js). The file and the
-// code it talks about are its deps, so the card goes stale with either; a skill found out of date is
-// `broken` (a LOCAL_FIELDS entry) and neither served nor audited again until the file changes or a
-// person reviews it.
-export const KIND_ALIAS = { location: 'map', callpath: 'map', overview: 'map', invariant: 'rule', convention: 'rule', gotcha: 'rule', rationale: 'rule', fix: 'rule', cochange: 'rule' }; // cochange: a kind of earlier caches, read as a rule
-export const kindOf = k => KIND_ALIAS[k] || k;
-export const MUTABILITY = ['fixed', 'mutable'];
 
 export function findRepoRoot(start = process.cwd()) {
   let dir = path.resolve(start);
@@ -37,8 +22,8 @@ export const isGitCheckout = repo => fs.existsSync(path.join(repo, '.git'));
 
 // The machine-local pieces of a fresh cache in the checkout's own exclude file (.git/info/exclude,
 // which is not committed), unless git ignores .thinker already: the config, the state and the log.
-// Not the notes: a repository may still commit `.thinker/notes/` (the legacy shared cache), and an
-// excluded path cannot be added. The local tier ignores itself. Nothing when this is not a git checkout.
+// A repository may still commit `.thinker/notes/` from the days of the shared note cache, and an excluded path
+// cannot be added. The local directory ignores itself. Nothing when this is not a git checkout.
 export const EXCLUDED = ['.thinker/config.json', '.thinker/.gitignore', '.thinker/state/', '.thinker/log.jsonl', '.thinker/benchmarks/'];
 export function excludeFromGit(repo, excluded = EXCLUDED) {
   if (!isGitCheckout(repo)) return false;
@@ -112,9 +97,7 @@ export function repoId(repo) {
 // Usage history is kept in one file for the machine, THINKER_HOME/log.jsonl (default
 // ~/.thinker), each line naming the repository it is about (`origin`, see repoId)
 // and the checkout it came from (`repo`). THINKER_LOG changes that:
-// a path, `local` (the repository's own .thinker/log.jsonl) or `off`. Runs that serve
-// notes from elsewhere (THINKER_NOTES_DIR: benchmark arms) log locally unless told
-// otherwise. So do checkouts made under the system temporary directory while THINKER_HOME
+// a path, `local` (the repository's own .thinker/log.jsonl) or `off`. Checkouts made under the system temporary directory while THINKER_HOME
 // is unset: the test suite makes hundreds of them, and they are not usage — counting their
 // fixture costs as money spent made `thinker usage` lie by several dollars. A test that
 // means to exercise the machine's log points THINKER_HOME at a directory of its own, and
@@ -123,7 +106,7 @@ export function logFile(store) {
   const v = process.env.THINKER_LOG;
   if (v === 'off') return null;
   const scratch = !process.env.THINKER_HOME && (isTestMode() || isScratchCheckout(store.repo));
-  if (v === 'local' || (!v && (process.env.THINKER_NOTES_DIR || scratch))) return path.join(store.dir, 'log.jsonl');
+  if (v === 'local' || (!v && scratch)) return path.join(store.dir, 'log.jsonl');
   if (v) return path.resolve(v);
   return path.join(process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), 'log.jsonl');
 }
@@ -154,63 +137,14 @@ export function adoptLocalLog(store) {
   } catch { try { fs.renameSync(moved, local); } catch {} }
 }
 
-// --- two caches -------------------------------------------------------------------------------------
-// .thinker/notes/        the repository's cache: committed, shared through pull requests, and written
-//                        retained for compatibility with older caches. Content only.
-// .thinker/local/notes/  this checkout's cache: what sessions here learned. Never committed.
-// .thinker/local/shared/ what this checkout holds about a shared note: how often it was served here,
-//                        whether this working tree makes it stale, what sessions here said about it,
-//                        and content it changed and has not shared yet (`pending`). So serving,
-//                        assessing and re-verifying a shared note never touches the committed file.
-// With THINKER_NOTES_DIR (benchmark arms) there is one directory of whole notes, as before.
-// `heldAt`: when a request last wanted this note and the freshness rule held it back (ops.js:orient),
-// which is what makes a withheld stale note eligible for verification (maintain.js:pickStale)
-// `rebaselined`: the one-time staleness reset waved this note through without a model looking at it
-// (stale-reset.js), so the notes it cleared stay identifiable afterwards
-export const LOCAL_FIELDS = ['status', 'stale', 'recheck', 'verifying', 'invalidReason', 'uses', 'lastUsed', 'heldAt', 'servedIn', 'attest', 'outcomes', 'history', 'sync', 'archived', 'violated', 'broken', 'rebaselined', 'reads'];
-// Shared fields a checkout holds its own value of, without that being a change worth sharing.
-const OVERRIDE_FIELDS = ['confidence', 'verified', 'related'];
-const CONTENT_ORDER = ['id', 'title', 'kind', 'mutability', 'skill', 'answers', 'body', 'applies', 'tags', 'deps', 'source', 'created', 'verified', 'verifiedCommit', 'confidence', 'says', 'search', 'saysFor', 'related'];
-const NOTE_ID = /^[a-z0-9][a-z0-9-]*$/;
-const NOTE_FILE = /^[a-z0-9][a-z0-9-]*\.json$/;
-
-// What of a note is shared: everything that is not this checkout's, in one key order so that
-// rewriting a note does not reorder its file.
-export function sharedContent(note) {
-  const out = {};
-  for (const k of CONTENT_ORDER) if (note[k] !== undefined && note[k] !== null) out[k] = note[k];
-  for (const k of Object.keys(note).sort()) if (!(k in out) && !LOCAL_FIELDS.includes(k) && !CONTENT_ORDER.includes(k) && note[k] !== undefined && note[k] !== null) out[k] = note[k];
-  return out;
-}
-const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-const digest = content => crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
-const readJson = file => { try { if (fs.lstatSync(file).isSymbolicLink()) return null; return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; } };
-// A note as the rest of thinker sees it: a legacy kind read as its new one. The file is left as it is
-// (and so is the digest the overlay was keyed on) until the note is next written.
-const aliased = n => { if (n && typeof n === 'object' && KIND_ALIAS[n.kind]) return { ...n, kind: KIND_ALIAS[n.kind] }; return n; };
-
-// Replace atomically so another hook process never reads a half-written note.
-function writeJson(file, value) {
-  const tmp = `${file}.${process.pid}.${crypto.randomUUID()}.tmp`;
-  try {
-    fs.writeFileSync(tmp, JSON.stringify(value, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
-    fs.renameSync(tmp, file);
-  } finally { try { fs.unlinkSync(tmp); } catch {} }
-}
-
-// The checkout whose cache a linked worktree uses: the main checkout of the same repository, so a session
-// in a worktree (Claude Desktop starts many) is served the notes the repository has. Until 2026-10-18 each
-// worktree had a cache of its own: on this repository a worktree saw the 8 committed notes of 457, its edit
-// hooks logged turns the prompt hook never opened, and its learning stayed behind when it was removed.
-// Code is still read from the worktree (Store.repo); only the cache moves. A worktree keeps a cache of its
-// own when isolation is explicit: THINKER_NOTES_DIR is set (benchmark arms), the worktree has a
-// `.thinker/local/isolated` file (an experiment build kept apart), or the main checkout holds no notes (a
-// benchmark's base clone, whose worktrees must see nothing). Notes a worktree's cache gathered on its own
-// before this (on this machine 20 to 30 a worktree, from first-use setup) are no reason: they stay where
-// they are, unread. A submodule (no commondir) is its own repository.
+// The checkout whose cache a linked worktree uses: the main checkout of the same repository, so a session in a
+// worktree (Claude Desktop starts many) reads the profile the repository has, and its sessions feed it. Until
+// 2026-10-18 each worktree had a cache of its own. Code is still read from the worktree (Store.repo); only the
+// cache moves. A worktree keeps a cache of its own when the main checkout has none to share (a benchmark's base
+// clone, whose worktrees must see nothing) or when a `.thinker/local/isolated` file says so (an experiment build
+// kept apart). A submodule (no commondir) is its own repository.
 const homes = new Map();
 export function cacheCheckout(repo) {
-  if (process.env.THINKER_NOTES_DIR) return repo;
   if (homes.has(repo)) return homes.get(repo);
   let home = repo;
   try {
@@ -220,8 +154,7 @@ export function cacheCheckout(repo) {
       const gitDir = m && path.resolve(repo, m[1].trim());
       const common = gitDir && path.resolve(gitDir, fs.readFileSync(path.join(gitDir, 'commondir'), 'utf8').trim());
       const main = common && path.basename(common) === '.git' ? path.dirname(common) : null;
-      const notes = r => { try { return fs.readdirSync(path.join(r, '.thinker', 'local', 'notes')).some(n => n.endsWith('.json')); } catch { return false; } };
-      if (main && path.resolve(main) !== path.resolve(repo) && !fs.existsSync(path.join(repo, '.thinker', 'local', 'isolated')) && notes(main)) home = main;
+      if (main && path.resolve(main) !== path.resolve(repo) && !fs.existsSync(path.join(repo, '.thinker', 'local', 'isolated')) && fs.existsSync(path.join(main, '.thinker', 'local'))) home = main;
     }
   } catch {}
   homes.set(repo, home);
@@ -229,339 +162,40 @@ export function cacheCheckout(repo) {
 }
 
 export class Store {
-  // readonly: for looking at another checkout (usage, telemetry). Its layout is read as it is and
-  // never migrated from here.
+  // readonly: for looking at another checkout (usage, telemetry); it is never initialized from here.
   constructor(repo, { readonly = false } = {}) {
     this.repo = repo;
     // the checkout that holds the cache: this one, or the main checkout of a linked worktree (cacheCheckout)
     this.home = cacheCheckout(repo);
     this.dir = path.join(this.home, '.thinker');
-    // THINKER_NOTES_DIR serves notes from elsewhere (benchmark control arms).
-    this.notesDir = process.env.THINKER_NOTES_DIR || path.join(this.dir, 'notes');
-    this.tiered = !process.env.THINKER_NOTES_DIR;
     this.readonly = readonly;
     this.localDir = path.join(this.dir, 'local');
-    this.localNotesDir = path.join(this.localDir, 'notes');
-    this.overlayDir = path.join(this.localDir, 'shared');
   }
-  // Checked again only when something in .thinker or .thinker/local was added, renamed or removed (a symlink put in
-  // place of a notes directory changes its parent's mtime) or the notes directory in force changed: every read ran
-  // the lstats and realpaths below, and a usage summary that reads a note per served event spent half its time here.
+  // A symlinked .thinker directory is refused: the hooks write into it on every prompt.
   assertSafeNotesPath() {
-    const want = process.env.THINKER_NOTES_DIR || '';
-    const mt = p => { try { return fs.lstatSync(p).mtimeMs; } catch { return '-'; } };
-    const key = `${want}|${mt(this.dir)}|${mt(this.localDir)}`;
-    if (this.safeKey === key) return;
     try { if (fs.lstatSync(this.dir).isSymbolicLink()) throw new Error('refusing to use a symlinked .thinker directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    if (!want) {
-      for (const dir of [this.notesDir, this.localDir, this.localNotesDir, this.overlayDir]) {
-        try {
-          if (fs.lstatSync(dir).isSymbolicLink()) throw new Error('refusing to use a symlinked notes directory');
-          const root = fs.realpathSync(this.home), real = fs.realpathSync(dir);
-          const rel = path.relative(root, real);
-          if (!rel || rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) throw new Error('notes directory must be inside the repository');
-        } catch (e) { if (e.code !== 'ENOENT') throw e; }
-      }
-    }
-    this.safeKey = key;
+    try { if (fs.lstatSync(this.localDir).isSymbolicLink()) throw new Error('refusing to use a symlinked .thinker/local directory'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
   }
   init() {
     if (this.readonly) throw new Error('readonly store');
-    // Notes may live outside the repo (THINKER_NOTES_DIR). config.json still belongs in <repo>/.thinker.
     this.assertSafeNotesPath();
     const fresh = !fs.existsSync(this.dir);
-    fs.mkdirSync(this.dir, { recursive: true });
-    fs.mkdirSync(this.notesDir, { recursive: true });
-    this.assertSafeNotesPath();
-    if (this.tiered) this.#layout(true);
+    fs.mkdirSync(this.localDir, { recursive: true });
+    // the local directory ignores itself, so nothing in the repository's own .gitignore has to change
+    const ignore = path.join(this.localDir, '.gitignore');
+    if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, '*\n');
     const cfg = path.join(this.dir, 'config.json');
-    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1, verifyModel: 'haiku', distillModel: 'sonnet', distillDefault: 'sonnet' }, null, 2) + '\n');
-    else this.#sonnetDistill(cfg);
+    if (!fs.existsSync(cfg)) fs.writeFileSync(cfg, JSON.stringify({ version: 1 }, null, 2) + '\n');
     // a cache made in a checkout that had none stays out of `git status`: thinker starts one in
     // every git repository it runs in, and that must not dirty the repository
     if (fresh) excludeFromGit(this.home);
     return this;
   }
-  // Until 2026-10-15 init wrote distillModel "haiku" into every config, so a cache's "haiku" is the
-  // old default rather than a choice: such caches move to Sonnet once. distillDefault marks the move,
-  // and a "haiku" set by hand after it stays. A cache running a learnTrial chose its model on purpose:
-  // it waits until the trial is taken out.
-  #sonnetDistill(file) {
-    let cfg;
-    try { cfg = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return; }
-    if (!cfg || typeof cfg !== 'object' || cfg.distillDefault || cfg.learnTrial) return;
-    if (cfg.distillModel === 'haiku') cfg.distillModel = 'sonnet';
-    cfg.distillDefault = 'sonnet';
-    try { fs.writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n'); } catch {}
-  }
   config() {
     try { return JSON.parse(fs.readFileSync(path.join(this.dir, 'config.json'), 'utf8')); } catch { return {}; }
   }
-  exists() { return fs.existsSync(this.notesDir) || (this.tiered && fs.existsSync(this.localNotesDir)); }
-
-  // The local directory, made on first use. It ignores itself, so nothing in the repository's
-  // own .gitignore has to change. Returns false when this checkout still has the one-directory
-  // layout and may not be migrated from here (readonly), or has no cache at all.
-  #layout(create = false) {
-    if (this.migrated) return true;
-    const marker = path.join(this.localDir, 'layout');
-    if (fs.existsSync(marker)) return (this.migrated = true);
-    this.assertSafeNotesPath();
-    const legacy = fs.existsSync(this.notesDir);
-    if (this.readonly || (!legacy && !create)) return false;
-    fs.mkdirSync(this.localNotesDir, { recursive: true });
-    fs.mkdirSync(this.overlayDir, { recursive: true });
-    fs.writeFileSync(path.join(this.localDir, '.gitignore'), '*\n');
-    if (legacy) this.adoptUntracked({ seed: true });
-    fs.writeFileSync(marker, '2\n');
-    return (this.migrated = true);
-  }
-  // Notes in .thinker/notes that git does not track were written by sessions on this machine:
-  // they move to the local cache. Tracked ones stay as the shared cache; with `seed`, what such a
-  // file still carries of this checkout's state (from before the split) starts its local record.
-  // Run once when a checkout first meets this layout. Imports write through put directly.
-  adoptUntracked({ seed = false } = {}) {
-    if (this.readonly) throw new Error('readonly store');
-    this.assertSafeNotesPath();
-    fs.mkdirSync(this.localNotesDir, { recursive: true });
-    fs.mkdirSync(this.overlayDir, { recursive: true });
-    const lock = path.join(this.localDir, 'migrating');
-    const wait = new Int32Array(new SharedArrayBuffer(4));
-    for (const until = Date.now() + 3000; ;) {
-      try { fs.mkdirSync(lock); break; } catch (e) { if (e.code !== 'EEXIST' || Date.now() > until) throw new Error('cache migration is locked; retry later'); }
-      Atomics.wait(wait, 0, 0, 25);
-    }
-    let moved = 0;
-    try {
-      const tracked = new Set();
-      try {
-        for (const f of execFileSync('git', ['ls-files', '-z', '--', '.thinker/notes'], { cwd: this.home, stdio: ['ignore', 'pipe', 'ignore'] }).toString().split('\0')) if (f) tracked.add(path.basename(f));
-      } catch { /* not a git checkout: nothing is shared yet */ }
-      let files = []; try { files = fs.readdirSync(this.notesDir).filter(f => NOTE_FILE.test(f)); } catch {}
-      for (const f of files) {
-        const file = path.join(this.notesDir, f);
-        if (!tracked.has(f)) {
-          // Never overwrite a newer local note left by an interrupted migration.
-          let target = path.join(this.localNotesDir, f);
-          if (fs.existsSync(target)) {
-            const backup = path.join(this.localDir, 'migration-backup');
-            fs.mkdirSync(backup, { recursive: true });
-            target = path.join(backup, `${Date.now()}-${crypto.randomUUID()}-${f}`);
-          }
-          fs.renameSync(file, target); moved++; continue;
-        }
-        if (!seed) continue;
-        const raw = readJson(file); const id = f.slice(0, -5);
-        if (!raw || raw.id !== id || fs.existsSync(path.join(this.overlayDir, f))) continue;
-        const state = {}; for (const k of LOCAL_FIELDS) if (raw[k] !== undefined) state[k] = raw[k];
-        if (Object.keys(state).length) this.#writeOverlay(id, { base: digest(sharedContent(raw)), state, pending: {} });
-      }
-    } finally { try { fs.rmdirSync(lock); } catch {} }
-    return moved;
-  }
-
-  #writeOverlay(id, { base, state, pending, superseded }) {
-    fs.mkdirSync(this.overlayDir, { recursive: true });
-    const out = { id, base, state, pending };
-    if (superseded) out.superseded = superseded;
-    writeJson(path.join(this.overlayDir, id + '.json'), out);
-  }
-  // Content this checkout changed and had not shared when a pull replaced the note: it no
-  // longer applies to the committed content, so it is not served or offered for sharing, but
-  // it is kept beside the overlay (`superseded`) so a correction made on evidence is not lost
-  // without a trace. Null when there is none.
-  superseded(id) {
-    if (!this.isShared(id)) return null;
-    const raw = readJson(path.join(this.notesDir, id + '.json')), ov = readJson(path.join(this.overlayDir, id + '.json'));
-    if (!raw || !ov) return null;
-    if (ov.base !== digest(sharedContent(raw)) && Object.keys(ov.pending || {}).length) return { base: ov.base, pending: ov.pending, at: ov.supersededAt || null };
-    return ov.superseded || null;
-  }
-  // Forget a superseded correction, once it has been looked at (or shared again).
-  clearSuperseded(id) {
-    if (this.readonly) throw new Error('readonly store');
-    const file = path.join(this.overlayDir, id + '.json'), ov = readJson(file);
-    if (!ov) return false;
-    const raw = readJson(path.join(this.notesDir, id + '.json'));
-    const live = raw && ov.base !== digest(sharedContent(raw)) && Object.keys(ov.pending || {}).length;
-    if (!live && !ov.superseded) return false;
-    const next = { id: ov.id, base: live ? digest(sharedContent(raw)) : ov.base, state: ov.state || {}, pending: live ? {} : ov.pending || {} };
-    if (live) for (const k of ['status', 'stale', 'recheck', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete next.state[k];
-    writeJson(file, next);
-    return true;
-  }
-  // Note files that cannot be read: invalid JSON (a merge conflict, a half-written file) or an
-  // id that does not match the file name. The store skips them, so a caller that lists notes
-  // should name them, or a conflicted note just disappears from the cache.
-  unreadable() {
-    const out = [];
-    const dirs = this.tiered && this.#layout() ? [['shared', this.notesDir], ['local', this.localNotesDir]] : [['shared', this.notesDir]];
-    for (const [tier, dir] of dirs) {
-      let files = []; try { files = fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch {}
-      for (const f of files) {
-        const file = path.join(dir, f);
-        let text; try { if (fs.lstatSync(file).isSymbolicLink()) { out.push({ file, tier, reason: 'symbolic link' }); continue; } text = fs.readFileSync(file, 'utf8'); } catch { continue; }
-        let n = null; try { n = JSON.parse(text); } catch {}
-        if (n === null) out.push({ file, tier, reason: /^<{7} |^={7}$|^>{7} /m.test(text) ? 'unresolved merge conflict' : 'invalid JSON' });
-        else if (typeof n?.id !== 'string' || n.id !== f.slice(0, -5)) out.push({ file, tier, reason: 'id does not match the file name' });
-      }
-    }
-    return out;
-  }
-  // A shared note as this checkout sees it: the committed content, then what was changed here and
-  // not shared yet, then this checkout's state. What was changed here holds only against the
-  // content it was made from: when a pull brings a newer version of the note, that version wins and
-  // the staleness, confidence and pending changes recorded against the old one are dropped.
-  #shared(id) {
-    const raw = readJson(path.join(this.notesDir, id + '.json'));
-    if (!raw || raw.id !== id) return null;
-    const content = sharedContent(raw);
-    const ov = readJson(path.join(this.overlayDir, id + '.json'));
-    if (!ov) return { ...content, status: 'fresh' };
-    const state = { ...(ov.state || {}) };
-    let pending = ov.pending || {};
-    if (ov.base !== digest(content)) {
-      pending = {};
-      for (const k of ['status', 'stale', 'recheck', 'verifying', 'invalidReason', ...OVERRIDE_FIELDS]) delete state[k];
-    }
-    const note = { ...content, ...pending, status: 'fresh', ...state };
-    for (const k of Object.keys(note)) if (note[k] === null) delete note[k];
-    return note;
-  }
-  #sharedIds() {
-    try { return fs.readdirSync(this.notesDir).filter(f => NOTE_FILE.test(f)).map(f => f.slice(0, -5)); } catch { return []; }
-  }
-  // Whole notes in one directory: THINKER_NOTES_DIR, or a checkout that is only being looked at.
-  #flat(dir) {
-    let files = []; try { files = fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch {}
-    return files.flatMap(f => { const n = aliased(readJson(path.join(dir, f))); return typeof n?.id === 'string' && NOTE_ID.test(n.id) ? [n] : []; });
-  }
-
-  isShared(id) { return this.tiered && NOTE_ID.test(String(id)) && this.#layout() && fs.existsSync(path.join(this.notesDir, id + '.json')); }
-  // Content of a shared note that was changed in this checkout and is not in the committed file yet
-  // (a re-verification, a correction, phrasings); {} when there is none.
-  pending(id) {
-    if (!this.isShared(id)) return {};
-    const raw = readJson(path.join(this.notesDir, id + '.json')), ov = readJson(path.join(this.overlayDir, id + '.json'));
-    return raw && ov && ov.base === digest(sharedContent(raw)) ? (ov.pending || {}) : {};
-  }
-  // The committed file of a shared note, as it is (local state from before the split included).
-  sharedFile(id) { return this.isShared(id) ? readJson(path.join(this.notesDir, id + '.json')) : null; }
-
-  // How many notes are here, from the file names alone (the page ranks a repository's checkouts by it).
-  count() {
-    this.assertSafeNotesPath();
-    const ids = dir => { try { return fs.readdirSync(dir).filter(f => NOTE_FILE.test(f)); } catch { return []; } };
-    if (!this.tiered || !this.#layout()) return ids(this.notesDir).length;
-    return new Set([...ids(this.localNotesDir), ...this.#sharedIds()]).size;
-  }
-  list() {
-    this.assertSafeNotesPath();
-    if (!this.tiered || !this.#layout()) return this.#flat(this.notesDir);
-    const byId = new Map();
-    for (const n of this.#flat(this.localNotesDir)) byId.set(n.id, n);
-    for (const id of this.#sharedIds()) { const n = aliased(this.#shared(id)); if (n) byId.set(id, n); } // the shared note wins
-    return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  }
-  get(id) {
-    this.assertSafeNotesPath();
-    if (!NOTE_ID.test(String(id))) return null;
-    if (!this.tiered || !this.#layout()) { const n = aliased(readJson(path.join(this.notesDir, id + '.json'))); return n?.id === id ? n : null; }
-    const s = aliased(this.#shared(id)); if (s) return s;
-    const n = aliased(readJson(path.join(this.localNotesDir, id + '.json')));
-    return n?.id === id ? n : null;
-  }
-  put(note) {
-    if (this.readonly) throw new Error('readonly store');
-    this.assertSafeNotesPath();
-    if (!NOTE_ID.test(String(note?.id))) throw new Error('invalid note id');
-    if (this.tiered && this.#layout(true) && this.isShared(note.id)) {
-      // a shared note: the committed file stays as it is; this checkout's state and changes go beside it
-      const content = sharedContent(readJson(path.join(this.notesDir, note.id + '.json')) || { id: note.id });
-      const state = {}, pending = {};
-      for (const k of LOCAL_FIELDS) if (note[k] !== undefined) state[k] = note[k];
-      for (const k of new Set([...Object.keys(note), ...Object.keys(content)])) {
-        if (k === 'id' || LOCAL_FIELDS.includes(k) || same(note[k], content[k]) || (k === 'kind' && kindOf(note.kind) === kindOf(content.kind))) continue; // a legacy kind read as its new one is not a change
-        (OVERRIDE_FIELDS.includes(k) ? state : pending)[k] = note[k] ?? null;
-      }
-      const base = digest(content);
-      // what was pending against the content a pull replaced is kept as superseded, not dropped
-      const prev = readJson(path.join(this.overlayDir, note.id + '.json'));
-      let superseded = prev?.superseded || null;
-      if (prev && prev.base !== base && Object.keys(prev.pending || {}).length) superseded = { base: prev.base, pending: prev.pending, at: new Date().toISOString() };
-      this.#writeOverlay(note.id, { base, state, pending, superseded });
-      return note;
-    }
-    const dir = this.tiered ? this.localNotesDir : this.notesDir;
-    fs.mkdirSync(dir, { recursive: true });
-    const file = path.join(dir, note.id + '.json');
-    try { if (fs.lstatSync(file).isSymbolicLink()) throw new Error('refusing to write through a note symlink'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    writeJson(file, note);
-    return note;
-  }
-  // Write a note into the repository's cache, for the next commit: its content goes to
-  // .thinker/notes, what this checkout knows about it stays local. `content` is what to write
-  // Internal legacy-store helper; not exposed as a user publishing command.
-  promote(note, content = sharedContent(note)) {
-    if (this.readonly) throw new Error('readonly store');
-    this.assertSafeNotesPath();
-    if (!this.tiered) throw new Error('no shared cache with THINKER_NOTES_DIR');
-    if (!NOTE_ID.test(String(note?.id)) || content.id !== note.id) throw new Error('invalid note id');
-    this.#layout(true);
-    fs.mkdirSync(this.notesDir, { recursive: true });
-    const file = path.join(this.notesDir, note.id + '.json');
-    try { if (fs.lstatSync(file).isSymbolicLink()) throw new Error('refusing to write through a note symlink'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    writeJson(file, content);
-    try { fs.unlinkSync(path.join(this.localNotesDir, note.id + '.json')); } catch {}
-    this.put({ ...note, ...content }); // now a shared note: the rest becomes its local record
-    this.clearSuperseded(note.id);     // what is shared now is this checkout's word on the note
-    return content;
-  }
-  remove(id) {
-    if (this.readonly) throw new Error('readonly store');
-    this.assertSafeNotesPath();
-    if (typeof id !== 'string' || !NOTE_ID.test(id)) return false;
-    let removed = false;
-    const dirs = this.tiered && this.#layout() ? [this.notesDir, this.localNotesDir, this.overlayDir] : [this.notesDir];
-    for (const dir of dirs) { try { fs.unlinkSync(path.join(dir, id + '.json')); if (dir !== this.overlayDir) removed = true; } catch {} }
-    return removed;
-  }
-  localNotes() {
-    this.assertSafeNotesPath();
-    if (!this.tiered || !this.#layout()) return [];
-    return this.#flat(this.localNotesDir);
-  }
-  // Overlays of shared notes that no longer exist (retired by a teammate, say). One that still
-  // holds unshared content is kept, so the correction can be read; the rest are removed.
-  sweepOverlays() {
-    if (this.readonly) throw new Error('readonly store');
-    if (!this.tiered || !this.#layout()) return [];
-    const removed = [];
-    let files = []; try { files = fs.readdirSync(this.overlayDir).filter(f => NOTE_FILE.test(f)); } catch {}
-    for (const f of files) {
-      const id = f.slice(0, -5);
-      if (fs.existsSync(path.join(this.notesDir, f))) continue;
-      const ov = readJson(path.join(this.overlayDir, f));
-      if (ov && (Object.keys(ov.pending || {}).length || ov.superseded)) continue;
-      try { fs.unlinkSync(path.join(this.overlayDir, f)); removed.push(id); } catch {}
-    }
-    return removed;
-  }
-  removeLocal(id) {
-    if (this.readonly) throw new Error('readonly store');
-    this.assertSafeNotesPath();
-    if (!this.tiered || !NOTE_ID.test(String(id))) return false;
-    try { fs.unlinkSync(path.join(this.localNotesDir, id + '.json')); return true; } catch { return false; }
-  }
-  // Bytes of every note file of this checkout, both caches.
-  size() {
-    let n = 0;
-    for (const dir of this.tiered ? [this.notesDir, this.localNotesDir] : [this.notesDir]) {
-      try { for (const f of fs.readdirSync(dir)) if (NOTE_FILE.test(f)) n += fs.statSync(path.join(dir, f)).size; } catch {}
-    }
-    return n;
-  }
-  // Append-only usage/feedback log for the machine (see logFile); one line per event, so
+  exists() { return fs.existsSync(this.dir); }
+  // Append-only usage log for the machine (see logFile); one line per event, so
   // sessions in different repositories can append at the same time.
   log(event) {
     try {
@@ -571,14 +205,4 @@ export class Store {
       fs.appendFileSync(f, JSON.stringify({ t: new Date().toISOString(), repo: this.repo, origin: repoId(this.repo), ...event }) + '\n');
     } catch { /* ignore */ }
   }
-}
-
-export function slugify(s) {
-  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '') || 'note';
-}
-
-export function uniqueId(store, base) {
-  let id = base, n = 2;
-  while (store.get(id)) id = `${base}-${n++}`;
-  return id;
 }

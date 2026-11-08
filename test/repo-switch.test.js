@@ -94,7 +94,7 @@ test('in a repository that is off the CLI refuses, the hooks print nothing and w
   const on = run('enable');
   assert.equal(on.status, 0, on.stderr); assert.match(on.stdout, /on again/);
   assert.equal(isDisabledRepo(dir, { home }), false);
-  const again = run('list');
+  const again = run('profile', 'show');
   assert.equal(again.status, 0, again.stderr);
   assert.equal(fs.existsSync(path.join(dir, '.thinker')), true, 'on again, a cache is started');
 });

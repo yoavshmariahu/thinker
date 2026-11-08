@@ -8,8 +8,9 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
+import { seedProfile } from './fixtures/seed-profile.js';
 import { NOTICE_PROMPTS, NOTICE_HOURS, noticeCadence, noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../src/notice-cadence.js';
+import { writeSavings, dayKey } from '../src/savings-ledger.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 process.env.THINKER_CE = 'off';   // ranking has its own tests; keep the cross-encoder out of the hook spawns
@@ -24,7 +25,7 @@ function repo(t, { notice } = {}) {
   fs.writeFileSync(path.join(dir, 'src/upload.py'), 'class RateLimiter:\n    def allow(self, key):\n        return True\n\ndef upload_endpoint(request):\n    return RateLimiter().allow(request.user)\n');
   const store = new Store(dir).init();
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1, ...(notice ? { notice } : {}) }));
-  createNote(store, { title: 'Where upload rate limiting happens', kind: 'map', answers: ['where is rate limiting for the upload endpoint', 'upload rate limiter'], body: 'Rate limiting for uploads is in src/upload.py:RateLimiter.allow, called from src/upload.py:upload_endpoint.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  seedProfile(store);
   return dir;
 }
 
@@ -78,14 +79,18 @@ test('the hooks say their piece once, then hold the turns until a summary comes 
   // two prompts is enough to show the holding; the hours floor is checked above
   const dir = repo(t, { notice: { everyPrompts: 3, everyHours: 0 } });
   const env = { ...process.env, THINKER_HOME: home, THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', THINKER_HOLDOUT: '0' };
+  // the summary is the money line (savings-ledger.js); a kept ledger stands in for the refresh the hooks start
+  const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = home;
+  try { writeSavings(new Store(dir), { at: Date.now(), day: dayKey(), today: { cost: 1.5, tokens: 100_000, unpricedTokens: 0, cleared: { cost: 1.5, tokens: 100_000 } }, lifetime: { cost: 12, tokens: 900_000, unpricedTokens: 0, cleared: { cost: 12, tokens: 900_000 } } }); }
+  finally { if (prev === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = prev; }
   const hook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'claude', '--repo', dir, '--no-distill'], { input: JSON.stringify(ev), encoding: 'utf8', env }).trim();
   const turn = n => { hook('prompt', { session_id: `s${n}`, prompt: PROMPT, cwd: dir }); return hook('stop', { session_id: `s${n}`, cwd: dir }); };
 
   const first = JSON.parse(turn(1));
-  assert.match(first.systemMessage, /🧠 thinker: 1 note this turn/, 'the first turn of a fresh cache speaks');
+  assert.match(first.systemMessage, /🧠 thinker: saved today \$1\.50 · lifetime \$12/, 'the first turn of a fresh cache speaks');
   assert.equal(turn(2), '', 'held');
   assert.equal(turn(3), '', 'held');
   const summary = JSON.parse(turn(4));
-  assert.match(summary.systemMessage, /🧠 thinker: 1 note over the last 3 prompts/, 'the summary speaks for the turns it held');
+  assert.match(summary.systemMessage, /🧠 thinker: saved today/, 'the summary comes due again after the floor');
   assert.equal(turn(5), '', 'and the floors start again');
 });

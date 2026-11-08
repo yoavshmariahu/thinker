@@ -5,21 +5,21 @@
   <link rel="canonical" href="https://thinker.sh/docs.html">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Documentation — thinker</title>
-  <meta name="description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta name="description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="thinker">
   <meta property="og:url" content="https://thinker.sh/docs.html">
   <meta property="og:title" content="Documentation — thinker">
-  <meta property="og:description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta property="og:description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta property="og:image" content="https://thinker.sh/card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Three ways to save coding agent tokens: context compression, knowledge cache, instruction analysis.">
+  <meta property="og:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Documentation — thinker">
-  <meta name="twitter:description" content="Reduce repeated context with automatic compression, instruction file analysis and a knowledge cache for your coding agents.">
+  <meta name="twitter:description" content="Reduce repeated context with automatic compression, instruction file analysis and a session profile for your coding agents.">
   <meta name="twitter:image" content="https://thinker.sh/card.png">
-  <meta name="twitter:image:alt" content="Three ways to save coding agent tokens: context compression, knowledge cache, instruction analysis.">
+  <meta name="twitter:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -455,11 +455,10 @@
         </ul>
       </div>
       <div class="sidebar-group">
-        <div class="sidebar-heading">The knowledge cache</div>
+        <div class="sidebar-heading">The session profile</div>
         <ul class="sidebar-nav">
-          <li class="sidebar-item"><a href="#notes">What a note is</a></li>
+          <li class="sidebar-item"><a href="#notes">The session profile</a></li>
           <li class="sidebar-item"><a href="#keeping-current">Keeping it current</a></li>
-          <li class="sidebar-item"><a href="#skills">Skills</a></li>
         </ul>
       </div>
       <div class="sidebar-group">
@@ -499,7 +498,7 @@
         <ol>
           <li><strong><a href="#compression">Context compression.</a></strong> Clear older tool results so later calls carry less history.</li>
           <li><strong><a href="#context">Instruction file analysis.</a></strong> See which rules earn their place in every prompt, then review cuts to the rest.</li>
-          <li><strong><a href="#notes">Knowledge cache.</a></strong> Reuse what previous sessions learned, so the next task needs fewer searches and file reads.</li>
+          <li><strong><a href="#notes">Session profile.</a></strong> Start every session knowing what you are working on, how you want work done and what went wrong before.</li>
         </ol>
         <p>The saving adds up across model calls. Your token bill also depends on prompt-cache pricing and rewrites; Thinker reports tokens and costs so you can track the effect on your own work.</p>
         <pre><code>npx thinkersh</code></pre>
@@ -511,16 +510,16 @@
         <pre><code>npx thinkersh</code></pre>
         <p>Requires Node 20+, git, curl, tar and a <a href="#supported-agents">supported coding agent</a>. The installer connects your agents and shows where their context goes. Choose the browser or terminal to review suggested cuts.</p>
         <ol>
-          <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the knowledge cache learns as you work.</li>
+          <li><strong>Connect:</strong> restart your agent after installation. Compression runs automatically where supported; the session profile learns as you work.</li>
           <li><strong>Find Savings:</strong> review the suggested instructions, skills and tools to shorten or switch off.</li>
           <li><strong>Apply your choices:</strong> preview instruction changes as a diff; in the browser, open a pull request to review and merge.</li>
           <li><strong>View Report:</strong> track tokens and costs week by week as you keep working.</li>
         </ol>
-        <p>Keep working as usual. Thinker learns and checks notes in the background, and periodically suggests instruction and tool changes for you to review. Open <code>thinker ui</code> whenever you want to see savings or reports.</p>
+        <p>Keep working as usual. Thinker learns how you work in the background, and periodically suggests instruction and tool changes for you to review. Open <code>thinker ui</code> whenever you want to see savings or reports.</p>
         <details class="fold">
           <summary>What installation changes</summary>
           <p>Thinker installs under <code>~/.thinker</code> and connects your agents in their own settings. Its first report reads the last 30 days of sessions in your five most active repositories; generating that report needs no model call. In the browser, suggestions arrive checked for review. Instruction files and tool settings change only when you apply your choices. Context compression runs automatically where supported.</p>
-          <p>Each repository's cache starts empty and grows from your sessions. Notes are stored locally under <code>.thinker/</code>. Learning and verification use your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
+          <p>Each repository's profile starts empty and grows from your sessions. It is stored locally under <code>.thinker/local/</code>. Learning uses your agent's model access. See <a href="#telemetry">privacy and telemetry</a>.</p>
           <p>Use <code>--no-ui</code> to stay in the terminal. With <code>--yes</code> or no terminal, the installer prints the report.</p>
         </details>
       </section>
@@ -681,69 +680,38 @@ read any range: Read with offset and limit</span></pre>
 
 
 
-      <div class="part-label">The knowledge cache</div>
+      <div class="part-label">The session profile</div>
 
       <section id="notes">
-        <h2>Reuse what your agent already learned.</h2>
-        <p>Thinker turns useful findings from your sessions into short notes and brings relevant ones into future tasks. A pointer to the right function or a known trap can save the agent from repeating the searches and file reads that found it. The cache starts empty and grows as you work.</p>
-        <h3>What a note is</h3>
-        <p>
-          A note answers a recurring question about the repository, not "what this file does". It is 3 to 12 lines with <code>file:Symbol</code> pointers into the code, and it comes in four kinds:
-        </p>
+        <h2>Start every session oriented.</h2>
+        <p>Thinker learns how you work in each repository and puts that into the first prompt of every session: what you are in the middle of, how you want work done and answers given, what went wrong before and the recent bugs. The agent starts knowing the person it works for, instead of learning it again through corrections.</p>
+        <h3>What the profile is</h3>
+        <p>Four short sections, about 1,500 tokens, every line resting on observations from your own sessions and counted in sessions:</p>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Kind</th><th>What it answers</th></tr></thead>
+            <thead><tr><th>Section</th><th>What it says</th></tr></thead>
             <tbody>
-              <tr><td><code>rule</code></td><td>What a change must respect: an invariant, a convention, a trap, a fix not to undo and why.</td></tr>
-              <tr><td><code>map</code></td><td>Where a recurring concern is handled, how control or data flows across files, the shape of a module area</td></tr>
-              <tr><td><code>howto</code></td><td>How to build, test, run or lint, with the non-obvious flags</td></tr>
-              <tr><td><code>behavior</code></td><td>A rule a design document checked into the repository states, or one a person wrote down</td></tr>
+              <tr><td>Working on</td><td>The lines of work you are in the middle of, and where each stands by your last reaction</td></tr>
+              <tr><td>How this person works</td><td>How you want work done and answers given: stated preferences first, then corrections repeated across sessions</td></tr>
+              <tr><td>What went wrong before</td><td>"When doing X: avoid Y", with your own words quoted, and what you then accepted instead</td></tr>
+              <tr><td>Recent bugs</td><td>The symptom, the cause where it was told, and whether the fix was accepted</td></tr>
             </tbody>
           </table>
         </div>
-        <p>
-          Each note stores its title, the questions it answers, its body, the files and symbols it rests on with their content hashes, its source (a session, a pull request, a person), its confidence and its status. A note's pointers are its dependencies: a note about <code>AuthManager.verifyToken</code> hashes that definition alone, so it does not go stale because another method in the same file changed.
-        </p>
+        <p>It is learned from a session's prompts and the agent's answers alone, never its tool calls or their results. The outcome of each exchange is read from your next prompt: the agent's own "done" is a claim, and a correction is what counts. The block is headed as learned context, not instructions, and goes in again after a compaction, since a compaction summary keeps none of it.</p>
       </section>
 
       <section id="keeping-current">
         <h2>Keeping it current</h2>
-        <p>
-          A cache that drifts from the code is worse than none. Thinker keeps itself correct in three ways, all in the background, under a daily token cap (<code>maintain.dailyTokens</code> in the <a href="#configuration">configuration</a>):
-        </p>
-        <h3>It learns from every session</h3>
         <ul>
-          <li><strong>Each session is distilled once, when it ends</strong>, through the agent's own login: up to three new notes, and a verdict on every note it was served. <code>confirmed</code> (the agent acted on it) raises confidence; <code>contradicted</code> (the trace shows a claim was wrong) corrects the body and keeps the history; <code>unused</code> lets it decay. Near-duplicates are merged. A quiet session with nothing to learn from is skipped.</li>
-          <li><strong>Newly merged pull requests</strong> are mined as they land, fixes first, when <code>maintain.prs</code> is on in the configuration (off by default: the cache grows from the sessions).</li>
-          <li><strong>People</strong> add notes too: telling your agent to remember something makes it a note when the session is distilled.</li>
+          <li><strong>Each session is read once, when it ends</strong>, through the agent's own login: a model records what was asked, what the agent says it did and how you reacted, and the profile is patched with it. A single session on new work becomes a Working on line; the next session on the same work updates it.</li>
+          <li><strong>The code keeps it honest.</strong> Every line cites the observations behind it; a line nothing in the last 60 days supports leaves by itself, a workstream not seen for three weeks and a bug not seen for two leave too, and a rule needs two sessions or one statement in your own words.</li>
+          <li><strong>Once a month the profile is compiled again from nothing</strong>, so wording the patches have carried for weeks is derived again from the observations.</li>
+          <li><strong>The spend is bounded.</strong> One model call per session plus the patch, under a daily token cap (<code>maintain.dailyTokens</code>).</li>
         </ul>
-        <h3>It knows when a note is stale</h3>
-        <ul>
-          <li>Thinker checks each note’s dependencies against your working tree, including uncommitted edits. An ordinary code change queues verification while the note remains available.</li>
-          <li>Missing files or symbols and explicit contradictions withhold a note. Verification checks whether to keep, update or retire it.</li>
-          <li>Verification sends the note, the diff of its changed dependencies and their current text to a small model, which answers <code>still_valid</code>, <code>update</code> (body rewritten, history kept) or <code>invalid</code> (retired).</li>
-          <li>The block is found by a tree-sitter parser for Python, JavaScript, TypeScript, Go and Rust, which comes with the install. Other languages, and code the parser cannot read, use a regex heuristic.</li>
-        </ul>
-        <h3>It maintains itself</h3>
-        <p>
-          Maintenance runs from the prompt hooks and after every commit or merge, and spends little by default: one verification batch every three days, of the stale notes served in the last three days (at most 50), retrieval phrasings for new notes, and the removal of notes nobody was served in 14 days (a committed note is archived instead). Mining pull requests, reading design documents and carding skill files in the background are off unless the repository's <code>maintain</code> configuration turns each on. What a run did is shown once at the end of the next turn.
-        </p>
         <div class="callout note">
-          <strong>Local by default.</strong> Learned notes live in <code>.thinker/local/</code>, which git ignores.
+          <strong>Local by default.</strong> The profile lives in <code>.thinker/local/profile/</code>, which git ignores. <code>thinker profile show</code> prints what a session is shown; <code>--why</code> the evidence behind each line.
         </div>
-      </section>
-
-      <section id="skills">
-        <h2>Skills</h2>
-        <p>
-          A skill is a file (<code>SKILL.md</code>) an agent pulls into its context by name: how to deploy, how to run the tests here, how to add a webhook. Its instructions rest on code that moves, so a skill decays the way a note does. Thinker treats the skill files checked into a repository as cached knowledge; it never edits one.
-        </p>
-        <ul>
-          <li><strong>Each skill gets a card.</strong> A skill file under <code>.claude/skills</code>, <code>.agents/skills</code>, <code>.codex/skills</code>, <code>.cursor/skills</code>, <code>.github/skills</code> or <code>skills/</code> gets a note of kind <code>skill</code>: what it is for, when to invoke it, what it prescribes, with pointers at the code it talks about. Maintenance cards new and changed files where <code>maintain.skills</code> is on. A served card tells the agent to invoke the skill for the full instructions.</li>
-          <li><strong>A card is served like any note.</strong> The hooks rank it with the rest, so a request the skill is about brings the card with its pointer to the file; nothing has to be asked for.</li>
-          <li><strong>Each card is audited against the code.</strong> When code a skill talks about changes, the audit reads the file against the current code and asks one question: does the code contradict something the skill states? A skill the code contradicts is <strong>out of date</strong>: its issues are recorded, it is not served, and no further model call is spent on it until the file changes.</li>
-          <li><strong>Sessions grade them.</strong> A session that invoked a skill is read for whether the skill held; a contradiction the session found takes the skill out the same way. Among skills that do the same thing, the one the sessions confirm is the one served (<code>skills.prefer</code> in the config pins one).</li>
-        </ul>
       </section>
 
       <div class="part-label">Efficient coding</div>
@@ -751,22 +719,18 @@ read any range: Read with offset and limit</span></pre>
       <section id="in-a-session">
         <h2>In a session</h2>
         <p>
-          Nothing changes in how you work. The hooks put the right note in front of the agent at the right moment, and the agent starts at the code it needs instead of searching for it.
+          Nothing changes in how you work. The context clearing runs through a local proxy (or inside the Claude desktop app's own session), and the profile goes into the first prompt.
         </p>
         <ul>
-          <li><strong>Each request</strong> gets the note that fits it, with <code>file:Symbol</code> pointers into the code and a <code>[6 call sites in 3 files]</code> tag on each symbol it names. A local ranking model reads the request with the best lexical candidates and serves up to two notes, only those it scores relevant; when it is missing, notes are ranked by words alone. A note is served once per session, withheld when its dependencies are missing or its claim is contradicted, and skipped for a one-word turn of conversation. When nothing fits, nothing is served.</li>
-          <li><strong>Each file the agent edits</strong> brings the rules resting on it, so a trap on that code is in front of the agent as it changes it.</li>
-          <li><strong>Periodic summaries</strong> show which notes were served. View Report tracks whether the agent acted on them and what learning cost.</li>
+          <li><strong>Older tool results are cleared</strong> out of the requests the agent sends once a conversation grows, when the saving repays the prompt-cache rewrite it costs; recent results and the current turn are kept.</li>
+          <li><strong>Periodic summaries</strong> say what the clearing saved; the status line under the prompt in Claude Code keeps the figure on screen.</li>
         </ul>
-        <p>
-          Measured on real tasks with and without thinker, every model tested used 18% fewer input tokens per task and finished 10% sooner. <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">See the numbers</a>.
-        </p>
       </section>
 
       <section id="tools">
         <h2>The MCP server</h2>
         <p>
-          The notes reach the agent through the hooks alone. The MCP server offers the agent no tools (since 2026-10-22; the <code>orient</code>, <code>lookup</code>, <code>remember</code> and <code>feedback</code> tools are gone): it carries thinker's own questions and, in a desktop app, its learning queue.
+          The profile reaches the agent through the hooks alone. The MCP server offers the agent no tools: it carries thinker's own questions and, in a desktop app, its learning queue.
         </p>
       </section>
 
@@ -774,28 +738,11 @@ read any range: Read with offset and limit</span></pre>
 
       <section id="usage">
         <h2>Usage and the holdout</h2>
-        <div class="outcomes">
-          <a class="outcome" href="#in-a-session">
-            <div class="outcome-kicker">Tokens</div>
-            <div class="outcome-num">18% fewer input tokens</div>
-            <div class="outcome-label">per coding task</div>
-            <p class="outcome-body">The cache gives the agent the context that fits its task, so it does not have to build up its own picture of the codebase from file reads and searches.</p>
-            <div class="outcome-cta">What a session looks like &rarr;</div>
-          </a>
-          <a class="outcome" href="#holdout">
-            <div class="outcome-kicker">Wall time</div>
-            <div class="outcome-num">10% less wall time</div>
-            <div class="outcome-label">per coding task</div>
-            <p class="outcome-body">Fewer searches mean fewer turns and tool calls, so the same model finishes the same task sooner.</p>
-            <div class="outcome-cta">Measure it on your own sessions &rarr;</div>
-          </a>
-        </div>
-        <p class="outcomes-caption">Knowledge-cache benchmarks: one run per arm, different task sets per model. These results do not measure the Find Savings cuts. Read the <a href="https://github.com/yoavshmariahu/thinker/blob/main/research/bench-history/RESULTS.md">method and limitations</a>.</p>
         <p>
-          View Report on the <a href="#local-page">local page</a> shows how the cache has been used, for one repository or every repository on the machine: notes served and how, what the sessions did with them, what learning and maintenance cost in tokens, and an estimate of the reads avoided. Where the context itself goes is the <a href="#context">Find Savings view</a>.
+          View Report on the <a href="#local-page">local page</a> shows what a session costs here week by week and what the clearing saved, measured: the proxy counts what it left out of each prompt. <code>thinker usage</code> prints the requests, sessions and what learning spent; <code>thinker savings</code> the figure the status line carries.
         </p>
         <p id="holdout">
-          One number in it is measured rather than estimated. The hooks serve nothing in 15% of prompts, chosen by a hash of the session id and the turn's number, and what every turn cost is recorded from the session's transcript. The holdout comparison compares the prompts that got notes with the ones that had notes withheld, as cost per prompt overall and per model, once twenty prompts stand on each side. This is what the notes do for your own work, on your own repository, by your own agent. <code>holdout</code> in the config changes the share or turns it off.
+          The profile is measured too. 15% of sessions see no profile, chosen by a hash of the session id, and every observation learned from a session carries which side it was on. <code>thinker profile holdout</code> compares corrections and redirects per session on each side, beside what each side's sessions cost; fewer than twenty sessions a side is too few to read.
         </p>
       </section>
 
@@ -809,18 +756,18 @@ read any range: Read with offset and limit</span></pre>
         <div class="table-scroll">
           <table>
             <thead>
-              <tr><th>Agent</th><th>Notes for the request</th><th>Notes on edited files</th><th>MCP tools</th><th>Wiring</th></tr>
+              <tr><th>Agent</th><th>The profile</th><th>Context clearing</th><th>Wiring</th></tr>
             </thead>
             <tbody>
-              <tr><td>Claude Code, and the Claude desktop app's Code tab</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Codex CLI and the Codex desktop app</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Gemini CLI</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Cursor</td><td>Through prompt hooks and the first tool result</td><td>Yes</td><td>Yes</td><td>Machine-wide, plus a rule in the checkout</td></tr>
-              <tr><td>Devin CLI and Devin Desktop's local agent</td><td>Added to each prompt</td><td>Yes</td><td>Yes</td><td>Machine-wide</td></tr>
-              <tr><td>Pi</td><td>Extension</td><td>Yes</td><td>CLI guidance</td><td>The checkout</td></tr>
-              <tr><td>Windsurf Cascade</td><td>A rule asks the agent to orient</td><td>Agent-directed</td><td>CLI guidance</td><td>The checkout</td></tr>
-              <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>Yes</td><td>Manual</td><td>The checkout</td></tr>
-              <tr><td>OpenCode</td><td>Plugin</td><td>Yes</td><td>Yes</td><td>The checkout</td></tr>
+              <tr><td>Claude Code, and the Claude desktop app's Code tab</td><td>First prompt, and after a compaction</td><td>Automatic: the proxy, or the mod inside the desktop app</td><td>Machine-wide</td></tr>
+              <tr><td>Codex CLI and the Codex desktop app</td><td>First prompt</td><td>Through the proxy's Codex route</td><td>Machine-wide</td></tr>
+              <tr><td>Gemini CLI</td><td>First prompt</td><td>No: Google's API only</td><td>Machine-wide</td></tr>
+              <tr><td>Cursor</td><td>With the first prompt; the CLI one tool call late</td><td>No: calls go through Cursor's servers</td><td>Machine-wide, plus a rule in the checkout</td></tr>
+              <tr><td>Devin CLI and Devin Desktop's local agent</td><td>First prompt</td><td>Devin's own compactor, set to the proxy's trigger</td><td>Machine-wide</td></tr>
+              <tr><td>Pi</td><td>Extension</td><td>Automatic: the proxy</td><td>The checkout</td></tr>
+              <tr><td>Windsurf Cascade</td><td>No: its hooks only record</td><td>No: Windsurf's servers</td><td>The checkout</td></tr>
+              <tr><td>GitHub Copilot CLI</td><td>With the first tool result</td><td>By hand, with your own Anthropic key</td><td>The checkout</td></tr>
+              <tr><td>OpenCode</td><td>Plugin</td><td>Automatic (<code>opencode.json</code>)</td><td>The checkout</td></tr>
             </tbody>
           </table>
         </div>
@@ -830,10 +777,10 @@ read any range: Read with offset and limit</span></pre>
         <details class="fold">
           <summary>Where each agent is wired</summary>
           <ul>
-            <li><strong>Claude Code:</strong> hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>. <code>UserPromptSubmit</code> adds the notes to the prompt, <code>PostToolUse</code> brings the notes on a file being edited, <code>Stop</code> and <code>SessionEnd</code> distill the session once in the background.</li>
+            <li><strong>Claude Code:</strong> hooks in <code>~/.claude/settings.json</code>, the MCP server in <code>~/.claude.json</code>. <code>UserPromptSubmit</code> adds the profile to the first prompt, <code>Stop</code> and <code>SessionEnd</code> read the session once in the background.</li>
             <li><strong>Codex CLI:</strong> hooks in <code>~/.codex/hooks.json</code>, the MCP server in <code>~/.codex/config.toml</code>, where the project and the hooks are also marked trusted so Codex asks nothing before running them. The desktop app reads the same file.</li>
-            <li><strong>Gemini CLI:</strong> prompt-time context, edit notes and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
-            <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's prompt hook cannot add context, so the notes are computed at prompt time and handed over with the first tool result.</li>
+            <li><strong>Gemini CLI:</strong> prompt-time context and the MCP server in <code>~/.gemini/settings.json</code>. Gemini Code Assist's agent mode reads the same configuration.</li>
+            <li><strong>Cursor:</strong> hooks in <code>~/.cursor/hooks.json</code>, the MCP server in <code>~/.cursor/mcp.json</code> (approved by setup), and an always-applied rule in the checkout. Cursor's CLI prompt hook cannot add context, so there the profile is handed over with the first tool result.</li>
             <li><strong>Devin:</strong> hooks in <code>~/.config/devin/config.json</code>, the MCP server in <code>~/.config/devin/mcp_config.json</code>, and one permission entry so the background subagent that does the learning may call thinker's own tool. The same files serve the CLI and Devin Desktop's local agent. Devin refuses to run in a workspace you have not trusted, so run <code>devin</code> once in the repository and accept the prompt.</li>
             <li><strong>Pi, Windsurf Cascade, Copilot CLI, OpenCode:</strong> nothing machine-wide. The installer, given <code>--clients pi,windsurf,copilot,opencode</code>, writes an extension, a hook file or a rule. Restart the host agent afterwards.</li>
           </ul>
@@ -881,7 +828,7 @@ read any range: Read with offset and limit</span></pre>
               <tr><td><code>harness</code></td><td><code>enabled</code> (switching skills and tools off writes the agent's settings; the page turns it on when you switch one off), <code>builtinTools</code> (offer Claude Code's built-in tools too)</td></tr>
               <tr><td><code>archive</code></td><td><code>kinds</code> and <code>unservedDays</code> (30), or <code>false</code></td></tr>
               <tr><td><code>holdout</code></td><td>The share of sessions served nothing (0.15; 0 or <code>false</code>: none)</td></tr>
-              <tr><td><code>ce</code></td><td>The local ranker the hooks choose notes with: <code>floor</code> (0), <code>maxNotes</code> (2), or <code>false</code> to rank by words alone</td></tr>
+              <tr><td><code>learn.profile</code></td><td><code>false</code> keeps the session profile off in this repository; <code>holdout</code> (0.15) is the share of sessions it is held out of</td></tr>
               <tr><td><code>snippets</code>, <code>notice</code></td><td><code>false</code>: no code behind the pointers; no end-of-turn line</td></tr>
               <tr><td><code>distillModel</code>, <code>verifyModel</code></td><td>The model for each kind of call</td></tr>
               <tr><td><code>telemetry</code></td><td><code>false</code>: no metrics sent</td></tr>
@@ -896,7 +843,7 @@ read any range: Read with offset and limit</span></pre>
       <section id="telemetry">
         <h2>Privacy and telemetry</h2>
         <p>
-          Thinker sends pseudonymous hourly effectiveness metrics (cache hit rate, note count, estimated token savings, and the totals of the holdout comparison: prompt counts and summed tool calls and tokens of prompts with and without notes) to monitor cache quality. They also carry counts for the context proxy (requests through it, tokens the API cleared, errors, and the model ids it saw) and for the choices you make on Find Savings (how many changes were suggested, applied, dismissed or reverted, by kind of part, and the tokens a prompt each measured before and after). <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> The only part names in them are your agent's own built-in tools and common shell commands (<span class="code-comment">Grep</span>, <span class="code-comment">Bash:git</span>): never a section title, instruction file, skill name or MCP server name. Note ranking runs on your machine. Learning and verification use your configured model provider. The telemetry opt-out below does not disable those model calls.
+          Thinker sends pseudonymous hourly effectiveness metrics (requests, sessions, the profile's two arms as counts, and what the clearing saved) to monitor quality. They also carry counts for the context proxy (requests through it, tokens the API cleared, errors, and the model ids it saw) and for the choices you make on Find Savings (how many changes were suggested, applied, dismissed or reverted, by kind of part, and the tokens a prompt each measured before and after). <strong>These telemetry reports contain no code, note bodies, prompt text, file paths or repository URLs.</strong> The only part names in them are your agent's own built-in tools and common shell commands (<span class="code-comment">Grep</span>, <span class="code-comment">Bash:git</span>): never a section title, instruction file, skill name or MCP server name. Note ranking runs on your machine. Learning and verification use your configured model provider. The telemetry opt-out below does not disable those model calls.
         </p>
         <pre><code><span class="code-comment"># Opt out in your shell environment:</span>
 export THINKER_TELEMETRY=off
@@ -913,25 +860,25 @@ export THINKER_TELEMETRY=off
         <div class="faq-item" id="faq-data">
           <h3>Where is my data stored? Does anything leave my machine?</h3>
           <p>
-            The cache lives in the repository it describes, and it stays on your machine. Notes are under <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. Notes that an older version committed under <code>.thinker/notes/</code> are still read. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log every serving is recorded in, and the ranking model. The Context report is read from the transcripts your agents already write; nothing is copied out of them.
+            Everything Thinker learns stays on your machine. The profile of how you work in a repository is under its <code>.thinker/local/</code>, which git ignores; there is no team sharing or sync. <code>.thinker/config.json</code> holds the configuration. Per machine, <code>~/.thinker/</code> holds the installed app, the usage log, the savings ledger and the proxy's records.
           </p>
           <p>Network activity includes:</p>
           <ul>
-            <li><strong>Model calls go to the provider you already use for your agent.</strong> Learning and verification run through your agent's own login (<code>claude</code>, <code>codex</code>, <code>gemini</code>, <code>cursor</code>, or an Anthropic API key), or, in a desktop app (Claude Desktop, the Codex app, Cursor), through the app's own session. A session is distilled from a condensed transcript; verification sends a note with the diff of the code it rests on. Thinker runs no model and stores nothing of its own in the cloud.</li>
-            <li><strong>Telemetry is counts only.</strong> An hourly report carries numbers: notes served, verdicts, token totals, the sums of the holdout comparison, what went through the context proxy, and what you compressed or switched off and what it measured as saved, with an install id and a hashed device id. It contains no code, note bodies, prompt text, file paths or repository URLs, and names nothing of yours: a skill, an MCP server or an instruction section is counted by its kind, while your agent's own built-in tools are named. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it; see <a href="#telemetry">Privacy and telemetry</a>.</li>
-            <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine. Ranking never calls a service.</li>
+            <li><strong>Model calls go to the provider you already use for your agent.</strong> Reading a session into the profile runs through your agent's own login (<code>claude</code>, or an Anthropic API key), or, in a desktop app, through the app's own session. A session is read from its prompts and the agent's answers alone, never its tool calls or their results.</li>
+            <li><strong>Telemetry is counts only.</strong> An hourly report carries numbers: requests, sessions, what the clearing saved, the profile's two arms, token totals, what you compressed or switched off and what it measured as saved, with an install id and a hashed device id. It contains no code, profile text, prompt text, file paths or repository URLs. <code>THINKER_TELEMETRY=off</code> or <code>{ "telemetry": false }</code> in the config stops it.</li>
+            <li><strong>The ranking model is downloaded once at install</strong> (about 23 MB) and runs on your machine.</li>
           </ul>
           <p>
             The local page of <code>thinker ui</code> listens on 127.0.0.1 only.
           </p>
           <p>
-            <strong>A repository with sensitive content can be turned off</strong> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is distilled, and nothing is written into it. <code>thinker enable</code> turns it back on.
+            <strong>A repository with sensitive content can be turned off</strong> with <code>thinker disable</code> inside it. Thinker then does nothing there, in any clone or worktree: the hooks and the MCP server serve nothing, no session is read, and nothing is written into it. <code>thinker enable</code> turns it back on.
           </p>
         </div>
 
         <div class="faq-item" id="faq-context-savings">
           <h3>Where do the context savings come from? Why does a short section matter?</h3>
-          <p>Context carried across 40 model calls is counted 40 times. Thinker addresses that repetition in three places: <a href="#compression">clearing old tool results</a>, <a href="#context">shortening instructions you review</a>, and <a href="#notes">reusing knowledge from previous sessions</a>.</p>
+          <p>Context carried across 40 model calls is counted 40 times. Thinker addresses that repetition in two places: <a href="#compression">clearing old tool results</a> and <a href="#context">shortening instructions you review</a>; the <a href="#notes">profile</a> spends about 1,500 tokens a session to spare the corrections that cost many more. <span hidden>reusing knowledge from previous sessions</a>.</p>
           <p>Token reductions are not dollar savings one for one. Cached input has a different price, and a cut can cause a cache rewrite. Track both tokens and costs in View Report.</p>
         </div>
 
@@ -974,45 +921,26 @@ export THINKER_TELEMETRY=off
         </div>
 
         <div class="faq-item" id="faq-how">
-          <h3>How does the cache work? What does it do to make my agents faster?</h3>
-          <p>
-            A note is a short rule, map or how-to about one part of the code, with <code>file:Symbol</code> pointers and a hash of the code it rests on. The cache is a set of such notes, and the work is in putting the right one in front of the agent without being asked:
-          </p>
-          <ul>
-            <li><strong>On each request</strong> a hook picks the lexical candidates, then a local ranking model reads the request against them and serves up to two notes, only those it scores relevant. The agent starts at the code instead of searching for it.</li>
-            <li><strong>On each file edit</strong> the rules resting on that file are served, so a trap on that code is in view while it is changed.</li>
-            <li><strong>Never stale.</strong> Every serving re-hashes the dependencies of every note against your working tree. A note whose code changed is held back, re-verified with the next batch (every three days), and served again once it is fresh.</li>
-            <li><strong>Once per session.</strong> A note is served once, not for one-word turns, and not at all when nothing fits.</li>
-          </ul>
-          <p>
-            The cache keeps itself: each session is distilled once when it ends, and a maintenance batch every few days re-verifies the stale notes sessions were served and drops the ones nobody was served in two weeks. See <a href="#keeping-current">Keeping it current</a>.
-          </p>
+          <h3>What does Thinker do in a session?</h3>
+          <p>Two things. It <strong>clears what the agent has finished with</strong> out of its context: older tool results are replaced in the requests the agent sends, so every later call reads a shorter prompt. That is where the cost is, and it is measured. And it puts a <strong>profile of how you work</strong> in this repository into the session's first prompt, and again after a compaction.</p>
         </div>
 
         <div class="faq-item" id="faq-learning">
-          <h3>Where do the notes come from? Can I build the cache up front?</h3>
-          <p>
-            From your own sessions, and from nothing else. When a session ends, a model reads a condensed transcript of it (what was asked, read, run and changed) and saves what the session worked out that the next one would otherwise work out again, usually nothing or one note. The same call grades the notes the session was served: confirmed, contradicted (the note is corrected) or unused. A quiet session, with nothing served, no edit, no failure and little exploring, is skipped.
-          </p>
+          <h3>Where does the profile come from? Can I build it up front?</h3>
+          <p>From your own sessions, and from nothing else. When a session ends, a model reads its prompts and the agent's answers, records what was asked and how you reacted, and patches the profile. <code>thinker profile rebuild --days 30</code> reads the last month's sessions at once; there is no other build step.</p>
           <ul>
-            <li><strong>There is no build step.</strong> The installer connects your agents and nothing else; every git repository starts with an empty cache, and the hooks serve from it once it holds a few notes.</li>
-            <li><strong>The spend is bounded.</strong> One model call per session, through your agent's login, and learning and maintenance together stop at a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
-            <li><strong>You can add your own.</strong> Telling your agent to remember something makes it a note when the session is distilled.</li>
-            <li><strong>You can stop it.</strong> <code>{ "learn": { "sessions": false } }</code> in the config stops learning from sessions in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
+            <li><strong>The spend is bounded.</strong> One model call per session plus the patch, through your agent's login, under a daily token cap (<code>maintain.dailyTokens</code> in <code>.thinker/config.json</code>).</li>
+            <li><strong>You can stop it.</strong> <code>{ "learn": { "profile": false } }</code> in the config stops the profile in a repository; <code>THINKER_NO_LEARN=1</code> stops all learning.</li>
           </ul>
         </div>
 
         <div class="faq-item" id="faq-helping">
           <h3>How can I tell if Thinker is helping my agents?</h3>
           <ul>
-            <li><strong>Periodic summaries</strong> show which notes were served; View Report keeps the detail.</li>
-            <li><strong>The <a href="#context">Find Savings view</a></strong>, and the weekly suggestion drawn from it, show where your agents' context goes: what each instruction section, skill and tool costs a session and how often sessions acted on it, so what you cut is measured on your own sessions.</li>
-            <li><strong>The cache summary under View Report</strong> shows notes served, what the sessions did with them (confirmed, contradicted, unused), what learning and maintenance cost in tokens, and an estimate of the reads avoided.</li>
-            <li><strong>The holdout is measured, not estimated.</strong> 15% of prompts are served nothing, chosen by a hash of the session and the turn, and what every turn cost is read from the session's transcript. Once twenty prompts stand on each side, the holdout comparison compares the cost per prompt: tool calls and tokens with notes against without, on your repository, by your agent.</li>
+            <li><strong>The savings are measured.</strong> The status line, the cards and <code>thinker savings</code> say what the clearing saved today and over the whole log, at list prices; View Report shows it week by week beside what a session costs.</li>
+            <li><strong>The <a href="#context">Find Savings view</a></strong>, and the weekly suggestion drawn from it, show where your agents' context goes and how often sessions acted on each part, so what you cut is measured on your own sessions.</li>
+            <li><strong>The profile has a holdout.</strong> 15% of sessions see no profile, and <code>thinker profile holdout</code> compares corrections and redirects per session on each side. Fewer than twenty sessions a side is too few to read.</li>
           </ul>
-          <p>
-            A note served is not a note used. Read the confirmed and unused counts rather than the hit rate; a cache that serves often and is rarely acted on is costing tokens, and maintenance archives such notes over time.
-          </p>
         </div>
       </section>
     </main>

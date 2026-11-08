@@ -6,10 +6,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { proxyConfig, startProxy, proxyReport, LONG_CONTEXT, REWRITE_DAYS } from '../proxy.js';
 import { replay, renderReplay, parsePolicies } from '../proxy-replay.js';
-import { NoteInjector, PROXY_CLIENT } from '../proxy-notes.js';
 import { findSessions } from '../transcripts.js';
-import { orient, beginTurn, servesNotes, HOOK_BUDGET } from '../ops.js';
-import { cacheBundleIntro } from '../cache-guidance.js';
 import { Store, findRepoRoot } from '../store.js';
 import { thinkerHome } from '../update.js';
 import { formatTokens } from '../model-usage.js';
@@ -18,19 +15,6 @@ import { bedrockState } from '../proxy-bedrock.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
 
-// The notes for a request, as the prompt hook serves them (commands/hooks.js): once a session, fresh only,
-// the holdout turn opened on the session (ops.js:beginTurn), under the same bundle line.
-export function noteInjectorFor(store) {
-  return new NoteInjector({
-    serve: async ({ task, session }) => {
-      if (!servesNotes(store)) { store.log({ op: 'orient', session, client: PROXY_CLIENT, task: String(task).slice(0, 200), served: [], empty: 'too-few-notes' }); return { text: '', ids: [] }; }
-      const { turn, holdout } = beginTurn(store, session);
-      const r = await orient(store, { task, session, client: PROXY_CLIENT, budget: HOOK_BUDGET, once: true, freshOnly: true, holdout, turn: turn || undefined });
-      if (!r.included.length) return { text: '', ids: [] };
-      return { text: `<thinker-cache>\n${cacheBundleIntro()}\n\n${r.text}\n</thinker-cache>`, ids: r.included.map(n => n.id) };
-    },
-  });
-}
 
 export { proxyLogFile };
 
@@ -180,19 +164,8 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   let cfg;
   try { cfg = proxyConfig(flags); } catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
-  if (cfg.protocol === 'responses' && (flags.notes || flags.repo)) { out('thinker proxy: --protocol responses clears old tool outputs; --notes and --repo are not supported in this mode.'); process.exitCode = 2; return; }
-  // --notes, or proxy: { notes: true } in the checkout's config: the notes of this checkout (--repo names another)
-  // go to the agents that pass through (proxy-notes.js)
-  let notes = null;
-  let notesRepo = null;
-  const wanted = flags.notes === true || (flags.repo && flags.notes !== false);
-  const candidate = flags.repo ? path.resolve(String(flags.repo)) : repo;
-  if (cfg.protocol !== 'responses' && candidate && fs.existsSync(path.join(candidate, '.git'))) {
-    const s = new Store(findRepoRoot(candidate));
-    if (wanted || (flags.notes !== false && s.exists() && s.config().proxy?.notes === true)) { notes = noteInjectorFor(s); notesRepo = s.repo; }
-  } else if (wanted) { out(`thinker proxy: --notes needs a git checkout (${candidate || 'none'}).`); process.exitCode = 2; return; }
   const server = startProxy(cfg, {
-    logFile, notes,
+    logFile,
     bedrock: flags.bedrock && serviceState().enabled && serviceState().port === cfg.port ? () => bedrockState(thinkerHome()) : null,
     // the service's own process: a routed harness that reaches it by mistake takes the proxy out of the agents'
     // settings, so the harness is whole again at the next session (proxy-service.js:standDown; no-op for a proxy
@@ -203,8 +176,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     onListen: a => out(cfg.protocol === 'responses'
       ? `Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
       : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping the newest ${cfg.keep === 'turn' ? cfg.keepMin : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
-      (notes ? `\nServes the notes of ${notesRepo} to agents with no prompt hook (Anthropic and OpenAI chat requests; one carrying a Claude Code session is left to its hooks).` : '') +
-      `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}${notes ? ` (Goose: ANTHROPIC_HOST; an OpenAI-compatible client: OPENAI_BASE_URL=http://127.0.0.1:${a.port}/v1)` : ''}` +
+      `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}` +
       (cfg.codex ? `\nCodex: http://127.0.0.1:${a.port}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '')),
   });
   server.on('listening', () => recordProxyListening(server.address().port));

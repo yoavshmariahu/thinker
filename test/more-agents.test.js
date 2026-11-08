@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { createNote } from '../src/ops.js';
+import { seedProfile } from './fixtures/seed-profile.js';
 import { installClient, inferWiring, refreshWiring, uninstallWiring, hookClient, detectClients } from '../src/clients.js';
 
 // Droid, Qwen Code, Kiro CLI, Cline, Kilo, Auggie and Goose (2026-10-19), and Copilot in VS Code, which
@@ -32,7 +32,7 @@ function repo(t) {
   fs.writeFileSync(path.join(dir, 'src/upload.py'), 'class RateLimiter:\n    def allow(self, key):\n        return True\n\ndef upload_endpoint(request):\n    return RateLimiter().allow(request.user)\n');
   const store = new Store(dir).init();
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ ...store.config(), minNotes: 1, holdout: 0 }));
-  createNote(store, { title: 'Where upload rate limiting happens', kind: 'location', answers: ['where is rate limiting for the upload endpoint', 'upload rate limiter'], body: 'Rate limiting for uploads is in src/upload.py:RateLimiter.allow, called from src/upload.py:upload_endpoint.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
+  seedProfile(store);
   return dir;
 }
 const PROMPT = 'add stricter rate limiting to the upload endpoint in upload.py';
@@ -167,7 +167,7 @@ test('prompt hooks: Droid, Qwen Code and Kiro print the bundle; Cline answers in
   for (const client of ['droid', 'qwen', 'kiro']) {
     const dir = repo(t);
     const out = hook(dir, 'prompt', client, { session_id: `${client}-1`, cwd: dir, hook_event_name: 'UserPromptSubmit', prompt: PROMPT });
-    assert.match(out, /<thinker-cache>[\s\S]*RateLimiter\.allow/, client);
+    assert.match(out, /<thinker-profile>[\s\S]*RateLimiter\.allow/, client);
   }
   const dir = repo(t);
   const out = JSON.parse(hook(dir, 'prompt', 'cline', { hookName: 'UserPromptSubmit', taskId: 'task-1', workspaceRoots: [dir], userPromptSubmit: { prompt: PROMPT, attachments: [] } }));
@@ -195,12 +195,11 @@ test('the Cline CLI and VS Code\'s Copilot take the bundle with the first tool c
   assert.match(after.hookSpecificOutput.additionalContext, /RateLimiter\.allow/);
 });
 
-test('Auggie: rules about the files it edits, in hookSpecificOutput; its Stop hook records the turn\'s prompt', t => {
+test('Auggie: no prompt hook, so a tool hook adds nothing; its Stop hook records the turn\'s prompt', t => {
   const dir = repo(t);
-  createNote(new Store(dir), { title: 'Upload limits are per user, never per IP', kind: 'rule', answers: ['upload rate limit key'], body: 'src/upload.py:RateLimiter.allow keys on the user; keying on the IP let one office share a limit.', deps: [{ path: 'src/upload.py', symbol: 'RateLimiter.allow' }], confidence: 0.9 });
   const ev = { hook_event_name: 'PostToolUse', conversation_id: 'aug-1', workspace_roots: [dir], tool_name: 'str-replace-editor', tool_input: { path: 'src/upload.py', old_str: 'True', new_str: 'False' }, tool_output: 'edited' };
-  const out = JSON.parse(hook(dir, 'tool', 'augment', ev, ['--late', '--record']));
-  assert.match(out.hookSpecificOutput.additionalContext, /per user, never per IP/);
+  const out = hook(dir, 'tool', 'augment', ev, ['--late', '--record']);
+  assert.ok(!out || !JSON.parse(out).hookSpecificOutput?.additionalContext, out);
   hook(dir, 'stop', 'augment', { hook_event_name: 'Stop', conversation_id: 'aug-1', workspace_roots: [dir], agent_stop_cause: 'end_turn', conversation: { userPrompt: PROMPT } }, ['--record', '--no-distill']);
   const trace = fs.readFileSync(path.join(dir, '.thinker', 'state', 'trace-aug-1.jsonl'), 'utf8');
   assert.match(trace, /"t":"tool"/);

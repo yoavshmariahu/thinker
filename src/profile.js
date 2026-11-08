@@ -21,7 +21,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { complete, available, providerOfModel } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { areaOf } from './areas.js';
-import { sessionState, locked, holdoutRate } from './ops.js';
+import { sessionState, locked, holdoutRate } from './session-state.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -42,12 +42,13 @@ export const SECTIONS = ['workingOn', 'howWeWork', 'whatFails', 'recentBugs'];
 export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
 export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
-// `learn: { mode: 'profile' }` in .thinker/config.json turns the profile on in place of the notes;
-// THINKER_PROFILE=on|off wins over the config, for a harness.
+// On by default since 2026-11-08 (the owner's call; the knowledge notes it replaced went the same day): `learn: {
+// profile: false }` in .thinker/config.json turns it off for a repository, and THINKER_PROFILE=on|off wins over the
+// config, for a harness. The older `learn: { mode: 'profile' }` is still read as on.
 export function profileConfig(store) {
   const learn = store.config().learn || {};
   const env = process.env.THINKER_PROFILE;
-  const enabled = /^(on|1|true)$/i.test(env || '') ? true : /^(off|0|false)$/i.test(env || '') ? false : learn.mode === 'profile';
+  const enabled = /^(on|1|true)$/i.test(env || '') ? true : /^(off|0|false)$/i.test(env || '') ? false : learn.profile !== false && learn.sessions !== false;
   return { enabled, model: typeof learn.profileModel === 'string' ? learn.profileModel : null };
 }
 
@@ -457,6 +458,8 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
     for (const k of Object.keys(changes)) changes[k] += r.changes[k];
     if (onDisk && !landed++) { try { fs.appendFileSync(historyFile(store), JSON.stringify(onDisk) + '\n'); } catch {} } // the one replaced, once something replaces it
     writeAtomic(profileFile(store), JSON.stringify(current, null, 2));
+    // counts only, never the text: the step's size, what the patch did and what it cost (`thinker usage` sums these)
+    store.log({ op: 'profile-compile', observations: rows.length, pending: batch.length, full: !previous, sessions, changes: r.changes, entries: Object.fromEntries(SECTIONS.map(s => [s, current.sections[s].length])), tokens: r.tokens, cost: r.cost, model: current.model });
   }
   // the window is the file: observations past it go with the compile
   writeAtomic(ledgerFile(store), rows.map(r => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
@@ -563,7 +566,7 @@ export async function profileSession(store, events, { session, client, repoHint,
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
-    if (c.profile) { compiled = c; store.log({ op: 'profile-compile', observations: c.observations, pending: c.pending, steps: c.steps, changes: c.changes, sessions: c.sessions, entries: Object.fromEntries(SECTIONS.map(s => [s, c.profile.sections[s].length])), tokens: c.tokens, cost: c.cost, model: c.profile.model }); }
+    if (c.profile) compiled = c;
   }
   return { observations: rows, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }

@@ -1,17 +1,15 @@
 // What a pull request cost and what thinker saved on it.
 //
 // A session is linked to the pull request it was working on; what thinker saved in that session is then the
-// pull request's. Two figures, kept apart because they are not the same kind of evidence:
-//
-//   cleared   MEASURED. The tokens the API left out of the session's prompts after the context proxy cleared
-//             them, added up (compression.js). Gross, as the card is: a clear also rewrites the prompt cache.
-//   reading   ESTIMATED. One read per file behind each note the session was seen to act on (usage.js).
+// pull request's: the tokens the clearing left out of the session's prompts, added up (compression.js), MEASURED
+// and gross, as the card is, since a clear also rewrites the prompt cache. The estimated reading the knowledge
+// notes avoided was a second figure until 2026-11-08.
 //
 // Nothing here calls a model, mines anything or spends a token. The pull requests come from the person's own
 // `gh` login, read-only; the sessions come from the usage log; the savings come from records already written.
 import { execFileSync } from 'node:child_process';
 import { repoId } from './store.js';
-import { readLog, sessionKey, savingOf } from './usage.js';
+import { readLog, sessionKey } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { listPrice, formatDollars } from './prices.js';
 import { compressionDir, readCompression, clearedBySession, clearingCostBySession } from './compression.js';
@@ -41,14 +39,13 @@ const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.pars
 // ---------------------------------------------------------------------------
 // What the sessions of this repository did, and what thinker saved in each.
 
-// One pass over the usage log. The servings carry their own estimate (`est`, written when they were served);
-// only the ones the end-of-session assessment marked `confirmed` are counted, exactly as `usage.js` counts
-// them for the machine as a whole, so the two can never disagree about what a note saved.
+// One pass over the usage log: each session's client, model, branches and heads, and what it cost by its last
+// `session` row.
 export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env } = {}) {
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
-  const sessions = new Map(), verdicts = new Map();
+  const sessions = new Map();
   const of = key => {
-    if (!sessions.has(key)) sessions.set(key, { id: key, client: null, model: null, firstAt: null, lastAt: null, branches: new Set(), heads: new Set(), notes: new Map(), tokens: null, prompts: 0, complete: false });
+    if (!sessions.has(key)) sessions.set(key, { id: key, client: null, model: null, firstAt: null, lastAt: null, branches: new Set(), heads: new Set(), tokens: null, prompts: 0, complete: false });
     return sessions.get(key);
   };
   for (const e of events) {
@@ -59,14 +56,7 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     if (e.client) x.client = e.client;
     if (e.branch) x.branches.add(e.branch);
     if (e.head) x.heads.add(e.head);
-    if (['orient', 'lookup', 'late'].includes(e.op)) {
-      const ids = e.served || [];
-      ids.forEach((id, i) => { if (!x.notes.has(id)) x.notes.set(id, e.est?.[i] || Object.values(savingOf(e.repo || store.repo, safeGet(store, id)))); });
-    } else if (e.op === 'attest') {
-      if (!verdicts.has(key)) verdicts.set(key, new Map());
-      for (const a of e.applied || []) verdicts.get(key).set(a.id, a.verdict);
-      if (e.model) x.model = e.model;
-    } else if (e.op === 'session') {
+    if (e.op === 'session') {
       // Each turn logs the session again with the transcript's totals so far: the last record is the session.
       if (e.model) x.model = e.model;
       const total = e.totalTokens ?? e.tokens?.totalTokens;
@@ -78,27 +68,21 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, env, since, config });
   for (const x of sessions.values()) {
-    let calls = 0, tokens = 0, servings = 0, actedOn = 0;
-    for (const [id, est] of x.notes) if (verdicts.get(x.id)?.get(id) === 'confirmed') { servings++; actedOn++; calls += est[0] || 0; tokens += est[1] || 0; }
-    x.reading = { calls, tokens, servings };
-    x.served = x.notes.size; x.actedOn = actedOn;
     x.cleared = cleared(x.id);
     x.rewrite = rewriteCost(x.id);
     // a desktop session's record names the model the API answered with, where no hook logged one
     if (!x.model && x.rewrite?.model) x.model = x.rewrite.model;
-    // Dollars, at the session's own model's list rates: a cleared token saved a cache read, a note the agent
-    // acted on saved reading a file fresh, and the writes after a clear are what it cost (prices.js).
+    // Dollars, at the session's own model's list rates: a cleared token saved a cache read, and the writes after a
+    // clear are what it cost (prices.js).
     const price = listPrice(x.model, { config });
     x.cost = price
-      ? { saved: ((x.cleared || 0) * price.cacheRead + (x.reading.tokens || 0) * price.input) / 1e6, rewrite: x.rewrite?.usd || 0, priced: true }
+      ? { saved: ((x.cleared || 0) * price.cacheRead) / 1e6, rewrite: x.rewrite?.usd || 0, priced: true }
       : { saved: 0, rewrite: 0, priced: false };
     x.cost.net = x.cost.saved - x.cost.rewrite;
     x.branches = [...x.branches]; x.heads = [...x.heads];
   }
   return sessions;
 }
-
-const safeGet = (store, id) => { try { return store.get(id); } catch { return null; } };
 
 // What the context proxy's clearing saved in a session: the proxy's own log first, since it is the durable
 // record, and the card's state file only where the log's tail no longer reaches (compression.js).
@@ -180,7 +164,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   for (const e of events) {
     if (e.op !== 'observation' || !e.session || e.t < since) continue;
     const key = sessionKey(e.session);
-    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], notes: new Map(), tokens: null, prompts: 0, complete: false, reading: { calls: 0, tokens: 0, servings: 0 }, served: 0, actedOn: 0, cleared: cleared(key), rewrite: rewriteCost(key), cost: costOfObserved(key) });
+    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], tokens: null, prompts: 0, complete: false, cleared: cleared(key), rewrite: rewriteCost(key), cost: costOfObserved(key) });
     const x = sessions.get(key);
     x.lastAt = x.lastAt && x.lastAt > e.t ? x.lastAt : e.t;
     if (e.branch && !x.branches.includes(e.branch)) x.branches.push(e.branch);
@@ -202,22 +186,15 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       if (finite(x.tokens)) p.tokens.agent += x.tokens * share; else p.tokens.unknownSessions++;
       p.tokens.prompts += x.prompts * share;
       p.saved.cleared += x.cleared * share;
-      p.saved.reading.tokens += x.reading.tokens * share;
-      p.saved.reading.calls += x.reading.calls * share;
-      p.saved.reading.servings += x.reading.servings * share;
       p.cost.saved += x.cost.saved * share;
       p.cost.rewrite += x.cost.rewrite * share;
       if (x.cost.priced) p.cost.priced++; else p.cost.unpriced++;
-      p.notes.served += x.served; p.notes.actedOn += x.actedOn;
     }
   }
 
   for (const p of all) {
     p.saved.cleared = Math.round(p.saved.cleared);
-    p.saved.reading.tokens = Math.round(p.saved.reading.tokens);
-    p.saved.reading.calls = Math.round(p.saved.reading.calls);
-    p.saved.reading.servings = Math.round(p.saved.reading.servings);
-    p.saved.total = p.saved.cleared + p.saved.reading.tokens;
+    p.saved.total = p.saved.cleared;
     p.cost.net = p.cost.saved - p.cost.rewrite;
     p.tokens.agent = Math.round(p.tokens.agent);
     p.tokens.prompts = Math.round(p.tokens.prompts);
@@ -248,9 +225,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       worked: worked.length,
       saved: {
         cleared: sum(merged, p => p.saved.cleared),
-        reading: sum(merged, p => p.saved.reading.tokens),
         total: sum(merged, p => p.saved.total),
-        basis: 'cleared is measured; reading avoided is an estimate',
+        basis: 'cleared is measured',
       },
       tokens: { agent: sum(merged, p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
       // Dollars, netted (compression.js:clearingCostBySession). The one figure that answers "was it worth it",
@@ -260,7 +236,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
         rewrite: sum(merged, p => p.cost.rewrite),
         net: sum(merged, p => p.cost.net),
         costed: merged.filter(p => p.cost.priced).length,
-        basis: 'cleared at the cache-read rate, reading avoided at the input rate, less the cache writes after a clear, at list prices',
+        basis: 'cleared at the cache-read rate, less the cache writes after a clear, at list prices',
       },
       meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)),
       meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)),
@@ -272,8 +248,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   };
 }
 
-const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, reading: { calls: 0, tokens: 0, servings: 0 }, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0 }, notes: { served: 0, actedOn: 0 } });
-const summary = x => ({ id: x.id, cost: x.cost, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared, reading: x.reading.tokens, served: x.served, actedOn: x.actedOn });
+const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0 } });
+const summary = x => ({ id: x.id, cost: x.cost, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
 
 
 // ---------------------------------------------------------------------------
@@ -367,16 +343,14 @@ export function renderDelivery(r, { detail = false } = {}) {
   L.push(`Merged with work recorded here: ${s.merged}${s.mergedSeen ? ` of ${s.mergedSeen} merged in the repository` : ''}`);
   L.push(`Still open: ${s.open}`);
   L.push('', `Saved on those ${s.merged} merged pull ${s.merged === 1 ? 'request' : 'requests'}`);
-  L.push(`  cleared         ${n(s.saved.cleared)} tokens the API left out of their prompts (measured)`);
-  L.push(`  reading avoided ${n(s.saved.reading)} tokens of files the notes meant nobody read (estimate)`);
-  L.push(`  together        ${n(s.saved.total)} tokens${s.merged ? ` · ${n(s.meanSavedPerMergedPr)} on the average one` : ''}`);
+  L.push(`  cleared         ${n(s.saved.cleared)} tokens the clearing left out of their prompts (measured)${s.merged ? ` · ${n(s.meanSavedPerMergedPr)} on the average one` : ''}`);
   // The dollars, netted: the only figure that says whether the clearing paid, since what it saves is a cache
   // read and what it costs is a cache write, and a token of one is not a token of the other.
   const c = s.cost;
   if (c && (c.saved || c.rewrite)) {
     const d = v => formatDollars(v);
     L.push('', `In dollars, at list prices${c.costed < s.merged ? ` (${c.costed} of ${s.merged} on a model with a price)` : ''}`);
-    L.push(`  saved           ${d(c.saved)} the clearing and the notes saved: cleared tokens at the cache-read rate, files not read at the input rate`);
+    L.push(`  saved           ${d(c.saved)} the clearing saved: cleared tokens at the cache-read rate`);
     L.push(`  rewrites        ${d(-c.rewrite)} the calls after a clear paid to write the cache again`);
     L.push(`  net             ${d(c.net)}${s.merged ? ` · ${d(s.meanNetPerMergedPr)} on the average one` : ''}`);
   }
@@ -387,11 +361,10 @@ export function renderDelivery(r, { detail = false } = {}) {
   // Only the pull requests some session here worked on: the repository's others have nothing to say.
   if (detail) for (const p of r.prs.filter(p => p.sessions.length || r.prs.length === 1)) {
     L.push('', `#${p.number} ${p.title || ''} · ${p.state}`, p.url || '');
-    L.push(`  saved      ${n(p.saved.total)} tokens = ${n(p.saved.cleared)} cleared + ${n(p.saved.reading.tokens)} reading avoided (${p.saved.reading.servings} ${p.saved.reading.servings === 1 ? 'serving' : 'servings'} acted on)`);
+    L.push(`  saved      ${n(p.saved.cleared)} tokens cleared`);
     L.push(`  cost       ${n(p.tokens.agent)} agent tokens over ${p.sessions.length} ${p.sessions.length === 1 ? 'session' : 'sessions'}${p.sessions.length && !p.tokens.complete ? ' · incomplete counters' : ''}`);
     if (p.cost.priced) L.push(`  net        ${formatDollars(p.cost.net)} = ${formatDollars(p.cost.saved)} saved less ${formatDollars(p.cost.rewrite)} of cache writes after a clear${p.cost.unpriced ? ` (${p.cost.unpriced} ${p.cost.unpriced === 1 ? 'session' : 'sessions'} on an unpriced model)` : ''}`);
-    L.push(`  notes      ${p.notes.served} served · ${p.notes.actedOn} acted on`);
-    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${n(x.reading)} reading · ${x.rewrites ? `${x.rewrites} ${x.rewrites === 1 ? 'rewrite' : 'rewrites'} after a clear · ` : ''}${Math.round(x.share * 100)}% (${x.link})`);
+    for (const x of p.sessions) L.push(`    ${x.id}  ${n(x.tokens)} tokens · ${n(x.cleared)} cleared · ${x.rewrites ? `${x.rewrites} ${x.rewrites === 1 ? 'rewrite' : 'rewrites'} after a clear · ` : ''}${Math.round(x.share * 100)}% (${x.link})`);
   }
   for (const w of r.warnings) L.push(`Warning: ${w}`);
   if (!r.prs.length) L.push('', 'No pull requests recorded yet. Run thinker prs sync to read them from GitHub.');
