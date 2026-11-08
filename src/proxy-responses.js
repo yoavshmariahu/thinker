@@ -81,8 +81,8 @@ export function transformResponses(method, url, headers, body, cfg) {
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
     ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
-  if (!applied.clearedUses) return { body, ...meta, ...state, estimatedInputTokens: prompt,
-    reason: decision.held ? 'payback' : prompt < cfg.trigger ? 'below-trigger' : decision.candidate ? 'below-clear-minimum' : 'nothing-to-cut' };
+  // the reason is the decision's, as on the Messages door: deriving it here saw neither mid-turn nor one-cut
+  if (!applied.clearedUses) return { body, ...meta, ...state, estimatedInputTokens: prompt, reason: decision.reason || 'nothing-to-cut' };
   return { ...meta, ...state, body: Buffer.from(JSON.stringify({ ...j, input: applied.input })), injected: true,
     reason: 'client-clear', keep: cfg.keepMin ?? 3, removedBytes: applied.removedBytes,
     clearedUses: applied.clearedUses, estimatedRemovedTokens: applied.chars * TOKENS_PER_CHAR, estimatedInputTokens: prompt,

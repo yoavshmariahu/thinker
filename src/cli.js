@@ -94,10 +94,10 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  read a session into the profile; reads any of these agents' transcripts, or a plain event trace
   learn [--days n] [--max n] [--idle-min n] [--maintain] [--dry]
                                  read the sessions that went quiet into the profile (the hooks run this in the background)
-  profile [show|ledger|holdout|compile|extract <transcript>|rebuild] [--why] [--full] [--days n] [--max n] [--again] [--session id] [--dry] [--json]
+  profile [show|ledger|lines|holdout|compile|extract <transcript>|rebuild] [--why] [--full] [--days n] [--max n] [--again] [--session id] [--dry] [--json]
                                  the session profile: what the person here is working on, how they want work done and what went
                                  wrong before, read from prompts and answers alone and put into every session's first prompt;
-                                 show it (--why: each line over its evidence), list its observations, the holdout's two arms,
+                                 show it (--why: each line over its evidence), list its observations, what each line was used for (lines), the holdout's two arms,
                                  compile what is new (--full: the whole window), read one transcript, or rebuild from the
                                  sessions of the last --days (30). learn: { profile: false } in .thinker/config.json turns it off
   record <session>               append events (JSON lines on stdin: {t:prompt|say|tool, ...}) to a session trace, for agents without hooks

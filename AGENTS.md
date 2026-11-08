@@ -75,13 +75,20 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - "Sign in a CLI" alone does not finish a feature.
 - Tests cover the desktop path (`appFn`, missing CLI login) beside the CLI path.
 
-**Serving and policy changes need an experiment (MANDATORY):**
-- A change to what a session is shown (the profile's sections, floors, budget or cadence) or to the clearing's policy ships off by default behind a config switch, or is judged by its own holdout.
-- Enable by default only after a measurement: the profile by its per-session holdout (`thinker profile holdout`), the clearing by cache writes against the proxy's 15% holdout. Offline replays are not evidence on their own.
-- Default-on switch = its own PR citing the measurement.
-- Owner-approved exception (2026-11-08): the session profile is on by default without an Artemis experiment; its per-session holdout is the measurement, and Artemis task benchmarks do not fit a per-person profile.
-- Owner-approved exception (2026-11-01, `devin-compaction.js`): Devin's own compaction threshold is written into its user config (`agent.compaction_threshold_tokens`) at `DEVIN_COMPACT_AT`, the proxy's trigger (140k), **on by default** with no experiment. Devin has no model endpoint, so its compactor is the only context reduction it can have; `devin: { compactAt: 0 }` (`THINKER_DEVIN_COMPACT_AT=off`) turns it off and restores what was there. Proven live at 140k: six turns of heavy reads peaked at 143k and fell to ~100k at each applied compaction, where the same workload without the key climbed to 297k (`docs/agent-integrations.md`). Savings claims still need an experiment: judge by summary calls and cache rewrites, not tokens removed.
-- Owner-approved exception (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
+**Serving and policy switches: the state, and why each is where it is.**
+The rule that stood here from 2026-10-16 to 2026-11-08 -- that a change to cache sources, note serving or (in its
+2026-11-08 rewording with the notes' removal) what a session is shown or the clearing's policy ships off behind a
+switch, and goes default-on only after an experiment or a holdout measurement cited in its own PR -- is **removed, at
+the owner's instruction (2026-11-08)**. What it was for: a run of serving strategies that looked good offline and cost
+more in live sessions (the Jev reranker, serve-on-sight, the LLM reranker), so the rule made the experiment the price
+of a default. What it cost: the session profile is the clearest case -- the one honest measure of it needs weeks on
+one machine, so the rule would have held a feature off by default for a quarter to buy a number nobody can act on.
+Judgement replaces it. The records below are kept because they say what is on and what measured it; they are no
+longer exceptions to anything.
+- Offline replays are still not evidence of a live gain, and a figure from one should say so.
+- On by default, no experiment (2026-11-08): the session profile, measured by its per-session holdout (`thinker profile holdout`); Artemis task benchmarks do not fit a per-person profile.
+- On by default, no experiment (2026-11-01, `devin-compaction.js`): Devin's own compaction threshold is written into its user config (`agent.compaction_threshold_tokens`) at `DEVIN_COMPACT_AT`, the proxy's trigger (140k), **on by default** with no experiment. Devin has no model endpoint, so its compactor is the only context reduction it can have; `devin: { compactAt: 0 }` (`THINKER_DEVIN_COMPACT_AT=off`) turns it off and restores what was there. Proven live at 140k: six turns of heavy reads peaked at 143k and fell to ~100k at each applied compaction, where the same workload without the key climbed to 297k (`docs/agent-integrations.md`). Savings claims still need an experiment: judge by summary calls and cache rewrites, not tokens removed.
+- On by default, no experiment (2026-10-25): Codex proxy tool-output clearing is on by default via install/connect/setup/update. `proxy-codex.js` wires a managed provider without reading credentials. `/codex` routes ChatGPT-account requests to the ChatGPT backend, API-key requests to OpenAI. Custom providers stay as configured. `thinker proxy off` restores prior selection. Savings claims still need an Artemis experiment.
 
 **The proxy never takes over someone else's route (MANDATORY, 2026-10-28):**
 - Many people run Claude Code against a model server of their own (smart routing to models) through `ANTHROPIC_BASE_URL` and a token minted for it. The proxy forwards to `api.anthropic.com`, so writing its URL into such a harness sends that token to Anthropic and every model call fails ("invalid bearer token"). That happened; it must not happen again.
@@ -256,6 +263,25 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   lose, and the size floor is the lever (60k is +14%; 80k less, because it admits the band where the fixed part
   of the tail -- the live turn and the protected results -- weighs most). A refusal for size now carries
   `candidate` on its row, so the next such question is read off the log rather than rebuilt from transcripts.
+- **A refusal says which branch refused it** (2026-11-08; `cutting.js:decideCut` returns `reason`, both doors
+  print it). `decideCut` refuses on six branches and none of them was distinguishable from the object it
+  returned: `mid-turn`, `one-cut` and `below-trigger` all answer `{cut, clear: false}`, and a payback refusal is
+  a size refusal with a `held` beside it. So the Messages door derived the reason from `candidate` alone -- one
+  line, `d.candidate ? 'below-clear-minimum' : 'nothing-to-cut'` -- and of this machine's 125 rows carrying a
+  candidate, **29 carried one above the floor and 11 were payback refusals, all labelled as the floor**. That is
+  the one question the log exists to answer, the floor being the lever the policy turns on, and the 60k floor was
+  chosen against a log that mislabelled a quarter of its refusals. The Responses door derived it correctly from
+  `held` and the trigger but saw neither of the first two branches, and deriving it twice is the rederiving the
+  shared-policy rule forbids. Now the function that decides says why.
+  - **`nothing-to-cut` wins over every branch.** Mid-turn is most of the traffic, so a mid-turn request with
+    nothing cuttable in it logged as `mid-turn` would drown the refusals the log is read for; a request with no
+    candidate says so whichever branch it took, and `mid-turn` means a boundary genuinely held back.
+  - **`nothing-to-cut` is checked before the trigger**, so `below-trigger` means what it says: there was
+    something to cut and the prompt was too small to spend it. Those rows are the trigger's to answer for.
+  - **A refusal that was not the candidate's fault carries the candidate too**, so the same log answers what a
+    lower trigger would have taken -- the question `AGENTS.md` last answered by rebuilding bodies from
+    transcripts.
+  - Pinned by `test/cutting.test.js` (all six branches, the precedence, and that no refusal moves the set).
 - **The size floor is 60k, from 100k** (2026-11-06; `PROXY_DEFAULTS.clearAtLeast`, mirrored by the mod's
   `CLEAR_AT_LEAST`). The floor, not the trigger, is what gates a cut: old results are about a third of a
   conversation's context on this machine, so 100k of them needs roughly 300k of context, and every boundary the
@@ -784,14 +810,109 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   of everything else the hook says, and again after each compaction, since a compaction summary keeps none of it: the
   hook counts `compact_boundary` lines written to the Claude Code transcript since the byte it last read (a few bytes a
   prompt, never a parse), and the other agents get it on the first prompt alone. A deterministic share of sessions
-  (`holdoutRate`, the notes' 15% by default; `THINKER_HOLDOUT`) is held out **whole**, not by turn as the notes are,
-  because the block is one injection that the rest of the session reads. The arm lives in the session's state file
+  (`profileHoldoutRate`) is held out **whole**, not by turn as the notes are, because the block is one injection that
+  the rest of the session reads. The arm lives in the session's state file
   (`st.profile`: arm, how many times told, compactions seen), the Stop hook's `session` row carries it (`profile:
   shown|holdout`), one `profile-served` row is logged per injection and once for a held-out session (counts, never
-  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure:
-  `thinker profile holdout` puts corrected and redirected per session on each side beside prompts and tokens per
-  session from the log. Fewer than `holdoutMinSessions` (20) on a side is too few to read. What it cannot tell apart:
-  a correction the profile caused from one it failed to prevent; read the lines with `show --why` before blaming it.
+  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure.
+  What it cannot tell apart: a correction the profile caused from one it failed to prevent; read the lines with
+  `show --why` before blaming it.
+- **Half the sessions, and the measure is cost per exchange** (2026-11-08, the owner's call; `PROFILE.holdoutRate`
+  0.5, `learn: { profileHoldout }`, `THINKER_PROFILE_HOLDOUT`, `THINKER_HOLDOUT` over both; `perExchange`,
+  `ratioInterval`, `compare`). It shipped the day before at the notes' 15%, judged **corrected and redirected per
+  session**, and neither could have answered the question. **The goal is to spend fewer tokens, so the metric is the
+  tokens a unit of work costs and nothing stands in for it**: a session's tokens over its exchanges, which takes the
+  length of a session out of the comparison (cv 0.97 against 1.96 for a session's tokens, over 111 measured sessions
+  here). Three rules, each from a measurement on this repository's first ledger:
+  - **A ratio of sums, never a mean of ratios** (the Report's own rule). The ratio of sums is $5.97 an exchange and
+    the mean of the per-session ratios $13.93: the mean weighs a cheap three-exchange session like a 40-exchange one.
+  - **Stratified by model, pooled by exchanges.** The models in play differ threefold an exchange (Astra $5.99,
+    Opus 5 $18.35, Fable $19.95), so an arm that drew more Astra sessions would read as a saving. Within-model ratios
+    weighted by each stratum's exchanges cut the bootstrap standard error from 11.3% to 9.6% on the same sessions.
+  - **The interval is bootstrapped, not assumed**: a ratio of two sums has no closed-form standard error worth
+    trusting on 111 skewed sessions, so `ratioInterval` resamples sessions inside each stratum on a fixed seed.
+  What it can see, at 7.8% standard error and 5 sessions a day: **a 30% drop in 235 sessions (47 days)**, 20% in 529
+  (105 days), 10% in 2118 (420 days). Why 50/50: at 85/15 the small side wastes most of the information, and an
+  unbalanced split is for catching a regression in something already known to work, which is where this goes when it
+  ships. `verdict` is `cheaper` / `costlier` / `inconclusive` / `too-early` off the interval, never a p-value dressed
+  as a decision.
+- **The lead measure is recurrence: the person saying again what they said before** (2026-11-08, the owner's
+  call; `repeats` on every observation, `priorStatements`, `recurrence`, `compareRates`; `thinker profile holdout`
+  leads with it). The profile's own counts said what the goal is: in 23 days here "answer short and plain" was
+  said in 17 sessions, "validate fixes live" in 13, "work in a worktree" in 8 -- **80 repeats across 118
+  sessions**, one in every nine exchanges spent telling a fresh agent what the last one was told. The profile
+  exists so that never happens, so its score is how often it still does. Why this and not cost: it is the
+  mechanism itself, not an echo of it, so the expected effect is large (the agent has the literal line) where
+  cost-per-exchange was hunting for 3-12%; the direction is unambiguous; a novel mistake is out of scope by
+  construction; and "did the person say X again" is read from the prompts alone, in the call that already runs,
+  and is a far surer judgement than "did the agent follow X".
+  - **Against the ledger, not the profile** (the owner's point, the same day): the profile is what survived the
+    compile's two-session floor, per-section caps and trim, so a repeat judged only against its lines would never
+    see what the compile failed to learn -- a profile that learned nothing would score perfectly. The extractor is
+    shown the profile's lines and, behind them, every distinct preference and lesson another session recorded
+    (`priorMax` 200, newest first, the session's own rows left out), and each repeat is kept as `profile` (a line
+    held it: the serving failed) or `ledger` (no line held it: the compile failed). Both count. The residual
+    survivorship is the ledger's own: what the extractor missed the first time, or outside the 60-day window.
+  - **`servedRate` is the holdout's question, `unlearnedRate` is a check on the extractor.** The agent saw the
+    unlearned statement in neither arm, so that rate must come out the same on both sides; a gap there is the
+    judge drifting, not the profile. Rows from before `repeats` was extracted are not measured (`measured`), so
+    the pre-profile baseline is the held-out arm, not the old ledger; `thinker profile rebuild` re-reads sessions
+    with the field if a backfilled baseline is ever wanted.
+  - Cost per exchange stays as the second figure, read the same way.
+- **Corrections are a diagnostic, not the measure** (the same day). They were the headline for a day and should not
+  have been: they are a proxy for cost where the cost itself is measurable, and `redirected` does not mean what the
+  metric needed it to. Hand-read against the ledger's quoted reactions, `corrected` (141 rows) is clean, but of 12
+  sampled `redirected` (72 rows) about a third are the person moving on rather than the agent failing -- *"can you
+  make me a visual tool to play around with?"*, *"I'm going to move this convo over in the thinkerall repo"*,
+  *"when does the quota open?"* -- and `accepted` absorbs some failures (*"retry"*, *"ok please fix so that we stop
+  getting worse costs"*). The error has a **direction**: a profile that gets things right faster produces more
+  moving-on per session, which a corrected+redirected numerator counts as failure, so a working profile could read as
+  harm. `rate` stays on the report beside the cost figure, and 36 of 680 rows hand-read is a smell test, not a
+  validation -- that needs ~60 rows labelled blind and scored against the extractor, which nobody has done.
+- **Every session's last exchange is unmeasured.** An outcome is read from the *next* prompt, so the final exchange of
+  a session is always `unknown` (94 of 116 sessions end on one) -- and a person who gives up and closes the terminal
+  produces no correction at all. It falls on both arms alike so it does not bias the comparison, but it caps what any
+  outcome read from this ledger can mean.
+- **What a session did with each line it was shown** (2026-11-08, the owner's ask; `LINE_VERDICTS`, `shownLines`,
+  `appendLineVerdicts`, `lineReport`; `thinker profile lines [--why]`). The first question about a line is not
+  whether it improved anything, it is whether the agent read it -- a note was assessed that way from the start
+  (`confirmed` / `unused` / `contradicted` per serving) and the profile had nothing of the kind for its first two
+  days: a block of ten lines went into every prompt of every shown session and no record said whether one of them
+  was ever used. It is the opposite of the holdout on every axis: one row per line per session rather than one
+  number for the whole block, so a week here is hundreds of rows against the holdout's forty; it needs no arms and
+  no waiting; and it says *which* lines earn their place, which matters because `renderChars` is a fixed budget and
+  a dead line is holding a live one out.
+  - **The same model call, not a second one** (`extractObservations`'s `shown`): the extractor already has the
+    whole session in front of it, so the lines it was shown ride along in that prompt for a few hundred tokens.
+  - **Only what a session actually saw may be judged on it.** `fitProfile` trims the block to `renderChars`, so
+    `renderProfile` alone could not say what went in; it now returns the surviving entry ids beside the text, one
+    function doing the fitting so the two can never disagree, and `profileTurn` keeps them on the session's state
+    (`st.profile.shown`, across injections, since a compaction can bring a changed block back) and counts them on
+    the `profile-served` row. A verdict on an id the session was never shown is dropped, as is a second verdict on
+    the same line.
+  - **`na` is the default, and `applied` is the denominator.** Most lines have no bearing on most sessions, and
+    counting those as ignored would make every line look dead; `followRate` is followed over the sessions the line
+    had any bearing on, and `null` where none did, because 0 of 0 is an untested line and not a failing one.
+    `ignored` needs evidence that the agent did the thing the line forbade or failed to do what it asked in work
+    the line covered -- not merely that it never mentioned it, since a line can be followed silently. A line the
+    person restated in their own prompt is `ignored` with their prompt as the evidence: that is the person doing
+    the profile's job, which is the thing most worth knowing.
+  - What it cannot tell: `ignored` from `na` is a judgement, and it is the model's. Read `--why`, which prints the
+    quote behind every verdict, before cutting a line on this.
+- **A profile read may not ask `store.exists()`** (found building the above): it tests the **notes** directory,
+  which the profile does not use, and both `shownLines` and `profileArmOf` were gated on it. In a profile-only
+  checkout -- which is what the notes' removal makes ordinary -- `profileArmOf` would have answered null with the
+  arm sitting in the state file, so every observation would have been saved with no arm and the holdout would have
+  measured nothing at all, silently. Reading a session's own state file needs no notes.
+- **The cheaper check, which moves faster than the holdout** (the same day): of the 213 corrections and redirects in
+  the first ledger, the share a profile line whose cited evidence *predates* them plausibly covers -- excluding the
+  corrections that are themselves that line's evidence -- is **25% on a loose word match and 3% on a tight one**. The
+  lines read as retrospective descriptions of corrections already made rather than predictions of the next one, which
+  is the mechanism's own ceiling and is free to recompute from the ledger with no model call. If that ceiling stays
+  near 3% the holdout cannot pay for itself whatever it says, and the honest answer is to stop.
+- **Not measured, and known**: the extractor is the judge, and it is only partly blinded -- `clean` strips
+  `<thinker-profile>` from the prompts it reads, but the agent's own answers can name the profile, so the arm can
+  still leak through them. Nobody has counted how often.
 - **A full compile once a month** (`rebaseDays` 30, `rebasedAt` on the profile, carried by every patch): a compile that
   finds the last from-nothing compile older than that starts from nothing over the whole window, so wording the patches
   have carried for weeks is derived again from the rows. At this repository's volume that is 150k tokens of Opus;

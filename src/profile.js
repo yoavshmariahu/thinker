@@ -31,6 +31,9 @@ export const PROFILE = {
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
   recentBugDays: 14,
   rebaseDays: 30,
+  holdoutRate: 0.5,     // half the sessions, not the notes' 15%: see `profileHoldoutRate`
+  holdoutMinObs: 200,   // exchanges a side needs before the holdout says anything: at the pre-profile recurrence of 0.116 an exchange, a halving reads at ~480 a side, and under 200 the interval is noise either way
+  priorMax: 200,        // earlier statements the extractor is shown for recurrence, newest first
   holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6, skills: 6 },
@@ -43,6 +46,9 @@ export const PROFILE = {
 // so the section is often empty, and a line needs two sessions or the person naming the skill, as the others do.
 export const SECTIONS = ['workingOn', 'howWeWork', 'whatFails', 'recentBugs', 'skills'];
 export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
+// What a session did with a line of the profile it was shown. `na` is the honest default: most lines have no
+// bearing on most sessions, and counting those as `ignored` would make every line look dead.
+export const LINE_VERDICTS = ['followed', 'ignored', 'contradicted', 'na'];
 export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
 // On by default since 2026-11-08 (the owner's call; the knowledge notes it replaced went the same day): `learn: {
@@ -176,11 +182,38 @@ Fields:
 - bug: for a fix, the symptom and, where told, the cause and the fix, in one line. Empty otherwise.
 - topics: one to four short tags.
 - No file contents, no credentials; write a key or token as <token>.
-An empty list is the right answer for a session that decided nothing.`;
+An empty list is the right answer for a session that decided nothing.
+Judging the profile the session was shown:
+- You may be given the lines of a profile this session was shown at its start, each with an id. For each one, say what the session did with it. This is the measure of whether the profile is worth showing at all, so it is judged on evidence in the text, never on whether the line sounds useful.
+  - followed: the agent's work or words show it acted on the line. Quote the shortest thing that shows it.
+  - ignored: the line plainly applied to what was being done and the agent did not act on it. Not "the agent did not mention it" -- a line can be followed silently; the evidence must be that the agent did the thing the line told it not to do, or failed to do the thing the line asked for, in work the line clearly covered.
+  - contradicted: the agent did the opposite and the person had to correct it. This is the strongest evidence a line is not working.
+  - na: the line had no bearing on this session. **This is the default.** Most lines have nothing to do with most sessions, and marking those ignored would make every line look dead. Prefer na whenever you are unsure whether the line applied.
+- A line the person restated in their own prompt was not followed from the profile; that is the person doing the profile's job, which is worth knowing. Mark it ignored and quote their prompt.
+Recurrence -- the person saying again what they have said before:
+- You may be given SAID BEFORE: things this person stated or corrected in earlier sessions, each with an id. Some are lines of the profile; most are single earlier statements. For each observation, repeats lists the ids it says again: a pref that restates one, a lesson or a correction that corrects the same thing, a request that re-asks for the same way of working. The same thing in other words is a repeat; a different thing on the same topic is not.
+- This is the profile's own score. The profile exists so that the person never has to say the same thing twice, and every repeat is one time they did. Be exact: a repeat you invent charges the profile with a failure it did not make, and one you miss hides one it did.
+- Whether the agent was shown the profile changes nothing here. The question is only whether the person said it again.`;
 
 export const OBSERVATION_SCHEMA = {
   type: 'object',
   properties: {
+    // Per-line use of the profile the session was shown (empty when it was shown none): the signal that says
+    // whether a line is worth its place in the block at all, before any outcome metric can mean anything.
+    lines: {
+      type: 'array',
+      description: 'one entry per profile line the session was shown, in the order given; omit entirely if no profile was shown',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'the line id exactly as given' },
+          verdict: { type: 'string', enum: LINE_VERDICTS },
+          evidence: { type: 'string', description: 'for followed, ignored or contradicted: the shortest quote from a prompt or an answer that shows it; empty for na' },
+        },
+        required: ['id', 'verdict'],
+        additionalProperties: false,
+      },
+    },
     observations: {
       type: 'array',
       items: {
@@ -194,6 +227,7 @@ export const OBSERVATION_SCHEMA = {
           reaction: { type: 'string', description: 'the follow-up prompt that decided the outcome, quoted short; empty for unknown' },
           lesson: { type: 'string' },
           prefs: { type: 'array', items: { type: 'string' } },
+          repeats: { type: 'array', items: { type: 'string' }, description: 'ids from SAID BEFORE that this exchange\'s prefs, lesson or correction repeat: the person said or corrected the same thing again. Empty when nothing here was said before.' },
           topics: { type: 'array', items: { type: 'string' } },
           bug: { type: 'string' },
         },
@@ -215,6 +249,7 @@ export function tidyObservation(o) {
     request, kind: KINDS.includes(o.kind) ? o.kind : 'other',
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
     reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40), bug: str(o.bug, 300),
+    repeats: list(o.repeats, 12, 60),
   };
 }
 
@@ -240,20 +275,38 @@ export function observationSkills(observations, xs) {
 }
 
 // One session's observations. `completeFn` is for tests; `have` and `config` pick the model ladder.
-export async function extractObservations(events, { repoHint = '', ended = true, accounting, completeFn, have, config } = {}) {
+export async function extractObservations(events, { repoHint = '', ended = true, shown = [], prior = [], accounting, completeFn, have, config } = {}) {
   const xs = exchanges(events);
-  if (!xs.length) return { observations: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
+  if (!xs.length) return { observations: [], lines: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
   const input = extractionInput(xs);
-  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON.`;
+  // What this person has said before, so the same call can mark what they said again (`repeats`). Against the
+  // ledger and not the profile alone: a profile that learned nothing would otherwise score perfectly, since the
+  // only repeats it could see would be of lines it holds (survivorship, the owner's point, 2026-11-08).
+  const said = prior.length ? `\nSAID BEFORE (${prior.length}; the profile's lines first, then single earlier statements):\n${prior.map(p => `[${p.id}] ${p.text}`).join('\n')}\n` : '';
+  // The lines this session was shown, so the same call that reads the session can say what was done with each.
+  // One call, not two: the extractor already has the whole session in front of it, and a second call would
+  // double what a session costs to read for a signal that rides along for a few hundred tokens.
+  const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] ${l.text}`).join('\n')}\n` : '';
+  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${said}${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}${prior.length ? ', each observation\'s `repeats` naming the SAID BEFORE ids it says again' : ''}.`;
   const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
-  const observations = observationSkills(observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean), xs), xs);
-  return { observations, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
+  // a repeat names only an id that was offered, and the row keeps which kind it was: a profile line (the serving
+  // failed) or a single earlier statement (the compile never learned it)
+  const known = new Map(prior.map(p => [p.id, p]));
+  const tag = o => { const ids = (o.repeats || []).filter(id => known.has(id)); return { ...o, repeats: { profile: ids.filter(id => known.get(id).inProfile), ledger: ids.filter(id => !known.get(id).inProfile) } }; };
+  const observations = observationSkills(observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean).map(tag), xs), xs);
+  const ok = new Set(shown.map(l => l.id));
+  const seen = new Set();
+  // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
+  const lines = (res.json?.lines || []).filter(l => l && ok.has(l.id) && LINE_VERDICTS.includes(l.verdict) && !seen.has(l.id) && seen.add(l.id))
+    .map(l => ({ id: l.id, verdict: l.verdict, evidence: String(l.evidence || '').slice(0, 300) }));
+  return { observations, lines, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
 }
 
 // --- ledger ---------------------------------------------------------------
 export const profileDir = store => path.join(store.localDir, 'profile');
 const ledgerFile = store => path.join(profileDir(store), 'ledger.jsonl');
 const profileFile = store => path.join(profileDir(store), 'profile.json');
+const linesFile = store => path.join(profileDir(store), 'lines.jsonl');
 const historyFile = store => path.join(profileDir(store), 'history.jsonl');
 const extractedFile = store => path.join(profileDir(store), 'extracted.json');
 function writeAtomic(file, text) { fs.mkdirSync(path.dirname(file), { recursive: true }); const tmp = `${file}.${process.pid}.${randomBytes(3).toString('hex')}`; fs.writeFileSync(tmp, text); fs.renameSync(tmp, file); }
@@ -270,6 +323,93 @@ export function readLedger(store, { days = PROFILE.ledgerDays, now = Date.now() 
   for (const l of lines) { if (!l) continue; try { const o = JSON.parse(l); if (o?.id && Number.isFinite(Date.parse(o.at)) && dayOf(o.at, now) <= days) out.push(o); } catch {} }
   return out;
 }
+// --- what this person has said before --------------------------------------
+// The reference for recurrence (`repeats` on an observation): the profile's lines and, behind them, every distinct
+// preference and lesson in the ledger that another session recorded. The ledger and not the profile alone, because
+// the profile is what survived the compile's floors, caps and trim -- a profile that learned nothing would be
+// repeated against nothing and score perfectly. Newest first, deduped on the words, capped at `priorMax` so the
+// block stays a few thousand tokens; a session's own earlier rows are left out (the same session saying a thing
+// twice is one session, not a recurrence across sessions).
+const norm = t => String(t || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+export function priorStatements(store, { session = null, profile = null, rows = null, max = PROFILE.priorMax, now = Date.now() } = {}) {
+  const out = [], seen = new Set();
+  const add = (id, text, inProfile) => { const k = norm(text); if (!k || k.length < 12 || seen.has(k)) return; seen.add(k); out.push({ id, text: String(text).slice(0, PROFILE.textChars), inProfile }); };
+  const prof = profile || readProfile(store);
+  // the entry's own words, not the rendered line: the count and dates on a line would keep the same words from matching
+  for (const sec of ['howWeWork', 'whatFails']) for (const e of (prof?.sections?.[sec] || [])) if (e.id) add(e.id, sec === 'whatFails' ? `When ${e.when}: avoid ${e.avoid}${e.instead ? `; instead: ${e.instead}` : ''}` : e.text, true);
+  const ledger = (rows || readLedger(store, { now })).filter(r => !session || r.session !== session).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  for (const r of ledger) {
+    if (out.length >= max) break;
+    (r.prefs || []).forEach((t, i) => add(`${r.id}#p${i}`, t, false));
+    if (r.lesson) add(`${r.id}#l`, r.lesson, false);
+  }
+  return out.slice(0, max);
+}
+// The recurrences in a set of ledger rows: how often the person said again what they had said before, per
+// exchange, and of those how many were of a line the profile held (`served`: the agent had it and the person
+// still had to say it) against a statement the profile never learned (`unlearned`). An observation with a
+// repeat of both kinds counts once, as served. Rows from before `repeats` was extracted carry none and are
+// counted as exchanges with no recurrence, which understates the rate for them: `measured` says how many
+// rows could say.
+export function recurrence(rows) {
+  const measured = rows.filter(r => r.repeats && typeof r.repeats === 'object');
+  const n = measured.length;
+  const served = measured.filter(r => r.repeats.profile?.length).length;
+  const unlearned = measured.filter(r => !r.repeats.profile?.length && r.repeats.ledger?.length).length;
+  const any = served + unlearned;
+  return { exchanges: n, measured: n, recurrences: any, served, unlearned, rate: n ? any / n : null, servedRate: n ? served / n : null, unlearnedRate: n ? unlearned / n : null };
+}
+
+// --- what a session did with the lines it was shown ----------------------
+// The first question about a line is not whether it improved anything, it is whether the agent used it. A note
+// was assessed that way from the start (`confirmed` / `unused` / `contradicted` per serving) and the profile had
+// nothing of the kind for its first two days: a block of ten lines went into every prompt of every shown session
+// and no record said whether one of them was ever read. The holdout cannot answer it either -- its measure is one
+// number for the whole block, over 235 sessions, where this is one row per line per session: on a block of ten
+// lines, a week of sessions here is hundreds of rows against the holdout's forty.
+// Kept beside the ledger, same window, never committed.
+export function readLineVerdicts(store, { days = PROFILE.ledgerDays, now = Date.now() } = {}) {
+  let lines = []; try { lines = fs.readFileSync(linesFile(store), 'utf8').split('\n'); } catch { return []; }
+  const out = [];
+  for (const l of lines) { if (!l) continue; try { const o = JSON.parse(l); if (o?.id && o.session && Number.isFinite(Date.parse(o.at)) && dayOf(o.at, now) <= days) out.push(o); } catch {} }
+  return out;
+}
+// One row per (session, line). A session read again replaces its own rows, as the ledger does, so re-reading a
+// transcript never counts a verdict twice.
+export function appendLineVerdicts(store, verdicts, { session, client, model, at, now = Date.now() } = {}) {
+  if (!verdicts?.length || !session) return [];
+  const when = at || new Date(now).toISOString();
+  const rows = verdicts.map(v => ({ id: v.id, session, client: client || null, model: model || null, at: when, verdict: v.verdict, evidence: v.evidence || '' }));
+  const kept = readLineVerdicts(store, { now }).filter(r => r.session !== session);
+  writeAtomic(linesFile(store), [...kept, ...rows].map(r => JSON.stringify(r)).join('\n') + '\n');
+  return rows;
+}
+// Per line: the sessions that were shown it, and what they did with it. `applied` is the sessions where the line
+// had any bearing at all (anything but `na`) -- the denominator that matters, since a line's chance to be followed
+// only comes up in a session its subject arises in. `followRate` is followed over applied, null where nothing
+// applied, because 0 of 0 is not a failing line, it is an untested one.
+export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(), profile = null } = {}) {
+  const rows = readLineVerdicts(store, { days, now });
+  const by = new Map();
+  for (const r of rows) {
+    if (!by.has(r.id)) by.set(r.id, { id: r.id, shown: 0, followed: 0, ignored: 0, contradicted: 0, na: 0, evidence: [] });
+    const e = by.get(r.id);
+    e.shown++; e[r.verdict] = (e[r.verdict] || 0) + 1;
+    if (r.verdict !== 'na' && r.evidence) e.evidence.push({ verdict: r.verdict, text: r.evidence, session: r.session });
+  }
+  const text = new Map();
+  const prof = profile || readProfile(store);
+  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e) });
+  const out = [...by.values()].map(e => {
+    const applied = e.followed + e.ignored + e.contradicted;
+    return { ...e, applied, followRate: applied ? e.followed / applied : null, gone: !text.has(e.id), ...(text.get(e.id) || {}) };
+  });
+  // worst first: a line that was shown often, applied, and not followed is the one to cut or reword
+  out.sort((a, b) => (a.followRate ?? 2) - (b.followRate ?? 2) || b.applied - a.applied);
+  const applied = out.reduce((a, e) => a + e.applied, 0), followed = out.reduce((a, e) => a + e.followed, 0);
+  return { lines: out, sessions: new Set(rows.map(r => r.session)).size, verdicts: rows.length, applied, followed, followRate: applied ? followed / applied : null };
+}
+
 // Observations are appended with their session and the session's directories; the file is cut to the window
 // as it is written, so it never grows past what the compile reads. `at` is the time for an observation that
 // carries none of its own (a transcript without stamps).
@@ -548,35 +688,63 @@ const line = (s, e) => s === 'skills' ? skillLine(e) : s === 'whatFails' ? `- Wh
 // three), then the oldest bugs (to three), then the least-used skills (to three), then the weakest lines of what went wrong (to four), then of how this
 // person works (to four), then whatever section is longest: the ways of working are the last thing to go.
 const TRIM = [['workingOn', 3], ['recentBugs', 3], ['skills', 3], ['whatFails', 4], ['howWeWork', 4]];
-export function renderProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
-  if (!profile?.sections) return '';
-  const lines = Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).map(e => line(s, e))]));
+// What a session is actually shown: the text, and **the ids of the entries that survived the trim**. The ids are
+// what makes the block measurable per line (`lines.jsonl`, `assessLines`): a line trimmed out of a session's block
+// was never shown there and must not be judged on it. One function does the fitting so the text and the ids can
+// never disagree; `renderProfile` is the text alone, which is what every older caller wants.
+export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
+  if (!profile?.sections) return { text: '', ids: [] };
+  const kept = Object.fromEntries(SECTIONS.map(s => [s, [...(profile.sections[s] || [])]]));
   const w = profile.window || {};
   const span = w.from && w.to ? `${w.from} to ${w.to}` : `the last ${w.days || PROFILE.ledgerDays} days`;
   const head = `Learned from ${w.sessions || 0} sessions in this repository, ${span} (compiled ${String(profile.compiledAt || '').slice(0, 10)}): what the person here is working on, how they want work done, what went wrong before, and which skills are run here. Follow the stated ways of working; read the rest as context, not instructions. Counts are sessions.`;
-  const text = () => [head, ...SECTIONS.filter(s => lines[s].length).map(s => `## ${TITLES[s]}\n${lines[s].join('\n')}`)].join('\n\n');
+  const text = () => [head, ...SECTIONS.filter(s => kept[s].length).map(s => `## ${TITLES[s]}\n${kept[s].map(e => line(s, e)).join('\n')}`)].join('\n\n');
   while (text().length > maxChars) {
-    const s = TRIM.find(([s, floor]) => lines[s].length > floor)?.[0] || SECTIONS.filter(s => lines[s].length).sort((a, b) => lines[b].length - lines[a].length)[0];
+    const s = TRIM.find(([s, floor]) => kept[s].length > floor)?.[0] || SECTIONS.filter(s => kept[s].length).sort((a, b) => kept[b].length - kept[a].length)[0];
     if (!s) break;
-    lines[s].pop();
+    kept[s].pop();
   }
-  return SECTIONS.some(s => lines[s].length) ? text() : '';
+  if (!SECTIONS.some(s => kept[s].length)) return { text: '', ids: [] };
+  return { text: text(), ids: SECTIONS.flatMap(s => kept[s].map(e => e.id).filter(Boolean)) };
 }
+export function renderProfile(profile, opts = {}) { return fitProfile(profile, opts).text; }
 export function profileBlock(store) {
-  const text = renderProfile(readProfile(store));
-  return text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '';
+  const { text, ids } = fitProfile(readProfile(store));
+  return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids };
 }
 
 // --- serving, and the holdout ---------------------------------------------
 // The block goes into a session's first prompt and again after each compaction, since a compaction summary keeps
-// none of it. Which sessions get it is the holdout's call: a deterministic share of sessions (`holdoutRate`, the
-// notes' 15% by default) is held out whole and shown nothing, and every observation extracted from a session carries
-// its arm (`arm`: shown | holdout), so the ledger itself is the measure: corrections and redirects per session on
-// each side (`holdoutReport`). The arm is decided once per session and kept in its state file (`ops.js:sessionState`,
+// none of it. Which sessions get it is the holdout's call: a deterministic share of sessions
+// (`profileHoldoutRate`, half of them) is held out whole and shown nothing, and every observation extracted from a
+// session carries its arm (`arm`: shown | holdout), so the ledger itself is the measure: corrections and redirects
+// per *exchange* on each side (`holdoutReport`). The arm is decided once per session and kept in its state file (`ops.js:sessionState`,
 // `st.profile`), with how many compactions had been seen when the block last went in.
+// The profile's own holdout share, which is not the notes' (`PROFILE.holdoutRate`, 0.5; `learn: { profileHoldout }`
+// in .thinker/config.json, `THINKER_PROFILE_HOLDOUT` over it, `THINKER_HOLDOUT` over both so a harness that turns
+// every holdout off still does). Half, not the notes' 15%, because the two are measured differently and the
+// profile's measure is the weaker one: a note is held out per turn and judged on the turn it was served, while the
+// profile is one injection the whole session reads, so a session is the unit and there is no pairing to lean on.
+// Measured on this repository's first ledger (680 observations, 116 sessions, 2026-11-08): corrections run at
+// 0.313 of exchanges with an ICC of ~0 inside a session, so the unit that matters is the exchange and 15% of
+// sessions on the small side wastes most of the information. At 85/15 a 30% change needs ~1000 sessions here
+// (7 months at 5 a day); at 50/50, ~130 (26 days). An unbalanced split only makes sense once the thing is known
+// to work and the holdout is there to catch a regression; that is where this should go when it ships. The four
+// cells, for a 30% change at 95%/80%: 1251 sessions as a count at 85/15, 638 as a count at 50/50, 256 as a
+// proportion at 85/15, 131 as a proportion at 50/50.
+export function profileHoldoutRate(store) {
+  const env = process.env.THINKER_HOLDOUT;
+  if (env !== undefined && env !== '') return holdoutRate(store);
+  const own = process.env.THINKER_PROFILE_HOLDOUT;
+  const raw = own !== undefined && own !== '' ? own : (store.config().learn || {}).profileHoldout;
+  if (raw === undefined || raw === null) return PROFILE.holdoutRate;
+  if (raw === false || /^(off|no|false)$/i.test(String(raw))) return 0;
+  const r = Number(raw);
+  return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : PROFILE.holdoutRate;
+}
 export function profileArm(store, session) {
   if (!session || session === 'unknown') return null;
-  const rate = holdoutRate(store);
+  const rate = profileHoldoutRate(store);
   if (rate <= 0) return 'shown';
   const h = parseInt(createHash('sha1').update(`profile#${session}`).digest('hex').slice(0, 8), 16) / 0x100000000;
   return h < rate ? 'holdout' : 'shown';
@@ -596,7 +764,7 @@ export function compactionsSince(file, offset = 0) {
 // session is logged once, on its first prompt, so the arms can be counted from the log too.
 export function profileTurn(store, session, { transcript = null, client = null, now = Date.now() } = {}) {
   if (!session || session === 'unknown' || !profileConfig(store).enabled) return '';
-  const text = profileBlock(store);
+  const { text, ids } = profileBlock(store);
   if (!text) return '';
   return locked(store, session, () => {
     const { st, save } = sessionState(store, session);
@@ -604,44 +772,153 @@ export function profileTurn(store, session, { transcript = null, client = null, 
     let since = { count: 0, offset: p.offset || 0 };
     if (transcript && client === 'claude') { since = compactionsSince(transcript, p.offset || 0); p.compactions = (p.compactions || 0) + since.count; p.offset = since.offset; }
     const due = !p.told || p.compactions > p.toldAt;
-    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; }
+    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; p.shown = [...new Set([...(p.shown || []), ...ids])]; }
     const log = due && (p.arm === 'shown' || !p.told) && !p.loggedHoldout;
     if (due && p.arm === 'holdout') p.loggedHoldout = true;
     st.profile = p; save();
-    if (log) store.log({ op: 'profile-served', session, client, arm: p.arm, chars: p.arm === 'shown' ? text.length : 0, afterCompaction: p.compactions > 0 && p.told > 1 ? true : undefined, at: new Date(now).toISOString() });
+    if (log) store.log({ op: 'profile-served', session, client, arm: p.arm, chars: p.arm === 'shown' ? text.length : 0, lines: p.arm === 'shown' ? ids.length : 0, afterCompaction: p.compactions > 0 && p.told > 1 ? true : undefined, at: new Date(now).toISOString() });
     return due && p.arm === 'shown' ? text : '';
   });
 }
+// The entry ids a session was actually shown, across its injections (a compaction can bring a changed block back).
+// Neither this nor `profileArmOf` may ask `store.exists()`: that tests the **notes** directory, which the profile
+// does not use, so in a profile-only checkout both would answer nothing while the state file sat there with the
+// answer in it -- and `profileArmOf` answering null is every observation saved with no arm and a holdout that
+// measures nothing. Reading a session's own state file needs no notes.
+export function shownLines(store, session) {
+  if (!session || session === 'unknown') return [];
+  return sessionState(store, session).st.profile?.shown || [];
+}
 export function profileArmOf(store, session) {
-  if (!session || session === 'unknown' || !store.exists()) return null;
+  if (!session || session === 'unknown') return null;
   return sessionState(store, session).st.profile?.arm || null;
 }
-// The two arms over the ledger: sessions, observations, and the share of them the person corrected or redirected.
-export function holdoutReport(rows) {
+// The two arms over the ledger. **The measure is cost per exchange** (2026-11-08, the owner's call): the goal is
+// to spend fewer tokens, so the metric is the tokens a unit of delivered work costs, and nothing stands in for it.
+// An exchange is one prompt and the answers to it, which is the smallest unit of work the person asked for; a
+// session's tokens divided by its exchanges takes the length of a session out of the comparison, which is most of
+// the variance (cv 0.97 against 1.96 for a session's tokens on this machine's 111 measured sessions).
+//
+// Three rules it is built on, each from a measurement:
+//  - **A ratio of sums, never a mean of ratios** (the Report's own rule). On this repository the ratio of sums is
+//    $15.11 an exchange and the mean of the per-session ratios is $13.93: the mean weighs a cheap three-exchange
+//    session like a 40-exchange one.
+//  - **Stratified by model, pooled by exchanges.** The models in play differ threefold an exchange (Astra $5.99,
+//    Opus 5 $18.35, Fable $19.95), so an arm that happened to draw more Astra sessions would read as a saving. A
+//    within-model ratio weighted by each stratum's exchanges removes that, and it cut the bootstrap standard error
+//    from 11.3% to 9.6% on the same sessions, which is a third off the sessions needed.
+//  - **The interval is bootstrapped, not assumed.** A ratio of two sums has no closed-form standard error worth
+//    trusting on 111 skewed sessions, so `ratioInterval` resamples sessions within each stratum.
+//
+// Corrections stay on the report as a diagnostic (`rate`), never as the headline: they are a proxy for cost, the
+// metric here is cost, and `redirected` conflates a bad result with the person moving on to the next thing.
+export function holdoutReport(rows, { sessions = new Map(), boots = 2000, seed = 1 } = {}) {
   const arms = { shown: [], holdout: [], unknown: [] };
   for (const r of rows) (arms[r.arm === 'shown' || r.arm === 'holdout' ? r.arm : 'unknown']).push(r);
+  const bad = r => r.outcome === 'corrected' || r.outcome === 'redirected';
   const side = a => {
-    const sessions = new Set(a.map(r => r.session)).size, n = a.length;
+    const seen = new Set(a.map(r => r.session));
+    const n = a.length;
     const share = o => n ? a.filter(r => r.outcome === o).length / n : null;
-    return { sessions, observations: n, perSession: sessions ? n / sessions : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted') };
+    // one entry per session that both the ledger counted exchanges for and the log priced
+    const units = [...seen].map(id => ({ id, exchanges: a.filter(r => r.session === id).length, ...(sessions.get(id) || {}) })).filter(u => u.tokens > 0);
+    return { sessions: seen.size, observations: n, perSession: seen.size ? n / seen.size : null, rate: n ? a.filter(bad).length / n : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted'), priced: units.length, ...perExchange(units), interval: ratioInterval(units, { boots, seed }) };
   };
-  return { shown: side(arms.shown), holdout: side(arms.holdout), unknown: side(arms.unknown) };
+  const shown = { ...side(arms.shown), recurrence: recurrence(arms.shown) }, holdout = { ...side(arms.holdout), recurrence: recurrence(arms.holdout) };
+  const unknown = { ...side(arms.unknown), recurrence: recurrence(arms.unknown) };
+  // The lead is recurrence (2026-11-08, the owner's call): the profile exists so the person never has to say the
+  // same thing twice, and `servedRate` is how often they did with the agent holding the line. `unlearnedRate` is
+  // the same across arms by construction, since the agent saw the statement in neither; a gap there is the
+  // extractor's, not the profile's. Cost per exchange stays as the second figure (`cost`).
+  return { shown, holdout, unknown, recurrence: compareRates(shown.recurrence, holdout.recurrence), cost: compare(shown, holdout, { boots, seed }) };
+}
+// Two proportions over exchanges, shown less held out, with a 95% interval: negative is the profile working.
+export function compareRates(a, b, { key = 'servedRate', n = 'measured', min = PROFILE.holdoutMinObs } = {}) {
+  const enough = a[n] >= min && b[n] >= min;
+  if (a[key] == null || b[key] == null) return { delta: null, ci: null, relative: null, enough: false, verdict: 'too-early' };
+  const delta = a[key] - b[key];
+  const v = (p, k) => k ? p * (1 - p) / k : 0;
+  const se = Math.sqrt(v(a[key], a[n]) + v(b[key], b[n]));
+  const ci = [delta - 1.96 * se, delta + 1.96 * se];
+  const verdict = !enough ? 'too-early' : ci[1] < 0 ? 'fewer' : ci[0] > 0 ? 'more' : 'inconclusive';
+  return { delta, ci, relative: b[key] ? delta / b[key] : null, enough, verdict, unlearned: { shown: a.unlearnedRate, holdout: b.unlearnedRate } };
+}
+// Tokens (and dollars, where every stratum is priced) an exchange costs: a ratio of sums inside each model, the
+// strata pooled by their exchanges. `units` is one object a session: {exchanges, tokens, cost, model}.
+export function perExchange(units) {
+  if (!units.length) return { tokens: null, cost: null, exchanges: 0, strata: 0 };
+  const by = new Map();
+  for (const u of units) { const k = u.model || '?'; if (!by.has(k)) by.set(k, []); by.get(k).push(u); }
+  let ex = 0, tok = 0, dol = 0, priced = true;
+  for (const [, us] of by) {
+    const e = us.reduce((a, u) => a + u.exchanges, 0);
+    if (!e) continue;
+    ex += e; tok += us.reduce((a, u) => a + u.tokens, 0);
+    if (us.some(u => !(u.cost > 0))) priced = false; else dol += us.reduce((a, u) => a + u.cost, 0);
+  }
+  return { tokens: ex ? tok / ex : null, cost: ex && priced ? dol / ex : null, exchanges: ex, strata: by.size };
+}
+// The bootstrap: resample sessions within each stratum, so the interval carries the skew the sessions actually have.
+export function ratioInterval(units, { boots = 2000, seed = 1, key = 'tokens' } = {}) {
+  if (units.length < 2) return null;
+  const by = new Map();
+  for (const u of units) { const k = u.model || '?'; if (!by.has(k)) by.set(k, []); by.get(k).push(u); }
+  let st = seed >>> 0 || 1;
+  const rnd = () => { st ^= st << 13; st ^= st >>> 17; st ^= st << 5; st >>>= 0; return st / 0x100000000; };
+  const out = [];
+  for (let b = 0; b < boots; b++) {
+    const draw = [];
+    for (const [, us] of by) for (let i = 0; i < us.length; i++) draw.push(us[Math.floor(rnd() * us.length)]);
+    const r = perExchange(draw)[key];
+    if (r != null) out.push(r);
+  }
+  if (out.length < 2) return null;
+  const mu = out.reduce((a, x) => a + x, 0) / out.length;
+  const sd = Math.sqrt(out.reduce((a, x) => a + (x - mu) ** 2, 0) / out.length);
+  return { se: sd, n: out.length };
+}
+// Shown against held out on cost per exchange. `delta` is shown less held out -- **negative is the profile paying
+// for itself** -- with a 95% interval from the two sides' bootstrapped standard errors. `verdict` is what the
+// interval supports and never a p-value dressed as a decision: `cheaper` (the whole interval is below zero),
+// `costlier` (all above), `inconclusive` (it straddles), `too-early` (a side has too few priced sessions).
+// Judged in tokens, because that is the goal and because a mixed-model arm has no honest single price; the dollar
+// figure rides along where every stratum of both arms is priced.
+export function compare(shown, holdout, { boots = 2000, seed = 1 } = {}) {
+  const enough = shown.priced >= PROFILE.holdoutMinSessions && holdout.priced >= PROFILE.holdoutMinSessions;
+  if (shown.tokens == null || holdout.tokens == null) return { delta: null, ci: null, relative: null, enough: false, verdict: 'too-early', corrections: null };
+  const delta = shown.tokens - holdout.tokens;
+  const a = shown.interval?.se ?? null, b = holdout.interval?.se ?? null;
+  const se = a != null && b != null ? Math.sqrt(a * a + b * b) : null;
+  const ci = se == null ? null : [delta - 1.96 * se, delta + 1.96 * se];
+  const verdict = !enough || !ci ? 'too-early' : ci[1] < 0 ? 'cheaper' : ci[0] > 0 ? 'costlier' : 'inconclusive';
+  // the proxy, kept beside the measure so a cost result can be read against it, never instead of it
+  const corrections = shown.rate == null || holdout.rate == null ? null : shown.rate - holdout.rate;
+  return { delta, ci, relative: holdout.tokens ? delta / holdout.tokens : null, enough, verdict, corrections };
 }
 
 // --- a session, end to end ------------------------------------------------
 // Extract a session's observations into the ledger, then compile when due. The caller has parsed the transcript
 // and decided the session is done with (the end hook, or the catch-up over quiet sessions).
 export async function profileSession(store, events, { session, client, repoHint, ended = true, fromLine = 0, lineCount = 0, accounting = {}, completeFn, have, config, compile = true, now = Date.now() } = {}) {
-  const r = await extractObservations(events, { repoHint, ended, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
+  // the lines this session was shown, with the text it saw, so the same call can say what was done with each
+  const prof = readProfile(store);
+  const seen = new Set(shownLines(store, session));
+  const shown = seen.size && prof?.sections
+    ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id)).map(e => ({ id: e.id, text: line(sec, e) })))
+    : [];
+  const prior = priorStatements(store, { session, profile: prof, now });
+  const r = await extractObservations(events, { repoHint, ended, shown, prior, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
   const dirs = sessionDirs(events, store.repo);
   const arm = profileArmOf(store, session);
   const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
+  const verdicts = appendLineVerdicts(store, r.lines, { session, client, model: r.model, now });
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
-  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
+  const rec = recurrence(rows);
+  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, repeats: rec.recurrences || undefined, repeatsServed: rec.served || undefined, repeatsUnlearned: rec.unlearned || undefined, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
     if (c.profile) compiled = c;
   }
-  return { observations: rows, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
+  return { observations: rows, lines: verdicts, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }

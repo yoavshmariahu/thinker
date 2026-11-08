@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
+import { listPrice } from '../prices.js';
+import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport, lineReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
 import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
@@ -54,23 +55,72 @@ async function profileCommand(ctx) {
     out(`${rows.length} observations from ${new Set(rows.map(r => r.session)).size} sessions in the last ${Number(flags.days) || PROFILE.ledgerDays} days`);
     return;
   }
+  if (sub === 'lines') {
+    // What each line of the profile was used for. The first question about a line is whether the agent read it:
+    // a line nothing ever follows is costing its characters in every prompt of every session for nothing.
+    const days = Number(flags.days) || PROFILE.ledgerDays;
+    const rep = lineReport(store, { days });
+    if (flags.json) { out(JSON.stringify(rep, null, 2)); return; }
+    if (!rep.verdicts) { out(`no line verdicts yet: they are written when a session that was shown the profile is read (${days} days)`); return; }
+    out(`${rep.verdicts} verdicts on ${rep.lines.length} lines from ${rep.sessions} sessions shown the profile, last ${days} days`);
+    out(`followed in ${rep.followed} of the ${rep.applied} sessions a line had any bearing on${rep.followRate == null ? '' : ` (${Math.round(100 * rep.followRate)}%)`}`);
+    out('');
+    out(`${'line'.padEnd(6)} ${'shown'.padStart(5)} ${'applied'.padStart(7)} ${'followed'.padStart(8)} ${'ignored'.padStart(7)} ${'contra.'.padStart(7)} ${'rate'.padStart(6)}  text`);
+    for (const l of rep.lines) {
+      const rate = l.followRate == null ? '    –' : `${String(Math.round(100 * l.followRate)).padStart(4)}%`;
+      out(`${l.id.padEnd(6)} ${String(l.shown).padStart(5)} ${String(l.applied).padStart(7)} ${String(l.followed).padStart(8)} ${String(l.ignored).padStart(7)} ${String(l.contradicted).padStart(7)} ${rate.padStart(6)}  ${l.gone ? '(no longer in the profile) ' : ''}${(l.text || '').slice(0, 70)}`);
+      if (flags.why) for (const e of l.evidence.slice(0, 3)) out(`         ${e.verdict}: "${e.text.slice(0, 90)}"`);
+    }
+    out('');
+    out('applied is the sessions the line had any bearing on; a rate of – means it has never come up, which is an');
+    out('untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.');
+    return;
+  }
   if (sub === 'holdout') {
-    // the two arms, from the ledger (outcomes per session) and the log (what each session cost, its last `session` row)
+    // Cost per exchange, shown against held out. The sessions' tokens and dollars come from the log's own
+    // `session` rows (the last one of each session carries the totals), the exchange counts from the ledger.
     const days = Number(flags.days) || PROFILE.ledgerDays;
     const rows = readLedger(store, { days });
-    const h = holdoutReport(rows);
     const since = Date.now() - days * 86400_000;
     const last = new Map();
     for (const e of readLog(store, { all: true })) if (e.op === 'session' && e.profile && Date.parse(e.t) >= since) last.set(e.session, e);
-    const cost = arm => { const xs = [...last.values()].filter(e => e.profile === arm); const sum = k => xs.reduce((a, e) => a + (e[k] || 0), 0); return { sessions: xs.length, prompts: xs.length ? sum('turns') / xs.length : null, tokens: xs.length ? (sum('inputTokens') + sum('cacheReadTokens') + sum('cacheWriteTokens') + sum('outputTokens')) / xs.length : null }; };
-    const report = { days, shown: { ...h.shown, cost: cost('shown') }, holdout: { ...h.holdout, cost: cost('holdout') }, unknown: h.unknown, rate: Math.round(100 * (store.config().holdout ?? 0.15)) };
+    const cfg = store.config();
+    const sessions = new Map();
+    for (const [id, e] of last) {
+      const cr = e.cacheReadTokens || 0, cw = e.cacheWriteTokens || 0, out = e.outputTokens || 0;
+      const fresh = Math.max(0, (e.inputTokens || 0) - cr - cw);
+      const tokens = fresh + cr + cw + out;
+      const p = listPrice(e.model, { config: cfg });
+      const cost = p ? fresh * p.input / 1e6 + cr * p.cacheRead / 1e6 + cw * (p.cacheWrite1h ?? p.cacheWrite) / 1e6 + out * p.output / 1e6 : 0;
+      sessions.set(id, { tokens, cost, model: e.model || '?', prompts: e.turns || 0 });
+    }
+    const h = holdoutReport(rows, { sessions });
+    const report = { days, metric: 'recurrence per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, recurrence: h.recurrence, cost: h.cost, rate: Math.round(100 * profileHoldoutRate(store)) };
     if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
-    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
-    out(`profile holdout over ${days} days (sessions the hooks showed the profile against sessions held out)`);
-    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'observ.'.padStart(8)} ${'per sess.'.padStart(9)} ${'corrected'.padStart(9)} ${'redirected'.padStart(10)} ${'accepted'.padStart(8)} ${'prompts'.padStart(8)} ${'tokens/session'.padStart(14)}`);
-    for (const arm of ['shown', 'holdout']) { const a = report[arm]; out(`${arm.padEnd(8)} ${String(a.sessions).padStart(8)} ${String(a.observations).padStart(8)} ${num(a.perSession).padStart(9)} ${pct(a.corrected).padStart(9)} ${pct(a.redirected).padStart(10)} ${pct(a.accepted).padStart(8)} ${num(a.cost.prompts, 0).padStart(8)} ${(a.cost.tokens == null ? '–' : formatTokens(a.cost.tokens)).padStart(14)}`); }
-    if (h.unknown.observations) out(`${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
-    out(`judge by corrected and redirected per session on each side; fewer than ${PROFILE.holdoutMinSessions} sessions on a side is too few to read`);
+    const pct = v => v == null ? '–' : `${(100 * v).toFixed(1)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`;
+    const tk = v => v == null ? '–' : formatTokens(v), dol = v => v == null ? '–' : `$${v.toFixed(2)}`;
+    const rel = c => c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`;
+    out(`profile holdout over ${days} days, ${report.rate}% of sessions held out (shown the profile against shown nothing)`);
+    out('');
+    out('RECURRENCE: the person saying again what they said before, per exchange');
+    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'exch.'.padStart(6)} ${'SAID AGAIN'.padStart(10)} ${'of a line'.padStart(10)} ${'unlearned'.padStart(10)}`);
+    for (const arm of ['shown', 'holdout']) { const x = report[arm], r = x.recurrence; out(`${arm.padEnd(8)} ${String(x.sessions).padStart(8)} ${String(r.measured).padStart(6)} ${pct(r.rate).padStart(10)} ${pct(r.servedRate).padStart(10)} ${pct(r.unlearnedRate).padStart(10)}`); }
+    const r = h.recurrence;
+    out(`of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}${rel(r)}`);
+    out({
+      'too-early': `  too early: each side needs ${PROFILE.holdoutMinObs} measured exchanges (shown ${h.shown.recurrence.measured}, held out ${h.holdout.recurrence.measured})`,
+      inconclusive: '  inconclusive: the interval straddles zero, so this window cannot tell the profile from nothing',
+      fewer: '  FEWER repeats with the profile, over the whole interval: the agent holding the line spared the person saying it',
+      more: '  MORE repeats with the profile, over the whole interval: something is wrong, read `thinker profile lines --why`',
+    }[r.verdict]);
+    out('  "unlearned" is a repeat of something no line holds: the same in both arms by construction, and the compile\'s to fix, not the serving\'s.');
+    out('');
+    out('COST per exchange, stratified by model');
+    out(`${'arm'.padEnd(8)} ${'priced'.padStart(6)} ${'exch.'.padStart(6)} ${'tokens/exch.'.padStart(12)} ${'$/exch.'.padStart(8)} ${'corrected'.padStart(9)}`);
+    for (const arm of ['shown', 'holdout']) { const x = report[arm]; out(`${arm.padEnd(8)} ${String(x.priced).padStart(6)} ${String(x.exchanges).padStart(6)} ${tk(x.tokens).padStart(12)} ${dol(x.cost).padStart(8)} ${pct(x.rate).padStart(9)}`); }
+    const c = h.cost;
+    out(`tokens per exchange, shown less held out: ${c.delta == null ? '–' : (c.delta > 0 ? '+' : '-') + tk(Math.abs(c.delta))}${rel(c)}${c.ci ? `, 95% ${tk(c.ci[0])} to ${tk(c.ci[1])}` : ''}; ${c.verdict}`);
+    if (h.unknown.observations) out(`\n${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
     return;
   }
   if (sub === 'compile') {

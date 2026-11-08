@@ -7,6 +7,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { seedProfile } from './fixtures/seed-profile.js';
+// These tests are about the hooks' plumbing, not the profile's holdout, which is the profile tests' business:
+// every spawn below spreads process.env, so pin it off here. At the profile's 50% (2026-11-08) half of the
+// session ids these tests use would be held out and shown nothing, where at the notes' 15% they happened to land shown.
+process.env.THINKER_HOLDOUT = '0';
 import { parseClients, installClient, uninstallClients, uninstallWiring, connectFromCheckouts, pruneInstalls, prunedLines, compareVersions, trustCodex, trustCodexUser, codexHookHash, toolFiles, hookClient, stopOutput, refreshWiring, inferWiring, stripRepoWiring, connectDetected, markConnected, enableCodexSubagents, codexSubagentsOn, staleRepoInstructions } from '../src/clients.js';
 import { installGitHooks, mainCheckout } from '../src/git-hooks.js';
 import { knownRepos } from '../src/commands/setup.js';

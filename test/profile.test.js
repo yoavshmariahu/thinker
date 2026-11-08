@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -179,7 +179,8 @@ test('a session end to end: observations into the ledger, a compile when due, th
   const p = readProfile(store);
   assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.sections.whatFails[0].id, 'f1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
-  assert.match(block, /^<thinker-profile>\n/); assert.match(block, /When adding a flag: avoid guessing its unit/); assert.match(block, /Learned from 1 sessions/);
+  assert.match(block.text, /^<thinker-profile>\n/); assert.match(block.text, /When adding a flag: avoid guessing its unit/); assert.match(block.text, /Learned from 1 sessions/);
+  assert.deepEqual(block.ids, ['w1', 'f1'], 'the block names the entries it actually rendered');
   // a profile from before entries carried ids is patched all the same
   const v2 = readProfile(store); for (const s of SECTIONS) for (const e of v2.sections[s]) delete e.id;
   fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify(v2));
@@ -272,9 +273,172 @@ test('the block goes into a shown session\'s first prompt and again after a comp
   assert.equal(r.observations[0].arm, 'holdout');
   const h = holdoutReport([...readLedger(store), { id: 'x', session: 'sC', arm: 'shown', outcome: 'accepted' }, { id: 'y', session: 'sC', arm: 'shown', outcome: 'corrected' }]);
   assert.equal(h.holdout.sessions, 1); assert.equal(h.holdout.corrected, 1); assert.equal(h.shown.observations, 2); assert.equal(h.shown.corrected, 0.5); assert.equal(h.unknown.observations, 1, 's0 was read before any arm');
+  assert.equal(h.shown.rate, 0.5, 'corrections stay on the report as a diagnostic');
+  assert.equal(h.cost.verdict, 'too-early', 'with no priced session on either side there is nothing to compare');
+  assert.equal(h.recurrence.verdict, 'too-early', 'and with no measured exchanges no recurrence either');
   // off: nothing, whatever the state
   fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), '{}');
   assert.equal(profileTurn(new Store(dir), 'sD', {}), '', 'learn.mode off: no block');
+});
+
+// The profile's holdout is half the sessions, and the measure is the exchange (2026-11-08).
+// The first question about a line is whether the agent used it (2026-11-08, the owner's ask).
+test('a session is assessed per profile line it was shown: the ids it saw, the verdicts, and what applied', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-lines-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ learn: { mode: 'profile' } }));
+  const store = new Store(dir);
+  const now = Date.now();
+  appendObservations(store, [fakeObs()], { session: 's0', now });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'Work in a worktree', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit', obs: readLedger(store).map(r => r.id) }], recentBugs: [] } }, model: 'fake-opus' }) });
+  // only what a session was actually shown may be judged on it
+  const prev = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0';
+  t.after(() => { if (prev === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = prev; });
+  const block = profileTurn(store, 'sA', { client: 'codex' });
+  assert.match(block, /Work in a worktree/);
+  assert.deepEqual(shownLines(store, 'sA').sort(), ['f1', 'w1'], 'the ids the session saw are kept on its state');
+  assert.deepEqual(shownLines(store, 'never-served'), [], 'a session shown nothing has no lines');
+  let asked = null;
+  await profileSession(store, session, {
+    session: 'sA', client: 'codex', compile: false, have: ['claude'],
+    completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [fakeObs()], lines: [
+      { id: 'w1', verdict: 'followed', evidence: 'made a worktree first' },
+      { id: 'f1', verdict: 'na', evidence: '' },
+      { id: 'nope', verdict: 'followed', evidence: 'invented' },
+      { id: 'w1', verdict: 'ignored', evidence: 'a second verdict on the same line' },
+    ] }, model: 'fake-opus' }; },
+  });
+  assert.match(asked, /THE PROFILE THIS SESSION WAS SHOWN \(2 lines\)/, 'the call carries the lines it must judge');
+  assert.match(asked, /\[w1\] - Work in a worktree/, 'with the id and the text the session saw');
+  const v = readLineVerdicts(store);
+  assert.deepEqual(v.map(r => [r.id, r.verdict]), [['w1', 'followed'], ['f1', 'na']], 'a line never shown is dropped, and the first verdict per line stands');
+  assert.equal(v[0].session, 'sA'); assert.equal(v[0].evidence, 'made a worktree first');
+  // the report: applied is the denominator, and 0 of 0 is untested, not failing
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'ignored', evidence: 'did it in the main checkout' }, { id: 'f1', verdict: 'na' }], { session: 'sB', now });
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'contradicted', evidence: 'the person had to say so' }], { session: 'sC', now });
+  const rep = lineReport(store);
+  const h1 = rep.lines.find(l => l.id === 'w1'), f1 = rep.lines.find(l => l.id === 'f1');
+  assert.deepEqual([h1.shown, h1.followed, h1.ignored, h1.contradicted, h1.applied], [3, 1, 1, 1, 3]);
+  assert.ok(Math.abs(h1.followRate - 1 / 3) < 1e-9, 'followed over the sessions the line applied in');
+  assert.equal(f1.applied, 0); assert.equal(f1.followRate, null, '0 of 0 applied is an untested line, never a failing one');
+  assert.equal(h1.section, 'workingOn'); assert.match(h1.text, /Work in a worktree/);
+  assert.equal(h1.evidence.length, 3, 'the quotes behind every verdict that was not na');
+  assert.equal(rep.sessions, 3); assert.equal(rep.applied, 3); assert.equal(rep.followed, 1);
+  assert.ok(Math.abs(rep.followRate - 1 / 3) < 1e-9);
+  // a line the profile no longer holds is marked, not dropped: its record is why it went
+  assert.equal(h1.gone, false);
+  appendLineVerdicts(store, [{ id: 'zz', verdict: 'ignored', evidence: 'x' }], { session: 'sD', now });
+  assert.equal(lineReport(store).lines.find(l => l.id === 'zz').gone, true);
+  // a session read again replaces its own rows, never counting a verdict twice
+  appendLineVerdicts(store, [{ id: 'w1', verdict: 'followed' }], { session: 'sC', now });
+  assert.equal(readLineVerdicts(store).filter(r => r.session === 'sC').length, 1);
+  assert.deepEqual(LINE_VERDICTS, ['followed', 'ignored', 'contradicted', 'na']);
+  // a session shown nothing is asked nothing about lines
+  const r2 = await profileSession(store, session, { session: 'fresh', client: 'codex', compile: false, have: ['claude'], completeFn: async ({ prompt }) => { assert.ok(!/THE PROFILE THIS SESSION WAS SHOWN/.test(prompt)); return { json: { observations: [fakeObs()] }, model: 'fake-opus' }; } });
+  assert.deepEqual(r2.lines, []);
+});
+
+// The lead metric: the person saying again what they said before (2026-11-08, the owner's call). Against the
+// ledger and not the profile alone, since the profile is what survived the compile: a profile that learned nothing
+// would be repeated against nothing and score perfectly.
+test('recurrence is judged against everything said before, split by whether a line held it, and compared by arm', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-recur-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify({ learn: { mode: 'profile' } }));
+  const store = new Store(dir);
+  const now = Date.now();
+  // two earlier sessions: one preference the compile kept as a line, one lesson it never learned
+  appendObservations(store, [fakeObs({ prefs: ['answer short and plain'], lesson: '' })], { session: 'old1', now: now - 2 * 86400_000 });
+  appendObservations(store, [fakeObs({ prefs: [], lesson: 'Validate the fix in the installed app before calling it done' })], { session: 'old2', now: now - 86400_000 });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text: 'Answer short and plain', obs: readLedger(store).filter(r => r.session === 'old1').map(r => r.id) }], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }) });
+  const prior = priorStatements(store, { session: 'new', now });
+  assert.equal(prior[0].id, 'h1'); assert.equal(prior[0].inProfile, true, 'the profile\'s lines come first');
+  const lesson = prior.find(p => /installed app/.test(p.text));
+  assert.ok(lesson && !lesson.inProfile, 'a statement the compile never learned is still something said before');
+  assert.ok(!prior.some(p => /answer short and plain/i.test(p.text) && !p.inProfile), 'the same words are listed once, as the line');
+  assert.deepEqual(priorStatements(store, { session: 'old1', now }).filter(p => p.id.startsWith('obs-')).map(p => p.text), [lesson.text], 'a session\'s own rows are not its own prior');
+  // the extraction names what was said again, and the row keeps which kind
+  let asked = null;
+  const r = await profileSession(store, session, { session: 'new', client: 'codex', compile: false, have: ['claude'],
+    completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [
+      fakeObs({ turn: 1, request: 'a', prefs: ['keep it short'], repeats: ['h1'] }),
+      fakeObs({ turn: 2, request: 'b', lesson: 'test it in the real app', repeats: [lesson.id, 'made-up'] }),
+      fakeObs({ turn: 3, request: 'c', repeats: [] }),
+    ] }, model: 'fake-opus' }; } });
+  assert.match(asked, /SAID BEFORE \(2;/, 'the call carries what was said before');
+  assert.match(asked, /\[h1\] Answer short and plain/);
+  assert.deepEqual(r.observations.map(o => o.repeats), [{ profile: ['h1'], ledger: [] }, { profile: [], ledger: [lesson.id] }, { profile: [], ledger: [] }], 'an id never offered is dropped');
+  const rec = recurrence(r.observations);
+  assert.deepEqual([rec.measured, rec.recurrences, rec.served, rec.unlearned], [3, 2, 1, 1]);
+  assert.ok(Math.abs(rec.rate - 2 / 3) < 1e-9 && Math.abs(rec.servedRate - 1 / 3) < 1e-9);
+  assert.equal(recurrence([{ repeats: { profile: ['h1'], ledger: ['x'] } }]).served, 1, 'a repeat of both kinds counts once, as served');
+  assert.equal(recurrence(readLedger(store).filter(x => x.session === 'old1')).measured, 0, 'a row from before repeats were extracted is not measured');
+  // the arms: served is the profile\'s to answer for, unlearned the compile\'s and the same on both sides
+  const side = (n, served, unlearned) => ({ measured: n, servedRate: served / n, unlearnedRate: unlearned / n });
+  assert.equal(compareRates(side(400, 20, 40), side(400, 60, 40)).verdict, 'fewer');
+  assert.equal(compareRates(side(400, 60, 40), side(400, 20, 40)).verdict, 'more');
+  assert.equal(compareRates(side(400, 40, 40), side(400, 44, 40)).verdict, 'inconclusive');
+  assert.equal(compareRates(side(50, 2, 4), side(50, 10, 4)).verdict, 'too-early', 'the floor comes first');
+  const c = compareRates(side(400, 20, 40), side(400, 60, 40));
+  assert.ok(c.ci[0] < c.delta && c.delta < c.ci[1] && c.ci[1] < 0);
+  assert.ok(Math.abs(c.relative + 2 / 3) < 1e-9, 'relative to the held-out rate');
+  assert.deepEqual(c.unlearned, { shown: 0.1, holdout: 0.1 });
+  const h = holdoutReport([...r.observations.map(o => ({ ...o, arm: 'shown', session: 'new' }))]);
+  assert.equal(h.shown.recurrence.served, 1); assert.equal(h.recurrence.verdict, 'too-early');
+});
+
+test('the profile holdout is 50/50, and the report judges cost per exchange', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-profile-holdout-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
+  const keep = { h: process.env.THINKER_HOLDOUT, p: process.env.THINKER_PROFILE_HOLDOUT };
+  t.after(() => { for (const [k, v] of [['THINKER_HOLDOUT', keep.h], ['THINKER_PROFILE_HOLDOUT', keep.p]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  delete process.env.THINKER_HOLDOUT; delete process.env.THINKER_PROFILE_HOLDOUT;
+  const store = d => { fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), JSON.stringify(d)); return new Store(dir); };
+  assert.equal(PROFILE.holdoutRate, 0.5, 'half, while it is being measured');
+  assert.equal(profileHoldoutRate(store({})), 0.5, "not the notes' 15%");
+  assert.equal(profileHoldoutRate(store({ holdout: 0.15 })), 0.5, "the notes' share does not reach the profile");
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: 0.2 } })), 0.2, 'learn.profileHoldout moves it');
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: false } })), 0, 'and false turns it off');
+  process.env.THINKER_PROFILE_HOLDOUT = '0.3';
+  assert.equal(profileHoldoutRate(store({ learn: { profileHoldout: 0.2 } })), 0.3, 'the variable wins over the config');
+  process.env.THINKER_HOLDOUT = '0';
+  assert.equal(profileHoldoutRate(store({})), 0, 'a harness turning every holdout off still turns this one off');
+  delete process.env.THINKER_HOLDOUT; delete process.env.THINKER_PROFILE_HOLDOUT;
+  // a share of sessions, both arms represented, and the same session always on the same side
+  const s = store({});
+  const arms = Array.from({ length: 400 }, (_, i) => profileArm(s, `sess-${i}`));
+  const held = arms.filter(a => a === 'holdout').length;
+  assert.ok(held > 150 && held < 250, `about half of 400 sessions held out, got ${held}`);
+  assert.equal(profileArm(s, 'sess-7'), arms[7], 'the arm is the session\'s, every time it is asked');
+  // a ratio of sums, never a mean of ratios: a cheap 1-exchange session may not outweigh a 9-exchange one
+  const r = perExchange([{ exchanges: 1, tokens: 100, cost: 1, model: 'm' }, { exchanges: 9, tokens: 900, cost: 9, model: 'm' }]);
+  assert.equal(r.tokens, 100, '1000 tokens over 10 exchanges, not the mean of 100 and 100');
+  const skew = perExchange([{ exchanges: 1, tokens: 1000, cost: 1, model: 'm' }, { exchanges: 9, tokens: 900, cost: 9, model: 'm' }]);
+  assert.equal(skew.tokens, 190, 'the ratio of the sums (1900/10); the mean of the ratios would be 550');
+  // stratified by model and pooled by exchanges, so an arm's model mix cannot read as a saving
+  const mix = perExchange([{ exchanges: 10, tokens: 1000, cost: 1, model: 'cheap' }, { exchanges: 10, tokens: 9000, cost: 9, model: 'dear' }]);
+  assert.equal(mix.strata, 2); assert.equal(mix.tokens, 500, 'both strata weighted by their own exchanges');
+  assert.equal(perExchange([{ exchanges: 2, tokens: 10, cost: 0, model: 'm' }]).cost, null, 'an unpriced stratum leaves no dollar figure, never a zero');
+  assert.deepEqual(perExchange([]), { tokens: null, cost: null, exchanges: 0, strata: 0 });
+  // the bootstrap resamples within a stratum, and is deterministic on a seed
+  const units = Array.from({ length: 30 }, (_, i) => ({ exchanges: 3, tokens: 1000 + i * 100, cost: 1, model: i % 2 ? 'a' : 'b' }));
+  const iv = ratioInterval(units, { boots: 400, seed: 3 });
+  assert.ok(iv.se > 0 && iv.n === 400);
+  assert.equal(ratioInterval(units, { boots: 400, seed: 3 }).se, iv.se, 'the same seed gives the same interval');
+  assert.equal(ratioInterval([units[0]]), null, 'one session is no interval');
+  // the verdict is the interval's, and the floor comes first
+  const arm = (tokens, se, priced = 40) => ({ tokens, rate: null, priced, interval: { se } });
+  assert.equal(compare(arm(100, 2), arm(130, 2)).verdict, 'cheaper');
+  assert.equal(compare(arm(130, 2), arm(100, 2)).verdict, 'costlier', 'costing more per exchange is a result too');
+  assert.equal(compare(arm(100, 20), arm(105, 20)).verdict, 'inconclusive', 'a straddling interval concludes nothing');
+  assert.equal(compare(arm(100, 2, 5), arm(130, 2, 5)).verdict, 'too-early', 'the floor comes before the interval');
+  const c = compare(arm(100, 2), arm(130, 2));
+  assert.ok(c.ci[0] < c.delta && c.delta < c.ci[1] && c.ci[1] < 0, 'the interval brackets the difference');
+  assert.ok(Math.abs(c.relative + 30 / 130) < 1e-9, 'relative is the difference over the held-out arm');
+  assert.equal(compare(arm(null, null), arm(100, 2)).verdict, 'too-early', 'no measured arm, no verdict');
 });
 
 test('a full compile from nothing is due again after rebaseDays, and rebasedAt is carried by the patches between', async t => {

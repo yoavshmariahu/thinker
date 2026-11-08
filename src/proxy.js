@@ -418,8 +418,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   const applied = applyCut(j.messages, d.cut);
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
   // 'below-clear-minimum', so the log could not say whether a lower floor would have admitted the boundary,
-  // and that question had to be answered by rebuilding request bodies from transcripts.
-  if (!applied.cut) return asCame({ reason: d.candidate ? 'below-clear-minimum' : 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  // and that question had to be answered by rebuilding request bodies from transcripts. The reason itself is
+  // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
+  if (!applied.cut) return asCame({ reason: d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
