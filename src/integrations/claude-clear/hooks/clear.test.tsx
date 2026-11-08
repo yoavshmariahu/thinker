@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -18,10 +18,10 @@ test('the newest turn and the newest three results stay; older ones become place
   // are worth and nothing, and emptying the call text taught the model it called tools without arguments.
   expect(c.rows).toBe(0)
   expect(c.chars).toBe(3000)
-  expect(c.resultTokens).toBe(Math.round(3000 * TOKENS_PER_CHAR))
+  expect(c.resultTokens).toBe(Math.round(3000 * RESULT_TOKENS_PER_CHAR))
   expect(c.inputTokens).toBe(0)
   expect(c.tokens).toBe(c.resultTokens)
-  expect(c.tools).toEqual([{ name: 'Bash', calls: 1, tokens: Math.round(2000 * TOKENS_PER_CHAR) }, { name: 'Read', calls: 1, tokens: Math.round(1000 * TOKENS_PER_CHAR) }])
+  expect(c.tools).toEqual([{ name: 'Bash', calls: 1, tokens: Math.round(2000 * RESULT_TOKENS_PER_CHAR) }, { name: 'Read', calls: 1, tokens: Math.round(1000 * RESULT_TOKENS_PER_CHAR) }])
   const rows = c.messages as any[]
   expect(rows.length).toBe(messages.length)
   expect(rows[2].toolResults[0].text).toBe(placeholder(1000))
