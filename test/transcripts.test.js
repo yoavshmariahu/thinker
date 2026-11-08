@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
+import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, subagentStats, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
 
@@ -278,6 +278,23 @@ test('subagentSessions lists the subagent conversations beside a Claude session,
     assert.deepEqual(subagentSessions(subs), [], 'a subagent has no subagents of its own');
     assert.deepEqual(subagentSessions([{ client: 'codex', file: '/x', session: 'z' }]), [], 'other agents have none');
   } finally { process.env.HOME = old; }
+});
+
+test('subagentStats reads each subagent\'s own model and counters for the session log row', () => {
+  const proj = tmp();
+  const put = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  const row = (model, usage) => JSON.stringify({ type: 'assistant', message: { id: 'm' + Math.random(), role: 'assistant', model, usage, content: [{ type: 'text', text: 'ok' }] } }) + '\n';
+  put(path.join(proj, 'p1.jsonl'), row('claude-opus-5-5', { input_tokens: 100, output_tokens: 10 }));
+  put(path.join(proj, 'p1/subagents/agent-0123456789abcdef0.jsonl'), row('claude-sonnet-5-5', { input_tokens: 50, cache_read_input_tokens: 25, output_tokens: 5 }) + row('claude-sonnet-5-5', { input_tokens: 60, output_tokens: 6 }));
+  put(path.join(proj, 'p1/subagents/agent-0123456789abcdef0.meta.json'), JSON.stringify({ agentType: 'Explore' }));
+  put(path.join(proj, 'p1/subagents/agent-fedcba9876543210f.jsonl'), 'not json at all\n');
+  const subs = subagentStats(path.join(proj, 'p1.jsonl'), 'p1').sort((a, b) => a.agent.localeCompare(b.agent));
+  assert.equal(subs.length, 2, 'a transcript with no usable rows still yields an entry with empty counters');
+  const [a, b] = subs;
+  assert.equal(a.agent, '0123456789abcdef0'); assert.equal(a.type, 'Explore'); assert.equal(a.model, 'claude-sonnet-5-5');
+  assert.equal(a.turns, 2); assert.equal(a.inputTokens, 135, 'reads included, as the parent\'s are'); assert.equal(a.outputTokens, 11); assert.equal(a.totalTokens, 146); assert.equal(a.tokenCoverage, 'complete');
+  assert.equal(b.agent, 'fedcba9876543210f'); assert.equal(b.totalTokens, null); assert.equal(b.type, undefined);
+  assert.deepEqual(subagentStats(path.join(proj, 'none.jsonl'), 'none'), []);
 });
 
 test('learning hooks are installed for every agent and record the session', () => {

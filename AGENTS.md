@@ -907,8 +907,14 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   (the Decisions table measures the person's own sessions), and a subagent that reports no usage is skipped rather than
   counted unmeasured. `findSessions` itself is unchanged: the learning, instruction and harness readers take the
   sessions as before, since a subagent reads no CLAUDE.md and is distilled through its parent.
-- Not yet: the stop hook's `op: session` log row and `delivery.js:sessionsOf` (the `thinker prs` figure and the savings
-  footer) still carry the parent's totals alone, so a subagent's cost is in the Report and not in the PR figure.
+- The pull request figure has them too (2026-11-08; `transcripts.js:subagentStats`, `delivery.js:sessionsOf`). The stop
+  hook's `op: session` row carries `subagents`: one entry a subagent with its type, its own model and its own counters,
+  read from the transcripts beside the parent's at every turn. The parent's own counters are unchanged, so every reader
+  of the row before this reads what it read. `sessionsOf` keeps the parent's figure as `ownTokens` and makes `tokens`
+  the parent's plus the subagents' (`subagentTokens`; a subagent with no counter is left out, never counted as zero),
+  so a pull request's agent tokens are every model call made for the work, and the `thinker prs` session line says how
+  many of them were in subagents. Tokens add across models; dollars never do, and the PR figure's dollars are the
+  savings alone, as before.
 
 **Tables** (each ends on `sessionTotals`; all three sum to same figure)
 1. Parts (`report.js:PARTS`): instruction files, custom tools, built-in tools, tool outputs; then **Other input** row (`otherInput`, folded, kinds via `OTHERS`); then output.

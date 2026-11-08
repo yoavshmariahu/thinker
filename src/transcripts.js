@@ -607,6 +607,21 @@ export function subagentSessions(sessions) {
   return out;
 }
 
+// What each subagent of a session cost, for the stop hook's `op: session` log row (2026-11-08): one entry a
+// subagent with its type, its own model and its own counters, read from the transcript beside the parent's. The
+// parent's counters stay the parent's, so every reader of the row before this is unchanged; delivery.js adds these
+// to the pull request's agent tokens. A subagent whose transcript cannot be read is left out, never counted as zero.
+export function subagentStats(file, session) {
+  const out = [];
+  for (const s of subagentSessions([{ client: 'claude', file, session }])) {
+    try {
+      const p = parseTranscript(s.file), st = p.stats || {};
+      out.push({ agent: s.agent, type: s.type || undefined, model: p.model || undefined, turns: st.turns, inputTokens: st.inputTokens, outputTokens: st.outputTokens, cacheReadTokens: st.cacheReadTokens, cacheWriteTokens: st.cacheWriteTokens, cacheWrite1hTokens: st.cacheWrite1hTokens, totalTokens: st.totalTokens, tokenCoverage: st.tokenCoverage });
+    } catch {}
+  }
+  return out;
+}
+
 // The Claude Code transcripts of a checkout, newest first: ~/.claude/projects/<encoded cwd>/*.jsonl.
 export function transcriptsFor(cwd) {
   const enc = cwd.replace(/[\/.]/g, '-');
