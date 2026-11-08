@@ -895,6 +895,21 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
 
+**Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
+- A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript
+  (`<projects dir>/<slug>/<session>/subagents/agent-<id>.jsonl`, with a `.meta.json` naming its type), with its own prefix,
+  its own cache and often its own model (`src/explore-agent.js` puts Explore on Sonnet). Until this landed `findSessions`
+  listed the top-level files alone, so the Report never saw them: 7% of this machine's calls, and every Explore run, went
+  uncounted, and there was no way to show what the Sonnet file saves.
+- The Report reads them as rows of their own (`tool-outputs.js:sessionUsage` carries `parent`, `agent`, `type`): a
+  subagent's calls count as prompts of the week and its tokens are priced at its own model in the models table; its
+  session is never counted (one session is one session, however many subagents it ran), it is left out of `sessionRows`
+  (the Decisions table measures the person's own sessions), and a subagent that reports no usage is skipped rather than
+  counted unmeasured. `findSessions` itself is unchanged: the learning, instruction and harness readers take the
+  sessions as before, since a subagent reads no CLAUDE.md and is distilled through its parent.
+- Not yet: the stop hook's `op: session` log row and `delivery.js:sessionsOf` (the `thinker prs` figure and the savings
+  footer) still carry the parent's totals alone, so a subagent's cost is in the Report and not in the PR figure.
+
 **Tables** (each ends on `sessionTotals`; all three sum to same figure)
 1. Parts (`report.js:PARTS`): instruction files, custom tools, built-in tools, tool outputs; then **Other input** row (`otherInput`, folded, kinds via `OTHERS`); then output.
 2. Models (`prices.js:providerOf`): grouped by provider; provider subtotal folds models. Each model over every prompt of week.

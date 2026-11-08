@@ -24,7 +24,7 @@ function fixture(t) {
   return { repo, store, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-report-tx-')) };
 }
 // A Claude Code transcript with one tool call, on `model`, reporting `usage` on each of its two model turns
-function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
+function transcript(dir, name, { model, usage, mtime, client = 'claude', parent, agent }) {
   const rows = [
     { type: 'attachment', attachment: { type: 'prompt_snapshot', systemPrompt: ['You are an agent.'] } },
     { type: 'attachment', attachment: { type: 'environment', text: 'cwd is here' } },
@@ -33,9 +33,11 @@ function transcript(dir, name, { model, usage, mtime, client = 'claude' }) {
     { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'export const a = 1;\n' }] } },
     { type: 'assistant', message: { id: 'm2', role: 'assistant', model, usage, content: [{ type: 'text', text: 'done' }] } },
   ];
-  const file = path.join(dir, `${name}.jsonl`);
+  const file = parent ? path.join(dir, parent, 'subagents', `agent-${agent}.jsonl`) : path.join(dir, `${name}.jsonl`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
   fs.utimesSync(file, new Date(mtime), new Date(mtime));
+  if (parent) fs.writeFileSync(path.join(path.dirname(file), `agent-${agent}.meta.json`), JSON.stringify({ agentType: 'Explore' }));
   return { client, file, session: name, mtime };
 }
 const NOW = new Date('2026-10-22T12:00:00').getTime(), DAY = 86400_000;
@@ -247,6 +249,29 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(mergePromptAverages([promptAverage(v.sessionRows), promptAverage(v.sessionRows), null]), { sessions: 8, prompts: 16, tokens: 12400, perPrompt: 775 });
   assert.equal(mergePromptAverages([null]), null);
   assert.equal(mergeReports([]), null);
+});
+
+test('a subagent beside a session is costed at its own model and tied to its parent: its calls count, its session does not', t => {
+  const { store, dir } = fixture(t);
+  const thisWeek = weekStart(NOW) + DAY;
+  const sessions = [transcript(dir, 's1', { model: 'claude-opus-5-5', usage: OPUS, mtime: thisWeek })];
+  // an Explore subagent of s1 on Sonnet, found beside it (transcripts.js:subagentSessions), not passed in
+  transcript(dir, 'sub', { model: 'claude-sonnet-5-5', usage: OPUS, mtime: thisWeek + 60_000, parent: 's1', agent: 'a1b2c3d4e5f6a7b8c' });
+  const v = reportView(store, { now: NOW, sessions });
+  const last = 5;
+  assert.equal(v.columns[last].sessions, 1, 'one session');
+  assert.equal(v.columns[last].prompts, 4, 'its two calls and the subagent\'s two');
+  const sonnet = v.models.find(m => m.model === 'claude-sonnet-5-5'), opus = v.models.find(m => m.model === 'claude-opus-5-5');
+  assert.ok(sonnet && opus, `both models in the table: ${v.models.map(m => m.model)}`);
+  assert.equal(sonnet.cells[last].prompts, 2); assert.equal(sonnet.cells[last].sessions, 0, 'the subagent is no session of its own');
+  assert.equal(opus.cells[last].prompts, 2); assert.equal(opus.cells[last].sessions, 1);
+  assert.equal(sonnet.cells[last].tokens, opus.cells[last].tokens, 'the same usage, in tokens');
+  assert.ok(sonnet.cells[last].cost < opus.cells[last].cost, 'priced at Sonnet\'s rates, not the parent\'s');
+  assert.equal(v.sessionTotals[last].tokens, sonnet.cells[last].tokens + opus.cells[last].tokens, 'the whole includes the subagent');
+  // without the subagent file the Report is what it was
+  fs.rmSync(path.join(dir, 's1'), { recursive: true, force: true });
+  const v0 = reportView(store, { now: NOW, sessions });
+  assert.equal(v0.columns[last].prompts, 2); assert.ok(!v0.models.find(m => m.model === 'claude-sonnet-5-5'));
 });
 
 test('outputComparison: a compressed tool against itself before, the saving a prompt over the prompts since', () => {
