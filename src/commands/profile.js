@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
+import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
 import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
@@ -62,14 +62,29 @@ async function profileCommand(ctx) {
     const last = new Map();
     for (const e of readLog(store, { all: true })) if (e.op === 'session' && e.profile && Date.parse(e.t) >= since) last.set(e.session, e);
     const cost = arm => { const xs = [...last.values()].filter(e => e.profile === arm); const sum = k => xs.reduce((a, e) => a + (e[k] || 0), 0); return { sessions: xs.length, prompts: xs.length ? sum('turns') / xs.length : null, tokens: xs.length ? (sum('inputTokens') + sum('cacheReadTokens') + sum('cacheWriteTokens') + sum('outputTokens')) / xs.length : null }; };
-    const report = { days, shown: { ...h.shown, cost: cost('shown') }, holdout: { ...h.holdout, cost: cost('holdout') }, unknown: h.unknown, rate: Math.round(100 * (store.config().holdout ?? 0.15)) };
+    const report = { days, shown: { ...h.shown, cost: cost('shown') }, holdout: { ...h.holdout, cost: cost('holdout') }, unknown: h.unknown, delta: h.delta, ci: h.ci, relative: h.relative, enough: h.enough, verdict: h.verdict, rate: Math.round(100 * profileHoldoutRate(store)) };
     if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
-    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
-    out(`profile holdout over ${days} days (sessions the hooks showed the profile against sessions held out)`);
-    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'observ.'.padStart(8)} ${'per sess.'.padStart(9)} ${'corrected'.padStart(9)} ${'redirected'.padStart(10)} ${'accepted'.padStart(8)} ${'prompts'.padStart(8)} ${'tokens/session'.padStart(14)}`);
-    for (const arm of ['shown', 'holdout']) { const a = report[arm]; out(`${arm.padEnd(8)} ${String(a.sessions).padStart(8)} ${String(a.observations).padStart(8)} ${num(a.perSession).padStart(9)} ${pct(a.corrected).padStart(9)} ${pct(a.redirected).padStart(10)} ${pct(a.accepted).padStart(8)} ${num(a.cost.prompts, 0).padStart(8)} ${(a.cost.tokens == null ? '–' : formatTokens(a.cost.tokens)).padStart(14)}`); }
-    if (h.unknown.observations) out(`${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
-    out(`judge by corrected and redirected per session on each side; fewer than ${PROFILE.holdoutMinSessions} sessions on a side is too few to read`);
+    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
+    out(`profile holdout over ${days} days, ${report.rate}% of sessions held out (shown the profile against shown nothing)`);
+    out('');
+    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'observ.'.padStart(8)} ${'CORRECTED/EXCH'.padStart(14)} ${'exch./sess.'.padStart(11)} ${'prompts'.padStart(8)} ${'tokens/session'.padStart(14)}`);
+    for (const arm of ['shown', 'holdout']) { const a = report[arm]; out(`${arm.padEnd(8)} ${String(a.sessions).padStart(8)} ${String(a.observations).padStart(8)} ${pct(a.rate).padStart(14)} ${num(a.perSession).padStart(11)} ${num(a.cost.prompts, 0).padStart(8)} ${(a.cost.tokens == null ? '–' : formatTokens(a.cost.tokens)).padStart(14)}`); }
+    out('');
+    // The one number the experiment turns on, and then what it supports.
+    const rel = h.relative == null ? '' : `, ${h.relative > 0 ? '+' : ''}${Math.round(100 * h.relative)}% relative`;
+    out(`corrections per exchange, shown less held out: ${pp(h.delta)}${h.ci ? ` (95% ${pp(h.ci[0])} to ${pp(h.ci[1])})` : ''}${rel}`);
+    const says = {
+      'too-early': `too early: each side needs ${PROFILE.holdoutMinObs} observations (shown ${h.shown.observations}, held out ${h.holdout.observations}) before this reads as anything`,
+      inconclusive: 'inconclusive: the interval straddles zero, so this window cannot tell the profile from nothing',
+      better: 'fewer corrections with the profile, over the whole interval',
+      harm: 'MORE corrections with the profile, over the whole interval: stop serving it',
+    };
+    out(says[h.verdict]);
+    out('');
+    out('break-even is a 3-12% drop in corrections, which no window on one machine can resolve: this rules out harm,');
+    out('it does not prove the gain. Read the two guardrails beside the rate -- exchanges per session and tokens per');
+    out('session must not rise -- and `thinker profile show --why` before crediting or blaming any line.');
+    if (h.unknown.observations) out(`\n${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
     return;
   }
   if (sub === 'compile') {

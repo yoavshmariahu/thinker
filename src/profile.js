@@ -31,6 +31,8 @@ export const PROFILE = {
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
   recentBugDays: 14,
   rebaseDays: 30,
+  holdoutRate: 0.5,     // half the sessions, not the notes' 15%: see `profileHoldoutRate`
+  holdoutMinObs: 380,   // observations a side needs before the holdout says anything (a 30% change at this rate)
   holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6 },
@@ -491,14 +493,34 @@ export function profileBlock(store) {
 
 // --- serving, and the holdout ---------------------------------------------
 // The block goes into a session's first prompt and again after each compaction, since a compaction summary keeps
-// none of it. Which sessions get it is the holdout's call: a deterministic share of sessions (`holdoutRate`, the
-// notes' 15% by default) is held out whole and shown nothing, and every observation extracted from a session carries
-// its arm (`arm`: shown | holdout), so the ledger itself is the measure: corrections and redirects per session on
-// each side (`holdoutReport`). The arm is decided once per session and kept in its state file (`ops.js:sessionState`,
+// none of it. Which sessions get it is the holdout's call: a deterministic share of sessions
+// (`profileHoldoutRate`, half of them) is held out whole and shown nothing, and every observation extracted from a
+// session carries its arm (`arm`: shown | holdout), so the ledger itself is the measure: corrections and redirects
+// per *exchange* on each side (`holdoutReport`). The arm is decided once per session and kept in its state file (`ops.js:sessionState`,
 // `st.profile`), with how many compactions had been seen when the block last went in.
+// The profile's own holdout share, which is not the notes' (`PROFILE.holdoutRate`, 0.5; `learn: { profileHoldout }`
+// in .thinker/config.json, `THINKER_PROFILE_HOLDOUT` over it, `THINKER_HOLDOUT` over both so a harness that turns
+// every holdout off still does). Half, not the notes' 15%, because the two are measured differently and the
+// profile's measure is the weaker one: a note is held out per turn and judged on the turn it was served, while the
+// profile is one injection the whole session reads, so a session is the unit and there is no pairing to lean on.
+// Measured on this repository's first ledger (680 observations, 116 sessions, 2026-11-08): corrections run at
+// 0.313 of exchanges with an ICC of ~0 inside a session, so the unit that matters is the exchange and 15% of
+// sessions on the small side wastes most of the information. At 85/15 a 30% change needs ~1000 sessions here
+// (7 months at 5 a day); at 50/50, ~130 (26 days). An unbalanced split only makes sense once the thing is known
+// to work and the holdout is there to catch a regression; that is where this should go when it ships.
+export function profileHoldoutRate(store) {
+  const env = process.env.THINKER_HOLDOUT;
+  if (env !== undefined && env !== '') return holdoutRate(store);
+  const own = process.env.THINKER_PROFILE_HOLDOUT;
+  const raw = own !== undefined && own !== '' ? own : (store.config().learn || {}).profileHoldout;
+  if (raw === undefined || raw === null) return PROFILE.holdoutRate;
+  if (raw === false || /^(off|no|false)$/i.test(String(raw))) return 0;
+  const r = Number(raw);
+  return Number.isFinite(r) ? Math.min(1, Math.max(0, r)) : PROFILE.holdoutRate;
+}
 export function profileArm(store, session) {
   if (!session || session === 'unknown') return null;
-  const rate = holdoutRate(store);
+  const rate = profileHoldoutRate(store);
   if (rate <= 0) return 'shown';
   const h = parseInt(createHash('sha1').update(`profile#${session}`).digest('hex').slice(0, 8), 16) / 0x100000000;
   return h < rate ? 'holdout' : 'shown';
@@ -538,16 +560,43 @@ export function profileArmOf(store, session) {
   if (!session || session === 'unknown' || !store.exists()) return null;
   return sessionState(store, session).st.profile?.arm || null;
 }
-// The two arms over the ledger: sessions, observations, and the share of them the person corrected or redirected.
+// The two arms over the ledger. **The measure is corrections per exchange, not per session** (2026-11-08): an
+// exchange is the unit the profile acts on, every exchange carries an outcome, and measured on this repository's
+// first ledger the corrections inside one session are independent of each other (ICC ~0 over 680 observations in
+// 116 sessions), so a count per session throws the information away and keeps the variance. The numbers: a 30%
+// change needs ~380 observations a side as a proportion (26 days here) against ~320 sessions a side as a count
+// (127 days). `rate` is (corrected + redirected) / observations, and `delta` is the shown side's rate less the
+// held-out side's -- negative is the profile working -- with a 95% interval from the two-proportion standard error,
+// so a reader sees at once whether the window can carry a conclusion at all. Two guardrails sit beside it, because
+// the rate is a ratio and a profile could improve it by making exchanges smaller and more numerous: `perSession`
+// (exchanges per session) and the caller's tokens per session. Break-even is a 3-12% drop depending on how much of
+// a corrected exchange is wasted work, which is below what any window here can resolve -- so this report rules out
+// harm, and does not try to prove the gain.
 export function holdoutReport(rows) {
   const arms = { shown: [], holdout: [], unknown: [] };
   for (const r of rows) (arms[r.arm === 'shown' || r.arm === 'holdout' ? r.arm : 'unknown']).push(r);
+  const bad = r => r.outcome === 'corrected' || r.outcome === 'redirected';
   const side = a => {
     const sessions = new Set(a.map(r => r.session)).size, n = a.length;
     const share = o => n ? a.filter(r => r.outcome === o).length / n : null;
-    return { sessions, observations: n, perSession: sessions ? n / sessions : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted') };
+    return { sessions, observations: n, perSession: sessions ? n / sessions : null, rate: n ? a.filter(bad).length / n : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted') };
   };
-  return { shown: side(arms.shown), holdout: side(arms.holdout), unknown: side(arms.unknown) };
+  const shown = side(arms.shown), holdout = side(arms.holdout);
+  return { shown, holdout, unknown: side(arms.unknown), ...compare(shown, holdout) };
+}
+// Shown against held out on the primary rate: the difference, its 95% interval, and whether the window carries it.
+// `enough` is the floor both sides must clear (`PROFILE.holdoutMinObs`); `verdict` is what the interval supports,
+// never a p-value dressed up as a decision: `harm` (the whole interval is above zero), `better` (all below),
+// `inconclusive` (it straddles), `too-early` (a side is under the floor).
+export function compare(shown, holdout) {
+  const enough = shown.observations >= PROFILE.holdoutMinObs && holdout.observations >= PROFILE.holdoutMinObs;
+  if (shown.rate == null || holdout.rate == null) return { delta: null, ci: null, enough, verdict: 'too-early' };
+  const delta = shown.rate - holdout.rate;
+  const v = (p, n) => n ? p * (1 - p) / n : 0;
+  const se = Math.sqrt(v(shown.rate, shown.observations) + v(holdout.rate, holdout.observations));
+  const ci = [delta - 1.96 * se, delta + 1.96 * se];
+  const verdict = !enough ? 'too-early' : ci[1] < 0 ? 'better' : ci[0] > 0 ? 'harm' : 'inconclusive';
+  return { delta, ci, relative: holdout.rate ? delta / holdout.rate : null, enough, verdict };
 }
 
 // --- a session, end to end ------------------------------------------------
