@@ -36,9 +36,10 @@ export function skillOutcomes(store, { days = 30, now = Date.now(), log } = {}) 
 export const TOOL_GROUPS = { mcp: 'MCP servers', plugins: 'Plugins', builtin: 'Built-in tools' };
 export const toolGroup = s => s.kind === 'mcp' || s.kind === 'connector' ? 'mcp' : s.kind === 'plugin' ? 'plugins' : 'builtin';
 
-export function contextView(store, { days = 30, sessions, usage, log } = {}) {
+// `onSession`: each of the three readers calls it with every session it passes (ui/scan-worker.js reads the page's progress off it)
+export function contextView(store, { days = 30, sessions, usage, log, onSession } = {}) {
   sessions ??= findRepoSessions(store.repo, days);
-  usage ??= harnessUsage(store.repo, { days, sessions });
+  usage ??= harnessUsage(store.repo, { days, sessions, onSession });
   const on = harnessOn(store);
   const advice = new Set(harnessAdvice(usage).map(s => `${s.client || 'claude'}:${s.key}`));
   const calls = c => usage.calls?.[c || 'claude'] || median(Object.values(usage.calls || {})) || 1;
@@ -85,13 +86,13 @@ export function contextView(store, { days = 30, sessions, usage, log } = {}) {
     const xs = tools.filter(r => r.group === g), cost = xs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
     for (const r of xs) Object.assign(r, { text: Object.values(sourceOf(r)?.texts || {}).join('\n\n').slice(0, 2400), wasted: r.off ? 0 : Math.round(r.perPrompt * unused(r)), wastedWindow: r.off ? 0 : Math.round(r.window * unused(r)) }, wasteLevel({ usedShare: r.usedShare, wasted: r.off ? null : Math.round(r.perPrompt * unused(r)) }, g === 'builtin' ? cost : xs.concat(skills).reduce((a, x) => a + (x.off ? 0 : x.perPrompt), 0)));
   }
-  const iv = instructionValue(store, { days, sessions, prompts: viewPrompts });
+  const iv = instructionValue(store, { days, sessions, prompts: viewPrompts, onSession });
   // each tool's output measured under each compression setting it ran with (tool-outputs.js:aggregateOutputs, the
   // settings' times from the log: diet.js:dietTimeline), with the level set now (`compression`) and whether thinker can
   // compress it at all; a row measured under another setting than now's is `past`: kept for the comparison, offered
   // no action, and ranked after the current rows
   const diet = dietConfig(store), timeline = dietTimeline(diet, log);
-  const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt, key: timeline.key });
+  const outputs = toolOutputs(store, sessions, { levelAt: timeline.levelAt, key: timeline.key, onSession });
   outputs.tools = outputs.tools.map(t => { const compression = levelOf(diet, t.name); return { ...t, compressible: compressible(t.name), compression, past: (t.level || null) !== (compression || null), since: t.level ? timeline.since(t.name, t.level) : null }; });
   const instructions = { ...iv };
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);

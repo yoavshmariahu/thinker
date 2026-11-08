@@ -42,6 +42,10 @@ test('scans share queued work, expose partial revisions, surface failures and al
   worker.answer(0, { completed: 1, total: 4, view: { sessions: 1 }, at: 100 });
   const partial = scans.read('context', store, 7);
   assert.equal(partial.view.sessions, 1); assert.notEqual(partial.revision, first.revision);
+  // a count alone, from inside a batch: the stamp carries it and the revision stands, so the page fetches no table for it
+  worker.answer(0, { completed: 2, total: 4 });
+  const counted = scans.read('context', store, 7);
+  assert.equal(counted.progress.completed, 2); assert.equal(counted.revision, partial.revision); assert.equal(counted.view.sessions, 1);
   assert.equal(readSnapshot(store, 7), null, 'partial data must never become the CLI snapshot');
   worker.answer(0, { error: 'Unreadable session', done: true });
   const failed = scans.read('context', store, 7);
@@ -89,14 +93,19 @@ test('the real worker publishes increasing session subsets and finishes with the
     worker.postMessage({ id: kind, kind, repo, window: kind === 'context' ? 7 : 6 });
   });
   const context = await run('context');
-  assert.deepEqual(context.map(m => m.completed), [0, 1, 2, 4, 5]);
-  assert.ok(context.slice(1, -1).every(m => !m.done && m.view));
+  // the checkpoints double; between the 2 and the 4 the readers pass the two new sessions and the count says 3, with no view
+  const checkpoints = ms => ms.filter(m => m.view || m.total === ms.at(-1).total && m.completed === 0).map(m => m.completed);
+  assert.deepEqual(checkpoints(context), [0, 1, 2, 4, 5]);
+  assert.deepEqual(context.filter(m => !m.view && m.completed > 0).map(m => m.completed), [3]);
+  assert.ok(context.every((m, i) => i === 0 || m.completed >= context[i - 1].completed), 'the count never falls');
+  assert.ok(context.slice(1, -1).every(m => !m.done));
   assert.deepEqual(context.at(-1).view, contextView(store, { days: 7, sessions }));
   // Snapshot validity depends on the settings paths, which are isolated in the worker.
   const saved = JSON.parse(fs.readFileSync(path.join(store.dir, 'state', 'context-view-7.json')));
   assert.deepEqual(saved.view, context.at(-1).view);
   const report = await run('report');
-  assert.deepEqual(report.map(m => m.completed), [0, 1, 2, 4, 5]);
+  assert.deepEqual(checkpoints(report), [0, 1, 2, 4, 5]);
+  assert.deepEqual(report.filter(m => !m.view && m.completed > 0).map(m => m.completed), [3]);
   const final = report.at(-1).view;
   const cli = reportView(store, { weeks: 6, now: final.to, sessions });
   for (const field of ['sessionTotals', 'columns', 'tokenTypes', 'parts', 'models', 'sessionRows']) assert.deepEqual(final[field], cli[field], field);
@@ -149,6 +158,34 @@ test('the browser renders partial checkpoints, avoids duplicate tables, and igno
   const before = progress.length;
   await context.progressiveView('/api/context?days=30', () => assert.fail('old window rendered'), () => current);
   assert.equal(progress.length, before, 'an abandoned request cannot update the new view’s bar');
+});
+
+test('the banner says the count, the share done and what is left, and goes when the read is over', async () => {
+  const { default: vm } = await import('node:vm');
+  const page = fs.readFileSync(new URL('../src/ui/page.html', import.meta.url), 'utf8');
+  const code = page.slice(page.indexOf('function scanProgress('), page.indexOf('async function progressiveView('));
+  const el = () => ({ hidden: false, textContent: '', classes: {}, classList: { toggle(c, on) { this.classes[c] = on; } }, removeAttribute(k) { delete this[k]; } });
+  const els = {};
+  for (const id of ['#scan-progress', '#scan-bar', '#scan-label', '#scan-pct', '#scan-note', '#scan-retry']) els[id] = el();
+  els['#scan-progress'].classList = { toggle: (c, on) => { els['#scan-progress'].classes[c] = on; } };
+  const context = vm.createContext({ $: id => els[id], fmt: n => n.toLocaleString('en-US'), navHeight: () => {} });
+  vm.runInContext(code, context);
+  context.scanProgress({ refreshing: true, progress: { completed: 412, total: 913 } });
+  assert.equal(els['#scan-progress'].hidden, false);
+  assert.equal(els['#scan-label'].textContent, 'Reading session data: 412 of 913 sessions');
+  assert.equal(els['#scan-pct'].textContent, '45%');
+  assert.match(els['#scan-note'].textContent, /^501 to go/);
+  assert.equal(els['#scan-bar'].max, 913); assert.equal(els['#scan-bar'].value, 412); assert.equal(els['#scan-retry'].hidden, true);
+  context.scanProgress({ refreshing: true, progress: { completed: 3, total: null } });
+  assert.match(els['#scan-label'].textContent, /^Finding session data… 3 sessions read so far/);
+  assert.equal(els['#scan-pct'].textContent, ''); assert.equal(els['#scan-bar'].value, undefined, 'no total: an indeterminate bar');
+  context.scanProgress({ refreshing: false, progress: { completed: 2, total: 9, error: 'Unreadable session' } });
+  assert.equal(els['#scan-progress'].hidden, false); assert.equal(els['#scan-retry'].hidden, false); assert.equal(els['#scan-progress'].classes.error, true);
+  assert.match(els['#scan-label'].textContent, /Could not finish reading session data: Unreadable session/);
+  context.scanProgress({ refreshing: false });
+  assert.equal(els['#scan-progress'].hidden, true);
+  context.scanProgress(null);
+  assert.equal(els['#scan-progress'].hidden, true);
 });
 
 test('the browser handles an empty report and stops with an explicit cold-read error', async () => {

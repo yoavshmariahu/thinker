@@ -96,11 +96,13 @@ const stateFile = store => path.join(store.dir, 'state', 'tool-outputs.json');
 // session's `turns` beside the usage, so a session that reports no usage (Cursor) can still be estimated by its calls)
 // version 13 adds `cacheWrite1h`, the writes at the one-hour TTL, priced at twice the input (prices.js:writeCost)
 const usageOf = (st, carried, rewrites) => st && st.inputTokens != null ? { input: st.inputTokens, output: st.outputTokens ?? 0, cacheRead: st.cacheReadTokens ?? 0, cacheWrite: st.cacheWriteTokens ?? 0, cacheWrite1h: st.cacheWrite1hTokens ?? 0, turns: st.turns || 0, carried: carried || null, rewrites: rewrites || null } : null;
-function sessionRecords(store, sessions, { levelAt = null, key = '' } = {}) {
+// `onSession` is called with each session as it is passed, read or skipped (ui/scan-worker.js counts them for the page's progress)
+function sessionRecords(store, sessions, { levelAt = null, key = '', onSession } = {}) {
   let st = {}; try { st = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); } catch {}
   const recs = [];
   let changed = false;
   for (const s of sessions) {
+    onSession?.(s);
     let size = 0; try { size = fs.statSync(s.file).size; } catch { continue; }
     let r = st[s.session];
     if (!r || r.size !== size || r.v !== VERSION || (key && r.tk !== key)) {
@@ -121,9 +123,9 @@ function sessionRecords(store, sessions, { levelAt = null, key = '' } = {}) {
 }
 // every session of the window with its model, its reported usage (null where the agent reported none: Cursor) and
 // what its tool outputs cost in input tokens
-export function sessionUsage(store, sessions, { levelAt = null, key = '' } = {}) {
+export function sessionUsage(store, sessions, { levelAt = null, key = '', onSession } = {}) {
   // `by`: each tool's own cost in the session, so the Report can cost one tool's outputs a session before and since its compression (report.js:actionEffect)
-  return sessionRecords(store, sessions, { levelAt, key }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
+  return sessionRecords(store, sessions, { levelAt, key, onSession }).map(r => ({ session: r.session, t: r.t, client: r.client, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
 }
 // The rows of one tool linked: each carries `others`, the same tool's rows under its other settings (level, sessions,
 // from, to, perCall, perPrompt, wasted), so the page and the command compare a compressed tool with itself before.
@@ -163,8 +165,8 @@ export function aggregateOutputs(recs, { levelAt = null } = {}) {
   const sum = k => Math.round(total(k) / (n || 1));
   return { sessions: n, prompts: allPrompts, tools: linkRows(tools), tokens: sum('tokens'), perPrompt: Math.round(total('input') / allPrompts), window: total('input'), wasted: Math.round(total('unneeded') / allPrompts), wastedWindow: total('unneeded') };
 }
-export function toolOutputs(store, sessions, { levelAt = null, key = '' } = {}) {
-  const recs = sessionRecords(store, sessions, { levelAt, key }).filter(r => Object.keys(r.by).length);
+export function toolOutputs(store, sessions, { levelAt = null, key = '', onSession } = {}) {
+  const recs = sessionRecords(store, sessions, { levelAt, key, onSession }).filter(r => Object.keys(r.by).length);
   return {
     ...aggregateOutputs(recs, { levelAt }),
     timeline: recs.map(r => ({ t: r.t, session: r.session, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0) })),

@@ -137,7 +137,7 @@ function pluginTools(dir) {
 
 export function codexHarnessUsage(repo, sessions, options = {}) {
   let config, valid = true; try { config = codexHarnessConfig(repo, options); } catch { valid = false; config = { servers: new Map(), plugins: new Map(), skills: new Map() }; }
-  const read = sessions.map(s => ({ s, h: codexSessionHarness(s.file) }));
+  const read = sessions.map(s => { const h = codexSessionHarness(s.file); options.onSession?.(s); return { s, h }; });
   const plugins = [...config.plugins.values()].map(p => {
     const [name, market] = p.id.split('@');
     const dir = path.join(process.env.CODEX_HOME || path.join(options.home || os.homedir(), '.codex'), 'plugins/cache', market || '', name);

@@ -324,18 +324,19 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // a prompt costs on average there (promptAverageHere), the size the savings are read against
         // a kept report that is none of this code's, or old, is made again in the background (as the Report tab does), and the
         // answer says so (`measuring`), so the page checks back instead of showing "measuring" until the Report tab is visited
-        const avgs = []; let measuring = false;
+        const avgs = [], readings = []; let measuring = false;
         for (const [r, st] of stores) { try {
           await refreshPrStates(st);
           const entries = changeHistory(st), kept = keptRows(st);
           for (const h of entries.filter(h => h.scope === 'machine')) if (!machine.has(h.id)) machine.set(h.id, { ...h, repo: r.id, repoName: 'All repositories' });
           xs.push(...historyEffects(st, entries.filter(h => h.scope !== 'machine')).map(h => ({ ...h, repo: r.id, repoName: r.name })));
           sessionRows.push(...kept.rows); avgs.push(promptAverageHere(st));
-          if (kept.stale && url.searchParams.get('measure') !== '0') { measuring = true; if (progressive) scans.read('report', st, REPORT_WEEKS); else if (!reportRefreshing(st)) refreshReportFn(st.repo); }
+          if (kept.stale && url.searchParams.get('measure') !== '0') { measuring = true; if (progressive) readings.push(scans.read('report', st, REPORT_WEEKS)); else if (!reportRefreshing(st)) refreshReportFn(st.repo); }
         } catch {} }
         xs.push(...withEffects([...machine.values()], sessionRows));
         const history = xs.sort((a, b) => b.at.localeCompare(a.at));
-        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
+        // `scan`: how far the report read behind `measuring` has got, for the page's banner (scanProgress)
+        return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, scan: readings.length ? scanStatus(readings) : null, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);

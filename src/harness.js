@@ -248,15 +248,16 @@ export function checkouts(repo) {
 // plugin of eighteen skills is one line and one switch.
 // Cursor's sources are the machine's (harness-cursor.js): read from every Cursor session on it, unless the
 // caller names its own sessions and no Cursor snapshots.
-export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome(), builtinTools = builtinToolsOn(repo) } = {}) {
+// `onSession` is called with each session as its transcript is read (ui/scan-worker.js counts them for the page's progress)
+export function harnessUsage(repo, { days = 30, home = os.homedir(), sessions, cursor, thinkerHome: tHome = thinkerHome(), builtinTools = builtinToolsOn(repo), onSession } = {}) {
   if (!sessions) cursor ??= cursorSnapshots(tHome, { sinceMs: days * 86400_000 });
   sessions ??= [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
-  const claude = claudeUsage(repo, { days, home, thinkerHome: tHome, sessions: sessions.filter(s => s.client === 'claude') });
-  const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home });
+  const claude = claudeUsage(repo, { days, home, thinkerHome: tHome, sessions: sessions.filter(s => s.client === 'claude'), onSession });
+  const codex = codexHarnessUsage(repo, sessions.filter(s => s.client === 'codex'), { home, onSession });
   const cur = cursor ? cursorHarnessUsage({ home, snapshots: cursor }) : { sessions: 0, sources: [] };
   return { ...claude, builtinTools, timeline: [...claude.timeline, ...(codex.timeline || [])], sessions: claude.sessions + codex.sessions + cur.sessions, byClient: { claude: claude.sessions, codex: codex.sessions, cursor: cur.sessions }, calls: { claude: claude.calls, codex: codex.calls || 0 }, prompts: (claude.prompts || 0) + (codex.prompts || 0) + cur.sessions, promptsByClient: { claude: claude.prompts || 0, codex: codex.prompts || 0, cursor: cur.sessions }, sources: [...claude.sources.map(s => ({ ...s, client: 'claude' })), ...codex.sources, ...cur.sources].sort((a, b) => b.tokens * (b.loaded - b.used) - a.tokens * (a.loaded - a.used)) };
 }
-function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHome: tHome = thinkerHome() } = {}) {
+function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHome: tHome = thinkerHome(), onSession } = {}) {
   sessions ??= checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 }).filter(s => s.client === 'claude'));
   const config = claudeHarnessConfig(repo, { home, thinkerHome: tHome });
   const rows = new Map();
@@ -264,7 +265,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHo
     if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
-  const records = desktopFor(home), read = sessions.map(s => ({ s, h: claudeSessionHarness(s.file, records) }));
+  const records = desktopFor(home), read = sessions.map(s => { const h = claudeSessionHarness(s.file, records); onSession?.(s); return { s, h }; });
   config.connectors = new Map(read.flatMap(({ h }) => [...h.connectors]));
   // the plugins the settings and the skill names name, longest first, to read a plugin server's key against
   const known = [...new Set([...config.plugins.keys(), ...read.flatMap(({ h }) => [...h.loaded.keys()].filter(k => k.startsWith('skill:')).map(k => pluginOfSkill(k.slice(6))).filter(Boolean))])].sort((a, b) => b.length - a.length);

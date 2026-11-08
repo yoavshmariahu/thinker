@@ -11,15 +11,34 @@ import { refreshCheckouts, machineRepos } from './server.js';
 
 const queue = [];
 let running = false;
+// The page's count moves inside a batch, not only at its end (2026-11-07). A checkpoint aggregates the sessions read so
+// far, and the batches double, so the last one is half of every session with the bar standing still at the previous
+// power of two for half the wait. Each of the view's three readers (instruction-value.js, harness.js, tool-outputs.js)
+// calls `onSession` with every session it passes, so a session of the batch not yet aggregated counts as read once all
+// READERS have passed it; the count is capped one under the checkpoint, which then says the exact figure. Posted at most
+// every PROGRESS_MS, and without a view, so the page's stamp moves and its table does not (scans.js bumps no revision).
+const READERS = 3, PROGRESS_MS = 200;
+function progressOf(id, sessions, from, to, total) {
+  const fresh = new Set(sessions.slice(from, to).map(s => s.session));
+  let hits = 0, reported = from, lastAt = 0;
+  return s => {
+    if (!fresh.has(s.session)) return;
+    const completed = Math.min(to - 1, from + Math.floor(++hits / READERS)), now = Date.now();
+    if (completed <= reported || now - lastAt < PROGRESS_MS) return;
+    reported = completed; lastAt = now;
+    parentPort.postMessage({ id, completed, total });
+  };
+}
 const fail = (id, e) => parentPort.postMessage({ id, error: String(e.message || e), done: true });
 function next() {
   const job = queue.shift();
   if (!job) { running = false; return; }
-  const { id, kind, store, window, now, days, sessions, completed } = job;
+  const { id, kind, store, window, now, days, sessions, completed, from = 0 } = job;
   try {
     const total = sessions.length, done = completed === total, subset = sessions.slice(0, completed);
-    const view = kind === 'context' ? contextView(store, { days, sessions: subset })
-      : reportView(store, { weeks: window, now, sessions: subset, includePrs: done });
+    const onSession = progressOf(id, sessions, from, completed, total);
+    const view = kind === 'context' ? contextView(store, { days, sessions: subset, onSession })
+      : reportView(store, { weeks: window, now, sessions: subset, includePrs: done, onSession });
     const at = Date.now();
     if (done) {
       if (kind === 'context') writeSnapshot(store, window, view, { now: at });
@@ -28,7 +47,7 @@ function next() {
     parentPort.postMessage({ id, completed, total, view, at, done });
     // Geometric checkpoints bound repeated aggregation to less than three times
     // the session count. Rotate jobs so every repository contributes early.
-    if (!done) queue.push({ ...job, completed: Math.min(total, completed * 2) });
+    if (!done) queue.push({ ...job, from: completed, completed: Math.min(total, completed * 2) });
   } catch (e) { fail(id, e); }
   // Accept discovery requests and tab switches between checkpoints.
   setImmediate(next);
