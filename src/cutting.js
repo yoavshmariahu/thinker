@@ -143,10 +143,26 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes
 // are too. `cand` comes from proxy.js:cutCandidates -- the results outside the newest turn and the
 // newest `keepMin`, big enough to be worth a placeholder, not already cut.
+// Every refusal says which of the six branches below refused it (`reason`, 2026-11-08). The branches are not
+// distinguishable from the returned object: `mid-turn`, `one-cut` and `below-trigger` all answer `{cut, clear:
+// false}`, and a payback refusal is a size refusal with a `held` beside it. So the Messages door derived the
+// reason from `candidate` alone (`proxy.js`, one line) and called every refusal that had a candidate
+// 'below-clear-minimum' -- of this machine's 125 such rows, 29 carried a candidate **above** the floor and 11
+// were payback refusals, all three labelled as the floor. That is the one question the log exists to answer,
+// since the floor is the lever the policy turns on (the section in AGENTS.md), and the 60k floor was chosen
+// against a log that mislabelled a quarter of its refusals. The Responses door derived it correctly from
+// `held` and the trigger but still could not see the first three, and deriving it twice is the rederiving the
+// shared-policy rule forbids. So the function that decides says why, and both doors print what it says.
+// `candidate` now rides along on a refusal that was not the candidate's fault too, so the same log answers
+// what a lower trigger would have cut.
 export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model } = {}) {
   const same = { cut: rec.cut, clear: false };
-  if (turn === rec.turn) return same;                        // mid-turn: never move the set
-  if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn };  // one cut a session, as the mod reads it
+  const size = cand?.ids.length ? cand.tokens : 0;
+  // A branch that refused something names itself; a request with nothing cuttable in it says so whichever branch
+  // it took, because 'mid-turn' on a request that had nothing to cut anyway reads as a refusal that never happened
+  // -- and mid-turn is most of the traffic, so that one label would drown the log it is meant to explain.
+  if (turn === rec.turn) return { ...same, reason: size ? 'mid-turn' : 'nothing-to-cut' };   // mid-turn: never move the set
+  if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn, reason: size ? 'one-cut' : 'nothing-to-cut' };  // one cut a session, as the mod reads it
   const cold = rec.at > 0 && now - rec.at > COLD_MS;
   // A cold boundary cuts everything eligible, whatever the size (2026-11-06). Past the cache's hour this
   // request writes its whole context again whether or not anything is replaced, so the tail costs nothing
@@ -159,11 +175,13 @@ export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h',
     const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
     return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
   }
-  if (m.prompt < cfg.trigger) return { ...same, turn };      // nothing is big enough to be worth it
-  if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0 };
-  if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens };
+  // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
+  // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
+  if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
+  if (m.prompt < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
+  if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
   const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
-  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: p };
+  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: p, reason: 'payback' };
   return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
 }
 

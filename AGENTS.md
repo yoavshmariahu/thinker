@@ -261,6 +261,25 @@ are no longer exceptions to anything.
   lose, and the size floor is the lever (60k is +14%; 80k less, because it admits the band where the fixed part
   of the tail -- the live turn and the protected results -- weighs most). A refusal for size now carries
   `candidate` on its row, so the next such question is read off the log rather than rebuilt from transcripts.
+- **A refusal says which branch refused it** (2026-11-08; `cutting.js:decideCut` returns `reason`, both doors
+  print it). `decideCut` refuses on six branches and none of them was distinguishable from the object it
+  returned: `mid-turn`, `one-cut` and `below-trigger` all answer `{cut, clear: false}`, and a payback refusal is
+  a size refusal with a `held` beside it. So the Messages door derived the reason from `candidate` alone -- one
+  line, `d.candidate ? 'below-clear-minimum' : 'nothing-to-cut'` -- and of this machine's 125 rows carrying a
+  candidate, **29 carried one above the floor and 11 were payback refusals, all labelled as the floor**. That is
+  the one question the log exists to answer, the floor being the lever the policy turns on, and the 60k floor was
+  chosen against a log that mislabelled a quarter of its refusals. The Responses door derived it correctly from
+  `held` and the trigger but saw neither of the first two branches, and deriving it twice is the rederiving the
+  shared-policy rule forbids. Now the function that decides says why.
+  - **`nothing-to-cut` wins over every branch.** Mid-turn is most of the traffic, so a mid-turn request with
+    nothing cuttable in it logged as `mid-turn` would drown the refusals the log is read for; a request with no
+    candidate says so whichever branch it took, and `mid-turn` means a boundary genuinely held back.
+  - **`nothing-to-cut` is checked before the trigger**, so `below-trigger` means what it says: there was
+    something to cut and the prompt was too small to spend it. Those rows are the trigger's to answer for.
+  - **A refusal that was not the candidate's fault carries the candidate too**, so the same log answers what a
+    lower trigger would have taken -- the question `AGENTS.md` last answered by rebuilding bodies from
+    transcripts.
+  - Pinned by `test/cutting.test.js` (all six branches, the precedence, and that no refusal moves the set).
 - **The size floor is 60k, from 100k** (2026-11-06; `PROXY_DEFAULTS.clearAtLeast`, mirrored by the mod's
   `CLEAR_AT_LEAST`). The floor, not the trigger, is what gates a cut: old results are about a third of a
   conversation's context on this machine, so 100k of them needs roughly 300k of context, and every boundary the

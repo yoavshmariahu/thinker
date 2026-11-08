@@ -303,3 +303,43 @@ test('a record is renamed into place, so a reader never sees half of one', () =>
   for (let i = 3; i < 60; i++) { store.write({ ...freshCut('c1'), turn: i, cut: ['x', `y${i}`] }); assert.ok(read().turn >= 2); }
   assert.equal(cutStore(dir).read('c1').turn, 59, 'and a fresh process reads the latest');
 });
+
+// Every refusal names the branch that refused it (2026-11-08). Until then the Messages door derived the reason
+// from `candidate` alone, so of this machine's 125 refusals carrying a candidate, 29 above the floor and 11 held
+// back on payback were all logged 'below-clear-minimum' -- the one question the log exists to answer, since the
+// floor is the lever the policy turns on, and the 60k floor was chosen against it.
+test('a refusal says which branch refused it, and a request with nothing to cut says that whatever the branch', () => {
+  const cfg = { trigger: 140_000, clearAtLeast: 60_000, keepMin: 3 };
+  const rec = (turn, cut = [], at = Date.now()) => ({ ...freshCut('k'), turn, cut, at, calls: 10, model: 'claude-opus-5-5', session: 's' });
+  const cand = tokens => ({ ids: ['u1'], tokens });
+  const none = { ids: [], tokens: 0 };
+  const why = (r, c, m, o) => decideCut(r, c, m, o).reason;
+  const big = { turn: 5, prompt: 400_000 };
+
+  assert.equal(why(rec(5), cfg, big, { cand: cand(200_000) }), 'mid-turn');
+  assert.equal(why(rec(4, ['x']), { ...cfg, clearDeep: false }, big, { cand: cand(200_000) }), 'one-cut');
+  assert.equal(why(rec(4), cfg, big, { cand: none }), 'nothing-to-cut');
+  assert.equal(why(rec(4), cfg, { turn: 5, prompt: 100_000 }, { cand: cand(70_000) }), 'below-trigger',
+    'something to cut and the prompt too small to spend it: the trigger answers for this row');
+  assert.equal(why(rec(4), cfg, big, { cand: cand(30_000) }), 'below-clear-minimum');
+
+  // nothing to cut wins over every branch, because mid-turn is most of the traffic and would drown the log
+  assert.equal(why(rec(5), cfg, big, { cand: none }), 'nothing-to-cut', 'mid-turn with nothing to cut is not a refusal');
+  assert.equal(why(rec(4, ['x']), { ...cfg, clearDeep: false }, big, { cand: none }), 'nothing-to-cut');
+  assert.equal(why(rec(4), cfg, { turn: 5, prompt: 100 }, { cand: none }), 'nothing-to-cut');
+
+  // a payback refusal is not a size refusal: it cleared the floor and the tail did not repay inside PAYBACK
+  const held = decideCut(rec(4), cfg, { turn: 5, prompt: 200_000 }, { cand: { ids: ['u1'], tokens: 61_000 }, now: Date.now() });
+  if (!held.clear) { assert.equal(held.reason, 'payback'); assert.ok(held.held.payback > 25); assert.equal(held.candidate, 61_000); }
+  else assert.ok(held.payback <= 25, 'a cut that was made repaid inside the horizon');
+
+  // a cut carries no reason, and a refusal that was not the candidate's fault still reports the candidate,
+  // so the same log answers what a lower trigger would have taken
+  assert.equal(decideCut(rec(4), cfg, big, { cand: cand(300_000) }).reason, undefined);
+  assert.equal(decideCut(rec(4), cfg, { turn: 5, prompt: 100_000 }, { cand: cand(70_000) }).candidate, 70_000);
+  // and the set never moves on any refusal
+  for (const o of [{ cand: cand(200_000) }, { cand: none }, { cand: cand(30_000) }]) {
+    const d = decideCut(rec(5, ['keep']), cfg, big, o);
+    assert.deepEqual(d.cut, ['keep']); assert.equal(d.clear, false);
+  }
+});
