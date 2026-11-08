@@ -16,8 +16,8 @@
 // without CLAUDE.md as the built-in does, carrying a marker so thinker only ever rewrites or removes its
 // own file. A person's own Explore.md is left alone and named once; a project's `.claude/agents/Explore.md`
 // wins over the user file in Claude Code's own order and is never touched. `thinker uninstall --user`
-// removes the file. Off: `THINKER_EXPLORE_MODEL=off`, or `agents: { explore: false }` in the machine
-// config (THINKER_HOME/config.json); either may also name another model (`haiku`, a full id).
+// removes the file. Off by default; on: `THINKER_EXPLORE_MODEL=on`, or `agents: { explore: true }` in the machine
+// config (THINKER_HOME/config.json); either may name another model instead (`haiku`, a full id).
 import fs from 'node:fs';
 import path from 'node:path';
 import { readMachineConfig } from './repo-switch.js';
@@ -29,10 +29,14 @@ export const EXPLORE_MARK = 'thinker-explore';
 const VERSION = 1;
 
 // The model the Explore agent should run on, or null when the override is off.
+// Off by default (2026-11-08, the owner's call: not sure it should ship; the delegation test is still a todo).
+// Nothing is written until a machine opts in: `THINKER_EXPLORE_MODEL=on` or `agents: { explore: true }` means
+// EXPLORE_MODEL_DEFAULT; either may name a model instead. A machine that wrote the file while it was the default and
+// then updates has it removed at the next connect or rewire, since the marker says it is thinker's.
 export function exploreModel({ env = process.env, home } = {}) {
   const raw = env.THINKER_EXPLORE_MODEL ?? readMachineConfig(home).agents?.explore;
-  if (raw === undefined || raw === null || raw === true || raw === '' || raw === 'on') return EXPLORE_MODEL_DEFAULT;
-  if (raw === false || /^(off|false|0|no)$/i.test(String(raw))) return null;
+  if (raw === undefined || raw === null || raw === false || raw === '' || /^(off|false|0|no)$/i.test(String(raw))) return null;
+  if (raw === true || /^(on|true|1|yes)$/i.test(String(raw))) return EXPLORE_MODEL_DEFAULT;
   return String(raw).trim();
 }
 
@@ -48,7 +52,7 @@ disallowedTools: Write, Edit, MultiEdit, NotebookEdit, Agent
 omitClaudeMd: true
 ---
 
-<!-- ${EXPLORE_MARK} v${VERSION}: written by thinker so exploration runs on a cheaper model than the main conversation. Your own Explore.md here is never overwritten; THINKER_EXPLORE_MODEL=off removes this one. -->
+<!-- ${EXPLORE_MARK} v${VERSION}: written by thinker so exploration runs on a cheaper model than the main conversation. Your own Explore.md here is never overwritten; THINKER_EXPLORE_MODEL=off, or a thinker update, removes this one. -->
 
 You are an exploration subagent for a lead coding agent. The lead delegates a question about this codebase to you so the files you read stay out of its context. Your job is exploration only: find the files, functions and mechanisms relevant to the request, then report back so the lead can act without reading them again.
 
