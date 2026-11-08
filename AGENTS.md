@@ -963,14 +963,32 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   carries it, `observationTimes` dates each observation by its turn) and `seen` is when it was read into the ledger:
   the window and every date in the profile go by `at`, whether a compile is due by `seen`. The first build stamped
   rows with the extraction time, so every workstream and bug read as that night's and the recency rules meant nothing;
-  the 483 rows were redated from their transcripts without a model call. A compile is
-  due after 10 new observations or 3 days with any (`compileDue`; the first after 3), and is **incremental**
-  (`compileStep`): the previous profile, the observations it cites, and the observations new since it, in steps of
-  `compileBatch` (200) when the backlog is longer, each step merging into the profile the step before left and written
-  as it lands. The first build showed the compile the newest 150 of 483 observations and nothing else, which is where
-  most of the 110 corrections went; the incremental form sees every row once and stays bounded however long the
-  window. `thinker profile compile` compiles what is new; `--full` (and `rebuild`) starts from nothing over the whole
-  window, for a changed prompt. Four sections out: `workingOn`, `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
+  the 483 rows were redated from their transcripts without a model call. **A compile is a patch, once per session**
+  (`compileStep`, `applyPatch`, `PATCH_SCHEMA`; 2026-11-08): due whenever a session was read into the ledger
+  (`compileDue`; first after one observation), the model is shown the profile as it stands with an id on every entry
+  (`w1`, `h2`, `f3`, `b4`), the new observations, and the observations behind the entries those might touch (sharing a
+  topic or a directory with a new row, at most 40, `relatedCited`), and returns keep / update / drop / add. An entry it
+  does not name is kept, an update adds its observation ids and changes only the fields it names, a drop needs a
+  reason, and `settle` then applies the floors and the window to the merged result, so an entry nothing supports any
+  more leaves by code, never by the model's silence. A backlog longer than `compileBatch` (200) is patched in steps,
+  oldest first, each written as it lands; a full compile (`thinker profile compile --full`, `rebuild`; a changed prompt)
+  is the same step from an empty profile. Why a patch: the first steady-state look at a rewriting compile put it at
+  roughly 60k tokens for ten new observations (the profile, up to 200 cited rows and every entry written again), twice
+  what extracting the sessions cost, and every rewrite could lose or reword an entry with no new evidence behind the
+  change; the first build also showed the compile only the newest 150 of 483 observations, which is where most of
+  the 110 corrections went. Replayed on this repository's ledger the same day (a full compile with the last five
+  sessions held out, then each patched in alone): a patch ran 12k to 22k tokens (the profile's own JSON is a third
+  of the input, the related evidence most of the rest, the output under 2k), a session of one observation with no
+  reaction yet became a Working on line, the next session on the same work updated that line rather than adding one,
+  and five new observations with two corrections added a workstream, a what-went-wrong line, a bug and twelfth-session
+  evidence to "validate fixes live". The full compile over the same rows cost 153k tokens in three steps against the
+  rewriting form's 189k. One difference to know: built by patches, the recurring patterns ("answer short and plain",
+  "validate live, not mocks", "don't call a capability impossible") land in `howWeWork` with their counts (12, 12, 6),
+  and `whatFails` holds the specific recent corrections, newest replacing the oldest at the cap; the rewriting form
+  put the patterns in `whatFails` with the quotes. Not built: a periodic full compile to re-derive wording that
+  patches have carried a long way (a rebase); at this volume it is 150k tokens, and the window is 60 days, so wait
+  for the holdout before deciding. Four sections: `workingOn`,
+  `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
   was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
   on its own it held one line in four that two sessions supported.
 - **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not

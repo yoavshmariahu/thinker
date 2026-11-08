@@ -154,6 +154,7 @@ test('a patch is merged into the profile as it stands: silence keeps, update add
   assert.deepEqual(out.howWeWork[0].obs, ['a', 'b', 'd'], 'an update adds its observations once');
   assert.equal(out.whatFails[0].instead, 'ask'); assert.equal(out.whatFails[0].avoid, 'guessing', 'fields not named stay');
   assert.deepEqual(applyPatch(null, { add: { workingOn: [{ text: 'x', obs: ['a'] }] } }).workingOn.length, 1, 'from nothing, every entry is an add');
+  assert.deepEqual(applyPatch({ sections: { howWeWork: [{ text: 'no id', obs: ['a'] }] } }, {}).howWeWork.length, 0, 'an entry without an id cannot be kept by a patch (compileStep gives older profiles ids first)');
   const rows = [{ id: 'a', at: '2026-11-01T00:00:00Z', topics: ['proxy'], dirs: ['src'] }, { id: 'b', at: '2026-11-02T00:00:00Z', topics: ['site'], dirs: ['site'] }, { id: 'n', at: '2026-11-03T00:00:00Z', topics: ['Proxy'], dirs: [] }];
   assert.deepEqual(relatedCited(previous, [rows[2]], rows).map(r => r.id), ['a'], 'the evidence shown is what shares a topic or directory with the new rows');
 });
@@ -179,11 +180,17 @@ test('a session end to end: observations into the ledger, a compile when due, th
   assert.equal(p.sections.workingOn.length, 1); assert.equal(p.sections.whatFails[0].count, 1); assert.equal(p.sections.whatFails[0].id, 'f1'); assert.equal(p.window.sessions, 1); assert.equal(p.model, 'fake-opus'); assert.match(p.window.from, /^\d{4}-\d{2}-\d{2}$/);
   const block = profileBlock(store);
   assert.match(block, /^<thinker-profile>\n/); assert.match(block, /When adding a flag: avoid guessing its unit/); assert.match(block, /Learned from 1 sessions/);
+  // a profile from before entries carried ids is patched all the same
+  const v2 = readProfile(store); for (const s of SECTIONS) for (const e of v2.sections[s]) delete e.id;
+  fs.writeFileSync(path.join(store.localDir, 'profile', 'profile.json'), JSON.stringify(v2));
+  appendObservations(store, [fakeObs({ turn: 7, request: 'later' })], { session: 's2', now: Date.now() + 5000 });
+  const v3 = await compileProfile(store, { now: Date.now() + 6000, completeFn: async opts => { assert.match(opts.prompt, /"id":"w1"/); return { json: { keep: ['w1', 'f1'], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; }, have: ['claude'] });
+  assert.equal(v3.profile.sections.workingOn.length, 1, 'the old entries are kept under the ids they were given');
   // nothing new since the compile: nothing to do, unless the whole window is asked for again
   assert.match((await compileProfile(store, { completeFn: async () => { throw new Error('not called'); }, have: ['claude'] })).skipped, /nothing new/);
   const c = await compileProfile(store, { full: true, completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { ...sections, workingOn: [], whatFails: [] } }, model: 'fake-opus' }), have: ['claude'] });
   assert.equal(c.profile.sections.whatFails.length, 0, 'a full compile starts from nothing');
-  assert.equal(fs.readFileSync(path.join(store.localDir, 'profile', 'history.jsonl'), 'utf8').trim().split('\n').length, 1, 'the previous profile is kept');
+  assert.equal(fs.readFileSync(path.join(store.localDir, 'profile', 'history.jsonl'), 'utf8').trim().split('\n').length, 2, 'each replaced profile is kept');
   const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8');
   assert.match(log, /"op":"profile"/); assert.match(log, /"op":"profile-compile"/);
   assert.ok(!log.includes('guessing its unit'), 'the log carries counts, never the profile\'s text');

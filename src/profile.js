@@ -404,6 +404,8 @@ export function relatedCited(previous, batch, rows, { max = 40 } = {}) {
 // One compile step: the profile so far, a batch of new observations and the related evidence in; a patch out,
 // merged and settled.
 async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config }) {
+  // a profile written before entries carried ids (version 2) gets them here, so a patch can name its entries
+  if (previous) previous = { ...previous, sections: Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map((e, i) => e.id ? e : { id: `${PREFIX[s]}${i + 1}`, ...e })])) };
   const cited = relatedCited(previous, batch, rows);
   const headings = instructionHeadings(store.repo);
   const span = a => a.length ? `${dateOf(Math.min(...a.map(r => Date.parse(r.at))))} to ${dateOf(Math.max(...a.map(r => Date.parse(r.at))))}` : '';
