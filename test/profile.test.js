@@ -30,7 +30,7 @@ const session = [
   { t: 'prompt', text: 'good. now open the PR' },
   { t: 'say', text: 'Opened PR #12.' },
 ];
-const fakeObs = (over = {}) => ({ turn: 1, request: 'Add a --since flag', kind: 'feature', approach: 'added the flag as days', outcome: 'corrected', reaction: 'it should take a date, not a number of days', lesson: 'A --since flag takes a date, not a count of days', prefs: ['open the PR when done'], topics: ['report', 'cli'], bug: '', weight: 0.6, ...over });
+const fakeObs = (over = {}) => ({ turn: 1, request: 'Add a --since flag', kind: 'feature', approach: 'added the flag as days', outcome: 'corrected', reaction: 'it should take a date, not a number of days', lesson: 'A --since flag takes a date, not a count of days', prefs: ['open the PR when done'], topics: ['report', 'cli'], bug: '', ...over });
 const fakeComplete = ({ observations, sections }) => async opts => {
   if (opts.schema?.properties?.observations) return { json: { observations: observations || [fakeObs()] }, model: 'fake-opus', usage: { input_tokens: 10, output_tokens: 5 }, tokens: { totalTokens: 15 } };
   return { json: { sections }, model: 'fake-opus', tokens: { totalTokens: 20 } };
@@ -54,8 +54,8 @@ test('exchanges pair each prompt with the answers until the next prompt, which i
 
 test('a model\'s observation is held to the ledger\'s shape', () => {
   assert.equal(tidyObservation({ request: '' }), null);
-  const o = tidyObservation({ turn: '2', request: 'x', kind: 'nonsense', outcome: 'great', weight: 7, prefs: 'not a list', topics: ['a', 'a', 'b'] });
-  assert.equal(o.turn, 2); assert.equal(o.kind, 'other'); assert.equal(o.outcome, 'unknown'); assert.equal(o.weight, 1); assert.deepEqual(o.prefs, []); assert.deepEqual(o.topics, ['a', 'b']);
+  const o = tidyObservation({ turn: '2', request: 'x', kind: 'nonsense', outcome: 'abandoned', weight: 7, prefs: 'not a list', topics: ['a', 'a', 'b'] });
+  assert.equal(o.turn, 2); assert.equal(o.kind, 'other'); assert.equal(o.outcome, 'unknown', 'an outcome outside the four is unknown'); assert.equal('weight' in o, false, 'nothing reads a weight, so none is kept'); assert.deepEqual(o.prefs, []); assert.deepEqual(o.topics, ['a', 'b']);
 });
 
 test('the model ladder is Opus, then GPT-SOL, then what else is signed in; the config pins one', async () => {

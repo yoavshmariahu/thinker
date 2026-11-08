@@ -955,8 +955,8 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - **Two stages, one ledger between them.** The end of a session (`distillFile` in profile mode; a turn-end
   `--batch` waits, since an exchange's outcome is the prompt after it) pairs each prompt with the answers until
   the next prompt (`exchanges`) and asks the model for observations: request, kind, approach, **outcome read from
-  the following prompt** (`accepted`, `corrected`, `redirected`, `abandoned`, `unknown`; the agent's own "done" is
-  a claim), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
+  the following prompt** (`accepted`, `corrected`, `redirected`, `unknown`; the agent's own "done" is a claim, and
+  `unknown` is the default, never a quiet acceptance), the quoted reaction, a lesson only where the reaction supports it, stated preferences, a bug line for
   a fix. They go to `.thinker/local/profile/ledger.jsonl`, 60 days, with the session and the directories its tool
   calls' *paths* name (`sessionDirs`, never their content; for the per-directory profiles to come). A compile is
   due after 10 new observations or 3 days with any (`compileDue`; the first after 3): the previous profile, the
@@ -965,7 +965,12 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - **Every entry cites observation ids, and the code holds it to them** (`settle`): a citation the window does not
   hold is dropped, an entry with none goes, counts and dates come from the cited observations (count is distinct
   sessions), `whatWorks` needs two observations, `whatFails` two or one correction with its reaction, a workstream
-  not seen in 21 days and a bug not seen in 14 leave. So a prompt can be changed and the profile recompiled from
+  not seen in 21 days and a bug not seen in 14 leave. The compile is told the budget and the caps, that `approach`
+  is the agent's own account, that an `unknown` outcome supports `workingOn` and `recentBugs` only, that
+  `whatWorks` needs an acceptance after a correction or explicit praise, and that a rule the instruction files
+  state and agents still broke is kept and marked ("in AGENTS.md; still missed"): a line a fresh agent gains most
+  from. Reviewed three times before the first build (2026-11-07): `abandoned` and `weight` went, the first because
+  no next prompt tells "moved on" from "dropped", the second because nothing read it. So a prompt can be changed and the profile recompiled from
   the ledger without reading a transcript again (`thinker profile compile`).
 - **Models** (`PROFILE_MODELS`, `completeProfile`): Opus, then GPT-SOL, then the comparable model of whatever else is
   signed in, each named by its provider id so `complete` pins it and the next rung is this module's, not the tier

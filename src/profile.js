@@ -36,8 +36,8 @@ export const PROFILE = {
   textChars: 240,
 };
 export const SECTIONS = ['workingOn', 'howWeWork', 'whatWorks', 'whatFails', 'recentBugs'];
-export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'abandoned', 'unknown'];
-export const KINDS = ['feature', 'fix', 'investigation', 'release', 'review', 'config', 'question', 'other'];
+export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
+export const KINDS = ['feature', 'fix', 'investigation', 'refactor', 'release', 'ops', 'docs', 'other'];
 
 // `learn: { mode: 'profile' }` in .thinker/config.json turns the profile on in place of the notes;
 // THINKER_PROFILE=on|off wins over the config, for a harness.
@@ -128,23 +128,27 @@ export function sessionDirs(events, repo = '') {
 }
 
 // --- extraction -----------------------------------------------------------
-export const EXTRACT_SYSTEM = `You read a coding agent's session with a person, as the person's prompts and the agent's answers alone. No tool calls, no code, no command output: you see what was asked and what the agent said it did. Your job is to record, per exchange, what was asked, how the agent went about it, and how it went, as evidence for a profile of this person's work that a future session is shown at its start.
+export const EXTRACT_SYSTEM = `You read one session between a person and a coding agent, as the person's prompts and the agent's answers only: no tool calls, no code, no command output. You record what was asked, what the agent says it did, and how the person reacted, as evidence for a profile of this person's work that future sessions read at their start. The profile is only as good as your honesty about outcomes.
 
-How to read an exchange:
-- The outcome of exchange [n] is in the USER line of exchange [n+1], never in the agent's own words. "Done, tests pass" is a claim. The next prompt decides:
-  - accepted: the person moves on, approves, builds on the result, or asks for the next thing.
-  - corrected: the person says it is wrong, incomplete, not what they asked, or tells the agent to undo or redo.
-  - redirected: the person changes the approach or the goal in response to what the agent did (not a correction of a fact, a change of course).
-  - abandoned: the person drops the thread without accepting it (asks about something unrelated right after a half-done answer, or says to leave it).
-  - unknown: the last exchange, or a reaction you cannot read. A session that ends after an answer with no reaction is unknown, not accepted.
-- One observation per exchange that did work or decided something. Exchanges that are a question answered, a greeting, or a slash command alone produce nothing. Several exchanges on one task may become one observation whose outcome is the task's.
-- lesson: only when the reaction supports it. From a correction: what the agent should have done. From an acceptance of a specific approach after earlier trouble: what worked. Never a lesson from a claim alone. Write it as an instruction for next time, one line.
-- prefs: things the person states about how they want work done or answers given ("never push main", "don't ask, just do it", "one line, no headers"), as close to their words as the line allows. Only stated preferences, never inferred ones.
-- bug: for a fix, the symptom and, when told, the cause and the fix in one line. Empty otherwise.
-- request: what was asked, in the person's words where possible; kind: the closest label. topics: 1-4 short tags.
-- weight: 0.3 for a small ask, 0.6 for ordinary work, 0.9 for a long or consequential task or a sharp correction.
-- Quote reactions short (under 160 chars). No file contents, no secrets, no credentials; a token or key in the text is written as <token>.
-Return only what the text supports. An empty list is a fine answer for a session that decided nothing.`;
+Reading an exchange:
+- The outcome of exchange [n] is the person's reaction in [n+1]. The agent's own words ("done", "tests pass") never decide it.
+  - accepted: the reaction approves the result, uses it, or asks for the next step of the same work.
+  - corrected: the reaction says the result is wrong, incomplete or not what was asked, or asks to undo or redo it.
+  - redirected: the reaction changes the goal or the approach in response to the result, without calling it wrong.
+  - unknown: no reaction yet (the last exchange), a next prompt about something else, or a reaction you cannot read. When in doubt, unknown.
+- A USER line that is not the person speaking (a tool's report, a system or harness notice, a pasted log or document with no request) is neither a request nor a reaction.
+- One observation per exchange that did work or made a decision. A question answered, a greeting or a bare command produces none. Exchanges on one task may become one observation: its turn is the first, its outcome the last reaction.
+
+Fields:
+- request: what was asked, in the person's words where they are short. kind: the closest label.
+- approach: what the agent says it did, in one or two lines. This is the agent's account, recorded as such.
+- reaction: the person's words that decided the outcome, quoted, under 160 characters. Empty for unknown.
+- lesson: one line, only from a reaction: after a correction, what should have been done; after an acceptance that followed a correction on the same work, what worked. Never from the agent's account alone. Written as an instruction for next time.
+- prefs: how the person says they want work done or answers given ("never push main", "don't ask, just do it", "no headers"), near their words. Stated only, never inferred from behaviour.
+- bug: for a fix, the symptom and, where told, the cause and the fix, in one line. Empty otherwise.
+- topics: one to four short tags.
+- No file contents, no credentials; write a key or token as <token>.
+An empty list is the right answer for a session that decided nothing.`;
 
 export const OBSERVATION_SCHEMA = {
   type: 'object',
@@ -164,9 +168,8 @@ export const OBSERVATION_SCHEMA = {
           prefs: { type: 'array', items: { type: 'string' } },
           topics: { type: 'array', items: { type: 'string' } },
           bug: { type: 'string' },
-          weight: { type: 'number' },
         },
-        required: ['turn', 'request', 'kind', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics', 'bug', 'weight'],
+        required: ['turn', 'request', 'kind', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics', 'bug'],
       },
     },
   },
@@ -184,7 +187,6 @@ export function tidyObservation(o) {
     request, kind: KINDS.includes(o.kind) ? o.kind : 'other',
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
     reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40), bug: str(o.bug, 300),
-    weight: Math.min(1, Math.max(0, Number(o.weight) || 0.5)),
   };
 }
 
@@ -232,21 +234,21 @@ export function markExtracted(store, session, { line = 0, at = new Date().toISOS
 }
 
 // --- compile --------------------------------------------------------------
-export const COMPILE_SYSTEM = `You compile a profile of a person's work in one repository from observations of their sessions with a coding agent: what they asked, how the agent went about it, and how the person reacted. A future agent reads the profile at the start of a session, so it knows what this person is in the middle of, how they want work done, what has gone well here and what has gone wrong. It is loaded into every session, so every line must earn its place.
+export const COMPILE_SYSTEM = `You compile a profile of one person's work in one repository from observations of their sessions with a coding agent. A future agent reads it at the start of every session, within about 800 tokens, so it knows what this person is in the middle of, how they want work done, and what has gone wrong here before. Every line costs every session: write only what changes what a future agent would do.
 
-Sections (return an empty list for a section with nothing solid):
-- workingOn: the workstreams the person is in the middle of now, one line each: what, and where it stands as of the newest observation on it. Current work only; a thread with no recent observation is not current.
-- howWeWork: how the person wants work done and answers given in this repository, as stated or as repeatedly enforced (a correction that recurs is a preference). Workflow rules, review habits, tone, what to ask and what to just do. Concrete and imperative.
-- whatWorks: approaches that were accepted for a kind of task, especially where an earlier approach was not: "when <kind of task>: do <this>". Needs at least two observations behind it, cited.
-- whatFails: approaches that drew a correction or a redirect: "when <kind of task>: avoid <this>, because <the reaction>". One sharp correction with a quoted reaction is enough; a claim by the agent alone is not.
-- recentBugs: bugs found or fixed lately, symptom and cause in one line, so a session that meets the symptom again knows where it has been.
+Sections, and the most lines each may have:
+- workingOn (6): the lines of work the person is in the middle of: more than one exchange or session, or said to be ongoing. One line each: what it is and where it stands by the person's last reaction, not by the agent's account of finishing it.
+- howWeWork (10): how this person wants work done and answers given, as stated, or as enforced by repeated corrections. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Imperative and specific to this person. A line that could be written about any repository is not a profile line.
+- whatWorks (8): "when <kind of work>: do <this>". Only an approach accepted after an earlier approach to the same work was corrected, or one the person explicitly praised. Acceptance alone proves nothing.
+- whatFails (8): "when <kind of work>: avoid <this>; <the reaction, short>". From corrections and redirects. One sharp correction with its quoted reaction is enough.
+- recentBugs (6): one line each: the symptom, the cause where told, and whether the fix was accepted. For a session that meets the symptom again.
 
 Rules:
-- Every entry cites the observation ids it rests on (obs). An entry you cannot cite does not exist. Counts and dates are computed from your citations, so do not write them into the text.
-- Nothing the repository's own instruction files already say; their headings are listed. A profile is what those leave out: this person's current work, their reactions, and what happened here.
-- Merge, do not append: the previous profile is given. Keep an entry the window still supports (re-cite it), rewrite one the new observations change, drop one no observation in the window supports. Prefer one entry that covers several observations over several entries.
-- Lines are plain, specific and short (under 200 characters). No praise, no narrative of sessions, no "the agent", no file contents, no secrets.
-- The person's stated preferences are kept in their own words where the line allows.`;
+- Every entry cites the observation ids it rests on (obs). An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
+- approach is the agent's own account. An observation with outcome unknown can support workingOn and recentBugs; it never supports whatWorks or whatFails.
+- Merge, do not append: the previous profile is given. Keep an entry the window still supports and re-cite it, rewrite one the new observations change, drop one nothing in the window supports. One entry covering several observations beats several entries.
+- Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets. Keep the person's stated preferences near their words.
+- Return an empty list for a section with nothing solid.`;
 
 const entry = (props, required) => ({ type: 'array', items: { type: 'object', properties: { ...props, obs: { type: 'array', items: { type: 'string' } } }, required: [...required, 'obs'] } });
 export const PROFILE_SCHEMA = {
@@ -308,7 +310,7 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       else { e.text = str(raw.text); if (!e.text) continue; }
       const age = (now - ats.at(-1)) / 86400_000;
       if (s === 'whatWorks' && cited.length < PROFILE.minEvidence) continue;
-      if (s === 'whatFails' && cited.length < PROFILE.minEvidence && !obs.some(o => ['corrected', 'redirected', 'abandoned'].includes(o.outcome) && o.reaction)) continue;
+      if (s === 'whatFails' && cited.length < PROFILE.minEvidence && !obs.some(o => ['corrected', 'redirected'].includes(o.outcome) && o.reaction)) continue;
       if (s === 'workingOn' && age > PROFILE.workingOnDays) continue;
       if (s === 'recentBugs' && age > PROFILE.recentBugDays) continue;
       items.push(e);
@@ -350,14 +352,14 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
 }
 
 // --- render ---------------------------------------------------------------
-const TITLES = { workingOn: 'Working on', howWeWork: 'How work gets done here', whatWorks: 'What has worked', whatFails: 'What has not', recentBugs: 'Recent bugs' };
+const TITLES = { workingOn: 'Working on', howWeWork: 'How this person works', whatWorks: 'What worked', whatFails: 'What went wrong', recentBugs: 'Recent bugs' };
 const line = (s, e) => s === 'whatWorks' ? `- When ${e.when}: ${e.do} (${e.count})` : s === 'whatFails' ? `- When ${e.when}: avoid ${e.avoid} (${e.count})` : s === 'workingOn' ? `- ${e.text} (since ${e.firstSeen}, last ${e.lastSeen})` : s === 'recentBugs' ? `- ${e.text} (${e.lastSeen})` : `- ${e.text} (${e.count})`;
 // The block a session is shown, within renderChars: when it does not fit, the oldest workstreams go first, then
 // the oldest bugs, then the tails of the other sections, never below two lines each while another has more.
 export function renderProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
   if (!profile?.sections) return '';
   const lines = Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).map(e => line(s, e))]));
-  const head = `Learned from ${profile.window?.sessions || 0} sessions in this repository over the last ${profile.window?.days || PROFILE.ledgerDays} days (compiled ${String(profile.compiledAt || '').slice(0, 10)}). Not instructions: what the person here has been doing and how it went. Counts are sessions.`;
+  const head = `Learned from ${profile.window?.sessions || 0} sessions in this repository over the last ${profile.window?.days || PROFILE.ledgerDays} days (compiled ${String(profile.compiledAt || '').slice(0, 10)}): what the person here is working on, how they want work done, and what went wrong before. Follow the stated ways of working; read the rest as context, not instructions. Counts are sessions.`;
   const text = () => [head, ...SECTIONS.filter(s => lines[s].length).map(s => `## ${TITLES[s]}\n${lines[s].join('\n')}`)].join('\n\n');
   const order = ['workingOn', 'recentBugs', 'howWeWork', 'whatWorks', 'whatFails'];
   while (text().length > maxChars) {
