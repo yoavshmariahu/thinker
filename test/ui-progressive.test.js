@@ -174,7 +174,7 @@ test('the banner says the count, the share done and what is left, and goes when 
   assert.equal(els['#scan-progress'].hidden, false);
   assert.equal(els['#scan-label'].textContent, 'Reading session data: 412 of 913 sessions');
   assert.equal(els['#scan-pct'].textContent, '45%');
-  assert.match(els['#scan-note'].textContent, /^501 to go/);
+  assert.match(els['#scan-note'].textContent, /^· 501 to go/);
   assert.equal(els['#scan-bar'].max, 913); assert.equal(els['#scan-bar'].value, 412); assert.equal(els['#scan-retry'].hidden, true);
   context.scanProgress({ refreshing: true, progress: { completed: 3, total: null } });
   assert.match(els['#scan-label'].textContent, /^Finding session data… 3 sessions read so far/);

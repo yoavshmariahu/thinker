@@ -25,25 +25,25 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
-    /* While session data is read, a band across the top of the screen, above the brand and the tabs (2026-11-07): the count,
-       the share done and a bar, white on near-black so it cannot be missed. It was a 4px line in grey small type under the
-       tabs, and read as nothing happening. order: -1 puts it on the nav's first line; the negative margins bleed it to the
-       edges of the sticky nav, so it is the first thing on the screen wherever the page is scrolled to. */
-    .scan-progress { order: -1; flex: 0 0 calc(100% + 4rem); margin: -1.1rem -2rem .9rem; padding: .7rem 2rem .8rem; background: #111; color: #fff; }
-    .scan-progress.paused { background: #1f2937; }
-    .scan-progress.error { background: #7f1d1d; }
-    .scan-row { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
-    #scan-label { font-size: .95rem; font-weight: 600; letter-spacing: -0.01em; }
-    #scan-pct { margin-left: auto; font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    /* While session data is read, a strip just under the header (2026-11-07, the owner's ask): the count, the share done and a
+       bar. It hangs off the bottom edge of the sticky nav (position: absolute; top: 100%), so it overlays the top of the page
+       and moves nothing: the brand, the tabs and the content below keep their places whether it is shown or not. The first
+       cut put it above the brand as a near-black band, which shoved the whole page down while it showed. Light, so it reads
+       as part of the header, with the bar along its lower edge. */
+    .scan-progress { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; background: rgba(250,250,250,0.96); backdrop-filter: blur(8px); border-bottom: 1px solid #e5e7eb; padding: .45rem 2rem .5rem; color: #111; }
+    .scan-progress.paused { background: rgba(254,249,195,0.97); }
+    .scan-progress.error { background: #fef2f2; color: #991b1b; }
+    .scan-row { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; font-size: .84rem; }
+    #scan-label { font-weight: 600; letter-spacing: -0.01em; }
+    #scan-pct { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; }
     #scan-pct:empty { display: none; }
-    .scan-note { margin-top: .15rem; font-size: .78rem; color: #a1a1aa; }
+    .scan-note { color: #6b7280; }
     .scan-note:empty { display: none; }
-    .scan-retry { background: #fff; color: #111; border: 0; border-radius: 6px; padding: .25rem .75rem; font-size: .8rem; font-weight: 600; cursor: pointer; }
-    .scan-progress progress { display: block; width: 100%; height: 8px; margin-top: .55rem; border: 0; border-radius: 4px; overflow: hidden; accent-color: #fff; background: #3f3f46; }
-    .scan-progress progress::-webkit-progress-bar { background: #3f3f46; border-radius: 4px; }
-    .scan-progress progress::-webkit-progress-value { background: #fff; border-radius: 4px; transition: width .3s ease; }
-    .scan-progress progress::-moz-progress-bar { background: #fff; border-radius: 4px; }
-    nav:has(.scan-progress:not([hidden])) { flex-wrap: wrap; }
+    .scan-retry { background: #111; color: #fff; border: 0; border-radius: 6px; padding: .2rem .65rem; font-size: .78rem; font-weight: 600; cursor: pointer; }
+    .scan-progress progress { position: absolute; left: 0; right: 0; bottom: -1px; display: block; width: 100%; height: 4px; border: 0; overflow: hidden; accent-color: #111; background: #e5e7eb; }
+    .scan-progress progress::-webkit-progress-bar { background: #e5e7eb; }
+    .scan-progress progress::-webkit-progress-value { background: #111; transition: width .3s ease; }
+    .scan-progress progress::-moz-progress-bar { background: #111; }
     .brand { display: flex; align-items: center; gap: 0.55rem; }
     .wordmark { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.04em; color: #000; }
     .brand-sub { font-size: 0.7rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.12rem 0.5rem; line-height: 1.2; }
@@ -329,7 +329,7 @@
 
     @media (max-width: 640px) {
       nav { padding: 0.85rem 1rem; }
-      .scan-progress { flex-basis: calc(100% + 2rem); margin: -0.85rem -1rem .75rem; padding: .6rem 1rem .7rem; }
+      .scan-progress { padding: .4rem 1rem .45rem; }
       main { padding: 1.5rem 1rem 3rem; }
       h1 { font-size: 1.5rem; }
       .brand-sub { display: none; }
@@ -348,8 +348,7 @@
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
     <div id="scan-progress" class="scan-progress" hidden>
-      <div class="scan-row"><span id="scan-label" role="status" aria-live="polite"></span><button id="scan-retry" class="scan-retry" hidden>Retry</button><span id="scan-pct" aria-hidden="true"></span></div>
-      <div class="scan-note" id="scan-note"></div>
+      <div class="scan-row"><span id="scan-label" role="status" aria-live="polite"></span><span class="scan-note" id="scan-note"></span><button id="scan-retry" class="scan-retry" hidden>Retry</button><span id="scan-pct" aria-hidden="true"></span></div>
       <progress id="scan-bar" aria-label="Session data read"></progress>
     </div>
   </nav>
@@ -568,8 +567,8 @@ const LOGO_SPIN = '<svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"
 // repository or window, where the table shown is not the one asked for. A load overtaken by a later one renders nothing.
 // Poll lightweight revisions; fetch tables only when a checkpoint is ready.
 // A new tab/repository/window invalidates the old loop, including in-flight replies.
-// The band at the top of the screen while session data is read: the sessions read of those found, the share done, what is
-// left, and a bar. The worker counts a session as it is read (scan-worker.js:progressOf), so the figures move through a
+// The strip under the header while session data is read: the sessions read of those found, the share done, what is left,
+// and a bar. It overlays the page (absolute, off the nav's lower edge), so nothing below moves when it comes and goes. The worker counts a session as it is read (scan-worker.js:progressOf), so the figures move through a
 // batch and not only at its checkpoints; the total is unknown (`Finding session data…`, an indeterminate bar) until every
 // repository asked has listed its sessions.
 function scanProgress(v) {
@@ -583,13 +582,12 @@ function scanProgress(v) {
       : !known ? `Finding session data…${p?.completed ? ` ${fmt(p.completed)} sessions read so far` : ''}`
       : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions`;
     pct.textContent = known && plain ? `${Math.floor(p.completed / p.total * 100)}%` : '';
-    note.textContent = !plain ? '' : known ? `${fmt(Math.max(0, p.total - p.completed))} to go · the figures below are partial and fill in as sessions are read`
-      : 'The figures below are partial and fill in as sessions are read';
+    note.textContent = !plain ? '' : known ? `· ${fmt(Math.max(0, p.total - p.completed))} to go · the figures below fill in as sessions are read`
+      : '· the figures below fill in as sessions are read';
     if (known) { bar.max = p.total; bar.value = p.completed; }
     else bar.removeAttribute('value');
     bar.hidden = Boolean(p?.error || v.paused);
   }
-  navHeight();
 }
 async function progressiveView(url, receive, current, selected = () => false) {
   let revision = null, first = true;
