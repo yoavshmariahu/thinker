@@ -21,6 +21,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { complete, available, providerOfModel } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { areaOf } from './areas.js';
+import { sessionState, locked, holdoutRate } from './ops.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -29,6 +30,8 @@ export const PROFILE = {
   minSessions: 2,       // sessions a howWeWork or whatFails entry needs, unless one observation states or corrects it outright
   workingOnDays: 21,    // a workstream not seen in this long is no longer current
   recentBugDays: 14,
+  rebaseDays: 30,
+  holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 10, whatFails: 10, recentBugs: 6 },
   textChars: 240,
@@ -435,6 +438,8 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
 export async function compileProfile(store, { now = Date.now(), accounting, completeFn, have, config, dry = false, full = false } = {}) {
   const rows = readLedger(store, { now });
   const onDisk = readProfile(store);
+  // the monthly full compile (`rebaseDays`): from nothing, so an entry patches have reworded for weeks is derived again
+  if (!full && onDisk && now - Date.parse(onDisk.rebasedAt || onDisk.compiledAt || 0) > PROFILE.rebaseDays * 86400_000) full = true;
   const previous = full ? null : onDisk;
   const since = previous ? Date.parse(previous.compiledAt || 0) : 0;
   const pending = rows.filter(r => seenOf(r) > since).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
@@ -445,16 +450,17 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
   if (!pending.length) return { skipped: 'nothing new since the last compile (--full compiles the whole window again)' };
   let current = previous, tokens = 0, cost = 0, landed = 0;
   const changes = { kept: 0, updated: 0, dropped: 0, added: 0 };
+  const rebasedAt = full || !previous?.rebasedAt ? new Date(now).toISOString() : previous.rebasedAt;
   for (const batch of batches) {
     const r = await compileStep(store, current, batch, rows, { now, accounting, completeFn, have, config });
-    current = r.profile; tokens += r.tokens; cost += r.cost || 0;
+    current = { ...r.profile, rebasedAt }; tokens += r.tokens; cost += r.cost || 0;
     for (const k of Object.keys(changes)) changes[k] += r.changes[k];
     if (onDisk && !landed++) { try { fs.appendFileSync(historyFile(store), JSON.stringify(onDisk) + '\n'); } catch {} } // the one replaced, once something replaces it
     writeAtomic(profileFile(store), JSON.stringify(current, null, 2));
   }
   // the window is the file: observations past it go with the compile
   writeAtomic(ledgerFile(store), rows.map(r => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : ''));
-  return { profile: current, tokens, cost: cost || null, observations: rows.length, pending: pending.length, steps: batches.length, sessions, changes };
+  return { profile: current, tokens, cost: cost || null, observations: rows.length, pending: pending.length, steps: batches.length, sessions, changes, full: !previous };
 }
 
 // --- render ---------------------------------------------------------------
@@ -483,13 +489,75 @@ export function profileBlock(store) {
   return text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '';
 }
 
+// --- serving, and the holdout ---------------------------------------------
+// The block goes into a session's first prompt and again after each compaction, since a compaction summary keeps
+// none of it. Which sessions get it is the holdout's call: a deterministic share of sessions (`holdoutRate`, the
+// notes' 15% by default) is held out whole and shown nothing, and every observation extracted from a session carries
+// its arm (`arm`: shown | holdout), so the ledger itself is the measure: corrections and redirects per session on
+// each side (`holdoutReport`). The arm is decided once per session and kept in its state file (`ops.js:sessionState`,
+// `st.profile`), with how many compactions had been seen when the block last went in.
+export function profileArm(store, session) {
+  if (!session || session === 'unknown') return null;
+  const rate = holdoutRate(store);
+  if (rate <= 0) return 'shown';
+  const h = parseInt(createHash('sha1').update(`profile#${session}`).digest('hex').slice(0, 8), 16) / 0x100000000;
+  return h < rate ? 'holdout' : 'shown';
+}
+// Compaction boundaries written to a Claude Code transcript since `offset` bytes, and the file's size now.
+export function compactionsSince(file, offset = 0) {
+  try {
+    const size = fs.statSync(file).size;
+    if (size <= offset) return { count: 0, offset: size };
+    const fd = fs.openSync(file, 'r');
+    try { const buf = Buffer.alloc(size - offset); fs.readSync(fd, buf, 0, buf.length, offset); return { count: (buf.toString('utf8').match(/"subtype":"compact_boundary"/g) || []).length, offset: size }; }
+    finally { fs.closeSync(fd); }
+  } catch { return { count: 0, offset }; }
+}
+// What the prompt hook puts in: the block on the first prompt of a shown session and after a compaction, else ''.
+// Logged `op: profile-served` once per injection with the arm and whether a compaction brought it; a held-out
+// session is logged once, on its first prompt, so the arms can be counted from the log too.
+export function profileTurn(store, session, { transcript = null, client = null, now = Date.now() } = {}) {
+  if (!session || session === 'unknown' || !profileConfig(store).enabled) return '';
+  const text = profileBlock(store);
+  if (!text) return '';
+  return locked(store, session, () => {
+    const { st, save } = sessionState(store, session);
+    const p = st.profile || { arm: profileArm(store, session), told: 0, compactions: 0, offset: 0 };
+    let since = { count: 0, offset: p.offset || 0 };
+    if (transcript && client === 'claude') { since = compactionsSince(transcript, p.offset || 0); p.compactions = (p.compactions || 0) + since.count; p.offset = since.offset; }
+    const due = !p.told || p.compactions > p.toldAt;
+    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; }
+    const log = due && (p.arm === 'shown' || !p.told) && !p.loggedHoldout;
+    if (due && p.arm === 'holdout') p.loggedHoldout = true;
+    st.profile = p; save();
+    if (log) store.log({ op: 'profile-served', session, client, arm: p.arm, chars: p.arm === 'shown' ? text.length : 0, afterCompaction: p.compactions > 0 && p.told > 1 ? true : undefined, at: new Date(now).toISOString() });
+    return due && p.arm === 'shown' ? text : '';
+  });
+}
+export function profileArmOf(store, session) {
+  if (!session || session === 'unknown' || !store.exists()) return null;
+  return sessionState(store, session).st.profile?.arm || null;
+}
+// The two arms over the ledger: sessions, observations, and the share of them the person corrected or redirected.
+export function holdoutReport(rows) {
+  const arms = { shown: [], holdout: [], unknown: [] };
+  for (const r of rows) (arms[r.arm === 'shown' || r.arm === 'holdout' ? r.arm : 'unknown']).push(r);
+  const side = a => {
+    const sessions = new Set(a.map(r => r.session)).size, n = a.length;
+    const share = o => n ? a.filter(r => r.outcome === o).length / n : null;
+    return { sessions, observations: n, perSession: sessions ? n / sessions : null, corrected: share('corrected'), redirected: share('redirected'), accepted: share('accepted') };
+  };
+  return { shown: side(arms.shown), holdout: side(arms.holdout), unknown: side(arms.unknown) };
+}
+
 // --- a session, end to end ------------------------------------------------
 // Extract a session's observations into the ledger, then compile when due. The caller has parsed the transcript
 // and decided the session is done with (the end hook, or the catch-up over quiet sessions).
 export async function profileSession(store, events, { session, client, repoHint, ended = true, fromLine = 0, lineCount = 0, accounting = {}, completeFn, have, config, compile = true, now = Date.now() } = {}) {
   const r = await extractObservations(events, { repoHint, ended, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
   const dirs = sessionDirs(events, store.repo);
-  const rows = appendObservations(store, r.observations, { session, client, dirs, model: r.model, now });
+  const arm = profileArmOf(store, session);
+  const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
   store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;

@@ -985,9 +985,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   rewriting form's 189k. One difference to know: built by patches, the recurring patterns ("answer short and plain",
   "validate live, not mocks", "don't call a capability impossible") land in `howWeWork` with their counts (12, 12, 6),
   and `whatFails` holds the specific recent corrections, newest replacing the oldest at the cap; the rewriting form
-  put the patterns in `whatFails` with the quotes. Not built: a periodic full compile to re-derive wording that
-  patches have carried a long way (a rebase); at this volume it is 150k tokens, and the window is 60 days, so wait
-  for the holdout before deciding. Four sections: `workingOn`,
+  put the patterns in `whatFails` with the quotes. The monthly full compile below is that rebase. Four sections: `workingOn`,
   `howWeWork`, `whatFails`, `recentBugs`. `whatWorks`
   was a fifth until 2026-11-08: "an approach accepted after a correction" is the `instead` of a `whatFails` entry, and
   on its own it held one line in four that two sessions supported.
@@ -1018,8 +1016,25 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the trim cut the ways of working from ten lines to two before touching the weaker sections), headed with the dates
   the sessions span, counted in sessions, and headed as learned, not instructions. When it does not fit: the oldest
   workstreams go first (to three), then the oldest bugs (to three), then the weakest of what went wrong (to four), then
-  of the ways of working (to four), then whatever is longest (`TRIM`). **Not yet wired into the
-  hooks**: the mechanism lands first, the injection on turn 1 (and after a compaction) and the holdout follow.
+  of the ways of working (to four), then whatever is longest (`TRIM`).
+- **Served by the prompt hook, and held out by session** (2026-11-08; `profileTurn`, `profileArm`, `compactionsSince`,
+  `holdoutReport`; `thinker profile holdout`). With `learn.mode` on, the block goes into a session's first prompt ahead
+  of everything else the hook says, and again after each compaction, since a compaction summary keeps none of it: the
+  hook counts `compact_boundary` lines written to the Claude Code transcript since the byte it last read (a few bytes a
+  prompt, never a parse), and the other agents get it on the first prompt alone. A deterministic share of sessions
+  (`holdoutRate`, the notes' 15% by default; `THINKER_HOLDOUT`) is held out **whole**, not by turn as the notes are,
+  because the block is one injection that the rest of the session reads. The arm lives in the session's state file
+  (`st.profile`: arm, how many times told, compactions seen), the Stop hook's `session` row carries it (`profile:
+  shown|holdout`), one `profile-served` row is logged per injection and once for a held-out session (counts, never
+  the text), and **every observation extracted from the session carries its arm**, so the ledger is the measure:
+  `thinker profile holdout` puts corrected and redirected per session on each side beside prompts and tokens per
+  session from the log. Fewer than `holdoutMinSessions` (20) on a side is too few to read. What it cannot tell apart:
+  a correction the profile caused from one it failed to prevent; read the lines with `show --why` before blaming it.
+- **A full compile once a month** (`rebaseDays` 30, `rebasedAt` on the profile, carried by every patch): a compile that
+  finds the last from-nothing compile older than that starts from nothing over the whole window, so wording the patches
+  have carried for weeks is derived again from the rows. At this repository's volume that is 150k tokens of Opus;
+  `thinker profile rebuild --full` does it by hand, and a rebuild without `--full` patches the sessions it read into the
+  profile as their own ends would have.
 - The profile is this machine's: under `.thinker/local/`, never committed, and the log rows (`op: profile`,
   `profile-compile`) carry counts and token figures, never its text. `thinker profile [show [--why]|ledger|compile [--full]|extract
   <transcript>|rebuild --days 30]`; `rebuild --dry` lists the sessions and the chars it would read, and reads the

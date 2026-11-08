@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, applyPatch, relatedCited, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
+import { PROFILE, SECTIONS, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -243,4 +243,74 @@ test('a backlog is compiled in steps, each shown the profile so far and the obse
   appendObservations(store, [fakeObs({ turn: 9, at: iso(now, 40) })], { session: 's9', now: now + 1000 });
   const d = await compileProfile(store, { now: now + 2000, completeFn, have: ['claude'], dry: true });
   assert.equal(d.pending, 1, 'an old session read today is new to the profile'); assert.equal(d.steps, 1);
+});
+
+test('the block goes into a shown session\'s first prompt and again after a compaction; a held-out session gets nothing and is logged once; rows carry the arm', async t => {
+  const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
+  const now = Date.now();
+  appendObservations(store, [fakeObs()], { session: 's0', now });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], whatFails: [{ when: 'adding a flag', avoid: 'guessing its unit', obs: readLedger(store).map(r => r.id) }], recentBugs: [] } }, model: 'fake-opus' }) });
+  const transcript = path.join(dir, 't.jsonl');
+  fs.writeFileSync(transcript, JSON.stringify({ type: 'user', message: { role: 'user', content: 'hi' } }) + '\n');
+  const prev = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0'; t.after(() => { if (prev === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = prev; });
+  assert.equal(profileArm(store, 'any'), 'shown', 'no holdout: every session is shown');
+  const first = profileTurn(store, 'sA', { transcript, client: 'claude' });
+  assert.match(first, /^<thinker-profile>\n/); assert.match(first, /When adding a flag: avoid guessing its unit/);
+  assert.equal(profileTurn(store, 'sA', { transcript, client: 'claude' }), '', 'told once');
+  fs.appendFileSync(transcript, JSON.stringify({ type: 'system', subtype: 'compact_boundary' }) + '\n' + JSON.stringify({ type: 'user', message: { role: 'user', content: 'again' } }) + '\n');
+  assert.match(profileTurn(store, 'sA', { transcript, client: 'claude' }), /^<thinker-profile>/, 'a compaction brings it back');
+  assert.equal(profileTurn(store, 'sA', { transcript, client: 'claude' }), '', 'and once only');
+  assert.equal(profileArmOf(store, 'sA'), 'shown');
+  // every session held out
+  process.env.THINKER_HOLDOUT = '1';
+  assert.equal(profileArm(store, 'sB'), 'holdout');
+  assert.equal(profileTurn(store, 'sB', { client: 'codex' }), ''); assert.equal(profileTurn(store, 'sB', { client: 'codex' }), '');
+  assert.equal(profileArmOf(store, 'sB'), 'holdout');
+  const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(e => e.op === 'profile-served');
+  assert.deepEqual(log.map(e => [e.session, e.arm, e.afterCompaction || false, e.chars > 0]), [['sA', 'shown', false, true], ['sA', 'shown', true, true], ['sB', 'holdout', false, false]], 'one row per injection, one for a held-out session; never the text');
+  // the session's observations carry its arm
+  const r = await profileSession(store, session, { session: 'sB', client: 'codex', compile: false, have: ['claude'], completeFn: async () => ({ json: { observations: [fakeObs()] }, model: 'fake-opus' }) });
+  assert.equal(r.observations[0].arm, 'holdout');
+  const h = holdoutReport([...readLedger(store), { id: 'x', session: 'sC', arm: 'shown', outcome: 'accepted' }, { id: 'y', session: 'sC', arm: 'shown', outcome: 'corrected' }]);
+  assert.equal(h.holdout.sessions, 1); assert.equal(h.holdout.corrected, 1); assert.equal(h.shown.observations, 2); assert.equal(h.shown.corrected, 0.5); assert.equal(h.unknown.observations, 1, 's0 was read before any arm');
+  // off: nothing, whatever the state
+  fs.writeFileSync(path.join(dir, '.thinker', 'config.json'), '{}');
+  assert.equal(profileTurn(new Store(dir), 'sD', {}), '', 'learn.mode off: no block');
+});
+
+test('a full compile from nothing is due again after rebaseDays, and rebasedAt is carried by the patches between', async t => {
+  const { store } = tmpRepo(t);
+  const now = Date.now();
+  const calls = [];
+  const completeFn = async opts => { calls.push(/PROFILE SO FAR \(compiled never\)/.test(opts.prompt) ? 'full' : 'patch'); return { json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'x', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }; };
+  appendObservations(store, [fakeObs()], { session: 's1', now });
+  const a = await compileProfile(store, { now, completeFn, have: ['claude'] });
+  assert.equal(a.full, true); assert.equal(a.profile.rebasedAt, new Date(now).toISOString());
+  appendObservations(store, [fakeObs({ turn: 2 })], { session: 's2', now: now + 1000 });
+  const b = await compileProfile(store, { now: now + 2000, completeFn, have: ['claude'] });
+  assert.equal(b.full, false); assert.equal(b.profile.rebasedAt, a.profile.rebasedAt, 'a patch keeps the last rebase');
+  appendObservations(store, [fakeObs({ turn: 3 })], { session: 's3', now: now + 31 * DAY });
+  const c = await compileProfile(store, { now: now + 31 * DAY + 1000, completeFn, have: ['claude'] });
+  assert.equal(c.full, true, 'a month on, the compile starts from nothing'); assert.equal(c.profile.rebasedAt, new Date(now + 31 * DAY + 1000).toISOString());
+  assert.deepEqual(calls, ['full', 'patch', 'full']);
+});
+
+test('through the hooks: the prompt hook puts the block ahead of everything else on the first prompt, and the stop hook\'s session row names the arm', async t => {
+  const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
+  const now = Date.now();
+  appendObservations(store, [fakeObs()], { session: 's0', now });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'The report command grows a --since flag', obs: readLedger(store).map(r => r.id) }], howWeWork: [], whatFails: [], recentBugs: [] } }, model: 'fake-opus' }) });
+  const CLI = new URL('../src/cli.js', import.meta.url).pathname;
+  const env = { ...process.env, THINKER_LOG: 'local', THINKER_HOLDOUT: '0', THINKER_NO_LEARN: '1', THINKER_TELEMETRY: 'off', THINKER_CE: 'off' };
+  const transcript = path.join(dir, 't.jsonl');
+  fs.writeFileSync(transcript, JSON.stringify({ type: 'user', message: { role: 'user', content: 'add the flag' }, timestamp: new Date(now).toISOString() }) + '\n' + JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'done' }], usage: { input_tokens: 10, output_tokens: 2 } }, timestamp: new Date(now).toISOString() }) + '\n');
+  const run = (sub, input) => execFileSync('node', [CLI, 'hook', sub, '--repo', dir], { input: JSON.stringify(input), encoding: 'utf8', env });
+  const first = run('prompt', { session_id: 'h1', prompt: 'add the flag', transcript_path: transcript });
+  assert.match(first, /<thinker-profile>/); assert.match(first, /The report command grows a --since flag/);
+  const second = run('prompt', { session_id: 'h1', prompt: 'and the test', transcript_path: transcript });
+  assert.ok(!second.includes('<thinker-profile>'), 'once a session');
+  run('stop', { session_id: 'h1', transcript_path: transcript });
+  const rows = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  assert.equal(rows.find(e => e.op === 'session' && e.session === 'h1')?.profile, 'shown');
+  assert.equal(rows.filter(e => e.op === 'profile-served').length, 1);
 });

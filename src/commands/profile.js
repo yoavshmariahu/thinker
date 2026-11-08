@@ -1,10 +1,11 @@
 // thinker profile: the session profile by hand (profile.js). `show` prints what a session would be shown,
 // `extract` reads one transcript into the ledger, `rebuild` reads the window's sessions and compiles,
-// `compile` compiles what is new (`--full`: the whole window again), `ledger` lists the observations.
+// `compile` compiles what is new (`--full`: the whole window again), `ledger` lists the observations, `holdout` the two arms.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels } from '../profile.js';
+import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport } from '../profile.js';
+import { readLog } from '../usage.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
@@ -50,6 +51,25 @@ async function profileCommand(ctx) {
     if (flags.json) { out(JSON.stringify(rows, null, 2)); return; }
     for (const r of rows) out(`${r.at.slice(0, 10)} ${r.id} ${r.kind.padEnd(13)} ${r.outcome.padEnd(10)} ${r.request}${r.lesson ? `\n    lesson: ${r.lesson}` : ''}${r.reaction ? `\n    reaction: "${r.reaction}"` : ''}`);
     out(`${rows.length} observations from ${new Set(rows.map(r => r.session)).size} sessions in the last ${Number(flags.days) || PROFILE.ledgerDays} days`);
+    return;
+  }
+  if (sub === 'holdout') {
+    // the two arms, from the ledger (outcomes per session) and the log (what each session cost, its last `session` row)
+    const days = Number(flags.days) || PROFILE.ledgerDays;
+    const rows = readLedger(store, { days });
+    const h = holdoutReport(rows);
+    const since = Date.now() - days * 86400_000;
+    const last = new Map();
+    for (const e of readLog(store, { all: true })) if (e.op === 'session' && e.profile && Date.parse(e.t) >= since) last.set(e.session, e);
+    const cost = arm => { const xs = [...last.values()].filter(e => e.profile === arm); const sum = k => xs.reduce((a, e) => a + (e[k] || 0), 0); return { sessions: xs.length, prompts: xs.length ? sum('turns') / xs.length : null, tokens: xs.length ? (sum('inputTokens') + sum('cacheReadTokens') + sum('cacheWriteTokens') + sum('outputTokens')) / xs.length : null }; };
+    const report = { days, shown: { ...h.shown, cost: cost('shown') }, holdout: { ...h.holdout, cost: cost('holdout') }, unknown: h.unknown, rate: Math.round(100 * (store.config().holdout ?? 0.15)) };
+    if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
+    const pct = v => v == null ? '–' : `${Math.round(v * 100)}%`, num = (v, d = 1) => v == null ? '–' : v.toFixed(d);
+    out(`profile holdout over ${days} days (sessions the hooks showed the profile against sessions held out)`);
+    out(`${'arm'.padEnd(8)} ${'sessions'.padStart(8)} ${'observ.'.padStart(8)} ${'per sess.'.padStart(9)} ${'corrected'.padStart(9)} ${'redirected'.padStart(10)} ${'accepted'.padStart(8)} ${'prompts'.padStart(8)} ${'tokens/session'.padStart(14)}`);
+    for (const arm of ['shown', 'holdout']) { const a = report[arm]; out(`${arm.padEnd(8)} ${String(a.sessions).padStart(8)} ${String(a.observations).padStart(8)} ${num(a.perSession).padStart(9)} ${pct(a.corrected).padStart(9)} ${pct(a.redirected).padStart(10)} ${pct(a.accepted).padStart(8)} ${num(a.cost.prompts, 0).padStart(8)} ${(a.cost.tokens == null ? '–' : formatTokens(a.cost.tokens)).padStart(14)}`); }
+    if (h.unknown.observations) out(`${h.unknown.observations} observations from ${h.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
+    out(`judge by corrected and redirected per session on each side; fewer than ${PROFILE.holdoutMinSessions} sessions on a side is too few to read`);
     return;
   }
   if (sub === 'compile') {
@@ -108,13 +128,14 @@ async function profileCommand(ctx) {
     } finally { progress?.finish(); }
     out(`read ${n} sessions → ${obs} observations${failed ? `, ${failed} failed` : ''}${tokens ? `; ~${formatTokens(tokens)} tokens` : ''}`);
     if (readLedger(store).length) {
-      // from nothing, over the whole window: a rebuild is what a changed prompt or a redone ledger asks for
-      const c = await compileProfile(store, { full: true, accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
-      if (c.profile) { out(''); out(renderProfile(c.profile)); out(`\ncompiled ${c.observations} observations from ${c.sessions} sessions in ${c.steps} step${c.steps === 1 ? '' : 's'}${c.tokens ? `; ~${formatTokens(c.tokens)} tokens` : ''}`); }
+      // the sessions read are patched into the profile as a session's end would patch its own; --full starts from nothing
+      const c = await compileProfile(store, { full: !!flags.full, accounting: { store, phase: 'learning', purpose: 'profile-compile' }, config: cfg });
+      if (c.skipped) out(`nothing to compile: ${c.skipped}`);
+      if (c.profile) { out(''); out(renderProfile(c.profile)); out(`\ncompiled ${c.pending} observations in ${c.steps} step${c.steps === 1 ? '' : 's'} into a profile of ${c.observations} observations from ${c.sessions} sessions (${c.changes.added} added, ${c.changes.updated} updated, ${c.changes.dropped} dropped)${c.tokens ? `; ~${formatTokens(c.tokens)} tokens` : ''}`); }
     }
     return;
   }
-  out(`thinker profile [show [--why]|ledger|compile [--full]|extract <transcript>|rebuild] (sections: ${SECTIONS.join(', ')})`);
+  out(`thinker profile [show [--why]|ledger|holdout|compile [--full]|extract <transcript>|rebuild] (sections: ${SECTIONS.join(', ')})`);
   process.exitCode = 2;
 }
 
