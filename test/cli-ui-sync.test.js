@@ -412,7 +412,7 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   await scheduleContextSuggestion(new Store(dir), { view: { days: 7, sessions: 40, instructions: { sessions: 40, sections: [sec] }, skills: [], tools: [], outputs: { tools: [] } }, force: true });
   contextSuggestOffer(new Store(dir), { env: {}, ui: () => null, client: 'claude' });
   assert.deepEqual((await p.get(`/api/context?repo=${encodeURIComponent(id)}&days=7`)).offered, [{ kind: 'section', key: 'section:AGENTS.md:tests', repo: null, act: 'compress' }]);
-  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, measuring: true, attention: 0, running: 0 }, 'no report kept yet: measuring, and the refresh started');
+  assert.deepEqual(await p.get(`/api/activity?repo=${encodeURIComponent(id)}`), { history: [], promptAvg: null, measuring: true, scan: null, attention: 0, running: 0 }, 'no report kept yet: measuring, and the refresh started (no progressive read, so no scan to report)');
   // Apply on two rows, one compressed and one removed: one job each, the command started detached in the checkout
   const r = await p.post('/api/changes/start', { repo: id, keys: ['section:AGENTS.md:tests', 'section:AGENTS.md:style'], acts: { 'section:AGENTS.md:tests': 'compress', 'section:AGENTS.md:style': 'remove' }, days: 7 });
   assert.equal(r.status, 200, JSON.stringify(r));
@@ -536,7 +536,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /promptAvg: d\.promptAvg \|\| null/);
   // a kept report none of this code's is not read for the savings; the activity API starts the refresh and the page checks back
   assert.match(read('report-snapshot.js'), /export function keptRows/);
-  assert.match(read('ui/server.js'), /if \(kept\.stale && url\.searchParams\.get\('measure'\) !== '0'\) \{ measuring = true; if \(progressive\) scans\.read\('report', st, REPORT_WEEKS\); else if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
+  assert.match(read('ui/server.js'), /if \(kept\.stale && url\.searchParams\.get\('measure'\) !== '0'\) \{ measuring = true; if \(progressive\) readings\.push\(scans\.read\('report', st, REPORT_WEEKS\)\); else if \(!reportRefreshing\(st\)\) refreshReportFn\(st\.repo\); \}/);
   assert.match(read('ui/page.html'), /function activityCheckBack/);
   // the page's script parses (2026-10-24: a second `let APOLL` left the whole page blank, which no test caught)
   for (const [, src] of read('ui/page.html').matchAll(/<script>([\s\S]*?)<\/script>/g)) assert.doesNotThrow(() => new Function(src));
