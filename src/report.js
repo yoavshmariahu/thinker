@@ -21,7 +21,7 @@ import { readLog, sessionKey } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { formatTokens } from './model-usage.js';
-import { REWRITE_CAUSES } from './transcripts.js';
+import { REWRITE_CAUSES, subagentSessions } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
 import { repoId } from './store.js';
 import { clearingRows, compressionDir } from './compression.js';
@@ -140,7 +140,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const items = new Map(), item = id => { if (!items.has(id)) items.set(id, { calls: 0, files: [], sources: {}, outputs: {} }); return items.get(id); };
   for (const r of instructionValue(store, { days, sessions, onSession }).timeline) if (r.session) { part(r.session).instructions = r.tokens * r.calls; Object.assign(item(r.session), { calls: r.calls, files: r.files || [] }); }
   for (const r of harnessUsage(store.repo, { days, sessions, onSession }).timeline || []) if (r.session) { const c = Math.max(1, r.calls), p = r.parts; Object.assign(part(r.session), { custom: ((p.skills || 0) + (p.mcp || 0) + (p.plugins || 0)) * c, builtin: (p.builtin || 0) * c }); for (const [k, t] of Object.entries(r.loaded || {})) item(r.session).sources[`${r.client}:${k}`] = t * c; }
-  const rows = sessionUsage(store, sessions, { ...timeline, onSession });
+  // the subagent conversations beside each session (transcripts.js:subagentSessions): their own rows, priced at their
+  // own model, tied to the parent; the instruction and harness readers above take the sessions alone
+  const rows = sessionUsage(store, sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from)), { ...timeline, onSession });
   for (const r of rows) { part(r.session).outputs = r.outputs; item(r.session).outputs = r.by || {}; }
   const week = t => cols.findIndex(c => t >= c.t && t < c.end);
   const columns = cols.map(c => ({ t: c.t, sessions: 0, priced: 0, unmeasured: 0, prompts: 0, pricedPrompts: 0 }));
@@ -158,8 +160,9 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const sessionRows = [];
   for (const r of rows) {
     const w = week(r.t); if (w < 0) continue;
-    const col = columns[w], cal = calibrationOf(r.model, r.client, config);
+    const col = columns[w], cal = calibrationOf(r.model, r.client, config), sub = Boolean(r.parent); // a subagent's row: its calls count, its session does not
     if (!r.usage) {
+      if (sub) continue;
       col.unmeasured++;
       const p = parts.get(r.session) || {}, sum = PARTS.reduce((a, [k]) => a + (p[k] || 0), 0);
       if (sum > 0) { estCols[w].sessions++; estCols[w].prompts += Math.max(1, r.turns || 0); for (const [k] of PARTS) add(byEst[k][w], (p[k] || 0) * cal, 0); }
@@ -167,7 +170,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     }
     const u = r.usage, price = listPrice(r.model, { config }), cost = costOf(u, price);
     const input = u.input, output = u.output || 0, prompts = Math.max(1, u.turns || 0);
-    col.sessions++; col.prompts += prompts; if (cost != null) { col.priced++; col.pricedPrompts += prompts; } else unpriced.add(r.model || 'unknown');
+    if (!sub) col.sessions++; col.prompts += prompts; if (cost != null) { if (!sub) col.priced++; col.pricedPrompts += prompts; } else unpriced.add(r.model || 'unknown');
     // the parts as estimated, scaled to the measured input where they overshoot it; what is left is the conversation
     // the estimated parts in the model's tokens (calibrationOf); the thinking kept is reported exactly and not scaled
     const p = parts.get(r.session) || {}, c = u.carried || {}, est = { instructions: Math.max(c.instructions || 0, p.instructions || 0) * cal, system: (c.system || 0) * cal, custom: (p.custom || 0) * cal, builtin: (p.builtin || 0) * cal, outputs: (p.outputs || 0) * cal, agentCalls: (c.agentCalls || 0) * cal, thinking: c.thinking || 0, prompts: ((c.prompts || 0) + (c.agentText || 0)) * cal, notes: (c.notes || 0) * cal };
@@ -175,7 +178,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     const inCost = cost == null ? null : (cost - (price ? output * price.output / 1e6 : 0)) / Math.max(1, input);
     if (inCost != null) { pricedInput += input; pricedInputCost += input * inCost; }
     for (const k of Object.keys(est)) { const tk = est[k] * scale; add(byPart[k][w], tk, inCost == null ? 0 : tk * inCost); }
-    sessionRows.push({ t: r.t, input, prompts, parts: Object.fromEntries(PARTS.map(([k]) => [k, Math.round(est[k] * scale)])), ...(items.get(r.session) || { calls: 0, files: [], sources: {}, outputs: {} }) });
+    if (!sub) sessionRows.push({ t: r.t, input, prompts, parts: Object.fromEntries(PARTS.map(([k]) => [k, Math.round(est[k] * scale)])), ...(items.get(r.session) || { calls: 0, files: [], sources: {}, outputs: {} }) });
     const other = Math.max(0, input - sum * scale);
     add(byPart.other[w], other, inCost == null ? 0 : other * inCost);
     add(byPart.output[w], output, price ? output * price.output / 1e6 : 0);
@@ -190,7 +193,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     for (const [k, x] of Object.entries(u.rewrites?.causes || {})) if (byCause[k]) { const c2 = byCause[k][w]; add(c2, (x.fresh || 0) + (x.write || 0), price ? ((x.fresh || 0) * price.input + writeCost(x.write || 0, x.write1h, price)) / 1e6 : 0); c2.n += x.n || 0; }
     const key = r.model || 'unknown';
     if (!models.has(key)) models.set(key, { model: key, provider: providerOf(r.model, r.client), priced: Boolean(price), cells: cols.map(cell) });
-    add(models.get(key).cells[w], input + output, cost, 1, cost == null ? 0 : 1, prompts, cost == null ? 0 : prompts);
+    add(models.get(key).cells[w], input + output, cost, sub ? 0 : 1, cost == null || sub ? 0 : 1, prompts, cost == null ? 0 : prompts);
   }
   // a total row carries the week's prompts, so a merged report (mergeReports) averages over every repository's
   const totalOf = keys => cols.map((_, w) => { const c = cell(); for (const k of keys) add(c, byPart[k][w].tokens, byPart[k][w].cost); c.prompts = columns[w].prompts; c.pricedPrompts = columns[w].pricedPrompts; return c; });

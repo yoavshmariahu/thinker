@@ -583,6 +583,30 @@ export function findSessions(repo, { sinceMs = 14 * 86400_000, storeDir } = {}) 
   return out.sort((a, b) => b.mtime - a.mtime);
 }
 
+// The subagent conversations of Claude Code sessions (2026-11-08): each lives beside its parent's transcript as
+// `<projects dir>/<slug>/<session>/subagents/agent-<id>.jsonl` with a `.meta.json` naming its type (Explore,
+// general-purpose, ...). A subagent is a conversation of its own -- its own prefix, its own cache, often its own model
+// (explore-agent.js) -- so for cost it is read as a row of its own, tied to the parent by `parent`, and never as part of
+// the parent's usage, which would price its tokens at the parent's model. Until this landed the Report read the
+// top-level files alone and 7% of this machine's calls went uncounted. Only the Report asks for these; the learning,
+// the instruction and harness readers take the sessions as before.
+export function subagentSessions(sessions) {
+  const out = [];
+  for (const s of sessions) {
+    if (s.client !== 'claude' || s.parent || !s.file) continue;
+    const dir = path.join(path.dirname(s.file), s.session, 'subagents');
+    let names; try { names = fs.readdirSync(dir); } catch { continue; }
+    for (const f of names) {
+      const m = f.match(/^agent-([0-9a-f]+)\.jsonl$/); if (!m) continue;
+      const file = path.join(dir, f); let st; try { st = fs.statSync(file); } catch { continue; }
+      if (!st.isFile()) continue;
+      let type = null; try { type = JSON.parse(fs.readFileSync(path.join(dir, `agent-${m[1]}.meta.json`), 'utf8')).agentType || null; } catch {}
+      out.push({ client: 'claude', file, session: `${s.session}/${m[1]}`, parent: s.session, agent: m[1], type, mtime: st.mtimeMs });
+    }
+  }
+  return out;
+}
+
 // The Claude Code transcripts of a checkout, newest first: ~/.claude/projects/<encoded cwd>/*.jsonl.
 export function transcriptsFor(cwd) {
   const enc = cwd.replace(/[\/.]/g, '-');

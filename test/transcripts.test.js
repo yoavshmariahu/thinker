@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
+import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
 
@@ -252,6 +252,32 @@ test('findSessions finds each agent\'s sessions for the repo, and traces without
     const found = findSessions(repo, { storeDir: path.join(repo, '.thinker') }).map(s => `${s.client}:${s.session}`).sort();
     assert.deepEqual(found, ['claude:c1', `codex:${id}`, 'cursor:u1', 'cursor:u2', 'trace:g1']);
   } finally { process.env.HOME = old.HOME; if (old.CODEX_HOME) process.env.CODEX_HOME = old.CODEX_HOME; }
+});
+
+test('subagentSessions lists the subagent conversations beside a Claude session, tied to their parent, with their type', () => {
+  const home = tmp(), repo = path.join(tmp(), 'my.repo');
+  fs.mkdirSync(repo);
+  const put = (f, text) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, text); };
+  const proj = path.join(home, '.claude/projects', repo.replace(/[\/.]/g, '-'));
+  put(path.join(proj, 'c1.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-a1b2c3d4e5f6a7b8c.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-a1b2c3d4e5f6a7b8c.meta.json'), JSON.stringify({ agentType: 'Explore', isBuiltIn: false }));
+  put(path.join(proj, 'c1/subagents/agent-ffffffffffffffff0.jsonl'), '{}\n');
+  put(path.join(proj, 'c1/subagents/agent-ffffffffffffffff0.prefix.json'), '{}');
+  put(path.join(proj, 'c2.jsonl'), '{}\n');
+  const old = process.env.HOME; process.env.HOME = home;
+  try {
+    const sessions = findSessions(repo);
+    assert.deepEqual(sessions.map(s => s.session).sort(), ['c1', 'c2'], 'findSessions itself lists the top-level files alone');
+    const subs = subagentSessions(sessions).sort((a, b) => a.agent.localeCompare(b.agent));
+    assert.deepEqual(subs.map(s => [s.client, s.session, s.parent, s.agent, s.type]), [
+      ['claude', 'c1/a1b2c3d4e5f6a7b8c', 'c1', 'a1b2c3d4e5f6a7b8c', 'Explore'],
+      ['claude', 'c1/ffffffffffffffff0', 'c1', 'ffffffffffffffff0', null],
+    ]);
+    assert.ok(subs.every(s => fs.existsSync(s.file) && s.mtime > 0));
+    assert.deepEqual(subagentSessions(subs), [], 'a subagent has no subagents of its own');
+    assert.deepEqual(subagentSessions([{ client: 'codex', file: '/x', session: 'z' }]), [], 'other agents have none');
+  } finally { process.env.HOME = old; }
 });
 
 test('learning hooks are installed for every agent and record the session', () => {
