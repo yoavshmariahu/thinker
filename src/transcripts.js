@@ -149,9 +149,9 @@ export function detectFormat(text) {
 }
 
 // a result kept by its call id: the text, and the images it carries (imageTokensOf)
-const keepResult = (results, id, raw) => results.set(id, { text: textOf(raw), ...(imageTokensOf(raw) || {}) });
+const keepResult = (results, id, raw, error = false) => results.set(id, { text: textOf(raw), ...(imageTokensOf(raw) || {}), ...(error ? { error: true } : {}) });
 function attachResults(events, results) {
-  for (const e of events) if (e.t === 'tool' && !e.result && e.id != null) { const r = results.get(e.id); if (r) { e.result = r.text || ''; if (r.images) { e.images = r.images; e.imageTokens = r.imageTokens; } } else e.result = ''; }
+  for (const e of events) if (e.t === 'tool' && !e.result && e.id != null) { const r = results.get(e.id); if (r) { e.result = r.text || ''; if (r.images) { e.images = r.images; e.imageTokens = r.imageTokens; } if (r.error) e.error = true; } else e.result = ''; }
   return events;
 }
 
@@ -299,13 +299,14 @@ function parseMessages(rows, fromLine) {
       // `at`: when the call was made (ms), so a result is measured under the output compression in force then (tool-outputs.js)
       // `turn`: the model call the tool was called in (the count of assistant messages so far), so a part's use can be
       // counted by prompts (instruction-value.js:appliedTurns)
-      else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; ev.turn = messageUsage.size; events.push(ev); }
-      else if (b.type === 'tool_result') { keepResult(results, b.tool_use_id, b.content); if (role === 'user' && refusedTool(b.content)) events.push(stamp({ t: 'interrupt' }, j.timestamp)); }
+      else if (b.type === 'tool_use') { const ev = tool(b.name, b.input, '', b.id), at = Date.parse(j.timestamp); if (at) ev.at = at; ev.turn = messageUsage.size; ev.call = calls.length - 1; events.push(ev); }
+      else if (b.type === 'tool_result') { keepResult(results, b.tool_use_id, b.content, b.is_error === true); if (role === 'user' && refusedTool(b.content)) events.push(stamp({ t: 'interrupt' }, j.timestamp)); }
     }
   });
   for (const usage of messageUsage.values()) stats.turn(usage);
   // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls) };
+  // `calls`: every model call with its usage, in order, for the Factory's stage attribution (factory.js); a tool event's `call` indexes it
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls), calls };
 }
 
 function parseCodex(rows, fromLine) {
@@ -374,7 +375,7 @@ function parseCodex(rows, fromLine) {
   // per-call usage where the rollout has it (the calls are the turns), else the cumulative total with the messages as turns
   if (lastUsages.length) for (const u of lastUsages) stats.turn(u, 'codex');
   else { stats.turns = msgTurns; if (lastTotal) stats.total(lastTotal); }
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried: lastUsages.length ? carried : undefined, rewrites: cacheRewrites(calls) };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried: lastUsages.length ? carried : undefined, rewrites: cacheRewrites(calls), calls };
 }
 
 function parseGemini(j, fromLine) {

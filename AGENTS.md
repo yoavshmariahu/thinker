@@ -640,6 +640,7 @@ longer exceptions to anything.
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
+| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of six stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
@@ -1105,6 +1106,100 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
 
+**The Factory: the sessions read as a pipeline (2026-11-08, the owner's direction; `src/factory.js`, the page's Factory tab, `thinker factory`)**
+- Per-session and per-PR cost could not say which stage ate the tokens, what was rework, or how much work merged first
+  time. The Factory answers those three: six stations (Prompts, Think, Explore, Build, Verify, Merge), the loops where
+  work came back to an earlier station, and the first-pass yield of the merged pull requests. The UI came first (a
+  flat line, then an isometric floor, then the pipeline canvas the owner picked from a reference design); the
+  measurement over this machine's sessions came the same day, below.
+- **One attribution rule, in one sentence, on both doors**: a call's tokens go to the stage of the tool it called; the
+  first call after a prompt is Prompts; a call with no tool is Think. A call that made tools of two stages is split
+  evenly. `transcripts.js` now returns every model call's usage (`calls`) and puts the call's index on each tool event
+  (`call`) and a failure flag on a result (`error`, from `is_error`) for this. A shell command is staged by what it does
+  (`bashStage`): a commit or push is Merge, a read-only program at the head of the line is Explore, a line that writes is
+  Build, anything else is running something to see what happens, Verify. Verify is any check before merge, by running or
+  by reading: with no human reviewer a Review stage would price the agent's own tokens as a review, so there is none
+  (the owner's call); a change to a pull request after it was opened is a loop out of Merge.
+- **The words (the owner, 2026-11-09, after "rework" read as unclear on the page and a "redo" rename was tried and
+  dropped):** a **loop** is the event, work that came back to an earlier stage after something failed; **rework** is what
+  it cost, the calls inside the loop, spent after the failure. Not "the same work twice": a fix loop's Build calls are
+  the fix itself. Both doors define a loop in one line and tie rework to it.
+- **Loops are data, found by code, never by a model** (`LOOP_KINDS`, `detectLoops`). Each kind is a detector over the
+  session's events and the view carries every kind that fired, so a new detector shows on the page with no change
+  there; each says the rule that finds it. A loop's cost is the cost of the calls it spans; a stage's rework is the cost
+  of its calls inside any loop, counted once. The first detectors: a fix loop (a test or build program fails and later
+  passes; keyed by program, since the same command rarely repeats verbatim), a correction (an interrupt marker, or the
+  profile ledger's `corrected`/`redirected` on the exchange before; the loop is the exchange that redid the work), sent
+  back (a commit or push after `gh pr create`, the window closing at the next branch or pull request, since a session
+  here goes on to the next piece of work), a review catch (a review skill or reviewer subagent, then edits before the
+  next prompt), and a re-read (a file read again twenty or more calls later). A failed query or a mistyped command is
+  not a loop yet. `RULES_VERSION` is in the per-session cache key: a changed rule must read every session again, which
+  the first run after a change did not and served the old loops for a round.
+- **One computation, kept with the Report**: `reportView` carries `factory` (over the Report's window and sessions),
+  `mergeReports` merges it (sums add, shares and verdicts are taken again, loop kinds join by key, pull request rows keep
+  their repository), `report-snapshot.js` hashes `factory.js` into its code key, the page's Factory tab reads it off
+  `/api/report`, and `thinker factory` prints the kept one (`--refresh` first makes it again). A stage is judged on its
+  share of rework (`REWORK_THRESHOLDS`, good at or under 10%, bad at or over 35%; a first cut on this machine).
+- **What this machine's last 30 days looked like on the first run** (2026-11-08, after the detectors were tightened):
+  286 sessions, 35k calls, $7.3k at list; Explore 26%, Build 24%, Prompts 17% (the first call of a turn re-reads the
+  whole prefix), Verify 13%, Think 11%, Merge 9%. Rework 45%: fix loops $1.4k in 112 sessions, corrections $0.9k in 92,
+  sent back $0.9k in 95 (follow-up commits on an open pull request are this repository's habit), re-reads negligible.
+  First-pass yield 23% of 152 measured merged pull requests; a first-pass PR cost $8, a looped one $56. The first cut of
+  the sent-back detector fired in 159 of 162 sessions because a memory-file write after the pull request counted as an
+  edit and the window never closed; the stage shares were the same under both, the loop figures were not. Judge a
+  detector change by inspecting the loops it finds in a real session before trusting its total.
+- **A stage or a loop opens on its trend (2026-11-09, the owner's ask): a small table under the card, the last four
+  weeks in two rows (cost and rework share for a stage, loops and cost for a loop)**; it was a wide modal with a bar chart
+  per metric for an hour, and the owner asked for the numbers in place instead. The view keeps every Report week (`factory.js:weeklyTally`, `mergeWeekly`; `weekly` on the view; `page.html:fxTrend`).
+  The columns are the Report's own (`report.js:weekColumns`, Monday to Sunday, the current week last) and a session is
+  placed in the week of its last request as the Report places it, so the trend and View Report agree on what a week
+  holds. A stage shows cost, share of the week's tokens, rework share and calls; a loop shows loops, cost, share and the
+  sessions it fired in. Sums add across sessions and repositories; a share is taken again over its week. The command
+  prints the same cells as a weekly table. Nothing is recomputed on the page: the cells ride the kept report.
+- **"See diff by": the Factory split by a feature's two sides (2026-11-09, the owner's ask; `factory.js:ARMS`,
+  `armTally`, `armsOf`, `armRows`; the page's select and `thinker factory --diff profile|compression`).** The sessions a
+  feature reached against the ones held out from it, on the same mix of work: sessions, cost per session and per exchange,
+  rework share, first-pass yield, rework by stage, loops per session, each a ratio of sums per side with the difference
+  coloured where a direction is better, and **how far to trust a difference is computed, not asserted** (`trust`, the
+  owner's ask the same day: a "thin" pill said too little): a noise band of twice the relative standard error of the ratio
+  of the two means, each side's spread read from its session costs (`cost2`), rows inside the band greyed as flat, and a
+  level in words at the top (good under 20%, fair under 50%, else low; under ten sessions a side, too few to read). The
+  profile's arm is the one recorded on the session's state file at its start
+  (`profile.js:profileArmOf`); a session from before the profile shipped has none and is left out of that split, never
+  given one by recomputing the hash, since it never saw the block. The clearing's side is `proxy.js:heldOut` over the
+  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT` unless the machine config says), so every
+  session has one; a subagent conversation takes its parent's. A pull request counts on a side only when every session
+  on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
+  5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
+  and the split is where the profile's effect on rework will first show as the arms fill.
+- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared**
+  (2026-11-09; `armsOf` takes `peak`, `treated` on the arm cell, the "Of them actually cleared" row). The first table
+  read as if the clearing raised cost and rework across the board: $26 against $15 a session, 23% against 14% rework.
+  It did not. Only 19 of the 249 sessions on the clearing's side had ever had a clear, because the clearing fires past
+  140k of context; the 160 sessions on that side that were never cleared carried the same 23% rework, which the clearing
+  cannot have caused; the held-out 42 were a lighter sample by chance (medians $10 against $8; per exchange $1.68
+  against $1.68 among sessions past the trigger). Where a clear actually happened, its known cost showed and nothing
+  else did: cache writes 5% of cache traffic against 2%. So an arm is an assignment and not a treatment, a side holds
+  only sessions the feature could have touched, the table leads with cost per exchange (a session's length is out of
+  it) and carries the cache-write share, and a difference on under ten sessions a side is marked thin. The same
+  reading applies to the profile's split once its arms fill: a session shown the block is not a session that acted on it.
+  The canvas carries a **totals box on its bottom right** (the owner's ask, 2026-11-09: on the chart, not in the flow;
+  a Merged dock at the end of the line was tried first): the cost per merged pull request and the rework share, and in
+  diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
+  session in diff mode, and the comparison table has a cost-per-merged-pull-request row. A pull request counts on a side
+  only when every session on it was on that side.
+- **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
+  turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
+  reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first
+  program, so `echo start && npm test` was Explore and a fix loop keyed on `node` counted an analysis script's failure
+  as a test fix, with spans to 338 calls. Now a line is staged by its strongest segment (merge, then a test or build
+  program, then a write, then read-only), a fix loop is keyed on the fine program (`node --test`, not `node`) and must
+  close within the same or the next exchange. On the same 43 days that moved Explore 27%→16%, Verify 13%→21%, fix loops
+  from 144 long ones ($958) to 463 short ones ($643), rework 38%→34%, yield 25%→18%. The loop totals are directional,
+  each with a named failure mode (`redirected` in the ledger is a third moving on; sent back cannot tell a fix from new
+  scope; a review catch has never fired here); a model's judgement on an exchange, if ever wanted, should ride the
+  profile extraction's one call per session and be shown beside the code's verdict, never in place of it.
+
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript
   (`<projects dir>/<slug>/<session>/subagents/agent-<id>.jsonl`, with a `.meta.json` naming its type), with its own prefix,
@@ -1182,7 +1277,11 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 
 **Performance and kept report**
 - Page never recomputes on visit.
-- Kept report: `.thinker/state/report.json`, all windows under `views`. One per repo, shared by worktrees.
+- Kept report: `.thinker/state/report.json`, all windows under `views`. One per repo, shared by worktrees. **One slot per
+  code** (`byCode`, 2026-11-09): three page servers on one machine, each from its own checkout, each took the others'
+  write for a stale report, read every session again and wrote its own, without end (the owner: "we keep looping to
+  process the sessions"). A reader takes its own code's slot first; `views` stays the newest write for older readers;
+  four codes at most, a week at most. A fresh checkout still reads every session once.
 - `thinker report` and `--refresh` write it. Page starts `thinker report --refresh --all` in background when older than `REFRESH_MS` (10 min) or made by other code; shows "measured n min ago, updating…".
 - Decisions under tables read live (`report.js:reportActions`).
 - Save page: outgrown kept report shown at once, remade behind (`context-snapshot.js:lastSnapshot`). Transcripts read on visit only if no kept report or action dropped it.

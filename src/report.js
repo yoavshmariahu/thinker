@@ -13,6 +13,7 @@
 // Under the tables: the savings series, the decisions and the pull requests, with
 // its saving priced at the models it was made on. A session whose agent reports no usage (Cursor) is counted in no
 // column. Measurement only; nothing is served or written.
+import { factoryView, mergeFactory } from './factory.js';
 import { findRepoSessions, instructionValue } from './instruction-value.js';
 import { harnessUsage } from './harness.js';
 import { sessionUsage, toolOutputs } from './tool-outputs.js';
@@ -223,6 +224,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
   const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
+  // the Factory (factory.js): the same sessions read as a pipeline, over the same window, kept with the report
+  const factory = (() => { try { return factoryView(store, { weeks, now, sessions, onSession }); } catch { return null; } })();
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
@@ -235,6 +238,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     actions, outputRows: outRows, savings,
     prs, prWeekly: weeklyPrStats(prs, columns, now),
     profile,
+    factory,
   };
 }
 
@@ -474,6 +478,7 @@ export function mergeReports(list) {
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
     profile: mergeProfileMetrics(views.map(v => v.profile)),
+    factory: mergeFactory(list),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }

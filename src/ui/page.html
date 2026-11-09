@@ -114,6 +114,128 @@
     /* a table wider than the box scrolls inside it, never past its border -- but a scroll container anchors a sticky
        header to itself instead of to the page, so the figure only becomes one at the widths where the table cannot fit.
        Above that the headers stay under the view tabs while the table scrolls (ctx-table thead th below). */
+    /* Factory (factory.js, as `thinker factory`): the summary strip, the pipeline canvas with the loops drawn above and
+       below the stage cards, the loops table beside the details of what is selected, the pull requests by first pass */
+    .fx-dot { color: #15803d; }
+    .fx-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: #fafafa; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    @media (max-width: 900px) { .fx-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .fx-cell { padding: 1rem 1.3rem 1.05rem; border-right: 1px solid #e5e7eb; min-width: 0; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .2rem 1rem; }
+    .fx-cell:last-child { border-right: 0; }
+    .fx-cell .lab { font-size: .8rem; color: #6b7280; grid-column: 1; }
+    .fx-cell .big { font-size: 1.85rem; font-weight: 700; letter-spacing: -.035em; line-height: 1.05; font-variant-numeric: tabular-nums; grid-column: 1; }
+    .fx-cell .big.bad { color: #b91c1c; } .fx-cell .big.good { color: #15803d; }
+    .fx-cell .sub { font-size: .76rem; color: #6b7280; grid-column: 1; }
+    .fx-cell .viz { grid-column: 2; grid-row: 1 / span 3; display: flex; align-items: center; gap: 5px; }
+    .fx-cell .viz i { width: 9px; height: 9px; border-radius: 50%; display: block; }
+    .fx-bar { grid-column: 2; grid-row: 1 / span 3; width: 70px; height: 6px; background: #e5e7eb; border-radius: 3px; position: relative; overflow: hidden; }
+    .fx-bar i { position: absolute; inset: 0 auto 0 0; background: #15803d; border-radius: 3px; }
+    .fx-bar.bad i { background: #b91c1c; } .fx-bar.mid i { background: #a16207; }
+    .fx-panel { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; overflow: hidden; margin-top: 1.6rem; }
+    .fx-head { display: flex; align-items: center; gap: .7rem; padding: .75rem 1rem; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; }
+    .fx-title { font-weight: 600; font-size: .95rem; }
+    .fx-chip { font-size: .72rem; color: #444; background: #f3f4f6; border-radius: 6px; padding: .15rem .5rem; }
+    .fx-head .spacer, .fx-foot .spacer { flex: 1; }
+    .fx-foot { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem; border-top: 1px solid #f0f0f0; font-size: .78rem; color: #6b7280; flex-wrap: wrap; }
+    .fx-scroll { overflow-x: auto; background-color: #fff; background-image: radial-gradient(#d9dbe0 1px, transparent 1px); background-size: 18px 18px; }
+    .fx-canvas { position: relative; }
+    .fx-canvas > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+    .fx-tag { position: absolute; left: 22px; top: 18px; font-size: .68rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; display: flex; gap: .5rem; align-items: center; }
+    .fx-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #15803d; }
+    .fx-fwd { stroke: #b4b8c0; stroke-width: 1.5; fill: none; } .fx-fwd-dot, .fx-fwd-head { fill: #b4b8c0; }
+    .fx-loop-path { fill: none; stroke-width: 2; transition: opacity .15s; }
+    .fx-canvas.has-sel .fx-loop-g:not(.on) { opacity: .28; }
+    .fx-canvas.anim .fx-loop-path { stroke-dasharray: 6 6; animation: fxdash 1.2s linear infinite; }
+    .fx-canvas.anim .fx-fwd { stroke-dasharray: 4 6; animation: fxdash 1.2s linear infinite; }
+    @keyframes fxdash { to { stroke-dashoffset: -12; } }
+    @media (prefers-reduced-motion: reduce) { .fx-canvas.anim .fx-loop-path, .fx-canvas.anim .fx-fwd { animation: none; } }
+    .fx-stage { position: absolute; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: .8rem .85rem .7rem; cursor: pointer; text-align: left; transition: border-color .15s; box-shadow: 0 1px 2px rgba(0,0,0,.04); font: inherit; color: inherit; }
+    .fx-stage:hover { border-color: #444; }
+    .fx-stage .row1 { display: flex; justify-content: space-between; align-items: center; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .66rem; color: #6b7280; letter-spacing: .04em; }
+    .fx-stage .lamp { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .fx-stage .name { font-size: 1rem; font-weight: 600; margin-top: .5rem; letter-spacing: -.01em; display: flex; align-items: center; gap: .45rem; }
+    .fx-stage .name svg, .fx-dicon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; color: #6b7280; }
+    .fx-stage .calls { font-size: .74rem; color: #6b7280; margin-top: .15rem; font-variant-numeric: tabular-nums; }
+    .fx-stage .rows { margin-top: .6rem; padding-top: .55rem; border-top: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: .3rem; }
+    .fx-stage .rows div { display: flex; justify-content: space-between; font-size: .72rem; color: #6b7280; }
+    .fx-stage .rows b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 500; color: #111; font-size: .72rem; }
+    .fx-good { color: #15803d !important; } .fx-mid { color: #a16207 !important; } .fx-bad { color: #b91c1c !important; }
+    .fx-stage.on { background: #111; color: #fff; border-color: #111; }
+    .fx-stage.on .row1, .fx-stage.on .calls, .fx-stage.on .rows div, .fx-stage.on .name svg { color: #c9cbd1; }
+    .fx-stage.on .rows { border-top-color: rgba(255,255,255,.2); } .fx-stage.on .rows b { color: #fff; }
+    .fx-stage .port { position: absolute; left: 50%; width: 7px; height: 7px; border-radius: 50%; background: #fff; border: 1.5px solid #b4b8c0; transform: translateX(-50%); }
+    .fx-stage .port.t { top: -4px; } .fx-stage .port.b { bottom: -4px; }
+    .fx-pill { position: absolute; transform: translate(-50%, -50%); background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .75rem .45rem .7rem; font-size: .76rem; display: grid; grid-template-columns: auto 1fr auto; gap: .1rem .7rem; align-items: center; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.04); white-space: nowrap; transition: border-color .15s, opacity .15s; font: inherit; color: inherit; }
+    .fx-pill:hover, .fx-pill.on { border-color: var(--lc); }
+    .fx-pill svg { width: 14px; height: 14px; stroke: var(--lc); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; grid-row: 1 / span 2; margin-right: .5rem; display: block; }
+    .fx-pill .ln { font-weight: 600; color: var(--lc); font-size: .76rem; }
+    .fx-pill .lp { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .74rem; color: var(--lc); font-weight: 600; }
+    .fx-pill .ls { grid-column: 2 / span 2; color: #6b7280; font-size: .7rem; }
+    .fx-canvas.has-sel .fx-pill:not(.on) { opacity: .45; }
+    .fx-legend { display: flex; gap: 1.2rem; align-items: center; font-size: .74rem; color: #6b7280; }
+    .fx-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+    .fx-legend i.f { width: 18px; height: 0; border-top: 1.5px solid #b4b8c0; }
+    .fx-legend i.l { width: 14px; height: 9px; border: 1.5px solid #c2410c; border-bottom: 0; border-radius: 6px 6px 0 0; }
+    .fx-ghost { border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; padding: .3rem .6rem; font-size: .74rem; color: #444; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; font: inherit; }
+    .fx-ghost.on { background: #f3f4f6; color: #111; border-color: #444; }
+    .fx-two { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.2rem; align-items: start; margin-top: 1.6rem; }
+    @media (max-width: 1000px) { .fx-two { grid-template-columns: 1fr; } }
+    .fx-box { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; overflow: hidden; }
+    .fx-boxhead { padding: .95rem 1.1rem .8rem; display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+    .fx-boxhead h2 { font-size: 1rem; font-weight: 600; letter-spacing: -.01em; display: flex; align-items: center; gap: .5rem; margin: 0; }
+    .fx-boxhead p { font-size: .8rem; color: #6b7280; margin: .2rem 0 0; }
+    .fx-count { font-size: .7rem; background: #f3f4f6; border-radius: 6px; padding: .1rem .4rem; color: #444; font-weight: 500; }
+    .fx-tbl { overflow-x: auto; }
+    .fx-tbl th { background: #fafafa; border-top: 1px solid #f0f0f0; padding: .55rem 1.1rem; font-size: .7rem; letter-spacing: .07em; }
+    .fx-tbl td { padding: .7rem 1.1rem; vertical-align: middle; }
+    .fx-tbl tr.lrow { cursor: pointer; } .fx-tbl tr.lrow:hover td, .fx-tbl tr.lrow.on td { background: #fafafa; }
+    .fx-lname { display: flex; align-items: center; gap: .85rem; font-weight: 500; }
+    .fx-licon { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--lbg); flex-shrink: 0; }
+    .fx-licon svg { width: 13px; height: 13px; stroke: var(--lc); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .fx-route { color: #6b7280; font-size: .82rem; white-space: nowrap; }
+    .fx-metric { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .76rem; font-weight: 600; border-radius: 6px; padding: .15rem .45rem; background: var(--lbg); color: var(--lc); }
+    .fx-note { padding: .6rem 1.1rem; font-size: .74rem; color: #6b7280; background: #fafafa; display: flex; gap: .5rem; align-items: center; }
+    .fx-note::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #15803d; flex-shrink: 0; }
+    .fx-details { padding: 1rem 1.1rem 1.1rem; }
+    .fx-dhead { display: flex; align-items: center; gap: 1rem; }
+    .fx-dicon { width: 42px; height: 42px; border-radius: 10px; background: #fafafa; border: 1px solid #e5e7eb; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .fx-dicon svg { width: 18px; height: 18px; color: #111; }
+    .fx-dname { font-size: 1.15rem; font-weight: 600; letter-spacing: -.02em; } .fx-dsub { font-size: .74rem; color: #6b7280; margin-top: .1rem; }
+    .fx-dkind { margin-left: auto; font-size: .7rem; border: 1px solid #e5e7eb; border-radius: 6px; padding: .15rem .45rem; color: #6b7280; }
+    .fx-ddesc { font-size: .86rem; line-height: 1.5; color: #444; margin: .9rem 0 0; }
+    .fx-drows { margin-top: .9rem; padding-top: .7rem; border-top: 1px solid #f0f0f0; display: flex; flex-direction: column; gap: .5rem; }
+    .fx-drows div { display: flex; justify-content: space-between; gap: .6rem; font-size: .82rem; color: #6b7280; }
+    .fx-drows b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 500; color: #111; font-size: .8rem; white-space: nowrap; }
+    .fx-dfoot { margin-top: .9rem; padding-top: .7rem; border-top: 1px solid #f0f0f0; display: flex; justify-content: space-between; gap: .6rem; font-size: .74rem; color: #6b7280; }
+    .fx-dloops { margin-top: .8rem; display: flex; flex-wrap: wrap; gap: .35rem; }
+    .fx-dloops button { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; font-size: .72rem; padding: .15rem .55rem; cursor: pointer; display: inline-flex; gap: .35rem; align-items: center; font: inherit; }
+    .fx-dloops button i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+    .fx-first { color: #15803d; font-weight: 600; font-size: .78rem; }
+    .fx-looped { color: #6b7280; font-size: .8rem; }
+    /* the trend: a small table under the card or pill that was clicked, the last four weeks (the owner, 2026-11-09: not a modal) */
+    .fx-pop { position: absolute; z-index: 6; background: #fff; border: 1px solid #111; border-radius: 8px; padding: .35rem .5rem; box-shadow: 0 6px 18px rgba(0,0,0,.12); font-size: .74rem; white-space: nowrap; }
+    .fx-pop table { width: auto; border-collapse: collapse; font-size: .74rem; }
+    .fx-pop th { font-size: .64rem; letter-spacing: .05em; padding: .2rem .45rem; border-bottom: 1px solid #e5e7eb; color: #6b7280; }
+    .fx-pop th:first-child { color: #111; text-transform: none; letter-spacing: 0; font-size: .74rem; }
+    .fx-pop td { padding: .25rem .45rem; border-bottom: 0; color: #6b7280; }
+    .fx-pop td.num { color: #111; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .72rem; }
+    .fx-pop th.cur, .fx-pop td.num.cur { background: #fef9c3; }
+    .fx-pop th.cur { border-radius: 4px 4px 0 0; } .fx-pop tr:last-child td.cur { border-radius: 0 0 4px 4px; }
+    .fx-diff { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 1.6rem; }
+    .fx-diff .fx-tbl td.on, .fx-diff .fx-tbl th.on { border-left: 1px solid #f0f0f0; }
+    .fx-diff td.d { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .fx-diff td.d.good { color: #15803d; } .fx-diff td.d.bad { color: #b91c1c; } .fx-diff td.d.flat { color: #6b7280; font-weight: 500; }
+    .fx-diff .grp td { background: #fafafa; font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; font-weight: 600; padding: .4rem 1.1rem; }
+    .fx-trust { margin: 0 1.1rem .9rem; padding: .6rem .8rem; border-radius: 8px; font-size: .82rem; line-height: 1.5; border: 1px solid #e5e7eb; background: #fafafa; color: #444; }
+    .fx-trust.none { background: #fee2e2; border-color: #fecaca; color: #991b1b; } .fx-trust.low { background: #fef9c3; border-color: #fde68a; color: #854d0e; } .fx-trust.good { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
+    .fx-d { font-size: .72rem; font-weight: 600; margin-left: .3rem; } .fx-d.good { color: #15803d; } .fx-d.bad { color: #b91c1c; } .fx-d.flat { color: #9ca3af; font-weight: 500; }
+    .fx-totals { position: absolute; right: 16px; bottom: 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .7rem; font-size: .74rem; color: #6b7280; box-shadow: 0 1px 2px rgba(0,0,0,.04); white-space: nowrap; }
+    .fx-totals .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .7rem; padding: .1rem 0; }
+    .fx-totals .two.head { color: #9ca3af; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; }
+    .fx-totals b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 600; color: #111; font-variant-numeric: tabular-nums; text-align: right; }
+    .fx-totals b.off { color: #6b7280; font-weight: 500; }
+    .fx-stage .rows .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; white-space: nowrap; }
+    .fx-stage .rows .two b.off { color: #6b7280; }
+    .fx-stage.on .rows .two b.off { color: #c9cbd1; }
     .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
     .savings-table thead th { position: static; }
@@ -341,6 +463,7 @@
     <div class="nav-right">
       <button class="nav-link" data-tab="save">Find Savings</button>
       <button class="nav-link" data-tab="report">View Report</button>
+      <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
@@ -372,6 +495,27 @@
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
       <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
+    </section>
+
+    <!-- Factory: the sessions read as a pipeline (Prompts, Think, Explore, Build, Verify, Merge) with what each stage cost, the
+         loops detected in them, and the first-pass yield of the merged pull requests (factory.js, as `thinker factory`); it
+         reads the Report kept for the page, so the two tabs never disagree -->
+    <section id="tab-factory" hidden>
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+        <symbol id="fxi-loop" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></symbol>
+        <symbol id="fxi-prompts" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></symbol>
+        <symbol id="fxi-think" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.6 1 1.3 1 2.5h6c0-1.2.3-1.9 1-2.5A6 6 0 0 0 12 3z"/></symbol>
+        <symbol id="fxi-explore" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+        <symbol id="fxi-build" viewBox="0 0 24 24"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></symbol>
+        <symbol id="fxi-verify" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+        <symbol id="fxi-merge" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M6 7.5v9M6 16c4 0 9-1 9.5-4"/></symbol>
+      </defs></svg>
+      <div class="ctx-top"><div><div class="kicker">The big picture, down to the loop</div><h1>Software factory<span class="fx-dot">.</span></h1>
+      <p class="lede">How your agents move from first prompt to merged pull request, what each stage costs, and where work comes back round. <span class="muted" id="f-asof"></span></p></div>
+      <div class="controls">
+        <select class="sel" id="f-repo" aria-label="Repository"></select>
+      </div></div>
+      <div id="factory-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the factory…</div></div>
     </section>
 
     <!-- Recent activity: every decision taken on Find Savings (or `thinker context --approve`), newest first, with what came of it and
@@ -467,9 +611,9 @@ const H = () => new URLSearchParams(location.hash.slice(1));
 const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
 // and which tab, normalized as show() does (an old name, an unknown one and no tab at all are Save), so `repo=`
 // reaches the tab that opens
-const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'activity'].includes(t) ? t : 'save'; };
+const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity'].includes(t) ? t : 'save'; };
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
-let REPOS = [], REPO = hashTab() === 'report' ? hashRepo() : 'all';
+let REPOS = [], REPO = ['report', 'factory'].includes(hashTab()) ? hashRepo() : 'all';
 // Which door sent the person (context-suggest.js:suggestionsUrl): `setup` the installer, which also gets a hint in
 // the corner saying how to come back to the page, then fades; `suggestion` the link in the weekly question thinker
 // had their agent ask. Either way All comes with that door's savings checked (preselectRows), once, so the decision
@@ -519,13 +663,13 @@ function show(tab) {
   if (tab === 'changes') { tab = 'save'; CVIEW = 'all'; }
   if (tab === 'cache') tab = 'report';
   if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
-  if (!['report', 'activity'].includes(tab)) tab = 'save';
+  if (!['report', 'factory', 'activity'].includes(tab)) tab = 'save';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  for (const k of ['save', 'report', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
+  for (const k of ['save', 'report', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else loadActivity();
+  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 function card(kicker, num, label, rows, gain) {
@@ -592,7 +736,7 @@ async function progressiveView(url, receive, current, selected = () => false) {
   }
 }
 
-$('#scan-retry').onclick = () => { if (TAB === 'save') loadContext(); else if (TAB === 'report') loadReport(); else loadActivity(); };
+$('#scan-retry').onclick = () => { if (TAB === 'save') loadContext(); else if (TAB === 'report') loadReport(); else if (TAB === 'factory') loadFactory(); else loadActivity(); };
 let CTX_FOR = null, CLOAD = 0;
 async function loadContext() {
   clearTimeout(CPOLL);
@@ -1324,6 +1468,281 @@ document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVI
 document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
 // a Report cell's colour is report.js:COST_THRESHOLDS, read from the view (`costThresholds`): the command marks the same cells ✓ · ✗
+// ---- Factory (factory.js, as `thinker factory`): read from the same kept report as the Report tab, so a figure on one
+// tab can never contradict the other. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
+// sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread
+// onto separate ports. A loop kind keeps one colour whatever its rank, so a filter never repaints the survivors.
+let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_ANIM = false, FX_DIFF = '';
+try { FX_DIFF = localStorage.getItem('fx-diff') || ''; } catch {}
+const FX_COLORS = { fix: ['#c2410c', '#ffedd5'], correction: ['#2563eb', '#dbeafe'], sentback: ['#6d28d9', '#ede9fe'], reread: ['#0d9488', '#ccfbf1'], reviewcatch: ['#be185d', '#fce7f3'] };
+const FX_MORE = [['#0369a1', '#e0f2fe'], ['#4d7c0f', '#ecfccb'], ['#9a3412', '#fed7aa'], ['#7e22ce', '#f3e8ff']];
+const fxColor = (key, i) => FX_COLORS[key] || FX_MORE[i % FX_MORE.length];
+const fxVerdict = { good: 'good', mid: 'watch', bad: 'bad' };
+$('#f-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadFactory(); };
+async function loadFactory() {
+  scanProgress({ refreshing: true });
+  const el = $('#factory-body'), seq = ++FLOAD, inPlace = Boolean(FX) && FX_FOR === REPO;
+  if (!inPlace) el.innerHTML = `<div class="empty">${LOGO_SPIN}Reading the factory…</div>`;
+  try {
+    if (!REPOS.length) await fetchRepos();
+    if (seq !== FLOAD || TAB !== 'factory') return;
+    if (REPO !== 'all' && !REPOS.some(r => r.id === REPO)) REPO = REPOS.find(r => r.current)?.id || 'all';
+    $('#f-repo').innerHTML = `<option value="all"${REPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === REPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    const want = REPO;
+    await progressiveView(`/api/report?repo=${encodeURIComponent(REPO)}&weeks=6`, v => {
+      if (v.empty) { el.innerHTML = '<div class="empty">No repository with a cache on this machine yet.</div>'; return; }
+      FX_FOR = want; renderFactory(v);
+    }, () => seq === FLOAD && want === REPO && TAB === 'factory');
+  } catch (e) { if (seq !== FLOAD || TAB !== 'factory') return; scanProgress({ progress: { error: e.message } }); if (inPlace) toast(`Could not read the factory: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the factory: ${esc(e.message)}</div>`; }
+}
+const fxUse = id => `<svg aria-hidden="true"><use href="#${id}"/></svg>`;
+const fxPct = x => x == null ? '–' : `${Math.round(100 * x)}%`;
+function renderFactory(rv) {
+  FX = rv;
+  const v = rv.factory, el = $('#factory-body');
+  $('#f-asof').textContent = rv.asOf ? `measured ${Math.max(0, Math.round((Date.now() - rv.asOf) / 60000))} min ago${rv.refreshing ? ', updating…' : ''}` : '';
+  if (!v) { el.innerHTML = `<div class="empty">${rv.refreshing ? 'Reading the sessions…' : 'No factory view in the kept report yet: run thinker report --refresh.'}</div>`; return; }
+  const dollars = v.cost > 0, amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
+  const stages = v.stages || [], loops = (v.loops || []).map((L, i) => ({ ...L, lc: fxColor(L.key, i)[0], lbg: fxColor(L.key, i)[1] }));
+  const idx = id => stages.findIndex(s => s.key === id);
+  const prs = v.prs, yv = prs?.yield == null ? null : prs.yield >= 0.6 ? 'good' : prs.yield >= 0.35 ? 'mid' : 'bad';
+  const worst = stages.filter(s => s.reworkShare != null).sort((a, b) => b.reworkShare - a.reworkShare)[0];
+  if (!FX_SEL || (FX_SEL.kind === 'stage' && !stages.some(s => s.key === FX_SEL.id)) || (FX_SEL.kind === 'loop' && !loops.some(L => L.key === FX_SEL.id))) FX_SEL = { kind: 'stage', id: (worst || stages[0])?.key };
+  const html = `
+    <section class="fx-strip" aria-label="Summary">
+      <div class="fx-cell"><div class="lab">Sessions</div><div class="big">${fmt(v.sessions || 0)}</div><div class="sub">${fmt(v.calls || 0)} model calls over ${v.days} days${v.conversations > v.sessions ? `, ${fmt(v.conversations - v.sessions)} subagent conversations` : ''}</div></div>
+      <div class="fx-cell"><div class="lab">${dollars ? 'Cost at list prices' : 'Tokens'}</div><div class="big">${dollars ? money(v.cost) : fmt(v.tokens)}</div><div class="sub">${prs ? `${prs.merged} merged pull request${prs.merged === 1 ? '' : 's'}${prs.meanCost != null ? ` · ${money(prs.meanCost)} each` : ''}` : 'no pull requests read'}${v.unpriced?.length ? ` · unpriced: ${esc(v.unpriced.join(', '))}` : ''}</div></div>
+      <div class="fx-cell"><div class="lab">First-pass yield</div><div class="big ${yv || ''}">${prs?.yield == null ? '–' : `${Math.round(100 * prs.yield)}<span style="font-size:1.1rem">%</span>`}</div><div class="sub">${prs ? `${prs.firstPass} of ${prs.measured} merged with no loop${prs.meanCostFirstPass != null && prs.meanCostLooped != null ? ` · ${money(prs.meanCostFirstPass)} first pass, ${money(prs.meanCostLooped)} looped` : ''}` : '–'}</div>${prs?.yield != null ? `<div class="fx-bar ${yv}" aria-hidden="true"><i style="width:${Math.round(100 * prs.yield)}%"></i></div>` : ''}</div>
+      <div class="fx-cell"><div class="lab">Detected loops</div><div class="big">${String(loops.length).padStart(2, '0')}</div><div class="sub">${amt(v.rework, v.reworkTokens)} of rework · ${fxPct(v.reworkShare)} of all tokens spent after a failure</div><div class="viz" aria-hidden="true">${loops.map(L => `<i style="background:${L.lc}"></i>`).join('')}</div></div>
+    </section>
+    <section class="fx-panel" aria-label="Pipeline canvas">
+      <div class="fx-head"><span class="fx-title">Pipeline canvas</span><span class="fx-chip">${stages.length} stages</span><span class="fx-chip">${loops.length} loop kind${loops.length === 1 ? '' : 's'} detected</span><span class="spacer"></span>
+        <div class="seg small" id="fx-metric" role="tablist"><button data-m="stage" class="${FX_METRIC === 'stage' ? 'on' : ''}" role="tab">Stage metrics</button><button data-m="loop" class="${FX_METRIC === 'loop' ? 'on' : ''}" role="tab">Loop metrics</button></div>
+        <select class="sel" id="fx-diff-sel" aria-label="See diff by" style="font-size:.76rem;padding:.25rem .5rem"><option value=""${FX_DIFF ? '' : ' selected'}>See diff by…</option><option value="profile"${FX_DIFF === 'profile' ? ' selected' : ''}>Memory profile</option><option value="compression"${FX_DIFF === 'compression' ? ' selected' : ''}>Compression</option></select>
+        <button class="fx-ghost${FX_ANIM ? ' on' : ''}" id="fx-anim" type="button" aria-pressed="${FX_ANIM}">Flow animation</button></div>
+      <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg><div class="fx-totals" id="fx-dock"></div></div></div>
+      <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Click a stage or a loop for its last four weeks</span></div>
+    </section>
+    <div id="fx-diff"></div>
+    <section class="fx-two" aria-label="Loops and details">
+      <div class="fx-box">
+        <div class="fx-boxhead"><div><h2>Detected loops <span class="fx-count">${loops.length}</span></h2><p>Where work came back to an earlier stage after something failed, read from the sessions by code. A new kind appears here as soon as it is detected.</p></div><span class="muted" style="font-size:.76rem">A loop's cost is the calls it spans: the work spent after the failure</span></div>
+        <div id="fx-looptable"></div>
+        <div class="fx-note">Each loop is a pattern read from the transcripts and the profile ledger, with the rule that found it on its details. No model judges them.</div>
+      </div>
+      <div class="fx-box fx-details" id="fx-details"></div>
+    </section>
+    ${prs?.rows?.length ? `<section class="fx-box" style="margin-top:1.6rem" aria-label="First-pass yield">
+      <div class="fx-boxhead"><div><h2>First-pass yield</h2><p>Which merged pull requests went straight through, and which looped where. Newest first.</p></div></div>
+      <div class="fx-tbl"><table><thead><tr><th>Pull request</th>${rv.all ? '<th>Repository</th>' : ''}<th>Loops</th><th class="num">Sessions</th><th class="num">${dollars ? 'Cost' : '–'}</th><th class="num">Hours to merge</th></tr></thead><tbody>
+        ${prs.rows.slice(0, 20).map(r => `<tr><td class="pr">${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">#${r.number}</a>` : `#${r.number}`} ${esc(r.title || '')}</td>${rv.all ? `<td class="muted">${esc(r.repoName || r.repo || '')}</td>` : ''}<td>${!r.measured ? '<span class="muted">no transcript measured</span>' : r.firstPass ? '<span class="fx-first">first pass</span>' : `<span class="fx-looped">${Object.entries(r.loops).map(([k, n]) => `${n} ${esc((loops.find(L => L.key === k)?.name || k).toLowerCase())}`).join(', ')}</span>`}</td><td class="num">${r.sessions}</td><td class="num">${r.measured && dollars ? money(r.cost) : '–'}</td><td class="num">${r.hours == null ? '–' : r.hours.toFixed(1)}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${prs.rows.length > 20 ? `<div class="fx-note">${prs.rows.length - 20} more in <code>thinker factory --json</code>.</div>` : ''}
+    </section>` : ''}
+    <p class="savings-note">A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think. Verify is any check of the work before it merges, by running it or by reading it. A loop is work that came back to an earlier stage after something failed; rework is what it cost, the calls spent inside a loop. A stage is good at or under ${Math.round(100 * (v.thresholds?.good ?? .1))}% rework, bad at or over ${Math.round(100 * (v.thresholds?.bad ?? .35))}%.</p>`;
+  el.innerHTML = html;
+  fxLoopTable(stages, loops, dollars);
+  fxCanvas(v, stages, loops, dollars);
+  $('#fx-metric').onclick = e => { const b = e.target.closest('button'); if (!b) return; FX_METRIC = b.dataset.m; segOn('#fx-metric', b); fxRows(stages, loops, dollars); };
+  $('#fx-diff-sel').onchange = e => { FX_DIFF = e.target.value; try { localStorage.setItem('fx-diff', FX_DIFF); } catch {} e.target.blur(); fxDiff(v, stages, loops, dollars); fxLoopTable(stages, loops, dollars); fxRows(stages, loops, dollars); };
+  fxDiff(v, stages, loops, dollars);
+  $('#fx-anim').onclick = () => { FX_ANIM = !FX_ANIM; $('#fx-canvas').classList.toggle('anim', FX_ANIM); $('#fx-anim').classList.toggle('on', FX_ANIM); $('#fx-anim').setAttribute('aria-pressed', FX_ANIM); };
+  fxSelect(FX_SEL.kind, FX_SEL.id, stages, loops, dollars);
+}
+// "See diff by": the Factory split by a feature's two sides, the sessions it reached against the ones held out from it,
+// on the same mix of work (factory.js:ARMS, armTally). Every figure is a ratio of sums per side. How far to trust a
+// difference is computed, not asserted (factory.js:trust): a noise band from the sides' sizes and the spread of their
+// session costs, rows inside it greyed, a level in words at the top. The profile's arm exists only for sessions since
+// the profile shipped; the clearing's side holds only sessions past its trigger, and says how many were actually cleared.
+const FX_ARMS = { profile: { name: 'Memory profile', on: 'shown', off: 'holdout', labels: ['shown the profile', 'held out'], short: ['shown', 'held'] }, compression: { name: 'Compression', on: 'on', off: 'holdout', labels: ['on the clearing', 'held out'], short: ['on', 'held'], eligible: 'past the clearing\'s trigger' } };
+const FX_TRUST = { none: ['Too few sessions to read', 'Under ten sessions on a side: no difference here means anything yet.'], low: ['Low trust: a direction at most', 'The sides are small or their sessions vary widely in cost.'], fair: ['Fair trust', 'A large difference means something; a small one may not.'], good: ['Good trust', 'Both sides are large enough that a difference outside the band is real.'] };
+function fxTrust(on, off) {
+  const n = Math.min(on.sessions, off.sessions), cv = c => { if (!c.sessions) return null; const mean = c.cost / c.sessions; if (!mean) return null; return Math.sqrt(Math.max(0, c.cost2 / c.sessions - mean * mean)) / mean; };
+  const a = cv(on), b = cv(off), se = a == null || b == null ? null : Math.sqrt(a * a / on.sessions + b * b / off.sessions), band = se == null ? null : 2 * se;
+  return { level: n < 10 || band == null ? 'none' : band < 0.2 ? 'good' : band < 0.5 ? 'fair' : 'low', band, smaller: n, bandFor: (nOn, nOff) => a == null || b == null || !nOn || !nOff ? null : 2 * Math.sqrt(a * a / nOn + b * b / nOff) };
+}
+function fxDiff(v, stages, loops, dollars) {
+  const el = $('#fx-diff'); if (!el) return;
+  const spec = FX_ARMS[FX_DIFF], a = FX_DIFF && v.arms?.[FX_DIFF];
+  if (!spec || !a) { el.innerHTML = ''; return; }
+  const on = a[spec.on], off = a[spec.off], r = (n, d) => d ? n / d : null, t = fxTrust(on, off);
+  const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? fxPct(x) : kind === 'rate' ? x.toFixed(2) : fmt(Math.round(x));
+  const rows = [
+    { label: spec.eligible ? `Sessions ${spec.eligible}` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    ...(FX_DIFF === 'compression' ? [{ label: 'Of them actually cleared', on: on.treated, off: off.treated, kind: 'count', hint: 'the clearing fires only once a session has run long past the trigger' }] : []),
+    { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'an exchange is one prompt and the answers to it; the length of a session is out of it' },
+    { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lower: true, hint: 'a clear writes the prefix again: the cost the clearing is judged by' },
+    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'a few long sessions carry this figure' },
+    { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lower: true },
+    { label: dollars ? 'Cost per merged pull request' : 'Tokens per merged pull request', on: r(on.prs.cost, on.prs.merged), off: r(off.prs.cost, off.prs.merged), kind: dollars ? 'money' : 'tokens', lower: true, n: [on.prs.merged, off.prs.merged], hint: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side; the band for these two rows is theirs` },
+    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lower: false, n: [on.prs.merged, off.prs.merged] },
+    { group: 'Rework by stage' },
+    ...stages.map(s => ({ label: s.name, on: r(dollars ? on.stages[s.key].rework : on.stages[s.key].reworkTokens, dollars ? on.stages[s.key].cost : on.stages[s.key].tokens), off: r(dollars ? off.stages[s.key].rework : off.stages[s.key].reworkTokens, dollars ? off.stages[s.key].cost : off.stages[s.key].tokens), kind: 'pct', lower: true })),
+    { group: 'Loops per session' },
+    ...loops.map(L => ({ label: L.name, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lower: true, color: L.lc })),
+  ];
+  const [tw, ts] = FX_TRUST[t.level];
+  el.innerHTML = `<section class="fx-box fx-diff" aria-label="${esc(spec.name)} by arm">
+    <div class="fx-boxhead"><div><h2>${esc(spec.name)}: ${esc(spec.labels[0])} against ${esc(spec.labels[1])}</h2><p>The same figures on the sessions the feature reached and on the ones held out from it${a.rate != null ? `, ${fxPct(a.rate)} of sessions` : ''}. Ratios of sums per side; the difference is the ${esc(spec.labels[0])} side against the held-out one, green where it is better, grey where it is within noise.</p></div></div>
+    <div class="fx-trust ${t.level}"><b>${esc(tw)}.</b> ${esc(ts)} The smaller side has ${t.smaller} sessions${t.band != null ? `; a difference under <b>±${Math.round(100 * t.band)}%</b> is what two random samples of these sessions would show by chance, and is greyed below` : ''}.</div>
+    <div class="fx-tbl"><table><thead><tr><th></th><th class="num on">${esc(spec.labels[0])}</th><th class="num">${esc(spec.labels[1])}</th><th class="num">difference</th></tr></thead><tbody>
+      ${rows.map(x => x.group ? `<tr class="grp"><td colspan="4">${esc(x.group)}</td></tr>` : (() => { const d = x.on != null && x.off != null && x.off ? (x.on - x.off) / x.off : null, band = x.n ? t.bandFor(x.n[0], x.n[1]) : t.band, cls = d == null || x.lower == null || band == null || (x.n && Math.min(...x.n) < 10) ? 'flat' : Math.abs(d) < band ? 'flat' : (d < 0) === x.lower ? 'good' : 'bad'; return `<tr><td>${x.color ? `<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${x.color};margin-right:.5rem"></i>` : ''}${esc(x.label)}${x.hint ? `<span class="muted" style="display:block;font-size:.74rem">${esc(x.hint)}</span>` : ''}</td><td class="num on">${f(x.on, x.kind)}</td><td class="num">${f(x.off, x.kind)}</td><td class="num d ${cls}" title="${cls === 'flat' && d != null ? (band != null ? `within this row's noise band of ±${Math.round(100 * band)}%` : 'too few to read') : ''}">${d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`}</td></tr>`; })()).join('')}
+    </tbody></table></div>
+    <div class="fx-note">${FX_DIFF === 'profile' ? 'A session\'s arm is drawn at its start and recorded on its state file; sessions from before the profile shipped carry none and are left out.' : 'Only sessions that reached the clearing\'s trigger are on either side; below it neither side is touched. A session is on one side for all its requests, by a hash of its id against the service\'s share, and the held-out side is the smaller one by design. Being on the clearing\'s side is not the same as having been cleared: that needs a long session past the trigger, and the row above says how many were.'} This is the same mix of work on two sides, not a controlled trial: a feature that gets things right faster can also change what the person asks next.</div>
+  </section>`;
+}
+// the trend: a small table under the card or pill that was clicked, the last four weeks, two rows; the same card again,
+// Escape or a click elsewhere closes it. It reads the view's `weekly` (factory.js:weeklyTally), as the command's table does.
+let FX_POP = null;
+const fxWk = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+function fxPopClose() { FX_POP?.pop.remove(); FX_POP = null; }
+function fxPop(kind, id, anchor, stages, loops, dollars) {
+  const key = `${kind}:${id}`; if (FX_POP?.key === key) { fxPopClose(); return; }
+  fxPopClose();
+  const v = FX?.factory, wk = v?.weekly, canvas = $('#fx-canvas'); if (!wk?.columns?.length || !canvas || !anchor) return;
+  const cols = wk.columns.slice(-4), skip = wk.columns.length - cols.length, n = cols.length;
+  const amt = x => dollars ? money(x) : `${fmt(Math.round(x))} tok`;
+  let title, rows;
+  if (kind === 'stage') {
+    const cells = (wk.stages[id] || []).slice(skip); title = stages.find(s => s.key === id)?.name || id;
+    rows = [[dollars ? 'Cost' : 'Tokens', cells.map(c => amt(dollars ? c.cost : c.tokens))], ['Rework', cells.map(c => { const b = dollars ? c.cost : c.tokens; return b ? fxPct((dollars ? c.rework : c.reworkTokens) / b) : '–'; })]];
+  } else {
+    const cells = (wk.loops[id] || wk.columns.map(() => ({ loops: 0, cost: 0, tokens: 0 }))).slice(skip); title = loops.find(L => L.key === id)?.name || id;
+    rows = [['Loops', cells.map(c => fmt(c.loops))], [dollars ? 'Cost' : 'Tokens', cells.map(c => amt(dollars ? c.cost : c.tokens))]];
+  }
+  const pop = document.createElement('div'); pop.className = 'fx-pop'; pop.setAttribute('role', 'tooltip');
+  pop.innerHTML = `<table><thead><tr><th>${esc(title)}</th>${cols.map((c, i) => `<th class="num${i === n - 1 ? ' cur' : ''}">${esc(fxWk(c.t))}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, vs]) => `<tr><td>${esc(l)}</td>${vs.map((x, i) => `<td class="num${i === n - 1 ? ' cur' : ''}">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  canvas.appendChild(pop);
+  // under the card; a pill is drawn translated by half its size, so its box is around its offset point
+  const pill = anchor.classList.contains('fx-pill');
+  const top = pill ? anchor.offsetTop + anchor.offsetHeight / 2 + 8 : anchor.offsetTop + anchor.offsetHeight + 8;
+  let left = pill ? anchor.offsetLeft - pop.offsetWidth / 2 : anchor.offsetLeft;
+  left = Math.max(4, Math.min(left, canvas.clientWidth - pop.offsetWidth - 4));
+  pop.style.left = `${left}px`; pop.style.top = `${top}px`;
+  FX_POP = { pop, key };
+}
+document.addEventListener('click', e => { if (FX_POP && !e.target.closest('.fx-pop, .fx-stage, .fx-pill, #fx-rows tr')) fxPopClose(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && FX_POP) fxPopClose(); });
+let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
+// the loops table, with the two sides' loops per session when a diff is chosen
+function fxLoopTable(stages, loops, dollars) {
+  const box = $('#fx-looptable'); if (!box) return;
+  const a = FX_DIFF && FX?.factory?.arms?.[FX_DIFF], spec = FX_ARMS[FX_DIFF], diff = Boolean(a && spec);
+  const idx = id => stages.findIndex(s => s.key === id), amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
+  const per = (side, key) => { const c = a[side]; return c.sessions ? ((c.loops[key]?.loops || 0) / c.sessions) : null; };
+  box.innerHTML = `<div class="fx-tbl"><table><thead><tr><th>Loop</th><th>Route</th><th>Share of tokens</th><th class="num">Loops</th><th class="num">Sessions</th><th class="num">${dollars ? 'Cost' : 'Tokens'}</th><th class="num">Per loop</th>${diff ? `<th class="num on" title="loops per session, ${esc(spec.labels[0])}">${esc(spec.short[0])} / session</th><th class="num" title="loops per session, ${esc(spec.labels[1])}">${esc(spec.short[1])} / session</th>` : ''}</tr></thead><tbody id="fx-rows">
+    ${loops.length ? loops.map(L => { const on = diff ? per(spec.on, L.key) : null, off = diff ? per(spec.off, L.key) : null, d = on != null && off ? (on - off) / off : null; return `<tr class="lrow${FX_SEL.kind === 'loop' && FX_SEL.id === L.key ? ' on' : ''}" data-id="${esc(L.key)}" style="--lc:${L.lc};--lbg:${L.lbg}"><td><span class="fx-lname"><span class="fx-licon">${fxUse('fxi-loop')}</span>${esc(L.name)}</span></td><td><span class="fx-route">${esc(stages[idx(L.from)]?.name || L.from)} → ${esc(stages[idx(L.to)]?.name || L.to)}</span></td><td><span class="fx-metric">${fxPct(L.share)}</span></td><td class="num">${fmt(L.loops)}</td><td class="num">${fmt(L.sessions)}</td><td class="num">${amt(L.cost, L.tokens)}</td><td class="num">${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</td>${diff ? `<td class="num on">${on == null ? '–' : on.toFixed(2)}</td><td class="num">${off == null ? '–' : off.toFixed(2)}${d == null ? '' : ` <span class="fx-d ${Math.abs(d) < 0.05 ? 'flat' : d < 0 ? 'good' : 'bad'}">${d > 0 ? '+' : ''}${Math.round(100 * d)}%</span>`}</td>` : ''}</tr>`; }).join('') : `<tr><td colspan="${diff ? 9 : 7}" class="muted">No loop detected in this window.</td></tr>`}
+  </tbody></table></div>`;
+  for (const tr of box.querySelectorAll('tr.lrow')) tr.onclick = () => { fxSelect('loop', tr.dataset.id, stages, loops, dollars); fxPop('loop', tr.dataset.id, FX_LOOPS[tr.dataset.id]?.pill, stages, loops, dollars); };
+}
+function fxRows(stages, loops, dollars) {
+  const a = FX_DIFF && FX?.factory?.arms?.[FX_DIFF], spec = FX_ARMS[FX_DIFF];
+  // the loop pills: the two sides' loops per session when a diff is chosen, else the count and the cost
+  for (const L of loops) {
+    const ls = FX_LOOPS[L.key]?.pill?.querySelector('.ls'); if (!ls) continue;
+    if (a && spec) { const per = side => a[side].sessions ? ((a[side].loops[L.key]?.loops || 0) / a[side].sessions).toFixed(2) : '–'; ls.textContent = `${spec.short[0]} ${per(spec.on)} · ${spec.short[1]} ${per(spec.off)} per session`; }
+    else ls.textContent = `${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}`;
+  }
+  // the totals on the chart's bottom right (the owner, 2026-11-09: on the chart, not in the flow): cost per merged pull request
+  // and rework share, the two sides' when a diff is chosen
+  const dock = $('#fx-dock'), prs = FX?.factory?.prs, fv = FX?.factory;
+  if (dock) {
+    const perPr = (cost, n) => n ? (dollars ? money(cost / n) : fmt(Math.round(cost / n))) : '–', rw = (r, c) => c ? fxPct(r / c) : '–';
+    if (a && spec) dock.innerHTML = `<div class="two head"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${perPr(a[spec.on].prs.cost, a[spec.on].prs.merged)}</b><b class="off">${perPr(a[spec.off].prs.cost, a[spec.off].prs.merged)}</b></div><div class="two"><span>Rework</span><b>${rw(dollars ? a[spec.on].rework : a[spec.on].reworkTokens, dollars ? a[spec.on].cost : a[spec.on].tokens)}</b><b class="off">${rw(dollars ? a[spec.off].rework : a[spec.off].reworkTokens, dollars ? a[spec.off].cost : a[spec.off].tokens)}</b></div>`;
+    else dock.innerHTML = `<div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${prs?.meanCost == null ? '–' : dollars ? money(prs.meanCost) : fmt(Math.round(prs.meanCost))}</b></div><div class="two"><span>Rework</span><b>${fxPct(fv?.reworkShare)}</b></div>`;
+  }
+  for (const s of stages) {
+    const r = FX_CARDS[s.key]?.querySelector('.rows'); if (!r) continue;
+    if (a && spec) {
+      const on = a[spec.on].stages[s.key], off = a[spec.off].stages[s.key], rw = c => { const base = dollars ? c.cost : c.tokens; return base ? (dollars ? c.rework : c.reworkTokens) / base : null; }, per = (c, side) => { const n = a[side].sessions; return n ? (dollars ? c.cost : c.tokens) / n : null; };
+      r.innerHTML = `<div class="two"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>Per session</span><b>${per(on, spec.on) == null ? '–' : dollars ? money(per(on, spec.on)) : fmt(Math.round(per(on, spec.on)))}</b><b class="off">${per(off, spec.off) == null ? '–' : dollars ? money(per(off, spec.off)) : fmt(Math.round(per(off, spec.off)))}</b></div><div class="two"><span>Rework</span><b>${fxPct(rw(on))}</b><b class="off">${fxPct(rw(off))}</b></div>`;
+      continue;
+    }
+    r.innerHTML = FX_METRIC === 'stage'
+      ? `<div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${dollars ? money(s.cost) : fmt(s.tokens)}</b></div><div><span>Share</span><b>${fxPct(s.share)}</b></div><div><span>Rework</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}</b></div>`
+      : `<div><span>Loops out</span><b>${fmt(loops.filter(L => L.from === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Loops in</span><b>${fmt(loops.filter(L => L.to === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Rework ${dollars ? '$' : 'tok'}</span><b>${dollars ? money(s.rework) : fmt(s.reworkTokens)}</b></div>`;
+  }
+}
+function fxCanvas(v, stages, loops, dollars) {
+  const canvas = $('#fx-canvas'), wires = $('#fx-wires'), scroller = $('#fx-scroll'), NS = 'http://www.w3.org/2000/svg';
+  const el = (t, a = {}, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const idx = id => stages.findIndex(s => s.key === id);
+  FX_CARDS = {}; FX_LOOPS = {};
+  for (const s of stages) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'fx-stage'; b.dataset.id = s.key; canvas.appendChild(b);
+    b.innerHTML = `<div class="row1"><span>${String(idx(s.key) + 1).padStart(2, '0')}</span><span class="lamp" style="background:${s.verdict === 'good' ? '#15803d' : s.verdict === 'bad' ? '#b91c1c' : s.verdict === 'mid' ? '#a16207' : '#d1d5db'}" title="${fxVerdict[s.verdict] ? `${fxVerdict[s.verdict]}: ${fxPct(s.reworkShare)} of this stage's cost was rework, spent inside a loop` : 'no rework measured'}"></span></div><div class="name">${fxUse('fxi-' + s.key)}${esc(s.name)}</div><div class="calls">${fmt(s.calls)} calls</div><div class="rows"></div><span class="port t"></span><span class="port b"></span>`;
+    b.onclick = () => { fxSelect('stage', s.key, stages, loops, dollars); fxPop('stage', s.key, b, stages, loops, dollars); };
+    FX_CARDS[s.key] = b;
+  }
+  fxRows(stages, loops, dollars);
+  const CH = 180, LANE = 52, PILL = 196, CW_MIN = 150, CW_MAX = 200, GAP_MIN = 28, X0_MIN = 32;
+  const layout = () => {
+    const n = stages.length, avail = Math.max(scroller.clientWidth - 2, n * CW_MIN + (n - 1) * GAP_MIN + 2 * X0_MIN);
+    const CW = Math.min(CW_MAX, Math.floor((avail - 2 * X0_MIN - (n - 1) * GAP_MIN) / n)), GAP = Math.min(80, Math.floor((avail - 2 * X0_MIN - n * CW) / (n - 1))), X0 = Math.floor((avail - n * CW - (n - 1) * GAP) / 2);
+    const left = i => X0 + i * (CW + GAP), cx = i => left(i) + CW / 2, span = L => Math.abs(idx(L.from) - idx(L.to));
+    const lanes = { top: [], bottom: [] };
+    [...loops].sort((a, b) => span(a) - span(b) || b.cost - a.cost).forEach((L, i) => {
+      const mid = (cx(idx(L.from)) + cx(idx(L.to))) / 2, half = Math.max(span(L) * (CW + GAP), PILL) / 2 + 8, iv = [mid - half, mid + half], side = i % 2 ? 'bottom' : 'top', ls = lanes[side];
+      let k = ls.findIndex(lane => lane.every(o => iv[1] < o[0] || iv[0] > o[1])); if (k < 0) { ls.push([]); k = ls.length - 1; }
+      ls[k].push(iv); L.side = side; L.lane = k;
+    });
+    const TOP = 54 + lanes.top.length * LANE;
+    canvas.style.width = avail + 'px'; canvas.style.height = (TOP + CH + 30 + lanes.bottom.length * LANE + 20) + 'px';
+    const portUse = {}; for (const L of loops) for (const end of ['from', 'to']) { const key = L[end] + ':' + L.side; (portUse[key] ||= []).push(L.key + ':' + end); }
+    const portX = (L, end) => { const list = portUse[L[end] + ':' + L.side], k = list.indexOf(L.key + ':' + end); return cx(idx(L[end])) + (k - (list.length - 1) / 2) * 16; };
+    stages.forEach((s, i) => { const b = FX_CARDS[s.key]; b.style.left = left(i) + 'px'; b.style.top = TOP + 'px'; b.style.width = CW + 'px'; });
+    wires.innerHTML = '';
+    for (let i = 0; i < n - 1; i++) { const y = TOP + CH / 2, x1 = left(i) + CW + 4, x2 = left(i + 1) - 4; el('circle', { class: 'fx-fwd-dot', cx: x1 + 2, cy: y, r: 2.5 }, wires); el('line', { class: 'fx-fwd', x1: x1 + 5, y1: y, x2: x2 - 6, y2: y }, wires); el('polygon', { class: 'fx-fwd-head', points: `${x2 - 7},${y - 4} ${x2},${y} ${x2 - 7},${y + 4}` }, wires); }
+    for (const k in FX_LOOPS) FX_LOOPS[k].pill.remove(); FX_LOOPS = {};
+    for (const L of loops) {
+      const fi = idx(L.from), ti = idx(L.to); if (fi < 0 || ti < 0) continue;
+      const self = fi === ti, top = L.side === 'top', sy = top ? TOP : TOP + CH, sx = self ? portX(L, 'from') - 22 : portX(L, 'from'), tx = self ? portX(L, 'to') + 22 : portX(L, 'to'), r = 14;
+      const Y = top ? TOP - 44 - L.lane * LANE : TOP + CH + 44 + L.lane * LANE, sgn = tx > sx ? 1 : -1, dy = top ? -1 : 1;
+      const d = `M${sx} ${sy} V${Y - dy * r} Q${sx} ${Y} ${sx + sgn * r} ${Y} H${tx - sgn * r} Q${tx} ${Y} ${tx} ${Y - dy * r} V${sy + dy * 9}`;
+      const g = el('g', { class: 'fx-loop-g', 'data-id': L.key }, wires);
+      el('path', { class: 'fx-loop-path', d, stroke: L.lc }, g); el('circle', { cx: sx, cy: sy, r: 3, fill: L.lc }, g);
+      el('polygon', { points: `${tx - 5},${sy + dy * 9} ${tx + 5},${sy + dy * 9} ${tx},${sy + dy}`, fill: L.lc }, g);
+      const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'fx-pill'; pill.style.setProperty('--lc', L.lc); pill.style.left = ((sx + tx) / 2) + 'px'; pill.style.top = Y + 'px'; pill.dataset.id = L.key;
+      pill.innerHTML = `${fxUse('fxi-loop')}<span class="ln">${esc(L.name)}</span><span class="lp">${fxPct(L.share)}</span><span class="ls">${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}</span>`;
+      pill.onclick = () => { fxSelect('loop', L.key, stages, loops, dollars); fxPop('loop', L.key, pill, stages, loops, dollars); };
+      canvas.appendChild(pill); FX_LOOPS[L.key] = { g, pill };
+    }
+    if (FX_SEL) fxMark(FX_SEL.kind, FX_SEL.id);
+    fxRows(stages, loops, dollars); fxPopClose();
+  };
+  layout();
+  if (FX_RO) FX_RO.disconnect();
+  if (window.ResizeObserver) { let t = 0; FX_RO = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(layout, 80); }); FX_RO.observe(scroller); }
+}
+function fxMark(kind, id) {
+  for (const k in FX_CARDS) FX_CARDS[k].classList.toggle('on', kind === 'stage' && k === id);
+  $('#fx-canvas')?.classList.toggle('has-sel', kind === 'loop');
+  for (const k in FX_LOOPS) { const on = kind === 'loop' && k === id; FX_LOOPS[k].g.classList.toggle('on', on); FX_LOOPS[k].pill.classList.toggle('on', on); }
+  document.querySelectorAll('#fx-rows tr.lrow').forEach(tr => tr.classList.toggle('on', kind === 'loop' && tr.dataset.id === id));
+}
+function fxSelect(kind, id, stages, loops, dollars) {
+  FX_SEL = { kind, id }; fxMark(kind, id);
+  const d = $('#fx-details'); if (!d) return;
+  const idx = k => stages.findIndex(s => s.key === k), amt = (c, t) => dollars ? money(c) : `${fmt(t)} tok`;
+  if (kind === 'stage') {
+    const s = stages[idx(id)]; if (!s) return;
+    const touching = loops.filter(L => L.from === s.key || L.to === s.key);
+    d.innerHTML = `<div class="kicker">Stage details</div><div class="fx-dhead"><span class="fx-dicon">${fxUse('fxi-' + s.key)}</span><div><div class="fx-dname">${esc(s.name)}</div><div class="fx-dsub">Stage ${String(idx(s.key) + 1).padStart(2, '0')} of ${String(stages.length).padStart(2, '0')}</div></div><span class="fx-dkind">Stage</span></div>
+      <p class="fx-ddesc">${esc(s.desc || '')}</p>
+      <div class="fx-drows"><div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${amt(s.cost, s.tokens)}</b></div><div><span>Share of all tokens</span><b>${fxPct(s.share)}</b></div><div><span>Of it rework</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}${s.verdict ? ` · ${fxVerdict[s.verdict]}` : ''}</b></div><div><span>Model calls</span><b>${fmt(s.calls)}</b></div></div>
+      ${touching.length ? `<div class="fx-dloops">${touching.map(L => `<button type="button" data-id="${esc(L.key)}"><i style="background:${L.lc}"></i>${esc(L.name)} ${L.from === s.key ? 'out' : 'in'}</button>`).join('')}</div>` : ''}
+      <div class="fx-dfoot"><span>${idx(s.key) === 0 ? 'first stage' : `after ${esc(stages[idx(s.key) - 1].name)}`}</span><span>${touching.length} connected loop${touching.length === 1 ? '' : 's'}</span></div>`;
+    d.querySelectorAll('.fx-dloops button').forEach(b => b.onclick = () => fxSelect('loop', b.dataset.id, stages, loops, dollars));
+  } else {
+    const L = loops.find(l => l.key === id); if (!L) return;
+    d.innerHTML = `<div class="kicker">Loop details</div><div class="fx-dhead"><span class="fx-dicon" style="background:${L.lbg};border-color:transparent"><svg style="stroke:${L.lc};color:${L.lc}"><use href="#fxi-loop"/></svg></span><div><div class="fx-dname">${esc(L.name)}</div><div class="fx-dsub">${esc(stages[idx(L.from)]?.name || L.from)} back to ${esc(stages[idx(L.to)]?.name || L.to)}</div></div><span class="fx-dkind">Loop</span></div>
+      <p class="fx-ddesc">${esc(L.sub || '')}</p>
+      <div class="fx-drows"><div><span>Loops</span><b>${fmt(L.loops)}</b></div><div><span>Sessions</span><b>${fmt(L.sessions)}</b></div><div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${amt(L.cost, L.tokens)}</b></div><div><span>Share of all tokens</span><b>${fxPct(L.share)}</b></div><div><span>Per loop</span><b>${L.loops ? amt(L.cost / L.loops, L.tokens / L.loops) : '–'}</b></div><div><span>Calls inside</span><b>${fmt(L.calls || 0)}</b></div></div>
+      <p class="fx-ddesc" style="font-size:.78rem"><span class="muted">Detected by:</span> ${esc(L.rule || '')}</p>
+      <div class="fx-dloops"><button type="button" data-stage="${esc(L.from)}">${esc(stages[idx(L.from)]?.name || L.from)}</button><button type="button" data-stage="${esc(L.to)}">${esc(stages[idx(L.to)]?.name || L.to)}</button></div>`;
+    d.querySelectorAll('.fx-dloops button').forEach(b => b.onclick = () => fxSelect('stage', b.dataset.stage, stages, loops, dollars));
+  }
+}
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
 // as loadContext: the tables stay and are rebuilt in place when the same repository is already shown (a tab switch back);
