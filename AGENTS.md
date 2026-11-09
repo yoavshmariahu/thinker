@@ -1128,6 +1128,17 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the sent-back detector fired in 159 of 162 sessions because a memory-file write after the pull request counted as an
   edit and the window never closed; the stage shares were the same under both, the loop figures were not. Judge a
   detector change by inspecting the loops it finds in a real session before trusting its total.
+- **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
+  turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
+  reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first
+  program, so `echo start && npm test` was Explore and a fix loop keyed on `node` counted an analysis script's failure
+  as a test fix, with spans to 338 calls. Now a line is staged by its strongest segment (merge, then a test or build
+  program, then a write, then read-only), a fix loop is keyed on the fine program (`node --test`, not `node`) and must
+  close within the same or the next exchange. On the same 43 days that moved Explore 27%→16%, Verify 13%→21%, fix loops
+  from 144 long ones ($958) to 463 short ones ($643), rework 38%→34%, yield 25%→18%. The loop totals are directional,
+  each with a named failure mode (`redirected` in the ledger is a third moving on; sent back cannot tell a fix from new
+  scope; a review catch has never fired here); a model's judgement on an exchange, if ever wanted, should ride the
+  profile extraction's one call per session and be shown beside the code's verdict, never in place of it.
 
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript

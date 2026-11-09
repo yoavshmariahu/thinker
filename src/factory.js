@@ -41,17 +41,24 @@ const MERGE_RE = /\bgit\s+(?:-C\s+\S+\s+)?(commit|push|merge|rebase|tag|cherry-p
 const EXPLORE_PROGS = new Set(['sqlite3', 'psql', 'mysql', 'redis-cli', 'ls', 'cat', 'head', 'tail', 'less', 'grep', 'rg', 'ag', 'find', 'fd', 'wc', 'du', 'df', 'tree', 'stat', 'file', 'which', 'type', 'env', 'printenv', 'pwd', 'awk', 'jq', 'sort', 'uniq', 'cut', 'tr', 'column', 'echo', 'printf', 'date', 'whoami', 'uname', 'sw_vers', 'ps', 'lsof', 'open', 'diff', 'comm', 'od', 'xxd', 'strings', 'realpath', 'readlink', 'basename', 'dirname']);
 const EXPLORE_SUB = new Set(['git status', 'git diff', 'git log', 'git show', 'git blame', 'git grep', 'git branch', 'git remote', 'git rev-parse', 'git describe', 'git ls-files', 'git stash', 'gh issue', 'gh run', 'npm ls', 'npm view', 'npm outdated', 'pip show', 'pip list', 'docker ps', 'docker images', 'kubectl get', 'kubectl describe', 'kubectl logs']);
 const BUILD_RE = /\bsed\s+-i\b|\b(mv|mkdir|cp|rm|touch|chmod|chown|ln|tee|patch|rsync)\b|\b(npm|pnpm|yarn|bun)\s+(install|ci|i|add|uninstall|update|link)\b|\bpip3?\s+install\b|\bbrew\s+install\b|\bcargo\s+add\b|\bgo\s+(get|mod)\b|>>?\s*[\w./~"'$-]|<<\s*-?\s*'?"?\w+/;
-// a shell command's stage: merge first (a push is a push whatever else the line does), then a read-only program at
-// the head of the line, then a line that writes, else it is running something to see what happens: verify
+// the program a segment runs and the test or build programs (`node --test`, `npm test`, `pytest` …), keyed finely enough
+// that `node -e` and `node script.js` are not `node --test`
+const progOf = seg => { const p = bashProgram(seg); if (p === 'node' && /\bnode\s+(--test|--check)\b/.test(seg)) return 'node ' + seg.match(/--(test|check)/)[0]; if (/^python3?$/.test(p) && /-m\s+pytest\b/.test(seg)) return 'pytest'; return p; };
+export const TEST_RE = /^(npm test|npm run (test|build|lint|typecheck|check|e2e)[\w:-]*|pnpm (test|build|lint)|yarn (test|build|lint)|bun test|node --test|node --check|pytest|jest|vitest|mocha|tsc|eslint|ruff|mypy|cargo (test|build|check|clippy)|go (test|build|vet)|make|gradle|mvn|dotnet (test|build)|swift (test|build)|xcodebuild|npx|claude plugin test)$/;
+// a shell command's stage, by its strongest segment: a commit or push makes the line Merge whatever else it does, a test
+// or build program makes it Verify (`echo start && npm test` is a test run, not an echo), a line that writes is Build, a
+// line of read-only programs is Explore, and anything else is running something to see what happens: Verify
 export function bashStage(command) {
   const c = String(command || '');
   if (MERGE_RE.test(c)) return 'merge';
-  const prog = bashProgram(c);
+  const segs = c.split(/&&|\|\||;|\n/).map(x => x.trim()).filter(x => x && !/^(cd|export|source|\.)\s/.test(x) && !/^\w+=\S*$/.test(x));
+  const progs = segs.map(progOf);
+  if (progs.some(p => TEST_RE.test(p))) return 'verify';
   // a read-only program that writes its output to a file (`cat > x <<EOF`, `grep … > list.txt`) is writing
   if (/>\s*(?!&)[\w./~"'$-]|<<\s*-?\s*['"]?\w+/.test(c) && !/>\s*\/dev\/null/.test(c)) return 'build';
-  if (EXPLORE_PROGS.has(prog) || EXPLORE_SUB.has(prog) || /^sed$/.test(prog) && /\bsed\s+-n\b/.test(c) && !/\bsed\s+-i\b/.test(c)) return 'explore';
-  if (/^(python3?|node)$/.test(prog) && /\s-[ce]\s+['"]?(import|print|console|JSON|require|const|let)/.test(c) && !BUILD_RE.test(c)) return 'explore';
   if (BUILD_RE.test(c)) return 'build';
+  const readOnly = p => EXPLORE_PROGS.has(p) || EXPLORE_SUB.has(p) || (p === 'sed' && /\bsed\s+-n\b/.test(c)) || (/^(python3?|node)$/.test(p) && /\s-[ce]\s+['"]?(import|print|console|JSON|require|const|let)/.test(c));
+  if (progs.length && progs.every(readOnly)) return 'explore';
   return 'verify';
 }
 // the stage of one tool call, in the transcripts' one vocabulary (transcripts.js:toolName)
@@ -77,16 +84,13 @@ export const callCost = (c, price) => !price ? null : ((c.fresh || 0) * price.in
 // found: {from, to} call indices, inclusive, the exchange the loop belongs to, and a note. The kinds carry the route the
 // page draws and the rule in words. `sessions` on the view counts the sessions a kind fired in.
 export const LOOP_KINDS = {
-  fix: { name: 'Fix loop', from: 'verify', to: 'build', sub: 'a failing run to the run that passes', rule: 'A test, build or run program (npm test, node --test, pytest, tsc …) fails, and the same program then passes later in the session; the loop is every call between.' },
+  fix: { name: 'Fix loop', from: 'verify', to: 'build', sub: 'a failing run to the run that passes', rule: 'A test or build program (npm test, node --test, pytest, tsc …) fails and the same program passes within the same or the next exchange; the loop is every call between.' },
   reviewcatch: { name: 'Review catch', from: 'verify', to: 'build', sub: 'a reading found something', rule: 'A review skill or a reviewer subagent ran, and edits followed before the next prompt.' },
   correction: { name: 'Correction', from: 'build', to: 'prompts', sub: 'the person corrected, redirected or interrupted', rule: 'The person interrupted the agent, or the profile ledger read their next prompt as a correction or a redirection; the loop is the exchange that redid the work.' },
   reread: { name: 'Re-read', from: 'explore', to: 'explore', sub: 'a file read again', rule: 'A file read again, whatever the range, twenty or more calls after it was last read.' },
   sentback: { name: 'Sent back', from: 'merge', to: 'build', sub: 'the pull request changed after it was opened', rule: 'A commit or a push after the session opened a pull request; the loop runs from the first edit after the opening to the last push.' },
 };
 const REREAD_GAP = 20;
-// the programs whose failure and later pass is a fix loop: a test, a build, a type check, a lint; a failed query or
-// a mistyped command is not one (not a loop at all yet)
-const TEST_RE = /^(npm test|npm run (test|build|lint|typecheck|check|e2e)[\w:-]*|pnpm (test|build|lint)|yarn (test|build|lint)|bun test|node --test|node|pytest|python3? -m pytest|jest|vitest|mocha|tsc|eslint|ruff|mypy|cargo (test|build|check|clippy)|go (test|build|vet)|make|gradle|mvn|dotnet (test|build)|swift (test|build)|xcodebuild|npx|claude plugin test)$/;
 const FAIL_RE = /\b(exit code:? [1-9]\d*|command failed|npm err!|error: command|failing [1-9]\d*|fail [1-9]\d*|\d+ failed\b|FAILED|AssertionError|Traceback \(most recent call last\)|SyntaxError|ReferenceError|TypeError:|Error: Cannot find module|not ok \d+)|✖/;
 const failed = e => e.error === true || (e.name === 'Bash' && FAIL_RE.test(String(e.result || '').slice(0, 4000)));
 
@@ -116,8 +120,9 @@ export function detectLoops(tl, { corrected = new Set() } = {}) {
   const open = new Map();
   for (const e of tl.tools) {
     if (e.name !== 'Bash' || !e.input?.command) continue;
-    const key = bashProgram(e.input.command), stage = bashStage(e.input.command);
-    if (stage !== 'verify' || !TEST_RE.test(key)) continue;
+    const key = String(e.input.command).split(/&&|\|\||;|\n/).map(progOf).find(p => TEST_RE.test(p)); if (!key) continue;
+    // a failure the next exchange has not resolved is not this loop any more: the work moved on
+    for (const [k, f] of open) if (e.exchange > f.exchange + 1) open.delete(k);
     if (failed(e)) { if (!open.has(key)) open.set(key, e); }
     else if (open.has(key)) { const f = open.get(key); open.delete(key); out.push({ kind: 'fix', from: f.ci, to: e.ci, exchange: e.exchange, note: key }); }
   }
@@ -182,7 +187,7 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
 
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
-export const RULES_VERSION = 4;
+export const RULES_VERSION = 5;
 const CACHE = diskCache('factory-session', 1);
 const parentOf = s => s.parent || s.session;
 // the ledger's corrected and redirected exchanges, by session (profile.js: a row's `turn` is the exchange it observed,
