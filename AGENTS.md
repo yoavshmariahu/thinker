@@ -1034,10 +1034,16 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   rates by token type from the log's `session` row (`prices.js:costOf` over fresh input, cache reads, cache writes by
   TTL, output), each subagent at its own model, as `cost.spend`; null unless the counters are complete and every model
   has a price, and a pull request's `cost.spendComplete` needs every session priced, so a partial cost is never shown as
-  whole. The Report's **Pull request stats** rows are Number of PRs, Saved per PR (the netted figure over the PRs with a
-  priced model, signed) and Cost per PR (over the PRs whose every session is priced), in dollars under either toggle;
-  the Recent activity list shows Sessions, Its cost, Saved and Share (saved over cost); `thinker report` prints the same.
-  The token figures (`agent`, `cleared`, `savedPerPr`, `tokensPerPr`) stay in the view and `--json` and in `thinker prs`.
+  whole. The Report's **Pull request stats** rows are Number of PRs, Saved per PR (over the PRs with a priced model) and
+  Cost per PR (over the PRs whose every session is priced), in dollars under either toggle; the Recent activity list
+  shows Sessions, Its cost, Saved and Share (saved over cost); `thinker report` prints the same. The token figures
+  (`agent`, `cleared`, `savedPerPr`, `tokensPerPr`) stay in the view and `--json` and in `thinker prs`.
+  **On the Report the saving is gross and the cost stands beside it** (the owner, the same day: "saved per PR doesn't
+  need to be negative"; `savedUsd`, `savedUsdPerPr`, `meanSavedUsd`): the cost is every call at list prices, so it
+  already holds the cache writes the calls after a clear paid for, and netting them out of the saving as well would
+  charge them to the pull request twice. Each door names the writes as part of the cost where it shows the saving. The
+  netted figure (below) stays in the data (`net`, `netPerPr`, `meanNet`), in `thinker prs` and in the posted comment,
+  where no cost column stands beside it.
 - View Report keeps four PR summary cards: merged with work here, tokens saved,
   share of their cost, and the average one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
@@ -1075,8 +1081,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   same kind of token: a cleared token saved a **cache read** at a fortieth of the input price, and the calls
   after that clear wrote the prefix into the cache again at **twice** it. So one rule, in one sentence:
   **cleared at the cache-read rate, plus reading avoided at the input rate, less what the calls after a clear
-  wrote into the cache again, at list prices.** `thinker prs`, the Report band, the page's Net column and the
-  posted comment all read that one computation in `delivery.js`; no door prices a token itself.
+  wrote into the cache again, at list prices.** `thinker prs` and the posted comment read that one computation in
+  `delivery.js`; no door prices a token itself. The Report showed it too until 2026-11-08, when its PR figures became
+  a cost column and a gross saving beside it (above), the writes counted once, in the cost.
   - The deduction is `isRewrite` over the proxy log, charged to a session only from its **first clear onward**:
     a rewrite before one cannot be the clear's doing. It is deliberately conservative -- the held-out side
     rewrites on 1-3% of long calls anyway, and those are charged to the clearing too.

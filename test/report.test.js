@@ -408,15 +408,22 @@ test('the band prices the saving net of the rewrites, and keeps the token figure
     const text = renderReport(v, { cost }).join('\n'), band = text.slice(text.indexOf('Pull requests ('));
     assert.ok(!band.includes('200k'), `no token figure under ${cost ? 'cost' : 'tokens'}`);
     assert.match(band, /spent on them\s+\$150/, 'what the pull request cost, its sessions\' calls at list prices');
-    assert.match(band, /saved on them\s+\$8[.0]*\s*netted = \$12[.0]* saved less \$4[.0]*/, 'the net leads and the gross is shown as its working, never on its own');
-    assert.match(band, /on the average one\s+\$150 spent, \$8[.0]* saved/);
-    assert.match(band, /#7 PR 7\s+1\s+\$150\s+\$8[.0]*\s+5\.3%/, 'the row: its cost, the net saving, the share');
+    // gross, with the cache writes named as part of the cost (the owner, 2026-11-08: "saved per PR doesn't need to be
+    // negative"): the cost holds those writes, so netting them out of the saving too would charge them twice
+    assert.match(band, /saved on them\s+\$12[.0]*\s+at the cache-read rate[^\n]*cost above includes \$4[.0]* of cache writes after a clear/, 'the gross saving, and where the writes are counted');
+    assert.doesNotMatch(band, /netted|\$8[.0]*\b/, 'the netted figure is thinker prs\'s');
+    assert.match(band, /on the average one\s+\$150 spent, \$12[.0]* saved/);
+    assert.match(band, /#7 PR 7\s+1\s+\$150\s+\$12[.0]*\s+8\.0%/, 'the row: its cost, the saving, the share');
   }
   assert.equal(v.prs.spend, 150); assert.equal(v.prs.meanSpend, 150); assert.equal(v.prs.rows[0].spend, 150);
+  assert.equal(v.prs.meanSavedUsd, 12); assert.equal(v.prs.rows[0].savedUsd, 12); assert.equal(v.prs.rows[0].net, 8, 'the netted figure stays in the data');
   // a pull request with a session that could not be priced has no cost figure, never a partial one shown as whole
   const part = prSavings(null, { days: 42, delivery: delivery([pr(9, { merged: '2026-10-20T00:00:00Z', agent: 10, usd: 1 })]) });
   assert.equal(part.rows[0].spend, null); assert.equal(part.meanSpend, null); assert.equal(part.spendComplete, 0);
   assert.match(renderReport({ ...v, prs: part }, { cost: true }).join('\n'), /#9 PR 9\s+1\s+–\*\s+\$1[.0]*\s+–/);
+  // a pull request on an unpriced model has no saving figure either, never a zero that reads as "saved nothing"
+  const unpriced = prSavings(null, { days: 42, delivery: delivery([pr(10, { merged: '2026-10-20T00:00:00Z', agent: 10, cleared: 5 })]) });
+  assert.equal(unpriced.rows[0].savedUsd, null); assert.equal(unpriced.meanSavedUsd, null);
 });
 
 test('a loss is reported as a loss, never averaged away to nothing', t => {
@@ -429,8 +436,11 @@ test('a loss is reported as a loss, never averaged away to nothing', t => {
   assert.equal(v.prs.cost.net, -37, 'the net is signed: a clear that cost more than it saved reads as a loss');
   assert.equal(v.prs.meanNet, -37, 'the average is signed too, or a loss filtered out as "not finite" reads as a win');
   assert.ok(v.prs.saved.cleared > 0, 'the tokens were still cleared: the loss is in what the rewrite cost');
+  // the Report shows the saving gross (the owner, 2026-11-08: "saved per PR doesn't need to be negative"), with the
+  // writes named as part of the cost; the loss itself is thinker prs's (delivery.js:summary) and the comment's
   const text = renderReport(v, { cost: true }).join('\n');
-  assert.match(text, /-\$37|−\$37/, 'the command prints the loss rather than hiding it behind a zero');
+  assert.match(text, /saved on them\s+\$3[.0]*\s+at the cache-read rate[^\n]*includes \$40[.0]* of cache writes/);
+  assert.doesNotMatch(text, /-\$37|−\$37/);
 });
 
 test('All repositories adds the pull requests up and averages over all of them, never an average of averages', () => {
@@ -466,7 +476,7 @@ test('All repositories adds the pull requests up and averages over all of them, 
 
 test('weekly PR stats respect merge boundaries, empty weeks and missing counters', () => {
   const now = new Date(2026, 9, 30, 12).getTime(), columns = weekColumns(now, 3);
-  const row = (at, saved, agent, complete = true, net = null, spend = null) => ({ mergedAt: new Date(at).toISOString(), saved, agent, complete, net, spend });
+  const row = (at, saved, agent, complete = true, net = null, spend = null, savedUsd = net == null ? null : net + 1) => ({ mergedAt: new Date(at).toISOString(), saved, agent, complete, net, spend, savedUsd });
   const stats = weeklyPrStats({ rows: [
     row(columns[0].t - 1, 999, 999, true, 9, 9),
     row(columns[1].t - 1, 20, 100, true, 2, 10),
@@ -477,8 +487,9 @@ test('weekly PR stats respect merge boundaries, empty weeks and missing counters
   assert.deepEqual(stats.map(w => [w.merged, w.complete, w.savedPerPr, w.tokensPerPr]), [
     [1, 1, 20, 100], [2, 1, 20, 600], [0, 0, null, null],
   ]);
-  // the dollars: the net over the priced rows (signed: a loss counts), the cost over the rows whose every session is priced
-  assert.deepEqual(stats.map(w => [w.priced, w.netPerPr, w.spent, w.spendPerPr]), [[1, 2, 1, 10], [1, -6, 1, 30], [0, null, 0, null]]);
+  // the dollars: the gross saving over the priced rows (the figure the doors show; the net stays beside it, signed),
+  // the cost over the rows whose every session is priced
+  assert.deepEqual(stats.map(w => [w.priced, w.savedUsdPerPr, w.netPerPr, w.spent, w.spendPerPr]), [[1, 3, 2, 1, 10], [1, -5, -6, 1, 30], [0, null, null, 0, null]]);
   assert.equal(weeklyPrStats(null, columns, now), null, 'unavailable is distinct from zero merges');
   const missing = weeklyPrStats({ rows: [row(now, 0, 0, false)] }, columns, now).at(-1);
   assert.equal(missing.savedPerPr, 0, 'measured zero savings is not a gap');

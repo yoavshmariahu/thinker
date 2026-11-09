@@ -260,6 +260,10 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     agent: s.tokens.agent, complete: s.tokens.complete,
     meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
     cost: s.cost, meanNet: s.meanNetPerMergedPr,
+    // what the clearing saved, gross, a cleared token at the cache-read rate, averaged over the priced pull requests: the
+    // Report shows it beside the cost, and the cache writes after a clear are in the cost (the owner, 2026-11-08: "saved
+    // per PR doesn't need to be negative"); the netted figure stays in thinker prs and the posted comment
+    meanSavedUsd: mean(merged.filter(p => p.cost?.priced).map(p => p.cost.saved)),
     // dollars spent on the merged pull requests (delivery.js: every session's calls at list prices by token type), over the
     // ones whose every session is priced; the owner's call of 2026-11-08 is that a pull request's figures are dollars
     spend: s.cost?.spend ?? null, spendComplete: s.cost?.spendComplete ?? 0, meanSpend: s.meanSpendPerMergedPr ?? null,
@@ -274,7 +278,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
-      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.saved ?? null, rewriteUsd: p.cost?.rewrite ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null,
       spend: p.cost?.spendComplete ? p.cost.spend : null,
     })),
   };
@@ -335,14 +339,18 @@ export function weeklyPrStats(prs, columns, now = Date.now()) {
     const complete = rows.filter(r => r.complete);
     const saved = rows.reduce((sum, r) => sum + r.saved, 0);
     const tokens = complete.reduce((sum, r) => sum + r.agent, 0);
-    // the dollars (2026-11-08, the owner's call: the table says dollars, never tokens): the netted saving over the pull
-    // requests whose sessions have a price, signed, and what they cost over the ones whose every session is priced
-    const priced = rows.filter(r => r.net != null), spent = rows.filter(r => r.spend != null);
-    const net = priced.reduce((sum, r) => sum + r.net, 0), spend = spent.reduce((sum, r) => sum + r.spend, 0);
+    // the dollars (2026-11-08, the owner's call: the table says dollars, never tokens): what the clearing saved, gross,
+    // over the pull requests whose sessions have a price, and what they cost over the ones whose every session is priced.
+    // The cache writes after a clear are in the cost, so the saving is not netted against them here (the owner, the same
+    // day: "saved per PR doesn't need to be negative"); the netted figure stays in the data and in thinker prs.
+    const priced = rows.filter(r => r.savedUsd != null), spent = rows.filter(r => r.spend != null);
+    const savedUsd = priced.reduce((sum, r) => sum + r.savedUsd, 0), net = priced.reduce((sum, r) => sum + (r.net ?? 0), 0);
+    const spend = spent.reduce((sum, r) => sum + r.spend, 0);
     return { t, merged: rows.length, complete: complete.length, saved, tokens,
       savedPerPr: rows.length ? saved / rows.length : null,
       tokensPerPr: complete.length ? tokens / complete.length : null,
-      priced: priced.length, spent: spent.length, net, spend,
+      priced: priced.length, spent: spent.length, savedUsd, net, spend,
+      savedUsdPerPr: priced.length ? savedUsd / priced.length : null,
       netPerPr: priced.length ? net / priced.length : null,
       spendPerPr: spent.length ? spend / spent.length : null };
   });
@@ -495,6 +503,7 @@ function mergePrSavings(list) {
       costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
     },
     meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
+    meanSavedUsd: mean(rows.map(r => r.savedUsd).filter(n => n != null)),
     spend: sum(p => p.spend), spendComplete: sum(p => p.spendComplete), meanSpend: mean(rows.map(r => r.spend).filter(n => n != null)),
     share: agent ? saved.total / agent : null,
     sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
@@ -564,22 +573,24 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   const pr = v.prs;
   // In dollars under --tokens as much as without it (the owner's call, 2026-11-08): a pull request's tokens add fresh
   // input, cache reads, cache writes and output as if they were one thing, so they say nothing about a bill. Spent is
-  // every session's calls at list prices by token type (delivery.js); saved is the netted figure, a cleared token at
-  // the cache-read rate less the cache writes after a clear. The token figures stay in --json.
+  // every session's calls at list prices by token type (delivery.js); saved is the clearing's own, a cleared token at
+  // the cache-read rate, gross: the cache writes after a clear are in the cost, so netting them out of the saving as
+  // well would count them against the pull request twice (the owner, 2026-11-08: "saved per PR doesn't need to be
+  // negative"). The netted figure is thinker prs's and the posted comment's. The token figures stay in --json.
   if (v.prWeekly) {
     const d = x => x == null ? '–' : formatDollars(x);
     L.push('', 'Pull request stats · by merge week (current week so far), in dollars at list prices',
       '  Week of       PRs    Saved / PR     Cost / PR    Priced');
-    for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${d(w.netPerPr).padStart(14)}${d(w.spendPerPr).padStart(14)}    ${w.spent ?? 0}/${w.merged}`);
-    L.push('  Merged PRs with work recorded here. Saved / PR: the clearing\'s saving net of the cache writes after a clear, averaged over the PRs with a priced model.',
-      '  Cost / PR: what their sessions\' model calls cost, averaged over the PRs whose every session is priced (Priced says how many).');
+    for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${d(w.savedUsdPerPr).padStart(14)}${d(w.spendPerPr).padStart(14)}    ${w.spent ?? 0}/${w.merged}`);
+    L.push('  Merged PRs with work recorded here. Saved / PR: what the clearing saved at the cache-read rate, averaged over the PRs with a priced model.',
+      '  Cost / PR: what their sessions\' model calls cost, cache writes after a clear included, averaged over the PRs whose every session is priced (Priced says how many).');
   }
   if (pr?.merged) {
     L.push('', 'Pull requests (what merged work cost and what the clearing saved on it, in dollars)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  spent on them          ${pr.spend == null ? '–' : formatDollars(pr.spend)}${pr.spendComplete < pr.merged ? ` over the ${pr.spendComplete} whose every session is priced` : ''}`,
-      `  saved on them          ${formatDollars(pr.cost?.net ?? 0)} netted = ${formatDollars(pr.cost?.saved ?? 0)} saved less ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear; ${pr.mergedAssisted} of ${pr.merged} saved something`,
-      `  on the average one     ${pr.meanSpend == null ? '–' : formatDollars(pr.meanSpend)} spent, ${pr.meanNet == null ? '–' : formatDollars(pr.meanNet)} saved${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
+      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear`,
+      `  on the average one     ${pr.meanSpend == null ? '–' : formatDollars(pr.meanSpend)} spent, ${pr.meanSavedUsd == null ? '–' : formatDollars(pr.meanSavedUsd)} saved${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
@@ -587,7 +598,7 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
       L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}`);
       for (const r of pr.rows.slice(0, n)) {
         const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${(r.spend == null ? '–*' : formatDollars(r.spend)).padStart(11)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(11)}${pct(r.spend && r.net != null ? r.net / r.spend : null).padStart(8)}`);
+        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${(r.spend == null ? '–*' : formatDollars(r.spend)).padStart(11)}${(r.savedUsd == null ? '–' : formatDollars(r.savedUsd)).padStart(11)}${pct(r.spend && r.savedUsd != null ? r.savedUsd / r.spend : null).padStart(8)}`);
       }
       if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
       if (pr.rows.slice(0, n).some(r => r.spend == null)) L.push('  * a session of that pull request reported no counters or has no list price, so its cost is not said.');

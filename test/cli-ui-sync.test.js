@@ -612,17 +612,25 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
   assert.match(fs.readFileSync(path.join(SRC, '..', 'docs', 'usage.md'), 'utf8'), /\{ prSync: false \}/);
 });
 
-// The netted dollars are the figure the owner asked for (2026-11-04), and the page and the command must put the
-// same number on the same pull request: one computation in delivery.js, read by both. A door that priced it
-// itself is how the band came to show a gross saving for a fortnight.
-test('the netted dollars are one computation, shown by both doors', () => {
+// The dollars are one computation in delivery.js, read by both doors; a door that priced a token itself is how the
+// band came to show a gross saving for a fortnight with nothing beside it. The netted figure (2026-11-04) is thinker
+// prs's and the posted comment's. The Report shows the saving gross and the cost beside it (the owner, 2026-11-08:
+// "saved per PR doesn't need to be negative"): the cost already holds the cache writes after a clear, so netting
+// them out of the saving too would count them against the pull request twice. Where the gross figure is shown, the
+// writes are named as part of the cost.
+test('the dollars are one computation, shown by both doors', () => {
   // The command's summary line and its table column.
-  assert.match(read('report.js'), /netted = \$\{formatDollars\(pr\.cost\?\.saved/);
+  assert.match(read('report.js'), /saved on them\s+\$\{formatDollars\(pr\.cost\?\.saved[^\n]*includes \$\{formatDollars\(pr\.cost\?\.rewrite/);
   assert.match(read('report.js'), /'saved'\.padStart/);
+  assert.doesNotMatch(read('report.js'), /formatDollars\(pr\.cost\?\.net|r\.net == null \? '–' : formatDollars/, 'the Report shows the gross saving, not the netted one');
   // The page's own column reads the same fields off the row the report sends; it computes no dollars.
   const page = read('ui/page.html');
   assert.match(page, /<th class="num" title="[^"]*">Saved<\/th>/, 'the page column explains itself in a hover');
-  assert.match(page, /money\(r\.net\)/);
+  assert.match(page, /money\(r\.savedUsd\)/);
+  assert.doesNotMatch(page, /money\(r\.net\)/);
+  assert.match(page, /its cost includes \$\{money\(r\.rewriteUsd\)\} of cache writes after a clear/, 'the writes are named as part of the cost');
+  // thinker prs and the comment keep the netted figure
+  assert.match(read('delivery.js'), /net\s+\$\{formatDollars\(p\.cost\.net\)\} = /);
   assert.doesNotMatch(page, /cacheWrite1h|cacheRead \*/, 'the page never prices a token itself');
   // One place the rewrite cost is worked out, and the deduction is named wherever the figure is shown.
   assert.match(read('delivery.js'), /clearingCostBySession/);
@@ -663,12 +671,12 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   const head = rep.slice(rep.indexOf("'Merged, newest first'"), rep.indexOf("'Merged, newest first'") + 400);
   for (const c of ['sessions', 'its cost', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
   assert.doesNotMatch(page, /Tokens saved per PR|Total tokens per PR|>Cleared<\/th>/, 'no token figure on a pull request');
-  for (const key of ['netPerPr', 'spendPerPr']) { assert.ok(page.includes(`'${key}'`), `page row ${key}`); assert.ok(rep.includes(`w.${key}`), `command column ${key}`); }
+  for (const key of ['savedUsdPerPr', 'spendPerPr']) { assert.ok(page.includes(`'${key}'`), `page row ${key}`); assert.ok(rep.includes(`w.${key}`), `command column ${key}`); }
   // Both doors describe the PR figures in dollars, and the page prices no token itself: it reads the row's dollars
   assert.doesNotMatch(page, /Tokens spent and saved on merged pull requests|Of the work shipped here/);
   assert.ok(rep.includes('what merged work cost and what the clearing saved on it, in dollars'));
   const prRows = page.slice(page.indexOf('function renderActivityPrs('), page.indexOf('function renderActivityPrs(') + 2500);
-  assert.match(prRows, /money\(r\.spend\)/); assert.match(prRows, /money\(r\.net\)/); assert.doesNotMatch(prRows, /fmt\(r\.agent\)|fmt\(r\.cleared\)/, 'no token figure on a PR row');
+  assert.match(prRows, /money\(r\.spend\)/); assert.match(prRows, /money\(r\.savedUsd\)/); assert.doesNotMatch(prRows, /fmt\(r\.agent\)|fmt\(r\.cleared\)/, 'no token figure on a PR row');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
   for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);
 });
