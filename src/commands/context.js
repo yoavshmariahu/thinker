@@ -132,11 +132,7 @@ async function contextCommand({ store, flags, out }) {
       if (!e) missing++;
       out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} a prompt${x.wastedWindow ? `, ~${formatTokens(x.wastedWindow)} wasted over ${days} days` : ''}`);
       if (x.about) for (const l of wrap('', x.about)) out(l);
-      if (e) {
-        for (const l of wrap('What this is:', e.what)) out(l);
-        for (const l of wrap('Why you would change it:', e.why)) out(l);
-        if (e.keep) for (const l of wrap('What you would lose:', e.keep)) out(l);
-      }
+      if (e?.text) for (const l of wrap('', e.text)) out(l);
       out('');
     });
     if (missing) out(`${missing} of these ${missing === 1 ? 'has' : 'have'} no explanation yet: \`thinker explain\` writes them, six parts to a model call, kept for this machine (in a desktop app it is queued for the session's own model).`);

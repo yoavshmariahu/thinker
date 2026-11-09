@@ -370,7 +370,7 @@ function action(s) {
     case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
-    case 'tool': return `its definition written to ${toolFile(thinkerHome(), s.name)} and replaced in every request by one sentence naming that file (by the proxy, and by thinker's clearing mod inside a desktop session); the tool stays callable, and the model reads the file before its first call; for every repository on this machine, from the next session`;
+    case 'tool': return `its definition written to ${toolFile(thinkerHome(), s.name)} and replaced in every request by a reference to it; the tool can still be used; for every repository on this machine, from the next session`;
   }
 }
 
@@ -925,7 +925,7 @@ export function switchOffNow(store, labels, { home, userHome = os.homedir(), now
   store.log({ op: 'harness-off', via, chosen: chosen.length, switched: done.length, tokens });
   const files = done.filter(d => !['desktop-connector', 'tool-stub'].includes(d.undo.key)), desk = done.filter(d => d.undo.key === 'desktop-connector'), stubs = done.filter(d => d.undo.key === 'tool-stub');
   // a built-in tool is not switched off: a tool reference is created and the definition is looked up when needed (tool-stubs.js)
-  const disk = stubs.length ? `Tool reference created for every repository from the next session on: ${stubs.map(d => `${d.name} (${d.undo.file})`).join(', ')}, about ${formatTokens(stubs.reduce((t, d) => t + d.tokens, 0))} tokens a prompt. The tool definition is looked up when needed: each prompt carries the reference, the agent reads the file before its first call, and the tool stays callable. \`thinker harness --undo\` puts the definition back.` : '';
+  const disk = stubs.length ? `Tool reference created for every repository from the next session on: ${stubs.map(d => `${d.name} (${d.undo.file})`).join(', ')}, about ${formatTokens(stubs.reduce((t, d) => t + d.tokens, 0))} tokens a prompt; the tool can still be used (\`thinker harness --undo\` puts the definition back).` : '';
   const line = files.length ? `Switched off here${global ? ' and in every repository' : ''} from the next session on${files.some(d => d.client === 'cursor') ? ' (the Cursor ones in every repository)' : ''}: ${files.map(d => d.name).join(', ')}, about ${formatTokens(files.reduce((t, d) => t + d.tokens, 0))} tokens a session. \`thinker harness --undo\` turns them back on${backups.size ? `; what the files said before is under ${path.dirname([...backups.values()][0])}` : ''}.` : '';
   // the desktop app's connectors: the agent flips the app's switch, one call each, which the user approves
   const app = desk.length ? `Now switch off the desktop app's connector${desk.length === 1 ? '' : 's'} chosen: call ${CONNECTOR_TOOL} with ${desk.map(d => `connector ${JSON.stringify(d.undo.id)} (${d.name})`).join(', ')} and enabled false, one call each. The app keeps ${desk.length === 1 ? 'it' : 'them'} off in every new session on this machine; the + menu → Connectors turns ${desk.length === 1 ? 'it' : 'them'} back on.` : '';

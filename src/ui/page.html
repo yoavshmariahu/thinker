@@ -134,9 +134,7 @@
     .pcard-top label { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1.02rem; font-weight: 600; letter-spacing: -0.02em; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
     .pcard .ctx-kind { margin-top: -0.35rem; }
     .pcard-ex { display: flex; flex-direction: column; gap: 0.6rem; }
-    .pcard-q { display: flex; flex-direction: column; gap: 0.12rem; }
-    .pcard-q h4 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
-    .pcard-q p { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
+    .pcard-line { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
     .pcard-none { font-size: 0.86rem; line-height: 1.5; color: #6b7280; background: #fafafa; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.55rem 0.7rem; }
     .pcard-nums { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; border-top: 1px solid #f0f0f0; padding-top: 0.6rem; margin-top: auto; }
     .pcard-nums div { display: flex; align-items: baseline; gap: 0.3rem; font-size: 0.78rem; color: #6b7280; }
@@ -757,12 +755,12 @@ const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', s.
 // What picking this action will do, in three words for the row and a sentence for the review before Apply. A person
 // who has never thought about an agent's context should be able to read either and know what they are about to change.
 const ACT_EFFECT = {
-  'section:compress': ['opens a pull request', 'A model rewrites the section to about a third of its length, keeping its rules, commands and paths. It opens a pull request for you to read: nothing changes in your checkout, and nothing takes effect until you merge it.'],
-  'section:remove': ['opens a pull request', 'The section is taken out of the instruction file. It opens a pull request for you to read: nothing changes in your checkout, and nothing takes effect until you merge it.'],
-  'skill:off': ['reversible', 'New sessions in this repository stop loading its name and description. You can still run it yourself by typing /name, and Turn back on undoes this at any time.'],
+  'section:compress': ['opens a pull request', 'A model rewrites the section to about a third of its length and opens a pull request; nothing changes until you merge it.'],
+  'section:remove': ['opens a pull request', 'The section is taken out of the file in a pull request; nothing changes until you merge it.'],
+  'skill:off': ['reversible', 'New sessions in this repository stop loading it; you can still run it by typing /name.'],
   'skill:on': ['reversible', 'New sessions in this repository load it again.'],
-  'tool:off': ['reversible', 'New sessions across all repositories stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
-  'builtin:off': ['looked up when needed', "The tool definition is looked up when needed: it moves to a file on this machine, every prompt carries a reference to it instead, and the agent reads the file before its first call. The tool stays callable. It applies to new Claude Code sessions across all repositories; sessions already open keep the definition. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo puts the definition back."],
+  'tool:off': ['reversible', 'New sessions across all repositories stop loading it, so the agent cannot call it.'],
+  'builtin:off': ['still usable', "The tool can still be used: its definition moves out of the prompt into a file the agent reads before its first call, in new sessions across all repositories."],
   'tool:on': ['reversible', 'New sessions in this repository load it again.'],
 };
 const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
@@ -892,21 +890,17 @@ function renderTable(view, rows, { title, sub, nameHead, savings }) {
     ${rows.length && CMODE === 'cards' ? `<div class="pcards">${rows.slice(from, from + TABLE_PAGE).map((r, k) => cardOf(r, from + k, view, { picks, maxWaste, allWaste, days })).join('')}</div>${pagerOf(view, rows.length, page, TABLE_PAGE)}`
       : rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Per prompt ${PROMPT_HELP}</th><th class="num">Needed ${NEEDED_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th class="num">Share ${SHARE_HELP}</th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
 }
-// What a card asks on the person's behalf. The heading names the change actually offered on that kind of part:
-// a section is shortened, a skill or a tool is switched off -- "why you'd cut it" over a
-// row whose only action is Compress reads as removing the compression, which is the opposite (2026-10-29).
-const WHY_HEAD = { section: "Why you'd shorten it", skill: "Why you'd switch it off", tool: "Why you'd switch it off" };
 
-// One part, as a card: what it is and why you would change it first, the figures under them, the action last.
+// One part, as a card: one sentence on what it is and what the change means (part-explain.js; the owner's call,
+// 2026-11-08: three headed paragraphs were far too much), the figures under it, the action last.
 // The data attributes are the table's, so one wireTable drives both (picks, See more, the action, Apply).
-const explainQ = (head, text) => `<div class="pcard-q"><h4>${esc(head)}</h4><p>${esc(text)}</p></div>`;
-// what fills the explanation block of a card: the three answers once they are written, and until then what the part
-// is in one clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is
-// on screen reads exactly as one drawn with its words already in hand.
+// what fills the explanation block of a card: the sentence once it is written, and until then what the part is in one
+// clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is on screen
+// reads exactly as one drawn with its words already in hand.
 function explainBlock(r) {
   const e = r.explain;
-  if (e) return `${explainQ('What it is', e.what)}${explainQ(WHY_HEAD[r.kind] || WHY_HEAD.tool, e.why)}${e.keep ? explainQ("What you'd lose", e.keep) : ''}`;
-  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is and why you would change it\u2026' : ''}</div>`;
+  if (e?.text) return `<p class="pcard-line">${esc(e.text)}</p>`;
+  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is\u2026' : ''}</div>`;
 }
 function cardOf(r, i, view, { picks, maxWaste, allWaste, days }) {
   const on = picks.has(pickKey(r)), [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
@@ -1048,7 +1042,7 @@ async function applyRows(view, items, btn) {
   };
   if (!await confirmDialog({
     title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
-    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: not switched off. A tool reference is created and the definition is looked up when needed \u2014 in every new session across all repositories the agent gets a reference to the file instead of the definition, reads it before the first call, and can still use the tool \u2014 until you turn it back on, when the definition returns to every prompt.</p>` : ''}`,
+    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: a tool reference is created and the tool can still be used, its definition read from a file before the first call.</p>` : ''}`,
   })) return;
   if (btn) busy(btn, 'Applying…');
   try {
@@ -1102,9 +1096,9 @@ function renderContext(v) {
   const vdiv = (k, inner) => `<div class="cview" data-view="${k}"${CVIEW === k ? '' : ' hidden'} id="c-${k}">${inner}</div>`;
   // the savings card of each view, and All's as their sum over what everything costs a prompt
   const sav = {
-    instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most; a session that needed one would go without it.', ok: 'No section here is wasted enough to flag.' }),
-    custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a session that needed one could turn it back on (a skill still runs as /name).', ok: 'Nothing here is wasted enough to flag.' }),
-    builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Switching them off saves this at most; Revert or Turn back on brings one back.', ok: 'No built-in tool here is wasted enough to flag.' }),
+    instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most.', ok: 'No section here is wasted enough to flag.' }),
+    custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a skill still runs as /name.', ok: 'Nothing here is wasted enough to flag.' }),
+    builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used.', ok: 'No built-in tool here is wasted enough to flag.' }),
   };
   const sumSav = Object.values(sav).reduce((a, s) => ({ perPrompt: a.perPrompt + s.perPrompt, window: a.window + (s.window || 0) }), { perPrompt: 0, window: 0 });
   sav.all = { ...sumSav, cost: perPrompt(all), share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them.', ok: 'Nothing here is flagged.' };

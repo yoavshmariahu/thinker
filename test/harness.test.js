@@ -172,7 +172,7 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   assert.deepEqual(harnessAdvice(harnessUsage(store.repo, { home: h, sessions, builtinTools: false })).filter(a => a.kind === 'tool'), [], 'off by default');
   const usage = harnessUsage(store.repo, { home: h, sessions, builtinTools: true });
   assert.deepEqual(harnessAdvice(usage).filter(a => a.kind === 'tool').map(a => a.name), ['Workflow'], 'Agent is called in 3 of 10');
-  assert.match(harnessAdvice(usage)[0].action, /tools\/Workflow\.json .*stays callable/);
+  assert.match(harnessAdvice(usage)[0].action, /tools\/Workflow\.json .*can still be used/);
   // a built-in tool is switched off from the Find Savings page alone (a row with what the tool is, and a
   // confirmation), which is switchOffNow with any. No settings file is touched: the definition goes to disk,
   // the name into the machine's registry, and the proxy and the mod send a pointer in its place (tool-stubs.js)
@@ -180,7 +180,7 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   fs.mkdirSync(path.dirname(local), { recursive: true });
   fs.writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] } }));
   const said = switchOffNow(store, 'Workflow tool', { home: th, userHome: h, now: T0, usage, any: true });
-  assert.match(said, /^Tool reference created for every repository.*Workflow \(.*tools\/Workflow\.json\).*looked up when needed.*stays callable/, 'not said to be switched off');
+  assert.match(said, /^Tool reference created for every repository.*Workflow \(.*tools\/Workflow\.json\).*can still be used/, 'not said to be switched off');
   assert.doesNotMatch(said, /Switched off/);
   assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)'], 'no deny: the tool stays callable');
   const file = toolFile(th, 'Workflow');
