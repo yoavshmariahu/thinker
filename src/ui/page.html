@@ -757,12 +757,12 @@ const switchOpts = s => s.off ? [['on', 'Turn back on']] : s.label ? [['off', s.
 // What picking this action will do, in three words for the row and a sentence for the review before Apply. A person
 // who has never thought about an agent's context should be able to read either and know what they are about to change.
 const ACT_EFFECT = {
-  'section:compress': ['opens a pull request', 'A model rewrites the section to about a third of its length, keeping its rules, commands and paths. It opens a pull request for you to read: nothing changes in your checkout, and nothing takes effect until you merge it.'],
-  'section:remove': ['opens a pull request', 'The section is taken out of the instruction file. It opens a pull request for you to read: nothing changes in your checkout, and nothing takes effect until you merge it.'],
-  'skill:off': ['reversible', 'New sessions in this repository stop loading its name and description. You can still run it yourself by typing /name, and Turn back on undoes this at any time.'],
+  'section:compress': ['opens a pull request', 'A model rewrites the section to about a third of its length and opens a pull request; nothing changes until you merge it.'],
+  'section:remove': ['opens a pull request', 'The section is taken out of the file in a pull request; nothing changes until you merge it.'],
+  'skill:off': ['reversible', 'New sessions in this repository stop loading it; you can still run it by typing /name.'],
   'skill:on': ['reversible', 'New sessions in this repository load it again.'],
-  'tool:off': ['reversible', 'New sessions across all repositories stop loading its definition, so the agent cannot call it. Sessions already open keep it. Turn back on, or Revert under Recent activity, undoes this.'],
-  'builtin:off': ['still usable', "The tool can still be used. Its definition moves to a file on this machine, every prompt carries a short reference to it instead, and the agent reads the file before its first call to the tool, so the definition is paid for only when the tool is needed. It applies to new Claude Code sessions across all repositories; sessions already open keep the definition. Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo puts the definition back."],
+  'tool:off': ['reversible', 'New sessions across all repositories stop loading it, so the agent cannot call it.'],
+  'builtin:off': ['still usable', "The tool can still be used: its definition moves out of the prompt into a file the agent reads before its first call, in new sessions across all repositories."],
   'tool:on': ['reversible', 'New sessions in this repository load it again.'],
 };
 const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
@@ -1050,7 +1050,7 @@ async function applyRows(view, items, btn) {
   };
   if (!await confirmDialog({
     title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
-    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: not switched off, and still usable. A tool reference is created and the definition is looked up when needed \u2014 in every new session across all repositories the agent gets a short reference to the file instead of the definition, reads it before its first call, and uses the tool as before \u2014 until you turn it back on, when the definition returns to every prompt.</p>` : ''}`,
+    body: `<ul class="rev-list">${items.map(entry).join('')}</ul>${builtins.length ? `<p class="rev-warn">${builtins.length === 1 ? 'One of these is' : `${builtins.length} of these are`} Claude Code's own tool${builtins.length === 1 ? '' : 's'}: a tool reference is created and the tool can still be used, its definition read from a file before the first call.</p>` : ''}`,
   })) return;
   if (btn) busy(btn, 'Applying…');
   try {
@@ -1104,9 +1104,9 @@ function renderContext(v) {
   const vdiv = (k, inner) => `<div class="cview" data-view="${k}"${CVIEW === k ? '' : ' hidden'} id="c-${k}">${inner}</div>`;
   // the savings card of each view, and All's as their sum over what everything costs a prompt
   const sav = {
-    instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most; a session that needed one would go without it.', ok: 'No section here is wasted enough to flag.' }),
-    custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a session that needed one could turn it back on (a skill still runs as /name).', ok: 'Nothing here is wasted enough to flag.' }),
-    builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most. The tools can still be used: the agent reads a definition from a file before its first call to that tool. Revert or Turn back on puts one back in every prompt.', ok: 'No built-in tool here is wasted enough to flag.' }),
+    instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most.', ok: 'No section here is wasted enough to flag.' }),
+    custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a skill still runs as /name.', ok: 'Nothing here is wasted enough to flag.' }),
+    builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used.', ok: 'No built-in tool here is wasted enough to flag.' }),
   };
   const sumSav = Object.values(sav).reduce((a, s) => ({ perPrompt: a.perPrompt + s.perPrompt, window: a.window + (s.window || 0) }), { perPrompt: 0, window: 0 });
   sav.all = { ...sumSav, cost: perPrompt(all), share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them.', ok: 'Nothing here is flagged.' };

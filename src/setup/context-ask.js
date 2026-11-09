@@ -66,7 +66,7 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   // finding the ones it meant. Nothing is applied by arriving here -- Esc skips, `n` clears them all, and Enter is
   // the Apply.
   const chosen = await multi({
-    header: `  ${c.bold('Apply the checked?')} ${c.dim('A skill or MCP server is switched off for that repository from the next session; a built-in tool gets a tool reference for every repository, its definition looked up when needed, and can still be used; a section is rewritten in the background and opens a pull request in its own repository (the file where there is no GitHub origin). Each can be followed and reverted from the page\'s Recent activity.')}`,
+    header: `  ${c.bold('Apply the checked?')} ${c.dim('A skill or MCP server is switched off for that repository from the next session; a built-in tool gets a tool reference for every repository and can still be used; a section is rewritten in the background and opens a pull request in its own repository (the file where there is no GitHub origin). Each can be followed and reverted from the page\'s Recent activity.')}`,
     hint: '↑/↓ move, Space unchecks, n clears all, Enter applies the checked, Esc skips',
     items: all.map(p => p.targets.length ? { label: pickLine(p), note: `· ${pickNote(p)}`, value: p, picked: true } : { label: pickLine(p), note: '· nothing switches it off per repository; its figures are on the page', disabled: true, value: p }), out, stdin, stdout,
   });

@@ -71,7 +71,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
   // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
   assert.doesNotMatch(said, /^\d+\. Workflow tool/m);
-  assert.match(said, /including Workflow tool: a built-in tool is not switched off: a tool reference is created and its definition is looked up when needed/);
+  assert.match(said, /including Workflow tool: a built-in tool is not switched off: a tool reference is created and the tool can still be used/);
 
   assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');

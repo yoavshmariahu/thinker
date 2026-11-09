@@ -180,7 +180,7 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   fs.mkdirSync(path.dirname(local), { recursive: true });
   fs.writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm:*)'] } }));
   const said = switchOffNow(store, 'Workflow tool', { home: th, userHome: h, now: T0, usage, any: true });
-  assert.match(said, /^Tool reference created for every repository.*Workflow \(.*tools\/Workflow\.json\).*looked up when needed.*can still be used/, 'not said to be switched off');
+  assert.match(said, /^Tool reference created for every repository.*Workflow \(.*tools\/Workflow\.json\).*can still be used/, 'not said to be switched off');
   assert.doesNotMatch(said, /Switched off/);
   assert.deepEqual(JSON.parse(fs.readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm:*)'], 'no deny: the tool stays callable');
   const file = toolFile(th, 'Workflow');
