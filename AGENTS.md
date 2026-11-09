@@ -992,8 +992,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   served recurrence rate as a share of prompts, "7.1% of prompts") and what a prompt costs, a verdict in words
   (`report.js:PROFILE_VERDICTS`) that says when there will be enough data at the repository's own pace (`pace`: measured
   exchanges over the days they span against the 200-a-side floor), and what the profile holds and how its lines fared
-  (`lines`, from profile.js:lineReport: how much of the profile a session used, the lines that bore on its work over the
-  lines shown, as the measure of its relevance; acted-on and never-borne counts in the sentence under it). The arms' counts, the unlearned share and the intervals stay in `thinker profile holdout`, which reads the
+  (`lines`, from profile.js:lineReport: the lines by how often they are used, `lineBands`: rarely (a fifth or fewer of the
+  sessions shown to), sometimes, nearly always (four fifths or more), as shares of the lines judged; the question is which
+  parts of the profile go unused, and the per-line table in `thinker profile lines` names them). The arms' counts, the unlearned share and the intervals stay in `thinker profile holdout`, which reads the
   same `holdoutFromLog`. Over the ledger's 60 days, not the weeks, so a figure and not a weekly table. All repositories pools the arms' counts (the rates
   are ratios of the pooled counts, tokens an exchange weighted by exchanges); the cost interval is bootstrapped over a
   repository's own sessions and is not pooled, so across repositories it carries the delta and no verdict. The notes'

@@ -54,7 +54,8 @@ export function profileMetric(store, opts = {}) {
   const prof = readProfile(store);
   const learned = SECTIONS.reduce((a, sec) => a + (prof?.sections?.[sec] || []).filter(e => e.id).length, 0);
   const lr = (() => { try { return lineReport(store, { days, now, profile: prof }); } catch { return null; } })();
-  const live = lr ? lr.lines.filter(l => !l.gone) : [];
+  const live = lr ? lr.lines.filter(l => !l.gone && l.shown) : [];
+  const bands = lineBands(live);
   return {
     days, holdoutRate: rate, minExchanges: PROFILE.holdoutMinObs, minSessions: PROFILE.holdoutMinSessions,
     shown, holdout,
@@ -63,8 +64,17 @@ export function profileMetric(store, opts = {}) {
     pace: pace({ shown, holdout, spanDays, min: PROFILE.holdoutMinObs }),
     // `shown` is line-sessions (a line shown to a session), `applied` those where it bore on the work: their ratio is how
     // much of the profile a session actually used (the owner's measure of its relevance, 2026-11-08); `followed` of `applied`
-    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, shown: live.reduce((a, l) => a + l.shown, 0), applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => l.shown && !l.applied).length },
+    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, sessions: lr?.sessions || 0, shown: live.reduce((a, l) => a + l.shown, 0), applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => !l.applied).length, ...bands },
   };
+}
+// How often each line is used, in three bands (the owner's ask, 2026-11-08): a line's rate is the sessions it bore on over
+// the sessions it was shown to; `rarely` is at or under RARELY (a dead or near-dead line, the one to cut once it has
+// been shown enough), `always` at or over ALWAYS (the general rules), `sometimes` between (workstreams and situational
+// rules, used when their topic comes up). Counts of the lines judged so far; the doors show them as shares.
+export const RARELY = 0.2, ALWAYS = 0.8;
+export function lineBands(lines) {
+  const rate = l => l.applied / l.shown;
+  return { rarely: lines.filter(l => rate(l) <= RARELY).length, sometimes: lines.filter(l => rate(l) > RARELY && rate(l) < ALWAYS).length, always: lines.filter(l => rate(l) >= ALWAYS).length };
 }
 // Weeks until both arms have `min` measured exchanges, at the rate they have been measured so far; null with no rate
 export function pace({ shown, holdout, spanDays, min }) {
@@ -108,7 +118,7 @@ export function mergeProfileMetrics(metrics) {
     recurrence: { delta: rec.delta, ci: rec.ci, relative: rec.relative, verdict: rec.verdict },
     cost: { delta: costDelta, ci: null, relative: costDelta != null && holdout.tokens ? costDelta / holdout.tokens : null, verdict: null },
     pace: pace({ shown, holdout, spanDays: Math.max(...ms.map(m => m.pace?.spanDays || 0)), min: ms[0].minExchanges }),
-    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied) },
+    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), sessions: sumOf(m => m.lines?.sessions), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied), rarely: sumOf(m => m.lines?.rarely), sometimes: sumOf(m => m.lines?.sometimes), always: sumOf(m => m.lines?.always) },
     repos: ms.length,
   };
 }

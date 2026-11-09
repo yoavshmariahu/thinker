@@ -1411,11 +1411,12 @@ function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
 }
-const relevant = l => !l?.shown ? '–' : `${Math.round(100 * l.applied / l.shown)}% of its lines`;
+const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
+const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['always', 'Lines nearly always used', 'bore on four fifths or more of the sessions they were shown to']];
 function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = !l.shown ? 'none judged in a session yet' : `${l.applied} of the ${l.shown} times a line was shown it bore on the session's work${l.applied ? `, and was acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
+  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 function profileFigure(v, cost) {
@@ -1430,7 +1431,7 @@ function profileFigure(v, cost) {
   const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
   const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
     `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
-    `<tr><td class="ctx-name">How much of the profile a session used</td>${cell(relevant(p.lines), `Of the lines shown to a session, the share that bore on its work (${p.lines?.applied || 0} of ${p.lines?.shown || 0} over every shown session); judged by the model that reads the session at its end, thinker profile lines --why has the evidence`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`;
+    BANDS.map(([band, name, what]) => `<tr><td class="ctx-name">${name}</td>${cell(bandShare(p.lines, band), `${p.lines?.[band] || 0} of the ${p.lines?.judged || 0} lines judged so far ${what}; judged by the model that reads a session at its end, over ${p.lines?.sessions || 0} session${p.lines?.sessions === 1 ? '' : 's'} shown the profile; thinker profile lines --why names them`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`).join('');
   const lines = [
     `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,

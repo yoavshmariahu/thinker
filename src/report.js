@@ -298,12 +298,13 @@ export function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
 }
-// the lines' row: how much of the profile a session used, lines that bore on its work over lines shown (profile.js:lineReport), and the sentence under it
-export const relevant = l => !l?.shown ? '–' : `${Math.round(100 * l.applied / l.shown)}% of its lines`;
+// the lines' rows: the profile's lines by how often they are used (profile-metric.js:lineBands), as shares of the lines judged, and the sentence under them
+export const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
+export const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['always', 'Lines nearly always used', 'bore on four fifths or more of the sessions they were shown to']];
 export function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = !l.shown ? 'none judged in a session yet' : `${l.applied} of the ${l.shown} times a line was shown it bore on the session's work${l.applied ? `, and was acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
+  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 export function profileLines(p, { cost = true } = {}) {
@@ -315,7 +316,7 @@ export function profileLines(p, { cost = true } = {}) {
     `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
     `  ${'How often you had to repeat yourself'.padEnd(40)}${share(p.shown.servedRate).padStart(18)}${share(p.holdout.servedRate).padStart(18)}`,
     `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
-    `  ${'How much of the profile a session used'.padEnd(40)}${relevant(p.lines).padStart(18)}${''.padStart(18)}`,
+    ...BANDS.map(([band, name]) => `  ${name.padEnd(40)}${bandShare(p.lines, band).padStart(18)}${''.padStart(18)}`),
     `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
     `  ${profileLinesSentence(p)}`];
