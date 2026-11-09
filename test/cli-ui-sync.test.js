@@ -441,7 +441,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   const prTable = read('ui/page.html').split('function prStatsTable(v) {')[1].split('function renderReport(v)')[0];
   assert.match(prTable, /<table class="ctx-table rep-table savings-table"/);
   assert.doesNotMatch(prTable, /<svg/);
-  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ profileFigure\(v, cost\) \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
+  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ profileFigure\(v\) \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
@@ -450,7 +450,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/server.js'), /mergeReports\(ready\.map/);
   // six weeks; the page's Share toggle is the command's --share (every row but the whole-session total as its share of it), on both doors
   assert.match(read('ui/page.html'), /<div class="seg" id="r-view"><button data-view="values" class="on">Values<\/button><button data-view="share">Share<\/button><\/div>/);
-  assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--tokens\] \[--total\] \[--share\]/);
+  assert.match(read('commands/report.js'), /share: Boolean\(flags\.share\)/); assert.match(read('cli.js'), /report \[--weeks n\] \[--total\] \[--share\]/);
   assert.match(read('report.js'), /share = false \} = \{\}\) \{/);
   assert.equal((read('ui/page.html').match(/\{ cls: 'rep-total', total: true(, key: 'total', thresholds: true)? \}/g) || []).length, 3, 'the three whole-session rows keep their values under Share');
   // the rest of the input by kind (report.js:OTHERS, the breakdown's rows), the prompt-cache rewrites by cause and the sessions
@@ -468,8 +468,8 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /data-mode="sum" class="on">Total</);
   // the unit is a prompt, one call to the model, on both doors (2026-10-24): the average is the week's sum over its prompts
   assert.match(read('ui/page.html'), /data-mode="sum" class="on">Total</);
-  assert.match(read('ui/page.html'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
-  assert.match(read('report.js'), /col\.prompts \? c\.tokens \/ col\.prompts : null/);
+  assert.match(read('ui/page.html'), /col\.pricedPrompts \? c\.cost \/ col\.pricedPrompts : null/);
+  assert.match(read('report.js'), /col\.pricedPrompts \? c\.cost \/ col\.pricedPrompts : null/);
   assert.match(read('report.js'), /per prompt \(one call to the model\)/);
   assert.match(read('report.js'), /export const REPORT_WEEKS = 6;/);
   assert.match(read('ui/page.html'), /\/api\/report\?repo=\$\{encodeURIComponent\(REPO\)\}&weeks=6/);
@@ -478,16 +478,17 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /x <= t\.good \? 'rep-good' : x >= t\.bad \? 'rep-bad' : 'rep-mid'/);
   assert.match(read('ui/page.html'), /\$\{head\('Part', true\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Provider · model'\)\}/); assert.match(read('ui/page.html'), /\$\{head\('Token type'\)\}/);
   assert.match(read('ui/page.html'), /row\(esc\(p\.name\), p\.cells, \{ key: p\.key, thresholds: true \}\)/);
-  // under Cost every row of the parts table has bounds in dollars a priced prompt: report.js:COST_THRESHOLDS, carried in the
-  // view (`costThresholds`) to the page, which colours by the same cost a priced prompt the command marks (2026-10-26).
-  // Cost is the default on both doors (the page's Cost on, the command without --tokens) and Tokens has no bounds (2026-10-26)
+  // every row of the parts table has bounds in dollars a priced prompt: report.js:COST_THRESHOLDS, carried in the view
+  // (`costThresholds`) to the page, which colours by the same cost a priced prompt the command marks (2026-10-26).
   assert.match(read('report.js'), /costThresholds: COST_THRESHOLDS,/); assert.doesNotMatch(read('report.js'), /thresholds: THRESHOLDS/); assert.match(read('report.js'), /verdict\(key, cells\[w\]\.cost \/ col\.pricedPrompts\)/);
-  assert.match(read('ui/page.html'), /const thr = cost \? v\.costThresholds \|\| \{\} : \{\}/);
-  assert.match(read('ui/page.html'), /<div class="seg" id="r-measure"><button data-m="cost" class="on">Cost<\/button><button data-m="tokens">Tokens<\/button><\/div>/); assert.match(read('ui/page.html'), /RMEASURE = 'cost'/);
-  assert.match(read('commands/report.js'), /cost: !flags\.tokens/); assert.match(read('report.js'), /renderReport\(v, \{ cost = true,/);
-  assert.match(read('ui/page.html'), /if \(!cost\) return '<td class="rep-thr"><\/td><td class="rep-thr"><\/td>'/, 'the bound columns stay, empty, under Tokens');
-  // the table does not move on a toggle: fixed layout, set column widths, the ", n priced" line's room kept (2026-10-26)
-  assert.match(read('ui/page.html'), /\.rep-table \{ table-layout: fixed;/); assert.match(read('ui/page.html'), /\$\{colgroup\(thresholds\)\}<thead>/); assert.match(read('ui/page.html'), /style="visibility:hidden"'\}>, \$\{c\.priced\} priced/); assert.match(read('report.js'), /thresholds && cost \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
+  assert.match(read('ui/page.html'), /const thr = v\.costThresholds \|\| \{\}/);
+  // Dollars and nothing else on both doors (the owner, 2026-11-08: "only costs"): no Cost/Tokens toggle on the page, no
+  // --tokens in the help, renderReport takes no unit; the tokens stay in the view and --json
+  assert.doesNotMatch(read('ui/page.html'), /r-measure|RMEASURE|data-m="tokens"|>Tokens<\/button>/); assert.doesNotMatch(read('cli.js'), /--tokens/);
+  assert.match(read('report.js'), /renderReport\(v, \{ total = false, share = false \} = \{\}\)/); assert.doesNotMatch(read('commands/report.js'), /cost: !flags\.tokens/);
+  assert.match(read('commands/report.js'), /renderReport\(v, \{ total: Boolean\(flags\.total\), share: Boolean\(flags\.share\) \}\)/);
+  // the table does not move on a toggle: fixed layout, set column widths (2026-10-26)
+  assert.match(read('ui/page.html'), /\.rep-table \{ table-layout: fixed;/); assert.match(read('ui/page.html'), /\$\{colgroup\(thresholds\)\}<thead>/); assert.match(read('report.js'), /thresholds \? thr\(key\)/); assert.match(read('ui/page.html'), /col\.pricedPrompts \? cells\[w\]\.cost \/ col\.pricedPrompts : 0/);
   for (const k of ['otherInput', 'output']) { assert.match(read('ui/page.html'), new RegExp(`key: '${k}', thresholds: true`)); assert.match(read('report.js'), new RegExp(`key: '${k}', thresholds: true`)); }
   assert.match(read('ui/page.html'), /cls: 'rep-subrow', key: p\.key, thresholds: true/);
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
@@ -775,7 +776,7 @@ test('thinker containers is machine-wide and CLI-only, and installs from this bu
 test('the Report shows the profile metric on the page as the command prints it, and no row of the removed notes', async () => {
   const report = read('report.js'), page = read('ui/page.html');
   assert.match(report, /profileMetric\(store/); assert.match(report, /mergeProfileMetrics\(/, 'All repositories pools the arms');
-  assert.match(report, /profileLines\(v\.profile/); assert.match(page, /profileFigure\(v, cost\)/);
+  assert.match(report, /profileLines\(v\.profile/); assert.match(page, /profileFigure\(v\)/);
   assert.match(read('commands/profile.js'), /holdoutFromLog\(/, 'thinker profile holdout reads the same computation');
   const { PROFILE_VERDICTS } = await import('../src/report.js');
   for (const text of Object.values(PROFILE_VERDICTS)) assert.ok(page.includes(text), `the page says "${text}"`);

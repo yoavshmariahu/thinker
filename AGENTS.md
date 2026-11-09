@@ -1134,13 +1134,13 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 **Toggles**
 - `--share`: Values/Share (row ÷ week total, `formatShare`); whole-session total keeps value.
 - `--total`: Per session/Total.
-- Cost (list prices) is the default view on both doors (2026-10-26). `--tokens` / the page's Tokens: tokens instead, no bounds. `--cost` still accepted, no-op.
+- Dollars at list prices and nothing else (2026-11-08, the owner: "only costs"). The Cost/Tokens toggle of 2026-10-26 (cost the default, `--tokens` / the page's Tokens for tokens without bounds) went that day: a token count adds fresh input, cache reads, cache writes and output as if they were one thing. The tokens stay in the view and `--json`; `--tokens` and `--cost` are accepted and change nothing.
 
-**Colour (parts table, cost view only)**
+**Colour (parts table)**
 - Every row of the parts table (four parts, Other input and each kind, output, total) coloured by dollars per priced prompt vs `report.js:COST_THRESHOLDS`: green ≤ good, red ≥ bad, yellow between.
 - Four parts: the old token bounds (12k/30k, 4k/15k, 22k/36k, 30k/72k) at ~$0.8/M input. Other rows set on this machine's two weeks to 2026-10-26; total = sum of the rows. First cut, one machine.
 - Good/Bad columns beside each row. Verdict uses cost per priced prompt regardless of displayed cell (Total, Share).
-- Token view: no bounds, columns or colour (owner's call 2026-10-26: models count tokens too differently; `THRESHOLDS` removed).
+- The token view (gone 2026-11-08) had no bounds, columns or colour (owner's call 2026-10-26: models count tokens too differently; `THRESHOLDS` removed).
 - No colour in the model and token-type tables. No percentage in cell; zero cell blank.
 - Command prints same columns, marks ✓ · ✗.
 
