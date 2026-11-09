@@ -136,7 +136,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /builtin: "Why you'd move it out of the prompt"/); assert.match(page, /what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used\.'/);
   assert.match(read('part-explain.js'), /builtin: 'moving its full definition out of the prompt[^']*The agent can still use the tool/); assert.match(read('part-explain.js'), /p\.kind === 'tool' && p\.builtin \? ACTION_WORD\.builtin/);
   assert.doesNotMatch(page, /switched off across all repositories|cannot call it at all|loses the ability/);
-  assert.match(page, /Revert under Recent activity, Turn back on in the tool's row, or thinker harness --undo puts the definition back/);
+  assert.match(page, /'builtin:off': \['still usable', "[^"]*in new sessions across all repositories\."\]/, 'one sentence, and it says the tool can still be used');
   assert.match(page, /rev-warn[\s\S]{0,260}a tool reference is created and the tool can still be used/);
   assert.match(page, /s\.group === 'builtin' \? 'Create tool reference' : 'Switch off'/);
   assert.match(read('context-suggest.js'), /ref: \{ act: 'off', text: 'Create tool reference' \}/);
