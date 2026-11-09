@@ -133,7 +133,8 @@ test('the page serves the reports kept in the checkouts and has them made again 
   assert.equal(b.asOf, a.asOf); assert.equal(reports.length, 0);
   // old: served as it is, every repository's made again in the background in one run (null), asked for once
   const kept = JSON.parse(fs.readFileSync(f, 'utf8')), oldAt = Date.now() - 11 * 60_000;
-  kept.views['6'].at = oldAt; fs.writeFileSync(f, JSON.stringify(kept));
+  // every slot of the window is aged: the reader takes its own code's slot first (report-snapshot.js `byCode`, 2026-11-09)
+  kept.views['6'].at = oldAt; for (const c of Object.keys(kept.byCode || {})) if (kept.byCode[c]['6']) kept.byCode[c]['6'].at = oldAt; fs.writeFileSync(f, JSON.stringify(kept));
   const c = await get('/api/report?repo=all');
   assert.equal(c.asOf, oldAt); assert.equal(c.refreshing, true); assert.deepEqual(reports, [null]);
   // one repository: its own refresh
