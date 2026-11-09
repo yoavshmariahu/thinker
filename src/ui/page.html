@@ -1411,11 +1411,11 @@ function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
 }
-const actedOn = l => l?.followRate == null ? '–' : `${Math.round(100 * l.followRate)}% of sessions`;
+const relevant = l => !l?.shown ? '–' : `${Math.round(100 * l.applied / l.shown)}% of its lines`;
 function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = l.followRate == null ? 'none judged in a session yet' : `acted on in ${l.followed} of the ${l.applied} sessions a line bore on${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
+  const judged = !l.shown ? 'none judged in a session yet' : `${l.applied} of the ${l.shown} times a line was shown it bore on the session's work${l.applied ? `, and was acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 function profileFigure(v, cost) {
@@ -1430,7 +1430,7 @@ function profileFigure(v, cost) {
   const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
   const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
     `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
-    `<tr><td class="ctx-name">How often a profile line was acted on</td>${cell(actedOn(p.lines), `Of the sessions a line had any bearing on, the share where the agent acted on it (${p.lines?.followed || 0} of ${p.lines?.applied || 0}); judged by the model that reads the session at its end, thinker profile lines --why has the evidence`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`;
+    `<tr><td class="ctx-name">How much of the profile a session used</td>${cell(relevant(p.lines), `Of the lines shown to a session, the share that bore on its work (${p.lines?.applied || 0} of ${p.lines?.shown || 0} over every shown session); judged by the model that reads the session at its end, thinker profile lines --why has the evidence`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`;
   const lines = [
     `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,

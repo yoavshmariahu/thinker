@@ -515,6 +515,6 @@ test('the Report carries the profile metric, pooled across repositories as count
   assert.match(text, /No lines learned yet\./);
   // the pace: 5 exchanges measured over one day, 198 + 197 more needed
   assert.equal(p.pace.measured, 5); assert.equal(p.pace.need, 395); assert.ok(Math.abs(p.pace.weeksToGo - 395 / 5 / 7) < 0.01);
-  assert.deepEqual(p.lines, { learned: 0, fromSessions: 0, judged: 0, applied: 0, followed: 0, followRate: null, neverApplied: 0 });
+  assert.deepEqual(p.lines, { learned: 0, fromSessions: 0, judged: 0, shown: 0, applied: 0, followed: 0, followRate: null, neverApplied: 0 });
   assert.match(renderReport({ ...reportView(store, { now: NOW, sessions: [] }), profile: null }).join('\n'), /No profile observations/);
 });

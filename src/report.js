@@ -298,12 +298,12 @@ export function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
 }
-// the lines' row: how often a line was acted on in the sessions it bore on (profile.js:lineReport), and the sentence under it
-export const actedOn = l => l?.followRate == null ? '–' : `${Math.round(100 * l.followRate)}% of sessions`;
+// the lines' row: how much of the profile a session used, lines that bore on its work over lines shown (profile.js:lineReport), and the sentence under it
+export const relevant = l => !l?.shown ? '–' : `${Math.round(100 * l.applied / l.shown)}% of its lines`;
 export function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = l.followRate == null ? 'none judged in a session yet' : `acted on in ${l.followed} of the ${l.applied} sessions a line bore on${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
+  const judged = !l.shown ? 'none judged in a session yet' : `${l.applied} of the ${l.shown} times a line was shown it bore on the session's work${l.applied ? `, and was acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 export function profileLines(p, { cost = true } = {}) {
@@ -315,7 +315,7 @@ export function profileLines(p, { cost = true } = {}) {
     `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
     `  ${'How often you had to repeat yourself'.padEnd(40)}${share(p.shown.servedRate).padStart(18)}${share(p.holdout.servedRate).padStart(18)}`,
     `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
-    `  ${'How often a profile line was acted on'.padEnd(40)}${actedOn(p.lines).padStart(18)}${''.padStart(18)}`,
+    `  ${'How much of the profile a session used'.padEnd(40)}${relevant(p.lines).padStart(18)}${''.padStart(18)}`,
     `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
     `  ${profileLinesSentence(p)}`];

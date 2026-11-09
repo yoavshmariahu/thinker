@@ -61,7 +61,9 @@ export function profileMetric(store, opts = {}) {
     unknown: { observations: h.unknown.observations, sessions: h.unknown.sessions },
     recurrence: cmp(h.recurrence), cost: cmp(h.cost),
     pace: pace({ shown, holdout, spanDays, min: PROFILE.holdoutMinObs }),
-    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => l.shown && !l.applied).length },
+    // `shown` is line-sessions (a line shown to a session), `applied` those where it bore on the work: their ratio is how
+    // much of the profile a session actually used (the owner's measure of its relevance, 2026-11-08); `followed` of `applied`
+    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, shown: live.reduce((a, l) => a + l.shown, 0), applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => l.shown && !l.applied).length },
   };
 }
 // Weeks until both arms have `min` measured exchanges, at the rate they have been measured so far; null with no rate
@@ -98,7 +100,7 @@ export function mergeProfileMetrics(metrics) {
   const rec = compareRates(shown, holdout, { min: ms[0].minExchanges });
   const costDelta = shown.tokens != null && holdout.tokens != null ? shown.tokens - holdout.tokens : null;
   const sumOf = f => ms.reduce((a, m) => a + (f(m) || 0), 0);
-  const applied = sumOf(m => m.lines?.applied), followed = sumOf(m => m.lines?.followed);
+  const applied = sumOf(m => m.lines?.applied), followed = sumOf(m => m.lines?.followed), shownLines = sumOf(m => m.lines?.shown);
   return {
     days: ms[0].days, holdoutRate: ms[0].holdoutRate, minExchanges: ms[0].minExchanges, minSessions: ms[0].minSessions,
     shown, holdout,
@@ -106,7 +108,7 @@ export function mergeProfileMetrics(metrics) {
     recurrence: { delta: rec.delta, ci: rec.ci, relative: rec.relative, verdict: rec.verdict },
     cost: { delta: costDelta, ci: null, relative: costDelta != null && holdout.tokens ? costDelta / holdout.tokens : null, verdict: null },
     pace: pace({ shown, holdout, spanDays: Math.max(...ms.map(m => m.pace?.spanDays || 0)), min: ms[0].minExchanges }),
-    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied) },
+    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied) },
     repos: ms.length,
   };
 }
