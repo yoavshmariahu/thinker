@@ -8,6 +8,12 @@
 // One file per repository (`.thinker/state/report.json`, every window asked for under `views`): a linked worktree
 // keeps its cache in the main checkout's .thinker and the sessions are gathered over every checkout, so every
 // checkout reads and refreshes the same report (the owner's decision, 2026-10-24: worktrees are not a dimension).
+// **One slot per code** (2026-11-09): several checkouts run a page at once on this machine (three on the day it was
+// found: two worktrees and the main checkout, each on its own code), and with one slot each took the others' write for
+// a stale report, read every session again, wrote its own, and the others did the same, without end. So `byCode` keeps
+// the newest view of each code (the four most recent codes, a week at most), a reader looks for its own code's slot
+// first, and `views` stays the newest write of any code for readers from before this. Another code's write no longer
+// invalidates this one's report; a fresh checkout still reads every session once, on its first look.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -25,13 +31,16 @@ const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 
 
 export const reportFile = store => path.join(store.dir, 'state', 'report.json');
 const lockFile = store => path.join(store.dir, 'state', 'report.lock');
-const readFile = store => { try { const s = JSON.parse(fs.readFileSync(reportFile(store), 'utf8')); return s && typeof s.views === 'object' ? s : { views: {} }; } catch { return { views: {} }; } };
+const readFile = store => { try { const s = JSON.parse(fs.readFileSync(reportFile(store), 'utf8')); return s && typeof s.views === 'object' ? { byCode: {}, ...s } : { views: {}, byCode: {} }; } catch { return { views: {}, byCode: {} }; } };
+// the slot a reader takes: its own code's when there is one, else the newest write of any code
+const slotOf = (s, weeks) => s.byCode?.[code()]?.[String(weeks)] || s.views[String(weeks)];
+const KEEP_CODES = 4, KEEP_MS = 7 * 86400_000;
 
 // { at, view, current, mine } of the report kept for `weeks`, whether or not it still holds: `current` when this code
 // made it less than REFRESH_MS ago, `mine` when this code made it however long ago (ui/scans.js reads only what changed
 // since such a report, instead of every session again); null when there is none
 export function readReport(store, weeks = REPORT_WEEKS, { now = Date.now() } = {}) {
-  const s = readFile(store).views[String(weeks)];
+  const s = slotOf(readFile(store), weeks);
   return s?.view ? { at: s.at, view: s.view, current: s.code === code() && now - s.at <= REFRESH_MS, mine: s.code === code() } : null;
 }
 
@@ -39,8 +48,13 @@ export function readReport(store, weeks = REPORT_WEEKS, { now = Date.now() } = {
 export function writeReport(store, weeks, view, { now = Date.now() } = {}) {
   const f = reportFile(store), tmp = `${f}.${process.pid}.tmp`;
   try {
-    const s = readFile(store);
-    s.views[String(weeks)] = { at: now, code: code(), view };
+    const s = readFile(store), entry = { at: now, code: code(), view };
+    s.views[String(weeks)] = entry;
+    (s.byCode[code()] ||= {})[String(weeks)] = entry;
+    // the slots of other codes: the most recent few, none older than a week, so the file stays a few views long
+    const newest = c => Math.max(...Object.values(s.byCode[c]).map(x => x.at || 0));
+    for (const c of Object.keys(s.byCode)) if (c !== code() && now - newest(c) > KEEP_MS) delete s.byCode[c];
+    for (const c of Object.keys(s.byCode).sort((a, b) => newest(b) - newest(a)).slice(KEEP_CODES)) delete s.byCode[c];
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(tmp, JSON.stringify(s));
     fs.renameSync(tmp, f);
@@ -80,7 +94,7 @@ export function dropReports(store) {
 // a worktree's: 2026-10-24, every row read "measuring" for an hour) leaves rows without what the effects need, or none.
 // `stale`: the report should be made again (none, other code, or older than REFRESH_MS), which the page starts.
 export function keptRows(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
-  const s = readFile(store).views[String(weeks)];
+  const s = slotOf(readFile(store), weeks);
   const mine = s?.view && s.code === code();
   return { rows: mine ? s.view.sessionRows || [] : [], stale: !mine || now - s.at > REFRESH_MS };
 }

@@ -1240,7 +1240,11 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 
 **Performance and kept report**
 - Page never recomputes on visit.
-- Kept report: `.thinker/state/report.json`, all windows under `views`. One per repo, shared by worktrees.
+- Kept report: `.thinker/state/report.json`, all windows under `views`. One per repo, shared by worktrees. **One slot per
+  code** (`byCode`, 2026-11-09): three page servers on one machine, each from its own checkout, each took the others'
+  write for a stale report, read every session again and wrote its own, without end (the owner: "we keep looping to
+  process the sessions"). A reader takes its own code's slot first; `views` stays the newest write for older readers;
+  four codes at most, a week at most. A fresh checkout still reads every session once.
 - `thinker report` and `--refresh` write it. Page starts `thinker report --refresh --all` in background when older than `REFRESH_MS` (10 min) or made by other code; shows "measured n min ago, updating…".
 - Decisions under tables read live (`report.js:reportActions`).
 - Save page: outgrown kept report shown at once, remade behind (`context-snapshot.js:lastSnapshot`). Transcripts read on visit only if no kept report or action dropped it.

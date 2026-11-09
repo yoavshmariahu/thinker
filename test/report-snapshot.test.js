@@ -43,7 +43,7 @@ test('a report made by other code is served and marked for a refresh', t => {
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
   writeReport(st, 6, { weeks: 6, columns: [] }, { now });
   const f = path.join(st.dir, 'state', 'report.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
-  kept.views['6'].code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
+  kept.views['6'].code = 'other'; delete kept.byCode; fs.writeFileSync(f, JSON.stringify(kept));
   const s = reportSnapshot(st, 6, { now });
   assert.equal(s.stale, true); assert.deepEqual(s.view, { weeks: 6, columns: [] });
   // its session rows are not lent to the decisions (another copy's rows lack what the effects need): nothing measured, stale
@@ -95,6 +95,32 @@ test('a kept report says whether this code made it, apart from whether it is fre
   const old = readReport(st, 6, { now: now + REFRESH_MS + 1 });
   assert.equal(old.current, false); assert.equal(old.mine, true);
   const f = path.join(st.dir, 'state', 'report.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
-  kept.views['6'].code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
+  kept.views['6'].code = 'other'; delete kept.byCode; fs.writeFileSync(f, JSON.stringify(kept));
   assert.equal(readReport(st, 6, { now }).mine, false);
+});
+
+test('another checkout\'s write does not take this code\'s report away: one slot per code, the newest write for older readers', t => {
+  // three page servers on one machine, each on its own code, each took the others' write for a stale report and read every
+  // session again, without end (2026-11-09)
+  const st = repo(t), now = Date.now();
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  writeReport(st, 6, { weeks: 6, columns: [], mine: true }, { now });
+  const f = path.join(st.dir, 'state', 'report.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
+  // another code writes after this one: `views` is its, and it has a slot of its own
+  const theirs = { at: now + 1000, code: 'other', view: { weeks: 6, columns: [], mine: false } };
+  kept.views['6'] = theirs; kept.byCode.other = { 6: theirs }; fs.writeFileSync(f, JSON.stringify(kept));
+  const r = readReport(st, 6, { now: now + 2000 });
+  assert.equal(r.mine, true); assert.equal(r.current, true); assert.equal(r.view.mine, true, 'this code reads its own slot');
+  assert.equal(reportSnapshot(st, 6, { now: now + 2000 }).stale, false, 'and starts no refresh over the other write');
+  assert.deepEqual(keptRows(st, { now: now + 2000 }).stale, false);
+  // a reader from before the slots takes the newest write
+  assert.equal(JSON.parse(fs.readFileSync(f, 'utf8')).views['6'].code, 'other');
+  // this code writing again keeps the other's slot and makes `views` its own; old slots go after a week, and only four codes are kept
+  const stale = { at: now - 8 * 86400_000, code: 'old', view: { weeks: 6 } };
+  const k2 = JSON.parse(fs.readFileSync(f, 'utf8')); k2.byCode.old = { 6: stale }; for (const c of ['c1', 'c2', 'c3', 'c4']) k2.byCode[c] = { 6: { at: now - 1000, code: c, view: { weeks: 6 } } }; fs.writeFileSync(f, JSON.stringify(k2));
+  writeReport(st, 6, { weeks: 6, columns: [], mine: 2 }, { now: now + 3000 });
+  const k3 = JSON.parse(fs.readFileSync(f, 'utf8'));
+  assert.equal(k3.views['6'].view.mine, 2); assert.equal(k3.byCode.other.view === undefined, true); assert.ok(k3.byCode.other['6']); assert.equal(k3.byCode.old, undefined, 'a week-old slot is pruned');
+  assert.equal(Object.keys(k3.byCode).length, 4, 'four codes at most, this one among them');
+  assert.ok(k3.byCode[k3.views['6'].code]);
 });
