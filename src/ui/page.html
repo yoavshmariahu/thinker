@@ -134,9 +134,7 @@
     .pcard-top label { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1.02rem; font-weight: 600; letter-spacing: -0.02em; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
     .pcard .ctx-kind { margin-top: -0.35rem; }
     .pcard-ex { display: flex; flex-direction: column; gap: 0.6rem; }
-    .pcard-q { display: flex; flex-direction: column; gap: 0.12rem; }
-    .pcard-q h4 { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; }
-    .pcard-q p { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
+    .pcard-line { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
     .pcard-none { font-size: 0.86rem; line-height: 1.5; color: #6b7280; background: #fafafa; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.55rem 0.7rem; }
     .pcard-nums { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; border-top: 1px solid #f0f0f0; padding-top: 0.6rem; margin-top: auto; }
     .pcard-nums div { display: flex; align-items: baseline; gap: 0.3rem; font-size: 0.78rem; color: #6b7280; }
@@ -892,23 +890,17 @@ function renderTable(view, rows, { title, sub, nameHead, savings }) {
     ${rows.length && CMODE === 'cards' ? `<div class="pcards">${rows.slice(from, from + TABLE_PAGE).map((r, k) => cardOf(r, from + k, view, { picks, maxWaste, allWaste, days })).join('')}</div>${pagerOf(view, rows.length, page, TABLE_PAGE)}`
       : rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Per prompt ${PROMPT_HELP}</th><th class="num">Needed ${NEEDED_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th class="num">Share ${SHARE_HELP}</th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
 }
-// What a card asks on the person's behalf. The heading names the change actually offered on that kind of part:
-// a section is shortened, a skill or a tool is switched off -- "why you'd cut it" over a
-// row whose only action is Compress reads as removing the compression, which is the opposite (2026-10-29).
-// a built-in tool is not switched off: its definition is moved out of the prompt and the tool stays usable (tool-stubs.js)
-const WHY_HEAD = { section: "Why you'd shorten it", skill: "Why you'd switch it off", tool: "Why you'd switch it off", builtin: "Why you'd move it out of the prompt" };
-const whyHead = r => r.kind === 'tool' && r.view === 'builtin' ? WHY_HEAD.builtin : WHY_HEAD[r.kind] || WHY_HEAD.tool;
 
-// One part, as a card: what it is and why you would change it first, the figures under them, the action last.
+// One part, as a card: one sentence on what it is and what the change means (part-explain.js; the owner's call,
+// 2026-11-08: three headed paragraphs were far too much), the figures under it, the action last.
 // The data attributes are the table's, so one wireTable drives both (picks, See more, the action, Apply).
-const explainQ = (head, text) => `<div class="pcard-q"><h4>${esc(head)}</h4><p>${esc(text)}</p></div>`;
-// what fills the explanation block of a card: the three answers once they are written, and until then what the part
-// is in one clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is
-// on screen reads exactly as one drawn with its words already in hand.
+// what fills the explanation block of a card: the sentence once it is written, and until then what the part is in one
+// clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is on screen
+// reads exactly as one drawn with its words already in hand.
 function explainBlock(r) {
   const e = r.explain;
-  if (e) return `${explainQ('What it is', e.what)}${explainQ(whyHead(r), e.why)}${e.keep ? explainQ("What you'd lose", e.keep) : ''}`;
-  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is and why you would change it\u2026' : ''}</div>`;
+  if (e?.text) return `<p class="pcard-line">${esc(e.text)}</p>`;
+  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is\u2026' : ''}</div>`;
 }
 function cardOf(r, i, view, { picks, maxWaste, allWaste, days }) {
   const on = picks.has(pickKey(r)), [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);

@@ -133,7 +133,7 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /bold: s\.kind === 'tool'/);
   assert.match(page, /title: `Apply \$\{items\.length === 1 \? 'this change' : `these \$\{items\.length\} changes`\}\?`/);
   assert.match(page, /'builtin:off': \['still usable', "The tool can still be used:/);
-  assert.match(page, /builtin: "Why you'd move it out of the prompt"/); assert.match(page, /what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used\.'/);
+  assert.match(page, /what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used\.'/);
   assert.match(read('part-explain.js'), /builtin: 'moving its full definition out of the prompt[^']*The agent can still use the tool/); assert.match(read('part-explain.js'), /p\.kind === 'tool' && p\.builtin \? ACTION_WORD\.builtin/);
   assert.doesNotMatch(page, /switched off across all repositories|cannot call it at all|loses the ability/);
   assert.match(page, /'builtin:off': \['still usable', "[^"]*in new sessions across all repositories\."\]/, 'one sentence, and it says the tool can still be used');

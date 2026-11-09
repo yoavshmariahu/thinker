@@ -50,7 +50,7 @@ test('every part of a view is listed, heaviest waste first, each seeded with wha
 
 test('the suite never reads or writes the developer’s own explanations unless it names a home', () => {
   const saved = process.env.THINKER_HOME; delete process.env.THINKER_HOME;
-  try { assert.equal(explainFile(), null); assert.deepEqual(readExplains(), {}); assert.equal(saveExplains({ a: { what: 'x' } }), 0); }
+  try { assert.equal(explainFile(), null); assert.deepEqual(readExplains(), {}); assert.equal(saveExplains({ a: { text: 'x' } }), 0); }
   finally { if (saved !== undefined) process.env.THINKER_HOME = saved; }
 });
 
@@ -59,7 +59,7 @@ test('explanations are written in batches, kept for the machine, and put back on
   const seen = [];
   const batchFn = async (_s, parts) => {
     seen.push(parts.map(p => p.name));
-    return { explains: Object.fromEntries(parts.map(p => [p.key, { what: `what ${p.name} is`, why: `why ${p.name}`, keep: `lose ${p.name}`, name: p.name, kind: p.kind }])), tokens: 10 };
+    return { explains: Object.fromEntries(parts.map(p => [p.key, { text: `what ${p.name} is`, name: p.name, kind: p.kind }])), tokens: 10 };
   };
   const r = await explainParts(store(), viewParts(VIEW), { per: 2, conc: 1, batchFn });
   assert.equal(r.saved, 3);
@@ -68,9 +68,9 @@ test('explanations are written in batches, kept for the machine, and put back on
   const have = readExplains();
   assert.equal(Object.keys(have).length, 3);
   const v = attachExplains(VIEW, have);
-  assert.equal(v.tools[0].explain.what, 'what Artifact is');
-  assert.equal(v.instructions.sections[0].explain.keep, 'lose Releases');
-  assert.equal(v.skills[0].explain.what, 'what dataviz is');
+  assert.equal(v.tools[0].explain.text, 'what Artifact is');
+  assert.equal(v.instructions.sections[0].explain.text, 'what Releases is');
+  assert.equal(v.skills[0].explain.text, 'what dataviz is');
   // nothing is asked for twice
   assert.deepEqual(missingExplains(VIEW, have), []);
 });
@@ -78,17 +78,17 @@ test('explanations are written in batches, kept for the machine, and put back on
 test('a batch that fails costs its own parts only, and half an answer is never stored as the explanation', async t => {
   machine(t);
   const { explainBatch } = await import('../src/part-explain.js');
-  // the model answered for one part and gave the other an empty why: only the usable one is kept
+  // the model answered for one part and gave the other two words: only the usable one is kept
   const completeFn = async () => ({ json: { parts: [
-    { n: 1, what: 'a tool that publishes a page you can share', why: 'nothing uses it unless you ask for pages', keep: 'you lose the shareable link' },
-    { n: 2, what: 'ok', why: '', keep: '' },
+    { n: 1, text: 'Publishes a page you can share; without it in every prompt the agent reads how when first asked for one.' },
+    { n: 2, text: 'ok' },
   ] }, model: 'haiku' });
   const parts = viewParts(VIEW).slice(0, 2);
   const { explains } = await explainBatch(store(), parts, { completeFn });
   assert.deepEqual(Object.keys(explains), [parts[0].key]);
 
   let calls = 0;
-  const batchFn = async (_s, g) => { calls++; if (g.some(p => p.name === 'dataviz')) throw new Error('model said no'); return { explains: Object.fromEntries(g.map(p => [p.key, { what: 'a'.repeat(20), why: 'b'.repeat(20), keep: 'c' }])), tokens: 1 }; };
+  const batchFn = async (_s, g) => { calls++; if (g.some(p => p.name === 'dataviz')) throw new Error('model said no'); return { explains: Object.fromEntries(g.map(p => [p.key, { text: 'a'.repeat(20) }])), tokens: 1 }; };
   const r = await explainParts(store(), viewParts(VIEW), { per: 1, conc: 1, batchFn });
   assert.equal(calls, 3);
   assert.equal(r.failed, 1);
