@@ -993,7 +993,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   (`report.js:PROFILE_VERDICTS`) that says when there will be enough data at the repository's own pace (`pace`: measured
   exchanges over the days they span against the 200-a-side floor), and what the profile holds and how its lines fared
   (`lines`, from profile.js:lineReport: the lines by how often they are used, `lineBands`: rarely (a fifth or fewer of the
-  sessions shown to), sometimes, nearly always (four fifths or more), as shares of the lines judged; the question is which
+  sessions shown to), sometimes, frequently (four fifths or more), as shares of the lines judged; the question is which
   parts of the profile go unused, and the per-line table in `thinker profile lines` names them). The arms' counts, the unlearned share and the intervals stay in `thinker profile holdout`, which reads the
   same `holdoutFromLog`. Over the ledger's 60 days, not the weeks, so a figure and not a weekly table. All repositories pools the arms' counts (the rates
   are ratios of the pooled counts, tokens an exchange weighted by exchanges); the cost interval is bootstrapped over a

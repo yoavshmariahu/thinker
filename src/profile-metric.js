@@ -69,12 +69,12 @@ export function profileMetric(store, opts = {}) {
 }
 // How often each line is used, in three bands (the owner's ask, 2026-11-08): a line's rate is the sessions it bore on over
 // the sessions it was shown to; `rarely` is at or under RARELY (a dead or near-dead line, the one to cut once it has
-// been shown enough), `always` at or over ALWAYS (the general rules), `sometimes` between (workstreams and situational
+// been shown enough), `frequently` at or over FREQUENTLY (the general rules), `sometimes` between (workstreams and situational
 // rules, used when their topic comes up). Counts of the lines judged so far; the doors show them as shares.
-export const RARELY = 0.2, ALWAYS = 0.8;
+export const RARELY = 0.2, FREQUENTLY = 0.8;
 export function lineBands(lines) {
   const rate = l => l.applied / l.shown;
-  return { rarely: lines.filter(l => rate(l) <= RARELY).length, sometimes: lines.filter(l => rate(l) > RARELY && rate(l) < ALWAYS).length, always: lines.filter(l => rate(l) >= ALWAYS).length };
+  return { rarely: lines.filter(l => rate(l) <= RARELY).length, sometimes: lines.filter(l => rate(l) > RARELY && rate(l) < FREQUENTLY).length, frequently: lines.filter(l => rate(l) >= FREQUENTLY).length };
 }
 // Weeks until both arms have `min` measured exchanges, at the rate they have been measured so far; null with no rate
 export function pace({ shown, holdout, spanDays, min }) {
@@ -118,7 +118,7 @@ export function mergeProfileMetrics(metrics) {
     recurrence: { delta: rec.delta, ci: rec.ci, relative: rec.relative, verdict: rec.verdict },
     cost: { delta: costDelta, ci: null, relative: costDelta != null && holdout.tokens ? costDelta / holdout.tokens : null, verdict: null },
     pace: pace({ shown, holdout, spanDays: Math.max(...ms.map(m => m.pace?.spanDays || 0)), min: ms[0].minExchanges }),
-    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), sessions: sumOf(m => m.lines?.sessions), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied), rarely: sumOf(m => m.lines?.rarely), sometimes: sumOf(m => m.lines?.sometimes), always: sumOf(m => m.lines?.always) },
+    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), sessions: sumOf(m => m.lines?.sessions), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied), rarely: sumOf(m => m.lines?.rarely), sometimes: sumOf(m => m.lines?.sometimes), frequently: sumOf(m => m.lines?.frequently) },
     repos: ms.length,
   };
 }

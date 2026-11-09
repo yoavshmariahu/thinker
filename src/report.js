@@ -300,7 +300,7 @@ export function profileWhen(p) {
 }
 // the lines' rows: the profile's lines by how often they are used (profile-metric.js:lineBands), as shares of the lines judged, and the sentence under them
 export const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
-export const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['always', 'Lines nearly always used', 'bore on four fifths or more of the sessions they were shown to']];
+export const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['frequently', 'Lines frequently used', 'bore on four fifths or more of the sessions they were shown to']];
 export function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
