@@ -9,5 +9,6 @@
   "webAclName": "thinker-site-access",
   "responsePolicyName": "thinker-site-private-responses",
   "legacyDownloadsUntil": "2026-10-02T06:30:25Z",
-  "publicSite": true
+  "publicSite": true,
+  "certificateArn": "arn:aws:acm:us-east-1:442899048927:certificate/a04b0af7-37cc-4719-b583-2cc10bf04281"
 }
