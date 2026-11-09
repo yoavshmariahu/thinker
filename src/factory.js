@@ -18,7 +18,11 @@ import { parseTranscript, subagentSessions } from './transcripts.js';
 import { bashProgram } from './tool-outputs.js';
 import { listPrice, writeCost } from './prices.js';
 import { findRepoSessions } from './instruction-value.js';
-import { readLedger } from './profile.js';
+import { readLedger, profileArmOf } from './profile.js';
+import { heldOut } from './proxy.js';
+import { SERVICE_HOLDOUT } from './proxy-service.js';
+import { readMachineConfig } from './repo-switch.js';
+import { thinkerHome } from './update.js';
 import { deliveryReport } from './delivery.js';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 import { weekColumns, REPORT_WEEKS } from './report.js';
@@ -221,6 +225,56 @@ export function mergeWeekly(list) {
   return { columns, totals: sum(w => w.totals, () => ({ cost: 0, tokens: 0, calls: 0, sessions: 0 })), stages: Object.fromEntries(STAGE_KEYS.map(k => [k, sum(w => w.stages[k], wcell)])), loops: Object.fromEntries(loopKeys.map(k => [k, sum(w => w.loops[k], lcell)])) };
 }
 
+// --- by arm -------------------------------------------------------------------------------------------------------------
+// The Factory split by a feature's two sides (2026-11-09, the owner's ask: "see diff by"): the sessions the feature reached
+// against the ones held out from it, on the same mix of work. Two features carry a per-session arm: the session profile
+// (`profile.js:profileArm`, recorded on the session's state file at its start; a session from before the profile shipped
+// has none and is left out) and the clearing (`proxy.js:heldOut`, a hash of the session id against the service's share,
+// so every session has a side). Raw sums per side; every ratio is taken where it is shown, as a ratio of sums, so All
+// repositories can add the sides up. Sessions are the person's: a subagent conversation takes its parent's arm.
+export const ARMS = {
+  profile: { name: 'Memory profile', on: 'shown', off: 'holdout', onLabel: 'shown the profile', offLabel: 'held out' },
+  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'cleared', offLabel: 'held out' },
+};
+const armCell = () => ({ sessions: new Set(), exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0 } });
+export function armTally(share) {
+  const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, on: armCell(), holdout: armCell() } };
+  const sideOf = (feature, arms) => arms[feature] ? t[feature][arms[feature]] : null;
+  return {
+    add(arms, r, sessionId) {
+      for (const feature of Object.keys(ARMS)) {
+        const c = sideOf(feature, arms); if (!c) continue;
+        c.sessions.add(sessionId); c.exchanges += r.exchanges || 0; c.calls += r.calls; c.cost += r.cost; c.tokens += r.tokens;
+        for (const k of STAGE_KEYS) { const x = r.stages[k], d = c.stages[k]; d.cost += x.cost; d.tokens += x.tokens; d.rework += x.rework; d.reworkTokens += x.reworkTokens; c.rework += x.rework; c.reworkTokens += x.reworkTokens; }
+        for (const L of r.loops) { const d = c.loops[L.kind] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; d.loops++; d.cost += L.cost; d.tokens += L.tokens; (c.loopSessions[L.kind] ||= new Set()).add(sessionId); }
+      }
+    },
+    pr(arms, firstPass) { for (const feature of Object.keys(ARMS)) { const c = sideOf(feature, arms); if (!c) continue; c.prs.merged++; if (firstPass) c.prs.firstPass++; } },
+    finish() {
+      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, ...rest } = c; return { ...rest, sessions: c.sessions.size }; };
+      return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' ? v : fin(v)]))]));
+    },
+  };
+}
+export function mergeArms(list) {
+  const as = list.filter(Boolean); if (!as.length) return null;
+  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; };
+  const out = {};
+  for (const feature of Object.keys(ARMS)) {
+    const sides = { rate: as[0][feature]?.rate ?? null };
+    for (const side of [ARMS[feature].on, ARMS[feature].off]) { const c = { ...armCell(), sessions: 0 }; delete c.loopSessions; for (const a of as) if (a[feature]?.[side]) addCell(c, a[feature][side]); sides[side] = c; }
+    out[feature] = sides;
+  }
+  return out;
+}
+// what the clearing's share is on this machine (the service's flag, from the machine config)
+function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).proxy || {}; return cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0; } catch { return SERVICE_HOLDOUT; } }
+// a session's two arms: the profile's from its state file (null where none was recorded), the clearing's from the hash
+export function armsOf(store, session, share) {
+  let profile = null; try { profile = profileArmOf(store, session); } catch {}
+  return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression: share > 0 ? (heldOut(session, share) ? 'holdout' : 'on') : null };
+}
+
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
 export const RULES_VERSION = 5;
@@ -239,7 +293,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   weeks ??= days ? Math.max(1, Math.ceil(days / 7)) : REPORT_WEEKS;
   const cols = weekColumns(now, weeks), from = cols[0].t;
   days = Math.ceil((now - from) / 86400_000) + 1;
-  const weekly = weeklyTally(cols);
+  const weekly = weeklyTally(cols), share = clearingShare(), arms = armTally(share), armOf = new Map();
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
@@ -262,6 +316,8 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;
     weekly.add(s.mtime, r, parentOf(s));
+    if (!armOf.has(parentOf(s))) armOf.set(parentOf(s), armsOf(store, parentOf(s), share));
+    arms.add(armOf.get(parentOf(s)), r, parentOf(s));
     if (!r.priced) unpriced.add(r.model || 'unknown');
     for (const k of STAGE_KEYS) for (const f of ['cost', 'tokens', 'calls', 'rework', 'reworkTokens']) stages[k][f] += r.stages[k][f];
     const id = parentOf(s), agg = perSession.get(id) || { id, t: s.mtime, cost: 0, tokens: 0, calls: 0, loops: {}, model: r.model };
@@ -285,6 +341,8 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
       const mine = p.sessions.map(x => ({ ...x, f: perSession.get(x.id) })).filter(x => x.f);
       const loopsBy = {}; for (const x of mine) for (const [k, n] of Object.entries(x.f.loops)) loopsBy[k] = (loopsBy[k] || 0) + n;
       const n = Object.values(loopsBy).reduce((a, b) => a + b, 0);
+      const prArms = {}; for (const feature of Object.keys(ARMS)) { const sides = new Set(mine.map(x => armOf.get(x.id)?.[feature]).filter(Boolean)); prArms[feature] = sides.size === 1 ? [...sides][0] : null; }
+      if (mine.length) arms.pr(prArms, n === 0);
       return { number: p.number, title: p.title || '', url: p.url || null, mergedAt: p.mergedAt, hours: p.hoursToMerge ?? null, sessions: p.sessions.length, measured: mine.length, cost: mine.reduce((a, x) => a + x.f.cost * (x.share ?? 1), 0), loops: loopsBy, loopCount: n, firstPass: mine.length > 0 && n === 0 };
     }).sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
     const first = rows.filter(r => r.firstPass), looped = rows.filter(r => r.measured && !r.firstPass);
@@ -296,6 +354,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
     stages: stageRows, loops, rework, reworkTokens, reworkShare: of(cost > 0 ? rework : reworkTokens), thresholds: REWORK_THRESHOLDS,
     prs,
     weekly: weekly.finish(),
+    arms: arms.finish(),
   };
 }
 
@@ -326,6 +385,7 @@ export function mergeFactory(list) {
     stages, loops, rework, reworkTokens, reworkShare: of(cost > 0 ? rework : reworkTokens), thresholds: REWORK_THRESHOLDS,
     prs: views.some(x => x.v.prs) ? { merged: rows.length, measured: measured.length, firstPass: first.length, yield: measured.length ? first.length / measured.length : null, meanCost: mean(measured.map(r => r.cost)), meanCostFirstPass: mean(first.map(r => r.cost)), meanCostLooped: mean(looped.map(r => r.cost)), rows } : null,
     weekly: mergeWeekly(views.map(x => x.v.weekly)),
+    arms: mergeArms(views.map(x => x.v.arms)),
     repos: views.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -334,7 +394,7 @@ export function mergeFactory(list) {
 const pct = x => x == null ? '–' : `${Math.round(100 * x)}%`;
 const money = d => d == null ? '–' : d >= 100 ? `$${Math.round(d)}` : d >= 10 ? `$${d.toFixed(1)}` : `$${d.toFixed(2)}`;
 const k = n => n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(Math.round(n));
-export function renderFactory(v) {
+export function renderFactory(v, opts = {}) {
   if (!v) return ['No factory view yet: run thinker report to make one.'];
   const dollars = v.cost > 0, amount = s => dollars ? money(s.cost) : `${k(s.tokens)} tokens`;
   const out = [];
@@ -353,11 +413,37 @@ export function renderFactory(v) {
     for (const [key, name] of STAGES) out.push(name.padEnd(14) + v.weekly.stages[key].map(c => { const base = dollars ? c.cost : c.tokens, rw = dollars ? c.rework : c.reworkTokens; return `${dollars ? money(c.cost) : k(c.tokens)} ${base > 0 ? pct(rw / base) : '–'}`.padStart(14); }).join(''));
     for (const L of v.loops) if (v.weekly.loops[L.key]) out.push(L.name.padEnd(14) + v.weekly.loops[L.key].map(c => `${c.loops} loops ${dollars ? money(c.cost) : k(c.tokens)}`.padStart(14)).join(''));
   }
+  if (opts.diff && v.arms?.[opts.diff]) out.push('', ...renderArms(v, opts.diff));
   if (v.prs?.rows?.length) {
     out.push('', 'Pull requests, newest first (a loop count per kind)');
     for (const r of v.prs.rows.slice(0, 12)) out.push(`  #${String(r.number).padEnd(5)} ${(r.title || '').slice(0, 54).padEnd(54)} ${money(r.cost).padStart(8)}  ${r.firstPass ? 'first pass' : Object.entries(r.loops).map(([kind, n]) => `${n} ${LOOP_KINDS[kind]?.name?.toLowerCase() || kind}`).join(', ') || (r.measured ? '' : 'no transcript measured')}`);
     if (v.prs.rows.length > 12) out.push(`  … ${v.prs.rows.length - 12} more; thinker ui --tab factory lists them`);
   }
   out.push('', "A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think. Rework is the cost of the calls inside a loop, spent after a failure. A stage is good at or under 10% rework, bad at or over 35%.");
+  return out;
+}
+
+// the two sides of a feature, as the page's comparison table: ratios of sums, the held-out side second, the difference last
+export function armRows(v, feature) {
+  const spec = ARMS[feature], a = v.arms?.[feature]; if (!spec || !a) return null;
+  const on = a[spec.on], off = a[spec.off], dollars = v.cost > 0;
+  const r = (num, den) => den ? num / den : null;
+  const rows = [
+    { label: 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
+    { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
+    { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lowerIsBetter: true },
+    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false, note: `${on.prs.merged} and ${off.prs.merged} merged pull requests` },
+  ];
+  for (const [key, name] of STAGES) rows.push({ label: `${name} rework`, group: 'stages', key, on: r(dollars ? on.stages[key].rework : on.stages[key].reworkTokens, dollars ? on.stages[key].cost : on.stages[key].tokens), off: r(dollars ? off.stages[key].rework : off.stages[key].reworkTokens, dollars ? off.stages[key].cost : off.stages[key].tokens), kind: 'pct', lowerIsBetter: true });
+  for (const L of v.loops) rows.push({ label: `${L.name} per session`, group: 'loops', key: L.key, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lowerIsBetter: true });
+  return { feature, name: spec.name, onLabel: spec.onLabel, offLabel: spec.offLabel, rate: a.rate, rows, thin: on.sessions < 10 || off.sessions < 10 };
+}
+export function renderArms(v, feature) {
+  const t = armRows(v, feature); if (!t) return [];
+  const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? pct(x) : kind === 'rate' ? x.toFixed(2) : kind === 'tokens' ? k(x) : String(Math.round(x));
+  const out = [`${t.name}: ${t.onLabel} against ${t.offLabel}${t.rate != null ? ` (${pct(t.rate)} of sessions held out)` : ''}${t.thin ? ' · thin: under 10 sessions on a side, read as a direction at most' : ''}`];
+  out.push(''.padEnd(26) + t.onLabel.padStart(14) + t.offLabel.padStart(14) + 'difference'.padStart(13));
+  for (const r of t.rows) { const d = r.lowerIsBetter == null || r.on == null || r.off == null || !r.off ? null : (r.on - r.off) / r.off; out.push(r.label.padEnd(26) + f(r.on, r.kind).padStart(14) + f(r.off, r.kind).padStart(14) + (d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`).padStart(13) + (r.note ? `   ${r.note}` : '')); }
   return out;
 }

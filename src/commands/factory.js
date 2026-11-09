@@ -12,8 +12,10 @@ async function factoryCommand({ flags, store, out }) {
   if (flags.refresh) { const r = refreshReport(store, { weeks }); if (r.skipped) out('A refresh is already running here; showing what is kept.'); }
   const v = reportSnapshot(store, weeks).view?.factory || null;
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
-  for (const l of renderFactory(v)) out(l);
-  out('', 'thinker factory --refresh reads the sessions again first, --json is the view the page reads; `thinker ui --tab factory` is the page.');
+  const diff = flags.diff === true ? 'profile' : flags.diff ? String(flags.diff) : null;
+  if (diff && !['profile', 'compression'].includes(diff)) { out(`thinker factory: --diff takes profile or compression, not ${diff}`); process.exitCode = 2; return; }
+  for (const l of renderFactory(v, { diff })) out(l);
+  out('', 'thinker factory --refresh reads the sessions again first, --diff profile|compression splits the figures by a feature\'s two sides, --json is the view the page reads; `thinker ui --tab factory` is the page.');
 }
 
 export const commands = { factory: factoryCommand };

@@ -784,10 +784,13 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
   assert.match(read('commands/factory.js'), /reportSnapshot\(store, weeks\)\.view\?\.factory/);
   assert.match(read('ui/page.html'), /renderFactory\(v\)/);
   assert.match(read('ui/page.html'), /data-tab="factory"/);
-  assert.match(read('cli.js'), /factory \[--weeks n\] \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');
+  assert.match(read('cli.js'), /factory \[--weeks n\] \[--diff profile\|compression\] \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');
   // the weekly trend the page opens on a stage or a loop is the command's weekly table, off the same `weekly` on the view
   assert.match(read('ui/page.html'), /wk\.stages\[id\]/); assert.match(read('ui/page.html'), /wk\.loops\[id\]/);
   assert.match(read('factory.js'), /v\.weekly\.stages\[key\]/); assert.match(read('factory.js'), /v\.weekly\.loops\[L\.key\]/);
+  // "See diff by": the page's two features and sides are factory.js:ARMS, and the command has the same split as --diff
+  for (const f of ['profile', 'compression']) { assert.match(read('ui/page.html'), new RegExp(`${f}: \\{ name: '`)); assert.match(read('factory.js'), new RegExp(`${f}: \\{ name: '`)); }
+  assert.match(read('cli.js'), /--diff profile\|compression/);
   // the two doors say the attribution rule in the same words
   for (const f of ['factory.js', 'ui/page.html']) assert.match(read(f), /A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think\./);
 });

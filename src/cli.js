@@ -155,11 +155,12 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
                                  --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
                                  this in the background; --all for every repository the page lists, in one run)
-  factory [--weeks n] [--json] [--refresh]   the Factory page in the terminal: the pipeline a session runs through (Prompts, Think, Explore, Build,
+  factory [--weeks n] [--diff profile|compression] [--json] [--refresh]   the Factory page in the terminal: the pipeline a session runs through (Prompts, Think, Explore, Build,
                                  Verify, Merge) and what each stage cost over the Report's window, the loops detected in the sessions (where
                                  work came back to an earlier stage, found by code: a failing run to the run that passed, a correction, a
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
-                                 requests; it reads the report kept for the page, --refresh makes it again first
+                                 requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every
+                                 figure by a feature's two sides, the sessions it reached against the ones held out from it
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]

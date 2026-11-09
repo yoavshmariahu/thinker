@@ -1139,6 +1139,18 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   holds. A stage shows cost, share of the week's tokens, rework share and calls; a loop shows loops, cost, share and the
   sessions it fired in. Sums add across sessions and repositories; a share is taken again over its week. The command
   prints the same cells as a weekly table. Nothing is recomputed on the page: the cells ride the kept report.
+- **"See diff by": the Factory split by a feature's two sides (2026-11-09, the owner's ask; `factory.js:ARMS`,
+  `armTally`, `armsOf`, `armRows`; the page's select and `thinker factory --diff profile|compression`).** The sessions a
+  feature reached against the ones held out from it, on the same mix of work: sessions, cost per session and per exchange,
+  rework share, first-pass yield, rework by stage, loops per session, each a ratio of sums per side with the difference
+  coloured where a direction is better. The profile's arm is the one recorded on the session's state file at its start
+  (`profile.js:profileArmOf`); a session from before the profile shipped has none and is left out of that split, never
+  given one by recomputing the hash, since it never saw the block. The clearing's side is `proxy.js:heldOut` over the
+  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT` unless the machine config says), so every
+  session has one; a subagent conversation takes its parent's. A pull request counts on a side only when every session
+  on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
+  5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
+  and the split is where the profile's effect on rework will first show as the arms fill.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first

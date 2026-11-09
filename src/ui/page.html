@@ -225,6 +225,15 @@
     .fx-tr .v { font-size: 10px; fill: #444; font-variant-numeric: tabular-nums; } .fx-tr .w { font-size: 9.5px; fill: #9ca3af; }
     .fx-tr .base { stroke: #e5e7eb; stroke-width: 1; }
     .fx-trend-note { font-size: .76rem; color: #6b7280; margin: 1rem 0 0; }
+    .fx-diff { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 1.6rem; }
+    .fx-diff .fx-tbl td.on, .fx-diff .fx-tbl th.on { border-left: 1px solid #f0f0f0; }
+    .fx-diff td.d { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .fx-diff td.d.good { color: #15803d; } .fx-diff td.d.bad { color: #b91c1c; } .fx-diff td.d.flat { color: #6b7280; font-weight: 500; }
+    .fx-diff .grp td { background: #fafafa; font-size: .7rem; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; font-weight: 600; padding: .4rem 1.1rem; }
+    .fx-thin { background: #fef9c3; color: #a16207; }
+    .fx-stage .rows .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; }
+    .fx-stage .rows .two b.off { color: #6b7280; }
+    .fx-stage.on .rows .two b.off { color: #c9cbd1; }
     .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
     .savings-table thead th { position: static; }
@@ -1469,7 +1478,8 @@ document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { 
 // tab can never contradict the other. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
 // sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread
 // onto separate ports. A loop kind keeps one colour whatever its rank, so a filter never repaints the survivors.
-let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_ANIM = false;
+let FX = null, FX_FOR = null, FLOAD = 0, FX_SEL = null, FX_METRIC = 'stage', FX_ANIM = false, FX_DIFF = '';
+try { FX_DIFF = localStorage.getItem('fx-diff') || ''; } catch {}
 const FX_COLORS = { fix: ['#c2410c', '#ffedd5'], correction: ['#2563eb', '#dbeafe'], sentback: ['#6d28d9', '#ede9fe'], reread: ['#0d9488', '#ccfbf1'], reviewcatch: ['#be185d', '#fce7f3'] };
 const FX_MORE = [['#0369a1', '#e0f2fe'], ['#4d7c0f', '#ecfccb'], ['#9a3412', '#fed7aa'], ['#7e22ce', '#f3e8ff']];
 const fxColor = (key, i) => FX_COLORS[key] || FX_MORE[i % FX_MORE.length];
@@ -1514,10 +1524,12 @@ function renderFactory(rv) {
     <section class="fx-panel" aria-label="Pipeline canvas">
       <div class="fx-head"><span class="fx-title">Pipeline canvas</span><span class="fx-chip">${stages.length} stages</span><span class="fx-chip">${loops.length} loop kind${loops.length === 1 ? '' : 's'} detected</span><span class="spacer"></span>
         <div class="seg small" id="fx-metric" role="tablist"><button data-m="stage" class="${FX_METRIC === 'stage' ? 'on' : ''}" role="tab">Stage metrics</button><button data-m="loop" class="${FX_METRIC === 'loop' ? 'on' : ''}" role="tab">Loop metrics</button></div>
+        <select class="sel" id="fx-diff-sel" aria-label="See diff by" style="font-size:.76rem;padding:.25rem .5rem"><option value=""${FX_DIFF ? '' : ' selected'}>See diff by…</option><option value="profile"${FX_DIFF === 'profile' ? ' selected' : ''}>Memory profile</option><option value="compression"${FX_DIFF === 'compression' ? ' selected' : ''}>Compression</option></select>
         <button class="fx-ghost${FX_ANIM ? ' on' : ''}" id="fx-anim" type="button" aria-pressed="${FX_ANIM}">Flow animation</button></div>
       <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg></div></div>
       <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Click a stage or a loop for its weekly trend</span></div>
     </section>
+    <div id="fx-diff"></div>
     <section class="fx-two" aria-label="Loops and details">
       <div class="fx-box">
         <div class="fx-boxhead"><div><h2>Detected loops <span class="fx-count">${loops.length}</span></h2><p>Where work came back to an earlier stage after something failed, read from the sessions by code. A new kind appears here as soon as it is detected.</p></div><span class="muted" style="font-size:.76rem">A loop's cost is the calls it spans: the work spent after the failure</span></div>
@@ -1539,6 +1551,8 @@ function renderFactory(rv) {
   el.innerHTML = html;
   fxCanvas(v, stages, loops, dollars);
   $('#fx-metric').onclick = e => { const b = e.target.closest('button'); if (!b) return; FX_METRIC = b.dataset.m; segOn('#fx-metric', b); fxRows(stages, loops, dollars); };
+  $('#fx-diff-sel').onchange = e => { FX_DIFF = e.target.value; try { localStorage.setItem('fx-diff', FX_DIFF); } catch {} e.target.blur(); fxDiff(v, stages, loops, dollars); fxRows(stages, loops, dollars); };
+  fxDiff(v, stages, loops, dollars);
   $('#fx-anim').onclick = () => { FX_ANIM = !FX_ANIM; $('#fx-canvas').classList.toggle('anim', FX_ANIM); $('#fx-anim').classList.toggle('on', FX_ANIM); $('#fx-anim').setAttribute('aria-pressed', FX_ANIM); };
   for (const tr of el.querySelectorAll('#fx-rows tr.lrow')) tr.onclick = () => { fxSelect('loop', tr.dataset.id, stages, loops, dollars); fxTrend('loop', tr.dataset.id, stages, loops, dollars); };
   fxSelect(FX_SEL.kind, FX_SEL.id, stages, loops, dollars);
@@ -1588,10 +1602,47 @@ function fxTrend(kind, id, stages, loops, dollars) {
   $('#fx-mbody').innerHTML = `<div class="fx-trend">${body}</div><p class="fx-trend-note">Weeks run Monday to Sunday, a session in the week of its last request, as on View Report. The headline is the last complete week; the dashed bar is this week so far. ${wk.totals.map(t => t.sessions).reduce((a, b) => a + b, 0)} sessions behind the ${cols.length} columns.</p>`;
   fxOverlay.classList.add('active'); $('#fx-mclose').focus();
 }
+// "See diff by": the Factory split by a feature's two sides, the sessions it reached against the ones held out from it,
+// on the same mix of work (factory.js:ARMS, armTally). Every figure is a ratio of sums per side; a side under ten
+// sessions is marked thin. The profile's arm exists only for sessions since the profile shipped; the clearing's side is
+// the hash every session has.
+const FX_ARMS = { profile: { name: 'Memory profile', on: 'shown', off: 'holdout', labels: ['shown the profile', 'held out'], short: ['shown', 'held'] }, compression: { name: 'Compression', on: 'on', off: 'holdout', labels: ['cleared', 'held out'], short: ['on', 'held'] } };
+function fxDiff(v, stages, loops, dollars) {
+  const el = $('#fx-diff'); if (!el) return;
+  const spec = FX_ARMS[FX_DIFF], a = FX_DIFF && v.arms?.[FX_DIFF];
+  if (!spec || !a) { el.innerHTML = ''; return; }
+  const on = a[spec.on], off = a[spec.off], r = (n, d) => d ? n / d : null;
+  const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? fxPct(x) : kind === 'rate' ? x.toFixed(2) : kind === 'tokens' ? fmt(Math.round(x)) : fmt(Math.round(x));
+  const rows = [
+    { label: 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lower: true },
+    { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'an exchange is one prompt and the answers to it' },
+    { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lower: true },
+    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lower: false, hint: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side` },
+    { group: 'Rework by stage' },
+    ...stages.map(s => ({ label: s.name, on: r(dollars ? on.stages[s.key].rework : on.stages[s.key].reworkTokens, dollars ? on.stages[s.key].cost : on.stages[s.key].tokens), off: r(dollars ? off.stages[s.key].rework : off.stages[s.key].reworkTokens, dollars ? off.stages[s.key].cost : off.stages[s.key].tokens), kind: 'pct', lower: true })),
+    { group: 'Loops per session' },
+    ...loops.map(L => ({ label: L.name, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lower: true, color: L.lc })),
+  ];
+  const thin = on.sessions < 10 || off.sessions < 10;
+  el.innerHTML = `<section class="fx-box fx-diff" aria-label="${esc(spec.name)} by arm">
+    <div class="fx-boxhead"><div><h2>${esc(spec.name)}: ${esc(spec.labels[0])} against ${esc(spec.labels[1])}${thin ? ' <span class="fx-count fx-thin">thin</span>' : ''}</h2><p>The same figures on the sessions the feature reached and on the ones held out from it${a.rate != null ? `, ${fxPct(a.rate)} of sessions` : ''}. Ratios of sums per side; the difference is the ${esc(spec.labels[0])} side against the held-out one, green where it is better.</p></div>${thin ? '<span class="muted" style="font-size:.76rem">Under ten sessions on a side: read as a direction at most.</span>' : ''}</div>
+    <div class="fx-tbl"><table><thead><tr><th></th><th class="num on">${esc(spec.labels[0])}</th><th class="num">${esc(spec.labels[1])}</th><th class="num">difference</th></tr></thead><tbody>
+      ${rows.map(x => x.group ? `<tr class="grp"><td colspan="4">${esc(x.group)}</td></tr>` : (() => { const d = x.on != null && x.off != null && x.off ? (x.on - x.off) / x.off : null, cls = d == null || x.lower == null ? 'flat' : Math.abs(d) < 0.05 ? 'flat' : (d < 0) === x.lower ? 'good' : 'bad'; return `<tr><td>${x.color ? `<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${x.color};margin-right:.5rem"></i>` : ''}${esc(x.label)}${x.hint ? `<span class="muted" style="display:block;font-size:.74rem">${esc(x.hint)}</span>` : ''}</td><td class="num on">${f(x.on, x.kind)}</td><td class="num">${f(x.off, x.kind)}</td><td class="num d ${cls}">${d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`}</td></tr>`; })()).join('')}
+    </tbody></table></div>
+    <div class="fx-note">${FX_DIFF === 'profile' ? 'A session\'s arm is drawn at its start and recorded on its state file; sessions from before the profile shipped carry none and are left out.' : 'A session is on one side for all its requests, by a hash of its id against the service\'s share; the held-out side is the smaller one by design.'} This is the same mix of work on two sides, not a controlled trial: a feature that gets things right faster can also change what the person asks next.</div>
+  </section>`;
+}
 let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
 function fxRows(stages, loops, dollars) {
+  const a = FX_DIFF && FX?.factory?.arms?.[FX_DIFF], spec = FX_ARMS[FX_DIFF];
   for (const s of stages) {
     const r = FX_CARDS[s.key]?.querySelector('.rows'); if (!r) continue;
+    if (a && spec) {
+      const on = a[spec.on].stages[s.key], off = a[spec.off].stages[s.key], rw = c => { const base = dollars ? c.cost : c.tokens; return base ? (dollars ? c.rework : c.reworkTokens) / base : null; }, per = (c, side) => { const n = a[side].sessions; return n ? (dollars ? c.cost : c.tokens) / n : null; };
+      r.innerHTML = `<div class="two"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>${dollars ? 'Cost / session' : 'Tok / session'}</span><b>${per(on, spec.on) == null ? '–' : dollars ? money(per(on, spec.on)) : fmt(Math.round(per(on, spec.on)))}</b><b class="off">${per(off, spec.off) == null ? '–' : dollars ? money(per(off, spec.off)) : fmt(Math.round(per(off, spec.off)))}</b></div><div class="two"><span>Rework</span><b>${fxPct(rw(on))}</b><b class="off">${fxPct(rw(off))}</b></div>`;
+      continue;
+    }
     r.innerHTML = FX_METRIC === 'stage'
       ? `<div><span>${dollars ? 'Cost' : 'Tokens'}</span><b>${dollars ? money(s.cost) : fmt(s.tokens)}</b></div><div><span>Share</span><b>${fxPct(s.share)}</b></div><div><span>Rework</span><b class="${s.verdict ? `fx-${s.verdict}` : ''}">${fxPct(s.reworkShare)}</b></div>`
       : `<div><span>Loops out</span><b>${fmt(loops.filter(L => L.from === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Loops in</span><b>${fmt(loops.filter(L => L.to === s.key).reduce((a, L) => a + L.loops, 0))}</b></div><div><span>Rework ${dollars ? '$' : 'tok'}</span><b>${dollars ? money(s.rework) : fmt(s.reworkTokens)}</b></div>`;
