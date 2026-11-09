@@ -301,7 +301,7 @@ export function renderFactory(v) {
   out.push(`Rework: ${dollars ? money(v.rework) : `${k(v.reworkTokens)} tokens`}, ${pct(v.reworkShare)} of all tokens, in ${v.loops.length} loop kind${v.loops.length === 1 ? '' : 's'}`, '');
   out.push('Stage          Cost      Share   Rework   Verdict   Calls');
   for (const s of v.stages) out.push(`${s.name.padEnd(14)} ${amount(s).padStart(9)} ${pct(s.share).padStart(7)} ${pct(s.reworkShare).padStart(8)}   ${(s.verdict === 'mid' ? 'watch' : s.verdict || '–').padEnd(8)} ${String(s.calls).padStart(6)}`);
-  out.push('', 'Loops detected');
+  out.push('', 'Loops detected: work that came back to an earlier stage after something failed; rework is what they cost');
   if (!v.loops.length) out.push('  none in this window');
   for (const L of v.loops) out.push(`  ${L.name.padEnd(13)} ${L.from} → ${L.to}`.padEnd(40) + ` ${String(L.loops).padStart(4)} loops in ${String(L.sessions).padStart(3)} sessions ${(dollars ? money(L.cost) : `${k(L.tokens)} tokens`).padStart(10)} ${pct(L.share).padStart(5)}   ${L.rule}`);
   if (v.prs?.rows?.length) {
@@ -309,6 +309,6 @@ export function renderFactory(v) {
     for (const r of v.prs.rows.slice(0, 12)) out.push(`  #${String(r.number).padEnd(5)} ${(r.title || '').slice(0, 54).padEnd(54)} ${money(r.cost).padStart(8)}  ${r.firstPass ? 'first pass' : Object.entries(r.loops).map(([kind, n]) => `${n} ${LOOP_KINDS[kind]?.name?.toLowerCase() || kind}`).join(', ') || (r.measured ? '' : 'no transcript measured')}`);
     if (v.prs.rows.length > 12) out.push(`  … ${v.prs.rows.length - 12} more; thinker ui --tab factory lists them`);
   }
-  out.push('', "A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think. A stage is good at or under 10% rework, bad at or over 35%.");
+  out.push('', "A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think. Rework is the cost of the calls inside a loop, spent after a failure. A stage is good at or under 10% rework, bad at or over 35%.");
   return out;
 }

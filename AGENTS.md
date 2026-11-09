@@ -1104,6 +1104,10 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   Build, anything else is running something to see what happens, Verify. Verify is any check before merge, by running or
   by reading: with no human reviewer a Review stage would price the agent's own tokens as a review, so there is none
   (the owner's call); a change to a pull request after it was opened is a loop out of Merge.
+- **The words (the owner, 2026-11-09, after "rework" read as unclear on the page and a "redo" rename was tried and
+  dropped):** a **loop** is the event, work that came back to an earlier stage after something failed; **rework** is what
+  it cost, the calls inside the loop, spent after the failure. Not "the same work twice": a fix loop's Build calls are
+  the fix itself. Both doors define a loop in one line and tie rework to it.
 - **Loops are data, found by code, never by a model** (`LOOP_KINDS`, `detectLoops`). Each kind is a detector over the
   session's events and the view carries every kind that fired, so a new detector shows on the page with no change
   there; each says the rule that finds it. A loop's cost is the cost of the calls it spans; a stage's rework is the cost
