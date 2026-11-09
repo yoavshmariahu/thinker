@@ -1199,6 +1199,23 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   each with a named failure mode (`redirected` in the ledger is a third moving on; sent back cannot tell a fix from new
   scope; a review catch has never fired here); a model's judgement on an exchange, if ever wanted, should ride the
   profile extraction's one call per session and be shown beside the code's verdict, never in place of it.
+- **The fix-loop detector, audited against its own loops (2026-11-09; `isBoundary`, `DENIED_RE`, `SCRIPT_CRASH`;
+  `transcripts.js:continuations`, `afterContinuation`).** The first cycle of improving a stage is to read the loops the
+  detector finds before trusting the number, and on this machine's 37 days it was the detector that moved: of 467 fix
+  loops ($647), 30 ($48) were a session Claude Code had continued in a new one -- the continuation's file carries the
+  original's rows (the same message uuids, the new session id) ahead of its own, so both files reported the same calls;
+  48 ($201) ran past a commit, a push or a `git worktree add` to a pass in the next piece of work, $70 of them before
+  that event; and 21 counted Claude Code refusing to run the line, or the agent's own python heredoc crashing (`File
+  "<stdin>"`), as a test failure. So: a `continued-in` row in the original's tail names the continuation, whose copied
+  calls and events are dropped before the Factory reads it (the Report and the delivery figures still read both files:
+  not changed here); a fix loop closes unresolved at a commit, a push, a new branch or `gh pr create`, unless that very
+  line was the failing run (`npm test && git commit`, where the commit never ran); and a denial or a `<stdin>` crash is
+  not a failure. The honest figure is about $450, 6% of spend. What the real loops are: the red/green cycle at about a
+  dollar each, Verify 56% of the cost inside them -- and Verify is inside every fix loop by construction, since the loop
+  starts and ends with a test run, so its verdict is partly the definition. A third of the cost edited tests alone (a
+  pinned test updated after an intended change); edits here are shell heredocs, so the Edit tool is no measure of what
+  a loop changed. The fresh-worktree dependency race was one loop of seven module-not-found ones. Not changed: the
+  correction loop still spans its whole exchange, and the other kinds were not read the same way yet.
 
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript

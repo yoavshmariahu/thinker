@@ -14,7 +14,7 @@
 // every kind that fired, so a new detector shows up on the page with no change there. Each kind says the rule that
 // finds it. A loop's cost is the cost of the calls it spans, and a stage's rework is the cost of its calls inside
 // any loop, counted once however many loops hold the call.
-import { parseTranscript, subagentSessions } from './transcripts.js';
+import { parseTranscript, subagentSessions, continuations, afterContinuation } from './transcripts.js';
 import { bashProgram } from './tool-outputs.js';
 import { listPrice, writeCost } from './prices.js';
 import { findRepoSessions } from './instruction-value.js';
@@ -91,7 +91,7 @@ export const callCost = (c, price) => !price ? null : ((c.fresh || 0) * price.in
 // found: {from, to} call indices, inclusive, the exchange the loop belongs to, and a note. The kinds carry the route the
 // page draws and the rule in words. `sessions` on the view counts the sessions a kind fired in.
 export const LOOP_KINDS = {
-  fix: { name: 'Fix loop', from: 'verify', to: 'build', sub: 'a failing run to the run that passes', rule: 'A test or build program (npm test, node --test, pytest, tsc …) fails and the same program passes within the same or the next exchange; the loop is every call between.' },
+  fix: { name: 'Fix loop', from: 'verify', to: 'build', sub: 'a failing run to the run that passes', rule: 'A test or build program (npm test, node --test, pytest, tsc …) fails and the same program passes within the same or the next exchange, before any commit, push or new branch; the loop is every call between.' },
   reviewcatch: { name: 'Review catch', from: 'verify', to: 'build', sub: 'a reading found something', rule: 'A review skill or a reviewer subagent ran, and edits followed before the next prompt.' },
   correction: { name: 'Correction', from: 'build', to: 'prompts', sub: 'the person corrected, redirected or interrupted', rule: 'The person interrupted the agent, or the profile ledger read their next prompt as a correction or a redirection; the loop is the exchange that redid the work.' },
   reread: { name: 'Re-read', from: 'explore', to: 'explore', sub: 'a file read again', rule: 'A file read again, whatever the range, twenty or more calls after it was last read.' },
@@ -99,7 +99,19 @@ export const LOOP_KINDS = {
 };
 const REREAD_GAP = 20;
 const FAIL_RE = /\b(exit code:? [1-9]\d*|command failed|npm err!|error: command|failing [1-9]\d*|fail [1-9]\d*|\d+ failed\b|FAILED|AssertionError|Traceback \(most recent call last\)|SyntaxError|ReferenceError|TypeError:|Error: Cannot find module|not ok \d+)|✖/;
-const failed = e => e.error === true || (e.name === 'Bash' && FAIL_RE.test(String(e.result || '').slice(0, 4000)));
+// Claude Code refusing to run the line, and a heredoc script of the agent's own crashing before the test program ran
+// (python names such a script `<stdin>`): the run did not fail, it did not happen (21 of 467 loops here, 2026-11-09)
+const DENIED_RE = /^Permission (?:for this (?:action|command)|to use \S+) (?:was|has been) denied\b|^The user doesn't want to (?:proceed|take this action)/m;
+const SCRIPT_CRASH = /File "<stdin>", line \d+/;
+const failed = e => {
+  const head = String(e.result || '').slice(0, 4000);
+  if (e.name === 'Bash' && (DENIED_RE.test(head) || SCRIPT_CRASH.test(head))) return false;
+  return e.error === true || (e.name === 'Bash' && FAIL_RE.test(head));
+};
+// a commit, a push, a new branch or a pull request opened: the work moved on, and a failure still open is not fixed by a
+// pass of the same program in the next piece of work (48 of 467 loops ran past one here, $201 of $647, 2026-11-09)
+const BOUNDARY_RE = /\bgit\s+(?:-C\s+\S+\s+)?(?:commit|push|worktree\s+add|checkout\s+-b|switch\s+-c)\b|\bgh\s+pr\s+create\b/;
+const isBoundary = e => e.name === 'Bash' && BOUNDARY_RE.test(String(e.input?.command || ''));
 
 // the exchanges a session's prompts cut it into, and the model call each event belongs to; a call with no event takes
 // the exchange of the call before it
@@ -127,11 +139,14 @@ export function detectLoops(tl, { corrected = new Set() } = {}) {
   const open = new Map();
   for (const e of tl.tools) {
     if (e.name !== 'Bash' || !e.input?.command) continue;
-    const key = String(e.input.command).split(/&&|\|\||;|\n/).map(progOf).find(p => TEST_RE.test(p)); if (!key) continue;
+    const key = String(e.input.command).split(/&&|\|\||;|\n/).map(progOf).find(p => TEST_RE.test(p));
     // a failure the next exchange has not resolved is not this loop any more: the work moved on
     for (const [k, f] of open) if (e.exchange > f.exchange + 1) open.delete(k);
-    if (failed(e)) { if (!open.has(key)) open.set(key, e); }
-    else if (open.has(key)) { const f = open.get(key); open.delete(key); out.push({ kind: 'fix', from: f.ci, to: e.ci, exchange: e.exchange, note: key }); }
+    const fail = key ? failed(e) : false;
+    if (key && fail) { if (!open.has(key)) open.set(key, e); }
+    else if (key && open.has(key)) { const f = open.get(key); open.delete(key); out.push({ kind: 'fix', from: f.ci, to: e.ci, exchange: e.exchange, note: key }); }
+    // past a commit, a push or a new branch nothing open is this loop; a failing `npm test && git commit` never reached its commit
+    if (isBoundary(e) && !fail) open.clear();
   }
   // review catch: a review skill or subagent, then edits before the next prompt
   for (const e of tl.tools) {
@@ -291,7 +306,7 @@ export function armsOf(store, session, share, { peak = Infinity, home = null } =
 
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
-export const RULES_VERSION = 6; // 6: peak and cache traffic on the session result, which the clearing's arm needs
+export const RULES_VERSION = 7; // 7: a fix loop closes at a commit, a denial or a crashed heredoc is no failure, a continuation's copied history is dropped
 const CACHE = diskCache('factory-session', 1);
 const parentOf = s => s.parent || s.session;
 // the ledger's corrected and redirected exchanges, by session (profile.js: a row's `turn` is the exchange it observed,
@@ -311,6 +326,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
+  const continued = continuations(all); // a session continued in a new one: the copy's history is read once, as the original's
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const corrected = correctedBySession(store, { days, now });
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
@@ -319,8 +335,9 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   for (const s of all) {
     let r;
     try {
-      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(',')), [s.file], () => {
-        const p = parseTranscript(s.file);
+      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(continued.get(s.session)?.at || '')), [s.file], () => {
+        let p = parseTranscript(s.file);
+        if (continued.has(s.session)) p = afterContinuation(p, continued.get(s.session).at);
         if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
         const price = listPrice(p.model, { config });
         return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };
