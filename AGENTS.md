@@ -1151,6 +1151,17 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
   5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
   and the split is where the profile's effect on rework will first show as the arms fill.
+- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared**
+  (2026-11-09; `armsOf` takes `peak`, `treated` on the arm cell, the "Of them actually cleared" row). The first table
+  read as if the clearing raised cost and rework across the board: $26 against $15 a session, 23% against 14% rework.
+  It did not. Only 19 of the 249 sessions on the clearing's side had ever had a clear, because the clearing fires past
+  140k of context; the 160 sessions on that side that were never cleared carried the same 23% rework, which the clearing
+  cannot have caused; the held-out 42 were a lighter sample by chance (medians $10 against $8; per exchange $1.68
+  against $1.68 among sessions past the trigger). Where a clear actually happened, its known cost showed and nothing
+  else did: cache writes 5% of cache traffic against 2%. So an arm is an assignment and not a treatment, a side holds
+  only sessions the feature could have touched, the table leads with cost per exchange (a session's length is out of
+  it) and carries the cache-write share, and a difference on under ten sessions a side is marked thin. The same
+  reading applies to the profile's split once its arms fill: a session shown the block is not a session that acted on it.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first

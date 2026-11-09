@@ -19,7 +19,9 @@ import { bashProgram } from './tool-outputs.js';
 import { listPrice, writeCost } from './prices.js';
 import { findRepoSessions } from './instruction-value.js';
 import { readLedger, profileArmOf } from './profile.js';
-import { heldOut } from './proxy.js';
+import { heldOut, PROXY_DEFAULTS } from './proxy.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import { SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { thinkerHome } from './update.js';
@@ -185,6 +187,9 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
   return {
     model, priced: Boolean(price), calls: calls.length, exchanges: tl.exchanges,
     cost: cost.reduce((a, b) => a + (b || 0), 0), tokens: tokens.reduce((a, b) => a + b, 0),
+    // the largest context a call carried, and the cache traffic: what the clearing is judged by (its arm needs both)
+    peak: Math.max(0, ...calls.map(c => (c.fresh || 0) + (c.read || 0) + (c.write || 0))),
+    cacheWrite: calls.reduce((a, c) => a + (c.write || 0), 0), cacheRead: calls.reduce((a, c) => a + (c.read || 0), 0),
     stages,
     loops: loops.map(L => ({ ...L, cost: sum(L.from, L.to, cost), tokens: sum(L.from, L.to, tokens), calls: L.to - L.from + 1 })),
   };
@@ -234,9 +239,9 @@ export function mergeWeekly(list) {
 // repositories can add the sides up. Sessions are the person's: a subagent conversation takes its parent's arm.
 export const ARMS = {
   profile: { name: 'Memory profile', on: 'shown', off: 'holdout', onLabel: 'shown the profile', offLabel: 'held out' },
-  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'cleared', offLabel: 'held out' },
+  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'on the clearing', offLabel: 'held out', eligible: 'sessions that reached the clearing\'s trigger' },
 };
-const armCell = () => ({ sessions: new Set(), exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0 } });
+const armCell = () => ({ sessions: new Set(), exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, treated: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0 } });
 export function armTally(share) {
   const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, on: armCell(), holdout: armCell() } };
   const sideOf = (feature, arms) => arms[feature] ? t[feature][arms[feature]] : null;
@@ -244,21 +249,22 @@ export function armTally(share) {
     add(arms, r, sessionId) {
       for (const feature of Object.keys(ARMS)) {
         const c = sideOf(feature, arms); if (!c) continue;
-        c.sessions.add(sessionId); c.exchanges += r.exchanges || 0; c.calls += r.calls; c.cost += r.cost; c.tokens += r.tokens;
+        c.sessions.add(sessionId); c.exchanges += r.exchanges || 0; c.calls += r.calls; c.cost += r.cost; c.tokens += r.tokens; c.cacheWrite += r.cacheWrite || 0; c.cacheRead += r.cacheRead || 0;
+        if (feature === 'compression' && arms.cleared && !c.sessions.has(sessionId + '#t')) { c.treated++; c.sessions.add(sessionId + '#t'); }
         for (const k of STAGE_KEYS) { const x = r.stages[k], d = c.stages[k]; d.cost += x.cost; d.tokens += x.tokens; d.rework += x.rework; d.reworkTokens += x.reworkTokens; c.rework += x.rework; c.reworkTokens += x.reworkTokens; }
         for (const L of r.loops) { const d = c.loops[L.kind] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; d.loops++; d.cost += L.cost; d.tokens += L.tokens; (c.loopSessions[L.kind] ||= new Set()).add(sessionId); }
       }
     },
     pr(arms, firstPass) { for (const feature of Object.keys(ARMS)) { const c = sideOf(feature, arms); if (!c) continue; c.prs.merged++; if (firstPass) c.prs.firstPass++; } },
     finish() {
-      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, ...rest } = c; return { ...rest, sessions: c.sessions.size }; };
+      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, ...rest } = c; return { ...rest, sessions: [...c.sessions].filter(x => !String(x).endsWith('#t')).length }; };
       return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' ? v : fin(v)]))]));
     },
   };
 }
 export function mergeArms(list) {
   const as = list.filter(Boolean); if (!as.length) return null;
-  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; };
+  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens', 'cacheWrite', 'cacheRead', 'treated']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; };
   const out = {};
   for (const feature of Object.keys(ARMS)) {
     const sides = { rate: as[0][feature]?.rate ?? null };
@@ -269,10 +275,16 @@ export function mergeArms(list) {
 }
 // what the clearing's share is on this machine (the service's flag, from the machine config)
 function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).proxy || {}; return cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0; } catch { return SERVICE_HOLDOUT; } }
-// a session's two arms: the profile's from its state file (null where none was recorded), the clearing's from the hash
-export function armsOf(store, session, share) {
+// a session's two arms: the profile's from its state file (null where none was recorded); the clearing's from the hash,
+// and only for a session that reached the trigger (`peak`), since below it neither side is touched and the split would
+// compare two samples of untouched sessions (2026-11-09: 230 of 249 "cleared" sessions had never had a clear). `cleared`
+// says whether a clear actually happened, read off the proxy's record of the session (compression.js:noteCompression).
+export const CLEARING_TRIGGER = PROXY_DEFAULTS.trigger;
+export function armsOf(store, session, share, { peak = Infinity, home = null } = {}) {
   let profile = null; try { profile = profileArmOf(store, session); } catch {}
-  return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression: share > 0 ? (heldOut(session, share) ? 'holdout' : 'on') : null };
+  const eligible = share > 0 && peak >= CLEARING_TRIGGER;
+  let cleared = false; if (eligible && home) { try { cleared = fs.statSync(path.join(home, 'state', 'compression', `${session}.json`)).size > 2; } catch {} }
+  return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression: eligible ? (heldOut(session, share) ? 'holdout' : 'on') : null, cleared };
 }
 
 // --- the view ---------------------------------------------------------------------------------------------------------
@@ -316,8 +328,8 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;
     weekly.add(s.mtime, r, parentOf(s));
-    if (!armOf.has(parentOf(s))) armOf.set(parentOf(s), armsOf(store, parentOf(s), share));
-    arms.add(armOf.get(parentOf(s)), r, parentOf(s));
+    if (!s.parent) armOf.set(s.session, armsOf(store, s.session, share, { peak: r.peak, home: thinkerHome() }));
+    if (armOf.has(parentOf(s))) arms.add(armOf.get(parentOf(s)), r, parentOf(s));
     if (!r.priced) unpriced.add(r.model || 'unknown');
     for (const k of STAGE_KEYS) for (const f of ['cost', 'tokens', 'calls', 'rework', 'reworkTokens']) stages[k][f] += r.stages[k][f];
     const id = parentOf(s), agg = perSession.get(id) || { id, t: s.mtime, cost: 0, tokens: 0, calls: 0, loops: {}, model: r.model };
@@ -429,9 +441,11 @@ export function armRows(v, feature) {
   const on = a[spec.on], off = a[spec.off], dollars = v.cost > 0;
   const r = (num, den) => den ? num / den : null;
   const rows = [
-    { label: 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
-    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
+    { label: spec.eligible ? `Sessions (${spec.eligible})` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    ...(feature === 'compression' ? [{ label: 'Of them actually cleared', on: on.treated, off: off.treated, kind: 'count' }] : []),
     { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
+    { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lowerIsBetter: true },
+    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
     { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lowerIsBetter: true },
     { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false, note: `${on.prs.merged} and ${off.prs.merged} merged pull requests` },
   ];

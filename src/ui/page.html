@@ -1606,7 +1606,7 @@ function fxTrend(kind, id, stages, loops, dollars) {
 // on the same mix of work (factory.js:ARMS, armTally). Every figure is a ratio of sums per side; a side under ten
 // sessions is marked thin. The profile's arm exists only for sessions since the profile shipped; the clearing's side is
 // the hash every session has.
-const FX_ARMS = { profile: { name: 'Memory profile', on: 'shown', off: 'holdout', labels: ['shown the profile', 'held out'], short: ['shown', 'held'] }, compression: { name: 'Compression', on: 'on', off: 'holdout', labels: ['cleared', 'held out'], short: ['on', 'held'] } };
+const FX_ARMS = { profile: { name: 'Memory profile', on: 'shown', off: 'holdout', labels: ['shown the profile', 'held out'], short: ['shown', 'held'] }, compression: { name: 'Compression', on: 'on', off: 'holdout', labels: ['on the clearing', 'held out'], short: ['on', 'held'], eligible: 'sessions that reached the clearing\'s trigger' } };
 function fxDiff(v, stages, loops, dollars) {
   const el = $('#fx-diff'); if (!el) return;
   const spec = FX_ARMS[FX_DIFF], a = FX_DIFF && v.arms?.[FX_DIFF];
@@ -1614,9 +1614,11 @@ function fxDiff(v, stages, loops, dollars) {
   const on = a[spec.on], off = a[spec.off], r = (n, d) => d ? n / d : null;
   const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? fxPct(x) : kind === 'rate' ? x.toFixed(2) : kind === 'tokens' ? fmt(Math.round(x)) : fmt(Math.round(x));
   const rows = [
-    { label: 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
-    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lower: true },
-    { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'an exchange is one prompt and the answers to it' },
+    { label: spec.eligible ? `Sessions (${spec.eligible})` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    ...(FX_DIFF === 'compression' ? [{ label: 'Of them actually cleared', on: on.treated, off: off.treated, kind: 'count', hint: 'the clearing fires only once a session has run long past the trigger' }] : []),
+    { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'an exchange is one prompt and the answers to it; the length of a session is out of it' },
+    { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lower: true, hint: 'a clear writes the prefix again: the cost the clearing is judged by' },
+    { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lower: true, hint: 'a few long sessions carry this figure' },
     { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lower: true },
     { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lower: false, hint: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side` },
     { group: 'Rework by stage' },
@@ -1630,7 +1632,7 @@ function fxDiff(v, stages, loops, dollars) {
     <div class="fx-tbl"><table><thead><tr><th></th><th class="num on">${esc(spec.labels[0])}</th><th class="num">${esc(spec.labels[1])}</th><th class="num">difference</th></tr></thead><tbody>
       ${rows.map(x => x.group ? `<tr class="grp"><td colspan="4">${esc(x.group)}</td></tr>` : (() => { const d = x.on != null && x.off != null && x.off ? (x.on - x.off) / x.off : null, cls = d == null || x.lower == null ? 'flat' : Math.abs(d) < 0.05 ? 'flat' : (d < 0) === x.lower ? 'good' : 'bad'; return `<tr><td>${x.color ? `<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${x.color};margin-right:.5rem"></i>` : ''}${esc(x.label)}${x.hint ? `<span class="muted" style="display:block;font-size:.74rem">${esc(x.hint)}</span>` : ''}</td><td class="num on">${f(x.on, x.kind)}</td><td class="num">${f(x.off, x.kind)}</td><td class="num d ${cls}">${d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`}</td></tr>`; })()).join('')}
     </tbody></table></div>
-    <div class="fx-note">${FX_DIFF === 'profile' ? 'A session\'s arm is drawn at its start and recorded on its state file; sessions from before the profile shipped carry none and are left out.' : 'A session is on one side for all its requests, by a hash of its id against the service\'s share; the held-out side is the smaller one by design.'} This is the same mix of work on two sides, not a controlled trial: a feature that gets things right faster can also change what the person asks next.</div>
+    <div class="fx-note">${FX_DIFF === 'profile' ? 'A session\'s arm is drawn at its start and recorded on its state file; sessions from before the profile shipped carry none and are left out.' : 'Only sessions that reached the clearing\'s trigger are on either side; below it neither side is touched. A session is on one side for all its requests, by a hash of its id against the service\'s share, and the held-out side is the smaller one by design. Being on the clearing\'s side is not the same as having been cleared: that needs a long session past the trigger, and the row above says how many were.'} This is the same mix of work on two sides, not a controlled trial: a feature that gets things right faster can also change what the person asks next.</div>
   </section>`;
 }
 let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
