@@ -222,7 +222,7 @@ export function cacheRewrites(calls) {
 }
 
 // Claude Code and Cursor share the Anthropic message shape; Cursor puts the role at the top level.
-function parseMessages(rows, fromLine) {
+function parseMessages(rows, fromLine, since = 0) {
   const events = [], results = new Map(), models = new ModelTally(), stats = new Stats(), messageUsage = new Map(), compactions = [];
   // What the conversation itself costs in input tokens, by kind (the Report's parts beside the tool outputs, report.js):
   // every model call reads again all that came before it since the last compaction, so each kind's running size is
@@ -235,22 +235,27 @@ function parseMessages(rows, fromLine) {
   // alone) once a call; and Claude Code's own notes (every other attachment: environment updates, reminders, the
   // schemas of tools loaded on demand, listings), each read again by the calls after it.
   const carried = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0, system: 0, instructions: 0 }, run = { prompts: 0, agentText: 0, agentCalls: 0, thinking: 0, notes: 0 }, counted = new Set();
-  let cwd = null, systemTokens = 0, instructionTokens = 0, afterCompaction = false;
+  let cwd = null, systemTokens = 0, instructionTokens = 0, afterCompaction = false, dropped = 0;
   const calls = []; // one per model call that reports usage, for the cache rewrites (cacheRewrites)
   const est = v => Math.ceil(JSON.stringify(v ?? '').length / 4);
   // attachments the other parts already count: the system prompt, the instruction payload, the skill listing (harness.js)
   const COUNTED = new Set(['prompt_snapshot', 'instructions', 'skill_listing']);
   rows.forEach((j, i) => {
     if (!j) return;
+    // a continued session's copied history (`since`, continuations below): its text is context the continuation's calls
+    // carry, so the sizes run on; the calls, their usage and their events are the original's and are not read here
+    const copied = since > 0 && typeof j.timestamp === 'string' && (Date.parse(j.timestamp) || 0) <= since;
     if (j.type === 'attachment' && j.attachment?.type === 'prompt_snapshot') systemTokens = est(j.attachment.systemPrompt);
     else if (j.type === 'attachment' && j.attachment?.type === 'instructions') instructionTokens = est(j.attachment);
     else if (j.type === 'attachment' && j.attachment && !COUNTED.has(j.attachment.type)) run.notes += est(j.attachment);
     if (j.type === 'system' && j.subtype === 'compact_boundary') { for (const k of Object.keys(run)) run[k] = 0; afterCompaction = true; }
-    if (j.type === 'assistant' || j.role === 'assistant') models.add(j.message?.model ?? j.model);
+    if (!copied && (j.type === 'assistant' || j.role === 'assistant')) models.add(j.message?.model ?? j.model);
     if (j.type === 'assistant' || j.role === 'assistant') {
       const id = j.message?.id || j.id || `row-${i}`, u = j.message?.usage ?? j.usage;
-      messageUsage.set(id, u);
-      if (u && !counted.has(id) && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0)) > 0) {
+      if (!copied) messageUsage.set(id, u);
+      const reported = u && !counted.has(id) && ((u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0)) > 0;
+      if (reported && copied) { counted.add(id); dropped++; run.thinking += u.output_tokens_details?.thinking_tokens ?? 0; }
+      else if (reported) {
         counted.add(id);
         for (const k of Object.keys(run)) carried[k] += run[k];
         carried.system += systemTokens; carried.instructions += instructionTokens;
@@ -259,13 +264,13 @@ function parseMessages(rows, fromLine) {
         afterCompaction = false;
       }
       for (const b of Array.isArray(j.message?.content) ? j.message.content : []) {
-        if (b.type === 'tool_use') { stats.toolCalls++; run.agentCalls += est(b.input); }
+        if (b.type === 'tool_use') { if (!copied) stats.toolCalls++; run.agentCalls += est(b.input); }
         else if (b.type === 'text') run.agentText += est(b.text);
         else if (b.type === 'thinking' && u?.output_tokens_details?.thinking_tokens == null) run.thinking += Math.ceil(String(b.signature || '').length / 4.3);
       }
     }
     if (j.type === 'user' && j.message) { const c = j.message.content; if (typeof c === 'string') run.prompts += est(c); else for (const b of Array.isArray(c) ? c : []) if (b.type === 'text') run.prompts += est(b.text); }
-    if (i < fromLine) return;
+    if (i < fromLine || copied) return;
     if (j.cwd && !cwd) cwd = j.cwd;
     // Claude Code's compaction: everything before this line left the model's context (tool-outputs.js counts a result
     // until then); `compactions` holds the index of the first event after each
@@ -306,7 +311,7 @@ function parseMessages(rows, fromLine) {
   for (const usage of messageUsage.values()) stats.turn(usage);
   // `carried` beside the stats, not in them: the stop hook logs the stats on every session line (commands/hooks.js)
   // `calls`: every model call with its usage, in order, for the Factory's stage attribution (factory.js); a tool event's `call` indexes it
-  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls), calls };
+  return { events: attachResults(events, results), cwd, model: models.model, stats: stats.value, carried, compactions, rewrites: cacheRewrites(calls), calls, continued: since > 0 ? { at: since, dropped } : undefined };
 }
 
 function parseCodex(rows, fromLine) {
@@ -451,10 +456,11 @@ function parseAgy(rows, fromLine = 0) {
   return { events, cwd };
 }
 
-// fromLine counts lines (or messages, for Gemini's single JSON document);
+// fromLine counts lines (or messages, for Gemini's single JSON document); `since` (ms) is a continued session's
+// moment (continuations below): Claude Code rows stamped at or before it are context alone, never this session's calls;
 // lineCount is where the next incremental read should start. `model` is the model the
 // session ran on when the transcript names it (Claude Code, Codex, Gemini), else null.
-export function parseTranscript(file, { fromLine = 0, format } = {}) {
+export function parseTranscript(file, { fromLine = 0, format, since = 0 } = {}) {
   const text = fs.readFileSync(file, 'utf8');
   const fmt = format && format !== 'auto' ? format : detectFormat(text);
   if (fmt === 'gemini') { let j = {}; try { j = JSON.parse(text); } catch {} const r = parseGemini(j, fromLine); return { events: r.events, lineCount: r.count, cwd: r.cwd, model: r.model, stats: r.stats, carried: r.carried, rewrites: r.rewrites, format: fmt }; }
@@ -462,7 +468,7 @@ export function parseTranscript(file, { fromLine = 0, format } = {}) {
   const rows = jsonLines(text);
   // A trailing newline is the start of the next record, not a consumed record.
   // Retry a partially written final record too, when it becomes valid JSON.
-  const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine);
+  const r = fmt === 'agy' ? parseAgy(rows, fromLine) : fmt === 'codex' ? parseCodex(rows, fromLine) : fmt === 'events' ? parseEvents(rows, fromLine) : parseMessages(rows, fromLine, since);
   return { model: null, ...r, lineCount: lines.length - (rows.at(-1) === null ? 1 : 0), format: fmt };
 }
 
@@ -645,32 +651,42 @@ export function transcriptsFor(cwd) {
 // A session Claude Code continued in a new one (a "continued-in" row among the original's last lines, naming the new
 // session) has its history copied into the continuation's file under the new session id -- the same message uuids and
 // timestamps -- ahead of the continuation's own rows. Read as two sessions, every copied call is counted twice: on
-// 2026-11-09 this machine held 25 such pairs, and the copies were 30 of the Factory's 467 fix loops. `continuations`
-// reads the tail of each Claude transcript for the marker and maps the continuation's session id to the original and
-// the moment it was continued; `afterContinuation` drops from a parsed continuation the calls made at or before that
-// moment and the events made in them, re-indexing the rest, so the copied history is the original's alone.
+// 2026-11-09 this machine held 25 such pairs, the copies were 30 of the Factory's 467 fix loops and 9% of its cost.
+// `continuations` reads the tail of each Claude transcript for the marker and maps the continuation's session id to the
+// original and the moment it was continued; a reader then parses the continuation with `since` at that moment
+// (parseTranscript), and the copied rows are context its calls carry, never calls of its own. `continuedSince` is the
+// hook's door: the running session's own file has no marker, so the original is looked for among its siblings, the
+// files written since this one was made.
 const TAIL_BYTES = 64 * 1024;
+function continuedRow(file) {
+  let tail = '';
+  try {
+    const size = fs.statSync(file).size, n = Math.min(size, TAIL_BYTES), fd = fs.openSync(file, 'r'), buf = Buffer.alloc(n);
+    fs.readSync(fd, buf, 0, n, size - n); fs.closeSync(fd); tail = buf.toString('utf8');
+  } catch { return null; }
+  const i = tail.lastIndexOf('"type":"continued-in"'); if (i < 0) return null;
+  const start = tail.lastIndexOf('\n', i) + 1, end = tail.indexOf('\n', i);
+  try { const j = JSON.parse(tail.slice(start, end < 0 ? undefined : end)); const at = Date.parse(j.timestamp); return j.continuedInSessionId && at ? { to: j.continuedInSessionId, at } : null; } catch { return null; }
+}
 export function continuations(sessions) {
   const out = new Map();
   for (const s of sessions) {
     if (s.client && s.client !== 'claude') continue;
-    let tail = '';
-    try {
-      const size = fs.statSync(s.file).size, n = Math.min(size, TAIL_BYTES), fd = fs.openSync(s.file, 'r'), buf = Buffer.alloc(n);
-      fs.readSync(fd, buf, 0, n, size - n); fs.closeSync(fd); tail = buf.toString('utf8');
-    } catch { continue; }
-    const i = tail.lastIndexOf('"type":"continued-in"'); if (i < 0) continue;
-    const start = tail.lastIndexOf('\n', i) + 1, end = tail.indexOf('\n', i);
-    let j; try { j = JSON.parse(tail.slice(start, end < 0 ? undefined : end)); } catch { continue; }
-    const at = Date.parse(j.timestamp);
-    if (j.continuedInSessionId && at) out.set(j.continuedInSessionId, { from: s.session, at });
+    const r = continuedRow(s.file);
+    if (r) out.set(r.to, { from: s.session, at: r.at });
   }
   return out;
 }
-export function afterContinuation(p, at) {
-  const k = (p.calls || []).findIndex(c => c.t > at);
-  if (k < 0) return { ...p, calls: [], events: [], continued: { at, dropped: (p.calls || []).length } };
-  const first = (p.events || []).findIndex(e => Number.isInteger(e.call) ? e.call >= k : e.at > at);
-  const events = (first < 0 ? [] : p.events.slice(first)).map(e => Number.isInteger(e.call) ? { ...e, call: e.call - k, turn: Number.isInteger(e.turn) ? e.turn - k : e.turn } : e);
-  return { ...p, calls: p.calls.slice(k), events, continued: { at, dropped: k } };
+export function continuedSince(file, session) {
+  let born = 0, dir; try { born = fs.statSync(file).birthtimeMs || 0; dir = path.dirname(file); } catch { return 0; }
+  let names = []; try { names = fs.readdirSync(dir); } catch { return 0; }
+  for (const f of names) {
+    if (!f.endsWith('.jsonl') || f === path.basename(file)) continue;
+    const p = path.join(dir, f);
+    // the original wrote its marker as the continuation began, so its file moved at or after this one was made
+    if (born) { try { if (fs.statSync(p).mtimeMs < born - 60_000) continue; } catch { continue; } }
+    const r = continuedRow(p);
+    if (r && r.to === session) return r.at;
+  }
+  return 0;
 }

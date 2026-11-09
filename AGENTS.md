@@ -1207,8 +1207,8 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   48 ($201) ran past a commit, a push or a `git worktree add` to a pass in the next piece of work, $70 of them before
   that event; and 21 counted Claude Code refusing to run the line, or the agent's own python heredoc crashing (`File
   "<stdin>"`), as a test failure. So: a `continued-in` row in the original's tail names the continuation, whose copied
-  calls and events are dropped before the Factory reads it (the Report and the delivery figures still read both files:
-  not changed here); a fix loop closes unresolved at a commit, a push, a new branch or `gh pr create`, unless that very
+  calls and events are dropped before the Factory reads it (and, the same day, before every other reader of a session's file -- the Report's usage, the harness and
+  instruction readers, the Stop hook's `session` row; "A continued session is one session" under Report); a fix loop closes unresolved at a commit, a push, a new branch or `gh pr create`, unless that very
   line was the failing run (`npm test && git commit`, where the commit never ran); and a denial or a `<stdin>` crash is
   not a failure. The honest figure is about $450, 6% of spend. What the real loops are: the red/green cycle at about a
   dollar each, Verify 56% of the cost inside them -- and Verify is inside every fix loop by construction, since the loop
@@ -1216,6 +1216,23 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   pinned test updated after an intended change); edits here are shell heredocs, so the Edit tool is no measure of what
   a loop changed. The fresh-worktree dependency race was one loop of seven module-not-found ones. Not changed: the
   correction loop still spans its whole exchange, and the other kinds were not read the same way yet.
+
+**A continued session is one session (2026-11-09; `transcripts.js:continuations`, `continuedSince`, `parseTranscript`'s `since`)**
+- Claude Code can continue a session in a new one: the original's last rows carry `continued-in` naming the new session,
+  and the new file opens with the original's rows copied under the new id (the same message uuids and timestamps) ahead
+  of its own. Every reader that took a file for a session counted the copied calls twice: on this machine 25 pairs, 9%
+  of the Factory's cost, and the Report's session counts and the PR figures carried the same. `findRepoSessions` marks a
+  continuation with `since`, the moment it was continued, and every reader parses it from there: `parseTranscript(file,
+  { since })` makes the rows at or before it context alone -- their text is what the continuation's calls carry, so the
+  parts are still right -- and no call, usage, turn, tool call, model vote or event of the continuation's own
+  (`continued: { at, dropped }` on the result). `tool-outputs.js:sessionRecords` (v14), `instruction-value.js:sessionRecord`,
+  `harness.js:sessionHarness` (what was loaded still counts, since it is in the context; the calls and the uses are the
+  original's) and the Factory read it so, each with `since` in its cache key. The Stop hook has no list of sessions to
+  mark, so it looks for the original beside the running session's file (`continuedSince`: the siblings written since this
+  file was made, read at their tails, a few per turn) and logs the `session` row from `since`, so `thinker prs` and
+  `thinker usage` count a continuation's own calls from the first turn after this lands; rows logged before carry the
+  copy. Not done: the profile's extraction and `thinker learn` read the continuation whole, so a copied exchange can be
+  observed twice; and a session continued on another machine, or whose original is gone, is read whole.
 
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript

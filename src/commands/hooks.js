@@ -11,7 +11,7 @@ import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
-import { parseTranscript, subagentStats, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
+import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
 import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
@@ -306,9 +306,11 @@ async function hookCommand(ctx) {
     // prompt so the figure a turn's own notes and clears belong to is in it by the next turn.
     if (noticeOn(store)) { try { refreshSavingsInBackground(store, { cli }); } catch (e) { recordError('hook.savings', e, { repo }); } }
     // what the session has cost so far, for the profile's holdout (profile.js:holdoutReport): the turn's cost is the
-    // difference from the line of the turn before, so each line carries the turn number the prompt hook opened
+    // difference from the line of the turn before, so each line carries the turn number the prompt hook opened. A session
+    // Claude Code continued in a new one carries the original's history in its file: the row counts from the moment it
+    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince)
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
     if (noticeOn(store)) {
       // where the card mod runs, the status line carries the money the whole session (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);
