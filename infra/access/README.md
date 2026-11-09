@@ -18,6 +18,25 @@ installed earlier keep updating until they move to GitHub; nothing new is
 uploaded there.
 The S3 origin stays private and the existing CloudFront/WAF configuration is preserved.
 
+**Reputation (2026-11-09).** `thinker.sh` was registered on 2026-11-04, and company web filters
+(Zscaler, Palo Alto, Umbrella, Netskope, FortiGuard, Check Point) block a newly registered or
+uncategorized domain by default for 30 to 90 days; a thin landing page, a shell script at the root and
+`private, no-store` on every page made it look like a dropper site on top of that. What the deploy now
+carries for the categorizers: `robots.txt`, `sitemap.xml` and `/.well-known/security.txt` (also at
+`/security.txt`; `Expires` is a year out and `test/public-website.test.js` fails once it has passed),
+the response headers policy in `public-headers.mjs` (HSTS, `nosniff`, `X-Frame-Options: DENY`,
+`strict-origin-when-cross-origin`, and `public, max-age=…` on every upload in place of the gated
+site's `private, no-store`; the function's own `no-store` on `/access/session` stands), and a
+certificate whose first name is `thinker.sh` (`production.json:certificateArn`; `prepare` checks it
+is issued and covers every alias, `apply` swaps it onto the distribution when it differs). The
+domain still has to age; the vendor categorization forms are the only thing that shortens it.
+
+**`/dist` is a copy of the current GitHub release, not a redirect.** `prepare` downloads
+`releases/latest/download/{version.json,thinker.tgz}`, checks the archive against the manifest's
+sha256, and `apply` uploads them. Clients from before 0.1.35 read `/dist/version.json` with
+`redirect: 'error'`, so a 30x to GitHub would strand them; until this landed the files were the 0.1.35
+release, a stepping stone to the first GitHub-reading updater.
+
 From an isolated worktree, run `node infra/access/deploy.mjs prepare`, inspect
 `.access-work/public-plan.json`, then run `node infra/access/deploy.mjs apply`.
 Preparation tests routing in the AWS edge runtime. Apply backs up existing

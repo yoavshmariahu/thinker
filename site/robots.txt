@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /dist/
+Disallow: /access/
+
+Sitemap: https://thinker.sh/sitemap.xml

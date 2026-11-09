@@ -264,3 +264,49 @@ test('every public page names one 1200x630 share card, and the card is served an
   assert.match(deploy, /\['card.png', 'site\/card.png', 'image\/png'\]/, 'uploaded with its own type');
   assert.match(deploy, /'\/card\.png'.*'\/message\.\*'/, 'and invalidated at the edge');
 });
+
+test('the site carries what crawlers and web-filter vendors read before categorizing it (2026-11-09)', async () => {
+  // thinker.sh was registered on 2026-11-04 and company filters block a new, thin, uncategorized domain
+  // serving a shell script; these files, the public headers and the certificate are what a categorizer looks at.
+  for (const method of ['GET', 'HEAD']) {
+    for (const uri of ['/robots.txt', '/sitemap.xml', '/.well-known/security.txt']) assert.equal(request(uri, method).uri, uri);
+    assert.equal(request('/security.txt', method).uri, '/.well-known/security.txt', 'the RFC 9116 legacy location');
+  }
+  assert.equal(request('/.well-known/other', 'GET').statusCode, 404);
+  const robots = fs.readFileSync(new URL('../site/robots.txt', import.meta.url), 'utf8');
+  assert.match(robots, /^Allow: \/$/m);
+  assert.match(robots, /^Sitemap: https:\/\/thinker\.sh\/sitemap\.xml$/m);
+  const sitemap = fs.readFileSync(new URL('../site/sitemap.xml', import.meta.url), 'utf8');
+  for (const file of ['index.html', 'docs.html', 'compression.html', 'how-it-works.html']) {
+    const canonical = fs.readFileSync(new URL('../site/' + file, import.meta.url), 'utf8').match(/<link rel="canonical" href="([^"]+)">/)[1];
+    assert.ok(sitemap.includes(`<loc>${canonical}</loc>`), `${file}'s canonical URL is in the sitemap`);
+  }
+  const security = fs.readFileSync(new URL('../site/security.txt', import.meta.url), 'utf8');
+  assert.match(security, /^Contact: https:\/\/github\.com\/yoavshmariahu\/thinker\//m);
+  assert.match(security, /^Canonical: https:\/\/thinker\.sh\/\.well-known\/security\.txt$/m);
+  const expires = Date.parse(security.match(/^Expires: (\S+)$/m)[1]);
+  assert.ok(expires > Date.now(), 'security.txt has expired; move Expires forward');
+  assert.ok(expires < Date.now() + 400 * 86400e3, 'RFC 9116 wants Expires within a year');
+  assert.doesNotMatch(security, /@/, 'no address a scraper can harvest');
+  const { RESPONSE_POLICY, cacheControlFor } = await import('../infra/access/public-headers.mjs');
+  const policy = RESPONSE_POLICY('x');
+  assert.equal(policy.SecurityHeadersConfig.StrictTransportSecurity.AccessControlMaxAgeSec, 31536000);
+  assert.equal(policy.SecurityHeadersConfig.StrictTransportSecurity.IncludeSubdomains, false, 'zerotime.dev has other subdomains');
+  assert.ok(policy.SecurityHeadersConfig.ContentTypeOptions.Override);
+  assert.equal(policy.SecurityHeadersConfig.FrameOptions.FrameOption, 'DENY');
+  const cache = policy.CustomHeadersConfig.Items.find(h => h.Header === 'Cache-Control');
+  assert.doesNotMatch(cache.Value, /no-store|private/, 'the public site is cacheable');
+  assert.equal(cache.Override, false, 'the function\'s no-store on /access/session and each upload\'s value stand');
+  assert.match(cacheControlFor('index.html'), /^public, max-age=300$/);
+  assert.match(cacheControlFor('dist/version.json'), /^public, max-age=300$/);
+  assert.match(cacheControlFor('card.png'), /^public, max-age=86400$/);
+  assert.match(cacheControlFor('clearing-click-1-session.json'), /^public, max-age=86400$/);
+  const deploy = fs.readFileSync(new URL('../infra/access/public-deploy.mjs', import.meta.url), 'utf8');
+  for (const key of ['robots.txt', 'sitemap.xml', '.well-known/security.txt', 'dist/version.json', 'dist/thinker.tgz']) assert.ok(deploy.includes(`['${key}', `), `${key} is deployed`);
+  assert.match(deploy, /cacheControlFor\(key\)/, 'uploads carry the public cache control');
+  assert.match(deploy, /update-response-headers-policy/);
+  assert.match(deploy, /redirect to GitHub would strand them/, 'the pre-0.1.35 updater refuses redirects, so /dist is a copy');
+  assert.match(deploy, /'\/\.well-known\/\*', '\/dist\/\*'/, 'and invalidated at the edge');
+  const production = JSON.parse(fs.readFileSync(new URL('../infra/access/production.json', import.meta.url), 'utf8'));
+  assert.match(production.certificateArn, /^arn:aws:acm:us-east-1:\d+:certificate\//);
+});

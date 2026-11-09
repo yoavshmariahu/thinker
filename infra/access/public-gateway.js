@@ -25,6 +25,9 @@ function handler(event) {
         'content-type': { value: 'application/json' }, 'cache-control': { value: 'no-store' }
     }, body: request.method === 'HEAD' ? '' : JSON.stringify({ installCommand: 'curl -fsSL https://raw.githubusercontent.com/yoavshmariahu/thinker/main/install.sh | bash' }) };
     if (/^\/docs(?:\.html|\/index\.html|\/)?$/.test(uri)) { request.uri = '/docs.html'; return request; }
+    // Crawlers and web-filter vendors read these before they categorize a site; the root security.txt is the RFC 9116 legacy alias.
+    if (uri === '/security.txt') { request.uri = '/.well-known/security.txt'; return request; }
+    if (uri === '/robots.txt' || uri === '/sitemap.xml' || uri === '/.well-known/security.txt') return request;
     if (uri === '/how-it-works') { request.uri = '/how-it-works.html'; return request; }
     if (uri === '/see-the-data') { request.uri = '/compression.html'; return request; }
     if (/^\/(?:[Tt]hinker101\/)?install.sh$/.test(uri)) { request.uri = '/dist/install.sh'; return request; }
