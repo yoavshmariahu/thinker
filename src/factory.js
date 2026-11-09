@@ -452,7 +452,9 @@ export function trust(on, off) {
   const se = a == null || b == null ? null : Math.sqrt((a * a) / on.sessions + (b * b) / off.sessions);
   const band = se == null ? null : 2 * se;
   const level = n < 10 || band == null ? 'none' : band < 0.2 ? 'good' : band < 0.5 ? 'fair' : 'low';
-  return { level, band, smaller: n, cv: { on: a, off: b } };
+  // a row over fewer units than the sessions (the pull requests) takes its band from its own counts, the same spread
+  const bandFor = (nOn, nOff) => a == null || b == null || !nOn || !nOff ? null : 2 * Math.sqrt((a * a) / nOn + (b * b) / nOff);
+  return { level, band, smaller: n, cv: { on: a, off: b }, bandFor };
 }
 export const TRUST_WORDS = { none: 'too few sessions to read', low: 'low: a direction at most', fair: 'fair', good: 'good' };
 // the two sides of a feature, as the page's comparison table: ratios of sums, the held-out side second, the difference last
@@ -467,13 +469,13 @@ export function armRows(v, feature) {
     { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lowerIsBetter: true },
     { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
     { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lowerIsBetter: true },
-    { label: dollars ? 'Cost per merged pull request' : 'Tokens per merged pull request', on: r(on.prs.cost, on.prs.merged), off: r(off.prs.cost, off.prs.merged), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true, note: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side` },
-    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false },
+    { label: dollars ? 'Cost per merged pull request' : 'Tokens per merged pull request', on: r(on.prs.cost, on.prs.merged), off: r(off.prs.cost, off.prs.merged), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true, n: [on.prs.merged, off.prs.merged], note: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side` },
+    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false, n: [on.prs.merged, off.prs.merged] },
   ];
   for (const [key, name] of STAGES) rows.push({ label: `${name} rework`, group: 'stages', key, on: r(dollars ? on.stages[key].rework : on.stages[key].reworkTokens, dollars ? on.stages[key].cost : on.stages[key].tokens), off: r(dollars ? off.stages[key].rework : off.stages[key].reworkTokens, dollars ? off.stages[key].cost : off.stages[key].tokens), kind: 'pct', lowerIsBetter: true });
   for (const L of v.loops) rows.push({ label: `${L.name} per session`, group: 'loops', key: L.key, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lowerIsBetter: true });
   const t = trust(on, off);
-  for (const row of rows) { const d = row.lowerIsBetter == null || row.on == null || row.off == null || !row.off ? null : (row.on - row.off) / row.off; row.diff = d; row.verdict = d == null ? null : t.band != null && Math.abs(d) < t.band ? 'flat' : (d < 0) === row.lowerIsBetter ? 'good' : 'bad'; }
+  for (const row of rows) { const d = row.lowerIsBetter == null || row.on == null || row.off == null || !row.off ? null : (row.on - row.off) / row.off, band = row.n ? t.bandFor(row.n[0], row.n[1]) : t.band; row.diff = d; row.band = band; row.verdict = d == null ? null : (band == null || (row.n && Math.min(...row.n) < 10)) ? 'flat' : Math.abs(d) < band ? 'flat' : (d < 0) === row.lowerIsBetter ? 'good' : 'bad'; }
   return { feature, name: spec.name, onLabel: spec.onLabel, offLabel: spec.offLabel, rate: a.rate, rows, trust: t, thin: t.level === 'none' };
 }
 export function renderArms(v, feature) {

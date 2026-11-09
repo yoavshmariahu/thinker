@@ -226,4 +226,8 @@ test('trust is computed from the sides\' sizes and the spread of their session c
   const t = armRows(v, 'profile');
   assert.equal(t.rows.find(x => x.label === 'Cost per session').verdict, 'flat');
   assert.equal(t.rows.find(x => x.label === 'Rework share').verdict, 'good');
+  // a pull request row takes its band from its own counts: 12 pull requests a side is too few whatever the sessions say
+  v.arms.profile.shown.prs = { merged: 100, firstPass: 20, cost: 1000 }; v.arms.profile.holdout.prs = { merged: 8, firstPass: 1, cost: 50 };
+  assert.equal(armRows(v, 'profile').rows.find(x => x.label === 'First-pass yield').verdict, 'flat');
+  assert.ok(trust(side(400, 10, 1), side(400, 10, 1)).bandFor(100, 8) > trust(side(400, 10, 1), side(400, 10, 1)).band);
 });
