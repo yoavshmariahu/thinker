@@ -30,6 +30,7 @@ const assets = [
   ['nav.css', 'site/nav.css', 'text/css; charset=utf-8'],
   ...fs.readdirSync(path.join(root, 'site')).filter(name => /^clearing-[a-z0-9-]+\.json$/.test(name)).sort().map(name => [name, 'site/' + name, 'application/json']),
   ['card.png', 'site/card.png', 'image/png'],
+  ['thinker-pipeline.svg', 'site/thinker-pipeline.svg', 'image/svg+xml'],
   ['message.js', 'site/message.js', 'text/javascript; charset=utf-8'],
   ['message.css', 'site/message.css', 'text/css; charset=utf-8'],
   ['robots.txt', 'site/robots.txt', 'text/plain; charset=utf-8'],
@@ -139,7 +140,7 @@ if (mode === 'prepare') {
     }
   }
   const invalidation = call(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
-    '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/card.png', '/message.*', '/robots.txt', '/sitemap.xml', '/security.txt', '/.well-known/*', '/dist/*', '/access/*', '/thinker101/*', '/Thinker101/*']);
+    '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/card.png', '/thinker-pipeline.svg', '/message.*', '/robots.txt', '/sitemap.xml', '/security.txt', '/.well-known/*', '/dist/*', '/access/*', '/thinker101/*', '/Thinker101/*']);
   save('public-invalidation.json', invalidation);
   console.log(`Public site deployed (release ${plan.release} under /dist); invalidation:`, invalidation.Invalidation.Id);
 } else throw new Error('Usage: node infra/access/deploy.mjs prepare|apply');

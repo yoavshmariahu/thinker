@@ -544,3 +544,11 @@
     footer.lp-footer{border-top:1px solid #eee;padding:2rem 1.5rem 3rem;text-align:center;font-size:.85rem;color:#555;line-height:2}
     footer.lp-footer a{color:#333;text-decoration:none;margin:0 .6rem}
     footer.lp-footer a:hover{text-decoration:underline}
+    .lp-first{padding-top:6rem;text-align:center}
+    .lp-first h1{font-size:2.6rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.75rem}
+    .lp-pipeline{margin:0 auto 1.75rem;max-width:960px}
+    .lp-pipeline img{display:block;width:100%;height:auto}
+    .lp-intro{font-size:1.1rem;line-height:1.6;color:#333;max-width:760px;margin:0 auto}
+    .lp-install{align-items:flex-start;margin:1.25rem 0 1rem}
+    .lp-install .command-wrapper{width:100%}
+    @media (max-width:760px){.lp-first h1{font-size:2rem}.lp-first{padding-top:5rem}}

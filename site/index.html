@@ -41,31 +41,12 @@
     </div>
   </nav>
 
-  <main>
-    <div class="hero" id="hero">
-    <h1>thinker</h1>
-    <p class="subtitle">Think ahead. Save tokens.</p>
-    <p class="lp-lede">Thinker is a free, open-source tool that connects to your coding agents once and makes every session cheaper. It compresses the context your agents carry, learns how you work in each repository, and shows you what your instructions and tools cost.</p>
+  <section class="lp lp-first" id="factory">
+    <h1>Your software factory, faster and cheaper.</h1>
+    <figure class="lp-pipeline"><img src="/thinker-pipeline.svg" alt="A software factory from prompts to merge: each stage with an illustrative cost per run and share of rework, coloured by whether it is within budget." width="1200" height="410"></figure>
+    <p class="lp-intro">Coding agents have transformed the software development lifecycle with automations in every step to production. Thinker wires into your coding agents and finds cost-saving opportunities or efficiency improvements to make sure your agents produce accurate work without burning through your token budgets.</p>
+  </section>
 
-    <a class="econ-launch" href="/how-it-works"><span class="econ-launch-icon" aria-hidden="true"></span>See how it works</a>
-
-    <div class="install-container">
-
-      <div class="command-wrapper" id="command-view">
-        <div class="install-instruction">Run anywhere to install</div>
-        <div class="cmd-box">
-          <code id="cmd">npx thinkersh</code>
-          <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="supported-agents">
-      Claude Code &bull; Codex CLI &bull; Gemini CLI &bull; Cursor &bull; Devin CLI &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
-    </div>
-
-    </div>
-  </main>
 
   <section class="lp" id="what">
     <h2>What thinker does</h2>
@@ -132,6 +113,15 @@
     <h2>One command. Nothing to change in your workflow.</h2>
     <p><code>npx thinkersh</code> connects thinker to the agents on your machine through their own settings. No API key, no code changes, no new commands to learn. Keep coding as usual; thinker works in the background and says something only when it has something worth saying.</p>
     <p>Your sessions, your profile and your reports stay on your machine. Thinker sends anonymous usage counts, which one setting turns off, and error reports only after you say yes to each. The code is open source under the MIT license. <code>thinker uninstall --user</code> removes everything it wired.</p>
+    <div class="install-container lp-install">
+      <div class="command-wrapper">
+        <div class="install-instruction">Run anywhere to install</div>
+        <div class="cmd-box">
+          <code id="cmd">npx thinkersh</code>
+          <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
+        </div>
+      </div>
+    </div>
     <div class="lp-agents"><span>Claude Code</span><span>Claude desktop app</span><span>Codex CLI and app</span><span>Cursor</span><span>Gemini CLI</span><span>Devin</span><span>Pi</span><span>Windsurf</span><span>Copilot CLI</span><span>OpenCode</span><span>and more</span></div>
     <p class="lp-more" style="margin-top:1rem"><a href="docs.html">What works with which agent &rarr;</a></p>
   </section>
