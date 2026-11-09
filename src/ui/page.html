@@ -1411,10 +1411,11 @@ function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
 }
+const actedOn = l => l?.followRate == null ? '–' : `${Math.round(100 * l.followRate)}% of sessions`;
 function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = l.followRate == null ? 'none judged in a session yet' : `followed in ${Math.round(100 * l.followRate)}% of the sessions they applied to${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
+  const judged = l.followRate == null ? 'none judged in a session yet' : `acted on in ${l.followed} of the ${l.applied} sessions a line bore on${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 function profileFigure(v, cost) {
@@ -1428,7 +1429,8 @@ function profileFigure(v, cost) {
   const repeat = (x, name) => cell(share(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
   const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
   const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
-    `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>`;
+    `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
+    `<tr><td class="ctx-name">How often a profile line was acted on</td>${cell(actedOn(p.lines), `Of the sessions a line had any bearing on, the share where the agent acted on it (${p.lines?.followed || 0} of ${p.lines?.applied || 0}); judged by the model that reads the session at its end, thinker profile lines --why has the evidence`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`;
   const lines = [
     `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,

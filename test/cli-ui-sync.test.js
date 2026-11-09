@@ -766,7 +766,7 @@ test('the Report shows the profile metric on the page as the command prints it, 
   const { PROFILE_VERDICTS } = await import('../src/report.js');
   for (const text of Object.values(PROFILE_VERDICTS)) assert.ok(page.includes(text), `the page says "${text}"`);
   // the two sentences and the odds are the same code on both doors
-  for (const fn of ['const share = r =>', 'function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.ok(page.includes(fn), fn);
+  for (const fn of ['const share = r =>', 'const actedOn = l =>', 'How often a profile line was acted on', 'function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.ok(page.includes(fn), fn);
   const body = name => src => src.split(name)[1].split('\n}\n')[0];
   for (const name of ['function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.equal(body(name)(page), body(name)(report.replace('export function', 'function').replaceAll('export function', 'function')), `${name} is one body on both doors`);
   assert.doesNotMatch(page, /Cache hits|notes served|savings-counts/);
