@@ -216,10 +216,10 @@
     .fx-pop table { width: auto; border-collapse: collapse; font-size: .74rem; }
     .fx-pop th { font-size: .64rem; letter-spacing: .05em; padding: .2rem .45rem; border-bottom: 1px solid #e5e7eb; color: #6b7280; }
     .fx-pop th:first-child { color: #111; text-transform: none; letter-spacing: 0; font-size: .74rem; }
-    .fx-pop th small { display: block; font-size: .58rem; letter-spacing: 0; text-transform: none; font-weight: 500; color: #9ca3af; }
     .fx-pop td { padding: .25rem .45rem; border-bottom: 0; color: #6b7280; }
     .fx-pop td.num { color: #111; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .72rem; }
-    .fx-pop td.num.cur { font-weight: 600; }
+    .fx-pop th.cur, .fx-pop td.num.cur { background: #fef9c3; }
+    .fx-pop th.cur { border-radius: 4px 4px 0 0; } .fx-pop tr:last-child td.cur { border-radius: 0 0 4px 4px; }
     .fx-diff { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 1.6rem; }
     .fx-diff .fx-tbl td.on, .fx-diff .fx-tbl th.on { border-left: 1px solid #f0f0f0; }
     .fx-diff td.d { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -1613,7 +1613,7 @@ function fxPop(kind, id, anchor, stages, loops, dollars) {
     rows = [['Loops', cells.map(c => fmt(c.loops))], [dollars ? 'Cost' : 'Tokens', cells.map(c => amt(dollars ? c.cost : c.tokens))]];
   }
   const pop = document.createElement('div'); pop.className = 'fx-pop'; pop.setAttribute('role', 'tooltip');
-  pop.innerHTML = `<table><thead><tr><th>${esc(title)}</th>${cols.map((c, i) => `<th class="num">${esc(fxWk(c.t))}${i === n - 1 ? '<small>so far</small>' : ''}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, vs]) => `<tr><td>${esc(l)}</td>${vs.map((x, i) => `<td class="num${i === n - 2 ? ' cur' : ''}">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  pop.innerHTML = `<table><thead><tr><th>${esc(title)}</th>${cols.map((c, i) => `<th class="num${i === n - 1 ? ' cur' : ''}">${esc(fxWk(c.t))}</th>`).join('')}</tr></thead><tbody>${rows.map(([l, vs]) => `<tr><td>${esc(l)}</td>${vs.map((x, i) => `<td class="num${i === n - 1 ? ' cur' : ''}">${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   canvas.appendChild(pop);
   // under the card; a pill is drawn translated by half its size, so its box is around its offset point
   const pill = anchor.classList.contains('fx-pill');
