@@ -370,7 +370,7 @@ function action(s) {
     case 'mcp': return `"disabledMcpServers": ["${s.name}"] in this repository's entry of ~/.claude.json, for all its worktrees (what /mcp disable writes; /mcp enable undoes it)`;
     case 'mcpjson': return `"disabledMcpjsonServers": ["${s.name}"] in .claude/settings.local.json`;
     case 'skill': return `"skillOverrides": {"${s.name}": "user-invocable-only"} in .claude/settings.local.json (it still runs as /${s.name})`;
-    case 'tool': return `its definition written to ${toolFile(thinkerHome(), s.name)} and replaced in every request by one sentence naming that file (by the proxy, and by thinker's clearing mod inside a desktop session); the tool stays callable, and the model reads the file before its first call; for every repository on this machine, from the next session`;
+    case 'tool': return `its definition written to ${toolFile(thinkerHome(), s.name)} and replaced in every request by one sentence naming that file (by the proxy, and by thinker's clearing mod inside a desktop session); the tool can still be used, and the model reads the file before its first call; for every repository on this machine, from the next session`;
   }
 }
 
