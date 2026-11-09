@@ -23,7 +23,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { deriveTriggers, sectionFires, codeHits, globRegex as triggerGlob } from './instruction-sections.js';
 import { diskCache, cacheKey } from './disk-cache.js';
-import { parseTranscript, findSessions } from './transcripts.js';
+import { parseTranscript, findSessions, continuations } from './transcripts.js';
 import { complete, DEFAULT_DISTILL_MODEL } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { isTestMode } from './test-mode.js';
@@ -250,11 +250,11 @@ const ACTIVITY_CACHE = diskCache('session-activity', 2);
 function sessionRecord(store, st, s, secs, srcHash, files) {
   let size = 0; try { size = fs.statSync(s.file).size; } catch { return null; }
   const prev = st.sessions[s.session];
-  if (prev && prev.size === size && prev.src === srcHash && prev.appliedTurns) return prev;
-  const code = codeNames(secs), key = cacheKey('activity', store.repo, s.file);
+  if (prev && prev.size === size && prev.src === srcHash && prev.appliedTurns && (prev.since || 0) === (s.since || 0)) return prev;
+  const code = codeNames(secs), key = cacheKey('activity', store.repo, s.file, s.since ? String(s.since) : '');
   let kept = ACTIVITY_CACHE.get(key);
   if (!kept || kept.size !== size || !coversCode(kept.code, code)) {
-    let parsed; try { parsed = parseTranscript(s.file); } catch { return null; }
+    let parsed; try { parsed = parseTranscript(s.file, { since: s.since || 0 }); } catch { return null; }
     const empty = !parsed.events.some(e => e.t === 'tool' || e.t === 'prompt');
     kept = { size, code, empty, turns: parsed.stats?.turns || 0, activity: empty ? null : compactActivity(sessionActivity(store.repo, parsed.events), code) };
     ACTIVITY_CACHE.set(key, kept);
@@ -263,7 +263,7 @@ function sessionRecord(store, st, s, secs, srcHash, files) {
   const activity = kept.activity, touched = touchedFiles(activity);
   const loaded = (files || []).filter(f => fileLoaded(f, s.client, touched)).map(f => f.file);
   const mine = secs.filter(x => loaded.includes(x.file));
-  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, src: srcHash, turns: kept.turns, loaded, applied: appliedSections(mine, activity), appliedTurns: appliedTurns(mine, activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
+  const rec = { client: s.client, file: s.file, mtime: s.mtime, size, since: s.since || 0, src: srcHash, turns: kept.turns, loaded, applied: appliedSections(mine, activity), appliedTurns: appliedTurns(mine, activity), edited: activity.edited.length, ...(prev?.judged ? { judged: prev.judged } : {}) };
   st.sessions[s.session] = rec;
   return rec;
 }
@@ -374,7 +374,11 @@ export async function judgeRecent(store, { n = 5, days = 30, completeFn = comple
 
 // --- the report ----------------------------------------------------------------------------------------------
 export function findRepoSessions(repo, days) {
-  return [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()].sort((a, b) => b.mtime - a.mtime);
+  const list = [...new Map(checkouts(repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()].sort((a, b) => b.mtime - a.mtime);
+  // a session continued in a new one: the continuation carries `since`, and every reader parses it from there, so the
+  // history it copied from the original is counted once (transcripts.js:continuations)
+  const cont = continuations(list);
+  return list.map(s => cont.has(s.session) ? { ...s, since: cont.get(s.session).at } : s);
 }
 const median = xs => { const a = xs.filter(n => Number.isFinite(n) && n > 0).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : 0; };
 

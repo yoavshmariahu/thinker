@@ -14,7 +14,7 @@
 // every kind that fired, so a new detector shows up on the page with no change there. Each kind says the rule that
 // finds it. A loop's cost is the cost of the calls it spans, and a stage's rework is the cost of its calls inside
 // any loop, counted once however many loops hold the call.
-import { parseTranscript, subagentSessions, continuations, afterContinuation } from './transcripts.js';
+import { parseTranscript, subagentSessions } from './transcripts.js';
 import { bashProgram } from './tool-outputs.js';
 import { listPrice, writeCost } from './prices.js';
 import { findRepoSessions } from './instruction-value.js';
@@ -326,7 +326,6 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
-  const continued = continuations(all); // a session continued in a new one: the copy's history is read once, as the original's
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const corrected = correctedBySession(store, { days, now });
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
@@ -335,9 +334,9 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   for (const s of all) {
     let r;
     try {
-      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(continued.get(s.session)?.at || '')), [s.file], () => {
-        let p = parseTranscript(s.file);
-        if (continued.has(s.session)) p = afterContinuation(p, continued.get(s.session).at);
+      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
+        // a session continued in a new one is read from the moment it was continued (findRepoSessions marks it; transcripts.js:continuations)
+        const p = parseTranscript(s.file, { since: s.since || 0 });
         if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
         const price = listPrice(p.model, { config });
         return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };

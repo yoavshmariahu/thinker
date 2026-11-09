@@ -105,11 +105,11 @@ const transcriptFiles = file => {
 };
 const freezeHarness = h => ({ ...h, loaded: [...h.loaded], used: [...h.used], texts: [...h.texts].map(([k, t]) => [k, String(t).slice(0, TEXT_CHARS)]) });
 const thawHarness = v => ({ ...v, loaded: new Map(v.loaded), used: new Set(v.used), texts: new Map(v.texts) });
-export function sessionHarness(file) {
+export function sessionHarness(file, since = 0) {
   const files = transcriptFiles(file);
-  return cachedByFiles(HARNESS_CACHE, cacheKey('claude', file), files, () => readSessionHarness(files), { freeze: freezeHarness, thaw: thawHarness });
+  return cachedByFiles(HARNESS_CACHE, cacheKey('claude', file, since ? String(since) : ''), files, () => readSessionHarness(files, since), { freeze: freezeHarness, thaw: thawHarness });
 }
-function readSessionHarness(files) {
+function readSessionHarness(files, since = 0) {
   // what a source costs is counted once per thing listed: a session resumed or compacted lists it again
   const names = new Map(), instr = new Map(), skills = new Map(), used = new Set(), texts = new Map(), calls = new Set(), alias = new Map();
   // the model calls each source was called in, so its use is counted by prompts (a call that calls a tool twice is one)
@@ -127,7 +127,11 @@ function readSessionHarness(files) {
       if (!att && !call && !typed && !turn && cwd && start) continue;
       let j; try { j = JSON.parse(line); } catch { continue; }
       if (!cwd && typeof j.cwd === 'string') cwd = j.cwd;
-      if (!start && fi === 0 && typeof j.timestamp === 'string') start = j.timestamp;
+      // a continued session's copied history (`since`, transcripts.js:continuations): what it loaded is in the context and
+      // counts; its calls and its uses are the original's
+      const copied = since > 0 && fi === 0 && typeof j.timestamp === 'string' && (Date.parse(j.timestamp) || 0) <= since;
+      if (!start && fi === 0 && !copied && typeof j.timestamp === 'string') start = j.timestamp;
+      if (copied && !att) continue;
       if (turn && j.type === 'assistant' && j.message?.usage) calls.add(j.message.id || j.uuid);
       const a = j.attachment;
       if (att && a && typeof a === 'object') {
@@ -184,8 +188,8 @@ function readSessionHarness(files) {
 
 // A Claude Code session with what the desktop app added to it, when the app ran it (harness-desktop.js):
 // its connectors' always-loaded tools and its own instructions, which the transcript does not record.
-export function claudeSessionHarness(file, records) {
-  const h = sessionHarness(file), rec = records?.get(path.basename(file, '.jsonl'));
+export function claudeSessionHarness(file, records, since = 0) {
+  const h = sessionHarness(file, since), rec = records?.get(path.basename(file, '.jsonl'));
   if (!rec || !h.loaded.size) return { ...h, connectors: new Map(), desktop: false };
   const d = desktopSessionHarness(rec, { serverKey });
   for (const [k, t] of d.loaded) h.loaded.set(k, (h.loaded.get(k) || 0) + t);
@@ -265,7 +269,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHo
     if (!rows.has(key)) rows.set(key, { key, loaded: 0, used: 0, prompts: 0, usedPrompts: 0, tokens: 0, lastUsed: null, skills: new Set(), texts: {} });
     return rows.get(key);
   };
-  const records = desktopFor(home), read = sessions.map(s => { const h = claudeSessionHarness(s.file, records); onSession?.(s); return { s, h }; });
+  const records = desktopFor(home), read = sessions.map(s => { const h = claudeSessionHarness(s.file, records, s.since || 0); onSession?.(s); return { s, h }; });
   config.connectors = new Map(read.flatMap(({ h }) => [...h.connectors]));
   // the plugins the settings and the skill names name, longest first, to read a plugin server's key against
   const known = [...new Set([...config.plugins.keys(), ...read.flatMap(({ h }) => [...h.loaded.keys()].filter(k => k.startsWith('skill:')).map(k => pluginOfSkill(k.slice(6))).filter(Boolean))])].sort((a, b) => b.length - a.length);
@@ -800,7 +804,7 @@ export function harnessSavings(store, { sessions, cursor, home = os.homedir(), t
   cursor ||= [];
   sessions ??= [...new Map(checkouts(store.repo).flatMap(r => findSessions(r, { sinceMs: days * 86400_000 })).map(s => [s.file, s])).values()];
   const records = applied.some(a => a.undo?.key === 'desktop-connector') ? desktopFor(home) : null;
-  const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file) : claudeSessionHarness(s.file, records)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
+  const read = sessions.filter(s => ['claude', 'codex'].includes(s.client)).map(s => ({ ...(s.client === 'codex' ? codexSessionHarness(s.file) : claudeSessionHarness(s.file, records, s.since || 0)), client: s.client, mtime: s.mtime })).filter(h => (h.loaded.size || h.coverage?.size) && h.start && !h.parent);
   const keysOf = a => {
     if (a.client === 'codex') return k => (a.evidenceKeys || [a.key.slice(6)]).includes(k);
     const ks = a.members || [a.key];

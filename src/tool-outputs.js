@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseTranscript } from './transcripts.js';
 
-const KEEP = 1000, VERSION = 13;
+const KEEP = 1000, VERSION = 14; // 14: a continued session's copied history is the original's (transcripts.js:continuations)
 // what each level's cap leaves of an output, in tokens (diet.js:DIET_LEVELS outputChars / 4): the part of a
 // compressible tool's result past it is a saving at least (the other trims, round search hits and file windows, come on top);
 // an MCP server has the moderate level alone (diet.js:mcpLevel), so its high saving is its moderate one
@@ -105,11 +105,11 @@ function sessionRecords(store, sessions, { levelAt = null, key = '', onSession }
     onSession?.(s);
     let size = 0; try { size = fs.statSync(s.file).size; } catch { continue; }
     let r = st[s.session];
-    if (!r || r.size !== size || r.v !== VERSION || (key && r.tk !== key)) {
-      let parsed; try { parsed = parseTranscript(s.file); } catch { continue; }
+    if (!r || r.size !== size || r.v !== VERSION || (key && r.tk !== key) || (r.since || 0) !== (s.since || 0)) {
+      let parsed; try { parsed = parseTranscript(s.file, { since: s.since || 0 }); } catch { continue; }
       const at = parsed.events.reduce((a, e) => e.t === 'tool' && e.at && (!a || e.at < a) ? e.at : a, 0) || s.mtime;
       const level = levelAt ? (key, t) => levelAt(key, t ?? at) : null;
-      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
+      r = st[s.session] = { v: VERSION, size, mtime: s.mtime, at, since: s.since || 0, tk: levelAt ? key : '', model: parsed.model || null, turns: parsed.stats?.turns || 0, usage: usageOf(parsed.stats, parsed.carried, parsed.rewrites), by: sessionOutputs(parsed.events, parsed.stats?.turns || 0, parsed.compactions || [], { levelAt: level }) };
       changed = true;
     }
     recs.push({ ...r, at: r.at || s.mtime, session: s.session, client: s.client, t: s.mtime, parent: s.parent || null, agent: s.agent || null, type: s.type || null });
