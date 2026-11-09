@@ -146,9 +146,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  and by hand this writes the ones with none, heaviest waste first (--limit, or --keys for exactly
                                  those, --all over every repository the page merges). With no agent CLI signed in, as in a desktop
                                  app, it is queued for the session's own model; maintain.dailyTokens stops it at the day's cap
-  report [--weeks n] [--tokens] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average cost of a prompt here at list prices, week by week over the
+  report [--weeks n] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average cost of a prompt here at list prices, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
-                                 (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider, each part-table row against good and bad bounds in dollars; --tokens the same in tokens, without bounds, --total each week's
+                                 (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider, each part-table row against good and bad bounds in dollars; --total each week's
                                  sum instead of the average, --share each row as its share of the whole session (the totals stay);
                                  a cell up or down 5% against the first week is marked; then the decisions
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first

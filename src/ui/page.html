@@ -369,7 +369,6 @@
       <div class="controls">
         <select class="sel" id="r-repo" aria-label="Repository"></select>
         <div class="seg" id="r-mode"><button data-mode="avg">Per prompt</button><button data-mode="sum" class="on">Total</button></div>
-        <div class="seg" id="r-measure"><button data-m="cost" class="on">Cost</button><button data-m="tokens">Tokens</button></div>
         <div class="seg" id="r-view"><button data-view="values" class="on">Values</button><button data-view="share">Share</button></div>
       </div></div>
       <div id="report-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the report…</div></div>
@@ -1274,9 +1273,9 @@ function renderActivityPrs(v) {
   // In All repositories two repositories both number from 1, so the row says which; inline, since a line of
   // its own doubles the height of every row in the table.
   const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
-  const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
-    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Share</th><th class="num" title="What the clearing saved at list prices, less the cache writes the calls after a clear paid for. A cleared token saved a cache read; the rewrite paid for a cache write, at twenty times the price.">Net</th></tr></thead>
-    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td><td class="num"${r.net == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved less ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.net == null ? '<span class="muted">–</span>' : money(r.net)}</td></tr>`).join('')}</tbody></table>
+  const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost, every model call of its sessions at list prices by token type, and what the clearing saved on it net of the cache writes after a clear. A row with no saving had no clearing in its sessions.</span></figcaption>
+    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num" title="Every model call of its sessions at list prices: fresh input, cache reads, cache writes and output each at their own rate">Its cost</th><th class="num" title="What the clearing saved at list prices: a cleared token saved a cache read. The cache writes the calls after a clear paid for are in its cost.">Saved</th><th class="num" title="Saved over its cost">Share</th></tr></thead>
+    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.spend == null ? ' title="a session of this pull request reported no counters or has no list price, so its cost is not said"' : ''}>${r.spend == null ? '<span class="muted">–</span>' : money(r.spend)}</td><td class="num"${r.savedUsd == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved at the cache-read rate; its cost includes ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.savedUsd == null ? '<span class="muted">–</span>' : money(r.savedUsd)}</td><td class="num">${prShare(r.spend && r.savedUsd != null ? r.savedUsd / r.spend : null)}</td></tr>`).join('')}</tbody></table>
     ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-pr-all aria-expanded="${APR_ALL}">${APR_ALL ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
   swapBody(el, `<div class="kicker">Pull requests, over ${v.weeks || 6} weeks</div>` + prTable);
   el.querySelector('[data-pr-all]')?.addEventListener('click', () => { APR_ALL = !APR_ALL; renderActivityPrs(v); });
@@ -1318,13 +1317,12 @@ async function fetchRepos() {
   REPOS = r.repos;
 }
 // ---- Report (report.js:reportView, as `thinker report`): the average a prompt (one call to the model) cost each week, by token type, by part and by model ----
-let RPT = null, RMEASURE = 'cost', RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
+let RPT = null, RMODE = 'sum', RVIEW = 'values', RMORE = false, RFOLD = new Set(['other-input']); // the rest of the input folded until opened (2026-10-25)
 // Values / Share is the command's --share (report.js:renderReport): every row but the whole-session total as its share of that
 // total in the week, so the relative contributions and their trend can be read; the total rows keep their values
 document.querySelectorAll('#r-view button').forEach(b => b.onclick = () => { RVIEW = b.dataset.view; segOn('#r-view', b); if (RPT) renderReport(RPT); });
 document.querySelectorAll('#r-mode button').forEach(b => b.onclick = () => { RMODE = b.dataset.mode; segOn('#r-mode', b); if (RPT) renderReport(RPT); });
 $('#r-repo').onchange = e => { REPO = e.target.value; e.target.blur(); loadReport(); };
-document.querySelectorAll('#r-measure button').forEach(b => b.onclick = () => { RMEASURE = b.dataset.m; segOn('#r-measure', b); if (RPT) renderReport(RPT); });
 // a Report cell's colour is report.js:COST_THRESHOLDS, read from the view (`costThresholds`): the command marks the same cells ✓ · ✗
 // a dollar figure as prices.js:formatDollars makes it
 const money = d => d == null ? '–' : (d < 0 ? '−' : '') + '$' + (Math.abs(d) >= 10000 ? (Math.abs(d) / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : Math.abs(d) >= 100 ? String(Math.round(Math.abs(d))) : Math.abs(d) >= 10 ? Math.abs(d).toFixed(1) : Math.abs(d) >= 0.01 || d === 0 ? Math.abs(d).toFixed(2) : Math.abs(d).toFixed(3));
@@ -1369,22 +1367,24 @@ function reportAsOf(v) {
 const PR_ROWS = 12;
 // Values come from report.js, including the denominator when some PRs lack counters.
 function prStatsTable(v) {
+  // In dollars, as the whole Report is since 2026-11-08 (the owner's call; report.js prints the same): a pull request's tokens add
+  // fresh input, cache reads, cache writes and output as if they were one thing. Saved is the clearing's netted figure,
+  // Cost is every session's calls at list prices by token type (delivery.js), over the PRs whose every session is priced.
   const weeks = v.prWeekly;
-  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date</span></figcaption>';
+  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date · dollars at list prices</span></figcaption>';
   if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
   const metrics = [
-    { key: 'merged', name: 'Number of PRs' },
-    { key: 'savedPerPr', name: 'Tokens saved per PR · average' },
-    { key: 'tokensPerPr', name: 'Total tokens per PR · average' },
+    { key: 'merged', name: 'Number of PRs', title: w => `${w.merged} merged with work recorded here` },
+    { key: 'savedUsdPerPr', name: 'Saved per PR · average', title: w => `${money(w.savedUsd || 0)} over ${w.priced || 0} of ${w.merged} PRs with a priced model: what the clearing saved at the cache-read rate. The cache writes after a clear are in the cost` },
+    { key: 'spendPerPr', name: 'Cost per PR · average', title: w => `${money(w.spend || 0)} over ${w.spent || 0} of ${w.merged} PRs whose every session is priced: their model calls at list prices by token type, cache writes after a clear included` },
   ];
-  const rows = metrics.map(({ key, name }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
+  const rows = metrics.map(({ key, name, title }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
     const n = w[key];
-    const title = key === 'tokensPerPr' ? `${w.complete} of ${w.merged} PRs with complete counters` : '';
-    return `<td class="num"${title ? ` title="${esc(title)}"` : ''}>${n == null ? '–' : key === 'merged' ? n : fmt(n)}</td>`;
+    return `<td class="num" title="${esc(title(w))}">${n == null ? '–' : key === 'merged' ? n : money(n)}</td>`;
   }).join('')}</tr>`).join('');
   return `<figure class="ctx-figure pr-stats">${heading}
     <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th>Metric</th>${weeks.map((w, i) => `<th class="num">Week of ${dlabel(w.t)}${i === weeks.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
+    <p class="savings-note">Merged PRs with work recorded here, in dollars at list prices. Saved: the clearing's saving net of the cache writes after a clear, averaged over the PRs with a priced model. Cost: what their sessions' model calls cost, averaged over the PRs whose every session is priced. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
 // The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in
@@ -1413,16 +1413,16 @@ function profileLinesSentence(p) {
   const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
-function profileFigure(v, cost) {
+function profileFigure(v) {
   const p = v.profile;
   const half = p ? Math.round(100 * p.holdoutRate) : 0;
   const heading = `<figcaption><b>Profile</b><span class="ctx-sub">What the agent is told about you at the start of a session, and whether it helps${p ? ` · ${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
   if (!p) return `<figure class="ctx-figure profile-figure">${heading}<p class="savings-note">No profile observations in this repository yet.</p></figure>`;
-  const unit = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
+  const unit = x => x == null ? '<span class="muted">–</span>' : money(x);
   const r = p.recurrence, c = p.cost;
   const cell = (x, title) => `<td class="num" title="${esc(title)}">${x}</td>`;
   const repeat = (x, name) => cell(share(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
-  const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
+  const price = (x, name) => cell(unit(x.cost), `${name}: dollars at list prices a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
   const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
     `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
     BANDS.map(([band, name, what]) => `<tr><td class="ctx-name">${name}</td>${cell(bandShare(p.lines, band), `${p.lines?.[band] || 0} of the ${p.lines?.judged || 0} lines judged so far ${what}; judged by the model that reads a session at its end, over ${p.lines?.sessions || 0} session${p.lines?.sessions === 1 ? '' : 's'} shown the profile; thinker profile lines --why names them`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`).join('');
@@ -1438,34 +1438,32 @@ function profileFigure(v, cost) {
 
 function renderReport(v) {
   RPT = v;
-  const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
-  // a cell: the week's sum over its prompts (the priced sessions' in the cost view), or that sum itself (Total); null where the week has none
-  const avg = (c, w) => { const col = v.columns[w]; return sum ? (cost ? c.cost : c.tokens) : cost ? (col.pricedPrompts ? c.cost / col.pricedPrompts : null) : (col.prompts ? c.tokens / col.prompts : null); };
+  const sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
+  // Dollars at list prices and nothing else (the owner, 2026-11-08: "only costs"; the Tokens toggle went that day, since a
+  // token count adds fresh input, cache reads, cache writes and output as if they were one thing). The token figures stay
+  // in the view and `thinker report --json`.
+  // a cell: the week's cost over the priced sessions' prompts, or that cost itself (Total); null where the week has none
+  const avg = (c, w) => { const col = v.columns[w]; return sum ? c.cost : col.pricedPrompts ? c.cost / col.pricedPrompts : null; };
   // what a cell shows: its value, or under Share its value over the whole session's (the base), the total rows their value
   const base = share ? v.sessionTotals : null;
   const val = (cells, w, b) => { const a = avg(cells[w], w); if (!a || !b) return a; const t = avg(b[w], w); return t ? a / t : null; };
   const sharePct = x => { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; };
-  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : cost ? money(x) : fmt(x);
-  // Under Cost (the default since 2026-10-26, as the command without --tokens) every row of the parts table is coloured by
-  // its cost a priced prompt against its bounds (report.js:COST_THRESHOLDS, the view's `costThresholds`; the command marks
-  // the same ✓ · ✗): green at or under Good, red at or over Bad, yellow between (flat colours, the owner's ask of
-  // 2026-10-24), the same whatever the cell shows (a week's total, a share). The two bounds sit beside the row, narrow
-  // (rep-thr). Under Tokens there are no bounds, columns or colours: models count the same text too differently for one
-  // figure in tokens to say good or bad (the owner's call, 2026-10-26). The model and token-type tables are never coloured.
-  const thr = cost ? v.costThresholds || {} : {}, kCost = n => `$${Number(n.toFixed(3))}`;
+  const fv = (x, b) => x == null ? '<span class="muted">–</span>' : b ? sharePct(x) : money(x);
+  // Every row of the parts table is coloured by its cost a priced prompt against its bounds (report.js:COST_THRESHOLDS, the
+  // view's `costThresholds`; the command marks the same ✓ · ✗): green at or under Good, red at or over Bad, yellow between
+  // (flat colours, the owner's ask of 2026-10-24), the same whatever the cell shows (a week's total, a share). The two
+  // bounds sit beside the row, narrow (rep-thr). The model and token-type tables are never coloured.
+  const thr = v.costThresholds || {}, kCost = n => `${Number(n.toFixed(3))}`;
   const verdictOf = (key, cells, w) => { const t = key && thr[key], col = v.columns[w], x = t && col.pricedPrompts ? cells[w].cost / col.pricedPrompts : 0; return !x ? '' : x <= t.good ? 'rep-good' : x >= t.bad ? 'rep-bad' : 'rep-mid'; };
   const tcell = (cells, w, title, b, key) => { const a = val(cells, w, b), at = title ? ` title="${esc(title)}"` : '', vd = a ? verdictOf(key, cells, w) : ''; return `<td class="num${vd ? ` ${vd}` : ''}"${at}>${a ? fv(a, b) : ''}</td>`; };
-  const thrCells = key => { if (!cost) return '<td class="rep-thr"></td><td class="rep-thr"></td>'; const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kCost(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kCost(t.bad)}` : '–'}</td>`; };
+  const thrCells = key => { const t = key && thr[key]; return `<td class="rep-thr">${t ? `≤ ${kCost(t.good)}` : '–'}</td><td class="rep-thr">${t ? `≥ ${kCost(t.bad)}` : '–'}</td>`; };
   // a row: `total` keeps its values under Share (the whole-session rows); every other row is shown over the base; `key` names
-  // the row for its colour and bounds; `thresholds` puts the two bound cells in (the parts table's rows; empty under Tokens,
-  // so the columns stay where they are)
+  // the row for its colour and bounds; `thresholds` puts the two bound cells in (the parts table's rows)
   const row = (name, cells, { cls = '', sub = '', titles, data = '', total = false, key = null, thresholds = false } = {}) => { const b = total ? null : base; return `<tr class="${cls}"${data}><td class="ctx-name">${name}${sub ? `<span class="ctx-kind">${sub}</span>` : ''}</td>${thresholds ? thrCells(key) : ''}${cells.map((c, w) => tcell(cells, w, titles ? titles(c, w) : '', b, key)).join('')}</tr>`; };
   const thrHead = `<th class="rep-thr" title="Dollars a priced prompt, at list prices, at or under which the row is green">Good</th><th class="rep-thr" title="Dollars a priced prompt, at list prices, at or over which the row is red; yellow between the two">Bad</th>`;
-  // the column widths are set (colgroup, .rep-table's fixed layout) and the week's ", n priced" keeps its room under Tokens,
-  // so a toggle changes the figures and never the table's size
+  // the column widths are set (colgroup, .rep-table's fixed layout), so a toggle changes the figures and never the table's size
   const colgroup = thresholds => `<colgroup><col class="rep-name${thresholds ? '' : ' wide'}">${thresholds ? '<col class="rep-thr"><col class="rep-thr">' : ''}${v.columns.map(() => '<col>').join('')}</colgroup>`;
-  const head = (nameHead, thresholds = false) => `${colgroup(thresholds)}<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${c.priced !== c.sessions ? `<span${cost ? '' : ' style="visibility:hidden"'}>, ${c.priced} priced</span>` : ''}</small></th>`).join('')}</tr></thead>`;
-  const unit = cost ? 'cost at list prices' : 'tokens';
+  const head = (nameHead, thresholds = false) => `${colgroup(thresholds)}<thead><tr><th>${nameHead}</th>${thresholds ? thrHead : ''}${v.columns.map(c => `<th class="num">Week of ${dlabel(c.t)}<small>${fmt(c.prompts || 0)} prompt${c.prompts === 1 ? '' : 's'}, ${c.sessions} session${c.sessions === 1 ? '' : 's'}${c.priced !== c.sessions ? `<span>, ${c.priced} priced</span>` : ''}</small></th>`).join('')}</tr></thead>`;
   const sessions = v.columns.reduce((a, c) => a + c.sessions, 0), prompts = v.columns.reduce((a, c) => a + (c.prompts || 0), 0), unmeasured = v.columns.reduce((a, c) => a + c.unmeasured, 0);
   const sub = `${fmt(prompts)} prompts in ${sessions} session${sessions === 1 ? '' : 's'} over ${v.weeks} weeks${unmeasured ? `, ${unmeasured} more whose agent reported no usage (Cursor) left out` : ''}${v.all ? ` · ${v.repos.length} repositories` : ''}`;
   // the estimated parts are counted in the model's own tokens (report.js:CALIBRATION), the caption says by how much
@@ -1484,24 +1482,24 @@ function renderReport(v) {
     ...(otherFolded ? [] : rest.map(p => row(`<span class="rep-sub">${esc(p.name)}</span>`, p.cells, { cls: 'rep-subrow', key: p.key, thresholds: true }))),
     ...(output ? [row(esc(output.name), output.cells, { key: 'output', thresholds: true })] : []),
   ];
-  const parts = `<figure class="ctx-figure"><figcaption><b>${cost ? 'Cost' : 'Tokens'} by context</b> <span class="ctx-sub">${sum ? 'Weekly totals' : 'Per prompt'} · ${share ? 'share of recorded usage' : cost ? 'at list prices' : 'tokens read and written'}</span></figcaption>
+  const parts = `<figure class="ctx-figure"><figcaption><b>Cost by context</b> <span class="ctx-sub">${sum ? 'Weekly totals' : 'Per prompt'} · ${share ? 'share of recorded usage' : 'at list prices'}</span></figcaption>
     <table class="ctx-table rep-table">${head('Part', true)}<tbody>${[...v.parts.map(p => row(esc(p.name), p.cells, { key: p.key, thresholds: true })), ...otherRows].join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true, key: 'total', thresholds: true })}</tbody></table></figure>`;
   const fold = p => RFOLD.has(p), modelsOf = p => v.models.filter(m => m.provider === p);
-  const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${cost ? (c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–') : fmt(c.tokens / c.prompts)} per prompt of its own` : ''}`;
+  const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–'} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
   const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: s.key === 'compression' ? '#6366f1' : '#07866c', values: s.cells.map((c, w) => {
-    if (!(cost ? c.pricedEvents : c.events)) return null;
-    const amount = cost ? c.cost : c.tokens, col = v.columns[w], total = v.sessionTotals[w];
-    const denominator = share ? (cost ? total?.cost : total?.tokens) : sum ? 1 : (cost ? col.pricedPrompts : col.prompts);
-    return denominator ? amount / denominator : null;
+    if (!c.pricedEvents) return null;
+    const col = v.columns[w], total = v.sessionTotals[w];
+    const denominator = share ? total?.cost : sum ? 1 : col.pricedPrompts;
+    return denominator ? c.cost / denominator : null;
   }) }));
-  const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
+  const number = n => share ? `${Number((n * 100).toFixed(2))}%` : money(n);
   const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
-  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
+  const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `value at list prices${sum ? '' : ' per prompt'}`}</span></figcaption>
     <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}</tbody></table>
-    <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
-  swapBody(el, prStatsTable(v) + parts + effectiveness + profileFigure(v, cost) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+    <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
+  swapBody(el, prStatsTable(v) + parts + effectiveness + profileFigure(v) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

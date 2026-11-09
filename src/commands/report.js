@@ -1,6 +1,6 @@
 // `thinker report`: the Report page in the terminal (report.js): the average tokens a prompt (one call to the model) cost here, week by
-// week over the last six, by token type, by part of the context and by model (grouped by provider, with subtotals), at list prices
-// (the default; --tokens counts tokens), --total the week's sum instead of the average and --share each row as its share of the whole session; under it the cache's numbers.
+// week over the last six, by token type, by part of the context and by model (grouped by provider, with subtotals), in dollars at
+// list prices, --total the week's sum instead of the average and --share each row as its share of the whole session; under it the cache's numbers.
 import { reportView, renderReport, REPORT_WEEKS } from '../report.js';
 import { findRepoSessions } from '../instruction-value.js';
 import { readReport, writeReport, refreshReport } from '../report-snapshot.js';
@@ -26,10 +26,11 @@ async function reportCommand({ store, flags, out }) {
   const v = reportView(store, { weeks });
   writeReport(store, weeks, v); // what the page shows next
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
-  // cost at list prices is the default view, as on the page (2026-10-26); --tokens counts tokens instead, without bounds.
-  // --cost, the flag that chose cost before, is still accepted and changes nothing
-  for (const l of renderReport(v, { cost: !flags.tokens, total: Boolean(flags.total), share: Boolean(flags.share) })) out(l);
-  out('', `thinker report ${flags.tokens ? 'without --tokens prices the same at the providers\' list rates, with good and bad bounds' : '--tokens counts tokens instead of list-price dollars'}, --total sums each week, --share shows each row as its share of the whole session; \`thinker ui --tab report\` is the page.`);
+  // dollars at list prices and nothing else, as on the page (the owner, 2026-11-08: "only costs"). --tokens, which counted
+  // tokens instead from 2026-10-26, and --cost, which chose cost before that, are still accepted and change nothing; the
+  // tokens are in --json
+  for (const l of renderReport(v, { total: Boolean(flags.total), share: Boolean(flags.share) })) out(l);
+  out(''); out(`thinker report${flags.tokens ? ' is in dollars at list prices (--tokens went on 2026-11-08; --json has the tokens);' : ''} --total sums each week, --share shows each row as its share of the whole session; \`thinker ui --tab report\` is the page.`);
 }
 
 export const commands = { report: reportCommand };

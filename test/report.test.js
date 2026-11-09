@@ -182,7 +182,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(promptAverage(v.sessionRows), { sessions: 4, prompts: 8, tokens: 6200, perPrompt: 775 });
   assert.equal(promptAverage([]), null);
   // the command's text: the two tables with totals, the marks, the actions and the cache
-  const text = renderReport(v, { cost: false }).join('\n');
+  const text = renderReport(v).join('\n');
   assert.match(text, /By token type/); assert.match(text, /Input, read from cache/); assert.doesNotMatch(text, /Total of these/);
   // the rest of the input as one line, its kinds indented under it, then the output
   const names = text.split('\n').map(l => l.slice(2, 32).trimEnd()), at = n => names.indexOf(n);
@@ -191,11 +191,11 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.equal((text.match(/TOTAL \(THE WHOLE SESSION\)/g) || []).length, 3, 'every table ends on the whole session');
   assert.ok(text.indexOf('By token type') > text.indexOf('By model'), 'the token types last');
   assert.match(text, /By part of the context/); assert.match(text, /TOTAL/);
-  // the token view (--tokens) has no bounds: no good and bad columns, no marks (the owner's call, 2026-10-26)
-  assert.doesNotMatch(text, /good\s+bad/); assert.doesNotMatch(text, /[✓✗]/); assert.doesNotMatch(text, /▲|▼/); assert.equal(v.thresholds, undefined);
-  // the cost view, the default: every row of the parts table has bounds in dollars a priced prompt (COST_THRESHOLDS) and a
-  // mark by its cost; the models and token types take none
-  assert.match(renderReport(v).join('\n'), /at list prices/, 'cost is the default view');
+  // dollars and nothing else (the owner, 2026-11-08: "only costs"): the token view, which had no bounds, went with its option
+  assert.doesNotMatch(text, /▲|▼/); assert.equal(v.thresholds, undefined);
+  assert.match(text, /^Average cost per prompt .* at list prices/m); assert.doesNotMatch(text, /Average tokens|\d[km]\b\s/, 'no token figure on the print');
+  // every row of the parts table has bounds in dollars a priced prompt (COST_THRESHOLDS) and a mark by its cost; the models
+  // and token types take none
   assert.deepEqual(v.costThresholds, COST_THRESHOLDS, 'the view carries the cost bounds for the page');
   const rowKeys = [...PARTS.map(([k]) => k), 'otherInput', ...OTHERS.map(([k]) => k), 'total'];
   assert.deepEqual(Object.keys(COST_THRESHOLDS).sort(), [...rowKeys].sort(), 'a cost bound for every row of the parts table');
@@ -211,13 +211,15 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.doesNotMatch(costLines[costLines.findIndex(l => l.startsWith('By model')) + 1], /good/, 'the model table has no bound columns');
   assert.doesNotMatch(costRow('ANTHROPIC'), /[✓·✗]/); assert.match(costLines.join('\n'), /in dollars a priced prompt/);
   // --share: every row as its share of the whole session, the total rows as they are (the page's Share)
-  const shared = renderReport(v, { share: true, cost: false }).join('\n'), lines = shared.split('\n');
+  const shared = renderReport(v, { share: true }).join('\n'), lines = shared.split('\n');
   assert.match(shared, /each row as its share of the whole session/);
   const typeLines = TOKEN_TYPES.map(([, name]) => lines.find(l => l.trimStart().startsWith(name)));
-  assert.match(typeLines[2], /55%/, 'cache reads are 600 of the 1,100 tokens of an Opus session, the same share a prompt'); assert.match(typeLines[3], /9\.1%/); assert.match(typeLines[0], /36%/);
-  assert.doesNotMatch(typeLines[0], /\d[km]\b/, 'no token count on a shared row');
+  // shares of the cost, not of the tokens: an Opus turn here is 200 fresh at $4, 300 cache reads at $0.20 and 50 output at
+  // $20 a million, so the reads that are 55% of its tokens are 3.2% of its cost and the output 9% of the tokens is 54%
+  assert.match(typeLines[2], /3\.2%/, 'cache reads: 600 of 1,100 tokens, $0.00012 of $0.00372'); assert.match(typeLines[3], /54%/); assert.match(typeLines[0], /43%/);
+  assert.doesNotMatch(typeLines[0], /\$/, 'no dollar figure on a shared row');
   const totalLines = lines.filter(l => l.includes('TOTAL (THE WHOLE SESSION)'));
-  assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /\b550\b/, 'the whole session a prompt: 1,100 over two calls'); }
+  assert.equal(totalLines.length, 3); for (const l of totalLines) { assert.doesNotMatch(l, /%/); assert.match(l, /\$0\.002\b/, 'the whole session a prompt: $0.00372 over two calls'); }
   assert.match(lines.find(l => l.trimStart().startsWith('ANTHROPIC')), /%/, 'a provider subtotal is a share too');
   assert.equal(formatShare(0.5), '50%'); assert.equal(formatShare(0.0909), '9.1%'); assert.equal(formatShare(0.0031), '0.31%'); assert.equal(formatShare(0.00001), '<0.01%'); assert.match(text, /ANTHROPIC/); assert.match(text, /claude-opus-5-5/);
   // the prompt-cache rewrites by cause (transcripts.js:cacheRewrites): the fixture sessions are under 20k of context, so none
@@ -232,8 +234,7 @@ test('the report averages each week over its sessions, by part and by model unde
   assert.deepEqual(v.calibration, { Anthropic: 1.44 });
   // the decisions are not on the Report (they are Recent activity's and `thinker context --history`'s)
   assert.doesNotMatch(text, /Recent improvements|Saved with thinker|Workflow tool/);
-  assert.match(renderReport(v, { cost: true }).join('\n'), /list prices/);
-  assert.match(renderReport(v, { total: true, cost: false }).join('\n'), /Total tokens over the week's sessions/);
+  assert.match(renderReport(v, { total: true }).join('\n'), /Total cost over the week's sessions/);
   // every repository's report merged: the sums and the sessions add, the actions name their repository
   const m = mergeReports([{ repo: 'a', name: 'A', view: v }, { repo: 'b', name: 'B', view: v }]);
   assert.deepEqual(m.costThresholds, COST_THRESHOLDS, 'All repositories carries the cost bounds too');
@@ -344,12 +345,12 @@ test('actionEffect: what one decision saved, attributed to the thing it changed 
 });
 
 // ---- Pull requests on the Report: what was shipped here and how much of it thinker paid for ----
-const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, hours = 2, usd = 0, rewrite = 0, title = `PR ${n}` } = {}) => ({
+const pr = (n, { merged, agent = 0, cleared = 0, reading = 0, sessions = 1, complete = true, hours = 2, usd = 0, rewrite = 0, spend = null, title = `PR ${n}` } = {}) => ({
   number: n, title, url: `https://example.test/${n}`, mergedAt: merged, hoursToMerge: hours,
   sessions: Array.from({ length: sessions }, (_, i) => ({ id: `s${n}-${i}` })),
   tokens: { agent, prompts: 10, unknownSessions: 0, complete },
   saved: { cleared, total: cleared },
-  cost: { saved: usd, rewrite: rewrite, net: usd - rewrite, priced: usd || rewrite ? 1 : 0, unpriced: 0 },
+  cost: { saved: usd, rewrite: rewrite, net: usd - rewrite, priced: usd || rewrite ? 1 : 0, unpriced: 0, spend: spend ?? 0, spendUnknown: spend == null ? 1 : 0, spendComplete: spend != null },
 });
 const delivery = (prs, over) => {
   const merged = prs.filter(p => p.mergedAt && p.sessions.length);
@@ -360,8 +361,8 @@ const delivery = (prs, over) => {
     merged: merged.length, mergedSeen: prs.filter(p => p.mergedAt).length, mergedAssisted: merged.filter(p => p.saved.total > 0).length,
     open: 0, worked: prs.filter(p => p.sessions.length).length,
     saved: { cleared: sum(p => p.saved.cleared), total: sum(p => p.saved.total) },
-    cost: { saved: sum(p => p.cost.saved), rewrite: sum(p => p.cost.rewrite), net: sum(p => p.cost.net), costed: merged.filter(p => p.cost.priced).length, basis: 'at list prices' },
-    meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)),
+    cost: { saved: sum(p => p.cost.saved), rewrite: sum(p => p.cost.rewrite), net: sum(p => p.cost.net), costed: merged.filter(p => p.cost.priced).length, basis: 'at list prices', spend: sum(p => p.cost.spendComplete ? p.cost.spend : 0), spendComplete: merged.filter(p => p.cost.spendComplete).length },
+    meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)), meanSpendPerMergedPr: mean(merged.filter(p => p.cost.spendComplete).map(p => p.cost.spend)),
     tokens: { agent: sum(p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
     meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)), meanTokensPerMergedPr: mean(merged.map(p => p.tokens.agent)), meanHoursToMerge: mean(merged.map(p => p.hoursToMerge)),
     sessions: { linked: sum(p => p.sessions.length), unlinked: 4 },
@@ -401,17 +402,29 @@ test('the band prices the saving net of the rewrites, and keeps the token figure
   transcript(dir, 'a', { model: 'claude-opus-5-5', usage: OPUS, mtime: NOW - DAY });
   const v = reportView(store, { now: NOW });
   v.prs = prSavings(null, { days: 42, delivery: delivery([pr(7, {
-    merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000, usd: 12, rewrite: 4,
+    merged: '2026-10-20T00:00:00Z', agent: 1_000_000, cleared: 200_000, reading: 50_000, usd: 12, rewrite: 4, spend: 150,
   })]) });
+  // dollars under both toggles since 2026-11-08 (the owner's call): the tokens stay in the data and off the print
   for (const cost of [true, false]) {
     const text = renderReport(v, { cost }).join('\n'), band = text.slice(text.indexOf('Pull requests ('));
-    assert.ok(band.includes('200k'), `the saving is in tokens under ${cost ? 'cost' : 'tokens'}`);
-    assert.ok(band.includes('tokens spent and saved on merged work'));
-    assert.ok(/200k cleared out of their prompts \(measured\)/.test(band), 'the saving is said to be measured');
-    assert.match(band, /in dollars, netted\s+\$8/, 'the net is the saving less the rewrites, in both views');
-    assert.ok(band.includes('$4'), 'what the rewrites cost is shown beside it, never folded away');
-    assert.match(band, /\$8[.0]*\s*=\s*\$12/, 'the net leads and the gross is shown as its working, never on its own');
+    assert.ok(!band.includes('200k'), `no token figure under ${cost ? 'cost' : 'tokens'}`);
+    assert.match(band, /spent on them\s+\$150/, 'what the pull request cost, its sessions\' calls at list prices');
+    // gross, with the cache writes named as part of the cost (the owner, 2026-11-08: "saved per PR doesn't need to be
+    // negative"): the cost holds those writes, so netting them out of the saving too would charge them twice
+    assert.match(band, /saved on them\s+\$12[.0]*\s+at the cache-read rate[^\n]*cost above includes \$4[.0]* of cache writes after a clear/, 'the gross saving, and where the writes are counted');
+    assert.doesNotMatch(band, /netted|\$8[.0]*\b/, 'the netted figure is thinker prs\'s');
+    assert.match(band, /on the average one\s+\$150 spent, \$12[.0]* saved/);
+    assert.match(band, /#7 PR 7\s+1\s+\$150\s+\$12[.0]*\s+8\.0%/, 'the row: its cost, the saving, the share');
   }
+  assert.equal(v.prs.spend, 150); assert.equal(v.prs.meanSpend, 150); assert.equal(v.prs.rows[0].spend, 150);
+  assert.equal(v.prs.meanSavedUsd, 12); assert.equal(v.prs.rows[0].savedUsd, 12); assert.equal(v.prs.rows[0].net, 8, 'the netted figure stays in the data');
+  // a pull request with a session that could not be priced has no cost figure, never a partial one shown as whole
+  const part = prSavings(null, { days: 42, delivery: delivery([pr(9, { merged: '2026-10-20T00:00:00Z', agent: 10, usd: 1 })]) });
+  assert.equal(part.rows[0].spend, null); assert.equal(part.meanSpend, null); assert.equal(part.spendComplete, 0);
+  assert.match(renderReport({ ...v, prs: part }, { cost: true }).join('\n'), /#9 PR 9\s+1\s+–\*\s+\$1[.0]*\s+–/);
+  // a pull request on an unpriced model has no saving figure either, never a zero that reads as "saved nothing"
+  const unpriced = prSavings(null, { days: 42, delivery: delivery([pr(10, { merged: '2026-10-20T00:00:00Z', agent: 10, cleared: 5 })]) });
+  assert.equal(unpriced.rows[0].savedUsd, null); assert.equal(unpriced.meanSavedUsd, null);
 });
 
 test('a loss is reported as a loss, never averaged away to nothing', t => {
@@ -424,8 +437,11 @@ test('a loss is reported as a loss, never averaged away to nothing', t => {
   assert.equal(v.prs.cost.net, -37, 'the net is signed: a clear that cost more than it saved reads as a loss');
   assert.equal(v.prs.meanNet, -37, 'the average is signed too, or a loss filtered out as "not finite" reads as a win');
   assert.ok(v.prs.saved.cleared > 0, 'the tokens were still cleared: the loss is in what the rewrite cost');
+  // the Report shows the saving gross (the owner, 2026-11-08: "saved per PR doesn't need to be negative"), with the
+  // writes named as part of the cost; the loss itself is thinker prs's (delivery.js:summary) and the comment's
   const text = renderReport(v, { cost: true }).join('\n');
-  assert.match(text, /-\$37|−\$37/, 'the command prints the loss rather than hiding it behind a zero');
+  assert.match(text, /saved on them\s+\$3[.0]*\s+at the cache-read rate[^\n]*includes \$40[.0]* of cache writes/);
+  assert.doesNotMatch(text, /-\$37|−\$37/);
 });
 
 test('All repositories adds the pull requests up and averages over all of them, never an average of averages', () => {
@@ -461,17 +477,20 @@ test('All repositories adds the pull requests up and averages over all of them, 
 
 test('weekly PR stats respect merge boundaries, empty weeks and missing counters', () => {
   const now = new Date(2026, 9, 30, 12).getTime(), columns = weekColumns(now, 3);
-  const row = (at, saved, agent, complete = true) => ({ mergedAt: new Date(at).toISOString(), saved, agent, complete });
+  const row = (at, saved, agent, complete = true, net = null, spend = null, savedUsd = net == null ? null : net + 1) => ({ mergedAt: new Date(at).toISOString(), saved, agent, complete, net, spend, savedUsd });
   const stats = weeklyPrStats({ rows: [
-    row(columns[0].t - 1, 999, 999),
-    row(columns[1].t - 1, 20, 100),
-    row(columns[1].t, 40, 200, false),
-    row(columns[1].t + 1, 0, 600),
+    row(columns[0].t - 1, 999, 999, true, 9, 9),
+    row(columns[1].t - 1, 20, 100, true, 2, 10),
+    row(columns[1].t, 40, 200, false, -6, null),
+    row(columns[1].t + 1, 0, 600, true, null, 30),
     row(now + 1, 999, 999),
   ] }, columns, now);
   assert.deepEqual(stats.map(w => [w.merged, w.complete, w.savedPerPr, w.tokensPerPr]), [
     [1, 1, 20, 100], [2, 1, 20, 600], [0, 0, null, null],
   ]);
+  // the dollars: the gross saving over the priced rows (the figure the doors show; the net stays beside it, signed),
+  // the cost over the rows whose every session is priced
+  assert.deepEqual(stats.map(w => [w.priced, w.savedUsdPerPr, w.netPerPr, w.spent, w.spendPerPr]), [[1, 3, 2, 1, 10], [1, -5, -6, 1, 30], [0, null, null, 0, null]]);
   assert.equal(weeklyPrStats(null, columns, now), null, 'unavailable is distinct from zero merges');
   const missing = weeklyPrStats({ rows: [row(now, 0, 0, false)] }, columns, now).at(-1);
   assert.equal(missing.savedPerPr, 0, 'measured zero savings is not a gap');
@@ -507,10 +526,10 @@ test('the Report carries the profile metric, pooled across repositories as count
   assert.equal(m.holdout.tokens, 4000 / 3); assert.equal(m.repos, 2); assert.equal(m.cost.verdict, null, 'no bootstrap across repositories');
   assert.equal(mergeReports([{ repo: 'a', name: 'a', view: { ...reportView(store, { now: NOW, sessions: [] }) } }]).profile.shown.measured, 2);
   assert.equal(mergeProfileMetrics([null]), null);
-  // the command prints the figure, in the Report's unit
-  const text = renderReport({ ...reportView(store, { now: NOW, sessions: [] }) }, { cost: false }).join('\n');
+  // the command prints the figure, in dollars: 2000 Opus input tokens at $4 a million over 2 exchanges, 4000 over 3
+  const text = renderReport({ ...reportView(store, { now: NOW, sessions: [] }) }).join('\n');
   assert.match(text, /Profile · what the agent is told about you/);
-  assert.match(text, /How often you had to repeat yourself\s+50\.0% of prompts\s+0\.0% of prompts/); assert.match(text, /What a prompt costs \(tokens\)\s+1k\s+1\.3k/);
+  assert.match(text, /How often you had to repeat yourself\s+50\.0% of prompts\s+0\.0% of prompts/); assert.match(text, /What a prompt costs\s+\$0\.004\s+\$0\.005/);
   assert.match(text, /Not enough data yet: about \d+ weeks at your pace\./, 'the pace: 5 measured exchanges a day, 395 more needed');
   assert.match(text, /No lines learned yet\./);
   // the pace: 5 exchanges measured over one day, 198 + 197 more needed

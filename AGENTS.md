@@ -1029,6 +1029,21 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
 
 **Pull request savings (2026-10-30)**
+- **A pull request's figures are dollars, never tokens** (2026-11-08, the owner's call: "token is too ambiguous because it
+  doesn't account for writes, outputs, reads, cache"). `delivery.js:sessionsOf` prices every session's calls at list
+  rates by token type from the log's `session` row (`prices.js:costOf` over fresh input, cache reads, cache writes by
+  TTL, output), each subagent at its own model, as `cost.spend`; null unless the counters are complete and every model
+  has a price, and a pull request's `cost.spendComplete` needs every session priced, so a partial cost is never shown as
+  whole. The Report's **Pull request stats** rows are Number of PRs, Saved per PR (over the PRs with a priced model) and
+  Cost per PR (over the PRs whose every session is priced), in dollars under either toggle; the Recent activity list
+  shows Sessions, Its cost, Saved and Share (saved over cost); `thinker report` prints the same. The token figures
+  (`agent`, `cleared`, `savedPerPr`, `tokensPerPr`) stay in the view and `--json` and in `thinker prs`.
+  **On the Report the saving is gross and the cost stands beside it** (the owner, the same day: "saved per PR doesn't
+  need to be negative"; `savedUsd`, `savedUsdPerPr`, `meanSavedUsd`): the cost is every call at list prices, so it
+  already holds the cache writes the calls after a clear paid for, and netting them out of the saving as well would
+  charge them to the pull request twice. Each door names the writes as part of the cost where it shows the saving. The
+  netted figure (below) stays in the data (`net`, `netPerPr`, `meanNet`), in `thinker prs` and in the posted comment,
+  where no cost column stands beside it.
 - View Report keeps four PR summary cards: merged with work here, tokens saved,
   share of their cost, and the average one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.
@@ -1066,8 +1081,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   same kind of token: a cleared token saved a **cache read** at a fortieth of the input price, and the calls
   after that clear wrote the prefix into the cache again at **twice** it. So one rule, in one sentence:
   **cleared at the cache-read rate, plus reading avoided at the input rate, less what the calls after a clear
-  wrote into the cache again, at list prices.** `thinker prs`, the Report band, the page's Net column and the
-  posted comment all read that one computation in `delivery.js`; no door prices a token itself.
+  wrote into the cache again, at list prices.** `thinker prs` and the posted comment read that one computation in
+  `delivery.js`; no door prices a token itself. The Report showed it too until 2026-11-08, when its PR figures became
+  a cost column and a gross saving beside it (above), the writes counted once, in the cost.
   - The deduction is `isRewrite` over the proxy log, charged to a session only from its **first clear onward**:
     a rewrite before one cannot be the clear's doing. It is deliberately conservative -- the held-out side
     rewrites on 1-3% of long calls anyway, and those are charged to the clearing too.
@@ -1118,13 +1134,13 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 **Toggles**
 - `--share`: Values/Share (row ÷ week total, `formatShare`); whole-session total keeps value.
 - `--total`: Per session/Total.
-- Cost (list prices) is the default view on both doors (2026-10-26). `--tokens` / the page's Tokens: tokens instead, no bounds. `--cost` still accepted, no-op.
+- Dollars at list prices and nothing else (2026-11-08, the owner: "only costs"). The Cost/Tokens toggle of 2026-10-26 (cost the default, `--tokens` / the page's Tokens for tokens without bounds) went that day: a token count adds fresh input, cache reads, cache writes and output as if they were one thing. The tokens stay in the view and `--json`; `--tokens` and `--cost` are accepted and change nothing.
 
-**Colour (parts table, cost view only)**
+**Colour (parts table)**
 - Every row of the parts table (four parts, Other input and each kind, output, total) coloured by dollars per priced prompt vs `report.js:COST_THRESHOLDS`: green ≤ good, red ≥ bad, yellow between.
 - Four parts: the old token bounds (12k/30k, 4k/15k, 22k/36k, 30k/72k) at ~$0.8/M input. Other rows set on this machine's two weeks to 2026-10-26; total = sum of the rows. First cut, one machine.
 - Good/Bad columns beside each row. Verdict uses cost per priced prompt regardless of displayed cell (Total, Share).
-- Token view: no bounds, columns or colour (owner's call 2026-10-26: models count tokens too differently; `THRESHOLDS` removed).
+- The token view (gone 2026-11-08) had no bounds, columns or colour (owner's call 2026-10-26: models count tokens too differently; `THRESHOLDS` removed).
 - No colour in the model and token-type tables. No percentage in cell; zero cell blank.
 - Command prints same columns, marks ✓ · ✗.
 

@@ -20,7 +20,6 @@ import { changeHistory } from './context-suggest.js';
 import { readLog, sessionKey } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
 import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
-import { formatTokens } from './model-usage.js';
 import { REWRITE_CAUSES, subagentSessions } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
 import { repoId } from './store.js';
@@ -31,11 +30,12 @@ import { profileMetric, mergeProfileMetrics } from './profile-metric.js';
 
 export const REPORT_WEEKS = 6;
 // What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
-// cost on each line item): the cost view, the default on both doors since then (the page's Cost, the command without
-// --tokens), shows these in the Good and Bad columns and colours each row by its cost a priced prompt against them, the four
-// parts, the rest of the input and each of its kinds, the output and the whole session alike (flat colours, the owner's ask
-// of 2026-10-24). The token view has no bounds: models count the same text so differently that one figure in tokens cannot
-// say good or bad across them (the owner's call, 2026-10-26; THRESHOLDS, tokens a prompt on the four parts, until then).
+// cost on each line item): both doors show these in the Good and Bad columns and colour each row by its cost a priced prompt
+// against them, the four parts, the rest of the input and each of its kinds, the output and the whole session alike (flat
+// colours, the owner's ask of 2026-10-24). The Report is in dollars and nothing else since 2026-11-08 (the owner: "only
+// costs"); the token view it had until then (the page's Tokens, `--tokens`) carried no bounds, since models count the same
+// text so differently that one figure in tokens cannot say good or bad across them (2026-10-26), and a token count adds
+// fresh input, cache reads, cache writes and output as if they were one thing. The tokens stay in the view and --json.
 // The four parts are the token figures they had then (12k/30k, 4k/15k, 22k/36k, 30k/72k) at about $0.8 a million input tokens, what a cached Opus 5.5 call's input cost here (cache reads at $0.40 with the writes
 // at $5–8; 35 and 45 priced sessions of this machine's last two weeks, 2026-10-26: $0.57–0.90). The other rows were set on
 // the same weeks, a prompt costing: the rest of the input $0.008 (9–14k tokens), the output $0.008–0.012 (400–600 tokens at
@@ -260,6 +260,13 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
     agent: s.tokens.agent, complete: s.tokens.complete,
     meanSaved: s.meanSavedPerMergedPr, meanAgent: s.meanTokensPerMergedPr, meanHours: s.meanHoursToMerge,
     cost: s.cost, meanNet: s.meanNetPerMergedPr,
+    // what the clearing saved, gross, a cleared token at the cache-read rate, averaged over the priced pull requests: the
+    // Report shows it beside the cost, and the cache writes after a clear are in the cost (the owner, 2026-11-08: "saved
+    // per PR doesn't need to be negative"); the netted figure stays in thinker prs and the posted comment
+    meanSavedUsd: mean(merged.filter(p => p.cost?.priced).map(p => p.cost.saved)),
+    // dollars spent on the merged pull requests (delivery.js: every session's calls at list prices by token type), over the
+    // ones whose every session is priced; the owner's call of 2026-11-08 is that a pull request's figures are dollars
+    spend: s.cost?.spend ?? null, spendComplete: s.cost?.spendComplete ?? 0, meanSpend: s.meanSpendPerMergedPr ?? null,
     // The share of what those pull requests cost that never had to sit in a prompt. Both sides are the same
     // shape -- every prompt and every answer of their sessions, added up -- so the ratio means something.
     share: s.tokens.agent ? s.saved.total / s.tokens.agent : null,
@@ -271,7 +278,8 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
-      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.saved ?? null, rewriteUsd: p.cost?.rewrite ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null,
+      spend: p.cost?.spendComplete ? p.cost.spend : null,
     })),
   };
 }
@@ -307,15 +315,15 @@ export function profileLinesSentence(p) {
   const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
-export function profileLines(p, { cost = true } = {}) {
+export function profileLines(p) {
   const head = 'Profile · what the agent is told about you at the start of a session, and whether it helps';
   if (!p) return [head, '  No profile observations in this repository yet.'];
-  const unit = v => v == null ? '–' : cost ? formatDollars(v) : formatTokens(v);
+  const unit = v => v == null ? '–' : formatDollars(v);
   const r = p.recurrence, c = p.cost, half = Math.round(100 * p.holdoutRate);
   const L = [`${head} (${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''})`,
     `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
     `  ${'How often you had to repeat yourself'.padEnd(40)}${share(p.shown.servedRate).padStart(18)}${share(p.holdout.servedRate).padStart(18)}`,
-    `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
+    `  ${'What a prompt costs'.padEnd(40)}${unit(p.shown.cost).padStart(18)}${unit(p.holdout.cost).padStart(18)}`,
     ...BANDS.map(([band, name]) => `  ${name.padEnd(40)}${bandShare(p.lines, band).padStart(18)}${''.padStart(18)}`),
     `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
@@ -331,9 +339,20 @@ export function weeklyPrStats(prs, columns, now = Date.now()) {
     const complete = rows.filter(r => r.complete);
     const saved = rows.reduce((sum, r) => sum + r.saved, 0);
     const tokens = complete.reduce((sum, r) => sum + r.agent, 0);
+    // the dollars (2026-11-08, the owner's call: the table says dollars, never tokens): what the clearing saved, gross,
+    // over the pull requests whose sessions have a price, and what they cost over the ones whose every session is priced.
+    // The cache writes after a clear are in the cost, so the saving is not netted against them here (the owner, the same
+    // day: "saved per PR doesn't need to be negative"); the netted figure stays in the data and in thinker prs.
+    const priced = rows.filter(r => r.savedUsd != null), spent = rows.filter(r => r.spend != null);
+    const savedUsd = priced.reduce((sum, r) => sum + r.savedUsd, 0), net = priced.reduce((sum, r) => sum + (r.net ?? 0), 0);
+    const spend = spent.reduce((sum, r) => sum + r.spend, 0);
     return { t, merged: rows.length, complete: complete.length, saved, tokens,
       savedPerPr: rows.length ? saved / rows.length : null,
-      tokensPerPr: complete.length ? tokens / complete.length : null };
+      tokensPerPr: complete.length ? tokens / complete.length : null,
+      priced: priced.length, spent: spent.length, savedUsd, net, spend,
+      savedUsdPerPr: priced.length ? savedUsd / priced.length : null,
+      netPerPr: priced.length ? net / priced.length : null,
+      spendPerPr: spent.length ? spend / spent.length : null };
   });
 }
 
@@ -484,6 +503,8 @@ function mergePrSavings(list) {
       costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
     },
     meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
+    meanSavedUsd: mean(rows.map(r => r.savedUsd).filter(n => n != null)),
+    spend: sum(p => p.spend), spendComplete: sum(p => p.spendComplete), meanSpend: mean(rows.map(r => r.spend).filter(n => n != null)),
     share: agent ? saved.total / agent : null,
     sessions: { linked: sum(p => p.sessions.linked), unlinked: sum(p => p.sessions.unlinked) },
     rows,
@@ -495,33 +516,36 @@ const mean = (xs, { signed = false } = {}) => { const v = xs.filter(x => Number.
 // The report as the command prints it: the three tables with their totals, the savings. The decisions are not here
 // (2026-10-24, the owner's call: in the Total view they compared spans of different lengths): Recent activity and `thinker
 // context --history` carry them with what each saved (actionEffect, over the view's `sessionRows`).
+// In dollars at list prices and nothing else (the owner, 2026-11-08: "only costs"; `--tokens` and the page's Tokens went that
+// day): a token count adds fresh input, cache reads, cache writes and output as if they were one thing. The tokens stay in
+// the view and `--json`.
 // `total`: the week's sum over its sessions instead of the average per prompt (the page's Total toggle)
 // `share` (the page's Share, 2026-10-24, the owner's ask): every row but the whole-session total as its share of that total in
 // the week, a percentage, so the relative contributions and their trend can be read; the total rows keep their values.
 // a share of the whole session as a percentage: whole above 10%, one decimal under it, two under 1%, and under 0.01% said so
 export function formatShare(x) { const p = 100 * x; return p >= 10 ? `${Math.round(p)}%` : p >= 1 ? `${p.toFixed(1)}%` : p >= 0.01 ? `${p.toFixed(2)}%` : '<0.01%'; }
 
-export function renderReport(v, { cost = true, total = false, share = false } = {}) {
+export function renderReport(v, { total = false, share = false } = {}) {
   const L = [], label = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  // the average per prompt is the week's sum over its prompts (the priced sessions' prompts in the cost view)
-  const avg = (c, w) => { const col = v.columns[w]; return total ? (cost ? c.cost : c.tokens) : cost ? (col.pricedPrompts ? c.cost / col.pricedPrompts : null) : (col.prompts ? c.tokens / col.prompts : null); };
+  // the average per prompt is the week's cost over the priced sessions' prompts
+  const avg = (c, w) => { const col = v.columns[w]; return total ? c.cost : col.pricedPrompts ? c.cost / col.pricedPrompts : null; };
   // what a cell shows: its value, or under share its value over the whole session's (the base), the total rows their value
   const val = (cells, w, base) => { const a = avg(cells[w], w); if (!a || !base) return a; const t = avg(base[w], w); return t ? a / t : null; };
-  const fmtv = (x, base) => x == null ? '–' : base ? formatShare(x) : cost ? formatDollars(x) : formatTokens(x);
-  // in the cost view a row of the parts table is marked by its dollars a priced prompt against COST_THRESHOLDS (the page's
-  // colours): ✓ at or under Good, ✗ at or over Bad, · between; the token view has no bounds, no columns and no marks
+  const fmtv = (x, base) => x == null ? '–' : base ? formatShare(x) : formatDollars(x);
+  // a row of the parts table is marked by its dollars a priced prompt against COST_THRESHOLDS (the page's colours): ✓ at or
+  // under Good, ✗ at or over Bad, · between
   const MARK = { good: '✓', mid: '·', bad: '✗' };
-  const mark = (key, cells, w) => { const col = v.columns[w], vd = cost && key && col.pricedPrompts ? verdict(key, cells[w].cost / col.pricedPrompts) : null; return vd ? MARK[vd] : ' '; };
+  const mark = (key, cells, w) => { const col = v.columns[w], vd = key && col.pricedPrompts ? verdict(key, cells[w].cost / col.pricedPrompts) : null; return vd ? MARK[vd] : ' '; };
   const W = 11, T = 8, thr = key => { const t = key && COST_THRESHOLDS[key]; return `${(t ? `≤${formatCostThreshold(t.good)}` : '–').padStart(T)}${(t ? `≥${formatCostThreshold(t.bad)}` : '–').padStart(T)}`; };
   // `key`: the row's key for the mark and the two bound columns; `thresholds`: the row sits in the table that has them (the
-  // parts table, in the cost view)
-  const line = (name, cells, bold, base, { key = null, thresholds = false } = {}) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${thresholds && cost ? thr(key) : ''}${cells.map((c, w) => (val(cells, w, base) ? `${fmtv(val(cells, w, base), base)}${mark(key, cells, w)}` : '').padStart(W)).join('')}`;
+  // parts table)
+  const line = (name, cells, bold, base, { key = null, thresholds = false } = {}) => `  ${(bold ? name.toUpperCase() : name).slice(0, 30).padEnd(30)}${thresholds ? thr(key) : ''}${cells.map((c, w) => (val(cells, w, base) ? `${fmtv(val(cells, w, base), base)}${mark(key, cells, w)}` : '').padStart(W)).join('')}`;
   const weeks = v.columns.map(c => `wk ${label(c.t)}`.padStart(W)).join('');
   const head = `  ${''.padEnd(30)}${weeks}`, headThr = `  ${''.padEnd(30)}${'good'.padStart(T)}${'bad'.padStart(T)}${weeks}`;
   const base = share ? v.sessionTotals : null;
-  L.push(`${total ? 'Total' : 'Average'} ${cost ? 'cost' : 'tokens'} ${total ? 'over the week\'s sessions' : 'per prompt (one call to the model)'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions, ${v.columns.map(c => c.prompts || 0).join(', ')} prompts)${cost ? `, at list prices of ${v.pricedOn}` : ''}${share ? '; each row as its share of the whole session, the totals as they are' : ''}`);
+  L.push(`${total ? 'Total' : 'Average'} cost ${total ? 'over the week\'s sessions' : 'per prompt (one call to the model)'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions, ${v.columns.map(c => c.prompts || 0).join(', ')} prompts), at list prices of ${v.pricedOn}${share ? '; each row as its share of the whole session, the totals as they are' : ''}`);
   const calNote = Object.entries(v.calibration || CALIBRATION).map(([k, f]) => `${k} ×${f}`).join(', ');
-  L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, cost ? headThr : head);
+  L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
   // the rest of the input as one line, its kinds indented under it; the output after
   const rest = (v.others || []).filter(p => p.key !== 'output'), output = (v.others || []).find(p => p.key === 'output');
@@ -537,50 +561,50 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   for (const p of v.tokenTypes || []) L.push(line(p.name, p.cells, false, base));
   L.push(line('Total (the whole session)', v.sessionTotals, true));
   // the rewrites by cause and the estimated sessions stay in the view (--json) and off the print: not actionable (2026-10-25)
-  L.push(`  ${cost ? '✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; ' : ''}a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
+  L.push(`  ✓ · ✗: a row of the parts table at or under its good figure, between the two, at or over its bad figure, in dollars a priced prompt whatever the table shows; the models and the token types take no mark; a zero is left blank. A model row is its share of the ${total ? 'week' : 'average prompt'}; its sessions:` + ` ${v.models.map(m => `${m.model} ${m.cells.map(c => c.sessions).join('/')}`).join(', ')}.`);
   if (v.unpriced.length) L.push(`  No list price for ${v.unpriced.join(', ')}: their sessions are left out of the cost average.`);
   L.push('', 'Compression effectiveness', ' '.repeat(32) + weeks);
-  for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { cost, total, share }), share).padStart(W)).join('')}`);
+  for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { total, share }), share).padStart(W)).join('')}`);
   L.push('  Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
   // The session profile's measure (profile-metric.js, the page's Profile figure, `thinker profile holdout` at length):
   // recurrence per exchange, shown against held out, the cost of an exchange beside it. Over the ledger's window, not
   // the weeks above, so it is a figure and not a table.
-  L.push('', ...profileLines(v.profile, { cost }));
+  L.push('', ...profileLines(v.profile));
   // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
-  // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
+  // `thinker prs` (prSavings). See prSavings for why there is no
   // dollar figure on a cleared token.
   const pr = v.prs;
+  // In dollars, as the whole Report is since 2026-11-08 (the owner's call): a pull request's tokens add fresh input, cache
+  // reads, cache writes and output as if they were one thing, so they say nothing about a bill. Spent is
+  // every session's calls at list prices by token type (delivery.js); saved is the clearing's own, a cleared token at
+  // the cache-read rate, gross: the cache writes after a clear are in the cost, so netting them out of the saving as
+  // well would count them against the pull request twice (the owner, 2026-11-08: "saved per PR doesn't need to be
+  // negative"). The netted figure is thinker prs's and the posted comment's. The token figures stay in --json.
   if (v.prWeekly) {
-    const value = x => x == null ? '–' : formatTokens(x);
-    L.push('', 'Pull request stats · by merge week (current week so far)',
-      '  Week of       PRs    Saved / PR    Tokens / PR    Complete counters');
-    for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${value(w.savedPerPr).padStart(14)}${value(w.tokensPerPr).padStart(15)}    ${w.complete}/${w.merged}`);
-    L.push('  Merged PRs with work recorded here. Saved / PR: cleared tokens (measured).',
-      '  Tokens / PR averages recorded input and output over PRs with complete counters only.');
+    const d = x => x == null ? '–' : formatDollars(x);
+    L.push('', 'Pull request stats · by merge week (current week so far), in dollars at list prices',
+      '  Week of       PRs    Saved / PR     Cost / PR    Priced');
+    for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${d(w.savedUsdPerPr).padStart(14)}${d(w.spendPerPr).padStart(14)}    ${w.spent ?? 0}/${w.merged}`);
+    L.push('  Merged PRs with work recorded here. Saved / PR: what the clearing saved at the cache-read rate, averaged over the PRs with a priced model.',
+      '  Cost / PR: what their sessions\' model calls cost, cache writes after a clear included, averaged over the PRs whose every session is priced (Priced says how many).');
   }
   if (pr?.merged) {
-    const share = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
-    L.push('', 'Pull requests (tokens spent and saved on merged work)',
+    L.push('', 'Pull requests (what merged work cost and what the clearing saved on it, in dollars)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
-      `  saved on them          ${formatTokens(pr.saved.total)} cleared out of their prompts (measured)`,
-      `  share of their cost    ${share(pr.share)} of ${formatTokens(pr.agent)} agent tokens; ${pr.mergedAssisted} of ${pr.merged} saved something`,
-      `  on the average one     ${formatTokens(pr.meanSaved || 0)} saved, ${pr.meanAgent == null ? '–' : formatTokens(pr.meanAgent)} spent${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
-      // The dollars are netted, and they are the only place a saving and its cost are the same unit: a cleared
-      // token saved a cache read, the rewrite after the clear paid for a cache write, and the two prices differ
-      // twentyfold. The band stays in tokens; this line says what they came to (delivery.js, prices.js).
-      ...(pr.cost && (pr.cost.saved || pr.cost.rewrite) ? [
-        `  in dollars, netted     ${formatDollars(pr.cost.net)} = ${formatDollars(pr.cost.saved)} saved less ${formatDollars(pr.cost.rewrite)} of cache writes after a clear${pr.meanNet == null ? '' : `, ${formatDollars(pr.meanNet)} on the average one`}`,
-      ] : []),
+      `  spent on them          ${pr.spend == null ? '–' : formatDollars(pr.spend)}${pr.spendComplete < pr.merged ? ` over the ${pr.spendComplete} whose every session is priced` : ''}`,
+      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear`,
+      `  on the average one     ${pr.meanSpend == null ? '–' : formatDollars(pr.meanSpend)} spent, ${pr.meanSavedUsd == null ? '–' : formatDollars(pr.meanSavedUsd)} saved${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);
     if (n) {
-      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'cleared'.padStart(11)}${'share'.padStart(8)}${'net'.padStart(10)}`);
+      const pct = x => x == null ? '–' : `${(100 * x).toFixed(x < 0.01 ? 2 : 1)}%`;
+      L.push('', `  ${'Merged, newest first'.padEnd(34)}${'sessions'.padStart(9)}${'its cost'.padStart(11)}${'saved'.padStart(11)}${'share'.padStart(8)}`);
       for (const r of pr.rows.slice(0, n)) {
         const name = `${r.repoName ? `${r.repoName} ` : ''}#${r.number}${r.title ? ` ${r.title}` : ''}`;
-        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${`${formatTokens(r.agent)}${r.complete ? '' : '*'}`.padStart(11)}${(r.cleared ? formatTokens(r.cleared) : '–').padStart(11)}${share(r.share).padStart(8)}${(r.net == null ? '–' : formatDollars(r.net)).padStart(10)}`);
+        L.push(`  ${name.slice(0, 34).padEnd(34)}${String(r.sessions).padStart(9)}${(r.spend == null ? '–*' : formatDollars(r.spend)).padStart(11)}${(r.savedUsd == null ? '–' : formatDollars(r.savedUsd)).padStart(11)}${pct(r.spend && r.savedUsd != null ? r.savedUsd / r.spend : null).padStart(8)}`);
       }
       if (pr.rows.length > n) L.push(`  ${pr.rows.length - n} more; thinker prs lists them all, --detail with their sessions.`);
-      if (pr.rows.slice(0, n).some(r => !r.complete)) L.push('  * a session of that pull request reported no counters, so its cost is partial.');
+      if (pr.rows.slice(0, n).some(r => r.spend == null)) L.push('  * a session of that pull request reported no counters or has no list price, so its cost is not said.');
     }
   }
   return L;

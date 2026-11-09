@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
+import * as await_prices from '../src/prices.js';
 import { appendDelivery, readDelivery, deliveryFile } from '../src/delivery-journal.js';
 import { deliveryReport, renderDelivery, linkSession, syncPrs, sessionsOf, SAVED_BUCKETS, githubOrigin, ghAvailable } from '../src/delivery.js';
 
@@ -214,6 +215,7 @@ test('a session\'s subagents add their tokens to its agent tokens, on the last r
   store.log({ op: 'session', t: at(1), session: 'sC', turns: 1, totalTokens: 10, tokenCoverage: 'complete' });
   const x = sessionsOf(store, { home }).get('sB');
   assert.equal(x.ownTokens, 1500, 'the parent\'s own figure stays');
+  assert.equal(x.cost.spend, null, 'no model on the parent: its calls cannot be priced, so no cost figure');
   assert.equal(x.subagentTokens, 2300, 'a subagent without a counter is left out, never zero');
   assert.equal(x.tokens, 3800, 'agent tokens include the subagents');
   assert.equal(x.subagents.length, 3);
@@ -244,4 +246,24 @@ test('the pull-request sync is not available in a repository whose origin is not
   assert.equal(ghAvailable(none), false, 'so maintenance never calls the sync, whatever gh says');
   assert.equal(githubOrigin(repo('git@gitlab.com:team/app.git')), false, 'another host');
   assert.equal(githubOrigin(repo('git@github.com:team/app.git')), true);
+});
+
+// A pull request's cost in dollars (2026-11-08, the owner's call: tokens add reads, writes and output as one thing): every
+// session's calls at list prices by token type, the subagents at their own model, and null unless all of it is priced.
+test('a session\'s spend is its calls at list prices by token type, the subagents at their own model, or nothing', t => {
+  const { store, home } = fixture(t);
+  const usage = { inputTokens: 1_000_000, cacheReadTokens: 600_000, cacheWriteTokens: 200_000, cacheWrite1hTokens: 200_000, outputTokens: 10_000, totalTokens: 1_010_000, tokenCoverage: 'complete' };
+  store.log({ op: 'session', t: at(1), session: 'sD', model: 'claude-opus-5-5', turns: 3, ...usage, subagents: [
+    { agent: 'a1', type: 'Explore', model: 'claude-sonnet-5-5', turns: 2, ...usage },
+  ] });
+  store.log({ op: 'session', t: at(1), session: 'sE', model: 'claude-opus-5-5', turns: 3, ...usage, subagents: [{ agent: 'a9', type: 'x', model: 'mystery-9', turns: 1, ...usage }] });
+  store.log({ op: 'session', t: at(1), session: 'sF', model: 'claude-opus-5-5', turns: 3, ...usage, tokenCoverage: 'partial' });
+  const { listPrice, costOf } = await_prices;
+  const own = costOf({ input: 1_000_000, cacheRead: 600_000, cacheWrite: 200_000, cacheWrite1h: 200_000, output: 10_000 }, listPrice('claude-opus-5-5'));
+  const sub = costOf({ input: 1_000_000, cacheRead: 600_000, cacheWrite: 200_000, cacheWrite1h: 200_000, output: 10_000 }, listPrice('claude-sonnet-5-5'));
+  const all = sessionsOf(store, { home });
+  assert.ok(own > 0 && sub > 0 && sub < own);
+  assert.ok(Math.abs(all.get('sD').cost.spend - (own + sub)) < 1e-9, 'fresh input, cache reads, cache writes and output each at their rate, the subagent at Sonnet');
+  assert.equal(all.get('sE').cost.spend, null, 'a subagent on a model with no list price leaves the session unpriced');
+  assert.equal(all.get('sF').cost.spend, null, 'partial counters are never priced as whole');
 });
