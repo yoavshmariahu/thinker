@@ -1029,6 +1029,15 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - Until then every figure was tokens × the *median* calls of a session, which weighed every session alike and mixed two denominators (a section was averaged over the sessions that read its file, a tool was not).
 
 **Pull request savings (2026-10-30)**
+- **A pull request's figures are dollars, never tokens** (2026-11-08, the owner's call: "token is too ambiguous because it
+  doesn't account for writes, outputs, reads, cache"). `delivery.js:sessionsOf` prices every session's calls at list
+  rates by token type from the log's `session` row (`prices.js:costOf` over fresh input, cache reads, cache writes by
+  TTL, output), each subagent at its own model, as `cost.spend`; null unless the counters are complete and every model
+  has a price, and a pull request's `cost.spendComplete` needs every session priced, so a partial cost is never shown as
+  whole. The Report's **Pull request stats** rows are Number of PRs, Saved per PR (the netted figure over the PRs with a
+  priced model, signed) and Cost per PR (over the PRs whose every session is priced), in dollars under either toggle;
+  the Recent activity list shows Sessions, Its cost, Saved and Share (saved over cost); `thinker report` prints the same.
+  The token figures (`agent`, `cleared`, `savedPerPr`, `tokensPerPr`) stay in the view and `--json` and in `thinker prs`.
 - View Report keeps four PR summary cards: merged with work here, tokens saved,
   share of their cost, and the average one. Both sets of cards show labels and values, without descriptions.
   The PR list lives in Recent activity under **PR savings**, beside the default **Action savings** tab.

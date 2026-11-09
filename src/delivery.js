@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { repoId } from './store.js';
 import { readLog, sessionKey } from './usage.js';
 import { formatTokens } from './model-usage.js';
-import { listPrice, formatDollars } from './prices.js';
+import { listPrice, formatDollars, costOf } from './prices.js';
 import { compressionDir, readCompression, clearedBySession, clearingCostBySession } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
@@ -33,6 +33,8 @@ const mean = xs => { const a = xs.filter(finite); return a.length ? a.reduce((x,
 // `finite` refuses a negative, because a count of tokens is never one. A net dollar figure is: the clearing can
 // cost more than it saves, and it did on the API-side path. So the signed mean is its own helper -- with the
 // other one it read "+$0.59 on the average one" under a net of -$940, having dropped every losing pull request.
+// a log row's token counters in the shape prices.js:costOf reads
+const usageOf = e => ({ input: e.inputTokens, cacheRead: e.cacheReadTokens, cacheWrite: e.cacheWriteTokens, cacheWrite1h: e.cacheWrite1hTokens, output: e.outputTokens });
 const meanSigned = xs => { const a = xs.filter(n => typeof n === 'number' && Number.isFinite(n)); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; };
 const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.parse(from)) / 3600_000) : null;
 
@@ -60,7 +62,7 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       // Each turn logs the session again with the transcript's totals so far: the last record is the session.
       if (e.model) x.model = e.model;
       const total = e.totalTokens ?? e.tokens?.totalTokens;
-      if (finite(total)) { x.ownTokens = total; x.complete = e.tokenCoverage !== 'partial'; }
+      if (finite(total)) { x.ownTokens = total; x.complete = e.tokenCoverage !== 'partial'; x.usage = usageOf(e); }
       if (finite(e.turns)) x.prompts = Math.max(x.prompts, e.turns);
       // the session's subagents, each on its own model (transcripts.js:subagentStats); the last row has them all
       if (Array.isArray(e.subagents)) x.subagents = e.subagents.filter(a => a && typeof a === 'object');
@@ -86,6 +88,14 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       ? { saved: ((x.cleared || 0) * price.cacheRead) / 1e6, rewrite: x.rewrite?.usd || 0, priced: true }
       : { saved: 0, rewrite: 0, priced: false };
     x.cost.net = x.cost.saved - x.cost.rewrite;
+    // What the session's own calls cost, in dollars at list prices by token type (fresh input, cache reads, cache
+    // writes by TTL, output; prices.js:costOf), the subagents each at their own model. The owner's call, 2026-11-08: a
+    // pull request's cost is said in dollars and not in tokens, since tokens add reads, writes and output as if they
+    // were one thing. null unless the session's counters are complete and every model in it has a price.
+    const subs = x.subagents.filter(a => finite(a.totalTokens));
+    const subSpend = subs.map(a => costOf(usageOf(a), listPrice(a.model, { config })));
+    x.cost.spend = price && finite(x.ownTokens) && x.complete && x.usage && subSpend.every(v => v != null)
+      ? costOf(x.usage, price) + subSpend.reduce((a, v) => a + v, 0) : null;
     x.branches = [...x.branches]; x.heads = [...x.heads];
   }
   return sessions;
@@ -166,7 +176,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   // are priced, and a report whose sessions are all of this kind says so rather than showing a loss.
   const costOfObserved = key => {
     const rewrite = rewriteCost(key);
-    return { saved: 0, rewrite: rewrite?.usd || 0, net: -(rewrite?.usd || 0), priced: false };
+    return { saved: 0, rewrite: rewrite?.usd || 0, net: -(rewrite?.usd || 0), priced: false, spend: null };
   };
   for (const e of events) {
     if (e.op !== 'observation' || !e.session || e.t < since) continue;
@@ -196,6 +206,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       p.cost.saved += x.cost.saved * share;
       p.cost.rewrite += x.cost.rewrite * share;
       if (x.cost.priced) p.cost.priced++; else p.cost.unpriced++;
+      if (x.cost.spend != null) p.cost.spend += x.cost.spend * share; else p.cost.spendUnknown++;
     }
   }
 
@@ -206,6 +217,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     p.tokens.agent = Math.round(p.tokens.agent);
     p.tokens.prompts = Math.round(p.tokens.prompts);
     p.tokens.complete = p.sessions.length > 0 && p.tokens.unknownSessions === 0 && p.sessions.every(s => s.complete);
+    // the dollar figure is whole only when every session of the pull request could be priced; a partial one is never shown as the cost
+    p.cost.spendComplete = p.sessions.length > 0 && p.cost.spendUnknown === 0;
     p.hoursToMerge = hours(p.createdAt, p.mergedAt);
     p.assisted = p.saved.total > 0;
     p.sessions.sort((a, b) => String(a.lastAt).localeCompare(String(b.lastAt)));
@@ -244,7 +257,11 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
         net: sum(merged, p => p.cost.net),
         costed: merged.filter(p => p.cost.priced).length,
         basis: 'cleared at the cache-read rate, less the cache writes after a clear, at list prices',
+        // what the merged pull requests cost in model calls, over the ones whose every session is priced
+        spend: sum(merged.filter(p => p.cost.spendComplete), p => p.cost.spend),
+        spendComplete: merged.filter(p => p.cost.spendComplete).length,
       },
+      meanSpendPerMergedPr: mean(merged.filter(p => p.cost.spendComplete).map(p => p.cost.spend)),
       meanNetPerMergedPr: meanSigned(merged.map(p => p.cost.net)),
       meanSavedPerMergedPr: mean(merged.map(p => p.saved.total)),
       meanTokensPerMergedPr: mean(merged.filter(p => p.tokens.complete).map(p => p.tokens.agent)),
@@ -255,8 +272,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   };
 }
 
-const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0 } });
-const summary = x => ({ id: x.id, cost: x.cost, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
+const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0, spend: 0, spendUnknown: 0, spendComplete: false } });
+const summary = x => ({ id: x.id, cost: x.cost, spend: x.cost?.spend ?? null, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
 
 
 // ---------------------------------------------------------------------------

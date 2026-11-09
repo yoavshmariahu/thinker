@@ -1274,9 +1274,9 @@ function renderActivityPrs(v) {
   // In All repositories two repositories both number from 1, so the row says which; inline, since a line of
   // its own doubles the height of every row in the table.
   const prName = r => `${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noreferrer noopener">#${r.number}</a>` : `#${r.number}`}${r.title ? ` ${esc(r.title)}` : ''}${r.repoName ? ` <span class="pr-repo">${esc(r.repoName)}</span>` : ''}`;
-  const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost in agent tokens -- every prompt and every answer of its sessions added up -- and what never had to sit in those prompts. A row with no saving had no clearing and no note it acted on.</span></figcaption>
-    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num">Its cost</th><th class="num">Cleared</th><th class="num">Share</th><th class="num" title="What the clearing saved at list prices, less the cache writes the calls after a clear paid for. A cleared token saved a cache read; the rewrite paid for a cache write, at twenty times the price.">Net</th></tr></thead>
-    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.complete ? '' : ' title="a session of this pull request reported no counters, so its cost is partial"'}>${fmt(r.agent)}${r.complete ? '' : '<span class="ctx-kind">partial</span>'}</td><td class="num">${r.cleared ? fmt(r.cleared) : '<span class="muted">–</span>'}</td><td class="num">${prShare(r.share)}</td><td class="num"${r.net == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved less ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.net == null ? '<span class="muted">–</span>' : money(r.net)}</td></tr>`).join('')}</tbody></table>
+  const prTable = !prRows.length ? '<div class="empty">No merged pull requests with recorded work in this window.</div>' : `<figure class="ctx-figure"><figcaption><b>Merged, newest first</b> <span class="ctx-sub">what each pull request cost, every model call of its sessions at list prices by token type, and what the clearing saved on it net of the cache writes after a clear. A row with no saving had no clearing in its sessions.</span></figcaption>
+    <table class="ctx-table"><thead><tr><th>Pull request</th><th class="num">Sessions</th><th class="num" title="Every model call of its sessions at list prices: fresh input, cache reads, cache writes and output each at their own rate">Its cost</th><th class="num" title="What the clearing saved at list prices, less the cache writes the calls after a clear paid for. A cleared token saved a cache read; the rewrite paid for a cache write, at twenty times the price.">Saved</th><th class="num" title="Saved over its cost">Share</th></tr></thead>
+    <tbody>${prRows.map(r => `<tr><td class="ctx-name">${prName(r)}</td><td class="num">${r.sessions}</td><td class="num"${r.spend == null ? ' title="a session of this pull request reported no counters or has no list price, so its cost is not said"' : ''}>${r.spend == null ? '<span class="muted">–</span>' : money(r.spend)}</td><td class="num"${r.net == null ? '' : ` title="${esc(`${money(r.savedUsd)} saved less ${money(r.rewriteUsd)} of cache writes after a clear`)}"`}>${r.net == null ? '<span class="muted">–</span>' : money(r.net)}</td><td class="num">${prShare(r.spend && r.net != null ? r.net / r.spend : null)}</td></tr>`).join('')}</tbody></table>
     ${pr.rows.length > PR_ROWS ? `<button class="ctx-more pr-more" data-pr-all aria-expanded="${APR_ALL}">${APR_ALL ? `Show the newest ${PR_ROWS}` : `Show all ${fmt(pr.rows.length)}`}</button>` : ''}</figure>`;
   swapBody(el, `<div class="kicker">Pull requests, over ${v.weeks || 6} weeks</div>` + prTable);
   el.querySelector('[data-pr-all]')?.addEventListener('click', () => { APR_ALL = !APR_ALL; renderActivityPrs(v); });
@@ -1369,22 +1369,24 @@ function reportAsOf(v) {
 const PR_ROWS = 12;
 // Values come from report.js, including the denominator when some PRs lack counters.
 function prStatsTable(v) {
+  // In dollars under either toggle (the owner's call, 2026-11-08; report.js prints the same): a pull request's tokens add
+  // fresh input, cache reads, cache writes and output as if they were one thing. Saved is the clearing's netted figure,
+  // Cost is every session's calls at list prices by token type (delivery.js), over the PRs whose every session is priced.
   const weeks = v.prWeekly;
-  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date</span></figcaption>';
+  const heading = '<figcaption><b>Pull request stats</b><span class="ctx-sub">Week over week · by merge date · dollars at list prices</span></figcaption>';
   if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
   const metrics = [
-    { key: 'merged', name: 'Number of PRs' },
-    { key: 'savedPerPr', name: 'Tokens saved per PR · average' },
-    { key: 'tokensPerPr', name: 'Total tokens per PR · average' },
+    { key: 'merged', name: 'Number of PRs', title: w => `${w.merged} merged with work recorded here` },
+    { key: 'netPerPr', name: 'Saved per PR · average', title: w => `${money(w.net || 0)} netted over ${w.priced || 0} of ${w.merged} PRs with a priced model: the clearing's saving at the cache-read rate, less the cache writes after a clear` },
+    { key: 'spendPerPr', name: 'Cost per PR · average', title: w => `${money(w.spend || 0)} over ${w.spent || 0} of ${w.merged} PRs whose every session is priced: their model calls at list prices by token type` },
   ];
-  const rows = metrics.map(({ key, name }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
+  const rows = metrics.map(({ key, name, title }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {
     const n = w[key];
-    const title = key === 'tokensPerPr' ? `${w.complete} of ${w.merged} PRs with complete counters` : '';
-    return `<td class="num"${title ? ` title="${esc(title)}"` : ''}>${n == null ? '–' : key === 'merged' ? n : fmt(n)}</td>`;
+    return `<td class="num" title="${esc(title(w))}">${n == null ? '–' : key === 'merged' ? n : money(n)}</td>`;
   }).join('')}</tr>`).join('');
   return `<figure class="ctx-figure pr-stats">${heading}
     <table class="ctx-table rep-table savings-table"><colgroup><col class="rep-name wide">${weeks.map(() => '<col>').join('')}</colgroup><thead><tr><th>Metric</th>${weeks.map((w, i) => `<th class="num">Week of ${dlabel(w.t)}${i === weeks.length - 1 ? ' *' : ''}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
+    <p class="savings-note">Merged PRs with work recorded here, in dollars at list prices. Saved: the clearing's saving net of the cache writes after a clear, averaged over the PRs with a priced model. Cost: what their sessions' model calls cost, averaged over the PRs whose every session is priced. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
 // The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in

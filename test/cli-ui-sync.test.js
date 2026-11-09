@@ -617,11 +617,11 @@ test('`thinker prs` is one door, and its help says what the figures are (2026-10
 // itself is how the band came to show a gross saving for a fortnight.
 test('the netted dollars are one computation, shown by both doors', () => {
   // The command's summary line and its table column.
-  assert.match(read('report.js'), /in dollars, netted/);
-  assert.match(read('report.js'), /'net'\.padStart/);
+  assert.match(read('report.js'), /netted = \$\{formatDollars\(pr\.cost\?\.saved/);
+  assert.match(read('report.js'), /'saved'\.padStart/);
   // The page's own column reads the same fields off the row the report sends; it computes no dollars.
   const page = read('ui/page.html');
-  assert.match(page, /<th class="num" title="[^"]*">Net<\/th>/, 'the page column explains itself in a hover');
+  assert.match(page, /<th class="num" title="[^"]*">Saved<\/th>/, 'the page column explains itself in a hover');
   assert.match(page, /money\(r\.net\)/);
   assert.doesNotMatch(page, /cacheWrite1h|cacheRead \*/, 'the page never prices a token itself');
   // One place the rewrite cost is worked out, and the deduction is named wherever the figure is shown.
@@ -646,7 +646,7 @@ test('automatic PR comments reuse the update cadence and expose their defaults a
   assert.match(read('commands/prs.js'), /runAutomaticPrComments\(store, \{ dry: !!flags\.dry \}\)/);
 });
 
-test('Report summaries and Recent activity PR savings share the CLI report data, in tokens under either toggle (2026-10-30)', async () => {
+test('Report summaries and Recent activity PR savings share the CLI report data, in dollars under either toggle (2026-10-30, dollars since 2026-11-08)', async () => {
   const page = read('ui/page.html'), rep = read('report.js');
   // one source for both doors: the band is computed in report.js and carried on the view, never recomputed on a page
   assert.match(rep, /const prs = includePrs \? prSavings\(store, \{ days, now \}\) : null/);
@@ -656,15 +656,19 @@ test('Report summaries and Recent activity PR savings share the CLI report data,
   assert.match(page, /v\.savings \|\| \[\]/);
   assert.match(page, /See more metrics/);
   assert.match(page, /RMORE = false/);
-  for (const phrase of ['merged with work here', 'share of their cost', 'on the average one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
+  for (const phrase of ['merged with work here', 'spent on them', 'saved on them', 'on the average one']) assert.ok(rep.includes(phrase), `command line: ${phrase}`);
   // the same columns, in the same order (the reading-avoided and saved columns went with the knowledge notes, 2026-11-08)
-  for (const c of ['Sessions', 'Its cost', 'Cleared', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
+  // in dollars on both doors since 2026-11-08 (the owner's call: tokens add reads, writes and output as one thing)
+  for (const c of ['Sessions', 'Its cost', 'Saved', 'Share']) assert.ok(page.includes(`>${c}</th>`), `page column: ${c}`);
   const head = rep.slice(rep.indexOf("'Merged, newest first'"), rep.indexOf("'Merged, newest first'") + 400);
-  for (const c of ['sessions', 'its cost', 'cleared', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
-  // Both doors describe the PR figures in tokens.
+  for (const c of ['sessions', 'its cost', 'saved', 'share']) assert.ok(head.includes(`'${c}'`), `command column: ${c}`);
+  assert.doesNotMatch(page, /Tokens saved per PR|Total tokens per PR|>Cleared<\/th>/, 'no token figure on a pull request');
+  for (const key of ['netPerPr', 'spendPerPr']) { assert.ok(page.includes(`'${key}'`), `page row ${key}`); assert.ok(rep.includes(`w.${key}`), `command column ${key}`); }
+  // Both doors describe the PR figures in dollars, and the page prices no token itself: it reads the row's dollars
   assert.doesNotMatch(page, /Tokens spent and saved on merged pull requests|Of the work shipped here/);
-  assert.ok(rep.includes('tokens spent and saved on merged work'));
-  assert.doesNotMatch(page.slice(page.indexOf('function renderActivityPrs('), page.indexOf('function renderActivityPrs(') + 1500), /money\(/, 'PR rows remain in tokens');
+  assert.ok(rep.includes('what merged work cost and what the clearing saved on it, in dollars'));
+  const prRows = page.slice(page.indexOf('function renderActivityPrs('), page.indexOf('function renderActivityPrs(') + 2500);
+  assert.match(prRows, /money\(r\.spend\)/); assert.match(prRows, /money\(r\.net\)/); assert.doesNotMatch(prRows, /fmt\(r\.agent\)|fmt\(r\.cleared\)/, 'no token figure on a PR row');
   // a kept report made before the band must be remade, so report-snapshot hashes what the band is computed from
   for (const f of ['delivery.js', 'compression.js']) assert.ok(read('report-snapshot.js').includes(`'${f}'`), `${f} is in the report's code key`);
 });
