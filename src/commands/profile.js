@@ -4,9 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { listPrice } from '../prices.js';
-import { PROFILE, SECTIONS, profileConfig, profileHoldoutRate, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, holdoutReport, lineReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
-import { readLog } from '../usage.js';
+import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, lineReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
+import { holdoutFromLog } from '../profile-metric.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
 import { formatTokens } from '../model-usage.js';
@@ -81,23 +80,10 @@ async function profileCommand(ctx) {
   if (sub === 'holdout') {
     // Cost per exchange, shown against held out. The sessions' tokens and dollars come from the log's own
     // `session` rows (the last one of each session carries the totals), the exchange counts from the ledger.
+    // one computation with the Report's Profile figure (profile-metric.js); this door prints the long form
     const days = Number(flags.days) || PROFILE.ledgerDays;
-    const rows = readLedger(store, { days });
-    const since = Date.now() - days * 86400_000;
-    const last = new Map();
-    for (const e of readLog(store, { all: true })) if (e.op === 'session' && e.profile && Date.parse(e.t) >= since) last.set(e.session, e);
-    const cfg = store.config();
-    const sessions = new Map();
-    for (const [id, e] of last) {
-      const cr = e.cacheReadTokens || 0, cw = e.cacheWriteTokens || 0, out = e.outputTokens || 0;
-      const fresh = Math.max(0, (e.inputTokens || 0) - cr - cw);
-      const tokens = fresh + cr + cw + out;
-      const p = listPrice(e.model, { config: cfg });
-      const cost = p ? fresh * p.input / 1e6 + cr * p.cacheRead / 1e6 + cw * (p.cacheWrite1h ?? p.cacheWrite) / 1e6 + out * p.output / 1e6 : 0;
-      sessions.set(id, { tokens, cost, model: e.model || '?', prompts: e.turns || 0 });
-    }
-    const h = holdoutReport(rows, { sessions });
-    const report = { days, metric: 'recurrence per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, recurrence: h.recurrence, cost: h.cost, rate: Math.round(100 * profileHoldoutRate(store)) };
+    const { report: h, rate } = holdoutFromLog(store, { days });
+    const report = { days, metric: 'recurrence per exchange', shown: h.shown, holdout: h.holdout, unknown: h.unknown, recurrence: h.recurrence, cost: h.cost, rate: Math.round(100 * rate) };
     if (flags.json) { out(JSON.stringify(report, null, 2)); return; }
     const pct = v => v == null ? '–' : `${(100 * v).toFixed(1)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`;
     const tk = v => v == null ? '–' : formatTokens(v), dol = v => v == null ? '–' : `$${v.toFixed(2)}`;

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { snapshotView, readSnapshot, refreshSnapshots, dropSnapshots, refreshing, REFRESH_MS, SNAPSHOT_DAYS } from '../src/context-snapshot.js';
+import { snapshotView, readSnapshot, lastSnapshot, refreshSnapshots, dropSnapshots, refreshing, pruneSnapshots, REFRESH_MS, SNAPSHOT_DAYS } from '../src/context-snapshot.js';
 
 function repo(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ctxsnap-')));
@@ -69,4 +69,36 @@ test('a linked worktree reads and refreshes the main checkout\'s report: one fil
   fs.appendFileSync(path.join(wt, 'AGENTS.md'), '\n## Branch\n\nx\n');
   assert.equal(readSnapshot(ws, 30), null);
   assert.ok(readSnapshot(st, 30));
+});
+
+// The kept report is keyed on the settings fields it reads, not the files' bytes (2026-11-08): Claude Code and thinker's
+// rewire write other fields of ~/.claude/settings.json, and every such write dropped every repository's report.
+test('a settings change the report does not read keeps the snapshot; one it reads drops it', t => {
+  const st = repo(t), claude = path.join(st.repo, '.claude');
+  fs.mkdirSync(claude, { recursive: true });
+  fs.writeFileSync(path.join(claude, 'settings.local.json'), JSON.stringify({ permissions: { deny: ['Workflow'] }, env: { A: '1' } }));
+  snapshotView(st, 30);
+  assert.ok(readSnapshot(st, 30));
+  fs.writeFileSync(path.join(claude, 'settings.local.json'), JSON.stringify({ permissions: { deny: ['Workflow'] }, env: { A: '2' }, hooks: { Stop: [] } }));
+  assert.ok(readSnapshot(st, 30), 'env and hooks are not read by the report');
+  fs.writeFileSync(path.join(claude, 'settings.local.json'), JSON.stringify({ permissions: { deny: ['Workflow', 'Artifact'] }, env: { A: '2' } }));
+  assert.equal(readSnapshot(st, 30), null, 'a denied tool is a row of the report');
+  snapshotView(st, 30);
+  fs.writeFileSync(path.join(claude, 'settings.local.json'), JSON.stringify({ permissions: { deny: ['Workflow', 'Artifact'] }, enabledPlugins: { 'x@y': false } }));
+  assert.equal(readSnapshot(st, 30), null, 'a plugin switched off is too');
+  // `mine` is what ui/scans.js reads the changed sessions against: this code's, inputs holding
+  assert.equal(lastSnapshot(st, 30).mine, false);
+  snapshotView(st, 30);
+  assert.equal(lastSnapshot(st, 30).mine, true);
+});
+
+test('a write prunes the reports of windows the tab no longer offers and the per-worktree files of before', t => {
+  const st = repo(t), state = path.join(st.dir, 'state');
+  fs.mkdirSync(state, { recursive: true });
+  for (const n of ['context-view-14.json', 'context-view-30-315df62f.json', 'context-view-7-a8dc827a.json', 'context-view.lock', 'report.json']) fs.writeFileSync(path.join(state, n), '{}');
+  snapshotView(st, 30);
+  const left = fs.readdirSync(state).sort();
+  assert.deepEqual(left.filter(n => n.startsWith('context-view')), ['context-view-30.json', 'context-view.lock']);
+  assert.ok(left.includes('report.json'), 'only its own files');
+  assert.equal(pruneSnapshots(state), 0);
 });

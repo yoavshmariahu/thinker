@@ -20,18 +20,19 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'report-savings.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'compression.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'report-savings.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'compression.js', 'profile.js', 'profile-metric.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 
 export const reportFile = store => path.join(store.dir, 'state', 'report.json');
 const lockFile = store => path.join(store.dir, 'state', 'report.lock');
 const readFile = store => { try { const s = JSON.parse(fs.readFileSync(reportFile(store), 'utf8')); return s && typeof s.views === 'object' ? s : { views: {} }; } catch { return { views: {} }; } };
 
-// { at, view, current } of the report kept for `weeks`, whether or not it still holds: `current` when this code made
-// it less than REFRESH_MS ago; null when there is none
+// { at, view, current, mine } of the report kept for `weeks`, whether or not it still holds: `current` when this code
+// made it less than REFRESH_MS ago, `mine` when this code made it however long ago (ui/scans.js reads only what changed
+// since such a report, instead of every session again); null when there is none
 export function readReport(store, weeks = REPORT_WEEKS, { now = Date.now() } = {}) {
   const s = readFile(store).views[String(weeks)];
-  return s?.view ? { at: s.at, view: s.view, current: s.code === code() && now - s.at <= REFRESH_MS } : null;
+  return s?.view ? { at: s.at, view: s.view, current: s.code === code() && now - s.at <= REFRESH_MS, mine: s.code === code() } : null;
 }
 
 // the report for `weeks` written into the repository's file, the other windows kept as they are

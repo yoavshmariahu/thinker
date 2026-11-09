@@ -27,6 +27,7 @@ import { repoId } from './store.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
+import { profileMetric, mergeProfileMetrics } from './profile-metric.js';
 
 export const REPORT_WEEKS = 6;
 // What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
@@ -220,6 +221,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
   const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
+  // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
+  const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
@@ -231,6 +234,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, savings,
     prs, prWeekly: weeklyPrStats(prs, columns, now),
+    profile,
   };
 }
 
@@ -274,6 +278,32 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
 
 // Attribute recorded work to the merge week. Missing counters cannot make a PR look cheap:
 // the cost average uses only complete PRs, with its denominator exposed beside the merge count.
+// The Profile figure as the command prints it; the page draws the same numbers (page.html:profileFigure, held together
+// by test/cli-ui-sync.test.js). `cost`: the exchange's price rather than its tokens, as the rest of the report.
+export const PROFILE_VERDICTS = {
+  'too-early': 'too early to say',
+  inconclusive: 'inconclusive: the interval straddles zero',
+  fewer: 'FEWER repeats with the profile: the agent holding the line spared the person saying it',
+  more: 'MORE repeats with the profile: something is wrong, read `thinker profile lines --why`',
+  cheaper: 'cheaper with the profile, over the whole interval',
+  costlier: 'costlier with the profile, over the whole interval',
+};
+export function profileLines(p, { cost = true } = {}) {
+  const head = 'Profile · the person saying again what an earlier session already told the agent, per exchange, shown the profile against held out';
+  if (!p) return [head, '  No profile observations in this repository yet.'];
+  const pct = v => v == null ? '–' : `${(100 * v).toFixed(1)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`;
+  const unit = v => v == null ? '–' : cost ? formatDollars(v) : formatTokens(v);
+  const L = [`${head} (${p.days} days, ${Math.round(100 * p.holdoutRate)}% held out${p.repos > 1 ? `, ${p.repos} repositories pooled` : ''})`,
+    `  ${'arm'.padEnd(9)}${'sessions'.padStart(9)}${'exchanges'.padStart(10)}${'said again'.padStart(11)}${'of a line'.padStart(10)}${'unlearned'.padStart(10)}${(cost ? '$/exchange' : 'tokens/exch.').padStart(13)}`];
+  for (const [name, x] of [['shown', p.shown], ['held out', p.holdout]]) L.push(`  ${name.padEnd(9)}${String(x.sessions).padStart(9)}${String(x.measured).padStart(10)}${pct(x.rate).padStart(11)}${pct(x.servedRate).padStart(10)}${pct(x.unlearnedRate).padStart(10)}${unit(cost ? x.cost : x.tokens).padStart(13)}`);
+  const r = p.recurrence;
+  L.push(`  of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}; ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? `: each side needs ${p.minExchanges} measured exchanges (shown ${p.shown.measured}, held out ${p.holdout.measured})` : ''}`);
+  const c = p.cost;
+  L.push(`  tokens an exchange, shown less held out: ${c.delta == null ? '–' : `${c.delta > 0 ? '+' : '-'}${formatTokens(Math.abs(c.delta))}`}${c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`}; ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'the interval is bootstrapped per repository, so pooled it has none'}`);
+  if (p.unknown.observations) L.push(`  ${p.unknown.observations} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
+  return L;
+}
+
 export function weeklyPrStats(prs, columns, now = Date.now()) {
   if (!prs) return null;
   return columns.map(({ t }) => {
@@ -404,6 +434,7 @@ export function mergeReports(list) {
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
+    profile: mergeProfileMetrics(views.map(v => v.profile)),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -491,6 +522,10 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   L.push('', 'Compression effectiveness', ' '.repeat(32) + weeks);
   for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { cost, total, share }), share).padStart(W)).join('')}`);
   L.push('  Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
+  // The session profile's measure (profile-metric.js, the page's Profile figure, `thinker profile holdout` at length):
+  // recurrence per exchange, shown against held out, the cost of an exchange beside it. Over the ledger's window, not
+  // the weeks above, so it is a figure and not a table.
+  L.push('', ...profileLines(v.profile, { cost }));
   // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
   // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
   // dollar figure on a cleared token.

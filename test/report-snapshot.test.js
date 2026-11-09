@@ -85,3 +85,16 @@ test('the command refreshes every listed repository in one run, from a directory
   // current already: not made again
   assert.match(execFileSync(process.execPath, [cli, 'report', '--refresh', '--all'], { cwd, env, encoding: 'utf8' }), /Report kept for 0 of 1 repositories/);
 });
+
+// ui/scans.js reads only the sessions changed since a report this code made, however old; another copy's report is
+// served but read again in full (its rows may lack what this code's view needs)
+test('a kept report says whether this code made it, apart from whether it is fresh', t => {
+  const st = repo(t), now = Date.now();
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  writeReport(st, 6, { weeks: 6, columns: [] }, { now });
+  const old = readReport(st, 6, { now: now + REFRESH_MS + 1 });
+  assert.equal(old.current, false); assert.equal(old.mine, true);
+  const f = path.join(st.dir, 'state', 'report.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
+  kept.views['6'].code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
+  assert.equal(readReport(st, 6, { now }).mine, false);
+});

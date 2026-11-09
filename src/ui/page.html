@@ -117,7 +117,6 @@
     .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
     .savings-table thead th { position: static; }
-    .savings-counts { color: #777; font-size: .78rem; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
     .metrics-toggle { margin-top: 1.2rem; }
     .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
@@ -563,8 +562,9 @@ function scanProgress(v) {
     const known = p?.total > 0 && p.completed != null, plain = !v.paused && !p?.error;
     el.classList.toggle('paused', Boolean(v.paused)); el.classList.toggle('error', Boolean(p?.error));
     label.textContent = v.paused ? 'Newer figures are ready. Clear your selection to update them.' : p?.error ? `Could not finish reading session data: ${p.error}`
+      : p?.total === 0 && p?.delta ? 'Updating the figures from the log…'
       : !known ? `Finding session data…${p?.completed ? ` ${fmt(p.completed)} sessions read so far` : ''}`
-      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions`;
+      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} ${p.delta ? 'changed ' : ''}sessions`;
     pct.textContent = known && plain ? `${Math.floor(p.completed / p.total * 100)}%` : '';
     note.textContent = !plain ? '' : known ? `· ${fmt(Math.max(0, p.total - p.completed))} to go · the figures below fill in as sessions are read`
       : '· the figures below fill in as sessions are read';
@@ -1393,6 +1393,38 @@ function prStatsTable(v) {
     <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
+// The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in
+// profile-metric.js, `thinker profile holdout` at length): how often the person says again what an earlier session
+// already told the agent, shown the profile against held out, the cost of an exchange beside it. Over the ledger's
+// window rather than the weeks above, so a figure and not a weekly table. PROFILE_VERDICTS is report.js's copy,
+// held together by test/cli-ui-sync.test.js.
+const PROFILE_VERDICTS = {
+  'too-early': 'too early to say',
+  inconclusive: 'inconclusive: the interval straddles zero',
+  fewer: 'FEWER repeats with the profile: the agent holding the line spared the person saying it',
+  more: 'MORE repeats with the profile: something is wrong, read `thinker profile lines --why`',
+  cheaper: 'cheaper with the profile, over the whole interval',
+  costlier: 'costlier with the profile, over the whole interval',
+};
+function profileFigure(v, cost) {
+  const p = v.profile;
+  const heading = `<figcaption><b>Profile</b><span class="ctx-sub">The person saying again what an earlier session already told the agent, per exchange · shown the profile against held out${p ? ` · ${p.days} days, ${Math.round(100 * p.holdoutRate)}% held out${p.repos > 1 ? `, ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
+  if (!p) return `<figure class="ctx-figure profile-figure">${heading}<p class="savings-note">No profile observations in this repository yet.</p></figure>`;
+  const pct = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(1)}%`, pp = x => x == null ? '–' : `${x > 0 ? '+' : ''}${(100 * x).toFixed(1)}pp`;
+  const unit = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
+  const verdict = k => PROFILE_VERDICTS[k] || k;
+  const rows = [['Shown the profile', p.shown], ['Held out', p.holdout]].map(([name, x]) => `<tr><td class="ctx-name">${name}</td><td class="num">${x.sessions}</td><td class="num" title="Exchanges whose observation could say whether the person repeated themselves">${fmt(x.measured)}</td><td class="num" title="Share of exchanges in which the person said again something an earlier session recorded">${pct(x.rate)}</td><td class="num" title="Of a line the profile held: the agent had it and the person still had to say it">${pct(x.servedRate)}</td><td class="num" title="Of a statement no line holds: the compile's to fix, and the same in both arms by construction">${pct(x.unlearnedRate)}</td><td class="num" title="${esc(`${cost ? 'Dollars at list prices' : 'Tokens'} an exchange: a ratio of sums within each model, pooled by exchanges, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`)}">${unit(cost ? x.cost : x.tokens)}</td></tr>`).join('');
+  const r = p.recurrence, c = p.cost;
+  const lines = [
+    `Of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}; ${verdict(r.verdict)}${r.verdict === 'too-early' ? `: each side needs ${p.minExchanges} measured exchanges (shown ${p.shown.measured}, held out ${p.holdout.measured})` : ''}.`,
+    `Tokens an exchange, shown less held out: ${c.delta == null ? '–' : `${c.delta > 0 ? '+' : '-'}${fmt(Math.abs(c.delta))}`}${c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`}; ${c.verdict ? verdict(c.verdict) : 'the interval is bootstrapped per repository, so pooled it has none'}.`,
+    p.unknown.observations ? `${fmt(p.unknown.observations)} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand).` : '',
+  ].filter(Boolean);
+  return `<figure class="ctx-figure profile-figure">${heading}
+    <table class="ctx-table rep-table"><colgroup><col class="rep-name wide"><col><col><col><col><col><col></colgroup><thead><tr><th>Arm</th><th class="num">Sessions</th><th class="num">Exchanges</th><th class="num">Said again</th><th class="num">Of a line shown</th><th class="num">Unlearned</th><th class="num">${cost ? 'Cost' : 'Tokens'} / exchange</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="savings-note">${lines.map(esc).join('<br>')}</p></figure>`;
+}
+
 function renderReport(v) {
   RPT = v;
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
@@ -1456,9 +1488,9 @@ function renderReport(v) {
   const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
   const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
   const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
-    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
+    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}</tbody></table>
     <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
-  swapBody(el, prStatsTable(v) + parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+  swapBody(el, prStatsTable(v) + parts + effectiveness + profileFigure(v, cost) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

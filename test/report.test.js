@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
+import * as profileMetricModule from '../src/profile-metric.js';
 import { weeklyPrStats } from '../src/report.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
@@ -475,4 +476,40 @@ test('weekly PR stats respect merge boundaries, empty weeks and missing counters
   const missing = weeklyPrStats({ rows: [row(now, 0, 0, false)] }, columns, now).at(-1);
   assert.equal(missing.savedPerPr, 0, 'measured zero savings is not a gap');
   assert.equal(missing.tokensPerPr, null, 'missing counters never read as free work');
+});
+
+// The session profile's own measure rides the Report (profile-metric.js): the arms from the ledger, the sessions'
+// tokens from the log's session rows, All repositories pooled as ratios of pooled counts.
+test('the Report carries the profile metric, pooled across repositories as counts and never averaged', t => {
+  const { store } = fixture(t);
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  const { profileMetric, mergeProfileMetrics } = profileMetricModule;
+  assert.equal(profileMetric(store, { now: NOW }), null, 'no ledger, no figure, never a zero');
+  const ledger = path.join(store.localDir, 'profile', 'ledger.jsonl'); fs.mkdirSync(path.dirname(ledger), { recursive: true });
+  const at = new Date(NOW - DAY).toISOString();
+  const row = (id, session, arm, repeats, outcome = 'accepted') => JSON.stringify({ id, session, arm, at, seen: at, outcome, repeats });
+  fs.writeFileSync(ledger, [
+    row('o1', 'A', 'shown', { profile: ['x'], ledger: [] }, 'corrected'), row('o2', 'A', 'shown', { profile: [], ledger: [] }),
+    row('o3', 'B', 'holdout', { profile: [], ledger: ['y'] }), row('o4', 'B', 'holdout', { profile: [], ledger: [] }), row('o5', 'C', 'holdout', { profile: [], ledger: [] }),
+    row('o6', 'D', undefined, undefined),
+  ].join('\n') + '\n');
+  const session = (id, arm, tokens) => JSON.stringify({ t: at, op: 'session', repo: store.repo, session: id, profile: arm, model: 'claude-opus-5-5', inputTokens: tokens, cacheReadTokens: 0, cacheWriteTokens: 0, outputTokens: 0, turns: 2 });
+  fs.writeFileSync(path.join(store.dir, 'log.jsonl'), [session('A', 'shown', 2000), session('B', 'holdout', 3000), session('C', 'holdout', 1000)].join('\n') + '\n');
+  const p = reportView(store, { now: NOW, sessions: [] }).profile;
+  assert.equal(p.shown.sessions, 1); assert.equal(p.shown.measured, 2); assert.equal(p.shown.servedRate, 0.5); assert.equal(p.shown.corrections, 0.5);
+  assert.equal(p.holdout.sessions, 2); assert.equal(p.holdout.measured, 3); assert.equal(p.holdout.unlearnedRate, 1 / 3); assert.equal(p.holdout.servedRate, 0);
+  assert.equal(p.shown.tokens, 1000, 'a ratio of sums: 2000 tokens over 2 exchanges'); assert.equal(p.holdout.tokens, 4000 / 3);
+  assert.equal(p.recurrence.verdict, 'too-early'); assert.equal(p.unknown.observations, 1);
+  assert.equal(p.minExchanges, 200);
+  // pooled: counts add, rates are of the pooled counts, tokens an exchange weighted by exchanges
+  const m = mergeProfileMetrics([p, p]);
+  assert.equal(m.shown.sessions, 2); assert.equal(m.shown.measured, 4); assert.equal(m.shown.servedRate, 0.5); assert.equal(m.shown.tokens, 1000);
+  assert.equal(m.holdout.tokens, 4000 / 3); assert.equal(m.repos, 2); assert.equal(m.cost.verdict, null, 'no bootstrap across repositories');
+  assert.equal(mergeReports([{ repo: 'a', name: 'a', view: { ...reportView(store, { now: NOW, sessions: [] }) } }]).profile.shown.measured, 2);
+  assert.equal(mergeProfileMetrics([null]), null);
+  // the command prints the figure, in the Report's unit
+  const text = renderReport({ ...reportView(store, { now: NOW, sessions: [] }) }, { cost: false }).join('\n');
+  assert.match(text, /Profile · the person saying again/); assert.match(text, /shown\s+1\s+2\s+50\.0%\s+50\.0%\s+0\.0%\s+1k/);
+  assert.match(text, /too early to say: each side needs 200 measured exchanges \(shown 2, held out 3\)/);
+  assert.match(renderReport({ ...reportView(store, { now: NOW, sessions: [] }), profile: null }).join('\n'), /No profile observations/);
 });
