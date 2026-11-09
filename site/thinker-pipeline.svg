@@ -66,7 +66,7 @@
 </g>
 <g id="loop-verify-build" class="feedback-loop" data-source="verify" data-target="build" data-status="yellow" role="group" aria-label="Verify to Build: retry, Watch">
 <path id="feedback-verify-build" class="feedback-path" d="M751 239 C762 201 718 163 681 177" stroke="#dfb82e" marker-end="url(#return-yellow)"/>
-<text class="loop-label" x="717" y="153" fill="#886510">retry · 18%</text>
+<text class="loop-label" x="768" y="166" fill="#886510">retry · 18%</text>
 <circle class="return-motion" r="3.5" fill="#dfb82e" style="offset-path:path('M751 239 C762 201 718 163 681 177');--duration:23s;animation-delay:-11s"/>
 </g>
 </g>
