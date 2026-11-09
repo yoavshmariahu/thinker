@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://thinker.sh/">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>thinker</title>
-  <meta name="description" content="Think ahead. Save tokens. Thinker shows where your coding agents' context goes, part by part: what each instruction section, skill and tool costs a session and how often sessions act on it. Compress, trim or switch off what they never use, and let a cache of notes learned from your sessions give the agent the context each task needs.">
+  <meta name="description" content="Think ahead. Save tokens. Thinker is a free, open-source tool that connects to your coding agents once and makes every session cheaper: it compresses the context your agents carry, learns how you work in each repository, and shows what your instructions and tools cost.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="thinker">
   <meta property="og:url" content="https://thinker.sh/">
@@ -30,7 +30,7 @@
   <script src="/message.js" defer></script>
   <link rel="stylesheet" href="/nav.css">
 </head>
-<body>
+<body class="lp-page">
 
   <nav>
     <a href="index.html" class="nav-brand">thinker</a>
@@ -45,6 +45,7 @@
     <div class="hero" id="hero">
     <h1>thinker</h1>
     <p class="subtitle">Think ahead. Save tokens.</p>
+    <p class="lp-lede">Thinker is a free, open-source tool that connects to your coding agents once and makes every session cheaper. It compresses the context your agents carry, learns how you work in each repository, and shows you what your instructions and tools cost.</p>
 
     <a class="econ-launch" href="/how-it-works"><span class="econ-launch-icon" aria-hidden="true"></span>See how it works</a>
 
@@ -66,6 +67,87 @@
     </div>
   </main>
 
+  <section class="lp" id="what">
+    <h2>What thinker does</h2>
+    <div class="lp-cards">
+      <div class="lp-card"><h3>Compression</h3><p>Thinker watches each session and removes older tool results the agent has finished with, only when the saving is worth the cache rewrite. Fewer tokens read on every call that follows.</p></div>
+      <div class="lp-card"><h3>Memory profile</h3><p>From your prompts and your agents&rsquo; answers, thinker learns what you are working on, how you want work done, and where agents went wrong here before. Every session starts with that, so you repeat yourself less and get closer to one-shotting a change.</p></div>
+      <div class="lp-card"><h3>Find savings</h3><p>See what each instruction section, skill and tool costs per prompt and how often sessions act on it. Trim, compress or switch off what they never use, as pull requests you review.</p></div>
+    </div>
+  </section>
+
+  <section class="lp" id="compression">
+    <h2>Compression: pay for the context you still need.</h2>
+    <div class="lp-split">
+      <div>
+        <p>A coding task is many model calls, and each one sends the whole conversation again. Old tool results are the bulk of it. Measured on one real request, results the agent had already finished with were 61% of the context; the live turn&rsquo;s results another 18%; your prompts, 7%.</p>
+        <p>Thinker sits between your agent and the model, through the agent&rsquo;s own settings. At the boundary between turns it prices a cut: what the older results cost to carry on every later call, against what rewriting the cache once will cost. It cuts only when that pays back within the next 25 calls, keeps the newest turn and the last results untouched, and never touches your prompts or the agent&rsquo;s own words. The same cut is applied to every request after it, so the agent&rsquo;s cache stays warm.</p>
+        <p>In the eight sessions published on <a href="/see-the-data">See the data</a>, the same prompts cost 1% to 36% less with thinker than without, at list prices, one run each. Fifteen percent of sessions are held out so the saving is always measured against sessions it did not touch.</p>
+      </div>
+      <div>
+        <figure class="lp-figure">
+          <div class="lp-chart" id="lp-chart"></div>
+          <figcaption>Cost per call, illustrative at Claude Opus 5.5 list prices: the call that compresses pays the cache rewrite once, every later call reads less. Amber repays the rewrite; green is net saving. <a href="/how-it-works">The full walkthrough</a>.</figcaption>
+        </figure>
+        <figure class="lp-figure" style="margin-top:1rem">
+          <div class="lp-comp"><span style="width:61%;background:#15803d"></span><span style="width:18%;background:#86c79a"></span><span style="width:21%;background:#d9d9d9"></span></div>
+          <div class="lp-key"><span><i style="background:#15803d"></i>Older tool results 61%</span><span><i style="background:#86c79a"></i>This turn&rsquo;s results 18%</span><span><i style="background:#d9d9d9"></i>Prompts, agent text, tools, system 21%</span></div>
+          <figcaption>What one real 642k-character request was made of. Thinker reaches the green part only.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="lp" id="profile">
+    <h2>Memory profile: start every session already knowing you.</h2>
+    <div class="lp-split">
+      <div>
+        <p>Thinker reads a session&rsquo;s prompts and the agent&rsquo;s answers, never your code or tool output, and keeps a ledger of what was asked, how it went, and what you said back. Once a day it compiles that into a short profile for the repository, in three parts:</p>
+        <ul>
+          <li><strong>Working on.</strong> The workstreams you are in the middle of, so the agent picks up where the last session left off.</li>
+          <li><strong>How this person works.</strong> Rules in the imperative, from your stated preferences and the corrections you had to make more than once.</li>
+          <li><strong>Skills.</strong> Which skills you run here and how they went.</li>
+        </ul>
+        <p>The profile goes into the first prompt of every session, about 1,500 tokens, and again after a compaction. It lives in the repository&rsquo;s local thinker folder and is never committed or uploaded. Half of sessions are held out, and thinker measures how often you had to say something again that you had said before.</p>
+      </div>
+      <figure class="lp-figure lp-profile"><b>About the person here, from 41 sessions in this repository. Follow how they work; the rest is context.</b>
+
+<b>Working on</b>
+- Moving the billing export from nightly batch to a streamed job; the retry path is open.
+- A flaky integration test in the payments suite, traced to a shared fixture.
+
+<b>How this person works</b>
+- Verify in the live app before calling it done; a passing mock is not evidence.
+- Answer short and plain. No tables, no headings for a two-line answer.
+- Work in a worktree and open a pull request; never commit to main.
+- Say what you did not do, not only what you did.
+
+<b>Skills</b>
+- /review: run before every pull request; asked for fewer style findings.
+<small>Example profile, invented. A real one is built from your own sessions.</small></figure>
+    </div>
+  </section>
+
+  <section class="lp" id="friction">
+    <h2>One command. Nothing to change in your workflow.</h2>
+    <p><code>npx thinkersh</code> connects thinker to the agents on your machine through their own settings. No API key, no code changes, no new commands to learn. Keep coding as usual; thinker works in the background and says something only when it has something worth saying.</p>
+    <p>Your sessions, your profile and your reports stay on your machine. Thinker sends anonymous usage counts, which one setting turns off, and error reports only after you say yes to each. The code is open source under the MIT license. <code>thinker uninstall --user</code> removes everything it wired.</p>
+    <div class="lp-agents"><span>Claude Code</span><span>Claude desktop app</span><span>Codex CLI and app</span><span>Cursor</span><span>Gemini CLI</span><span>Devin</span><span>Pi</span><span>Windsurf</span><span>Copilot CLI</span><span>OpenCode</span><span>and more</span></div>
+    <p class="lp-more" style="margin-top:1rem"><a href="docs.html">What works with which agent &rarr;</a></p>
+  </section>
+
+  <section class="lp" id="measured">
+    <h2>Measured, not promised.</h2>
+    <p>Every number on this site comes from a recorded session: the model calls, what each cost, what was removed, and whether the task passed. The runs, their transcripts and the assumptions are published, limitations included. One run per task is a data point, not a general claim.</p>
+    <div class="lp-runs" id="lp-runs"></div>
+    <p class="lp-more" style="margin-top:1.25rem"><a href="/see-the-data">See the data &rarr;</a></p>
+  </section>
+
+  <footer class="lp-footer">
+    <a href="docs.html">Docs</a> · <a href="/see-the-data">See the data</a> · <a href="/how-it-works">How it works</a> · <a href="https://github.com/yoavshmariahu/thinker">GitHub</a> · <a href="/.well-known/security.txt">Security</a> · <a href="https://github.com/yoavshmariahu/thinker/blob/main/LICENSE">MIT License</a><br>
+    Made by Yoav Shmariahu
+  </footer>
+
   <script>
     function copyInstall(btn) {
       const code = btn.parentElement.querySelector('code').innerText;
@@ -81,6 +163,32 @@
     }
 
 
+  </script>
+  <script>
+    (() => {
+      // The per-call cost picture from the walkthrough, at rest: the rewrite call, then thirty cheaper calls.
+      const host = document.getElementById('lp-chart');
+      const width = host.clientWidth || 440, height = host.clientHeight || 200;
+      const left = 34, right = width - 8, top = 44, bottom = height - 24;
+      const slot = (right - left) / 31, bar = Math.max(3, slot * .64);
+      const x = i => left + (i + .5) * slot, y = a => bottom - a / .44 * (bottom - top);
+      let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Cost per call: the compressing call costs 38.8 cents including a 28.8 cent cache rewrite; each later call costs 7.6 cents instead of 10. The saving repays the rewrite over twelve calls and is net after that.">';
+      for (const a of [0, .1, .4]) svg += '<line x1="' + left + '" x2="' + right + '" y1="' + y(a) + '" y2="' + y(a) + '" stroke="#e5e5e5"/><text x="' + (left - 6) + '" y="' + (y(a) + 3) + '" text-anchor="end">' + Math.round(a * 100) + '¢</text>';
+      svg += '<rect x="' + (x(0) - bar / 2) + '" y="' + y(.1) + '" width="' + bar + '" height="' + (bottom - y(.1)) + '" fill="#555"/><rect x="' + (x(0) - bar / 2) + '" y="' + y(.388) + '" width="' + bar + '" height="' + (y(.1) - y(.388)) + '" fill="#c78023"/>';
+      svg += '<defs><pattern id="lp-repay" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#f7e4c6"/><path d="M-1,1 L1,-1 M0,4 L4,0 M3,5 L5,3" stroke="#b66d12" stroke-width=".8"/></pattern><pattern id="lp-saved" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#d7efdf"/><path d="M-1,1 L1,-1 M0,4 L4,0 M3,5 L5,3" stroke="#15803d" stroke-width=".8"/></pattern></defs>';
+      for (let i = 1; i <= 30; i++) svg += '<rect x="' + (x(i) - bar / 2) + '" y="' + y(.076) + '" width="' + bar + '" height="' + (bottom - y(.076)) + '" fill="#15803d"/><rect x="' + (x(i) - bar / 2) + '" y="' + y(.1) + '" width="' + bar + '" height="' + (y(.076) - y(.1)) + '" fill="url(#' + (i <= 12 ? 'lp-repay' : 'lp-saved') + ')"/>';
+      svg += '<line x1="' + left + '" x2="' + right + '" y1="' + y(.1) + '" y2="' + y(.1) + '" stroke="#555" stroke-dasharray="4 3"/>';
+      svg += '<text x="' + right + '" y="12" text-anchor="end" style="fill:#555">10¢ a call without compression</text><text x="' + right + '" y="26" text-anchor="end" style="fill:#15803d">7.6¢ after the rewrite · 2.4¢ saved</text>';
+      svg += '<text x="' + (x(0) + bar / 2 + 5) + '" y="' + (y(.388) + 4) + '" style="fill:#9a5a12;font-weight:600">38.8¢ rewrite call</text>';
+      svg += '<text x="' + left + '" y="' + (bottom + 16) + '">Rewrite</text><text x="' + x(12) + '" y="' + (bottom + 16) + '" text-anchor="middle">12 · paid back</text><text x="' + right + '" y="' + (bottom + 16) + '" text-anchor="end">30 calls</text>';
+      host.innerHTML = svg + '</svg>';
+      // The eight published runs: control against thinker, at list prices, from See the data's own index.
+      const runs = [['click-1', 'Click · CLI bug fix', 6.43, 5.49], ['django-astra', 'Django · Prefetch routing', 13.74, 8.78], ['mlflow-registry', 'MLflow · Latest model version', 15.08, 11.92], ['mlflow-gateway', 'MLflow · Gemini tool choice', 16.94, 11.61], ['mlflow-span', 'MLflow · Span serialization', 13.22, 11.02], ['posthog-invites', 'PostHog · Member invitations', 9.42, 8.42], ['posthog-broadcasts', 'PostHog · Broadcast scheduling', 5.46, 5.41], ['posthog-metrics', 'PostHog · Metric UUIDs', 11.38, 10.11]];
+      const max = Math.max(...runs.map(r => r[2]));
+      document.getElementById('lp-runs').innerHTML = runs.map(([id, name, control, cut]) =>
+        '<a href="/see-the-data?run=' + id + '">' + name + '</a><div class="lp-bar" title="$' + control.toFixed(2) + ' without, $' + cut.toFixed(2) + ' with thinker"><span class="c" style="width:' + (control / max * 100) + '%"></span><span class="t" style="width:' + (cut / max * 100) + '%"></span></div><span class="lp-save">' + Math.round(100 * (1 - cut / control)) + '% less</span>').join('') +
+        '<span></span><div class="lp-key" style="margin-top:.4rem"><span><i style="background:#c9c9c9"></i>Without thinker</span><span><i style="background:#15803d"></i>With thinker</span><span>Same prompts, list prices, one run each</span></div><span></span>';
+    })();
   </script>
 </body>
 </html>
