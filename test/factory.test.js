@@ -1,0 +1,163 @@
+// The Factory (factory.js): a session read as a pipeline. One rule puts every model call's tokens at a stage, and the
+// loops are patterns read from the events by code. These tests pin the rule, each detector, the split of a call that
+// touched two stages, and the merge over repositories, on synthetic sessions whose answers are known.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory } from '../src/factory.js';
+
+const PRICE = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 };
+// a call of a million fresh tokens costs a dollar at this price, so costs read as call counts
+const call = () => ({ fresh: 1_000_000, read: 0, write: 0, out: 0 });
+const tool = (call, name, input, extra = {}) => ({ t: 'tool', name, input, result: '', call, ...extra });
+
+test('a shell command is staged by what it does: merge, then read-only, then write, else run', () => {
+  assert.equal(bashStage('git add -A && git commit -m x && git push'), 'merge');
+  assert.equal(bashStage('gh pr create --title x'), 'merge');
+  assert.equal(bashStage('cd /x && git status'), 'explore');
+  assert.equal(bashStage('grep -rn foo src | head'), 'explore');
+  assert.equal(bashStage('sed -n 1,40p src/a.js'), 'explore');
+  assert.equal(bashStage('sqlite3 db.sqlite "select 1"'), 'explore');
+  assert.equal(bashStage('sed -i "" s/a/b/ src/a.js'), 'build');
+  assert.equal(bashStage('mkdir -p out && cp a b'), 'build');
+  assert.equal(bashStage('npm ci'), 'build');
+  assert.equal(bashStage('cat > x.txt <<EOF\nhi\nEOF'), 'build');
+  assert.equal(bashStage('npm test'), 'verify');
+  assert.equal(bashStage('THINKER_TEST=1 node --test test/a.test.js'), 'verify');
+  assert.equal(bashStage('node scripts/run.js'), 'verify');
+});
+
+test('a tool is staged in the transcripts\' one vocabulary', () => {
+  assert.equal(stageOfTool('Read', { file_path: 'a' }), 'explore');
+  assert.equal(stageOfTool('Grep', {}), 'explore');
+  assert.equal(stageOfTool('Agent', { subagent_type: 'Explore' }), 'explore');
+  assert.equal(stageOfTool('Edit', {}), 'build');
+  assert.equal(stageOfTool('Write', {}), 'build');
+  assert.equal(stageOfTool('Skill', { skill: 'code-review' }), 'verify');
+  assert.equal(stageOfTool('Skill', { skill: 'dataviz' }), 'build');
+  assert.equal(stageOfTool('TodoWrite', {}), 'think');
+  assert.equal(stageOfTool('mcp__claude-in-chrome__computer', {}), 'verify');
+  assert.equal(stageOfTool('mcp__artemis__get_experiment', {}), 'explore');
+});
+
+test('a call\'s tokens go to its tool\'s stage; the first call after a prompt is Prompts; no tool is Think; two stages split', () => {
+  const calls = [call(), call(), call(), call(), call()];
+  const events = [
+    { t: 'prompt', text: 'do it' },
+    tool(0, 'Read', { file_path: 'a.js' }), // the first call after the prompt: Prompts, whatever it called
+    tool(1, 'Read', { file_path: 'b.js' }),
+    tool(2, 'Edit', { file_path: 'b.js' }), tool(2, 'Bash', { command: 'npm test' }), // one call, two stages: half each
+    { t: 'say', text: 'done' }, // call 3 made no tool: Think
+    tool(4, 'Bash', { command: 'git commit -m x && git push' }),
+  ];
+  const r = sessionFactory({ events, calls, model: 'm' }, { price: PRICE });
+  assert.equal(r.calls, 5); assert.equal(Math.round(r.cost), 5);
+  assert.equal(r.stages.prompts.cost, 1);
+  assert.equal(r.stages.explore.cost, 1);
+  assert.equal(r.stages.build.cost, 0.5); assert.equal(r.stages.verify.cost, 0.5);
+  assert.equal(r.stages.think.cost, 1);
+  assert.equal(r.stages.merge.cost, 1);
+  assert.equal(Object.values(r.stages).reduce((a, s) => a + s.cost, 0), 5, 'the stages add up to the session');
+  assert.deepEqual(STAGES.map(([k]) => k), ['prompts', 'think', 'explore', 'build', 'verify', 'merge']);
+});
+
+test('a fix loop is a test program failing and then passing, and spans every call between', () => {
+  const calls = Array.from({ length: 6 }, call);
+  const events = [
+    { t: 'prompt', text: 'fix' },
+    tool(0, 'Bash', { command: 'npm test' }, { error: true }),
+    tool(1, 'Edit', { file_path: 'a.js' }),
+    tool(2, 'Bash', { command: 'npm test -- test/a.test.js' }, { result: 'ℹ fail 1\n✖ a' }), // failing again, by its output: still one loop
+    tool(3, 'Edit', { file_path: 'a.js' }),
+    tool(4, 'Bash', { command: 'npm test' }, { result: 'ℹ pass 12' }),
+    tool(5, 'Bash', { command: 'sqlite3 x.db "select"' }, { error: true }), // a failed query is not a fix loop
+  ];
+  const r = sessionFactory({ events, calls }, { price: PRICE });
+  const fix = r.loops.filter(L => L.kind === 'fix');
+  assert.equal(fix.length, 1);
+  assert.deepEqual([fix[0].from, fix[0].to, fix[0].cost], [0, 4, 5]);
+  assert.equal(r.stages.verify.rework, r.stages.verify.cost, 'every verify call sat inside the loop');
+  assert.equal(r.stages.build.rework, 2);
+});
+
+test('a correction is an interruption or a ledger verdict, and the loop is the exchange that redid the work', () => {
+  const calls = Array.from({ length: 6 }, call);
+  const events = [
+    { t: 'prompt', text: 'one' }, tool(0, 'Edit', { file_path: 'a' }), tool(1, 'Edit', { file_path: 'a' }),
+    { t: 'interrupt' },
+    { t: 'prompt', text: 'no, the other file' }, tool(2, 'Edit', { file_path: 'b' }), tool(3, 'Bash', { command: 'npm test' }),
+    { t: 'prompt', text: 'three' }, tool(4, 'Read', { file_path: 'c' }),
+    { t: 'prompt', text: 'four' }, tool(5, 'Read', { file_path: 'd' }),
+  ];
+  // the ledger read exchange 3 as corrected: the redo is exchange 4
+  const r = sessionFactory({ events, calls }, { price: PRICE, corrected: new Set([3]) });
+  const c = r.loops.filter(L => L.kind === 'correction').sort((a, b) => a.exchange - b.exchange);
+  assert.deepEqual(c.map(L => [L.exchange, L.from, L.to, L.note]), [[2, 2, 3, 'interrupted'], [4, 5, 5, 'corrected']]);
+  assert.equal(r.exchanges, 4);
+});
+
+test('a re-read is the same file read again twenty calls later; a review catch is a review skill followed by edits', () => {
+  const calls = Array.from({ length: 30 }, call);
+  const events = [{ t: 'prompt', text: 'x' }, tool(0, 'Read', { file_path: 'a.js' }), tool(5, 'Read', { file_path: 'a.js' }), tool(25, 'Read', { file_path: 'a.js', offset: 10 }),
+    tool(26, 'Skill', { skill: 'code-review' }), tool(27, 'Edit', { file_path: 'a.js' }), tool(28, 'Edit', { file_path: 'b.js' })];
+  const r = sessionFactory({ events, calls }, { price: PRICE });
+  const rr = r.loops.filter(L => L.kind === 'reread'), rc = r.loops.filter(L => L.kind === 'reviewcatch');
+  assert.deepEqual(rr.map(L => [L.from, L.to]), [[25, 25]], 'five calls apart is still in view; a different range still counts');
+  assert.deepEqual(rc.map(L => [L.from, L.to]), [[26, 28]]);
+});
+
+test('sent back is a commit or push after the pull request was opened, closed by the next branch or pull request', () => {
+  const calls = Array.from({ length: 12 }, call);
+  const events = [{ t: 'prompt', text: 'x' },
+    tool(0, 'Bash', { command: 'git push -u origin HEAD && gh pr create --title a' }),
+    tool(1, 'Write', { file_path: '/home/me/memory/note.md' }), // a note written after: not a change to the PR on its own
+    tool(2, 'Edit', { file_path: 'src/a.js' }), tool(3, 'Bash', { command: 'git commit -am fix' }), tool(4, 'Bash', { command: 'git push' }),
+    tool(5, 'Bash', { command: 'git checkout -b agent/next' }), // new work: the window closes
+    tool(6, 'Edit', { file_path: 'src/b.js' }), tool(7, 'Bash', { command: 'git commit -am b' }), // not sent back: no PR open for it
+    tool(8, 'Bash', { command: 'gh pr create --title b' }),
+    tool(9, 'Bash', { command: 'git pull' }), // the person merged; nothing committed: no loop
+  ];
+  const r = sessionFactory({ events, calls }, { price: PRICE });
+  const sb = r.loops.filter(L => L.kind === 'sentback');
+  assert.deepEqual(sb.map(L => [L.from, L.to, L.cost]), [[1, 4, 4]]);
+  // with no commit after the opening there is none
+  const r2 = sessionFactory({ events: events.slice(0, 3), calls }, { price: PRICE });
+  assert.equal(r2.loops.filter(L => L.kind === 'sentback').length, 0);
+});
+
+test('rework counts a call once however many loops hold it, and detectLoops alone returns the spans', () => {
+  const calls = Array.from({ length: 4 }, call);
+  const events = [{ t: 'prompt', text: 'x' }, tool(0, 'Bash', { command: 'npm test' }, { error: true }), tool(1, 'Edit', { file_path: 'a' }), tool(2, 'Bash', { command: 'npm test' }),
+    { t: 'interrupt' }, { t: 'prompt', text: 'y' }, tool(3, 'Edit', { file_path: 'a' })];
+  const r = sessionFactory({ events, calls }, { price: PRICE });
+  const kinds = r.loops.map(L => L.kind).sort();
+  assert.deepEqual(kinds, ['correction', 'fix']);
+  const rework = Object.values(r.stages).reduce((a, s) => a + s.rework, 0);
+  assert.equal(rework, 4, 'all four calls sit in some loop, each counted once');
+});
+
+test('without a price the view stays in tokens, and a call\'s cost prices writes at their TTL', () => {
+  const r = sessionFactory({ events: [tool(0, 'Read', { file_path: 'a' })], calls: [{ fresh: 10, read: 20, write: 30, out: 5 }] }, { price: null });
+  assert.equal(r.priced, false); assert.equal(r.cost, 0); assert.equal(r.tokens, 65);
+  assert.equal(callCost({ fresh: 1e6, read: 0, write: 1e6, w1h: 1e6, out: 0 }, PRICE), 3, 'a million written at the one-hour rate is two dollars here');
+  assert.equal(verdictOf(REWORK_THRESHOLDS.good), 'good'); assert.equal(verdictOf(REWORK_THRESHOLDS.bad), 'bad'); assert.equal(verdictOf(0.2), 'mid'); assert.equal(verdictOf(null), null);
+});
+
+test('All repositories adds the sums, takes the shares again, joins the loop kinds and keeps each pull request\'s repository', () => {
+  const stage = (key, cost, rework) => ({ key, name: key, desc: '', cost, tokens: cost * 1e6, calls: 1, rework, reworkTokens: rework * 1e6 });
+  const view = (cost, rework, rows) => ({ days: 42, from: 0, to: 1, sessions: 1, conversations: 1, calls: 10, cost, tokens: cost * 1e6, priced: true, unpriced: [],
+    stages: [stage('prompts', 0, 0), stage('think', 0, 0), stage('explore', cost / 2, rework / 2), stage('build', cost / 2, rework / 2), stage('verify', 0, 0), stage('merge', 0, 0)],
+    loops: [{ key: 'fix', name: 'Fix loop', from: 'verify', to: 'build', loops: 1, sessions: 1, cost: rework, tokens: rework * 1e6, calls: 2, share: rework / cost }],
+    rework, reworkTokens: rework * 1e6, reworkShare: rework / cost, prs: { rows } });
+  const m = mergeFactory([
+    { repo: 'a', name: 'A', view: { factory: view(10, 1, [{ number: 1, title: 'x', mergedAt: '2026-11-01', measured: 1, firstPass: true, cost: 2, loops: {} }]) } },
+    { repo: 'b', name: 'B', view: { factory: view(30, 9, [{ number: 1, title: 'y', mergedAt: '2026-11-02', measured: 1, firstPass: false, cost: 6, loops: { fix: 1 } }]) } },
+    { repo: 'c', name: 'C', view: {} },
+  ]);
+  assert.equal(m.cost, 40); assert.equal(m.rework, 10); assert.equal(m.reworkShare, 0.25);
+  assert.equal(m.loops.length, 1); assert.equal(m.loops[0].loops, 2); assert.equal(m.loops[0].share, 0.25);
+  const explore = m.stages.find(s => s.key === 'explore');
+  assert.equal(explore.cost, 20); assert.equal(explore.share, 0.5); assert.equal(explore.reworkShare, 0.25); assert.equal(explore.verdict, 'mid');
+  assert.equal(m.prs.merged, 2); assert.equal(m.prs.yield, 0.5); assert.deepEqual(m.prs.rows.map(r => r.repo), ['b', 'a']);
+  assert.equal(mergeFactory([{ repo: 'c', view: {} }]), null);
+  assert.match(renderFactory(m).join('\n'), /first-pass yield 50%/);
+});

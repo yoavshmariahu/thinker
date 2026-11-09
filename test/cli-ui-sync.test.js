@@ -245,7 +245,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // one default, the command's hash and the page's own reading of it
   assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
   assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
-  for (const d of [/REPO = hashTab\(\) === 'report' \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
+  for (const d of [/REPO = \['report', 'factory'\]\.includes\(hashTab\(\)\) \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
   assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
@@ -773,4 +773,18 @@ test('the Report shows the profile metric on the page as the command prints it, 
   for (const name of ['function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.equal(body(name)(page), body(name)(report.replace('export function', 'function').replaceAll('export function', 'function')), `${name} is one body on both doors`);
   assert.doesNotMatch(page, /Cache hits|notes served|savings-counts/);
   assert.match(read('report-snapshot.js'), /'profile-metric\.js'/, 'a kept report from before the figure is remade');
+});
+
+test('the Factory tab and `thinker factory` read one computation, kept with the Report', () => {
+  // factory.js builds the view once (factoryView); the Report keeps it (`factory` on reportView, merged for All
+  // repositories by mergeFactory), the page reads it off /api/report, and the command prints the kept one
+  assert.match(read('report.js'), /const factory = \(\(\) => \{ try \{ return factoryView\(/);
+  assert.match(read('report.js'), /factory: mergeFactory\(list\)/);
+  assert.match(read('report-snapshot.js'), /'factory\.js'/, 'a kept report from before the factory is remade, not served without it');
+  assert.match(read('commands/factory.js'), /reportSnapshot\(store, weeks\)\.view\?\.factory/);
+  assert.match(read('ui/page.html'), /renderFactory\(v\)/);
+  assert.match(read('ui/page.html'), /data-tab="factory"/);
+  assert.match(read('cli.js'), /factory \[--weeks n\] \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');
+  // the two doors say the attribution rule in the same words
+  for (const f of ['factory.js', 'ui/page.html']) assert.match(read(f), /A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think\./);
 });

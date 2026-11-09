@@ -640,6 +640,7 @@ longer exceptions to anything.
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
+| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of six stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
@@ -1088,6 +1089,45 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
     starts after the change.
 - `report-snapshot.js`'s code key hashes `delivery.js` and `compression.js` too, so a kept report made before
   the band is remade rather than served without it.
+
+**The Factory: the sessions read as a pipeline (2026-11-08, the owner's direction; `src/factory.js`, the page's Factory tab, `thinker factory`)**
+- Per-session and per-PR cost could not say which stage ate the tokens, what was rework, or how much work merged first
+  time. The Factory answers those three: six stations (Prompts, Think, Explore, Build, Verify, Merge), the loops where
+  work came back to an earlier station, and the first-pass yield of the merged pull requests. The UI came first (a
+  flat line, then an isometric floor, then the pipeline canvas the owner picked from a reference design); the
+  measurement over this machine's sessions came the same day, below.
+- **One attribution rule, in one sentence, on both doors**: a call's tokens go to the stage of the tool it called; the
+  first call after a prompt is Prompts; a call with no tool is Think. A call that made tools of two stages is split
+  evenly. `transcripts.js` now returns every model call's usage (`calls`) and puts the call's index on each tool event
+  (`call`) and a failure flag on a result (`error`, from `is_error`) for this. A shell command is staged by what it does
+  (`bashStage`): a commit or push is Merge, a read-only program at the head of the line is Explore, a line that writes is
+  Build, anything else is running something to see what happens, Verify. Verify is any check before merge, by running or
+  by reading: with no human reviewer a Review stage would price the agent's own tokens as a review, so there is none
+  (the owner's call); a change to a pull request after it was opened is a loop out of Merge.
+- **Loops are data, found by code, never by a model** (`LOOP_KINDS`, `detectLoops`). Each kind is a detector over the
+  session's events and the view carries every kind that fired, so a new detector shows on the page with no change
+  there; each says the rule that finds it. A loop's cost is the cost of the calls it spans; a stage's rework is the cost
+  of its calls inside any loop, counted once. The first detectors: a fix loop (a test or build program fails and later
+  passes; keyed by program, since the same command rarely repeats verbatim), a correction (an interrupt marker, or the
+  profile ledger's `corrected`/`redirected` on the exchange before; the loop is the exchange that redid the work), sent
+  back (a commit or push after `gh pr create`, the window closing at the next branch or pull request, since a session
+  here goes on to the next piece of work), a review catch (a review skill or reviewer subagent, then edits before the
+  next prompt), and a re-read (a file read again twenty or more calls later). A failed query or a mistyped command is
+  not a loop yet. `RULES_VERSION` is in the per-session cache key: a changed rule must read every session again, which
+  the first run after a change did not and served the old loops for a round.
+- **One computation, kept with the Report**: `reportView` carries `factory` (over the Report's window and sessions),
+  `mergeReports` merges it (sums add, shares and verdicts are taken again, loop kinds join by key, pull request rows keep
+  their repository), `report-snapshot.js` hashes `factory.js` into its code key, the page's Factory tab reads it off
+  `/api/report`, and `thinker factory` prints the kept one (`--refresh` first makes it again). A stage is judged on its
+  share of rework (`REWORK_THRESHOLDS`, good at or under 10%, bad at or over 35%; a first cut on this machine).
+- **What this machine's last 30 days looked like on the first run** (2026-11-08, after the detectors were tightened):
+  286 sessions, 35k calls, $7.3k at list; Explore 26%, Build 24%, Prompts 17% (the first call of a turn re-reads the
+  whole prefix), Verify 13%, Think 11%, Merge 9%. Rework 45%: fix loops $1.4k in 112 sessions, corrections $0.9k in 92,
+  sent back $0.9k in 95 (follow-up commits on an open pull request are this repository's habit), re-reads negligible.
+  First-pass yield 23% of 152 measured merged pull requests; a first-pass PR cost $8, a looped one $56. The first cut of
+  the sent-back detector fired in 159 of 162 sessions because a memory-file write after the pull request counted as an
+  edit and the window never closed; the stage shares were the same under both, the loop figures were not. Judge a
+  detector change by inspecting the loops it finds in a real session before trusting its total.
 
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript

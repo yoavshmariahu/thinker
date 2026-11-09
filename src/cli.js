@@ -23,6 +23,7 @@ import { commands as instructionsCommands } from './commands/instructions.js';
 import { commands as contextCommands } from './commands/context.js';
 import { commands as explainCommands } from './commands/explain.js';
 import { commands as reportCommands } from './commands/report.js';
+import { commands as factoryCommands } from './commands/factory.js';
 import { commands as savingsCommands } from './commands/savings.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as containerCommands } from './commands/containers.js';
@@ -154,6 +155,11 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
                                  --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
                                  this in the background; --all for every repository the page lists, in one run)
+  factory [--weeks n] [--json] [--refresh]   the Factory page in the terminal: the pipeline a session runs through (Prompts, Think, Explore, Build,
+                                 Verify, Merge) and what each stage cost over the Report's window, the loops detected in the sessions (where
+                                 work came back to an earlier stage, found by code: a failing run to the run that passed, a correction, a
+                                 pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
+                                 requests; it reads the report kept for the page, --refresh makes it again first
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]
@@ -256,10 +262,10 @@ function unknownFlags(c, given, help = HELP) {
 
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`, `record`,
 // `distill`: those start one. Not `hook` (quiet outside a checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report'];
+const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
+const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];
