@@ -1167,8 +1167,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   only sessions the feature could have touched, the table leads with cost per exchange (a session's length is out of
   it) and carries the cache-write share, and a difference on under ten sessions a side is marked thin. The same
   reading applies to the profile's split once its arms fill: a session shown the block is not a session that acted on it.
-  The canvas ends in a **Merged dock** (the owner's ask, 2026-11-09): the pull requests merged, the cost of one, the
-  first-pass share, and in diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
+  The canvas carries a **totals box on its bottom right** (the owner's ask, 2026-11-09: on the chart, not in the flow;
+  a Merged dock at the end of the line was tried first): the cost per merged pull request and the rework share, and in
+  diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
   session in diff mode, and the comparison table has a cost-per-merged-pull-request row. A pull request counts on a side
   only when every session on it was on that side.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a

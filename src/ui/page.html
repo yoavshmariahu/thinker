@@ -228,16 +228,11 @@
     .fx-trust { margin: 0 1.1rem .9rem; padding: .6rem .8rem; border-radius: 8px; font-size: .82rem; line-height: 1.5; border: 1px solid #e5e7eb; background: #fafafa; color: #444; }
     .fx-trust.none { background: #fee2e2; border-color: #fecaca; color: #991b1b; } .fx-trust.low { background: #fef9c3; border-color: #fde68a; color: #854d0e; } .fx-trust.good { background: #dcfce7; border-color: #bbf7d0; color: #166534; }
     .fx-d { font-size: .72rem; font-weight: 600; margin-left: .3rem; } .fx-d.good { color: #15803d; } .fx-d.bad { color: #b91c1c; } .fx-d.flat { color: #9ca3af; font-weight: 500; }
-    .fx-dockcard { position: absolute; background: #fafafa; border: 1px dashed #c7cad1; border-radius: 12px; padding: .8rem .85rem .7rem; font-size: .72rem; color: #6b7280; }
-    .fx-dockcard .lab { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .66rem; letter-spacing: .04em; text-transform: uppercase; }
-    .fx-dockcard .big { font-size: 1.4rem; font-weight: 700; color: #111; letter-spacing: -.03em; margin-top: .4rem; font-variant-numeric: tabular-nums; }
-    .fx-dockcard .sub { font-size: .74rem; }
-    .fx-dockcard .rows { margin-top: .5rem; padding-top: .45rem; border-top: 1px solid #e5e7eb; display: flex; flex-direction: column; gap: .28rem; }
-    .fx-dockcard .rows div, .fx-dockcard .two { display: flex; justify-content: space-between; gap: .4rem; white-space: nowrap; }
-    .fx-dockcard .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; margin-top: .3rem; }
-    .fx-dockcard b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 500; color: #111; font-variant-numeric: tabular-nums; }
-    .fx-dockcard b.off { color: #6b7280; }
-    .fx-dockcard .hint { margin-top: .45rem; font-size: .66rem; line-height: 1.3; }
+    .fx-totals { position: absolute; right: 16px; bottom: 14px; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: .45rem .7rem; font-size: .74rem; color: #6b7280; box-shadow: 0 1px 2px rgba(0,0,0,.04); white-space: nowrap; }
+    .fx-totals .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .7rem; padding: .1rem 0; }
+    .fx-totals .two.head { color: #9ca3af; font-size: .66rem; text-transform: uppercase; letter-spacing: .05em; }
+    .fx-totals b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 600; color: #111; font-variant-numeric: tabular-nums; text-align: right; }
+    .fx-totals b.off { color: #6b7280; font-weight: 500; }
     .fx-stage .rows .two { display: grid; grid-template-columns: 1fr auto auto; gap: 0 .5rem; white-space: nowrap; }
     .fx-stage .rows .two b.off { color: #6b7280; }
     .fx-stage.on .rows .two b.off { color: #c9cbd1; }
@@ -1527,7 +1522,7 @@ function renderFactory(rv) {
         <div class="seg small" id="fx-metric" role="tablist"><button data-m="stage" class="${FX_METRIC === 'stage' ? 'on' : ''}" role="tab">Stage metrics</button><button data-m="loop" class="${FX_METRIC === 'loop' ? 'on' : ''}" role="tab">Loop metrics</button></div>
         <select class="sel" id="fx-diff-sel" aria-label="See diff by" style="font-size:.76rem;padding:.25rem .5rem"><option value=""${FX_DIFF ? '' : ' selected'}>See diff by…</option><option value="profile"${FX_DIFF === 'profile' ? ' selected' : ''}>Memory profile</option><option value="compression"${FX_DIFF === 'compression' ? ' selected' : ''}>Compression</option></select>
         <button class="fx-ghost${FX_ANIM ? ' on' : ''}" id="fx-anim" type="button" aria-pressed="${FX_ANIM}">Flow animation</button></div>
-      <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg><div class="fx-dockcard" id="fx-dock"></div></div></div>
+      <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg><div class="fx-totals" id="fx-dock"></div></div></div>
       <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Click a stage or a loop for its last four weeks</span></div>
     </section>
     <div id="fx-diff"></div>
@@ -1650,12 +1645,13 @@ function fxRows(stages, loops, dollars) {
     if (a && spec) { const per = side => a[side].sessions ? ((a[side].loops[L.key]?.loops || 0) / a[side].sessions).toFixed(2) : '–'; ls.textContent = `${spec.short[0]} ${per(spec.on)} · ${spec.short[1]} ${per(spec.off)} per session`; }
     else ls.textContent = `${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}`;
   }
-  // the Merged dock: cost per merged pull request, the two sides' when a diff is chosen
-  const dock = $('#fx-dock'), prs = FX?.factory?.prs;
+  // the totals on the chart's bottom right (the owner, 2026-11-09: on the chart, not in the flow): cost per merged pull request
+  // and rework share, the two sides' when a diff is chosen
+  const dock = $('#fx-dock'), prs = FX?.factory?.prs, fv = FX?.factory;
   if (dock) {
-    if (a && spec) { const per = side => a[side].prs.merged ? (dollars ? money(a[side].prs.cost / a[side].prs.merged) : fmt(Math.round(a[side].prs.cost / a[side].prs.merged))) : '–', yd = side => a[side].prs.merged ? fxPct(a[side].prs.firstPass / a[side].prs.merged) : '–';
-      dock.innerHTML = `<div class="lab">Merged</div><div class="two"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>PRs</span><b>${a[spec.on].prs.merged}</b><b class="off">${a[spec.off].prs.merged}</b></div><div class="two"><span>Per PR</span><b>${per(spec.on)}</b><b class="off">${per(spec.off)}</b></div><div class="two"><span>First pass</span><b>${yd(spec.on)}</b><b class="off">${yd(spec.off)}</b></div><div class="hint">PRs whose sessions were all on one side</div>`; }
-    else dock.innerHTML = prs ? `<div class="lab">Merged</div><div class="big">${prs.merged}</div><div class="sub">pull requests</div><div class="rows"><div><span>${dollars ? 'Cost' : 'Tokens'} / PR</span><b>${prs.meanCost == null ? '–' : dollars ? money(prs.meanCost) : fmt(Math.round(prs.meanCost))}</b></div><div><span>First pass</span><b>${fxPct(prs.yield)}</b></div><div><span>First-pass PR</span><b>${prs.meanCostFirstPass == null ? '–' : dollars ? money(prs.meanCostFirstPass) : fmt(Math.round(prs.meanCostFirstPass))}</b></div><div><span>With a loop</span><b>${prs.meanCostLooped == null ? '–' : dollars ? money(prs.meanCostLooped) : fmt(Math.round(prs.meanCostLooped))}</b></div></div>` : `<div class="lab">Merged</div><div class="sub">no pull requests read</div>`;
+    const perPr = (cost, n) => n ? (dollars ? money(cost / n) : fmt(Math.round(cost / n))) : '–', rw = (r, c) => c ? fxPct(r / c) : '–';
+    if (a && spec) dock.innerHTML = `<div class="two head"><span></span><b>${esc(spec.short[0])}</b><b class="off">${esc(spec.short[1])}</b></div><div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${perPr(a[spec.on].prs.cost, a[spec.on].prs.merged)}</b><b class="off">${perPr(a[spec.off].prs.cost, a[spec.off].prs.merged)}</b></div><div class="two"><span>Rework</span><b>${rw(dollars ? a[spec.on].rework : a[spec.on].reworkTokens, dollars ? a[spec.on].cost : a[spec.on].tokens)}</b><b class="off">${rw(dollars ? a[spec.off].rework : a[spec.off].reworkTokens, dollars ? a[spec.off].cost : a[spec.off].tokens)}</b></div>`;
+    else dock.innerHTML = `<div class="two"><span>${dollars ? 'Cost' : 'Tokens'} per PR</span><b>${prs?.meanCost == null ? '–' : dollars ? money(prs.meanCost) : fmt(Math.round(prs.meanCost))}</b></div><div class="two"><span>Rework</span><b>${fxPct(fv?.reworkShare)}</b></div>`;
   }
   for (const s of stages) {
     const r = FX_CARDS[s.key]?.querySelector('.rows'); if (!r) continue;
@@ -1681,11 +1677,10 @@ function fxCanvas(v, stages, loops, dollars) {
     FX_CARDS[s.key] = b;
   }
   fxRows(stages, loops, dollars);
-  const CH = 180, LANE = 52, PILL = 196, CW_MIN = 150, CW_MAX = 200, GAP_MIN = 28, X0_MIN = 32, DOCK = 150;
-  const dock = $('#fx-dock');
+  const CH = 180, LANE = 52, PILL = 196, CW_MIN = 150, CW_MAX = 200, GAP_MIN = 28, X0_MIN = 32;
   const layout = () => {
-    const n = stages.length, room = DOCK + GAP_MIN, avail = Math.max(scroller.clientWidth - 2, n * CW_MIN + (n - 1) * GAP_MIN + 2 * X0_MIN + room);
-    const CW = Math.min(CW_MAX, Math.floor((avail - room - 2 * X0_MIN - (n - 1) * GAP_MIN) / n)), GAP = Math.min(80, Math.floor((avail - room - 2 * X0_MIN - n * CW) / (n - 1))), X0 = Math.floor((avail - room - n * CW - (n - 1) * GAP) / 2);
+    const n = stages.length, avail = Math.max(scroller.clientWidth - 2, n * CW_MIN + (n - 1) * GAP_MIN + 2 * X0_MIN);
+    const CW = Math.min(CW_MAX, Math.floor((avail - 2 * X0_MIN - (n - 1) * GAP_MIN) / n)), GAP = Math.min(80, Math.floor((avail - 2 * X0_MIN - n * CW) / (n - 1))), X0 = Math.floor((avail - n * CW - (n - 1) * GAP) / 2);
     const left = i => X0 + i * (CW + GAP), cx = i => left(i) + CW / 2, span = L => Math.abs(idx(L.from) - idx(L.to));
     const lanes = { top: [], bottom: [] };
     [...loops].sort((a, b) => span(a) - span(b) || b.cost - a.cost).forEach((L, i) => {
@@ -1698,9 +1693,7 @@ function fxCanvas(v, stages, loops, dollars) {
     const portUse = {}; for (const L of loops) for (const end of ['from', 'to']) { const key = L[end] + ':' + L.side; (portUse[key] ||= []).push(L.key + ':' + end); }
     const portX = (L, end) => { const list = portUse[L[end] + ':' + L.side], k = list.indexOf(L.key + ':' + end); return cx(idx(L[end])) + (k - (list.length - 1) / 2) * 16; };
     stages.forEach((s, i) => { const b = FX_CARDS[s.key]; b.style.left = left(i) + 'px'; b.style.top = TOP + 'px'; b.style.width = CW + 'px'; });
-    dock.style.left = (left(n - 1) + CW + GAP_MIN) + 'px'; dock.style.top = TOP + 'px'; dock.style.width = DOCK + 'px'; dock.style.height = CH + 'px';
     wires.innerHTML = '';
-    { const y = TOP + CH / 2, x1 = left(n - 1) + CW + 4, x2 = left(n - 1) + CW + GAP_MIN - 4; el('circle', { class: 'fx-fwd-dot', cx: x1 + 2, cy: y, r: 2.5 }, wires); el('line', { class: 'fx-fwd', x1: x1 + 5, y1: y, x2: x2 - 6, y2: y }, wires); el('polygon', { class: 'fx-fwd-head', points: `${x2 - 7},${y - 4} ${x2},${y} ${x2 - 7},${y + 4}` }, wires); }
     for (let i = 0; i < n - 1; i++) { const y = TOP + CH / 2, x1 = left(i) + CW + 4, x2 = left(i + 1) - 4; el('circle', { class: 'fx-fwd-dot', cx: x1 + 2, cy: y, r: 2.5 }, wires); el('line', { class: 'fx-fwd', x1: x1 + 5, y1: y, x2: x2 - 6, y2: y }, wires); el('polygon', { class: 'fx-fwd-head', points: `${x2 - 7},${y - 4} ${x2},${y} ${x2 - 7},${y + 4}` }, wires); }
     for (const k in FX_LOOPS) FX_LOOPS[k].pill.remove(); FX_LOOPS = {};
     for (const L of loops) {
