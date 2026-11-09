@@ -292,8 +292,8 @@ export const PROFILE_VERDICTS = {
   cheaper: 'Cheaper with the profile',
   costlier: 'Costlier with the profile',
 };
-// a rate as odds: "1 in 14 prompts"
-export const odds = r => r == null ? '–' : r === 0 ? 'never' : `1 in ${Math.max(1, Math.round(1 / r))} prompts`;
+// a rate as a share of prompts: "7.1% of prompts" (odds were tried and read worse, the owner, 2026-11-08)
+export const share = r => r == null ? '–' : `${(100 * r).toFixed(1)}% of prompts`;
 export function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
@@ -311,7 +311,7 @@ export function profileLines(p, { cost = true } = {}) {
   const r = p.recurrence, c = p.cost, half = Math.round(100 * p.holdoutRate);
   const L = [`${head} (${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''})`,
     `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
-    `  ${'How often you had to repeat yourself'.padEnd(40)}${odds(p.shown.servedRate).padStart(18)}${odds(p.holdout.servedRate).padStart(18)}`,
+    `  ${'How often you had to repeat yourself'.padEnd(40)}${share(p.shown.servedRate).padStart(18)}${share(p.holdout.servedRate).padStart(18)}`,
     `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
     `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
     `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,

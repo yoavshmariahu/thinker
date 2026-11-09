@@ -510,7 +510,7 @@ test('the Report carries the profile metric, pooled across repositories as count
   // the command prints the figure, in the Report's unit
   const text = renderReport({ ...reportView(store, { now: NOW, sessions: [] }) }, { cost: false }).join('\n');
   assert.match(text, /Profile · what the agent is told about you/);
-  assert.match(text, /How often you had to repeat yourself\s+1 in 2 prompts\s+never/); assert.match(text, /What a prompt costs \(tokens\)\s+1k\s+1\.3k/);
+  assert.match(text, /How often you had to repeat yourself\s+50\.0% of prompts\s+0\.0% of prompts/); assert.match(text, /What a prompt costs \(tokens\)\s+1k\s+1\.3k/);
   assert.match(text, /Not enough data yet: about \d+ weeks at your pace\./, 'the pace: 5 measured exchanges a day, 395 more needed');
   assert.match(text, /No lines learned yet\./);
   // the pace: 5 exchanges measured over one day, 198 + 197 more needed

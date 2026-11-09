@@ -989,7 +989,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - **Profile** (2026-11-08, the owner's ask; `profile-metric.js`, `report.js:profileLines`, `page.html:profileFigure`): the
   session profile's own measure, under Compression effectiveness on both doors, framed as what a person would ask of it
   (the owner, the same evening): **with the profile against without**, how often they had to repeat themselves (the
-  served recurrence rate as odds, "1 in 14 prompts") and what a prompt costs, a verdict in words
+  served recurrence rate as a share of prompts, "7.1% of prompts") and what a prompt costs, a verdict in words
   (`report.js:PROFILE_VERDICTS`) that says when there will be enough data at the repository's own pace (`pace`: measured
   exchanges over the days they span against the 200-a-side floor), and what the profile holds and how its lines fared
   (`lines`, from profile.js:lineReport: lines learned, followed in what share of the sessions they applied to, never

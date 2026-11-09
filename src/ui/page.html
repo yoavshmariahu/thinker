@@ -1406,7 +1406,7 @@ const PROFILE_VERDICTS = {
   cheaper: 'Cheaper with the profile',
   costlier: 'Costlier with the profile',
 };
-const odds = r => r == null ? '–' : r === 0 ? 'never' : `1 in ${Math.max(1, Math.round(1 / r))} prompts`;
+const share = r => r == null ? '–' : `${(100 * r).toFixed(1)}% of prompts`;
 function profileWhen(p) {
   const w = p.pace?.weeksToGo;
   return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
@@ -1425,7 +1425,7 @@ function profileFigure(v, cost) {
   const unit = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
   const r = p.recurrence, c = p.cost;
   const cell = (x, title) => `<td class="num" title="${esc(title)}">${x}</td>`;
-  const repeat = (x, name) => cell(odds(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
+  const repeat = (x, name) => cell(share(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
   const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
   const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
     `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>`;
