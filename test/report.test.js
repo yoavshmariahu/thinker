@@ -509,7 +509,12 @@ test('the Report carries the profile metric, pooled across repositories as count
   assert.equal(mergeProfileMetrics([null]), null);
   // the command prints the figure, in the Report's unit
   const text = renderReport({ ...reportView(store, { now: NOW, sessions: [] }) }, { cost: false }).join('\n');
-  assert.match(text, /Profile · the person saying again/); assert.match(text, /shown\s+1\s+2\s+50\.0%\s+50\.0%\s+0\.0%\s+1k/);
-  assert.match(text, /too early to say: each side needs 200 measured exchanges \(shown 2, held out 3\)/);
+  assert.match(text, /Profile · what the agent is told about you/);
+  assert.match(text, /How often you had to repeat yourself\s+1 in 2 prompts\s+never/); assert.match(text, /What a prompt costs \(tokens\)\s+1k\s+1\.3k/);
+  assert.match(text, /Not enough data yet: about \d+ weeks at your pace\./, 'the pace: 5 measured exchanges a day, 395 more needed');
+  assert.match(text, /No lines learned yet\./);
+  // the pace: 5 exchanges measured over one day, 198 + 197 more needed
+  assert.equal(p.pace.measured, 5); assert.equal(p.pace.need, 395); assert.ok(Math.abs(p.pace.weeksToGo - 395 / 5 / 7) < 0.01);
+  assert.deepEqual(p.lines, { learned: 0, fromSessions: 0, judged: 0, applied: 0, followed: 0, followRate: null, neverApplied: 0 });
   assert.match(renderReport({ ...reportView(store, { now: NOW, sessions: [] }), profile: null }).join('\n'), /No profile observations/);
 });

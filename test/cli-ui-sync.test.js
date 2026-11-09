@@ -765,6 +765,10 @@ test('the Report shows the profile metric on the page as the command prints it, 
   assert.match(read('commands/profile.js'), /holdoutFromLog\(/, 'thinker profile holdout reads the same computation');
   const { PROFILE_VERDICTS } = await import('../src/report.js');
   for (const text of Object.values(PROFILE_VERDICTS)) assert.ok(page.includes(text), `the page says "${text}"`);
+  // the two sentences and the odds are the same code on both doors
+  for (const fn of ['const odds = r =>', 'function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.ok(page.includes(fn), fn);
+  const body = name => src => src.split(name)[1].split('\n}\n')[0];
+  for (const name of ['function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.equal(body(name)(page), body(name)(report.replace('export function', 'function').replaceAll('export function', 'function')), `${name} is one body on both doors`);
   assert.doesNotMatch(page, /Cache hits|notes served|savings-counts/);
   assert.match(read('report-snapshot.js'), /'profile-metric\.js'/, 'a kept report from before the figure is remade');
 });

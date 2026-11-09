@@ -1394,34 +1394,48 @@ function prStatsTable(v) {
 }
 
 // The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in
-// profile-metric.js, `thinker profile holdout` at length): how often the person says again what an earlier session
-// already told the agent, shown the profile against held out, the cost of an exchange beside it. Over the ledger's
-// window rather than the weeks above, so a figure and not a weekly table. PROFILE_VERDICTS is report.js's copy,
-// held together by test/cli-ui-sync.test.js.
+// profile-metric.js, `thinker profile holdout` at length): with the profile against without, how often the person had
+// to repeat themselves and what a prompt costs, a verdict in words with a date where there is not enough data yet, and
+// what the profile holds and how often its lines were acted on (the owner's framing, 2026-11-08). PROFILE_VERDICTS and
+// the two sentences are report.js's copies, held together by test/cli-ui-sync.test.js.
 const PROFILE_VERDICTS = {
-  'too-early': 'too early to say',
-  inconclusive: 'inconclusive: the interval straddles zero',
-  fewer: 'FEWER repeats with the profile: the agent holding the line spared the person saying it',
-  more: 'MORE repeats with the profile: something is wrong, read `thinker profile lines --why`',
-  cheaper: 'cheaper with the profile, over the whole interval',
-  costlier: 'costlier with the profile, over the whole interval',
+  'too-early': 'Not enough data yet',
+  inconclusive: 'No difference yet',
+  fewer: 'Saves you repeating yourself',
+  more: 'More repeats with the profile: read `thinker profile lines --why`',
+  cheaper: 'Cheaper with the profile',
+  costlier: 'Costlier with the profile',
 };
+const odds = r => r == null ? '–' : r === 0 ? 'never' : `1 in ${Math.max(1, Math.round(1 / r))} prompts`;
+function profileWhen(p) {
+  const w = p.pace?.weeksToGo;
+  return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
+}
+function profileLinesSentence(p) {
+  const l = p.lines;
+  if (!l || !l.learned) return 'No lines learned yet.';
+  const judged = l.followRate == null ? 'none judged in a session yet' : `followed in ${Math.round(100 * l.followRate)}% of the sessions they applied to${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
+  return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
+}
 function profileFigure(v, cost) {
   const p = v.profile;
-  const heading = `<figcaption><b>Profile</b><span class="ctx-sub">The person saying again what an earlier session already told the agent, per exchange · shown the profile against held out${p ? ` · ${p.days} days, ${Math.round(100 * p.holdoutRate)}% held out${p.repos > 1 ? `, ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
+  const half = p ? Math.round(100 * p.holdoutRate) : 0;
+  const heading = `<figcaption><b>Profile</b><span class="ctx-sub">What the agent is told about you at the start of a session, and whether it helps${p ? ` · ${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
   if (!p) return `<figure class="ctx-figure profile-figure">${heading}<p class="savings-note">No profile observations in this repository yet.</p></figure>`;
-  const pct = x => x == null ? '<span class="muted">–</span>' : `${(100 * x).toFixed(1)}%`, pp = x => x == null ? '–' : `${x > 0 ? '+' : ''}${(100 * x).toFixed(1)}pp`;
   const unit = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
-  const verdict = k => PROFILE_VERDICTS[k] || k;
-  const rows = [['Shown the profile', p.shown], ['Held out', p.holdout]].map(([name, x]) => `<tr><td class="ctx-name">${name}</td><td class="num">${x.sessions}</td><td class="num" title="Exchanges whose observation could say whether the person repeated themselves">${fmt(x.measured)}</td><td class="num" title="Share of exchanges in which the person said again something an earlier session recorded">${pct(x.rate)}</td><td class="num" title="Of a line the profile held: the agent had it and the person still had to say it">${pct(x.servedRate)}</td><td class="num" title="Of a statement no line holds: the compile's to fix, and the same in both arms by construction">${pct(x.unlearnedRate)}</td><td class="num" title="${esc(`${cost ? 'Dollars at list prices' : 'Tokens'} an exchange: a ratio of sums within each model, pooled by exchanges, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`)}">${unit(cost ? x.cost : x.tokens)}</td></tr>`).join('');
   const r = p.recurrence, c = p.cost;
+  const cell = (x, title) => `<td class="num" title="${esc(title)}">${x}</td>`;
+  const repeat = (x, name) => cell(odds(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
+  const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
+  const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
+    `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>`;
   const lines = [
-    `Of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}; ${verdict(r.verdict)}${r.verdict === 'too-early' ? `: each side needs ${p.minExchanges} measured exchanges (shown ${p.shown.measured}, held out ${p.holdout.measured})` : ''}.`,
-    `Tokens an exchange, shown less held out: ${c.delta == null ? '–' : `${c.delta > 0 ? '+' : '-'}${fmt(Math.abs(c.delta))}`}${c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`}; ${c.verdict ? verdict(c.verdict) : 'the interval is bootstrapped per repository, so pooled it has none'}.`,
-    p.unknown.observations ? `${fmt(p.unknown.observations)} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand).` : '',
-  ].filter(Boolean);
+    `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
+    `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
+    profileLinesSentence(p),
+  ];
   return `<figure class="ctx-figure profile-figure">${heading}
-    <table class="ctx-table rep-table"><colgroup><col class="rep-name wide"><col><col><col><col><col><col></colgroup><thead><tr><th>Arm</th><th class="num">Sessions</th><th class="num">Exchanges</th><th class="num">Said again</th><th class="num">Of a line shown</th><th class="num">Unlearned</th><th class="num">${cost ? 'Cost' : 'Tokens'} / exchange</th></tr></thead><tbody>${rows}</tbody></table>
+    <table class="ctx-table rep-table"><colgroup><col class="rep-name wide"><col><col></colgroup><thead><tr><th></th><th class="num">With the profile</th><th class="num">Without</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="savings-note">${lines.map(esc).join('<br>')}</p></figure>`;
 }
 

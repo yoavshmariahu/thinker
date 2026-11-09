@@ -279,28 +279,44 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
 // Attribute recorded work to the merge week. Missing counters cannot make a PR look cheap:
 // the cost average uses only complete PRs, with its denominator exposed beside the merge count.
 // The Profile figure as the command prints it; the page draws the same numbers (page.html:profileFigure, held together
-// by test/cli-ui-sync.test.js). `cost`: the exchange's price rather than its tokens, as the rest of the report.
+// by test/cli-ui-sync.test.js). Framed as what a person would ask of it (the owner, 2026-11-08): with the profile
+// against without, how often they had to repeat themselves and what a prompt costs, a verdict in words with a date
+// where there is not enough data yet, and what the profile holds and how often its lines were acted on. The arms'
+// counts, the intervals and the unlearned share stay in `thinker profile holdout`. `cost`: the prompt's price rather
+// than its tokens, as the rest of the report.
 export const PROFILE_VERDICTS = {
-  'too-early': 'too early to say',
-  inconclusive: 'inconclusive: the interval straddles zero',
-  fewer: 'FEWER repeats with the profile: the agent holding the line spared the person saying it',
-  more: 'MORE repeats with the profile: something is wrong, read `thinker profile lines --why`',
-  cheaper: 'cheaper with the profile, over the whole interval',
-  costlier: 'costlier with the profile, over the whole interval',
+  'too-early': 'Not enough data yet',
+  inconclusive: 'No difference yet',
+  fewer: 'Saves you repeating yourself',
+  more: 'More repeats with the profile: read `thinker profile lines --why`',
+  cheaper: 'Cheaper with the profile',
+  costlier: 'Costlier with the profile',
 };
+// a rate as odds: "1 in 14 prompts"
+export const odds = r => r == null ? '–' : r === 0 ? 'never' : `1 in ${Math.max(1, Math.round(1 / r))} prompts`;
+export function profileWhen(p) {
+  const w = p.pace?.weeksToGo;
+  return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
+}
+export function profileLinesSentence(p) {
+  const l = p.lines;
+  if (!l || !l.learned) return 'No lines learned yet.';
+  const judged = l.followRate == null ? 'none judged in a session yet' : `followed in ${Math.round(100 * l.followRate)}% of the sessions they applied to${l.neverApplied ? `; ${l.neverApplied} never applied` : ''}`;
+  return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
+}
 export function profileLines(p, { cost = true } = {}) {
-  const head = 'Profile · the person saying again what an earlier session already told the agent, per exchange, shown the profile against held out';
+  const head = 'Profile · what the agent is told about you at the start of a session, and whether it helps';
   if (!p) return [head, '  No profile observations in this repository yet.'];
-  const pct = v => v == null ? '–' : `${(100 * v).toFixed(1)}%`, pp = v => v == null ? '–' : `${v > 0 ? '+' : ''}${(100 * v).toFixed(1)}pp`;
   const unit = v => v == null ? '–' : cost ? formatDollars(v) : formatTokens(v);
-  const L = [`${head} (${p.days} days, ${Math.round(100 * p.holdoutRate)}% held out${p.repos > 1 ? `, ${p.repos} repositories pooled` : ''})`,
-    `  ${'arm'.padEnd(9)}${'sessions'.padStart(9)}${'exchanges'.padStart(10)}${'said again'.padStart(11)}${'of a line'.padStart(10)}${'unlearned'.padStart(10)}${(cost ? '$/exchange' : 'tokens/exch.').padStart(13)}`];
-  for (const [name, x] of [['shown', p.shown], ['held out', p.holdout]]) L.push(`  ${name.padEnd(9)}${String(x.sessions).padStart(9)}${String(x.measured).padStart(10)}${pct(x.rate).padStart(11)}${pct(x.servedRate).padStart(10)}${pct(x.unlearnedRate).padStart(10)}${unit(cost ? x.cost : x.tokens).padStart(13)}`);
-  const r = p.recurrence;
-  L.push(`  of a line the agent held, shown less held out: ${pp(r.delta)}${r.ci ? ` (95% ${pp(r.ci[0])} to ${pp(r.ci[1])})` : ''}; ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? `: each side needs ${p.minExchanges} measured exchanges (shown ${p.shown.measured}, held out ${p.holdout.measured})` : ''}`);
-  const c = p.cost;
-  L.push(`  tokens an exchange, shown less held out: ${c.delta == null ? '–' : `${c.delta > 0 ? '+' : '-'}${formatTokens(Math.abs(c.delta))}`}${c.relative == null ? '' : ` (${c.relative > 0 ? '+' : ''}${Math.round(100 * c.relative)}%)`}; ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'the interval is bootstrapped per repository, so pooled it has none'}`);
-  if (p.unknown.observations) L.push(`  ${p.unknown.observations} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand)`);
+  const r = p.recurrence, c = p.cost, half = Math.round(100 * p.holdoutRate);
+  const L = [`${head} (${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''})`,
+    `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
+    `  ${'How often you had to repeat yourself'.padEnd(40)}${odds(p.shown.servedRate).padStart(18)}${odds(p.holdout.servedRate).padStart(18)}`,
+    `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
+    `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
+    `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
+    `  ${profileLinesSentence(p)}`];
+  if (p.unknown.observations) L.push(`  ${p.unknown.observations} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand).`);
   return L;
 }
 

@@ -987,10 +987,14 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   - `instructions` attachment, when present, is exact (replaces estimate).
 - Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
 - **Profile** (2026-11-08, the owner's ask; `profile-metric.js`, `report.js:profileLines`, `page.html:profileFigure`): the
-  session profile's own measure, under Compression effectiveness on both doors. Recurrence per exchange (the person saying
-  again what an earlier session already told the agent), shown the profile against held out, with what an exchange costs
-  beside it in the Report's unit; `thinker profile holdout` is the long form and reads the same `holdoutFromLog`. Over the
-  ledger's 60 days, not the weeks, so a figure and not a weekly table. All repositories pools the arms' counts (the rates
+  session profile's own measure, under Compression effectiveness on both doors, framed as what a person would ask of it
+  (the owner, the same evening): **with the profile against without**, how often they had to repeat themselves (the
+  served recurrence rate as odds, "1 in 14 prompts") and what a prompt costs, a verdict in words
+  (`report.js:PROFILE_VERDICTS`) that says when there will be enough data at the repository's own pace (`pace`: measured
+  exchanges over the days they span against the 200-a-side floor), and what the profile holds and how its lines fared
+  (`lines`, from profile.js:lineReport: lines learned, followed in what share of the sessions they applied to, never
+  applied). The arms' counts, the unlearned share and the intervals stay in `thinker profile holdout`, which reads the
+  same `holdoutFromLog`. Over the ledger's 60 days, not the weeks, so a figure and not a weekly table. All repositories pools the arms' counts (the rates
   are ratios of the pooled counts, tokens an exchange weighted by exchanges); the cost interval is bootstrapped over a
   repository's own sessions and is not pooled, so across repositories it carries the delta and no verdict. The notes'
   "Cache hits · notes served" row went the same day: it read a series removed with the notes and showed zeros.
