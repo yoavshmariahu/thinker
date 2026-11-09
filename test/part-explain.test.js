@@ -24,8 +24,10 @@ const VIEW = {
 test('a part is keyed by what it is, so a tool is explained once for the machine and a rewritten section again', () => {
   // a tool or an output is the same thing in every repository: its name is the key, and nothing about this
   // repository or this week enters it, which is what lets one explanation be written once and kept
-  assert.equal(partKey({ kind: 'tool', name: 'Artifact', builtin: true }), 'tool:builtin:Artifact');
-  assert.equal(partKey({ kind: 'tool', name: 'Artifact', builtin: true, repo: 'other' }), 'tool:builtin:Artifact');
+  assert.equal(partKey({ kind: 'tool', name: 'Artifact', builtin: true }), 'tool:builtin:ref:Artifact');
+  assert.equal(partKey({ kind: 'tool', name: 'Artifact', builtin: true, repo: 'other' }), 'tool:builtin:ref:Artifact');
+  // the cards written when the change on a built-in tool was switching it off are not shown for the tool reference
+  assert.notEqual(partKey({ kind: 'tool', name: 'Artifact', builtin: true }), 'tool:builtin:Artifact');
   assert.equal(partKey({ kind: 'output', name: 'Bash:sed' }), 'output:Bash:sed');
   // a custom tool is told apart from a built-in one of the same name
   assert.notEqual(partKey({ kind: 'tool', name: 'Artifact', toolKind: 'mcp' }), partKey({ kind: 'tool', name: 'Artifact', builtin: true }));

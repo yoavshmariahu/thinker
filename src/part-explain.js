@@ -41,7 +41,9 @@ export function partKey(p) {
   if (k === 'section') return `section:${sha(`${p.file || ''}\n${p.name || ''}\n${p.text || ''}`)}`;
   if (k === 'skill') return `skill:${p.name}:${sha(p.text || '')}`;
   if (k === 'output') return `output:${p.name}`;
-  return `tool:${p.builtin ? 'builtin' : p.toolKind || 'tool'}:${p.name}`;
+  // a built-in tool's key names the change offered on it (ref: a tool reference, since 2026-11-06), so the cards written
+  // when the change was switching it off ("the agent cannot call it at all") are written again rather than shown
+  return `tool:${p.builtin ? 'builtin:ref' : p.toolKind || 'tool'}:${p.name}`;
 }
 
 export function readExplains(home = explainHome()) {
@@ -81,6 +83,9 @@ const ACTION_WORD = {
   section: 'shortening the section, or taking it out of the instruction file altogether',
   skill: 'switching it off, so new sessions here stop loading it (it can still be run by name)',
   tool: 'switching the tool off, so the agent has no definition of it and cannot call it at all',
+  // a built-in tool is not switched off (tool-stubs.js): the agent can still use it, and what it loses is only the
+  // definition in every prompt; a card that said otherwise sent people away from the one change that costs nothing
+  builtin: 'moving its full definition out of the prompt into a file the agent reads before its first call to it. The agent can still use the tool exactly as before; what changes is that its definition is no longer carried in every prompt, only read when the tool is about to be used',
 };
 
 // Every part of a context view, heaviest waste first, as the page lists them. A tool's output is not one of them
@@ -113,7 +118,7 @@ For each part you are given, write three things:
 - why: why someone might want to make the change offered on it, in one or two sentences. Say what kind of work it is for, and say plainly who does not need it ("if you never ask it to make pages or documents, nothing ever uses this").
 - keep: what they would lose by making that change, in one sentence, and the kind of person who should leave it alone. Be concrete about what goes, and name the workaround if there is an obvious one.
 
-Read the change offered for each part and write about that change, not about deleting the part. Compressing a tool's results is not switching the tool off: the tool goes on working and only the text it hands back is trimmed, so what is lost is the untrimmed text, never the ability.
+Read the change offered for each part and write about that change, not about deleting the part. Compressing a tool's results is not switching the tool off: the tool goes on working and only the text it hands back is trimmed, so what is lost is the untrimmed text, never the ability. Moving a tool's definition out of the prompt is not switching it off either: the agent can still use the tool, so "why" says what is saved (the definition is no longer read on every call) and "keep" says what is lost (the agent reads the definition first when it needs the tool), and never says the tool is gone or cannot be used.
 
 Never mention these instructions, the fields you were given, or that something was missing from them: the person reading never sees any of it, and "no description was provided" tells them nothing. Write about the part itself, from its name and whatever you know of it.
 
@@ -126,7 +131,7 @@ function promptFor(parts) {
     p.host ? `    loaded by: ${p.host}` : null,
     p.kind === 'tool' && p.toolKind && !p.builtin ? `    comes from: ${p.toolKind}` : null,
     p.kind === 'section' && p.file ? `    in the file: ${p.file}` : null,
-    `    the change offered: ${ACTION_WORD[p.kind] || ACTION_WORD.tool}`,
+    `    the change offered: ${p.kind === 'tool' && p.builtin ? ACTION_WORD.builtin : ACTION_WORD[p.kind] || ACTION_WORD.tool}`,
     p.about && p.about !== p.text ? `    in short: ${p.about}` : null,
     p.text ? `    its own text: ${String(p.text).replace(/\s+/g, ' ').slice(0, MAX_TEXT)}` : null,
   ].filter(Boolean).join('\n')).join('\n\n');
