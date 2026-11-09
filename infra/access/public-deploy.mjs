@@ -39,6 +39,11 @@ const assets = [
   ['dist/version.json', DIST + '/version.json', 'application/json'],
   ['dist/thinker.tgz', DIST + '/thinker.tgz', 'application/gzip'],
 ];
+// AWS moves a distribution's ETag when a function it uses is published, so a step is guarded by what
+// the distribution holds, never by the ETag `prepare` saw; each update takes the ETag of the moment.
+const canonical = value => Array.isArray(value) ? value.map(canonical)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+const same = (a, b) => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 const policyFor = () => {
   const items = call(['cloudfront', 'list-response-headers-policies', '--type', 'custom']).ResponseHeadersPolicyList?.Items || [];
   const found = items.find(p => p.ResponseHeadersPolicy.ResponseHeadersPolicyConfig.Name === config.responsePolicyName);
@@ -96,15 +101,16 @@ if (mode === 'prepare') {
   if (!aliases.every(alias => certificate.SubjectAlternativeNames.includes(alias))) throw new Error('Certificate does not cover every alias: ' + aliases.join(', '));
   const swapCertificate = certificate.Status === 'ISSUED' && distribution.ViewerCertificate.ACMCertificateArn !== config.certificateArn;
   if (certificate.Status !== 'ISSUED') console.log(`Certificate ${certificate.Status}; the distribution keeps its current one this time.`);
-  save('public-plan.json', { distributionEtag: snapshot.ETag, functionEtag: prepared.ETag, responsePolicy: { id: policy.ResponseHeadersPolicy.Id, etag: policy.ETag }, swapCertificate,
+  save('public-plan.json', { swapCertificate,
     release: manifest.version,
     hashes: Object.fromEntries([...assets.map(([, file]) => file), 'infra/access/public-gateway.js', 'infra/access/public-headers.mjs'].map(file => [file, hash(file)])) });
   console.log(`Prepared public docs, installer/downloads (release ${manifest.version}), crawler files, response headers${swapCertificate ? ', certificate swap' : ''}. Origin/WAF configuration unchanged.`);
 } else if (mode === 'apply') {
   const plan = JSON.parse(fs.readFileSync(path.join(work, 'public-plan.json')));
   for (const [file, expected] of Object.entries(plan.hashes)) if (hash(file) !== expected) throw new Error('Changed since prepare: ' + file);
-  const snapshot = call(['cloudfront', 'get-distribution-config', '--id', config.distributionId]);
-  if (snapshot.ETag !== plan.distributionEtag) throw new Error('Distribution changed since prepare');
+  const before = JSON.parse(fs.readFileSync(path.join(work, 'public-distribution-before.json'))).DistributionConfig;
+  const unchanged = snapshot => { if (!same(snapshot.DistributionConfig, before)) throw new Error('Distribution changed since prepare'); return snapshot; };
+  unchanged(call(['cloudfront', 'get-distribution-config', '--id', config.distributionId]));
   for (const [key] of assets) {
     try { call(['s3api', 'get-object', '--bucket', config.bucket, '--key', key, save('public-backup-' + key.replaceAll('/', '-'), '')], config.bucketRegion); }
     catch (error) { if (!/NoSuchKey/.test(String(error.stderr))) throw error; }
@@ -112,14 +118,25 @@ if (mode === 'prepare') {
   // Assets first: they remain gated until the tested edge routing is published.
   for (const [key, file, type] of assets) call(['s3api', 'put-object', '--bucket', config.bucket, '--key', key,
     '--body', path.join(root, file), '--content-type', type, '--cache-control', cacheControlFor(key)], config.bucketRegion);
-  call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', plan.functionEtag]);
-  call(['cloudfront', 'update-response-headers-policy', '--id', plan.responsePolicy.id, '--if-match', plan.responsePolicy.etag,
+  // Each step is rerunnable: an apply that failed part-way is run again, and what is already in place is skipped.
+  const local = fs.readFileSync(path.join(root, 'infra/access/public-gateway.js'));
+  call(['cloudfront', 'get-function', '--name', config.functionName, '--stage', 'DEVELOPMENT', save('public-gateway-development.js', '')]);
+  if (!fs.readFileSync(path.join(work, 'public-gateway-development.js')).equals(local)) throw new Error('Edge function changed since prepare; run prepare again');
+  call(['cloudfront', 'get-function', '--name', config.functionName, '--stage', 'LIVE', save('public-gateway-live.js', '')]);
+  if (fs.readFileSync(path.join(work, 'public-gateway-live.js')).equals(local)) console.log('Edge function already live.');
+  else call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', call(['cloudfront', 'describe-function', '--name', config.functionName]).ETag]);
+  const policy = policyFor();
+  call(['cloudfront', 'update-response-headers-policy', '--id', policy.ResponseHeadersPolicy.Id, '--if-match', policy.ETag,
     '--response-headers-policy-config', 'file://' + save('public-response-policy.json', RESPONSE_POLICY(config.responsePolicyName))]);
   if (plan.swapCertificate) {
-    const distribution = structuredClone(snapshot.DistributionConfig);
-    distribution.ViewerCertificate = { ...distribution.ViewerCertificate, ACMCertificateArn: config.certificateArn, Certificate: config.certificateArn, CertificateSource: 'acm', CloudFrontDefaultCertificate: false };
-    call(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', snapshot.ETag, '--distribution-config', 'file://' + save('public-distribution.json', distribution)]);
-    console.log('Certificate swapped to', config.certificateArn);
+    const snapshot = call(['cloudfront', 'get-distribution-config', '--id', config.distributionId]);
+    if (snapshot.DistributionConfig.ViewerCertificate.ACMCertificateArn === config.certificateArn) console.log('Certificate already on the distribution.');
+    else {
+      const distribution = structuredClone(unchanged(snapshot).DistributionConfig);
+      distribution.ViewerCertificate = { ...distribution.ViewerCertificate, ACMCertificateArn: config.certificateArn, Certificate: config.certificateArn, CertificateSource: 'acm', CloudFrontDefaultCertificate: false };
+      call(['cloudfront', 'update-distribution', '--id', config.distributionId, '--if-match', snapshot.ETag, '--distribution-config', 'file://' + save('public-distribution.json', distribution)]);
+      console.log('Certificate swapped to', config.certificateArn);
+    }
   }
   const invalidation = call(['cloudfront', 'create-invalidation', '--distribution-id', config.distributionId,
     '--paths', '/', '/index.html', '/how-it-works*', '/home.css', '/docs*', '/see-the-data*', '/compression*', '/clearing*', '/nav.css', '/card.png', '/message.*', '/robots.txt', '/sitemap.xml', '/security.txt', '/.well-known/*', '/dist/*', '/access/*', '/thinker101/*', '/Thinker101/*']);
