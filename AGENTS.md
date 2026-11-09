@@ -1132,6 +1132,13 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the sent-back detector fired in 159 of 162 sessions because a memory-file write after the pull request counted as an
   edit and the window never closed; the stage shares were the same under both, the loop figures were not. Judge a
   detector change by inspecting the loops it finds in a real session before trusting its total.
+- **A stage or a loop opens on its trend (2026-11-09, the owner's ask): a short, wide modal with one small bar chart per
+  metric over the Report's weeks** (`factory.js:weeklyTally`, `mergeWeekly`; `weekly` on the view; `page.html:fxTrend`).
+  The columns are the Report's own (`report.js:weekColumns`, Monday to Sunday, the current week last) and a session is
+  placed in the week of its last request as the Report places it, so the trend and View Report agree on what a week
+  holds. A stage shows cost, share of the week's tokens, rework share and calls; a loop shows loops, cost, share and the
+  sessions it fired in. Sums add across sessions and repositories; a share is taken again over its week. The command
+  prints the same cells as a weekly table. Nothing is recomputed on the page: the cells ride the kept report.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first

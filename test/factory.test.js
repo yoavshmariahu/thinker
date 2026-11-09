@@ -3,7 +3,8 @@
 // touched two stages, and the merge over repositories, on synthetic sessions whose answers are known.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory } from '../src/factory.js';
+import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly } from '../src/factory.js';
+import { weekColumns } from '../src/report.js';
 
 const PRICE = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 };
 // a call of a million fresh tokens costs a dollar at this price, so costs read as call counts
@@ -160,4 +161,20 @@ test('All repositories adds the sums, takes the shares again, joins the loop kin
   assert.equal(m.prs.merged, 2); assert.equal(m.prs.yield, 0.5); assert.deepEqual(m.prs.rows.map(r => r.repo), ['b', 'a']);
   assert.equal(mergeFactory([{ repo: 'c', view: {} }]), null);
   assert.match(renderFactory(m).join('\n'), /first-pass yield 50%/);
+});
+
+test('the weekly trend places a session in the week of its last request, sums its stages and loops, and merges by column', () => {
+  const now = Date.UTC(2026, 10, 9, 12), cols = weekColumns(now, 3), DAY = 86400_000;
+  const r = { cost: 4, tokens: 4e6, calls: 4, stages: Object.fromEntries(STAGES.map(([k]) => [k, { cost: k === 'build' ? 4 : 0, tokens: k === 'build' ? 4e6 : 0, calls: k === 'build' ? 4 : 0, rework: k === 'build' ? 1 : 0, reworkTokens: k === 'build' ? 1e6 : 0 }])), loops: [{ kind: 'fix', cost: 1, tokens: 1e6, calls: 1 }] };
+  const t = weeklyTally(cols);
+  t.add(cols[2].t + DAY, r, 'a'); t.add(cols[2].t + 2 * DAY, r, 'b'); t.add(cols[0].t + DAY, r, 'c'); t.add(cols[0].t - DAY, r, 'z'); // z is before the window: dropped
+  const w = t.finish();
+  assert.equal(w.columns.length, 3);
+  assert.deepEqual(w.totals.map(x => [x.cost, x.sessions]), [[4, 1], [0, 0], [8, 2]]);
+  assert.deepEqual(w.stages.build.map(c => c.rework), [1, 0, 2]);
+  assert.deepEqual(w.loops.fix.map(c => [c.loops, c.sessions]), [[1, 1], [0, 0], [2, 2]]);
+  const m = mergeWeekly([w, w, null]);
+  assert.deepEqual(m.totals.map(x => x.cost), [8, 0, 16]);
+  assert.deepEqual(m.loops.fix.map(c => c.loops), [2, 0, 4]);
+  assert.equal(mergeWeekly([null]), null);
 });

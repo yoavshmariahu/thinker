@@ -21,6 +21,7 @@ import { findRepoSessions } from './instruction-value.js';
 import { readLedger } from './profile.js';
 import { deliveryReport } from './delivery.js';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
+import { weekColumns, REPORT_WEEKS } from './report.js';
 
 export const STAGES = [
   ['prompts', 'Prompts', 'what the person typed, and the first call that reads it'],
@@ -185,6 +186,41 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
   };
 }
 
+// --- by week ------------------------------------------------------------------------------------------------------------
+// The trend a stage or a loop is read on (the page's modal, the command's weekly table): the Report's own columns, Monday to
+// Sunday with the current week last, a session placed in the week of its last request as the Report places it. Sums add
+// across sessions and across repositories; shares are taken again over each week's total.
+const wcell = () => ({ cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 });
+const lcell = () => ({ loops: 0, cost: 0, tokens: 0, calls: 0, sessions: 0 });
+export function weeklyTally(cols) {
+  const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, cols.map(wcell)]));
+  const loops = {}, loopSessions = {}, totals = cols.map(() => ({ cost: 0, tokens: 0, calls: 0, sessions: new Set() }));
+  const week = t => cols.findIndex(c => t >= c.t && t < c.end);
+  return {
+    add(t, r, sessionId) {
+      const w = week(t); if (w < 0) return;
+      const tot = totals[w]; tot.cost += r.cost; tot.tokens += r.tokens; tot.calls += r.calls; tot.sessions.add(sessionId);
+      for (const k of STAGE_KEYS) { const c = stages[k][w], x = r.stages[k]; for (const f of Object.keys(c)) c[f] += x[f] || 0; }
+      for (const L of r.loops) {
+        loops[L.kind] ||= cols.map(lcell); loopSessions[L.kind] ||= cols.map(() => new Set());
+        const c = loops[L.kind][w]; c.loops++; c.cost += L.cost; c.tokens += L.tokens; c.calls += L.calls; loopSessions[L.kind][w].add(sessionId);
+      }
+    },
+    finish() {
+      for (const k in loops) loops[k].forEach((c, w) => { c.sessions = loopSessions[k][w].size; });
+      return { columns: cols.map(c => ({ t: c.t, end: c.end })), totals: totals.map(t => ({ ...t, sessions: t.sessions.size })), stages, loops };
+    },
+  };
+}
+// All repositories: the same columns (every view is made against the same clock), the cells summed by column start
+export function mergeWeekly(list) {
+  const ws = list.filter(Boolean); if (!ws.length) return null;
+  const columns = ws[0].columns, at = (w, t) => w.columns.findIndex(c => c.t === t);
+  const sum = (pick, make) => columns.map((col, i) => { const out = make(); for (const w of ws) { const j = at(w, col.t); const c = j < 0 ? null : pick(w)?.[j]; if (c) for (const f of Object.keys(out)) out[f] += c[f] || 0; } return out; });
+  const loopKeys = [...new Set(ws.flatMap(w => Object.keys(w.loops)))];
+  return { columns, totals: sum(w => w.totals, () => ({ cost: 0, tokens: 0, calls: 0, sessions: 0 })), stages: Object.fromEntries(STAGE_KEYS.map(k => [k, sum(w => w.stages[k], wcell)])), loops: Object.fromEntries(loopKeys.map(k => [k, sum(w => w.loops[k], lcell)])) };
+}
+
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
 export const RULES_VERSION = 5;
@@ -199,8 +235,11 @@ function correctedBySession(store, { days, now }) {
   return by;
 }
 
-export function factoryView(store, { days = 42, now = Date.now(), sessions, onSession } = {}) {
-  const from = now - days * 86400_000;
+export function factoryView(store, { weeks, days, now = Date.now(), sessions, onSession } = {}) {
+  weeks ??= days ? Math.max(1, Math.ceil(days / 7)) : REPORT_WEEKS;
+  const cols = weekColumns(now, weeks), from = cols[0].t;
+  days = Math.ceil((now - from) / 86400_000) + 1;
+  const weekly = weeklyTally(cols);
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
@@ -222,6 +261,7 @@ export function factoryView(store, { days = 42, now = Date.now(), sessions, onSe
     onSession?.(s);
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;
+    weekly.add(s.mtime, r, parentOf(s));
     if (!r.priced) unpriced.add(r.model || 'unknown');
     for (const k of STAGE_KEYS) for (const f of ['cost', 'tokens', 'calls', 'rework', 'reworkTokens']) stages[k][f] += r.stages[k][f];
     const id = parentOf(s), agg = perSession.get(id) || { id, t: s.mtime, cost: 0, tokens: 0, calls: 0, loops: {}, model: r.model };
@@ -255,6 +295,7 @@ export function factoryView(store, { days = 42, now = Date.now(), sessions, onSe
     days, from, to: now, sessions: perSession.size, conversations: measured, calls, cost, tokens, priced: unpriced.size === 0, unpriced: [...unpriced],
     stages: stageRows, loops, rework, reworkTokens, reworkShare: of(cost > 0 ? rework : reworkTokens), thresholds: REWORK_THRESHOLDS,
     prs,
+    weekly: weekly.finish(),
   };
 }
 
@@ -284,6 +325,7 @@ export function mergeFactory(list) {
     sessions: sum(v => v.sessions), conversations: sum(v => v.conversations), calls: sum(v => v.calls), cost, tokens, priced: views.every(x => x.v.priced), unpriced: [...new Set(views.flatMap(x => x.v.unpriced))],
     stages, loops, rework, reworkTokens, reworkShare: of(cost > 0 ? rework : reworkTokens), thresholds: REWORK_THRESHOLDS,
     prs: views.some(x => x.v.prs) ? { merged: rows.length, measured: measured.length, firstPass: first.length, yield: measured.length ? first.length / measured.length : null, meanCost: mean(measured.map(r => r.cost)), meanCostFirstPass: mean(first.map(r => r.cost)), meanCostLooped: mean(looped.map(r => r.cost)), rows } : null,
+    weekly: mergeWeekly(views.map(x => x.v.weekly)),
     repos: views.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -304,6 +346,13 @@ export function renderFactory(v) {
   out.push('', 'Loops detected: work that came back to an earlier stage after something failed; rework is what they cost');
   if (!v.loops.length) out.push('  none in this window');
   for (const L of v.loops) out.push(`  ${L.name.padEnd(13)} ${L.from} → ${L.to}`.padEnd(40) + ` ${String(L.loops).padStart(4)} loops in ${String(L.sessions).padStart(3)} sessions ${(dollars ? money(L.cost) : `${k(L.tokens)} tokens`).padStart(10)} ${pct(L.share).padStart(5)}   ${L.rule}`);
+  if (v.weekly?.columns?.length) {
+    const wk = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    out.push('', 'By week (the trend the page opens on a stage or a loop): cost, then its rework share');
+    out.push('Stage'.padEnd(14) + v.weekly.columns.map(c => wk(c.t).padStart(14)).join(''));
+    for (const [key, name] of STAGES) out.push(name.padEnd(14) + v.weekly.stages[key].map(c => { const base = dollars ? c.cost : c.tokens, rw = dollars ? c.rework : c.reworkTokens; return `${dollars ? money(c.cost) : k(c.tokens)} ${base > 0 ? pct(rw / base) : '–'}`.padStart(14); }).join(''));
+    for (const L of v.loops) if (v.weekly.loops[L.key]) out.push(L.name.padEnd(14) + v.weekly.loops[L.key].map(c => `${c.loops} loops ${dollars ? money(c.cost) : k(c.tokens)}`.padStart(14)).join(''));
+  }
   if (v.prs?.rows?.length) {
     out.push('', 'Pull requests, newest first (a loop count per kind)');
     for (const r of v.prs.rows.slice(0, 12)) out.push(`  #${String(r.number).padEnd(5)} ${(r.title || '').slice(0, 54).padEnd(54)} ${money(r.cost).padStart(8)}  ${r.firstPass ? 'first pass' : Object.entries(r.loops).map(([kind, n]) => `${n} ${LOOP_KINDS[kind]?.name?.toLowerCase() || kind}`).join(', ') || (r.measured ? '' : 'no transcript measured')}`);

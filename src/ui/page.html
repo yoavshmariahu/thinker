@@ -211,6 +211,20 @@
     .fx-dloops button i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
     .fx-first { color: #15803d; font-weight: 600; font-size: .78rem; }
     .fx-looped { color: #6b7280; font-size: .8rem; }
+    /* the trend modal: short and wide, one small chart per metric over the Report's weeks */
+    .modal-card.modal-wide { max-width: 1180px; }
+    .fx-trend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; padding-top: 1.1rem; }
+    .fx-tr { border: 1px solid #e5e7eb; border-radius: 10px; padding: .8rem .9rem .6rem; min-width: 0; }
+    .fx-tr .lab { font-size: .74rem; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+    .fx-tr .now { font-size: 1.35rem; font-weight: 700; letter-spacing: -.03em; margin-top: .25rem; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: .5rem; }
+    .fx-tr .now small { font-size: .74rem; font-weight: 500; color: #6b7280; letter-spacing: 0; }
+    .fx-tr .now small.up { color: #b91c1c; } .fx-tr .now small.down { color: #15803d; }
+    .fx-tr svg { display: block; width: 100%; height: 92px; margin-top: .5rem; overflow: visible; }
+    .fx-tr .bar { fill: #c7cad1; } .fx-tr .bar.cur { fill: #111; } .fx-tr .bar.part { fill: #e5e7eb; stroke: #c7cad1; stroke-dasharray: 2 2; } .fx-tr .bar.tint { fill: var(--lc); opacity: .45; } .fx-tr .bar.tint.cur { opacity: 1; } .fx-tr .bar.tint.part { opacity: .2; stroke: var(--lc); }
+    .fx-tr .bar:hover { opacity: .8; }
+    .fx-tr .v { font-size: 10px; fill: #444; font-variant-numeric: tabular-nums; } .fx-tr .w { font-size: 9.5px; fill: #9ca3af; }
+    .fx-tr .base { stroke: #e5e7eb; stroke-width: 1; }
+    .fx-trend-note { font-size: .76rem; color: #6b7280; margin: 1rem 0 0; }
     .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
     .savings-table thead th { position: static; }
@@ -519,6 +533,12 @@
       <div class="modal-header"><div><div class="modal-title" id="confirm-title"></div></div><button class="btn-close" id="confirm-close" type="button" aria-label="Close">&times;</button></div>
       <div class="modal-body" id="confirm-body"></div>
       <div class="modal-foot"><button class="btn" id="confirm-ok" type="button">Confirm</button><button class="btn ghost" id="confirm-cancel" type="button">Cancel</button></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="fx-overlay">
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="fx-mtitle">
+      <div class="modal-header"><div><div class="modal-title" id="fx-mtitle"></div><div class="modal-subtitle" id="fx-msub"></div></div><button class="btn-close" id="fx-mclose" type="button" aria-label="Close">&times;</button></div>
+      <div class="modal-body" id="fx-mbody"></div>
     </div>
   </div>
   <div class="modal-overlay" id="faq-overlay">
@@ -1496,7 +1516,7 @@ function renderFactory(rv) {
         <div class="seg small" id="fx-metric" role="tablist"><button data-m="stage" class="${FX_METRIC === 'stage' ? 'on' : ''}" role="tab">Stage metrics</button><button data-m="loop" class="${FX_METRIC === 'loop' ? 'on' : ''}" role="tab">Loop metrics</button></div>
         <button class="fx-ghost${FX_ANIM ? ' on' : ''}" id="fx-anim" type="button" aria-pressed="${FX_ANIM}">Flow animation</button></div>
       <div class="fx-scroll" id="fx-scroll"><div class="fx-canvas${FX_ANIM ? ' anim' : ''}" id="fx-canvas"><div class="fx-tag">Main pipeline · ${v.days} days</div><svg id="fx-wires"></svg></div></div>
-      <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Select a stage or a loop to inspect</span></div>
+      <div class="fx-foot"><div class="fx-legend"><span><i class="f"></i>Forward flow</span><span><i class="l"></i>Loop: work that came back to an earlier stage after something failed</span></div><span class="spacer"></span><span>Click a stage or a loop for its weekly trend</span></div>
     </section>
     <section class="fx-two" aria-label="Loops and details">
       <div class="fx-box">
@@ -1520,8 +1540,53 @@ function renderFactory(rv) {
   fxCanvas(v, stages, loops, dollars);
   $('#fx-metric').onclick = e => { const b = e.target.closest('button'); if (!b) return; FX_METRIC = b.dataset.m; segOn('#fx-metric', b); fxRows(stages, loops, dollars); };
   $('#fx-anim').onclick = () => { FX_ANIM = !FX_ANIM; $('#fx-canvas').classList.toggle('anim', FX_ANIM); $('#fx-anim').classList.toggle('on', FX_ANIM); $('#fx-anim').setAttribute('aria-pressed', FX_ANIM); };
-  for (const tr of el.querySelectorAll('#fx-rows tr.lrow')) tr.onclick = () => fxSelect('loop', tr.dataset.id, stages, loops, dollars);
+  for (const tr of el.querySelectorAll('#fx-rows tr.lrow')) tr.onclick = () => { fxSelect('loop', tr.dataset.id, stages, loops, dollars); fxTrend('loop', tr.dataset.id, stages, loops, dollars); };
   fxSelect(FX_SEL.kind, FX_SEL.id, stages, loops, dollars);
+}
+// the trend modal: a stage or a loop over the Report's weeks, one small bar chart per metric, the current week dark
+const fxOverlay = $('#fx-overlay');
+function fxCloseTrend() { fxOverlay.classList.remove('active'); }
+$('#fx-mclose').onclick = fxCloseTrend;
+fxOverlay.onclick = e => { if (e.target === fxOverlay) fxCloseTrend(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && fxOverlay.classList.contains('active')) fxCloseTrend(); });
+const fxWk = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+function fxChart(values, { fmtV, color, cols }) {
+  const W = 300, H = 92, pad = 4, top = 16, bottom = 14, n = values.length, bw = Math.min(34, (W - pad * 2) / n - 6), step = (W - pad * 2) / n;
+  const max = Math.max(...values.map(v => v || 0), 1e-9), y0 = H - bottom;
+  let out = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><line class="base" x1="0" y1="${y0}" x2="${W}" y2="${y0}"/>`;
+  values.forEach((v, i) => {
+    const h = v ? Math.max(2, (y0 - top) * v / max) : 0, x = pad + i * step + (step - bw) / 2, cur = i === n - 2 ? ' cur' : i === n - 1 ? ' part' : '';
+    out += `<rect class="bar${color ? ' tint' : ''}${cur}" x="${x.toFixed(1)}" y="${(y0 - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3"><title>${esc(fxWk(cols[i].t))}${i === n - 1 ? ' (this week so far)' : ''}: ${esc(fmtV(v))}</title></rect>`;
+    out += `<text class="v" x="${(x + bw / 2).toFixed(1)}" y="${(y0 - h - 4).toFixed(1)}" text-anchor="middle">${esc(fmtV(v))}</text>`;
+    out += `<text class="w" x="${(x + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle">${esc(fxWk(cols[i].t))}</text>`;
+  });
+  return out + '</svg>';
+}
+function fxTrend(kind, id, stages, loops, dollars) {
+  const v = FX?.factory, wk = v?.weekly; if (!wk?.columns?.length) return;
+  // the headline is the last complete week against the one before it; the current week is a partial column, drawn lighter
+  const cols = wk.columns, last = cols.length >= 2 ? cols.length - 2 : 0, prev = last - 1;
+  const panel = (lab, series, fmtV, color) => { const cur = series[last] ?? 0, before = prev >= 0 ? series[prev] : null, delta = before == null || !before ? null : (cur - before) / before; return `<div class="fx-tr"${color ? ` style="--lc:${color}"` : ''}><div class="lab">${esc(lab)}</div><div class="now">${esc(fmtV(cur))}<small>last week</small>${delta == null ? '' : `<small class="${delta > 0.02 ? 'up' : delta < -0.02 ? 'down' : ''}">${delta > 0 ? '+' : ''}${Math.round(100 * delta)}% on the week before</small>`}</div>${fxChart(series, { fmtV, color, cols })}</div>`; };
+  const amt = (c, t) => dollars ? money(c) : `${fmt(Math.round(t))} tok`, pctv = x => x == null ? '–' : `${Math.round(100 * x)}%`;
+  let title, sub, body;
+  if (kind === 'stage') {
+    const s = stages.find(x => x.key === id); if (!s) return; const cells = wk.stages[id] || [];
+    title = `${s.name}: the last ${cols.length} weeks`; sub = `${s.desc || ''} · the last column is this week so far`;
+    body = panel(dollars ? 'Cost' : 'Tokens', cells.map(c => dollars ? c.cost : c.tokens), x => amt(x, x))
+      + panel('Share of the week\'s tokens', cells.map((c, i) => { const t = wk.totals[i]; const base = dollars ? t.cost : t.tokens; return base ? (dollars ? c.cost : c.tokens) / base : 0; }), pctv)
+      + panel('Rework share', cells.map(c => { const base = dollars ? c.cost : c.tokens; return base ? (dollars ? c.rework : c.reworkTokens) / base : 0; }), pctv)
+      + panel('Model calls', cells.map(c => Math.round(c.calls)), x => fmt(x));
+  } else {
+    const L = loops.find(x => x.key === id); if (!L) return; const cells = wk.loops[id] || cols.map(() => ({ loops: 0, cost: 0, tokens: 0, sessions: 0 }));
+    title = `${L.name}: the last ${cols.length} weeks`; sub = `${esc(stages.find(x => x.key === L.from)?.name || L.from)} back to ${esc(stages.find(x => x.key === L.to)?.name || L.to)} · ${L.sub || ''}`;
+    body = panel('Loops', cells.map(c => c.loops), x => fmt(x), L.lc)
+      + panel(dollars ? 'Cost' : 'Tokens', cells.map(c => dollars ? c.cost : c.tokens), x => amt(x, x), L.lc)
+      + panel('Share of the week\'s tokens', cells.map((c, i) => { const t = wk.totals[i]; const base = dollars ? t.cost : t.tokens; return base ? (dollars ? c.cost : c.tokens) / base : 0; }), pctv, L.lc)
+      + panel('Sessions with one', cells.map(c => c.sessions), x => fmt(x), L.lc);
+  }
+  $('#fx-mtitle').textContent = title; $('#fx-msub').textContent = sub;
+  $('#fx-mbody').innerHTML = `<div class="fx-trend">${body}</div><p class="fx-trend-note">Weeks run Monday to Sunday, a session in the week of its last request, as on View Report. The headline is the last complete week; the dashed bar is this week so far. ${wk.totals.map(t => t.sessions).reduce((a, b) => a + b, 0)} sessions behind the ${cols.length} columns.</p>`;
+  fxOverlay.classList.add('active'); $('#fx-mclose').focus();
 }
 let FX_CARDS = {}, FX_LOOPS = {}, FX_RO = null;
 function fxRows(stages, loops, dollars) {
@@ -1540,7 +1605,7 @@ function fxCanvas(v, stages, loops, dollars) {
   for (const s of stages) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'fx-stage'; b.dataset.id = s.key; canvas.appendChild(b);
     b.innerHTML = `<div class="row1"><span>${String(idx(s.key) + 1).padStart(2, '0')}</span><span class="lamp" style="background:${s.verdict === 'good' ? '#15803d' : s.verdict === 'bad' ? '#b91c1c' : s.verdict === 'mid' ? '#a16207' : '#d1d5db'}" title="${fxVerdict[s.verdict] ? `${fxVerdict[s.verdict]}: ${fxPct(s.reworkShare)} of this stage's cost was rework, spent inside a loop` : 'no rework measured'}"></span></div><div class="name">${fxUse('fxi-' + s.key)}${esc(s.name)}</div><div class="calls">${fmt(s.calls)} calls</div><div class="rows"></div><span class="port t"></span><span class="port b"></span>`;
-    b.onclick = () => fxSelect('stage', s.key, stages, loops, dollars);
+    b.onclick = () => { fxSelect('stage', s.key, stages, loops, dollars); fxTrend('stage', s.key, stages, loops, dollars); };
     FX_CARDS[s.key] = b;
   }
   fxRows(stages, loops, dollars);
@@ -1573,7 +1638,7 @@ function fxCanvas(v, stages, loops, dollars) {
       el('polygon', { points: `${tx - 5},${sy + dy * 9} ${tx + 5},${sy + dy * 9} ${tx},${sy + dy}`, fill: L.lc }, g);
       const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'fx-pill'; pill.style.setProperty('--lc', L.lc); pill.style.left = ((sx + tx) / 2) + 'px'; pill.style.top = Y + 'px'; pill.dataset.id = L.key;
       pill.innerHTML = `${fxUse('fxi-loop')}<span class="ln">${esc(L.name)}</span><span class="lp">${fxPct(L.share)}</span><span class="ls">${fmt(L.loops)} loops · ${dollars ? money(L.cost) : fmt(L.tokens) + ' tok'}</span>`;
-      pill.onclick = () => fxSelect('loop', L.key, stages, loops, dollars);
+      pill.onclick = () => { fxSelect('loop', L.key, stages, loops, dollars); fxTrend('loop', L.key, stages, loops, dollars); };
       canvas.appendChild(pill); FX_LOOPS[L.key] = { g, pill };
     }
     if (FX_SEL) fxMark(FX_SEL.kind, FX_SEL.id);

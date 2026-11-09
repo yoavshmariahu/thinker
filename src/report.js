@@ -225,7 +225,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
   const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
   // the Factory (factory.js): the same sessions read as a pipeline, over the same window, kept with the report
-  const factory = (() => { try { return factoryView(store, { days, now, sessions, onSession }); } catch { return null; } })();
+  const factory = (() => { try { return factoryView(store, { weeks, now, sessions, onSession }); } catch { return null; } })();
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
