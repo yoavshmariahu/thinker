@@ -239,9 +239,9 @@ export function mergeWeekly(list) {
 // repositories can add the sides up. Sessions are the person's: a subagent conversation takes its parent's arm.
 export const ARMS = {
   profile: { name: 'Memory profile', on: 'shown', off: 'holdout', onLabel: 'shown the profile', offLabel: 'held out' },
-  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'on the clearing', offLabel: 'held out', eligible: 'sessions that reached the clearing\'s trigger' },
+  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'on the clearing', offLabel: 'held out', eligible: 'past the clearing\'s trigger' },
 };
-const armCell = () => ({ sessions: new Set(), exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, treated: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0 } });
+const armCell = () => ({ sessions: new Set(), costBy: new Map(), cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, treated: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
 export function armTally(share) {
   const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, on: armCell(), holdout: armCell() } };
   const sideOf = (feature, arms) => arms[feature] ? t[feature][arms[feature]] : null;
@@ -250,25 +250,27 @@ export function armTally(share) {
       for (const feature of Object.keys(ARMS)) {
         const c = sideOf(feature, arms); if (!c) continue;
         c.sessions.add(sessionId); c.exchanges += r.exchanges || 0; c.calls += r.calls; c.cost += r.cost; c.tokens += r.tokens; c.cacheWrite += r.cacheWrite || 0; c.cacheRead += r.cacheRead || 0;
+        c.costBy.set(sessionId, (c.costBy.get(sessionId) || 0) + (r.cost > 0 ? r.cost : r.tokens / 1e6));
         if (feature === 'compression' && arms.cleared && !c.sessions.has(sessionId + '#t')) { c.treated++; c.sessions.add(sessionId + '#t'); }
         for (const k of STAGE_KEYS) { const x = r.stages[k], d = c.stages[k]; d.cost += x.cost; d.tokens += x.tokens; d.rework += x.rework; d.reworkTokens += x.reworkTokens; c.rework += x.rework; c.reworkTokens += x.reworkTokens; }
         for (const L of r.loops) { const d = c.loops[L.kind] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; d.loops++; d.cost += L.cost; d.tokens += L.tokens; (c.loopSessions[L.kind] ||= new Set()).add(sessionId); }
       }
     },
-    pr(arms, firstPass) { for (const feature of Object.keys(ARMS)) { const c = sideOf(feature, arms); if (!c) continue; c.prs.merged++; if (firstPass) c.prs.firstPass++; } },
+    pr(arms, firstPass, cost = 0) { for (const feature of Object.keys(ARMS)) { const c = sideOf(feature, arms); if (!c) continue; c.prs.merged++; c.prs.cost += cost || 0; if (firstPass) c.prs.firstPass++; } },
     finish() {
-      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, ...rest } = c; return { ...rest, sessions: [...c.sessions].filter(x => !String(x).endsWith('#t')).length }; };
+      // `cost2`, the sum of squared session costs, is what the trust level reads the spread from (armRows:trust)
+      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, costBy, ...rest } = c; return { ...rest, cost2: [...costBy.values()].reduce((a, x) => a + x * x, 0), sessions: [...c.sessions].filter(x => !String(x).endsWith('#t')).length }; };
       return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' ? v : fin(v)]))]));
     },
   };
 }
 export function mergeArms(list) {
   const as = list.filter(Boolean); if (!as.length) return null;
-  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens', 'cacheWrite', 'cacheRead', 'treated']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; };
+  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens', 'cacheWrite', 'cacheRead', 'treated', 'cost2']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; a.prs.cost += b.prs?.cost || 0; };
   const out = {};
   for (const feature of Object.keys(ARMS)) {
     const sides = { rate: as[0][feature]?.rate ?? null };
-    for (const side of [ARMS[feature].on, ARMS[feature].off]) { const c = { ...armCell(), sessions: 0 }; delete c.loopSessions; for (const a of as) if (a[feature]?.[side]) addCell(c, a[feature][side]); sides[side] = c; }
+    for (const side of [ARMS[feature].on, ARMS[feature].off]) { const c = { ...armCell(), sessions: 0 }; delete c.loopSessions; delete c.costBy; for (const a of as) if (a[feature]?.[side]) addCell(c, a[feature][side]); sides[side] = c; }
     out[feature] = sides;
   }
   return out;
@@ -289,7 +291,7 @@ export function armsOf(store, session, share, { peak = Infinity, home = null } =
 
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
-export const RULES_VERSION = 5;
+export const RULES_VERSION = 6; // 6: peak and cache traffic on the session result, which the clearing's arm needs
 const CACHE = diskCache('factory-session', 1);
 const parentOf = s => s.parent || s.session;
 // the ledger's corrected and redirected exchanges, by session (profile.js: a row's `turn` is the exchange it observed,
@@ -354,8 +356,9 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
       const loopsBy = {}; for (const x of mine) for (const [k, n] of Object.entries(x.f.loops)) loopsBy[k] = (loopsBy[k] || 0) + n;
       const n = Object.values(loopsBy).reduce((a, b) => a + b, 0);
       const prArms = {}; for (const feature of Object.keys(ARMS)) { const sides = new Set(mine.map(x => armOf.get(x.id)?.[feature]).filter(Boolean)); prArms[feature] = sides.size === 1 ? [...sides][0] : null; }
-      if (mine.length) arms.pr(prArms, n === 0);
-      return { number: p.number, title: p.title || '', url: p.url || null, mergedAt: p.mergedAt, hours: p.hoursToMerge ?? null, sessions: p.sessions.length, measured: mine.length, cost: mine.reduce((a, x) => a + x.f.cost * (x.share ?? 1), 0), loops: loopsBy, loopCount: n, firstPass: mine.length > 0 && n === 0 };
+      const prCost = mine.reduce((a, x) => a + x.f.cost * (x.share ?? 1), 0);
+      if (mine.length) arms.pr(prArms, n === 0, prCost);
+      return { number: p.number, title: p.title || '', url: p.url || null, mergedAt: p.mergedAt, hours: p.hoursToMerge ?? null, sessions: p.sessions.length, measured: mine.length, cost: prCost, loops: loopsBy, loopCount: n, firstPass: mine.length > 0 && n === 0 };
     }).sort((a, b) => String(b.mergedAt).localeCompare(String(a.mergedAt)));
     const first = rows.filter(r => r.firstPass), looped = rows.filter(r => r.measured && !r.firstPass);
     const mean = xs => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
@@ -435,29 +438,50 @@ export function renderFactory(v, opts = {}) {
   return out;
 }
 
+// How far to trust a difference between the two sides (the owner, 2026-11-09: "thin" said too little). The sides are
+// random samples of sessions, so the question is how much two means would differ by chance: the relative standard error
+// of a ratio of the two means is sqrt(cv_on²/n_on + cv_off²/n_off), with each side's coefficient of variation read from
+// its session costs (`cost2`), and the noise band is twice that. A row whose difference sits inside the band is shown
+// as flat, whatever its sign. The level is the band: under 20% good, under 50% fair, else low; under ten sessions on a
+// side, too few to read at all. Session cost is the spread used for every row, since the loop and rework figures are
+// not carried per session; it is the widest of them, so the band errs on the side of doubt.
+export function trust(on, off) {
+  const n = Math.min(on.sessions, off.sessions);
+  const cv = c => { if (!c.sessions) return null; const mean = c.cost / c.sessions; if (!mean) return null; const varr = Math.max(0, c.cost2 / c.sessions - mean * mean); return Math.sqrt(varr) / mean; };
+  const a = cv(on), b = cv(off);
+  const se = a == null || b == null ? null : Math.sqrt((a * a) / on.sessions + (b * b) / off.sessions);
+  const band = se == null ? null : 2 * se;
+  const level = n < 10 || band == null ? 'none' : band < 0.2 ? 'good' : band < 0.5 ? 'fair' : 'low';
+  return { level, band, smaller: n, cv: { on: a, off: b } };
+}
+export const TRUST_WORDS = { none: 'too few sessions to read', low: 'low: a direction at most', fair: 'fair', good: 'good' };
 // the two sides of a feature, as the page's comparison table: ratios of sums, the held-out side second, the difference last
 export function armRows(v, feature) {
   const spec = ARMS[feature], a = v.arms?.[feature]; if (!spec || !a) return null;
   const on = a[spec.on], off = a[spec.off], dollars = v.cost > 0;
   const r = (num, den) => den ? num / den : null;
   const rows = [
-    { label: spec.eligible ? `Sessions (${spec.eligible})` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
+    { label: spec.eligible ? `Sessions ${spec.eligible}` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
     ...(feature === 'compression' ? [{ label: 'Of them actually cleared', on: on.treated, off: off.treated, kind: 'count' }] : []),
     { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
     { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lowerIsBetter: true },
     { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
     { label: 'Rework share', on: r(dollars ? on.rework : on.reworkTokens, dollars ? on.cost : on.tokens), off: r(dollars ? off.rework : off.reworkTokens, dollars ? off.cost : off.tokens), kind: 'pct', lowerIsBetter: true },
-    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false, note: `${on.prs.merged} and ${off.prs.merged} merged pull requests` },
+    { label: dollars ? 'Cost per merged pull request' : 'Tokens per merged pull request', on: r(on.prs.cost, on.prs.merged), off: r(off.prs.cost, off.prs.merged), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true, note: `${on.prs.merged} and ${off.prs.merged} merged pull requests whose sessions were all on one side` },
+    { label: 'First-pass yield', on: r(on.prs.firstPass, on.prs.merged), off: r(off.prs.firstPass, off.prs.merged), kind: 'pct', lowerIsBetter: false },
   ];
   for (const [key, name] of STAGES) rows.push({ label: `${name} rework`, group: 'stages', key, on: r(dollars ? on.stages[key].rework : on.stages[key].reworkTokens, dollars ? on.stages[key].cost : on.stages[key].tokens), off: r(dollars ? off.stages[key].rework : off.stages[key].reworkTokens, dollars ? off.stages[key].cost : off.stages[key].tokens), kind: 'pct', lowerIsBetter: true });
   for (const L of v.loops) rows.push({ label: `${L.name} per session`, group: 'loops', key: L.key, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lowerIsBetter: true });
-  return { feature, name: spec.name, onLabel: spec.onLabel, offLabel: spec.offLabel, rate: a.rate, rows, thin: on.sessions < 10 || off.sessions < 10 };
+  const t = trust(on, off);
+  for (const row of rows) { const d = row.lowerIsBetter == null || row.on == null || row.off == null || !row.off ? null : (row.on - row.off) / row.off; row.diff = d; row.verdict = d == null ? null : t.band != null && Math.abs(d) < t.band ? 'flat' : (d < 0) === row.lowerIsBetter ? 'good' : 'bad'; }
+  return { feature, name: spec.name, onLabel: spec.onLabel, offLabel: spec.offLabel, rate: a.rate, rows, trust: t, thin: t.level === 'none' };
 }
 export function renderArms(v, feature) {
   const t = armRows(v, feature); if (!t) return [];
   const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? pct(x) : kind === 'rate' ? x.toFixed(2) : kind === 'tokens' ? k(x) : String(Math.round(x));
-  const out = [`${t.name}: ${t.onLabel} against ${t.offLabel}${t.rate != null ? ` (${pct(t.rate)} of sessions held out)` : ''}${t.thin ? ' · thin: under 10 sessions on a side, read as a direction at most' : ''}`];
+  const out = [`${t.name}: ${t.onLabel} against ${t.offLabel}${t.rate != null ? ` (${pct(t.rate)} of sessions held out)` : ''}`];
+  out.push(`Trust: ${TRUST_WORDS[t.trust.level]}. The smaller side has ${t.trust.smaller} sessions${t.trust.band != null ? `; a difference under ±${Math.round(100 * t.trust.band)}% is within what two random samples of these sessions would show, and is marked flat` : ''}.`);
   out.push(''.padEnd(26) + t.onLabel.padStart(14) + t.offLabel.padStart(14) + 'difference'.padStart(13));
-  for (const r of t.rows) { const d = r.lowerIsBetter == null || r.on == null || r.off == null || !r.off ? null : (r.on - r.off) / r.off; out.push(r.label.padEnd(26) + f(r.on, r.kind).padStart(14) + f(r.off, r.kind).padStart(14) + (d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%`).padStart(13) + (r.note ? `   ${r.note}` : '')); }
+  for (const r of t.rows) { const d = r.diff; out.push(r.label.padEnd(26) + f(r.on, r.kind).padStart(14) + f(r.off, r.kind).padStart(14) + (d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%${r.verdict === 'flat' ? ' ~' : r.verdict === 'good' ? ' ✓' : ' ✗'}`).padStart(15) + (r.note ? `   ${r.note}` : '')); }
   return out;
 }

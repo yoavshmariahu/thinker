@@ -3,7 +3,7 @@
 // touched two stages, and the merge over repositories, on synthetic sessions whose answers are known.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, ARMS, armsOf } from '../src/factory.js';
+import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, ARMS, armsOf, trust } from '../src/factory.js';
 import { weekColumns } from '../src/report.js';
 
 const PRICE = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 };
@@ -186,16 +186,18 @@ test('the arms split sums by a session\'s side, leave a session with no profile 
   t.add({ profile: 'holdout', compression: 'on' }, r(20, 8, ['fix', 'fix']), 'b');
   t.add({ profile: null, compression: 'holdout' }, r(30, 3), 'c'); // before the profile: on no profile side
   t.add({ profile: null, compression: null }, r(5, 0), 'd'); // never reached the trigger: on no compression side
-  t.pr({ profile: 'shown', compression: 'on' }, true); t.pr({ profile: null, compression: null }, false);
+  t.pr({ profile: 'shown', compression: 'on' }, true, 12); t.pr({ profile: null, compression: null }, false, 50);
   const a = t.finish();
   assert.equal(a.profile.shown.sessions, 1); assert.equal(a.profile.holdout.sessions, 1); assert.equal(a.compression.on.sessions, 2); assert.equal(a.compression.holdout.sessions, 1);
   assert.equal(a.compression.rate, 0.15); assert.equal(a.profile.shown.prs.firstPass, 1); assert.equal(a.compression.holdout.prs.merged, 0);
   assert.equal(a.compression.on.treated, 1, 'a session with a clear record counts as treated once'); assert.equal(a.compression.on.sessions, 2);
+  assert.equal(a.profile.shown.prs.cost, 12, 'a pull request\'s cost lands on its side'); assert.equal(a.compression.holdout.prs.cost, 0);
   assert.deepEqual([a.profile.shown.loops.fix.loops, a.profile.holdout.loops.fix.loops, a.profile.holdout.loops.fix.sessions], [1, 2, 1]);
   const m = mergeArms([a, a, null]);
-  assert.equal(m.compression.on.cost, 60); assert.equal(m.profile.holdout.loops.fix.loops, 4); assert.equal(m.compression.holdout.sessions, 2); assert.equal(m.compression.on.treated, 2);
+  assert.equal(m.compression.on.cost, 60); assert.equal(m.profile.holdout.loops.fix.loops, 4); assert.equal(m.compression.holdout.sessions, 2); assert.equal(m.compression.on.treated, 2); assert.equal(m.profile.shown.prs.cost, 24);
   const v = { cost: 60, arms: a, loops: [{ key: 'fix', name: 'Fix loop' }] }, rows = armRows(v, 'profile');
-  assert.equal(rows.thin, true); assert.equal(rows.rows.find(x => x.label === 'Rework share').on, 0.1); assert.equal(rows.rows.find(x => x.label === 'Rework share').off, 0.4);
+  assert.equal(rows.thin, true); assert.equal(rows.trust.level, 'none'); assert.equal(rows.rows.find(x => x.label === 'Rework share').on, 0.1); assert.equal(rows.rows.find(x => x.label === 'Rework share').off, 0.4);
+  assert.equal(rows.rows.find(x => x.label === 'Cost per merged pull request').on, 12); assert.equal(rows.rows.find(x => x.label === 'Cost per merged pull request').off, null);
   assert.equal(rows.rows.find(x => x.label === 'Fix loop per session').off, 2);
   const cmp = armRows(v, 'compression'); assert.equal(cmp.rows[1].label, 'Of them actually cleared'); assert.equal(cmp.rows[1].on, 1); assert.ok(cmp.rows.some(x => x.label.startsWith('Cache writes')));
   assert.match(renderArms(v, 'profile').join('\n'), /Memory profile: shown the profile against held out/);
@@ -209,4 +211,19 @@ test('a session below the clearing\'s trigger is on neither of its sides, and on
   const b = armsOf(st, 'abc', 0.15, { peak: 200_000 });
   assert.ok(b.compression === 'on' || b.compression === 'holdout');
   assert.equal(armsOf(st, 'abc', 0, { peak: 200_000 }).compression, null, 'no share, no split');
+});
+
+test('trust is computed from the sides\' sizes and the spread of their session costs, and a difference inside the band is flat', () => {
+  const side = (n, mean, cv) => ({ sessions: n, cost: n * mean, cost2: n * (mean * mean) * (1 + cv * cv) });
+  assert.equal(trust(side(5, 10, 1), side(5, 10, 1)).level, 'none');
+  const low = trust(side(30, 10, 2), side(30, 10, 2)); assert.equal(low.level, 'low'); assert.ok(low.band > 0.5);
+  const good = trust(side(400, 10, 1), side(400, 10, 1)); assert.equal(good.level, 'good'); assert.ok(good.band < 0.2 && good.band > 0.1);
+  assert.equal(trust(side(0, 0, 0), side(10, 1, 1)).level, 'none');
+  // the rows carry the verdict: a 10% gap is flat at a 14% band, a 40% gap is not
+  const stages = Object.fromEntries(STAGES.map(([k]) => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }]));
+  const cell = (n, mean, cv, rework) => ({ ...side(n, mean, cv), exchanges: n * 2, tokens: n * mean * 1e6, rework, reworkTokens: rework * 1e6, cacheWrite: 1, cacheRead: 9, treated: 0, stages, loops: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
+  const v = { cost: 1, loops: [], arms: { profile: { rate: null, shown: cell(400, 11, 1, 1100), holdout: cell(400, 10, 1, 2000) } } };
+  const t = armRows(v, 'profile');
+  assert.equal(t.rows.find(x => x.label === 'Cost per session').verdict, 'flat');
+  assert.equal(t.rows.find(x => x.label === 'Rework share').verdict, 'good');
 });

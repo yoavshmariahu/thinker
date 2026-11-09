@@ -1132,8 +1132,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   the sent-back detector fired in 159 of 162 sessions because a memory-file write after the pull request counted as an
   edit and the window never closed; the stage shares were the same under both, the loop figures were not. Judge a
   detector change by inspecting the loops it finds in a real session before trusting its total.
-- **A stage or a loop opens on its trend (2026-11-09, the owner's ask): a short, wide modal with one small bar chart per
-  metric over the Report's weeks** (`factory.js:weeklyTally`, `mergeWeekly`; `weekly` on the view; `page.html:fxTrend`).
+- **A stage or a loop opens on its trend (2026-11-09, the owner's ask): a small table under the card, the last four
+  weeks in two rows (cost and rework share for a stage, loops and cost for a loop)**; it was a wide modal with a bar chart
+  per metric for an hour, and the owner asked for the numbers in place instead. The view keeps every Report week (`factory.js:weeklyTally`, `mergeWeekly`; `weekly` on the view; `page.html:fxTrend`).
   The columns are the Report's own (`report.js:weekColumns`, Monday to Sunday, the current week last) and a session is
   placed in the week of its last request as the Report places it, so the trend and View Report agree on what a week
   holds. A stage shows cost, share of the week's tokens, rework share and calls; a loop shows loops, cost, share and the
@@ -1143,7 +1144,11 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   `armTally`, `armsOf`, `armRows`; the page's select and `thinker factory --diff profile|compression`).** The sessions a
   feature reached against the ones held out from it, on the same mix of work: sessions, cost per session and per exchange,
   rework share, first-pass yield, rework by stage, loops per session, each a ratio of sums per side with the difference
-  coloured where a direction is better. The profile's arm is the one recorded on the session's state file at its start
+  coloured where a direction is better, and **how far to trust a difference is computed, not asserted** (`trust`, the
+  owner's ask the same day: a "thin" pill said too little): a noise band of twice the relative standard error of the ratio
+  of the two means, each side's spread read from its session costs (`cost2`), rows inside the band greyed as flat, and a
+  level in words at the top (good under 20%, fair under 50%, else low; under ten sessions a side, too few to read). The
+  profile's arm is the one recorded on the session's state file at its start
   (`profile.js:profileArmOf`); a session from before the profile shipped has none and is left out of that split, never
   given one by recomputing the hash, since it never saw the block. The clearing's side is `proxy.js:heldOut` over the
   session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT` unless the machine config says), so every
@@ -1162,6 +1167,10 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   only sessions the feature could have touched, the table leads with cost per exchange (a session's length is out of
   it) and carries the cache-write share, and a difference on under ten sessions a side is marked thin. The same
   reading applies to the profile's split once its arms fill: a session shown the block is not a session that acted on it.
+  The canvas ends in a **Merged dock** (the owner's ask, 2026-11-09): the pull requests merged, the cost of one, the
+  first-pass share, and in diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
+  session in diff mode, and the comparison table has a cost-per-merged-pull-request row. A pull request counts on a side
+  only when every session on it was on that side.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first
