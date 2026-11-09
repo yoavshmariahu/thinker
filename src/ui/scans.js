@@ -49,13 +49,18 @@ export function uiScans({ workerFactory = () => new Worker(new URL('./scan-worke
       const current = saved?.current && Date.now() - saved.at < REFRESH_MS;
       const invalid = Date.now() - (job?.at || 0) >= REFRESH_MS || (saved && saved.at >= job?.at && !current);
       if (job?.done && ((!job.error && invalid) || (job.error && retry))) { jobs.delete(job.id); job = null; }
-      if (!job && !current) { job = start({ kind, repo: store.repo, window }); job.saved = saved; }
+      // A kept view this code made is brought up to date, not made again (2026-11-08): the worker is told when it was
+      // made (`since`), stats the sessions and the log, answers `unchanged` when none moved, and otherwise reads every
+      // session in one pass with the page's count over the changed ones alone (the rest are the readers' cache hits).
+      // Until then every visit past REFRESH_MS read every session of the window in doubling batches, the strip counting
+      // cache hits as sessions read.
+      if (!job && !current) { job = start({ kind, repo: store.repo, window, since: saved?.mine ? saved.at : null }); job.saved = saved; }
       // Keep a completed view in memory if writing its snapshot was not possible.
       const latest = job?.done && !job.error && saved?.at >= job.at ? saved : job?.view ? job : saved;
       return {
         view: latest?.view, at: latest?.at || 0,
         refreshing: Boolean(job && !job.done),
-        progress: job ? { completed: job.completed, total: job.total, done: job.done, error: job.error || null } : null,
+        progress: job ? { completed: job.completed, total: job.total, done: job.done, error: job.error || null, delta: Boolean(job.delta) } : null,
         revision: job ? `${job.id}:${job.revision}:${saved?.at || 0}` : `saved:${saved?.at || 0}`,
       };
     },
@@ -74,6 +79,8 @@ export function scanStatus(readings) {
       completed: active.reduce((n, s) => n + s.progress.completed, 0),
       total: active.some(s => s.progress.total === null) ? null : active.reduce((n, s) => n + s.progress.total, 0),
       error: active.map(s => s.progress.error).filter(Boolean).join('; ') || null,
+      // the count is over the sessions changed since the kept views (scan-worker.js `since`), when every read is such
+      ...(active.every(s => s.progress.delta) ? { delta: true } : {}),
     } : null,
   };
 }

@@ -441,7 +441,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   const prTable = read('ui/page.html').split('function prStatsTable(v) {')[1].split('function renderReport(v)')[0];
   assert.match(prTable, /<table class="ctx-table rep-table savings-table"/);
   assert.doesNotMatch(prTable, /<svg/);
-  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
+  assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ profileFigure\(v, cost\) \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
   assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
@@ -755,4 +755,22 @@ test('thinker containers is machine-wide and CLI-only, and installs from this bu
   // what goes into a container is this build, so the two copies cannot drift to different versions
   assert.ok(mod.COPY_EXCLUDES.includes('node_modules/onnxruntime-node'), 'the host\'s native modules are the wrong architecture inside');
   assert.match(mod.containerSnippet(), /npx -y thinkersh --no-build/, 'the permanent form installs by version, not by copy');
+});
+
+// The Report carries the session profile's own measure on both doors (2026-11-08, the owner's ask), from one
+// computation (profile-metric.js); the verdict wording is the page's copy of report.js's. The notes' cache-hits row
+// went with the notes (report-savings.js, 2026-11-08) and may not come back as a row of zeros.
+test('the Report shows the profile metric on the page as the command prints it, and no row of the removed notes', async () => {
+  const report = read('report.js'), page = read('ui/page.html');
+  assert.match(report, /profileMetric\(store/); assert.match(report, /mergeProfileMetrics\(/, 'All repositories pools the arms');
+  assert.match(report, /profileLines\(v\.profile/); assert.match(page, /profileFigure\(v, cost\)/);
+  assert.match(read('commands/profile.js'), /holdoutFromLog\(/, 'thinker profile holdout reads the same computation');
+  const { PROFILE_VERDICTS } = await import('../src/report.js');
+  for (const text of Object.values(PROFILE_VERDICTS)) assert.ok(page.includes(text), `the page says "${text}"`);
+  // the two sentences and the odds are the same code on both doors
+  for (const fn of ['const share = r =>', 'const bandShare = (l, band) =>', 'Lines rarely used', 'Lines sometimes used', 'Lines frequently used', 'function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.ok(page.includes(fn), fn);
+  const body = name => src => src.split(name)[1].split('\n}\n')[0];
+  for (const name of ['function profileWhen(p) {', 'function profileLinesSentence(p) {']) assert.equal(body(name)(page), body(name)(report.replace('export function', 'function').replaceAll('export function', 'function')), `${name} is one body on both doors`);
+  assert.doesNotMatch(page, /Cache hits|notes served|savings-counts/);
+  assert.match(read('report-snapshot.js'), /'profile-metric\.js'/, 'a kept report from before the figure is remade');
 });

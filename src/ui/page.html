@@ -117,7 +117,6 @@
     .savings-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
     .savings-dot { margin-right: .5rem; }
     .savings-table thead th { position: static; }
-    .savings-counts { color: #777; font-size: .78rem; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
     .metrics-toggle { margin-top: 1.2rem; }
     .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
@@ -561,8 +560,9 @@ function scanProgress(v) {
     const known = p?.total > 0 && p.completed != null, plain = !v.paused && !p?.error;
     el.classList.toggle('paused', Boolean(v.paused)); el.classList.toggle('error', Boolean(p?.error));
     label.textContent = v.paused ? 'Newer figures are ready. Clear your selection to update them.' : p?.error ? `Could not finish reading session data: ${p.error}`
+      : p?.total === 0 && p?.delta ? 'Updating the figures from the log…'
       : !known ? `Finding session data…${p?.completed ? ` ${fmt(p.completed)} sessions read so far` : ''}`
-      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} sessions`;
+      : `Reading session data: ${fmt(p.completed)} of ${fmt(p.total)} ${p.delta ? 'changed ' : ''}sessions`;
     pct.textContent = known && plain ? `${Math.floor(p.completed / p.total * 100)}%` : '';
     note.textContent = !plain ? '' : known ? `· ${fmt(Math.max(0, p.total - p.completed))} to go · the figures below fill in as sessions are read`
       : '· the figures below fill in as sessions are read';
@@ -1387,6 +1387,55 @@ function prStatsTable(v) {
     <p class="savings-note">Merged PRs with work recorded here. Savings: cleared tokens (measured). Total tokens: recorded input + output; averages use only PRs with complete counters. * Current week so far. – No measurements.${weeks.every(w => !w.merged) ? ' No merged PRs with recorded work in this period.' : ''}</p></figure>`;
 }
 
+// The session profile's own measure, as `thinker report` prints it (report.js:profileLines; one computation in
+// profile-metric.js, `thinker profile holdout` at length): with the profile against without, how often the person had
+// to repeat themselves and what a prompt costs, a verdict in words with a date where there is not enough data yet, and
+// what the profile holds and how often its lines were acted on (the owner's framing, 2026-11-08). PROFILE_VERDICTS and
+// the two sentences are report.js's copies, held together by test/cli-ui-sync.test.js.
+const PROFILE_VERDICTS = {
+  'too-early': 'Not enough data yet',
+  inconclusive: 'No difference yet',
+  fewer: 'Saves you repeating yourself',
+  more: 'More repeats with the profile: read `thinker profile lines --why`',
+  cheaper: 'Cheaper with the profile',
+  costlier: 'Costlier with the profile',
+};
+const share = r => r == null ? '–' : `${(100 * r).toFixed(1)}% of prompts`;
+function profileWhen(p) {
+  const w = p.pace?.weeksToGo;
+  return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
+}
+const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
+const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['frequently', 'Lines frequently used', 'bore on four fifths or more of the sessions they were shown to']];
+function profileLinesSentence(p) {
+  const l = p.lines;
+  if (!l || !l.learned) return 'No lines learned yet.';
+  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
+  return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
+}
+function profileFigure(v, cost) {
+  const p = v.profile;
+  const half = p ? Math.round(100 * p.holdoutRate) : 0;
+  const heading = `<figcaption><b>Profile</b><span class="ctx-sub">What the agent is told about you at the start of a session, and whether it helps${p ? ` · ${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''}` : ''}</span></figcaption>`;
+  if (!p) return `<figure class="ctx-figure profile-figure">${heading}<p class="savings-note">No profile observations in this repository yet.</p></figure>`;
+  const unit = x => x == null ? '<span class="muted">–</span>' : cost ? money(x) : fmt(x);
+  const r = p.recurrence, c = p.cost;
+  const cell = (x, title) => `<td class="num" title="${esc(title)}">${x}</td>`;
+  const repeat = (x, name) => cell(share(x.servedRate), `${name}: ${x.measured} prompts in ${x.sessions} sessions could say; a repeat is the person saying again what an earlier session already told the agent`);
+  const price = (x, name) => cell(unit(cost ? x.cost : x.tokens), `${name}: ${cost ? 'dollars at list prices' : 'tokens'} a prompt, a ratio of sums within each model, over ${x.priced} priced session${x.priced === 1 ? '' : 's'}`);
+  const rows = `<tr><td class="ctx-name">How often you had to repeat yourself</td>${repeat(p.shown, 'With the profile')}${repeat(p.holdout, 'Without')}</tr>` +
+    `<tr><td class="ctx-name">What a prompt costs</td>${price(p.shown, 'With the profile')}${price(p.holdout, 'Without')}</tr>` +
+    BANDS.map(([band, name, what]) => `<tr><td class="ctx-name">${name}</td>${cell(bandShare(p.lines, band), `${p.lines?.[band] || 0} of the ${p.lines?.judged || 0} lines judged so far ${what}; judged by the model that reads a session at its end, over ${p.lines?.sessions || 0} session${p.lines?.sessions === 1 ? '' : 's'} shown the profile; thinker profile lines --why names them`)}<td class="num muted" title="Held-out sessions see no lines"></td></tr>`).join('');
+  const lines = [
+    `${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
+    `${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
+    profileLinesSentence(p),
+  ];
+  return `<figure class="ctx-figure profile-figure">${heading}
+    <table class="ctx-table rep-table"><colgroup><col class="rep-name wide"><col><col></colgroup><thead><tr><th></th><th class="num">With the profile</th><th class="num">Without</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="savings-note">${lines.map(esc).join('<br>')}</p></figure>`;
+}
+
 function renderReport(v) {
   RPT = v;
   const cost = RMEASURE === 'cost', sum = RMODE === 'sum', share = RVIEW === 'share', el = $('#report-body');
@@ -1450,9 +1499,9 @@ function renderReport(v) {
   const number = n => share ? `${Number((n * 100).toFixed(2))}%` : cost ? money(n) : fmt(n);
   const unpricedSavings = series.some(s => s.cells.some(c => c.unpricedTokens));
   const effectiveness = `<figure class="ctx-figure savings-figure"><figcaption><b>Compression effectiveness</b><span class="ctx-sub">Weekly ${share ? 'savings as a share of recorded usage' : `${cost ? 'value at list prices' : 'tokens saved'}${sum ? '' : ' per prompt'}`}</span></figcaption>
-    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}<tr class="savings-counts"><td>Cache hits · notes served</td>${v.columns.map((_, w) => `<td class="num">${fmt(series.find(s => s.key === 'cache')?.cells[w]?.hits || 0)}</td>`).join('')}</tr></tbody></table>
+    <table class="ctx-table rep-table savings-table">${colgroup(false)}<thead><tr><th>Savings</th>${v.columns.map((c, w) => `<th class="num">${dlabel(c.t)}${w === v.columns.length - 1 ? " *" : ""}</th>`).join('')}</tr></thead><tbody>${series.map(s => `<tr><td><span class="savings-dot" style="background:${s.color}"></span>${esc(s.name)} <span class="ctx-sub">${'gross'}</span></td>${s.values.map(n => `<td class="num">${n == null ? '–' : esc(number(n))}</td>`).join('')}</tr>`).join('')}</tbody></table>
     <p class="savings-note">Compression: avoided cache reads, before cache rewrite costs; Codex token counts are estimated. ${unpricedSavings && cost ? 'Unpriced models are excluded. ' : ''}* Current week so far. Gaps mean no measurements.</p></figure>`;
-  swapBody(el, prStatsTable(v) + parts + effectiveness + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
+  swapBody(el, prStatsTable(v) + parts + effectiveness + profileFigure(v, cost) + `<button class="btn metrics-toggle" id="more-metrics" aria-expanded="${RMORE}" aria-controls="extra-metrics">${RMORE ? 'See fewer metrics' : 'See more metrics'} <span aria-hidden="true">${RMORE ? '▴' : '▾'}</span></button><div id="extra-metrics"${RMORE ? '' : ' hidden'}>${models}${tokenTypes}</div>`);
   $('#more-metrics').onclick = () => { RMORE = !RMORE; renderReport(v); $('#more-metrics').focus(); };
   el.querySelectorAll('[data-fold]').forEach(b => b.onclick = () => { const p = b.dataset.fold; RFOLD.has(p) ? RFOLD.delete(p) : RFOLD.add(p); renderReport(v); });
 }

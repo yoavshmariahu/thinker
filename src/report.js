@@ -27,6 +27,7 @@ import { repoId } from './store.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
+import { profileMetric, mergeProfileMetrics } from './profile-metric.js';
 
 export const REPORT_WEEKS = 6;
 // What every row of the parts table should cost a prompt at list prices, in dollars (the owner's ask, 2026-10-26: bounds for
@@ -220,6 +221,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
   const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
+  // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
+  const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
   return {
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
@@ -231,6 +234,7 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     providers, models: modelRows, unpriced: [...unpriced],
     actions, outputRows: outRows, savings,
     prs, prWeekly: weeklyPrStats(prs, columns, now),
+    profile,
   };
 }
 
@@ -274,6 +278,52 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
 
 // Attribute recorded work to the merge week. Missing counters cannot make a PR look cheap:
 // the cost average uses only complete PRs, with its denominator exposed beside the merge count.
+// The Profile figure as the command prints it; the page draws the same numbers (page.html:profileFigure, held together
+// by test/cli-ui-sync.test.js). Framed as what a person would ask of it (the owner, 2026-11-08): with the profile
+// against without, how often they had to repeat themselves and what a prompt costs, a verdict in words with a date
+// where there is not enough data yet, and what the profile holds and how often its lines were acted on. The arms'
+// counts, the intervals and the unlearned share stay in `thinker profile holdout`. `cost`: the prompt's price rather
+// than its tokens, as the rest of the report.
+export const PROFILE_VERDICTS = {
+  'too-early': 'Not enough data yet',
+  inconclusive: 'No difference yet',
+  fewer: 'Saves you repeating yourself',
+  more: 'More repeats with the profile: read `thinker profile lines --why`',
+  cheaper: 'Cheaper with the profile',
+  costlier: 'Costlier with the profile',
+};
+// a rate as a share of prompts: "7.1% of prompts" (odds were tried and read worse, the owner, 2026-11-08)
+export const share = r => r == null ? '–' : `${(100 * r).toFixed(1)}% of prompts`;
+export function profileWhen(p) {
+  const w = p.pace?.weeksToGo;
+  return w == null ? '' : w < 1 ? ': about a week at your pace' : `: about ${Math.round(w)} weeks at your pace`;
+}
+// the lines' rows: the profile's lines by how often they are used (profile-metric.js:lineBands), as shares of the lines judged, and the sentence under them
+export const bandShare = (l, band) => !l?.judged ? '–' : `${Math.round(100 * l[band] / l.judged)}% of lines`;
+export const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer of the sessions they were shown to'], ['sometimes', 'Lines sometimes used', 'bore on between a fifth and four fifths of the sessions they were shown to'], ['frequently', 'Lines frequently used', 'bore on four fifths or more of the sessions they were shown to']];
+export function profileLinesSentence(p) {
+  const l = p.lines;
+  if (!l || !l.learned) return 'No lines learned yet.';
+  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
+  return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
+}
+export function profileLines(p, { cost = true } = {}) {
+  const head = 'Profile · what the agent is told about you at the start of a session, and whether it helps';
+  if (!p) return [head, '  No profile observations in this repository yet.'];
+  const unit = v => v == null ? '–' : cost ? formatDollars(v) : formatTokens(v);
+  const r = p.recurrence, c = p.cost, half = Math.round(100 * p.holdoutRate);
+  const L = [`${head} (${p.days} days; ${100 - half}% of sessions see it, ${half}% do not${p.repos > 1 ? `; ${p.repos} repositories pooled` : ''})`,
+    `  ${''.padEnd(40)}${'with the profile'.padStart(18)}${'without'.padStart(18)}`,
+    `  ${'How often you had to repeat yourself'.padEnd(40)}${share(p.shown.servedRate).padStart(18)}${share(p.holdout.servedRate).padStart(18)}`,
+    `  ${`What a prompt costs${cost ? '' : ' (tokens)'}`.padEnd(40)}${unit(cost ? p.shown.cost : p.shown.tokens).padStart(18)}${unit(cost ? p.holdout.cost : p.holdout.tokens).padStart(18)}`,
+    ...BANDS.map(([band, name]) => `  ${name.padEnd(40)}${bandShare(p.lines, band).padStart(18)}${''.padStart(18)}`),
+    `  ${PROFILE_VERDICTS[r.verdict] || r.verdict}${r.verdict === 'too-early' ? profileWhen(p) : ''}.`,
+    `  ${c.verdict ? PROFILE_VERDICTS[c.verdict] || c.verdict : 'Cost is compared per repository'}.`,
+    `  ${profileLinesSentence(p)}`];
+  if (p.unknown.observations) L.push(`  ${p.unknown.observations} observations from ${p.unknown.sessions} sessions carry no arm (read before the profile was served, or by hand).`);
+  return L;
+}
+
 export function weeklyPrStats(prs, columns, now = Date.now()) {
   if (!prs) return null;
   return columns.map(({ t }) => {
@@ -404,6 +454,7 @@ export function mergeReports(list) {
     actions: list.flatMap(x => x.view.actions.map(a => ({ ...a, repo: x.repo, repoName: x.name }))).sort((a, b) => b.at.localeCompare(a.at)),
     savings: mergeSavings(views, n),
     prs, prWeekly: weeklyPrStats(prs, first.columns, first.to),
+    profile: mergeProfileMetrics(views.map(v => v.profile)),
     repos: list.map(x => ({ repo: x.repo, name: x.name })),
   };
 }
@@ -491,6 +542,10 @@ export function renderReport(v, { cost = true, total = false, share = false } = 
   L.push('', 'Compression effectiveness', ' '.repeat(32) + weeks);
   for (const s of v.savings || []) L.push(`  ${s.name.padEnd(30)}${s.cells.map((c, w) => fmtv(savingsValue(c, v.columns[w], v.sessionTotals[w], { cost, total, share }), share).padStart(W)).join('')}`);
   L.push('  Compression: gross avoided cache reads; cache rewrites not deducted. Missing observations: –.');
+  // The session profile's measure (profile-metric.js, the page's Profile figure, `thinker profile holdout` at length):
+  // recurrence per exchange, shown against held out, the cost of an exchange beside it. Over the ledger's window, not
+  // the weeks above, so it is a figure and not a table.
+  L.push('', ...profileLines(v.profile, { cost }));
   // What was shipped here and how much of it thinker paid for, the same figures as the page's band and as
   // `thinker prs` (prSavings). Tokens under --tokens and without it alike: see prSavings for why there is no
   // dollar figure on a cleared token.

@@ -27,9 +27,16 @@ const code = () => codeKey ||= crypto.createHash('sha256').update(['context-view
 // the repository's (store.dir, shared by its worktrees), the rest the checkout's, so a worktree with the same files
 // reads the repository's report and one whose instruction file differs has it made again
 const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settings.local.json', 'AGENTS.md', 'CLAUDE.md'];
+// Of a Claude Code settings file only the fields the report reads count (harness.js:claudeHarness: the denied tools and
+// servers, the plugins switched, the skill overrides). The whole file was hashed until 2026-11-08, and Claude Code and
+// thinker's own rewire write other fields of `~/.claude/settings.json` (hooks, env), so every release dropped every
+// repository's kept report and the page read every session again on its next visit.
+const SETTINGS = new Set(['.claude/settings.json', '.claude/settings.local.json', claudePaths().settings]);
+const settingsKey = p => { const j = JSON.parse(fs.readFileSync(p, 'utf8')); return JSON.stringify({ deny: j.permissions?.deny ?? null, servers: j.disabledMcpjsonServers ?? null, plugins: j.enabledPlugins ?? null, skills: j.skillOverrides ?? null }); };
+const digest = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 const inputs = store => [...INPUTS, claudePaths().settings, path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml'), path.join(thinkerHome(), 'state', 'machine-actions', 'harness.json')].map(f => {
   const p = path.isAbsolute(f) ? f : f.startsWith('.thinker/') ? path.join(store.dir, f.slice('.thinker/'.length)) : path.join(store.repo, f);
-  try { const s = fs.statSync(p); return s.isDirectory() ? `${f}\t${s.size}\t${Math.round(s.mtimeMs)}` : `${f}\t${crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').slice(0, 16)}`; } catch { return `${f}\t-`; }
+  try { const s = fs.statSync(p); return s.isDirectory() ? `${f}\t${s.size}\t${Math.round(s.mtimeMs)}` : `${f}\t${digest(SETTINGS.has(f) ? settingsKey(p) : fs.readFileSync(p))}`; } catch { return `${f}\t-`; }
 }).join('\n');
 
 // One report per repository: a linked worktree keeps its cache in the main checkout's .thinker (store.dir), and the
@@ -51,7 +58,8 @@ export function readSnapshot(store, days) {
 // click there does not wait for every transcript to be read again (the person's decisions take the changes they
 // settled out of it: context-suggest.js:currentChanges)
 export function lastSnapshot(store, days) {
-  try { const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8')); return s.view ? { at: s.at, view: s.view, current: Boolean(readSnapshot(store, days)) } : null; } catch { return null; }
+  // `mine`: this code made it and its inputs hold, so ui/scans.js reads only the sessions changed since it
+  try { const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8')); const current = Boolean(readSnapshot(store, days)); return s.view ? { at: s.at, view: s.view, current, mine: current } : null; } catch { return null; }
 }
 
 export function writeSnapshot(store, days, view, { now = Date.now() } = {}) {
@@ -60,8 +68,18 @@ export function writeSnapshot(store, days, view, { now = Date.now() } = {}) {
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(tmp, JSON.stringify({ at: now, days, code: code(), inputs: inputs(store), view }));
     fs.renameSync(tmp, f);
+    pruneSnapshots(path.dirname(f));
   } catch { try { fs.rmSync(tmp, { force: true }); } catch {} }
   return { at: now, view };
+}
+
+// The reports of windows the tab no longer offers, and the per-worktree files of before 2026-10-24
+// (`context-view-<days>-<hash>.json`): half a megabyte each, never read, kept for a month on this machine (eleven of them).
+const LIVE = new Set(SNAPSHOT_DAYS.map(d => `context-view-${d}.json`));
+export function pruneSnapshots(dir) {
+  let removed = 0;
+  try { for (const n of fs.readdirSync(dir)) if (/^context-view-\d+(-[0-9a-f]+)?\.json$/.test(n) && !LIVE.has(n)) { try { fs.rmSync(path.join(dir, n), { force: true }); removed++; } catch {} } } catch {}
+  return removed;
 }
 
 // The report of one window: the snapshot when there is one, else made now and kept. `stale` says it is older

@@ -986,6 +986,19 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   - Thinking: `thinking_tokens`, else signature length ÷ 4.3. Kept (`clear_thinking keep: all`).
   - `instructions` attachment, when present, is exact (replaces estimate).
 - Scaling: parts scaled down where sum exceeds measured input. Remainder = "Other input". Output = model output. Total = session tokens.
+- **Profile** (2026-11-08, the owner's ask; `profile-metric.js`, `report.js:profileLines`, `page.html:profileFigure`): the
+  session profile's own measure, under Compression effectiveness on both doors, framed as what a person would ask of it
+  (the owner, the same evening): **with the profile against without**, how often they had to repeat themselves (the
+  served recurrence rate as a share of prompts, "7.1% of prompts") and what a prompt costs, a verdict in words
+  (`report.js:PROFILE_VERDICTS`) that says when there will be enough data at the repository's own pace (`pace`: measured
+  exchanges over the days they span against the 200-a-side floor), and what the profile holds and how its lines fared
+  (`lines`, from profile.js:lineReport: the lines by how often they are used, `lineBands`: rarely (a fifth or fewer of the
+  sessions shown to), sometimes, frequently (four fifths or more), as shares of the lines judged; the question is which
+  parts of the profile go unused, and the per-line table in `thinker profile lines` names them). The arms' counts, the unlearned share and the intervals stay in `thinker profile holdout`, which reads the
+  same `holdoutFromLog`. Over the ledger's 60 days, not the weeks, so a figure and not a weekly table. All repositories pools the arms' counts (the rates
+  are ratios of the pooled counts, tokens an exchange weighted by exchanges); the cost interval is bootstrapped over a
+  repository's own sessions and is not pooled, so across repositories it carries the delta and no verdict. The notes'
+  "Cache hits · notes served" row went the same day: it read a series removed with the notes and showed zeros.
 
 **A tool's output is nobody's choice (MANDATORY, 2026-11-04, the owner's call):**
 - The clearing is thinker's compression and it is on by default (`src/cutting.js`, applied by `proxy.js` on every
@@ -1159,6 +1172,21 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - Save page: outgrown kept report shown at once, remade behind (`context-snapshot.js:lastSnapshot`). Transcripts read on visit only if no kept report or action dropped it.
 - Background refreshes run one at a time (`ui/server.js:serialSpawner`).
 - `usage.js:parse` caches machine log per process (size, mtime). `transcripts.js:sessionModel` cached in `disk-cache.js`.
+- **A kept view is brought up to date, not made again** (2026-11-08; `ui/scans.js` passes `since`, `scan-worker.js`
+  acts on it). A view this code made (`mine` on `context-snapshot.js:lastSnapshot` and `report-snapshot.js:readReport`)
+  that is older than REFRESH_MS is checked, not re-read: the worker stats the window's sessions and, for the Report, the
+  machine's log and the proxy's; nothing moved answers `unchanged`, with no strip and no read for another REFRESH_MS;
+  something moved reads every session in one pass (the unchanged ones are the readers' cache hits) and the strip counts
+  the changed sessions alone ("N of M changed sessions"; "Updating the figures from the log…" when only a log moved). The
+  doubling batches stay for a cold read, where nothing is on the screen yet. Until then every visit past ten minutes read
+  every session of the window in doubling batches and the strip counted cache hits as sessions read, which is what made
+  the page look as if it cached nothing (the owner, 2026-11-08); the sessions themselves were cached all along
+  (`session-activity`, `session-harness`, `tool-outputs.json`).
+- The Save snapshot is keyed on the settings fields the view reads (`context-snapshot.js:settingsKey`: the denies, the
+  disabled servers, the plugins, the skill overrides), not the files' bytes: Claude Code and `rewire` write other fields
+  of `~/.claude/settings.json`, and every release dropped every repository's snapshot. `writeSnapshot` prunes the
+  `context-view-*` files of windows the tab no longer offers and the per-worktree files of before 2026-10-24
+  (`pruneSnapshots`; eleven of them, half a megabyte each, sat in this repository's state for a month).
 - Instruction sections read transcript once (`instruction-value.js:sessionRecord`), kept in `disk-cache.js` as `session-activity` (no output).
 - Re-read only if transcript grew or sections name new code (`coversCode`).
 

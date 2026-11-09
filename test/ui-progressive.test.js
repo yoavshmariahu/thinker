@@ -222,3 +222,84 @@ test('the rows a door checked come first on All, and stay where they are when on
   api.PICKS.all.delete('\tsmall');
   assert.equal(keys('all'), 'small big mid', 'unchecking does not move the row out from under the hand');
 });
+
+// A kept view this code made is brought up to date, not made again (2026-11-08): the worker is told when it was made
+// and answers `unchanged` when no session and no log moved since; the view stands, the strip never shows, and the
+// question is not asked again for REFRESH_MS. A changed session is read with the count over the changed ones alone.
+test('a kept view is checked for changes, not read again; nothing changed means no read for REFRESH_MS', async t => {
+  const { store } = fixture(t), worker = new FakeWorker();
+  const scans = uiScans({ workerFactory: () => worker });
+  t.after(() => scans.close());
+  const { writeSnapshot } = await import('../src/context-snapshot.js');
+  const madeAt = Date.now() - 3 * 600_000;
+  writeSnapshot(store, 7, { sessions: 4 }, { now: madeAt });
+  const first = scans.read('context', store, 7);
+  assert.equal(first.view.sessions, 4, 'the kept view is served at once'); assert.equal(first.refreshing, true);
+  assert.equal(worker.requests[0].since, madeAt, 'the worker is told when the view was made');
+  worker.answer(0, { completed: 0, total: 0, done: true, unchanged: true, at: Date.now() });
+  const same = scans.read('context', store, 7);
+  assert.equal(same.view.sessions, 4); assert.equal(same.refreshing, false); assert.equal(same.at, madeAt, 'the figures are as old as they are');
+  assert.equal(scanStatus([same]).progress, null, 'no strip for a check that found nothing');
+  scans.read('context', store, 7); scans.read('context', store, 7);
+  assert.equal(worker.requests.length, 1, 'not asked again within REFRESH_MS');
+  // a view another copy of thinker made is read in full
+  const f = path.join(store.dir, 'state', 'context-view-7.json'), kept = JSON.parse(fs.readFileSync(f, 'utf8'));
+  kept.code = 'other'; fs.writeFileSync(f, JSON.stringify(kept));
+  await scans.cancel();
+  const scans2 = uiScans({ workerFactory: () => worker }); t.after(() => scans2.close());
+  scans2.read('context', store, 7);
+  assert.equal(worker.requests[1].since, null);
+  // the count over the changed sessions is said to be so
+  worker.answer(1, { completed: 1, total: 3, delta: true });
+  const s = scanStatus([scans2.read('context', store, 7)]);
+  assert.equal(s.progress.delta, true); assert.equal(s.progress.total, 3);
+});
+
+test('the real worker answers unchanged when nothing moved since the kept view, and reads one changed session on its own count', async t => {
+  const { root, repo, store } = fixture(t);
+  const env = { ...process.env, THINKER_TEST: '1', THINKER_LOG: 'local', THINKER_HOME: path.join(root, 'thinker'), CLAUDE_CONFIG_DIR: path.join(root, 'claude'), CODEX_HOME: path.join(root, 'codex') };
+  const transcripts = path.join(env.CLAUDE_CONFIG_DIR, 'projects', repo.replace(/[^A-Za-z0-9]/g, '-'));
+  fs.mkdirSync(transcripts, { recursive: true });
+  const files = [];
+  for (let i = 0; i < 3; i++) {
+    const file = path.join(transcripts, `s${i}.jsonl`), timestamp = new Date().toISOString();
+    fs.writeFileSync(file, [
+      { type: 'user', cwd: repo, timestamp, message: { role: 'user', content: 'Read AGENTS.md and run the tests.' } },
+      { type: 'assistant', timestamp, message: { id: `m${i}`, model: 'claude-sonnet-4-20250514', content: [{ type: 'text', text: 'Done.' }], usage: { input_tokens: (i + 1) * 1000, output_tokens: 50 } } },
+    ].map(x => JSON.stringify(x)).join('\n') + '\n');
+    files.push(file);
+  }
+  const worker = new Worker(new URL('../src/ui/scan-worker.js', import.meta.url), { env });
+  t.after(() => worker.terminate());
+  let n = 0;
+  const run = (kind, since) => new Promise((resolve, reject) => {
+    const messages = [], id = `${kind}${++n}`;
+    const onMessage = m => { if (m.id !== id) return; messages.push(m); if (m.done) { worker.off('message', onMessage); m.error ? reject(new Error(m.error)) : resolve(messages); } };
+    worker.on('message', onMessage); worker.once('error', reject);
+    worker.postMessage({ id, kind, repo, window: kind === 'context' ? 7 : 6, since });
+  });
+  const cold = await run('context');
+  const madeAt = cold.at(-1).at;
+  // nothing moved: one message, no view, the kept one stands
+  const same = await run('context', madeAt);
+  assert.equal(same.length, 1); assert.equal(same[0].unchanged, true); assert.equal(same[0].view, undefined);
+  // one session written since: the count is over that one, the view is the whole window's
+  await new Promise(r => setTimeout(r, 5));
+  const later = new Date(); // after `madeAt`, never in the future: the report's check below must not see it as changed again
+  fs.appendFileSync(files[1], JSON.stringify({ type: 'user', cwd: repo, timestamp: later.toISOString(), message: { role: 'user', content: 'again' } }) + '\n');
+  fs.utimesSync(files[1], later, later);
+  const delta = await run('context', madeAt);
+  assert.deepEqual(delta[0], { id: delta[0].id, completed: 0, total: 1, delta: true });
+  assert.equal(delta.at(-1).total, 1); assert.equal(delta.at(-1).completed, 1); assert.equal(delta.at(-1).delta, true);
+  const sessions = files.map(file => ({ client: 'claude', file, session: path.basename(file, '.jsonl'), mtime: fs.statSync(file).mtimeMs })).sort((a, b) => b.mtime - a.mtime);
+  assert.deepEqual(delta.at(-1).view, contextView(store, { days: 7, sessions }), 'the same view as a full read');
+  // the Report is also read again when the log moved, with no session changed
+  const rep = await run('report');
+  const repAt = rep.at(-1).at;
+  assert.equal((await run('report', repAt))[0].unchanged, true);
+  await new Promise(r => setTimeout(r, 5));
+  fs.appendFileSync(path.join(store.dir, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), op: 'request', repo, session: 'x' }) + '\n');
+  const logged = await run('report', repAt);
+  assert.deepEqual(logged[0], { id: logged[0].id, completed: 0, total: 0, delta: true });
+  assert.equal(logged.at(-1).done, true); assert.ok(logged.at(-1).view);
+});
