@@ -5,6 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, ARMS, armsOf, trust } from '../src/factory.js';
 import { weekColumns } from '../src/report.js';
+import { continuations, afterContinuation } from '../src/transcripts.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 const PRICE = { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25, cacheWrite1h: 2 };
 // a call of a million fresh tokens costs a dollar at this price, so costs read as call counts
@@ -78,6 +82,47 @@ test('a fix loop is a test program failing and then passing, and spans every cal
   assert.deepEqual([fix[0].from, fix[0].to, fix[0].cost], [0, 4, 5]);
   assert.equal(r.stages.verify.rework, r.stages.verify.cost, 'every verify call sat inside the loop');
   assert.equal(r.stages.build.rework, 2);
+});
+
+test('a fix loop closes at a commit, a push or a new branch, and a denial or a crashed heredoc is not a failure', () => {
+  const calls = Array.from({ length: 8 }, call);
+  const events = [{ t: 'prompt', text: 'x' },
+    tool(0, 'Bash', { command: 'npm test' }, { error: true, result: 'Permission for this action was denied by the Claude Code auto mode classifier.' }),
+    tool(1, 'Bash', { command: "python3 - <<'EOF'\np='a.js'\nEOF\nnode --test test/a.test.js" }, { error: true, result: 'Traceback (most recent call last):\n  File "<stdin>", line 2, in <module>\nSyntaxError: invalid syntax' }),
+    tool(2, 'Bash', { command: 'npm test' }, { result: 'ℹ pass 3' }), // neither refusal was a failure: nothing to close
+    tool(3, 'Bash', { command: 'npm test' }, { result: 'ℹ fail 1' }),
+    tool(4, 'Bash', { command: 'git commit -am wip && git push' }), // the work moved on
+    tool(5, 'Bash', { command: 'git worktree add -b agent/next .worktrees/next' }),
+    tool(6, 'Bash', { command: 'npm test' }, { result: 'ℹ pass 3' }), // a pass in the next piece of work is not the fix
+    tool(7, 'Bash', { command: 'npm test && git commit -am ok' }, { result: 'ℹ fail 1', error: true }), // the commit never ran: stays open, unresolved
+  ];
+  const r = sessionFactory({ events, calls }, { price: PRICE });
+  assert.deepEqual(r.loops.filter(L => L.kind === 'fix'), []);
+  // fixed before the commit it is a loop, and a passing `npm test && git commit` closes it
+  const fixed = [{ t: 'prompt', text: 'x' }, tool(0, 'Bash', { command: 'npm test' }, { result: 'ℹ fail 1' }), tool(1, 'Edit', { file_path: 'a' }),
+    tool(2, 'Bash', { command: 'npm test && git commit -am fix' }, { result: 'ℹ pass 3' }), tool(3, 'Bash', { command: 'npm test' }, { result: 'ℹ fail 1' }), tool(4, 'Bash', { command: 'npm test' }, { result: 'ℹ pass 3' })];
+  const r2 = sessionFactory({ events: fixed, calls: Array.from({ length: 5 }, call) }, { price: PRICE });
+  assert.deepEqual(r2.loops.filter(L => L.kind === 'fix').map(L => [L.from, L.to]), [[0, 2], [3, 4]]);
+});
+
+test('a session continued in a new one is read once: the continuation drops the history it copied', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-factory-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const at = Date.parse('2026-11-01T10:05:00.000Z');
+  const row = (type, extra) => JSON.stringify({ type, ...extra });
+  fs.writeFileSync(path.join(dir, 'orig.jsonl'), [row('user', { uuid: 'u1', timestamp: '2026-11-01T10:00:00Z', message: { role: 'user', content: 'go' } }),
+    row('continued-in', { timestamp: '2026-11-01T10:05:00.000Z', sessionId: 'orig', continuedInSessionId: 'cont' }), row('summary', { summary: 'x' })].join('\n') + '\n');
+  fs.writeFileSync(path.join(dir, 'cont.jsonl'), row('user', { uuid: 'u1', timestamp: '2026-11-01T10:00:00Z', sessionId: 'cont' }) + '\n');
+  const sessions = [{ client: 'claude', file: path.join(dir, 'orig.jsonl'), session: 'orig' }, { client: 'claude', file: path.join(dir, 'cont.jsonl'), session: 'cont' }, { client: 'codex', file: path.join(dir, 'orig.jsonl'), session: 'c' }];
+  assert.deepEqual([...continuations(sessions)], [['cont', { from: 'orig', at }]]);
+  // the parsed continuation: two copied calls and their events, then its own
+  const p = { calls: [{ t: at - 60_000, fresh: 1 }, { t: at - 1000, fresh: 2 }, { t: at + 3000, fresh: 3 }],
+    events: [{ t: 'prompt', text: 'go', at: at - 61_000 }, tool(0, 'Read', { file_path: 'a' }), tool(1, 'Edit', { file_path: 'a' }), { t: 'prompt', text: 'more', at: at + 2000 }, { ...tool(2, 'Bash', { command: 'npm test' }), turn: 3 }] };
+  const q = afterContinuation(p, at);
+  assert.deepEqual(q.calls.map(c => c.fresh), [3]);
+  assert.deepEqual(q.events.map(e => [e.t, e.call ?? e.text, e.turn]), [['prompt', 'more', undefined], ['tool', 0, 1]]);
+  assert.equal(q.continued.dropped, 2);
+  // a continuation with nothing of its own yet is empty, never the copy
+  assert.deepEqual(afterContinuation({ calls: p.calls.slice(0, 2), events: p.events.slice(0, 3) }, at).calls, []);
 });
 
 test('a correction is an interruption or a ledger verdict, and the loop is the exchange that redid the work', () => {

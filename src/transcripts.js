@@ -641,3 +641,36 @@ export function transcriptsFor(cwd) {
   return fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')).map(f => path.join(dir, f))
     .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
 }
+
+// A session Claude Code continued in a new one (a "continued-in" row among the original's last lines, naming the new
+// session) has its history copied into the continuation's file under the new session id -- the same message uuids and
+// timestamps -- ahead of the continuation's own rows. Read as two sessions, every copied call is counted twice: on
+// 2026-11-09 this machine held 25 such pairs, and the copies were 30 of the Factory's 467 fix loops. `continuations`
+// reads the tail of each Claude transcript for the marker and maps the continuation's session id to the original and
+// the moment it was continued; `afterContinuation` drops from a parsed continuation the calls made at or before that
+// moment and the events made in them, re-indexing the rest, so the copied history is the original's alone.
+const TAIL_BYTES = 64 * 1024;
+export function continuations(sessions) {
+  const out = new Map();
+  for (const s of sessions) {
+    if (s.client && s.client !== 'claude') continue;
+    let tail = '';
+    try {
+      const size = fs.statSync(s.file).size, n = Math.min(size, TAIL_BYTES), fd = fs.openSync(s.file, 'r'), buf = Buffer.alloc(n);
+      fs.readSync(fd, buf, 0, n, size - n); fs.closeSync(fd); tail = buf.toString('utf8');
+    } catch { continue; }
+    const i = tail.lastIndexOf('"type":"continued-in"'); if (i < 0) continue;
+    const start = tail.lastIndexOf('\n', i) + 1, end = tail.indexOf('\n', i);
+    let j; try { j = JSON.parse(tail.slice(start, end < 0 ? undefined : end)); } catch { continue; }
+    const at = Date.parse(j.timestamp);
+    if (j.continuedInSessionId && at) out.set(j.continuedInSessionId, { from: s.session, at });
+  }
+  return out;
+}
+export function afterContinuation(p, at) {
+  const k = (p.calls || []).findIndex(c => c.t > at);
+  if (k < 0) return { ...p, calls: [], events: [], continued: { at, dropped: (p.calls || []).length } };
+  const first = (p.events || []).findIndex(e => Number.isInteger(e.call) ? e.call >= k : e.at > at);
+  const events = (first < 0 ? [] : p.events.slice(first)).map(e => Number.isInteger(e.call) ? { ...e, call: e.call - k, turn: Number.isInteger(e.turn) ? e.turn - k : e.turn } : e);
+  return { ...p, calls: p.calls.slice(k), events, continued: { at, dropped: k } };
+}
