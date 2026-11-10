@@ -29,6 +29,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { transformChat, chatUsageTap, chatReport, refusesChatCut } from './proxy-chat.js';
+import { rateTracker as createRateTracker, makeRatesResolver } from './gateway-rates.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { BEDROCK_PATH, bedrockRequest, bedrockBody } from './proxy-bedrock.js';
@@ -573,6 +574,11 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   const chatCutting = cutStore(clearingDir ? path.join(clearingDir, 'chat') : null);
   // one store per door, so a restarted proxy re-applies the same set whichever door wrote it
   const cutStoreOf = t => t.protocol === 'responses' ? responseCutting : t.protocol === 'chat' ? chatCutting : cutting;
+  // Dynamic rates for the gateway door (gateway-rates.js): the gateways' own answers are the
+  // price list. Fitted in memory from the `cost` each response carries; a restart refits within
+  // a few calls, and config (`proxy: { rates }`) beats the fit until it exists.
+  const rates = Object.keys(cfg.gateways || {}).length ? createRateTracker() : null;
+  const ratesFor = rates ? makeRatesResolver({ tracker: rates, configured: cfg.ratesConfig }) : null;
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();
@@ -630,7 +636,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       // The record is read inside the transform, which is where the conversation can be told from the
       // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
       let cutRec = null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)), readChatCut: session => (cutRec = chatCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, ratesFor, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)), readChatCut: session => (cutRec = chatCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
       // Reserve the boundary's decision before forwarding, including a decision not to cut.
       // Retries and concurrent requests in this turn must reuse the same set, even when a
       // later tool result would make a previously refused candidate profitable.
@@ -728,8 +734,10 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             recorded = true;
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
+            // the gateway's own accounting feeds the rates the next decision is priced with
+            if (rates && t.protocol === 'chat' && ures.statusCode === 200 && Number.isFinite(usage?.cost)) { try { rates.observe(t.model, usage); } catch { /* a rate is never worth a failed request */ } }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
-              ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
+              ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), ...(t.rates ? { rates: t.rates } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;

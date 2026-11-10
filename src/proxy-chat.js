@@ -102,11 +102,15 @@ export function transformChat(method, url, headers, body, cfg) {
   const turn = j.messages.filter(isUserMessage).length;
   if (!turn) return pass('no-user-turn');
   const rec = cfg.cutRecord || cfg.readChatCut?.(session) || freshCut(session);
+  // the decision's rates, per model: config first, then the gateway's own measured prices
+  // (gateway-rates.js), then the Anthropic defaults the shared policy has always kept.
+  const rates = cfg.ratesFor?.(j.model) || null;
   const prompt = out.length * TOKENS_PER_CHAR;
   const candidate = chatCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
-  const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model });
+  const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model, rates });
   const applied = applyChatCut(j.messages, decision.cut);
   const state = { model: j.model, session, turn, cut: decision.cut,
+    ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
     ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
