@@ -25,12 +25,11 @@
       padding: 1.1rem 2rem; display: flex; justify-content: space-between; align-items: center;
       border-bottom: 1px solid #f0f0f0;
     }
-    /* While session data is read, a strip just under the header (2026-11-07, the owner's ask): the count, the share done and a
-       bar. It hangs off the bottom edge of the sticky nav (position: absolute; top: 100%), so it overlays the top of the page
-       and moves nothing: the brand, the tabs and the content below keep their places whether it is shown or not. The first
-       cut put it above the brand as a near-black band, which shoved the whole page down while it showed. Light, so it reads
-       as part of the header, with the bar along its lower edge. */
-    .scan-progress { position: absolute; left: 0; right: 0; top: 100%; z-index: 10; background: rgba(250,250,250,0.96); backdrop-filter: blur(8px); border-bottom: 1px solid #e5e7eb; padding: .45rem 2rem .5rem; color: #111; }
+    /* While session data is read, a strip along the bottom of the window (2026-11-09, the owner's ask; under the header from
+       2026-11-07): the count, the share done and a bar along its upper edge. Fixed to the viewport, so it overlays the foot of
+       the page and moves nothing: the header, the table and everything else keep their places whether it is shown or not.
+       It sits outside the nav, whose backdrop-filter would make a fixed child position against the nav instead of the window. */
+    .scan-progress { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: rgba(250,250,250,0.96); backdrop-filter: blur(8px); border-top: 1px solid #e5e7eb; padding: .5rem 7rem .45rem 2rem; color: #111; } /* room on the right for the FAQ button, which is fixed above it */
     .scan-progress.paused { background: rgba(254,249,195,0.97); }
     .scan-progress.error { background: #fef2f2; color: #991b1b; }
     .scan-row { display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; font-size: .84rem; }
@@ -40,7 +39,7 @@
     .scan-note { color: #6b7280; }
     .scan-note:empty { display: none; }
     .scan-retry { background: #111; color: #fff; border: 0; border-radius: 6px; padding: .2rem .65rem; font-size: .78rem; font-weight: 600; cursor: pointer; }
-    .scan-progress progress { position: absolute; left: 0; right: 0; bottom: -1px; display: block; width: 100%; height: 4px; border: 0; overflow: hidden; accent-color: #111; background: #e5e7eb; }
+    .scan-progress progress { position: absolute; left: 0; right: 0; top: -1px; display: block; width: 100%; height: 4px; border: 0; overflow: hidden; accent-color: #111; background: #e5e7eb; }
     .scan-progress progress::-webkit-progress-bar { background: #e5e7eb; }
     .scan-progress progress::-webkit-progress-value { background: #111; transition: width .3s ease; }
     .scan-progress progress::-moz-progress-bar { background: #111; }
@@ -456,11 +455,11 @@
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
-    <div id="scan-progress" class="scan-progress" hidden>
-      <div class="scan-row"><span id="scan-label" role="status" aria-live="polite"></span><span class="scan-note" id="scan-note"></span><button id="scan-retry" class="scan-retry" hidden>Retry</button><span id="scan-pct" aria-hidden="true"></span></div>
-      <progress id="scan-bar" aria-label="Session data read"></progress>
-    </div>
   </nav>
+  <div id="scan-progress" class="scan-progress" hidden>
+    <div class="scan-row"><span id="scan-label" role="status" aria-live="polite"></span><span class="scan-note" id="scan-note"></span><button id="scan-retry" class="scan-retry" hidden>Retry</button><span id="scan-pct" aria-hidden="true"></span></div>
+    <progress id="scan-bar" aria-label="Session data read"></progress>
+  </div>
 
   <main>
     <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
