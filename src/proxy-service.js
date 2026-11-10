@@ -14,9 +14,12 @@
 // Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
 // fixed OpenAI/ChatGPT Responses route, and proxy-codex.js selects the managed provider.
 //
-// The service runs with a holdout share (SERVICE_HOLDOUT, 15% of sessions, as the hooks' notes have since 2026-10-04) so
-// that `thinker proxy report` compares the two sides on the machine's own work; `proxy: { holdout, trigger, keep, keepMin,
-// clearAtLeast }` in THINKER_HOME/config.json changes the service's flags (holdout 0: none).
+// The service runs with a holdout share (SERVICE_HOLDOUT, half of the sessions since 2026-11-09, the owner's call; 15%
+// from 2026-10-24, the share the hooks' notes had) so that `thinker proxy report` and the Factory's split compare the
+// two sides on the machine's own work. Half, as the profile's holdout is: at 85/15 the small side carries most of the
+// noise, and the clearing's measure (cache writes, cost an exchange) is still an open question, not a regression check.
+// `proxy: { holdout, trigger, keep, keepMin, clearAtLeast }` in THINKER_HOME/config.json changes the service's flags
+// (holdout 0: none). The desktop mod mirrors the share (claude-clear/hooks/register.tsx:HOLDOUT).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -30,7 +33,7 @@ import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 import { bedrockState, prepareBedrock, commitBedrock, wireBedrock, restoreBedrock } from './proxy-bedrock.js';
 
-export const SERVICE_HOLDOUT = 0.15;
+export const SERVICE_HOLDOUT = 0.5;
 export const PROXY_LABEL = 'com.thinker.proxy';
 export const PROXY_ENV = BASE_URL_VAR;
 // Claude Code on a cloud route speaks that provider's format, which the proxy does not read

@@ -1,24 +1,28 @@
 // The Factory (2026-11-08, the owner's direction): a session read as a pipeline. Every model call is a unit of work at
-// one of six stations -- Prompts, Think, Explore, Build, Verify, Merge -- and what it cost is the station's. Where work
+// one of seven stations -- Prompts, Think, Explore, Build, Verify, Review, Merge -- and what it cost is the station's. Where work
 // came back to an earlier station is a loop, found in the transcript by code and never by a model. The page's Factory
 // tab and `thinker factory` are two doors to factoryView; the Report keeps it (report.js:reportView `factory`).
 //
 // One rule attributes tokens, and it has to fit in a sentence: a call's tokens go to the stage of the tool it called;
 // the first call after a prompt is Prompts; a call with no tool is Think. A call that made tools of several stages is
-// split evenly between them. Verify is any check of the work before it merges, by running it (tests, builds, probes)
-// or by reading it (the review skills, a reviewer subagent): with no human reviewer a Review stage would measure the
-// agent's own tokens and call them a review, so there is none; a change to a pull request after it was opened is a
-// loop out of Merge instead.
+// split evenly between them. Verify is the agent checking the work by running it (tests, builds, probes). Review is the
+// work being read before it merges (2026-11-09, the owner's ask; it was left out at first because with no human reviewer
+// it would have priced the agent's own tokens as a review): the person's comments on the open pull request -- the first
+// call after a prompt of theirs while a pull request is open is Review, not Prompts -- and the agent reading the change,
+// a review skill, a reviewer subagent, `gh pr view` or `gh pr diff`. Read on this machine's 37 days, every change to an
+// open pull request but a fifth of the cost was one the person asked for in the session: that is the review, and the
+// station it happens at.
 //
 // Loops are data, not a fixed set: a kind is defined by a detector over the session's events, and the view carries
 // every kind that fired, so a new detector shows up on the page with no change there. Each kind says the rule that
 // finds it. A loop's cost is the cost of the calls it spans, and a stage's rework is the cost of its calls inside
 // any loop, counted once however many loops hold the call.
-import { parseTranscript, subagentSessions, continuations, afterContinuation } from './transcripts.js';
+import { parseTranscript, subagentSessions } from './transcripts.js';
 import { bashProgram } from './tool-outputs.js';
 import { listPrice, writeCost } from './prices.js';
 import { findRepoSessions } from './instruction-value.js';
 import { readLedger, profileArmOf } from './profile.js';
+import { isHarnessEvent } from './session-state.js';
 import { heldOut, PROXY_DEFAULTS } from './proxy.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,7 +38,8 @@ export const STAGES = [
   ['think', 'Think', 'plans, reasoning and answers: calls with no tool'],
   ['explore', 'Explore', 'reads, searches and exploring subagents'],
   ['build', 'Build', 'edits and writes'],
-  ['verify', 'Verify', 'tests, builds and live probes, and the agent reading its own diff'],
+  ['verify', 'Verify', 'tests, builds and live probes'],
+  ['review', 'Review', "the person's comments on the open pull request, and the agent reading the change: a review skill, a reviewer subagent, gh pr view"],
   ['merge', 'Merge', 'commit, push, open the pull request, read its checks, merge'],
 ];
 const STAGE_KEYS = STAGES.map(([k]) => k);
@@ -44,6 +49,9 @@ export const verdictOf = share => share == null ? null : share <= REWORK_THRESHO
 
 // --- stages ----------------------------------------------------------------------------------------------------------
 const REVIEW_SKILLS = /^(code-review|simplify|security-review|review)$/i;
+const REVIEW_PR_RE = /\bgh\s+pr\s+(view|diff|comment|review)\b/;
+// the agent reading the change: a review skill, a reviewer subagent, the pull request's page or diff
+export const isReviewTool = (name, input) => (name === 'Skill' && REVIEW_SKILLS.test(String(input?.skill || ''))) || ((name === 'Agent' || name === 'Task') && /review/i.test(`${input?.subagent_type || ''} ${input?.description || ''}`)) || (name === 'Bash' && REVIEW_PR_RE.test(String(input?.command || '')));
 const MERGE_RE = /\bgit\s+(?:-C\s+\S+\s+)?(commit|push|merge|rebase|tag|cherry-pick|worktree|add|checkout\s+-b|switch\s+-c)\b|\bgh\s+(pr|release|api|repo)\b/;
 const EXPLORE_PROGS = new Set(['sqlite3', 'psql', 'mysql', 'redis-cli', 'ls', 'cat', 'head', 'tail', 'less', 'grep', 'rg', 'ag', 'find', 'fd', 'wc', 'du', 'df', 'tree', 'stat', 'file', 'which', 'type', 'env', 'printenv', 'pwd', 'awk', 'jq', 'sort', 'uniq', 'cut', 'tr', 'column', 'echo', 'printf', 'date', 'whoami', 'uname', 'sw_vers', 'ps', 'lsof', 'open', 'diff', 'comm', 'od', 'xxd', 'strings', 'realpath', 'readlink', 'basename', 'dirname']);
 const EXPLORE_SUB = new Set(['git status', 'git diff', 'git log', 'git show', 'git blame', 'git grep', 'git branch', 'git remote', 'git rev-parse', 'git describe', 'git ls-files', 'git stash', 'gh issue', 'gh run', 'npm ls', 'npm view', 'npm outdated', 'pip show', 'pip list', 'docker ps', 'docker images', 'kubectl get', 'kubectl describe', 'kubectl logs']);
@@ -57,6 +65,7 @@ export const TEST_RE = /^(npm test|npm run (test|build|lint|typecheck|check|e2e)
 // line of read-only programs is Explore, and anything else is running something to see what happens: Verify
 export function bashStage(command) {
   const c = String(command || '');
+  if (REVIEW_PR_RE.test(c)) return 'review';
   if (MERGE_RE.test(c)) return 'merge';
   const segs = c.split(/&&|\|\||;|\n/).map(x => x.trim()).filter(x => x && !/^(cd|export|source|\.)\s/.test(x) && !/^\w+=\S*$/.test(x));
   const progs = segs.map(progOf);
@@ -71,8 +80,9 @@ export function bashStage(command) {
 // the stage of one tool call, in the transcripts' one vocabulary (transcripts.js:toolName)
 export function stageOfTool(name, input) {
   const n = String(name || '');
+  if (isReviewTool(n, input)) return 'review';
   if (n === 'Bash') return bashStage(input?.command);
-  if (n === 'Skill') return REVIEW_SKILLS.test(String(input?.skill || '')) || /^run$/i.test(String(input?.skill || '')) ? 'verify' : 'build';
+  if (n === 'Skill') return /^run$/i.test(String(input?.skill || '')) ? 'verify' : 'build';
   if (/^(Edit|Write|MultiEdit|NotebookEdit)$/.test(n)) return 'build';
   if (/^(Read|Grep|Glob|LS|WebFetch|WebSearch|ToolSearch|NotebookRead|Agent|Task)$/.test(n)) return 'explore';
   if (/^(TodoWrite|TodoRead|AskUserQuestion|EnterPlanMode|ExitPlanMode|EnterWorktree|ExitWorktree)$/.test(n)) return 'think';
@@ -92,10 +102,11 @@ export const callCost = (c, price) => !price ? null : ((c.fresh || 0) * price.in
 // page draws and the rule in words. `sessions` on the view counts the sessions a kind fired in.
 export const LOOP_KINDS = {
   fix: { name: 'Fix loop', from: 'verify', to: 'build', sub: 'a failing run to the run that passes', rule: 'A test or build program (npm test, node --test, pytest, tsc …) fails and the same program passes within the same or the next exchange, before any commit, push or new branch; the loop is every call between.' },
-  reviewcatch: { name: 'Review catch', from: 'verify', to: 'build', sub: 'a reading found something', rule: 'A review skill or a reviewer subagent ran, and edits followed before the next prompt.' },
+  reviewcatch: { name: 'Review catch', from: 'review', to: 'build', sub: 'a reading found something', rule: 'A review skill or a reviewer subagent ran, and edits followed before the next prompt.' },
   correction: { name: 'Correction', from: 'build', to: 'prompts', sub: 'the person corrected, redirected or interrupted', rule: 'The person interrupted the agent, or the profile ledger read their next prompt as a correction or a redirection; the loop is the exchange that redid the work.' },
   reread: { name: 'Re-read', from: 'explore', to: 'explore', sub: 'a file read again', rule: 'A file read again, whatever the range, twenty or more calls after it was last read.' },
-  sentback: { name: 'Sent back', from: 'merge', to: 'build', sub: 'the pull request changed after it was opened', rule: 'A commit or a push after the session opened a pull request; the loop runs from the first edit after the opening to the last push.' },
+  sentback: { name: 'Review round', from: 'review', to: 'build', sub: 'the person asked for a change on the open pull request', rule: 'The person wrote while a pull request was open, and the exchange changed something and committed or pushed it; the loop is that exchange, from their prompt to its last push. One loop per round.' },
+  followup: { name: 'Own follow-up', from: 'merge', to: 'build', sub: 'the agent changed the open pull request unasked', rule: 'A change committed or pushed to the open pull request in an exchange no prompt of the person opened: a failed check, a forgotten file. A push of what was already committed is not one.' },
 };
 const REREAD_GAP = 20;
 const FAIL_RE = /\b(exit code:? [1-9]\d*|command failed|npm err!|error: command|failing [1-9]\d*|fail [1-9]\d*|\d+ failed\b|FAILED|AssertionError|Traceback \(most recent call last\)|SyntaxError|ReferenceError|TypeError:|Error: Cannot find module|not ok \d+)|✖/;
@@ -112,23 +123,30 @@ const failed = e => {
 // pass of the same program in the next piece of work (48 of 467 loops ran past one here, $201 of $647, 2026-11-09)
 const BOUNDARY_RE = /\bgit\s+(?:-C\s+\S+\s+)?(?:commit|push|worktree\s+add|checkout\s+-b|switch\s+-c)\b|\bgh\s+pr\s+create\b/;
 const isBoundary = e => e.name === 'Bash' && BOUNDARY_RE.test(String(e.input?.command || ''));
+// a pull request open in the session: from `gh pr create` to the next branch (checkout -b, switch -c, worktree add) or the
+// next pull request, since a session here goes on to the next piece of work and nothing in the transcript says "merged"
+const isCommit = x => x.name === 'Bash' && /\bgit\s+(?:-C\s+\S+\s+)?(commit|push)\b/.test(String(x.input?.command || ''));
+const isBranch = x => x.name === 'Bash' && /\bgit\s+(?:-C\s+\S+\s+)?(checkout\s+-b|switch\s+-c|worktree\s+add)\b/.test(String(x.input?.command || ''));
+const isOpen = x => x.name === 'Bash' && /\bgh\s+pr\s+create\b/.test(String(x.input?.command || ''));
 
 // the exchanges a session's prompts cut it into, and the model call each event belongs to; a call with no event takes
 // the exchange of the call before it
+// `reviews`: the prompt calls that read a comment of the person's on an open pull request (Review, not Prompts);
+// `personExchanges`: the exchanges a prompt of the person's opened, as against a task notification or another harness event
 function timeline(events, calls) {
-  const n = calls.length, exchangeOf = new Array(n).fill(null), stagesOf = Array.from({ length: n }, () => new Set()), prompts = new Set(), tools = [];
-  let exchange = 0, pending = false, interrupts = [];
+  const n = calls.length, exchangeOf = new Array(n).fill(null), stagesOf = Array.from({ length: n }, () => new Set()), prompts = new Set(), reviews = new Set(), personExchanges = new Set(), tools = [];
+  let exchange = 0, pending = false, review = false, prOpen = false, interrupts = [];
   const indexOf = e => { const c = Number.isInteger(e.call) ? e.call : Number.isInteger(e.turn) ? e.turn - 1 : null; return c != null && c >= 0 && c < n ? c : null; };
   for (const e of events) {
-    if (e.t === 'prompt') { exchange++; pending = true; continue; }
+    if (e.t === 'prompt') { exchange++; pending = true; const person = !isHarnessEvent(e.text); if (person) personExchanges.add(exchange); review = prOpen && person; continue; }
     if (e.t === 'interrupt') { interrupts.push(exchange); continue; }
     const ci = indexOf(e); if (ci == null) continue;
-    if (pending) { prompts.add(ci); pending = false; }
+    if (pending) { prompts.add(ci); if (review) reviews.add(ci); pending = false; }
     if (exchangeOf[ci] == null) exchangeOf[ci] = exchange;
-    if (e.t === 'tool') { stagesOf[ci].add(stageOfTool(e.name, e.input)); tools.push({ ...e, ci, exchange }); }
+    if (e.t === 'tool') { stagesOf[ci].add(stageOfTool(e.name, e.input)); tools.push({ ...e, ci, exchange }); if (isOpen(e)) prOpen = true; else if (isBranch(e)) prOpen = false; }
   }
   for (let i = 0, last = 1; i < n; i++) { if (exchangeOf[i] == null) exchangeOf[i] = last; else last = exchangeOf[i]; }
-  return { exchangeOf, stagesOf, prompts, tools, interrupts, exchanges: exchange };
+  return { exchangeOf, stagesOf, prompts, reviews, personExchanges, tools, interrupts, exchanges: exchange };
 }
 // the calls of an exchange, as a [from, to] span of call indices, or null where it made none
 const spanOf = (exchangeOf, x) => { let from = -1, to = -1; exchangeOf.forEach((e, i) => { if (e === x) { if (from < 0) from = i; to = i; } }); return from < 0 ? null : [from, to]; };
@@ -150,8 +168,7 @@ export function detectLoops(tl, { corrected = new Set() } = {}) {
   }
   // review catch: a review skill or subagent, then edits before the next prompt
   for (const e of tl.tools) {
-    const isReview = (e.name === 'Skill' && REVIEW_SKILLS.test(String(e.input?.skill || ''))) || ((e.name === 'Agent' || e.name === 'Task') && /review/i.test(String(e.input?.subagent_type || e.input?.description || '')));
-    if (!isReview) continue;
+    if (!isReviewTool(e.name, e.input) || e.name === 'Bash') continue;
     const edits = tl.tools.filter(x => x.ci > e.ci && x.exchange === e.exchange && /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(x.name));
     if (edits.length) out.push({ kind: 'reviewcatch', from: e.ci, to: edits.at(-1).ci, exchange: e.exchange, note: String(e.input?.skill || e.input?.subagent_type || 'review') });
   }
@@ -166,21 +183,22 @@ export function detectLoops(tl, { corrected = new Set() } = {}) {
     if (seen.has(key) && e.ci - seen.get(key) >= REREAD_GAP) out.push({ kind: 'reread', from: e.ci, to: e.ci, exchange: e.exchange, note: String(e.input.file_path).replace(/^.*\//, '') });
     seen.set(key, e.ci);
   }
-  // sent back: the pull request opened, then a commit or a push on it. A session here often goes on to the next piece of
-  // work, so the window closes at the next branch (checkout -b, switch -c, worktree add) or the next pull request opened.
-  const isCommit = x => x.name === 'Bash' && /\bgit\s+(?:-C\s+\S+\s+)?(commit|push)\b/.test(String(x.input?.command || ''));
-  const isBranch = x => x.name === 'Bash' && /\bgit\s+(?:-C\s+\S+\s+)?(checkout\s+-b|switch\s+-c|worktree\s+add)\b/.test(String(x.input?.command || ''));
-  const isOpen = x => x.name === 'Bash' && /\bgh\s+pr\s+create\b/.test(String(x.input?.command || ''));
-  let win = null; // { opened, edits, commits }
-  const closeWin = () => { if (win?.commits.length) out.push({ kind: 'sentback', from: (win.edits[0] || win.commits[0]).ci, to: win.commits.at(-1).ci, exchange: win.commits.at(-1).exchange, note: 'after gh pr create' }); win = null; };
+  // the open pull request changed: a round per exchange that changed something (any Build call: an Edit, a heredoc, an
+  // install) and then committed or pushed, while the pull request was open. A round the person's prompt opened is a
+  // review round, from that prompt's call; one the agent made unasked (the opening exchange itself, a task notification)
+  // is its own follow-up, from the first change. A push with no change behind it (the branch the pull request was just
+  // opened from) is neither: 49 of 153 loops here were that, 2026-11-09.
+  let win = null, round = null; // win: { exchange }; round: { exchange, from, to }
+  const closeRound = () => { if (round?.to != null) { const person = tl.personExchanges.has(round.exchange) && round.exchange > win.exchange; out.push({ kind: person ? 'sentback' : 'followup', from: person ? spanOf(tl.exchangeOf, round.exchange)[0] : round.from, to: round.to, exchange: round.exchange, note: person ? 'asked by the person' : 'unasked' }); } round = null; };
   for (const e of tl.tools) {
-    if (isOpen(e)) { closeWin(); win = { opened: e, edits: [], commits: [] }; continue; }
+    if (isOpen(e)) { closeRound(); win = { exchange: e.exchange }; continue; }
     if (!win) continue;
-    if (isBranch(e)) { closeWin(); continue; }
-    if (isCommit(e)) win.commits.push(e);
-    else if (!win.commits.length && /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(e.name)) win.edits.push(e);
+    if (isBranch(e)) { closeRound(); win = null; continue; }
+    if (round && e.exchange !== round.exchange && stageOfTool(e.name, e.input) === 'build') closeRound();
+    if (!round && stageOfTool(e.name, e.input) === 'build') round = { exchange: e.exchange, from: e.ci, to: null };
+    else if (round && isCommit(e)) round.to = e.ci;
   }
-  closeWin();
+  closeRound();
   return out.sort((a, b) => a.from - b.from || a.to - b.to);
 }
 
@@ -190,7 +208,7 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
   const tl = timeline(events, calls);
   const cost = calls.map(c => callCost(c, price)), tokens = calls.map(callTokens);
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
-  const alloc = calls.map((_, i) => tl.prompts.has(i) ? ['prompts'] : tl.stagesOf[i].size ? [...tl.stagesOf[i]] : ['think']);
+  const alloc = calls.map((_, i) => tl.prompts.has(i) ? [tl.reviews.has(i) ? 'review' : 'prompts'] : tl.stagesOf[i].size ? [...tl.stagesOf[i]] : ['think']);
   const loops = detectLoops(tl, { corrected });
   const inLoop = new Array(calls.length).fill(false);
   for (const L of loops) for (let i = L.from; i <= L.to; i++) inLoop[i] = true;
@@ -306,7 +324,7 @@ export function armsOf(store, session, share, { peak = Infinity, home = null } =
 
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
-export const RULES_VERSION = 7; // 7: a fix loop closes at a commit, a denial or a crashed heredoc is no failure, a continuation's copied history is dropped
+export const RULES_VERSION = 8; // 8: the Review stage; a change to the open pull request is a review round (the person's) or the agent's own follow-up, never a bare push
 const CACHE = diskCache('factory-session', 1);
 const parentOf = s => s.parent || s.session;
 // the ledger's corrected and redirected exchanges, by session (profile.js: a row's `turn` is the exchange it observed,
@@ -326,7 +344,6 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
-  const continued = continuations(all); // a session continued in a new one: the copy's history is read once, as the original's
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const corrected = correctedBySession(store, { days, now });
   const stages = Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 }]));
@@ -335,9 +352,9 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   for (const s of all) {
     let r;
     try {
-      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(continued.get(s.session)?.at || '')), [s.file], () => {
-        let p = parseTranscript(s.file);
-        if (continued.has(s.session)) p = afterContinuation(p, continued.get(s.session).at);
+      r = cachedByFiles(CACHE, cacheKey('factory', String(RULES_VERSION), s.file, s.parent || '', [...(corrected.get(s.session) || [])].join(','), String(s.since || '')), [s.file], () => {
+        // a session continued in a new one is read from the moment it was continued (findRepoSessions marks it; transcripts.js:continuations)
+        const p = parseTranscript(s.file, { since: s.since || 0 });
         if (!p.calls?.length || /auto-review/i.test(String(p.model || ''))) return null;
         const price = listPrice(p.model, { config });
         return { ...sessionFactory(p, { price, corrected: corrected.get(s.session) || new Set() }), model: p.model || null };

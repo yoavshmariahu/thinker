@@ -156,7 +156,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
                                  this in the background; --all for every repository the page lists, in one run)
   factory [--weeks n] [--diff profile|compression] [--json] [--refresh]   the Factory page in the terminal: the pipeline a session runs through (Prompts, Think, Explore, Build,
-                                 Verify, Merge) and what each stage cost over the Report's window, the loops detected in the sessions (where
+                                 Verify, Review, Merge) and what each stage cost over the Report's window, the loops detected in the sessions (where
                                  work came back to an earlier stage, found by code: a failing run to the run that passed, a correction, a
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
                                  requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every

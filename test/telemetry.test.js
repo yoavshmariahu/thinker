@@ -1,3 +1,4 @@
+import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -637,7 +638,7 @@ test('proxy telemetry reports the service, both sides of its holdout, the models
     const p = proxyMetrics({ home: tmpHome, now, env: {} });
     assert.equal(p.schemaVersion, 1); assert.equal(p.windowDays, 30);
     assert.equal(p.service.on, true);
-    assert.equal(p.service.holdout, 0.15, 'the service holdout share the two sides come from');
+    assert.equal(p.service.holdout, SERVICE_HOLDOUT, 'the service holdout share the two sides come from');
     assert.equal(p.sides.clearing.requests, 4, 'the request from 40 days ago is outside the window');
     assert.equal(p.sides.clearing.cleared, 61_600, 'what the API cleared, plus what the cut took out itself');
     assert.equal(p.sides.clearing.requestsCleared, 2);

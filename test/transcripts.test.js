@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, subagentStats, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
+import { continuations, continuedSince, parseTranscript, detectFormat, toolName, hydrate, recordEvent, findSessions, subagentSessions, subagentStats, textOf, imageDims, imageTokens, imageTokensOf, IMAGE_TOKENS_UNKNOWN, cacheRewrites, REWRITE_CAUSES } from '../src/transcripts.js';
 import { extractJson } from '../src/llm.js';
 import { installClient } from '../src/clients.js';
 
@@ -62,6 +62,40 @@ test('Claude Code transcript', () => {
   assert.equal(parseTranscript(f, { fromLine: 3 }).events.length, 1);
   assert.equal(parseTranscript(f, { fromLine: 3 }).model, 'claude-opus-5-5');
   assert.deepEqual(r.compactions, []);
+});
+
+test('a continued session: the rows copied from the original are context its calls carry, never calls of its own', () => {
+  const usage = { input_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 5 };
+  const f = write([
+    { type: 'user', uuid: 'u1', timestamp: '2026-11-01T10:00:00.000Z', cwd: '/r', message: { role: 'user', content: 'first' } },
+    { type: 'assistant', uuid: 'a1', timestamp: '2026-11-01T10:00:05.000Z', message: { id: 'm1', model: 'claude-opus-5', usage, content: [{ type: 'text', text: 'hello there' }, { type: 'tool_use', id: 't1', name: 'Read', input: { file_path: 'a' } }] } },
+    { type: 'user', uuid: 'u2', timestamp: '2026-11-01T10:00:06.000Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'x' }] } },
+    { type: 'user', uuid: 'u3', timestamp: '2026-11-01T10:10:00.000Z', message: { role: 'user', content: 'second' } },
+    { type: 'assistant', uuid: 'a2', timestamp: '2026-11-01T10:10:05.000Z', message: { id: 'm2', model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'npm test' } }] } },
+  ]);
+  const at = Date.parse('2026-11-01T10:05:00.000Z');
+  const whole = parseTranscript(f), own = parseTranscript(f, { since: at });
+  assert.deepEqual([whole.calls.length, whole.stats.turns, whole.stats.toolCalls, whole.continued], [2, 2, 2, undefined]);
+  assert.deepEqual([own.calls.length, own.stats.turns, own.stats.inputTokens, own.stats.toolCalls], [1, 1, 10, 1]);
+  assert.deepEqual(own.events.map(e => e.t === 'tool' ? e.name : e.text), ['second', 'Bash']);
+  assert.deepEqual([own.events[1].call, own.events[1].turn], [0, 1], 'the tool event indexes the continuation\'s own calls');
+  assert.equal(own.model, 'claude-opus-5-5', 'the model is the continuation\'s own');
+  assert.deepEqual(own.continued, { at, dropped: 1 });
+  // the copied text is still in the context the continuation's call reads, so the parts stay right
+  assert.ok(own.carried.prompts > 0 && own.carried.agentText > 0);
+});
+
+test('continuations names the session an original was continued in, and continuedSince finds the original beside the continuation', () => {
+  const dir = tmp(), row = (type, extra) => JSON.stringify({ type, ...extra }), at = '2026-11-01T10:05:00.000Z';
+  fs.writeFileSync(path.join(dir, 'orig.jsonl'), [row('user', { uuid: 'u1', timestamp: '2026-11-01T10:00:00Z', message: { role: 'user', content: 'go' } }),
+    row('continued-in', { timestamp: at, sessionId: 'orig', continuedInSessionId: 'cont' }), row('summary', { summary: 'x' })].join('\n') + '\n');
+  fs.writeFileSync(path.join(dir, 'cont.jsonl'), row('user', { uuid: 'u1', timestamp: '2026-11-01T10:00:00Z', sessionId: 'cont' }) + '\n');
+  fs.writeFileSync(path.join(dir, 'other.jsonl'), row('user', { uuid: 'u9', timestamp: '2026-11-01T11:00:00Z' }) + '\n');
+  const sessions = [{ client: 'claude', file: path.join(dir, 'orig.jsonl'), session: 'orig' }, { client: 'claude', file: path.join(dir, 'cont.jsonl'), session: 'cont' }, { client: 'codex', file: path.join(dir, 'orig.jsonl'), session: 'c' }];
+  assert.deepEqual([...continuations(sessions)], [['cont', { from: 'orig', at: Date.parse(at) }]]);
+  assert.equal(continuedSince(path.join(dir, 'cont.jsonl'), 'cont'), Date.parse(at));
+  assert.equal(continuedSince(path.join(dir, 'other.jsonl'), 'other'), 0, 'a session nothing was continued into');
+  assert.equal(continuedSince(path.join(dir, 'missing.jsonl'), 'x'), 0);
 });
 
 test('a Claude Code compaction is recorded as the index of the first event after it', () => {

@@ -183,7 +183,7 @@ longer exceptions to anything.
   removes the copies. The first rewire after this lands repoints the settings away from the app folder; the open
   sessions of that day still watch the app and are reloaded one last time by the next update.
 - Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
-  the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
+  the service's holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
   first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
   terminal had the proxy all along, so it is not told). It
@@ -398,6 +398,17 @@ longer exceptions to anything.
   byte-consistent (consecutive requests of a session differ only where Claude Code moves its own `cache_control`
   marker), so the cause is not yet known. Judge any change here by cache **write** tokens, against the 15%
   holdout, and dump both arms (`THINKER_PROXY_DUMP`) before trusting a figure.
+- **The holdout is half the sessions, from 15%** (2026-11-09, the owner's call; `proxy-service.js:SERVICE_HOLDOUT`,
+  mirrored by the mod's `HOLDOUT`, pinned together by `test/claude-clear.test.js`). The 15% was inherited from the
+  notes' per-turn holdout, where the held-out side was a regression check on something already shipped. The clearing's
+  question is still open -- the 28-turn pairing above, the cut arm's unexplained extra writes, and the Factory's split
+  on the day it was built (19 cleared sessions against 42 held out, marked thin) -- and at 85/15 the small side carries
+  most of the noise, so every figure waited on the held-out sessions alone. Half is the profile's reasoning applied
+  here (`PROFILE.holdoutRate`): an even split is for a question, an unbalanced one for a guard, and this goes back to
+  85/15 once the clearing's net is known. The side is still per session by hash (`proxy.js:heldOut`), so a session
+  keeps its side across the change; `proxy: { holdout }` in the machine config still wins; the service restarts idle
+  on the next prompt hook after the update, since its flags moved (`replaceReason`). Cost: half the sessions past
+  140k go uncleared for the window, which at this machine's rate is the saving the clearing would have made on them.
 
 **A request that never reached the API is the proxy's to recover (2026-11-05; `src/proxy-retry.js`):**
 - Measured on this machine's log, the 12 days to 2026-11-05 (20,749 rows, 830 error rows): 174 of those rows
@@ -640,7 +651,7 @@ longer exceptions to anything.
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
-| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of six stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
+| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of seven stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
@@ -1017,6 +1028,17 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - What set it off: on 2026-11-04 a Claude Desktop session was interrupted mid-answer with a picker reading
   "1 -- compress repeated tool output, or none?" -- the thinnest question thinker has ever put to anyone.
 
+**Find Savings is one table, a part a row (2026-11-09, the owner's ask; `page.html:renderRows`, `wireRows`)**
+- Title, type, per call, used, wasted, action: the action is a dropdown and an Apply in the row, and the `›` beside the
+  title opens the one-line description (the model's sentence where `thinker explain` has written one, else
+  part-describe.js's line, asked for when the row is opened and never for the rows nobody opens) and the part's text.
+- Gone, since the top half of the page was not a row anyone could act on: the view tabs (All, Instruction files, Custom
+  tools, Built-in tools), the Potential savings card on each, the explanatory paragraph, the cards view and its page-ahead
+  explanation writing, the checkboxes and the Apply over the table, the Over N days and Share columns. The figures stay
+  on the opened row and in `thinker context`; `thinker context --cards` is still the terminal's card view.
+- A door's suggested rows (the installer's, the weekly question's) come first with their action picked (`preselectRows`,
+  `PRETOP`, `PREACT`), where they came checked. `applyRows` still takes a list, one row long. **Wasted is dollars** (the same day): the row's wasted tokens at what an input token cost the window's sessions at list prices, `context-view.js:inputRate` (every priced session's input cost over its input tokens, the Report's own rule for a part, over the Save window; All repositories adds the dollars and the tokens), the tokens in the cell's hover and the opened row; `thinker context` prints the same column. **A row's colour is one rule on both doors** (`flagOf`, pinned together by `test/cli-ui-sync.test.js`): a part used in under 10% of the calls that carried it is red at 5,000 tokens a call or more, yellow under that, and uncoloured under 500 tokens; the command marks them `!!` and `!`. A section's title shows without anything in parentheses, and the change date left the type cell for the used-share hover.
+
 **Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
 - A part sits in the prompt, so it costs its size in every model call that carries it. The table's four numbers are four readings of that, each with a **?** under forty words (the owner: if it needs more, the calculation is wrong).
 - **Per prompt** (`tokens`): its size, what it adds to every prompt that carries it. **Needed** (`usedShare`): of those prompts, the share the agent acted on it in. **Over N days** (`window`): per prompt × every prompt that carried it (`prompts`). **Wasted** (`wastedWindow`; `wasted` a prompt): window × (1 − needed). The savings card leads with the window figure. `perPrompt` (window ÷ every prompt of the window) stays in the data for the tab strip, the totals and `wasteLevel`, not in the table.
@@ -1117,9 +1139,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   evenly. `transcripts.js` now returns every model call's usage (`calls`) and puts the call's index on each tool event
   (`call`) and a failure flag on a result (`error`, from `is_error`) for this. A shell command is staged by what it does
   (`bashStage`): a commit or push is Merge, a read-only program at the head of the line is Explore, a line that writes is
-  Build, anything else is running something to see what happens, Verify. Verify is any check before merge, by running or
-  by reading: with no human reviewer a Review stage would price the agent's own tokens as a review, so there is none
-  (the owner's call); a change to a pull request after it was opened is a loop out of Merge.
+  Build, anything else is running something to see what happens, Verify. Verify is the agent checking the work by running
+  it. Review is the work being read before it merges (below; it was left out on the first day because with no human
+  reviewer it would have priced the agent's own tokens as a review).
 - **The words (the owner, 2026-11-09, after "rework" read as unclear on the page and a "redo" rename was tried and
   dropped):** a **loop** is the event, work that came back to an earlier stage after something failed; **rework** is what
   it cost, the calls inside the loop, spent after the failure. Not "the same work twice": a fix loop's Build calls are
@@ -1167,7 +1189,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   profile's arm is the one recorded on the session's state file at its start
   (`profile.js:profileArmOf`); a session from before the profile shipped has none and is left out of that split, never
   given one by recomputing the hash, since it never saw the block. The clearing's side is `proxy.js:heldOut` over the
-  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT` unless the machine config says), so every
+  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT`, half since 2026-11-09, unless the machine config says), so every
   session has one; a subagent conversation takes its parent's. A pull request counts on a side only when every session
   on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
   5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
@@ -1207,8 +1229,8 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   48 ($201) ran past a commit, a push or a `git worktree add` to a pass in the next piece of work, $70 of them before
   that event; and 21 counted Claude Code refusing to run the line, or the agent's own python heredoc crashing (`File
   "<stdin>"`), as a test failure. So: a `continued-in` row in the original's tail names the continuation, whose copied
-  calls and events are dropped before the Factory reads it (the Report and the delivery figures still read both files:
-  not changed here); a fix loop closes unresolved at a commit, a push, a new branch or `gh pr create`, unless that very
+  calls and events are dropped before the Factory reads it (and, the same day, before every other reader of a session's file -- the Report's usage, the harness and
+  instruction readers, the Stop hook's `session` row; "A continued session is one session" under Report); a fix loop closes unresolved at a commit, a push, a new branch or `gh pr create`, unless that very
   line was the failing run (`npm test && git commit`, where the commit never ran); and a denial or a `<stdin>` crash is
   not a failure. The honest figure is about $450, 6% of spend. What the real loops are: the red/green cycle at about a
   dollar each, Verify 56% of the cost inside them -- and Verify is inside every fix loop by construction, since the loop
@@ -1216,6 +1238,45 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   pinned test updated after an intended change); edits here are shell heredocs, so the Edit tool is no measure of what
   a loop changed. The fresh-worktree dependency race was one loop of seven module-not-found ones. Not changed: the
   correction loop still spans its whole exchange, and the other kinds were not read the same way yet.
+- **The Review stage, and the sent-back loop read the same way (2026-11-09, the owner's ask; `STAGES` `review`,
+  `isReviewTool`, `timeline`'s `reviews` and `personExchanges`, the `sentback` and `followup` kinds; `RULES_VERSION` 8).**
+  The sent-back loops over this machine's 37 days (153, $877) were read loop by loop: 49 of them ($10) had no change
+  after `gh pr create` at all, a push of the branch the pull request was just opened from; and of the rest, the person
+  had asked for the follow-up commit in 78% of the cost, in the session, on the open pull request -- seven rounds on
+  the Report page's pull request alone were $217, a quarter of the whole ("highlight the grid cell", "don't show saved
+  as negative", "it's stuck measuring"). Code opened with no suite run first was 7 loops, $74. So "sent back" was not
+  an agent failure the suite-before-PR rule could prevent; it was the person's review, happening in the chat, and
+  opening the pull request later would move that cost rather than remove it. That is the human reviewer the first cut
+  said the Factory had none of, so Review is a station now: the first call after a prompt of the person's while a pull
+  request is open (`gh pr create` to the next branch or pull request; a task notification is not the person,
+  `session-state.js:isHarnessEvent`) is Review rather than Prompts, and so is the agent reading the change -- a review
+  skill, a reviewer subagent, `gh pr view` or `gh pr diff`. A change to the open pull request is a **review round**
+  (`sentback`: the person's prompt opened the exchange; one loop per round, from their prompt's call to the round's last
+  push) or the agent's **own follow-up** (`followup`: the opening exchange itself, or one a harness event opened); a
+  change is any Build call, so a heredoc edit counts; a push with nothing changed behind it is neither. On the same
+  window: Review $540, 8% of spend, 26% of it rework; review rounds 139 loops, $642, in 56 sessions; follow-ups 64,
+  $120. **A review round holds its Review call by construction** (it starts at the prompt), as a fix loop holds its
+  Verify calls, so that stage's rework share is partly the definition and the figure to watch is rounds per pull
+  request. "Fix merge conflicts" on an open pull request reads as a review round under this rule; it is the person
+  asking, so it stays. The levers for review rounds are not the detector's: a round that repeats a preference the person
+  has stated before is the profile's to prevent, and each round re-reads a long context, which is the clearing's.
+
+**A continued session is one session (2026-11-09; `transcripts.js:continuations`, `continuedSince`, `parseTranscript`'s `since`)**
+- Claude Code can continue a session in a new one: the original's last rows carry `continued-in` naming the new session,
+  and the new file opens with the original's rows copied under the new id (the same message uuids and timestamps) ahead
+  of its own. Every reader that took a file for a session counted the copied calls twice: on this machine 25 pairs, 9%
+  of the Factory's cost, and the Report's session counts and the PR figures carried the same. `findRepoSessions` marks a
+  continuation with `since`, the moment it was continued, and every reader parses it from there: `parseTranscript(file,
+  { since })` makes the rows at or before it context alone -- their text is what the continuation's calls carry, so the
+  parts are still right -- and no call, usage, turn, tool call, model vote or event of the continuation's own
+  (`continued: { at, dropped }` on the result). `tool-outputs.js:sessionRecords` (v14), `instruction-value.js:sessionRecord`,
+  `harness.js:sessionHarness` (what was loaded still counts, since it is in the context; the calls and the uses are the
+  original's) and the Factory read it so, each with `since` in its cache key. The Stop hook has no list of sessions to
+  mark, so it looks for the original beside the running session's file (`continuedSince`: the siblings written since this
+  file was made, read at their tails, a few per turn) and logs the `session` row from `since`, so `thinker prs` and
+  `thinker usage` count a continuation's own calls from the first turn after this lands; rows logged before carry the
+  copy. Not done: the profile's extraction and `thinker learn` read the continuation whole, so a copied exchange can be
+  observed twice; and a session continued on another machine, or whose original is gone, is read whole.
 
 **Subagent conversations are costed at their own model (2026-11-08; `transcripts.js:subagentSessions`)**
 - A Claude Code subagent (Explore, general-purpose, a fork) is a conversation of its own beside its parent's transcript
@@ -1339,7 +1400,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - After Apply: show change at once (`patchContext`), re-read decisions, then report.
 - Overtaken loads render nothing. In-place refresh error = toast, table stays.
 - Spinner only on first read of tab and on repo/window change.
-- While session data is read, a strip just under the header (`page.html:scanProgress`, 2026-11-07, the owner's ask): the sessions read of those found, the share done, what is left and a bar along its lower edge, on every tab including Recent activity (`/api/activity` carries `scan`). It is absolutely positioned off the sticky nav's bottom edge, so it overlays the page and moves nothing below it when it comes and goes; the first cut was a near-black band above the brand, which shoved the whole page down (the owner: bad). Before either it was a 4px grey line under the tabs. The count moves inside a batch: the worker's checkpoints double (1, 2, 4 … total), so the last one read half of every session with the count frozen at the previous power of two; now each of the view's three readers (`instruction-value.js`, `harness.js`, `tool-outputs.js`) calls `onSession` per session and `scan-worker.js:progressOf` counts a new session as read once all `READERS` have passed it, posted at most every 200 ms with no view, and `scans.js` bumps no revision for it, so the stamp moves and no table is fetched.
+- While session data is read, a strip along the bottom of the window (`page.html:scanProgress`; 2026-11-07, the owner's ask; moved from under the header to the bottom on 2026-11-09, the owner's ask: fixed to the viewport, outside the nav since its backdrop-filter would hold a fixed child): the sessions read of those found, the share done, what is left and a bar along its lower edge, on every tab including Recent activity (`/api/activity` carries `scan`). It is absolutely positioned off the sticky nav's bottom edge, so it overlays the page and moves nothing below it when it comes and goes; the first cut was a near-black band above the brand, which shoved the whole page down (the owner: bad). Before either it was a 4px grey line under the tabs. The count moves inside a batch: the worker's checkpoints double (1, 2, 4 … total), so the last one read half of every session with the count frozen at the previous power of two; now each of the view's three readers (`instruction-value.js`, `harness.js`, `tool-outputs.js`) calls `onSession` per session and `scan-worker.js:progressOf` counts a new session as read once all `READERS` have passed it, posted at most every 200 ms with no view, and `scans.js` bumps no revision for it, so the stamp moves and no table is fetched.
 - `loadContext`, `loadActivity`, `loadReport` must not wipe body to "Reading…".
 
 **Section change is a pull request**
@@ -1469,6 +1530,13 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Pi, Windsurf, Copilot CLI, OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` | | agent's own files |
 
 - `--late` and `--no-late` are accepted for compatibility: the edited-file notes they governed went with the knowledge notes.
+- **Claude Code gets no `PostToolUse` hook** (2026-11-10, the owner's call). It ran `hook tool` after every Read, Bash,
+  Grep, Edit and Write and answered nothing: Claude Code keeps its own transcript, so the hook recorded no trace, and
+  the edited-file notes, the instruction sections and the diet it could have served are gone or off. One node process
+  per tool call for no output. `installClient` writes none, `inferWiring` reads `late: false` for the client whatever
+  the file holds (so an old entry is never carried to another agent as a chosen option), and the event stays in the
+  list `setHooks` clears, so `thinker rewire` takes the entry an older copy wrote out of `~/.claude/settings.json`.
+  The other agents keep theirs: they have no transcript, and the hook is how their tool calls reach the profile.
 - Plugins under `plugins/` run `thinker hook … --plugin` and yield to host hooks (`clients.js:pluginYields`).
 - Pi: `npm/pi/thinker.js`.
 - One copy per checkout (`clients.js:pruneInstalls`). `setup` removes other copies' hooks and repoints MCP. Claude Code `--local` empties the shared settings file.

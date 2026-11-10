@@ -10,7 +10,7 @@
 // --cards is the Save page's card view here: what each part is, why you would change it and what you would lose
 // (part-explain.js), the same parts in the same order as the table, with the words `thinker explain` wrote.
 import { historyEffects, promptAverageHere, keptRows, inputRateHere } from '../report-snapshot.js';
-import { contextView, switchSources, setOutputCompression } from '../context-view.js';
+import { contextView, switchSources, setOutputCompression, rateOf, flagOf } from '../context-view.js';
 import { judgeRecent, findRepoSessions } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { formatDollars } from '../prices.js';
@@ -57,6 +57,10 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   const v = contextView(store, { days, sessions: findRepoSessions(store.repo, days) });
+  // the Wasted figures in dollars, as the page shows them (context-view.js:inputRate: the wasted tokens at what an input
+  // token cost these sessions at list prices), tokens where no session has a list price; and the page's row colour as a
+  // mark (context-view.js:flagOf): !! for red, ! for yellow
+  const vrate = rateOf(v), wasteOf = x => x.wastedWindow == null ? '-' : vrate == null ? `~${formatTokens(x.wastedWindow)}` : formatDollars(x.wastedWindow * vrate), mark = x => { const f = flagOf(x); return f === 'red' ? '!!' : f === 'yellow' ? '! ' : '  '; };
   writeSnapshot(store, days, v); // what the page shows next
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
   // as the Context tab's rows and History do
@@ -107,7 +111,7 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
-  // --cards: the page's own cards in the terminal (part-explain.js). The page shows these words under every row and
+  // --cards: the parts as cards in the terminal (part-explain.js). The page shows these words when a row is opened and
   // the table here showed none of them, so the two doors answered differently about the same part. One source for
   // both: `viewParts` is the page's list in the page's order (most wasted first), and the explanations are the ones
   // kept for the machine -- this prints what is there and names the command for what is not, never spending itself.
@@ -130,14 +134,14 @@ async function contextCommand({ store, flags, out }) {
     parts.forEach((x, i) => {
       const e = have[x.key];
       if (!e) missing++;
-      out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} a prompt${x.wastedWindow ? `, ~${formatTokens(x.wastedWindow)} wasted over ${days} days` : ''}`);
+      out(`${pad(i + 1, 3)}. ${x.name} — ${KINDS[x.kind] || KINDS.tool}, ~${formatTokens(x.tokens)} a prompt${x.wastedWindow ? `, ${wasteOf(x)} wasted over ${days} days` : ''}`);
       if (x.about) for (const l of wrap('', x.about)) out(l);
       if (e?.text) for (const l of wrap('', e.text)) out(l);
       out('');
     });
     if (missing) out(`${missing} of these ${missing === 1 ? 'has' : 'have'} no explanation yet: \`thinker explain\` writes them, six parts to a model call, kept for this machine (in a desktop app it is queued for the session's own model).`);
     else out('Every part here is explained.');
-    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same cards on the page.');
+    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same table on the page, these words under an opened row.');
     return;
   }
   const iv = v.instructions, t = v.totals;
@@ -164,24 +168,24 @@ async function contextCommand({ store, flags, out }) {
     out(`  ${pad('prompt', 6)} ${pad('needed', 7)} ${pad(`${days}d`, 7)} ${pad('wasted', 7)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
     for (const s of [...iv.sections].sort((a, b) => b.window - a.window)) {
       // a section changed inside the window is measured over the sessions since the change, as on the page
-      out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(s.wastedWindow == null ? '-' : formatTokens(s.wastedWindow), 7)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}${s.recent ? ` (changed ${s.changedAt.slice(0, 10)}: ${s.sessions} session${s.sessions === 1 ? '' : 's'} since)` : ''}`);
+      out(`${mark(s)}${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(wasteOf(s), 7)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}${s.recent ? ` (changed ${s.changedAt.slice(0, 10)}: ${s.sessions} session${s.sessions === 1 ? '' : 's'} since)` : ''}`);
     }
-    out(`  prompt: its tokens in every prompt that carries it; needed: % of those prompts that touched its files, commands or code; ${days}d: prompt × every prompt that carried it; wasted: ${days}d × the prompts that did not need it. relevant: judged sessions where it mattered; followed: % of judged sessions that followed it. A section changed inside the window counts from its change.\n`);
+    out(`  prompt: its tokens in every prompt that carries it; needed: % of those prompts that touched its files, commands or code; ${days}d: prompt × every prompt that carried it; wasted: ${days}d × the prompts that did not need it${vrate == null ? '' : ', at what an input token cost these sessions at list prices'}; !! a part of 5k tokens or more needed in under 10% of its prompts, ! one under 5k (nothing under 500). relevant: judged sessions where it mattered; followed: % of judged sessions that followed it. A section changed inside the window counts from its change.\n`);
   }
   if (v.skills.length) {
     out(`Skills: prompt, needed (% of prompts that invoked it), ${days}d, wasted; kept: checked sessions that read it and kept its rules.`);
     for (const s of [...v.skills].sort((a, b) => b.window - a.window).slice(0, flags.verbose ? undefined : 20)) {
       const o = s.outcome;
-      out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(formatTokens(s.wastedWindow || 0), 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
+      out(`${mark(s)}${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(wasteOf(s), 7)} ${o?.read ? `kept ${pct(o.success)} of ${o.read}` : '            '}${o?.missed ? ` missed ${o.missed}` : ''}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name}${s.off ? ' (off)' : ''}`);
     }
     out('');
   }
   if (v.tools.length) {
     out(`Other tools loaded into every session: prompt, needed (% of prompts that called it), ${days}d, wasted.`);
-    for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(formatTokens(s.wastedWindow || 0), 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
+    for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`${mark(s)}${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(wasteOf(s), 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
-  out('`thinker context --cards` says what each part is and why you would change it, as the page does.');
+  out('`thinker context --cards` says what each part is and why you would change it, as the page does under an opened row.');
   out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
 }
 

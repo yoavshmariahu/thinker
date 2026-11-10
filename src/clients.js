@@ -678,7 +678,9 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
       if (!file) continue;
       const hooks = readJsonOr(file, {}).hooks;
       if (!ourGroups(hooks, 'UserPromptSubmit').length) continue;
-      w.hooks = true; w.shared = shared; w.learn = hasLearningStop(hooks, ['Stop', 'SessionEnd']); w.late = ourGroups(hooks, 'PostToolUse').length > 0;
+      // `late` stays false: Claude Code gets no PostToolUse hook (installClient), and one an older copy wrote
+      // must not be carried to the other agents as an option this machine chose
+      w.hooks = true; w.shared = shared; w.learn = hasLearningStop(hooks, ['Stop', 'SessionEnd']);
       for (const ev of ['UserPromptSubmit', 'Stop', 'SessionEnd', 'PostToolUse', 'PreToolUse']) ourGroups(hooks, ev).forEach(see);
       break;
     }
@@ -1320,8 +1322,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (hooks) {
       const target = shared && f.shared ? f.shared : f.local;
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
-      if (late) entries.push(['PostToolUse', { matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: cmd('tool'), timeout: 10 }] }]);
-      // shell commands only, and the hook answers nothing unless the repository's config asks for it
+      // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
+      // everything else it could answer with (the edited-file notes, instruction sections, the diet) is gone or
+      // off. It was one node process per tool call for no output. `PostToolUse` stays in the list below so a
+      // rewire takes the entry an older copy wrote out of the settings; `late` is ignored for this client.
       // Stop ends a turn and distills only a large backlog; SessionEnd distills what is left
       entries.push(['Stop', { matcher: '', hooks: [{ type: 'command', command: cmd('stop', learn ? '' : ' --no-distill'), timeout: 10 }] }]);
       if (learn) entries.push(
@@ -1330,7 +1334,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // Claude Code runs both files: thinker's hooks live in one of them
       const other = target === f.local ? f.shared : f.local;
       if (other && stripThinkerHooks(other)) done.push(`Claude Code: removed thinker's hooks from ${rel(other)}; they are in ${rel(target)} now`);
-      done.push(`Claude Code: hooks in ${rel(target)}: the profile on the first prompt${late ? ', instruction sections while working' : ''}${learned}`);
+      done.push(`Claude Code: hooks in ${rel(target)}: the profile on the first prompt${learned}`);
       // the cache-hit card under each served answer (claude-card.js); one copy's folder, the user's settings only.
       // On an installed app the folders are copies outside the app, named by their content, so an update that
       // leaves a mod alone rewrites nothing and no open session reloads it (claude-card.js)

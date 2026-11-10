@@ -58,7 +58,7 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.match(said, /^<thinker-context-suggestions>/);
   // the link says which door sent them, and the page opens with these very changes checked (`from=suggestion`)
   assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion/);
-  assert.match(said, /these changes come already checked with the actions suggested below/);
+  assert.match(said, /these changes come first with the actions suggested below picked/);
   // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
   assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /found 4 changes to what loads into every session: ~71k input tokens in every prompt here, ~2\.8M over those 30 days\./);

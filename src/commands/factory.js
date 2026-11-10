@@ -1,5 +1,5 @@
 // `thinker factory`: the Factory tab in the terminal (factory.js). The pipeline a session runs through -- Prompts,
-// Think, Explore, Build, Verify, Merge -- with what each stage cost over the Report's window, the loops detected in the
+// Think, Explore, Build, Verify, Review, Merge -- with what each stage cost over the Report's window, the loops detected in the
 // sessions (where work came back to an earlier stage, found by code), and the first-pass yield of the merged pull
 // requests. It reads the report kept for the page (report-snapshot.js), so both doors show one computation; --refresh
 // makes it again first; --json is the view the page reads.

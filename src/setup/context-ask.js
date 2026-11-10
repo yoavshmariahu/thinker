@@ -51,17 +51,17 @@ export async function askMachineReport({ r, recs, store, out = console.log, brow
   }
   if (where === 'browser') {
     const opened = open({ store });
-    out(opened ? `  Opening the Find Savings page in your browser (every repository, All) with the suggested savings already checked: review their actions and press Apply, or uncheck them. It stays open in the background; close the tab when done.` : '  The page could not be started; its suggestions are below.');
+    out(opened ? `  Opening the Find Savings page in your browser (every repository, All) with the suggested savings first, each on its suggested action: click Apply on a row to take it. It stays open in the background; close the tab when done.` : '  The page could not be started; its suggestions are below.');
     if (opened) return { mode: 'browser' };
   }
   for (const l of renderMachineCuts(r, recs, { actions: false })) out(l);
   const all = machineChanges(r, recs), picks = all.filter(p => p.targets.length);
   // the page for the detail: every part with its figures, started now for this machine, gone once idle
   let url = null; try { url = ui(store); } catch {}
-  if (url) out(`  Every part with its figures, and the decisions so far: ${c.cyan(suggestionsUrl(url, null, { from: 'setup' }))} (the same suggestions checked there)`);
+  if (url) out(`  Every part with its figures, and the decisions so far: ${c.cyan(suggestionsUrl(url, null, { from: 'setup' }))} (the same suggestions first there)`);
   if (!picks.length) return { mode: 'terminal', picked: [], said: [] };
   out('');
-  // The suggestions come checked, as they do on the page the browser answer opens (page.html:preselectRows): the
+  // The suggestions come checked (on the page the browser answer opens they come first, page.html:preselectRows): the
   // question is whether to make the changes thinker suggests, so the work is unchecking the ones they want kept, not
   // finding the ones it meant. Nothing is applied by arriving here -- Esc skips, `n` clears them all, and Enter is
   // the Apply.

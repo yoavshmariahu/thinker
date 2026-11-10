@@ -327,8 +327,10 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   // what an older version left: learning on (Stop), late notes on, but no SessionEnd, and the user's own settings beside it
   const cur = read(dir, '.claude/settings.local.json');
   delete cur.hooks.SessionEnd; cur.permissions = { allow: ['Bash(ls)'] };
+  // the tool hook every copy before 2026-11-10 wrote for Claude Code
+  cur.hooks.PostToolUse = [{ matcher: 'Read|Bash|Grep|Edit|Write', hooks: [{ type: 'command', command: `node "${CLI}" hook tool --client claude --repo "${dir}"`, timeout: 10 }] }];
   fs.writeFileSync(file, JSON.stringify(cur, null, 2) + '\n');
-  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
+  assert.deepEqual(inferWiring(dir, 'claude'), { hooks: true, learn: true, late: false, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
   const dry = refreshWiring(dir, { cli: CLI, mcpEntry: mine.mcpEntry, dry: true });
   assert.deepEqual(dry.changed, ['.claude/settings.local.json']);
   assert.equal(read(dir, '.claude/settings.local.json').hooks.SessionEnd, undefined, 'a dry run writes nothing');
@@ -336,7 +338,7 @@ test('refreshWiring brings a checkout\'s entries to this version\'s shape, keeps
   assert.deepEqual(r.changed, ['.claude/settings.local.json']); assert.deepEqual(r.clients, ['claude']);
   const after = read(dir, '.claude/settings.local.json');
   assert.equal(after.hooks.SessionEnd.length, 1, 'the new event is added');
-  assert.equal(after.hooks.PostToolUse.length, 1, 'late notes stay as installed'); assert.equal(after.hooks.Stop.length, 1);
+  assert.equal(after.hooks.PostToolUse, undefined, 'the tool hook an older copy wrote is taken out'); assert.equal(after.hooks.Stop.length, 1);
   assert.deepEqual(after.permissions, { allow: ['Bash(ls)'] }, 'what else is in the file stays');
   assert.ok(!fs.existsSync(path.join(dir, '.claude/settings.json')), 'the local file stays the one in use');
   const mtime = fs.statSync(file).mtimeMs;
@@ -525,7 +527,7 @@ test('connect wires the agents into their own settings, once per machine: no --r
     assert.ok(!fs.existsSync(path.join(home.HOME, '.cursor', 'rules')), 'the Cursor rule is a checkout file');
 
     // what the files say, and the rewrite for a new version: nothing to change
-    assert.deepEqual(inferWiring(null, 'claude', { scope: 'user' }), { hooks: true, learn: true, late: true, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
+    assert.deepEqual(inferWiring(null, 'claude', { scope: 'user' }), { hooks: true, learn: true, late: false, shared: false, mcp: true, scripts: [CLI, MCP], hookScripts: [CLI], custom: [] });
     assert.deepEqual(refreshWiring(null, { scope: 'user', cli: CLI, mcpEntry: entry }).changed, []);
     const old = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8')); delete old.hooks.SessionEnd;
     fs.writeFileSync(path.join(home.HOME, '.claude', 'settings.json'), JSON.stringify(old));
@@ -610,12 +612,12 @@ test('an update wires the user\'s settings from the checkouts: the agents they w
     const c = repo(); installClient('gemini', { ...opts(c), cli: otherInstall('0.0.1') + '/src/cli.js' });
     const entry = { command: 'node', args: [path.join(path.dirname(CLI), 'mcp.js')] };
     const dry = connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry, dry: true });
-    assert.deepEqual(dry.map(d => [d.client, d.from, d.options]), [['claude', 2, { hooks: true, learn: true, late: true, mcp: true }], ['codex', 1, { hooks: true, learn: true, late: true, mcp: true }]]);
+    assert.deepEqual(dry.map(d => [d.client, d.from, d.options]), [['claude', 2, { hooks: true, learn: true, late: false, mcp: true }], ['codex', 1, { hooks: true, learn: true, late: true, mcp: true }]]);
     assert.ok(!fs.existsSync(path.join(home.HOME, '.claude', 'settings.json')), 'a dry run writes nothing');
     const done = connectFromCheckouts([a, b, c], { cli: CLI, mcpEntry: entry });
     assert.deepEqual(done.map(d => d.client), ['claude', 'codex']);
     const claude = JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude', 'settings.json'), 'utf8')).hooks;
-    assert.ok(claude.UserPromptSubmit[0].hooks[0].command.endsWith('--client claude --user') && claude.Stop && claude.PostToolUse);
+    assert.ok(claude.UserPromptSubmit[0].hooks[0].command.endsWith('--client claude --user') && claude.Stop && !claude.PostToolUse, 'no tool hook for Claude Code');
     assert.ok(JSON.parse(fs.readFileSync(path.join(home.HOME, '.claude.json'), 'utf8')).mcpServers.thinker);
     assert.ok(fs.readFileSync(path.join(home.CODEX_HOME, 'config.toml'), 'utf8').includes('[hooks.state.'), 'Codex\'s user hooks are marked reviewed');
     assert.ok(!fs.existsSync(path.join(home.HOME, '.gemini', 'settings.json')));
@@ -755,7 +757,7 @@ test('an update wires a detected pi, OpenCode, Copilot or Windsurf once, with th
     installClient('claude', { scope: 'user', cli: CLI, mcpEntry: entry, hooks: true, learn: false, late: true, mcp: true });
     assert.deepEqual(connectDetected({ cli: CLI, mcpEntry: entry, home: thinker, detected: ['claude', 'pi', 'copilot'] }), ['pi', 'copilot']);
     const w = inferWiring(null, 'pi', { scope: 'user' });
-    assert.deepEqual([w.hooks, w.learn, w.late, w.mcp], [true, false, true, true], 'learning off and late notes on, as for Claude Code');
+    assert.deepEqual([w.hooks, w.learn, w.late, w.mcp], [true, false, false, true], 'learning off, as for Claude Code; Claude Code has no tool hook to carry late notes from');
     assert.ok(inferWiring(null, 'copilot', { scope: 'user' }));
     assert.equal(inferWiring(null, 'opencode', { scope: 'user' }), null, 'not installed: not wired');
     // taken out by the person: the next update leaves it out
