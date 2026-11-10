@@ -300,7 +300,6 @@ test('the site carries what crawlers and web-filter vendors read before categori
   assert.match(cacheControlFor('index.html'), /^public, max-age=300$/);
   assert.match(cacheControlFor('dist/version.json'), /^public, max-age=300$/);
   assert.match(cacheControlFor('card.png'), /^public, max-age=86400$/);
-  assert.match(cacheControlFor('thinker-context.webm'), /^public, max-age=86400$/);
   assert.match(cacheControlFor('clearing-click-1-session.json'), /^public, max-age=86400$/);
   const deploy = fs.readFileSync(new URL('../infra/access/public-deploy.mjs', import.meta.url), 'utf8');
   for (const key of ['robots.txt', 'sitemap.xml', '.well-known/security.txt', 'dist/version.json', 'dist/thinker.tgz']) assert.ok(deploy.includes(`['${key}', `), `${key} is deployed`);

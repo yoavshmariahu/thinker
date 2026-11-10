@@ -294,18 +294,6 @@
 <path d="M1117.86 246.80 L1129.98 253.80" fill="none" stroke="#d4d4d4" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
 </g>
 </g>
-<g id="verification-queue" aria-hidden="true">
-<g class="queue-item" data-x="695.71" data-y="235.26" data-progress="0.63">
-<polygon points="688.78,235.26 695.71,239.26 695.71,235.26 688.78,231.26" fill="#bbbbbb" stroke="#aaaaaa" stroke-width="0.8" stroke-linejoin="round" />
-<polygon points="702.64,235.26 695.71,239.26 695.71,235.26 702.64,231.26" fill="#999999" stroke="#aaaaaa" stroke-width="0.8" stroke-linejoin="round" />
-<polygon points="695.71,227.26 702.64,231.26 695.71,235.26 688.78,231.26" fill="#dddddd" stroke="#aaaaaa" stroke-width="0.8" stroke-linejoin="round" />
-</g>
-<g class="queue-item" data-x="712.82" data-y="245.14" data-progress="0.82">
-<polygon points="705.89,245.14 712.82,249.14 712.82,245.14 705.89,241.14" fill="#dcc35d" stroke="#b59a31" stroke-width="0.8" stroke-linejoin="round" />
-<polygon points="719.75,245.14 712.82,249.14 712.82,245.14 719.75,241.14" fill="#bfa332" stroke="#b59a31" stroke-width="0.8" stroke-linejoin="round" />
-<polygon points="712.82,237.14 719.75,241.14 712.82,245.14 705.89,241.14" fill="#f3dc78" stroke="#b59a31" stroke-width="0.8" stroke-linejoin="round" />
-</g>
-</g>
 <g id="factory-labels">
 <text class="station-label" x="96" y="378.00"><tspan class="stage-number">01</tspan><tspan dx="9">Prompts</tspan></text>
 <text class="station-label" x="264" y="281.00"><tspan class="stage-number">02</tspan><tspan dx="9">Think</tspan></text>
