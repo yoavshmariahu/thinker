@@ -1,4 +1,4 @@
-<svg id="config-inspector" xmlns="http://www.w3.org/2000/svg" width="660" height="820" viewBox="0 0 660 820" role="img" aria-labelledby="ci-title ci-desc">
+<svg id="config-inspector" xmlns="http://www.w3.org/2000/svg" width="1020" height="520" viewBox="0 0 1020 520" role="img" aria-labelledby="ci-title ci-desc">
 <title id="ci-title">Thinker inspects agent instructions, MCPs, and tools</title>
 <desc id="ci-desc">Thinker scans a flat, front-facing Agent setup document on the left, with Instructions, MCPs, and Tools sections. Agent history appears to its right. Green setup entries are used. Amber entries are verbose, unused, or repeated. A red conflicting instruction stays flagged for review. A suggested-edits preview removes an unused MCP entry, compresses long instructions, and aliases repeated tool references to one retained definition. Thinker then visibly scans three history cards labeled Session 1, Session 2, and Session 3. The inspected sessions send a signal directly into a suggestion to use Browser Use for more efficient frontend work, with an illustrative estimate of about 1,200 tokens saved per task. History and savings are sample data, not a measured result. The 24-second loop honors reduced motion.</desc>
 <style>
@@ -22,7 +22,7 @@
 #config-inspector .scan{opacity:0;animation-name:ci-scan}
 @keyframes ci-scan{0%{opacity:0;transform:translate(0,58px)}2.917%{opacity:0;transform:translate(0,58px)}3.75%{opacity:.65;transform:translate(0,58px)}10.833%{opacity:.65;transform:translate(0,151px)}12.5%{opacity:.65;transform:translate(0,171px)}17.083%{opacity:.65;transform:translate(0,236px)}18.125%{opacity:.65;transform:translate(0,253px)}23.542%{opacity:.65;transform:translate(0,326px)}24.792%{opacity:0;transform:translate(0,326px)}100%{opacity:0;transform:translate(0,326px)}}
 #config-inspector .start-signal{opacity:0;animation-name:ci-start-signal}
-@keyframes ci-start-signal{0%{opacity:0;transform:translate(0,0)}0.208%{opacity:1;transform:translate(0,0)}0.625%{opacity:1;transform:translate(0,18px)}2.083%{opacity:1;transform:translate(-131px,18px)}2.708%{opacity:1;transform:translate(-131px,42px)}3.333%{opacity:0;transform:translate(-131px,42px)}100%{opacity:0;transform:translate(-131px,42px)}}
+@keyframes ci-start-signal{0%{opacity:0;transform:translate(0,0)}0.208%{opacity:1;transform:translate(0,0)}0.625%{opacity:1;transform:translate(0,4px)}2.083%{opacity:1;transform:translate(-131px,4px)}2.708%{opacity:1;transform:translate(-131px,14px)}3.333%{opacity:0;transform:translate(-131px,14px)}100%{opacity:0;transform:translate(-131px,14px)}}
 #config-inspector .phase-scan{opacity:0;animation-name:ci-phase-scan}
 @keyframes ci-phase-scan{0%{opacity:0}0%{opacity:0}1.25%{opacity:1}27.5%{opacity:1}28%{opacity:0}100%{opacity:0}}
 #config-inspector .phase-edit{opacity:0;animation-name:ci-phase-edit}
@@ -80,7 +80,7 @@
 #config-inspector .alias-label{opacity:1;animation-name:ci-alias-label}
 @keyframes ci-alias-label{0%{opacity:0}46.875%{opacity:0}48.125%{opacity:1}96.458%{opacity:1}99.167%{opacity:0}100%{opacity:0}}
 #config-inspector .history-trigger{opacity:0;animation-name:ci-history-trigger}
-@keyframes ci-history-trigger{0%{opacity:0;transform:translate(0,0)}54.375%{opacity:0;transform:translate(0,0)}54.792%{opacity:1;transform:translate(0,18px)}56.667%{opacity:1;transform:translate(195px,18px)}57.292%{opacity:1;transform:translate(195px,46px)}57.917%{opacity:0;transform:translate(195px,46px)}100%{opacity:0;transform:translate(195px,46px)}}
+@keyframes ci-history-trigger{0%{opacity:0;transform:translate(0,0)}54.375%{opacity:0;transform:translate(0,0)}54.792%{opacity:1;transform:translate(0,4px)}56.667%{opacity:1;transform:translate(180px,4px)}57.292%{opacity:1;transform:translate(180px,18px)}57.917%{opacity:0;transform:translate(180px,18px)}100%{opacity:0;transform:translate(180px,18px)}}
 #config-inspector .history-scan{opacity:0;animation-name:ci-history-scan}
 @keyframes ci-history-scan{0%{opacity:0;transform:translate(0,60px)}57.708%{opacity:0;transform:translate(0,60px)}58.333%{opacity:.65;transform:translate(0,66px)}60.833%{opacity:.65;transform:translate(0,144px)}64.583%{opacity:.65;transform:translate(0,248px)}68.958%{opacity:.65;transform:translate(0,352px)}70%{opacity:0;transform:translate(0,352px)}100%{opacity:0;transform:translate(0,352px)}}
 #config-inspector .history-read-0{opacity:1;animation-name:ci-history-read-0}
@@ -92,33 +92,35 @@
 #config-inspector .history-link{opacity:1;animation-name:ci-history-link}
 @keyframes ci-history-link{0%{opacity:0}70%{opacity:0}70.625%{opacity:1}96.458%{opacity:1}99.167%{opacity:0}100%{opacity:0}}
 #config-inspector .history-signal{opacity:0;animation-name:ci-history-signal}
-@keyframes ci-history-signal{0%{opacity:0;transform:translate(0,0)}70.625%{opacity:0;transform:translate(0,0)}71.25%{opacity:1;transform:translate(0,0)}73.542%{opacity:1;transform:translate(0,80px)}74.167%{opacity:0;transform:translate(0,80px)}100%{opacity:0;transform:translate(0,80px)}}
+@keyframes ci-history-signal{0%{opacity:0;transform:translate(0,0)}70.625%{opacity:0;transform:translate(0,0)}71.25%{opacity:1;transform:translate(0,0)}71.875%{opacity:1;transform:translate(32px,0)}73.125%{opacity:1;transform:translate(32px,var(--dy))}73.958%{opacity:1;transform:translate(74px,var(--dy))}74.583%{opacity:0;transform:translate(74px,var(--dy))}100%{opacity:0;transform:translate(74px,var(--dy))}}
+#config-inspector .history-signal-mobile{opacity:0;animation-name:ci-history-signal-mobile}
+@keyframes ci-history-signal-mobile{0%{opacity:0;transform:translate(0,0)}70.625%{opacity:0;transform:translate(0,0)}71.25%{opacity:1;transform:translate(0,0)}73.958%{opacity:1;transform:translate(0,80px)}74.583%{opacity:0;transform:translate(0,80px)}100%{opacity:0;transform:translate(0,80px)}}
 #config-inspector .recommendation{opacity:1;animation-name:ci-recommendation}
-@keyframes ci-recommendation{0%{opacity:0;transform:translate(0,12px)}73.542%{opacity:0;transform:translate(0,12px)}75.625%{opacity:1;transform:translate(0,0)}96.25%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(0,0)}}
-@media(prefers-reduced-motion:reduce){#config-inspector *{animation:none!important}#config-inspector .scan,#config-inspector .start-signal,#config-inspector .phase-scan,#config-inspector .phase-edit,#config-inspector .phase-history,#config-inspector .verbose-flag,#config-inspector .verbose-label,#config-inspector .compress-label,#config-inspector .conflict-label,#config-inspector .unused-flag,#config-inspector .unused-label,#config-inspector .remove-label,#config-inspector .unused-row,#config-inspector .removed-outline,#config-inspector .compress-long,#config-inspector .repeat-label,#config-inspector .repeat-flag,#config-inspector .alias-long,#config-inspector .history-trigger,#config-inspector .history-scan,#config-inspector .history-signal{display:none}#config-inspector .phase-result,#config-inspector .thinker-active,#config-inspector .used-instructions,#config-inspector .used-mcp,#config-inspector .used-tools,#config-inspector .compressed-label,#config-inspector .conflict,#config-inspector .review-label,#config-inspector .removed-label,#config-inspector .compress-short,#config-inspector .alias-short,#config-inspector .alias-label,#config-inspector .history-read-0,#config-inspector .history-read-1,#config-inspector .history-read-2,#config-inspector .history-link,#config-inspector .recommendation{opacity:1;transform:none}}
+@keyframes ci-recommendation{0%{opacity:0;transform:translate(0,12px)}74.167%{opacity:0;transform:translate(0,12px)}76.25%{opacity:1;transform:translate(0,0)}96.25%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(0,0)}}
+@media(prefers-reduced-motion:reduce){#config-inspector *{animation:none!important}#config-inspector .scan,#config-inspector .start-signal,#config-inspector .phase-scan,#config-inspector .phase-edit,#config-inspector .phase-history,#config-inspector .verbose-flag,#config-inspector .verbose-label,#config-inspector .compress-label,#config-inspector .conflict-label,#config-inspector .unused-flag,#config-inspector .unused-label,#config-inspector .remove-label,#config-inspector .unused-row,#config-inspector .removed-outline,#config-inspector .compress-long,#config-inspector .repeat-label,#config-inspector .repeat-flag,#config-inspector .alias-long,#config-inspector .history-trigger,#config-inspector .history-scan,#config-inspector .history-signal,#config-inspector .history-signal-mobile{display:none}#config-inspector .phase-result,#config-inspector .thinker-active,#config-inspector .used-instructions,#config-inspector .used-mcp,#config-inspector .used-tools,#config-inspector .compressed-label,#config-inspector .conflict,#config-inspector .review-label,#config-inspector .removed-label,#config-inspector .compress-short,#config-inspector .alias-short,#config-inspector .alias-label,#config-inspector .history-read-0,#config-inspector .history-read-1,#config-inspector .history-read-2,#config-inspector .history-link,#config-inspector .recommendation{opacity:1;transform:none}}
 </style>
-<rect id="ci-background" width="660" height="820" fill="#fff"/>
+<rect id="ci-background" width="1020" height="520" fill="#fff"/>
 <g id="ci-thinker">
-<polygon points="289.297,84.5 332.598,109.5 332.598,105.5 289.297,80.5" fill="#f0f2f0" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" /><polygon points="370.703,87.5 332.598,109.5 332.598,105.5 370.703,83.5" fill="#e1e6e2" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" /><polygon points="327.402,58.5 370.703,83.5 332.598,105.5 289.297,80.5" fill="#fff" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" />
-<polygon points="304.019,78 331.732,94 331.732,84 304.019,68" fill="#edf4ef" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" /><polygon points="355.981,80 331.732,94 331.732,84 355.981,70" fill="#dcebe1" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" /><polygon points="328.268,54 355.981,70 331.732,84 304.019,68" fill="#f7fbf8" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" />
-<polygon points="329.134,59.3 346.454,69.3 331.732,77.8 314.412,67.8" fill="#d9efdf" stroke="#8bb89a" stroke-width="0.8" stroke-linejoin="round" />
-<polygon points="330,63.6 332.598,65.1 330,66.6 327.402,65.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
-<polygon points="330,68.6 332.598,70.1 330,71.6 327.402,70.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
-<polygon points="330,73.6 332.598,75.1 330,76.6 327.402,75.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
-<g class="thinker-active" data-animation="ci-thinker-active" style="--delay:0s"><path d="M292.761 84.5 L310.081 94.5" fill="none" stroke="#8bdba7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g>
-<text x="330" y="134" text-anchor="middle" class="brand" >Thinker</text>
-<g class="phase-scan" data-animation="ci-phase-scan" style="--delay:0s"><text x="330" y="160" text-anchor="middle" class="phase" >Scanning setup</text></g>
-<g class="phase-edit" data-animation="ci-phase-edit" style="--delay:0s"><text x="330" y="160" text-anchor="middle" class="phase" >Suggested edits</text></g>
-<g class="phase-history" data-animation="ci-phase-history" style="--delay:0s"><text x="330" y="160" text-anchor="middle" class="phase" >Scanning history</text></g>
-<g class="phase-result" data-animation="ci-phase-result" style="--delay:0s"><text x="330" y="160" text-anchor="middle" class="phase" >Suggestions</text></g>
+<polygon points="289.297,42.5 332.598,67.5 332.598,63.5 289.297,38.5" fill="#f0f2f0" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" /><polygon points="370.703,45.5 332.598,67.5 332.598,63.5 370.703,41.5" fill="#e1e6e2" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" /><polygon points="327.402,16.5 370.703,41.5 332.598,63.5 289.297,38.5" fill="#fff" stroke="#acb8af" stroke-width="1" stroke-linejoin="round" />
+<polygon points="304.019,36 331.732,52 331.732,42 304.019,26" fill="#edf4ef" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" /><polygon points="355.981,38 331.732,52 331.732,42 355.981,28" fill="#dcebe1" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" /><polygon points="328.268,12 355.981,28 331.732,42 304.019,26" fill="#f7fbf8" stroke="#91ad9a" stroke-width="1" stroke-linejoin="round" />
+<polygon points="329.134,17.3 346.454,27.3 331.732,35.8 314.412,25.8" fill="#d9efdf" stroke="#8bb89a" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="330,21.6 332.598,23.1 330,24.6 327.402,23.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<polygon points="330,26.6 332.598,28.1 330,29.6 327.402,28.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<polygon points="330,31.6 332.598,33.1 330,34.6 327.402,33.1" fill="#7bc594" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<g class="thinker-active" data-animation="ci-thinker-active" style="--delay:0s"><path d="M292.761 42.5 L310.081 52.5" fill="none" stroke="#8bdba7" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" /></g>
+<text x="330" y="92" text-anchor="middle" class="brand" >Thinker</text>
+<g class="phase-scan" data-animation="ci-phase-scan" style="--delay:0s"><text x="330" y="116" text-anchor="middle" class="phase" >Scanning setup</text></g>
+<g class="phase-edit" data-animation="ci-phase-edit" style="--delay:0s"><text x="330" y="116" text-anchor="middle" class="phase" >Suggested edits</text></g>
+<g class="phase-history" data-animation="ci-phase-history" style="--delay:0s"><text x="330" y="116" text-anchor="middle" class="phase" >Scanning history</text></g>
+<g class="phase-result" data-animation="ci-phase-result" style="--delay:0s"><text x="330" y="116" text-anchor="middle" class="phase" >Suggestions</text></g>
 </g>
 <g id="ci-routes">
-<path d="M330 172 L330 190 L199 190 L199 214" fill="none" stroke="#c4d5ca" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
-<path d="M330 190 L525 190 L525 218" fill="none" stroke="#d6dfd9" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
-<g transform="translate(330 172)"><g class="start-signal" data-animation="ci-start-signal" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g><g class="history-trigger" data-animation="ci-history-trigger" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
+<path d="M330 128 L330 132 L199 132 L199 142" fill="none" stroke="#c4d5ca" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M330 132 L510 132 L510 146" fill="none" stroke="#d6dfd9" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" />
+<g transform="translate(330 128)"><g class="start-signal" data-animation="ci-start-signal" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g><g class="history-trigger" data-animation="ci-history-trigger" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
 </g>
 <g id="ci-mobile-route" style="display:none"><path d="M220 172 L220 214" fill="none" stroke="#c4d5ca" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" /></g>
-<g id="ci-document" transform="translate(24 214)">
+<g id="ci-document" transform="translate(24 142)">
 <polygon points="0,0 326,0 350,24 350,358 0,358" fill="#fff" stroke="#aeb9b1" stroke-width="1.05" stroke-linejoin="round" />
 <polygon points="326,0 326,24 350,24" fill="#edf2ee" stroke="#b7c3ba" stroke-width="0.9" stroke-linejoin="round" />
 <text x="17" y="29" text-anchor="start" class="page-title" >Agent setup</text>
@@ -159,27 +161,34 @@
 <g class="repeat-label" data-animation="ci-repeat-label" style="--delay:0s"><text x="231" y="319" text-anchor="start" class="status waste" >Repeated</text></g>
 <g class="alias-label" data-animation="ci-alias-label" style="--delay:0s"><text x="231" y="319" text-anchor="start" class="status good" >Alias</text></g>
 </g>
-<g id="ci-history" transform="translate(414 214)">
+<g id="ci-history" transform="translate(420 142)">
 <text x="0" y="29" text-anchor="start" class="history-title" >Agent history</text>
-<path d="M0 45 L222 45" fill="none" stroke="#d6dfd9" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" />
-<rect x="0" y="66" width="222" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
-<g class="history-read-0" data-animation="ci-history-read-0" style="--delay:0s"><rect x="0" y="66" width="222" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="80" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
+<path d="M0 45 L180 45" fill="none" stroke="#d6dfd9" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="0" y="66" width="180" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
+<g class="history-read-0" data-animation="ci-history-read-0" style="--delay:0s"><rect x="0" y="66" width="180" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="80" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
 <text x="18" y="92" text-anchor="start" class="" >Session 1</text>
-<rect x="18" y="109" width="164" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="120" width="126" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
-<g class="history-read-0" data-animation="ci-history-read-0" style="--delay:0s"><circle cx="203" cy="89" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
-<rect x="0" y="170" width="222" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
-<g class="history-read-1" data-animation="ci-history-read-1" style="--delay:0s"><rect x="0" y="170" width="222" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="184" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
+<rect x="18" y="109" width="132" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="120" width="100" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
+<g class="history-read-0" data-animation="ci-history-read-0" style="--delay:0s"><circle cx="161" cy="89" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
+<rect x="0" y="170" width="180" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
+<g class="history-read-1" data-animation="ci-history-read-1" style="--delay:0s"><rect x="0" y="170" width="180" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="184" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
 <text x="18" y="196" text-anchor="start" class="" >Session 2</text>
-<rect x="18" y="213" width="164" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="224" width="100" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
-<g class="history-read-1" data-animation="ci-history-read-1" style="--delay:0s"><circle cx="203" cy="193" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
-<rect x="0" y="274" width="222" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
-<g class="history-read-2" data-animation="ci-history-read-2" style="--delay:0s"><rect x="0" y="274" width="222" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="288" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
+<rect x="18" y="213" width="132" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="224" width="80" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
+<g class="history-read-1" data-animation="ci-history-read-1" style="--delay:0s"><circle cx="161" cy="193" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
+<rect x="0" y="274" width="180" height="74" rx="4" fill="#fbfdfb" stroke="#c8d4cc" stroke-width="0.9" />
+<g class="history-read-2" data-animation="ci-history-read-2" style="--delay:0s"><rect x="0" y="274" width="180" height="74" rx="4" fill="#edf8f0" stroke="#9fcbae" stroke-width="1" /><rect x="0" y="288" width="3" height="46" rx="1" fill="#8bdba7" stroke="none" stroke-width="0" /></g>
 <text x="18" y="300" text-anchor="start" class="" >Session 3</text>
-<rect x="18" y="317" width="164" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="328" width="126" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
-<g class="history-read-2" data-animation="ci-history-read-2" style="--delay:0s"><circle cx="203" cy="297" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
-<g class="history-scan" data-animation="ci-history-scan" style="--delay:0s"><rect x="-5" y="-8" width="232" height="16" rx="1" fill="#c8ecd4" stroke="none" stroke-width="0" /><path d="M-5 0 L227 0" fill="none" stroke="#71ba8a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><polygon points="-16,-4 -8,0 -16,4" fill="#8bdba7" stroke="#70aa83" stroke-width="0.7" stroke-linejoin="round" /></g>
-<g class="history-link" data-animation="ci-history-link" style="--delay:0s"><path d="M111 348 L111 428" fill="none" stroke="#9fc3ac" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" /><polygon points="107,421 111,428 115,421" fill="#9fc3ac" stroke="none" stroke-width="0" stroke-linejoin="round" /></g>
-<g transform="translate(111 348)"><g class="history-signal" data-animation="ci-history-signal" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
+<rect x="18" y="317" width="132" height="4" rx="1" fill="#c4d1c8" stroke="none" stroke-width="0" /><rect x="18" y="328" width="100" height="4" rx="1" fill="#d4ddd7" stroke="none" stroke-width="0" />
+<g class="history-read-2" data-animation="ci-history-read-2" style="--delay:0s"><circle cx="161" cy="297" r="3" fill="#8bdba7" stroke="none" stroke-width="0"/></g>
+<g class="history-scan" data-animation="ci-history-scan" style="--delay:0s"><rect x="-5" y="-8" width="190" height="16" rx="1" fill="#c8ecd4" stroke="none" stroke-width="0" /><path d="M-5 0 L185 0" fill="none" stroke="#71ba8a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /><polygon points="-16,-4 -8,0 -16,4" fill="#8bdba7" stroke="#70aa83" stroke-width="0.7" stroke-linejoin="round" /></g>
+<g id="ci-history-output-wide">
+<g class="history-link" data-animation="ci-history-link" style="--delay:0s"><path d="M180 103 L212 103 L212 311 L180 311" fill="none" stroke="#9fc3ac" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" /><path d="M180 207 L254 207" fill="none" stroke="#9fc3ac" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" /><polygon points="247,203 254,207 247,211" fill="#9fc3ac" stroke="none" stroke-width="0" stroke-linejoin="round" /></g>
+<g transform="translate(180 103)"><g class="history-signal" data-animation="ci-history-signal" style="--delay:0s;--dy:104px"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
+<g transform="translate(180 207)"><g class="history-signal" data-animation="ci-history-signal" style="--delay:0s;--dy:0px"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
+<g transform="translate(180 311)"><g class="history-signal" data-animation="ci-history-signal" style="--delay:0s;--dy:-104px"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g>
 </g>
-<g id="ci-recommendation"><g class="recommendation" data-animation="ci-recommendation" style="--delay:0s"><rect x="184" y="642" width="440" height="160" rx="6" fill="#fbfefb" stroke="#acccb8" stroke-width="1.1" id="ci-suggestion-box"/><text x="202" y="670" text-anchor="start" class="good" >Thinker suggestion</text><text x="606" y="670" text-anchor="end" class="muted" id="ci-example">Example</text><text x="202" y="699" text-anchor="start" class="suggestion-title" >Browser Use</text><text x="202" y="723" text-anchor="start" class="" >For more efficient frontend work</text><path d="M202 737 L606 737" fill="none" stroke="#d8e7dc" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" id="ci-suggestion-divider"/><text x="202" y="758" text-anchor="start" class="good" >Estimated saving</text><text x="202" y="786" text-anchor="start" class="saving" >~1.2k tokens / task</text></g></g>
+<g id="ci-history-output-mobile" style="display:none">
+<g class="history-link" data-animation="ci-history-link" style="--delay:0s"><path d="M90 348 L90 428" fill="none" stroke="#9fc3ac" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round" /><polygon points="86,421 90,428 94,421" fill="#9fc3ac" stroke="none" stroke-width="0" stroke-linejoin="round" /></g>
+<g transform="translate(90 348)"><g class="history-signal-mobile" data-animation="ci-history-signal-mobile" style="--delay:0s"><circle cx="0" cy="0" r="2.7" fill="#8bdba7" stroke="none" stroke-width="0"/></g></g></g>
+</g>
+<g id="ci-recommendation"><g class="recommendation" data-animation="ci-recommendation" style="--delay:0s"><rect x="674" y="240" width="322" height="198" rx="6" fill="#fbfefb" stroke="#acccb8" stroke-width="1.1" id="ci-suggestion-box"/><text x="692" y="268" text-anchor="start" class="good" >Thinker suggestion</text><text x="978" y="268" text-anchor="end" class="muted" id="ci-example">Example</text><text x="692" y="298" text-anchor="start" class="suggestion-title" >Browser Use</text><text x="692" y="324" text-anchor="start" class="" >For more efficient</text><text x="692" y="345" text-anchor="start" class="" >frontend work</text><path d="M692 359 L978 359" fill="none" stroke="#d8e7dc" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" id="ci-suggestion-divider"/><text x="692" y="383" text-anchor="start" class="good" >Estimated saving</text><text x="692" y="413" text-anchor="start" class="saving" >~1.2k tokens / task</text></g></g>
 </svg>
