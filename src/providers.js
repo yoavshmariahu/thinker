@@ -124,7 +124,12 @@ export function parseModelList(j) {
     const p = r?.pricing || r?.model_info || null;
     const perToken = (...keys) => { for (const k of keys) { const v = Number(p?.[k]); if (Number.isFinite(v) && v >= 0) return v; } return null; };
     const input = perToken('prompt', 'input', 'input_cost_per_token'), output = perToken('completion', 'output', 'output_cost_per_token');
-    if (input != null && output != null) m.price = { input: input * 1e6, output: output * 1e6, ...(perToken('input_cache_read', 'cache_read_input_token_cost') != null ? { cacheRead: perToken('input_cache_read', 'cache_read_input_token_cost') * 1e6 } : {}), ...(perToken('input_cache_write', 'cache_creation_input_token_cost') != null ? { cacheWrite: perToken('input_cache_write', 'cache_creation_input_token_cost') * 1e6 } : {}) };
+    // OpenRouter's list (read live 2026-11-10: 465 models, 457 priced) carries the cache read, the five-minute and the one-hour
+    // write a token, which is exactly the four prices.js counts in; a million of them, rounded past the float noise
+    const M = v => v == null ? null : Math.round(v * 1e6 * 1e6) / 1e6;
+    if (input != null && output != null) m.price = { input: M(input), output: M(output), ...(perToken('input_cache_read', 'cache_read_input_token_cost') != null ? { cacheRead: M(perToken('input_cache_read', 'cache_read_input_token_cost')) } : {}), ...(perToken('input_cache_write', 'cache_creation_input_token_cost') != null ? { cacheWrite: M(perToken('input_cache_write', 'cache_creation_input_token_cost')) } : {}), ...(perToken('input_cache_write_1h') != null ? { cacheWrite1h: M(perToken('input_cache_write_1h')) } : {}) };
+    // what the provider says the model takes: tools and structured output are what a subagent needs
+    if (Array.isArray(r?.supported_parameters)) m.supports = r.supported_parameters.filter(x => ['tools', 'tool_choice', 'structured_outputs', 'response_format', 'reasoning'].includes(x));
     const ctx = Number(r?.context_length ?? r?.context_window ?? p?.max_input_tokens ?? r?.max_context_length);
     if (Number.isFinite(ctx) && ctx > 0) m.context = ctx;
     out[id] = m;

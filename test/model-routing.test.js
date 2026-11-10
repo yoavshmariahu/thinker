@@ -24,12 +24,13 @@ test('a base URL is stored without /v1 or a trailing slash, and only http(s)', (
 
 test('the models list is read in the shapes the gateways use, prices turned into dollars a million', () => {
   const m = parseModelList({ data: [
-    { id: 'openai/gpt-6-sol', pricing: { prompt: '0.000002', completion: '0.000008', input_cache_read: '0.0000005' }, context_length: 400000 },
+    { id: 'openai/gpt-6-sol', pricing: { prompt: '0.000002', completion: '0.000008', input_cache_read: '0.0000005', input_cache_write_1h: '0.000004' }, context_length: 400000, supported_parameters: ['tools', 'temperature', 'structured_outputs'] },
     { id: 'plain-model' },
     { id: 'litellm-model', model_info: { input_cost_per_token: 0.000001, output_cost_per_token: 0.000004, max_input_tokens: 128000 } },
     'string-id',
   ] });
-  assert.deepEqual(m['openai/gpt-6-sol'], { source: 'provider', price: { input: 2, output: 8, cacheRead: 0.5 }, context: 400000 });
+  assert.deepEqual(m['openai/gpt-6-sol'], { source: 'provider', price: { input: 2, output: 8, cacheRead: 0.5, cacheWrite1h: 4 }, context: 400000, supports: ['tools', 'structured_outputs'] });
+  assert.equal(parseModelList({ data: [{ id: 'x', pricing: { prompt: '0.00000005', completion: '0.0000005' } }] }).x.price.input, 0.05, 'rounded past the float noise');
   assert.deepEqual(m['plain-model'], { source: 'provider' });
   assert.equal(m['litellm-model'].price.input, 1); assert.equal(m['litellm-model'].context, 128000);
   assert.ok(m['string-id']);

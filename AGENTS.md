@@ -628,6 +628,23 @@ longer exceptions to anything.
   cannot see: a subagent whose parent is on another machine, Codex and Cursor subagents (none recorded), and whether
   the parent *should* have re-read (a read-only run that found the file is followed by the parent reading it to edit,
   which counts as a re-read; the edit column stands beside it for that reason).
+- **First read of this machine's 60 days (2026-11-10, 94 subagent runs, 79 linked to the parent's Agent call), which
+  moved the rules twice (`RULES_VERSION` 3).** The Read tool's paths alone saw 76 files across every run and no
+  re-read at all: subagents here explore through Bash (grep, sed -n, cat), so a path named in a command counts
+  (`pathsOf`, relative to the checkout with a worktree's prefix dropped), and the same run reads 20 files a run. And a
+  background subagent returns in an exchange a task notification opened, so 11 runs showed no follow-up until an
+  exchange became the person's (`isHarnessEvent`, the Factory's rule). With both: **after an Explore run the parent
+  read again 51% of the explorer's files in the same exchange and 63% eventually** (4 runs, all on Opus 5, 39 files a
+  run, 29.5 parent calls after), against 3-7% in the exchange and 7-27% ever after a general-purpose run. Split by what
+  the run did rather than its type: general-purpose runs that edited (45, $4.37 a run) were re-read 4% in the exchange
+  and 13% ever and followed by an edit of the parent's in 78% of cases -- the work is mostly trusted, then touched up;
+  read-only general-purpose runs (20, $1.53) read almost no code at all (0.2 files a run: web research, docs). So the
+  one exploration sample says half of what an explorer reads comes back into the parent's context anyway, which is
+  the figure the delegation nudge and any cheaper Explore model must be judged against, and 4 runs is not a judgement.
+  Per call: Fable $0.42, Opus 5 $0.10, Opus 5.5 $0.056, Haiku 4.5 $0.02 -- the gap a routed model has to beat, before
+  its re-reads. OpenRouter's public list parsed as-is (465 models, 457 priced, cache read and both write TTLs
+  reported, `supported_parameters` naming tools and structured outputs); its Messages endpoint was not probed, since no
+  key is on this machine, so the live gateway smoke is still owed.
 - Not done: routing by the profile itself, a holdout on the route (an alias that resolves to the session's own model
   for a share of sessions, so the comparison is paired), the delegation nudge that would make the runs happen, and a
   live run against a real gateway -- the translation is tested against fakes shaped like OpenAI's stream and the probe

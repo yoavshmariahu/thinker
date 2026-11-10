@@ -23,57 +23,74 @@ import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { formatDollars } from './prices.js';
 import { callCost, callTokens } from './factory.js';
+import { isHarnessEvent } from './session-state.js';
 
 export const MIN_RUNS = 5;          // a model's figures are read only past this many runs of one subagent type
 export const WORSE_BY = 0.10;       // a candidate may be this much worse (absolute share) on re-reads, corrections or errors and still count as no worse
-export const RULES_VERSION = 1;
+export const RULES_VERSION = 3;   // 2: edits counts runs, not edit calls; 3: paths from Bash commands, exchanges bounded by the person's prompts, re-reads ever beside in-exchange
 const RUN_CACHE = diskCache('model-profile-run', RULES_VERSION), PARENT_CACHE = diskCache('model-profile-parent', RULES_VERSION);
 export const profileFile = (home = thinkerHome()) => path.join(home, 'state', 'model-profile.json');
 
-const READ_TOOLS = /^(Read|Grep|Glob|NotebookRead)$/, EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
-const pathOf = e => e?.input?.file_path || e?.input?.path || e?.input?.notebook_path || null;
+const READ_TOOLS = /^(Read|Grep|Glob|NotebookRead|Bash)$/, EDIT_TOOLS = /^(Edit|Write|MultiEdit|NotebookEdit)$/;
+// Measured on this machine's 60 days before this was written (2026-11-10): subagents here explore through Bash
+// (grep, sed -n, cat), so the Read tool's paths alone saw 76 files across 94 runs and no re-read at all; the paths
+// named in the commands see 20 a run. A path is a token with a slash and an extension, read relative to the checkout
+// (a worktree's prefix dropped), so the same file in two checkouts is one file.
+const PATH_RE = /(?:^|[\s'"=(,:])((?:\.{0,2}\/|~\/)?[\w.@-]+(?:\/[\w.@-]+)+\.[A-Za-z]\w{0,5})(?=$|[\s'")>;,:|])/g;
+const normPath = p => String(p).replace(/^.*\/\.worktrees\/[^/]+\//, '').replace(/^\.\//, '');
+export function pathsOf(e, root = null) {
+  const out = new Set();
+  const strip = p => { let v = normPath(p); if (root && v.startsWith(root + '/')) v = v.slice(root.length + 1); return v; };
+  const p = e?.input?.file_path || e?.input?.path || e?.input?.notebook_path; if (p) out.add(strip(p));
+  if (e?.name === 'Bash' && e.input?.command) for (const m of String(e.input.command).matchAll(PATH_RE)) out.add(strip(m[1]));
+  return out;
+}
+const BASH_WRITES = /\bsed -i\b|\bcat >|\btee\b|>>?\s*[\w./~"'$-]/;
+const edits = e => EDIT_TOOLS.test(e.name) || (e.name === 'Bash' && BASH_WRITES.test(String(e.input?.command || '')));
 
 // the parent, reduced to what a run needs: its tool calls by id with their call index and exchange, and its interrupts by exchange
-export function parentIndex(p) {
+// An exchange is the person's: a task notification from a background subagent opens no exchange (the Factory's
+// rule, session-state.js:isHarnessEvent), since a subagent that returns in one would otherwise show no follow-up.
+export function parentIndex(p, { root = null } = {}) {
   const tools = [], interrupts = [];
   let exchange = 0;
   for (const e of p.events || []) {
-    if (e.t === 'prompt') { exchange++; continue; }
+    if (e.t === 'prompt') { if (!isHarnessEvent(e.text)) exchange++; continue; }
     if (e.t === 'interrupt') { interrupts.push(exchange); continue; }
-    if (e.t === 'tool') tools.push({ id: e.id || null, name: e.name, ci: Number.isInteger(e.call) ? e.call : null, exchange, path: pathOf(e), error: !!e.error });
+    if (e.t === 'tool') tools.push({ id: e.id || null, name: e.name, ci: Number.isInteger(e.call) ? e.call : null, exchange, paths: [...pathsOf(e, root)], edit: edits(e), error: !!e.error });
   }
   return { tools, interrupts };
 }
 
 // one subagent run, with the parent's follow-up in the same exchange
-export function runOf(sub, parentIdx, { price = null, corrected = new Set(), toolUseId = null } = {}) {
+export function runOf(sub, parentIdx, { price = null, corrected = new Set(), toolUseId = null, root = null } = {}) {
   const calls = sub.calls || [], events = sub.events || [];
   const files = new Set(); let errors = 0;
-  for (const e of events) if (e.t === 'tool') { if (READ_TOOLS.test(e.name) && pathOf(e)) files.add(pathOf(e)); if (e.error) errors++; }
+  for (const e of events) if (e.t === 'tool') { if (READ_TOOLS.test(e.name)) for (const x of pathsOf(e, root)) files.add(x); if (e.error) errors++; }
   const ts = calls.map(c => c.t).filter(t => t > 0);
   const run = { model: sub.model || null, calls: calls.length, cost: price ? calls.reduce((a, c) => a + (callCost(c, price) || 0), 0) : null,
     tokens: calls.reduce((a, c) => a + callTokens(c), 0), out: calls.reduce((a, c) => a + (c.out || 0), 0), durationMs: ts.length ? Math.max(...ts) - Math.min(...ts) : 0, errors, files: files.size, follow: null };
   const launch = toolUseId && parentIdx ? parentIdx.tools.find(t => t.id === toolUseId) : null;
   if (launch && launch.ci != null) {
-    const after = parentIdx.tools.filter(t => t.exchange === launch.exchange && t.ci != null && t.ci > launch.ci);
-    const reReads = new Set(after.filter(t => READ_TOOLS.test(t.name) && t.path && files.has(t.path)).map(t => t.path));
-    run.follow = { calls: new Set(after.map(t => t.ci)).size, reReads: reReads.size, edits: after.filter(t => EDIT_TOOLS.test(t.name)).length,
+    const later = parentIdx.tools.filter(t => t.ci != null && t.ci > launch.ci), after = later.filter(t => t.exchange === launch.exchange);
+    const hits = xs => new Set(xs.filter(t => READ_TOOLS.test(t.name)).flatMap(t => t.paths.filter(x => files.has(x)))).size;
+    run.follow = { calls: new Set(after.map(t => t.ci)).size, reReads: hits(after), reReadsEver: hits(later), edited: after.some(t => t.edit),
       corrected: corrected.has(launch.exchange) || parentIdx.interrupts.includes(launch.exchange), exchange: launch.exchange };
   }
   return run;
 }
 
-const group = () => ({ runs: 0, priced: 0, cost: 0, tokens: 0, out: 0, calls: 0, durationMs: 0, errors: 0, files: 0, followed: 0, followCalls: 0, reReads: 0, edits: 0, corrected: 0 });
+const group = () => ({ runs: 0, priced: 0, cost: 0, tokens: 0, out: 0, calls: 0, durationMs: 0, errors: 0, files: 0, followed: 0, followCalls: 0, reReads: 0, reReadsEver: 0, edits: 0, corrected: 0 });
 const addRun = (g, r) => {
   g.runs++; g.calls += r.calls; g.tokens += r.tokens; g.out += r.out; g.durationMs += r.durationMs; g.errors += r.errors; g.files += r.files;
   if (r.cost != null) { g.priced++; g.cost += r.cost; }
-  if (r.follow) { g.followed++; g.followCalls += r.follow.calls; g.reReads += r.follow.reReads; g.edits += r.follow.edits; if (r.follow.corrected) g.corrected++; }
+  if (r.follow) { g.followed++; g.followCalls += r.follow.calls; g.reReads += r.follow.reReads; g.reReadsEver += r.follow.reReadsEver || 0; if (r.follow.edited) g.edits++; if (r.follow.corrected) g.corrected++; }
 };
 // the figures a group is read on
 export const figures = g => ({
   costPerRun: g.priced ? g.cost / g.priced : null, callsPerRun: g.runs ? g.calls / g.runs : null, tokensPerRun: g.runs ? g.tokens / g.runs : null,
   secondsPerRun: g.runs ? g.durationMs / g.runs / 1000 : null, errorShare: g.calls ? g.errors / g.calls : null,
-  reReadShare: g.files ? g.reReads / g.files : null, correctedShare: g.followed ? g.corrected / g.followed : null, editShare: g.followed ? g.edits / g.followed : null,
+  reReadShare: g.files ? g.reReads / g.files : null, reReadEverShare: g.files ? g.reReadsEver / g.files : null, correctedShare: g.followed ? g.corrected / g.followed : null, editShare: g.followed ? g.edits / g.followed : null,
 });
 
 function correctedBySession(store, { days, now }) {
@@ -91,6 +108,7 @@ export function measureRuns(store, { days = 30, now = Date.now(), sessions, onSe
   const parents = new Map(sessions.map(s => [s.session, s]));
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const corrected = correctedBySession(store, { days, now });
+  const root = String(store.repo || '').replace(/\/+$/, '') || null;
   const groups = {}, byRun = [];
   for (const sub of subagentSessions(sessions)) {
     if (sub.mtime < from) continue;
@@ -100,9 +118,9 @@ export function measureRuns(store, { days = 30, now = Date.now(), sessions, onSe
       r = cachedByFiles(RUN_CACHE, cacheKey('model-profile-run', String(RULES_VERSION), sub.file, parent?.file || '', String(parent?.since || ''), [...(corrected.get(sub.parent) || [])].join(',')), [sub.file, ...(parent?.file ? [parent.file] : [])], () => {
         const p = parseTranscript(sub.file);
         if (!p.calls?.length) return null;
-        const idx = parent?.file ? cachedByFiles(PARENT_CACHE, cacheKey('model-profile-parent', String(RULES_VERSION), parent.file, String(parent.since || '')), [parent.file], () => parentIndex(parseTranscript(parent.file, { since: parent.since || 0 }))) : null;
+        const idx = parent?.file ? cachedByFiles(PARENT_CACHE, cacheKey('model-profile-parent', String(RULES_VERSION), parent.file, String(parent.since || ''), root), [parent.file], () => parentIndex(parseTranscript(parent.file, { since: parent.since || 0 }), { root })) : null;
         const meta = metaOf(sub);
-        return { ...runOf(p, idx, { price: listPrice(p.model, { config }), corrected: corrected.get(sub.parent) || new Set(), toolUseId: meta.toolUseId || null }), type: sub.type || meta.agentType || 'unknown', at: sub.mtime, session: sub.parent };
+        return { ...runOf(p, idx, { price: listPrice(p.model, { config }), corrected: corrected.get(sub.parent) || new Set(), toolUseId: meta.toolUseId || null, root }), type: sub.type || meta.agentType || 'unknown', at: sub.mtime, session: sub.parent };
       });
     } catch { r = null; }
     onSession?.(sub);
@@ -195,9 +213,9 @@ export function renderProfile(v) {
   const pct = x => x == null ? '–' : `${Math.round(x * 100)}%`, n = x => x == null ? '–' : x >= 100 ? String(Math.round(x)) : x.toFixed(1);
   if (!v.groups.length) return ['No subagent runs measured yet. A run is a Claude Code subagent (Explore, general-purpose, one written by thinker models assign) in a session of this repository; the profile fills as they happen.'];
   out.push(`Models as subagents${v.repos > 1 ? ` · ${v.repos} repositories` : ''}${v.at ? ` · measured ${v.at.slice(0, 16).replace('T', ' ')}` : ''}`);
-  out.push('  type              model                              runs   $/run  calls  s/run  re-read  edits  corrected  failed');
-  for (const g of v.groups) out.push(`  ${g.type.slice(0, 17).padEnd(17)} ${g.model.slice(0, 34).padEnd(34)} ${String(g.runs).padStart(5)} ${(g.costPerRun == null ? '–' : formatDollars(g.costPerRun)).padStart(7)} ${n(g.callsPerRun).padStart(6)} ${n(g.secondsPerRun).padStart(6)} ${pct(g.reReadShare).padStart(8)} ${pct(g.editShare).padStart(6)} ${pct(g.correctedShare).padStart(10)} ${pct(g.errorShare).padStart(7)}`);
-  out.push('  re-read: of the files the subagent read, the share the parent read again in the same exchange; edits: runs the parent edited after; corrected: runs whose exchange the person corrected or interrupted; failed: of the subagent\'s calls.');
+  out.push('  type              model                              runs   $/run  calls  s/run  files  re-read   ever  edits  corrected  failed');
+  for (const g of v.groups) out.push(`  ${g.type.slice(0, 17).padEnd(17)} ${g.model.slice(0, 34).padEnd(34)} ${String(g.runs).padStart(5)} ${(g.costPerRun == null ? '–' : formatDollars(g.costPerRun)).padStart(7)} ${n(g.callsPerRun).padStart(6)} ${n(g.secondsPerRun).padStart(6)} ${n(g.runs ? g.files / g.runs : null).padStart(6)} ${pct(g.reReadShare).padStart(8)} ${pct(g.reReadEverShare).padStart(6)} ${pct(g.editShare).padStart(6)} ${pct(g.correctedShare).padStart(10)} ${pct(g.errorShare).padStart(7)}`);
+  out.push('  files: the subagent read (Read, or named in a Bash command), a run; re-read: the share the parent read again in the same exchange, and ever; edits: runs the parent edited after; corrected: runs whose exchange the person corrected or interrupted; failed: of the subagent\'s calls.');
   if (v.routes.length) {
     out.push('', 'Routes through the proxy');
     for (const r of v.routes) out.push(`  ${r.route.padEnd(28)} ${(r.provider + '/' + r.model).slice(0, 40).padEnd(40)} ${String(r.calls).padStart(5)} calls  ${r.errors} failed  first byte ${r.firstByteMs == null ? '–' : `${(r.firstByteMs / 1000).toFixed(1)}s`}  in ${Math.round((r.input + r.read) / 1000)}k out ${Math.round(r.out / 1000)}k`);

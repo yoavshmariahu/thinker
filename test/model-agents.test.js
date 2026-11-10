@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { renderAgent, installAgents, removeAgents, isAgentName, AGENT_MARK, TEMPLATES } from '../src/model-agents.js';
-import { parentIndex, runOf, recommend, figures, routeFigures, MIN_RUNS, WORSE_BY } from '../src/model-profile.js';
+import { parentIndex, runOf, recommend, figures, routeFigures, pathsOf, MIN_RUNS, WORSE_BY } from '../src/model-profile.js';
 
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const frontmatter = text => Object.fromEntries(text.split('\n---')[0].replace(/^---\n/, '').split('\n').filter(Boolean).map(l => { const i = l.indexOf(':'); return [l.slice(0, i), l.slice(i + 1).trim()]; }));
@@ -56,10 +56,14 @@ test('a run is costed at its own model, and the parent\'s follow-up is read from
   const idx = parentIndex(parent);
   assert.equal(idx.tools.find(t => t.id === 'toolu_launch').exchange, 1);
   const sub = { model: 'gpt-6-sol', calls: calls(3), events: [tool(0, 'Read', { file_path: '/a' }), tool(1, 'Grep', { path: '/b' }), tool(2, 'Bash', { command: 'ls' }, { error: true })] };
+  assert.deepEqual([...pathsOf(tool(0, 'Bash', { command: 'sed -n 1,40p src/a.js && grep -n x /r/.worktrees/w/src/b.js | head; cat ./docs/c.md' }), '/r')], ['src/a.js', 'src/b.js', 'docs/c.md'], 'paths in a command, read relative to the checkout, a worktree\'s prefix dropped');
   const r = runOf(sub, idx, { price: { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 }, toolUseId: 'toolu_launch' });
   assert.equal(r.calls, 3); assert.equal(r.files, 2); assert.equal(r.errors, 1); assert.equal(r.durationMs, 2000);
   assert.ok(Math.abs(r.cost - (3 * 1000 * 2 + 3 * 100 * 8) / 1e6) < 1e-9);
-  assert.deepEqual(r.follow, { calls: 2, reReads: 1, edits: 1, corrected: false, exchange: 1 }, 'the parent read /a again (not /b: the next exchange), and edited');
+  assert.deepEqual(r.follow, { calls: 2, reReads: 1, reReadsEver: 2, edited: true, corrected: false, exchange: 1 }, 'the parent read /a again in the exchange, /b in the next, and edited');
+  // a background subagent returns in an exchange a task notification opened, which is not the person's: the follow-up is still read
+  const bg = parentIndex({ events: [{ t: 'prompt', text: 'go' }, tool(0, 'Agent', {}, { id: 'l' }), { t: 'prompt', text: '<task-notification>done</task-notification>' }, tool(1, 'Read', { file_path: '/a' })] });
+  assert.equal(runOf(sub, bg, { toolUseId: 'l' }).follow.reReads, 1);
   assert.equal(runOf(sub, idx, { price: null, toolUseId: 'toolu_launch', corrected: new Set([1]) }).follow.corrected, true);
   assert.equal(runOf(sub, idx, { price: null, toolUseId: 'toolu_launch', corrected: new Set() }).cost, null, 'unpriced is null, never zero');
   assert.equal(runOf(sub, idx, { price: null, toolUseId: 'toolu_missing' }).follow, null, 'a run the parent did not launch by that id has no follow-up');
@@ -155,7 +159,7 @@ test('measureRuns reads each subagent beside its parent, ties the run to the Age
     const a = m.groups['vendor/model-a|Explore'];
     assert.equal(a.runs, 1); assert.equal(a.calls, 3); assert.equal(a.files, 2); assert.equal(a.priced, 1);
     assert.ok(Math.abs(a.cost - (3 * 1000 * 1 + 3 * 100 * 4) / 1e6) < 1e-9, 'priced at the registry\'s price for the routed model');
-    assert.equal(a.followed, 1); assert.equal(a.reReads, 1, 'the parent read /a again, not /b'); assert.equal(a.edits, 1); assert.equal(a.followCalls, 2);
+    assert.equal(a.followed, 1); assert.equal(a.reReads, 1, 'the parent read /a again, not /b'); assert.equal(a.reReadsEver, 1); assert.equal(a.edits, 1); assert.equal(a.followCalls, 2);
     const s = m.groups['claude-sonnet-5-5|general-purpose'];
     assert.equal(s.runs, 1); assert.equal(s.followed, 0, 'no toolUseId in its meta: no follow-up read'); assert.equal(s.priced, 1);
     const prof = refreshProfile(store, { home, days: 7, logFile: path.join(home, 'none.jsonl') });
