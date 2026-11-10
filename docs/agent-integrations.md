@@ -544,6 +544,23 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
+  **The model gateways** (2026-11-10; `src/proxy-chat.js`): the cut also reaches any provider that speaks OpenAI
+  Chat Completions through a gateway. `gateways: { openrouter: true, litellm: 'https://…' }` in the `proxy` block of
+  `THINKER_HOME/config.json` (or `--gateway-openrouter` / `--gateway-litellm url` once) adds a path prefix to the
+  service (`/openrouter`, `/litellm`), as `/codex` is one. Where the openrouter gateway is on, `thinker connect` and
+  `rewire` point OpenCode's `provider.openrouter.options.baseURL` at `<proxy>/openrouter` (OpenCode appends
+  `/chat/completions` itself); a LiteLLM provider is pointed at `<proxy>/litellm` by hand. The request is cut by the
+  shared policy (`decideCut`, the same decision as the Messages and Responses doors), the conversation is named by
+  its own first user message (`chatSession`; a gateway sends no session header), and the cut record lives beside the
+  other doors' (`state/clearing/chat/`). Usage comes from the gateway's own answer: OpenRouter reports cached and
+  cache-write tokens and the account's cost in dollars on every call (kept as data on the row, `cost`); LiteLLM
+  reports tokens and only on a streamed call that asked, so the proxy adds `stream_options.include_usage` once,
+  never over an answer the agent set itself. A new gateway is an entry in that config block, not a new door. What
+  is estimated here, said plainly: the cleared-token figure is the cut's own count of characters (no gateway is
+  told anything, so nothing comes back measured), and the decision's cache-write rate is still Anthropic's --
+  implicit caching (OpenAI, Google) has no write charge, so the door over-refuses there until the rates are
+  parameterized per gateway. A 400 that names the placeholder stops the editing for the proxy's life; any other
+  400 is passed on once, as it came (the LiteLLM lesson of 2026-10-28).
   **What it saved is shown in the session** (`src/compression.js`, 2026-10-29): the API answers every cleared request with the tokens it left out of that prompt, and the cleared
   set is cumulative within a conversation, so adding those up over a session is the whole of the saving, measured
   rather than modelled -- *the tokens the server left out of each prompt since the clear, added up*. The proxy
