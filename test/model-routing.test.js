@@ -332,3 +332,56 @@ test('a Messages-speaking provider gets the Messages body as it is, model swappe
     assert.equal(rows(p.logFile).find(x => x.op === 'proxy').format, 'messages');
   } finally { delete process.env.GW_KEY; p.server.close(); gw.server.close(); anthropic.server.close(); }
 });
+
+// --- the command, end to end against a fake gateway -------------------------------------------------------------------
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
+
+function fakeGateway() {
+  const server = http.createServer((req, res) => {
+    const chunks = []; req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      const auth = req.headers.authorization === 'Bearer sk-test';
+      if (!auth) { res.writeHead(401, { 'content-type': 'application/json' }); return res.end('{"error":{"message":"bad key"}}'); }
+      if (req.url === '/v1/models') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ data: [{ id: 'vendor/model-a', pricing: { prompt: '0.000001', completion: '0.000004' } }, { id: 'vendor/model-b' }] })); }
+      if (req.url === '/v1/chat/completions') { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify({ choices: [{ message: { content: 'hi' } }] })); }
+      res.writeHead(404); res.end('no');
+    });
+  });
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ server, url: `http://127.0.0.1:${server.address().port}` })));
+}
+
+test('thinker models: add probes and records, route names a model, assign writes the subagent, list shows it all, and no key is ever in a file but the private one', async () => {
+  const home = tmp('thinker-models-home-'), claude = tmp('thinker-models-claude-'), gw = await fakeGateway();
+  // the fake gateway lives in this process, so the command runs without blocking its event loop
+  const run = (...args) => new Promise((resolve, reject) => execFile(process.execPath, [CLI, 'models', ...args], { env: { ...process.env, THINKER_TEST: '1', THINKER_HOME: home, CLAUDE_CONFIG_DIR: claude, HOME: os.homedir() }, encoding: 'utf8', cwd: os.tmpdir() }, (e, stdout, stderr) => e ? reject(Object.assign(e, { stdout, stderr })) : resolve(stdout)));
+  try {
+    let o = await run('add', 'gw', gw.url + '/v1', '--key', 'sk-test');
+    assert.match(o, /Key kept in .*keys\/gw/); assert.match(o, /\/v1\/models: 200 \(2 models, with prices\)/); assert.match(o, /chat: 200 ✓/); assert.match(o, /messages: 404/); assert.match(o, /gw speaks chat/);
+    const reg = readRegistry(home);
+    assert.equal(reg.providers.gw.url, gw.url); assert.deepEqual(reg.providers.gw.formats, ['chat']); assert.equal(reg.providers.gw.models['vendor/model-a'].price.input, 1);
+    assert.ok(!fs.readFileSync(path.join(home, 'providers.json'), 'utf8').includes('sk-test'));
+    assert.equal(fs.readFileSync(path.join(home, 'keys', 'gw'), 'utf8').trim(), 'sk-test');
+    o = await run('route', 'explore', 'gw/vendor/model-a');
+    assert.match(o, /thinker\/explore -> gw\/vendor\/model-a as chat/);
+    o = await run('assign', 'Scout', 'thinker/explore', '--template', 'reader');
+    assert.match(o, /Scout runs on thinker\/explore/);
+    const file = fs.readFileSync(path.join(claude, 'agents', 'Scout.md'), 'utf8');
+    assert.match(file, /^model: thinker\/explore$/m); assert.match(file, /disallowedTools: Write/);
+    o = await run('list');
+    assert.match(o, /gw: .* speaks chat .* 2 models \(1 priced\)/); assert.match(o, /thinker\/explore -> gw\/vendor\/model-a/); assert.match(o, /Scout: thinker\/explore \(reader\)/);
+    o = await run('price', 'gw/vendor/model-b', '--input', '0.5', '--output', '2');
+    assert.match(o, /\$0\.50\/M in/);
+    assert.equal(listPrice('vendor/model-b', { home }).output, 2);
+    assert.match(await run('assign', 'Scout', 'thinker/nothing').catch(e => e.stdout), /no route named nothing/);
+    o = await run('assign', 'Scout', '--off');
+    assert.match(o, /removed .*Scout\.md/); assert.ok(!fs.existsSync(path.join(claude, 'agents', 'Scout.md')));
+    o = await run('remove', 'gw');
+    assert.match(o, /Removed gw and its routes/);
+    assert.deepEqual(readRegistry(home).routes, {});
+    // a wrong key reads as a 401 on the probe, with nothing forwarded
+    o = await run('add', 'gw2', gw.url, '--key-env', 'GW2_KEY_UNSET_FOR_TEST').catch(e => e.stdout);
+    assert.match(o, /thinker models: gw2: GW2_KEY_UNSET_FOR_TEST is not set/);
+  } finally { gw.server.close(); }
+});

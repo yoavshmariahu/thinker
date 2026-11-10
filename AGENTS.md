@@ -578,6 +578,61 @@ longer exceptions to anything.
   never the replay. Effort as a lever was measured and dropped the same week (a ceiling of 5-10% of high-effort spend,
   and a top-level effort change breaks the prompt cache; the per-message form only moves at a turn boundary).
 
+**Models from other providers, and subagents on them (2026-11-10, the owner's ask; `src/providers.js`,
+`src/wire-chat.js`, `src/proxy-routing.js`, `src/model-agents.js`, `src/model-profile.js`, `thinker models`):**
+- The ask: an auto-routing strategy that is easy to onboard from a subscription or an API behind a gateway, a
+  model-behaviour profile curated from the person's own sessions, and the performance figures kept beside it so a
+  routing decision can say why. This is the integration layer and the ledger; the routing itself is still a hand
+  move (`thinker models route`) on a printed recommendation, until the figures have been read on real runs.
+- **There is no standard gateway interface; the wire formats are the standard.** Chat Completions is spoken by every
+  gateway, Messages by some and by Claude Code alone, Responses by Codex; `GET /v1/models` is the one near-standard
+  beside them, pricing has none (OpenRouter and Vercel put it in the list, LiteLLM in `/model/info`). So a provider
+  is a base URL, a credential reference and the formats it was *found* to speak: `probeProvider` lists the models and
+  sends one token in each format, and only a 200 in the format's own shape counts (a gateway answering every path
+  with its own JSON is not speaking it). The registry is the machine's (`<THINKER_HOME>/providers.json`, mode 600),
+  the key is never in it (`auth: { env | file }`, the file mode-checked as the Bedrock token is), and
+  `registryPrices` is read by `prices.js:listPrice` after the repository config and before the built-in table, so
+  dollars still have one door.
+- **A route is what a request names** (`thinker/<alias>`, `thinker/<provider>/<model>`; `resolveRoute`). Claude Code
+  sends an unrecognised model id upstream unchanged (checked live 2026-11-10 against a fake API: `--model
+  thinker/gateway/gpt-6-sol` arrived as sent, with the adaptive thinking block and twelve tools, logged
+  `unrecognized_model` on its side), so a subagent file whose `model:` is a route reaches the proxy. The proxy
+  (`routeOf`, decided after the body is read since the route is in it; the upstream, `lib` and the agent pool moved
+  inside `end` for it) forwards to the provider with the provider's credential and without the agent's
+  (`routedHeaders` drops `authorization`, `x-api-key` and `anthropic-beta`), the cut applied first as for any
+  request, then the model swapped and the Claude-only fields dropped (`routedBody`: `context_management` always;
+  `thinking`, `metadata` unless the provider's model is itself a Claude model), then translated to Chat where that is
+  the provider's format and the answer translated back as the API's own events (`wire-chat.js`; `usageTap` reads
+  it unchanged; a whole answer and an error come back at their status in the API's shape). A route the registry
+  cannot answer, or a key that is not there, is a 400 or 401 to the agent (`proxy-route-refused` in the log), never a
+  forward of a made-up model to Anthropic with the person's login. The row carries `route`, `provider`,
+  `routedModel`, `format`, `firstByteMs` and `dropped`. `authWatch` never judges a routed request (its upstream is
+  not Anthropic's). Codex's Responses path is untouched.
+- **A subagent on a model is a user-scope file** (`model-agents.js`; `<claude config dir>/agents/<Name>.md`, marked
+  `thinker-agent`, a `reader` template that cannot write and a `worker` that can). That is the whole mechanism of
+  "safely trigger a subtask on a specific model": the main conversation never moves, the key never enters Claude
+  Code's settings, a wrong route fails on the subagent's first call with the reason, and every call carries the route
+  on its log row. `Explore` is never written here -- it has its own writer (`explore-agent.js`) and `thinker models
+  assign Explore <model>` sets `agents.explore` instead, since two writers of one file is how the other removes it.
+  `connect` and `rewire` write what the registry names, `uninstall --user` removes them, a person's own file of the
+  same name is left alone and named once.
+- **The model profile** (`model-profile.js`; `<THINKER_HOME>/state/model-profile.json`, per repository, merged on
+  show) is read from what is already recorded, no model call: each subagent transcript beside its parent (its
+  `.meta.json` carries `toolUseId`, the parent's Agent call), priced at its own model, with the parent's follow-up in
+  the exchange that launched it -- the share of the subagent's files the parent read again, edits after it, a
+  correction or an interruption on that exchange (the ledger's verdicts, as the Factory reads them) -- and each route's
+  calls, failures and median first byte from the proxy log. `recommend` is a rule with the figures beside it: per
+  subagent type the model with the most runs is the baseline, and past `MIN_RUNS` (5) a model cheaper a run and no
+  worse by `WORSE_BY` (10 points) on re-reads, corrections and failures is named. First cut, no evidence behind the
+  constants yet: the re-read share is the one figure a price list cannot give and is the one to watch first. What it
+  cannot see: a subagent whose parent is on another machine, Codex and Cursor subagents (none recorded), and whether
+  the parent *should* have re-read (a read-only run that found the file is followed by the parent reading it to edit,
+  which counts as a re-read; the edit column stands beside it for that reason).
+- Not done: routing by the profile itself, a holdout on the route (an alias that resolves to the session's own model
+  for a share of sessions, so the comparison is paired), the delegation nudge that would make the runs happen, and a
+  live run against a real gateway -- the translation is tested against fakes shaped like OpenAI's stream and the probe
+  against fakes shaped like OpenRouter's and LiteLLM's lists. `docs/usage.md` has the person's side.
+
 **Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
 - Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
 - Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
@@ -653,6 +708,8 @@ longer exceptions to anything.
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
 | `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of seven stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
+| `src/providers.js`, `src/wire-chat.js`, `src/proxy-routing.js` | models from other providers: the registry and probe, Messages to Chat and back, the proxy forwarding a `thinker/…` model to its provider |
+| `src/model-agents.js`, `src/model-profile.js`, `src/commands/models.js` | subagents on a chosen model, and the profile of how each model did as one; `thinker models` |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
 | `src/proxy-retry.js` | a request that never reached the upstream: the retryable codes, the ladder a dead resolver gets, the address a host last answered on |

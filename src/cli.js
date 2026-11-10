@@ -24,6 +24,7 @@ import { commands as contextCommands } from './commands/context.js';
 import { commands as explainCommands } from './commands/explain.js';
 import { commands as reportCommands } from './commands/report.js';
 import { commands as factoryCommands } from './commands/factory.js';
+import { commands as modelsCommands } from './commands/models.js';
 import { commands as savingsCommands } from './commands/savings.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as containerCommands } from './commands/containers.js';
@@ -191,6 +192,22 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  how thinker has been used on this machine, in every repository: requests, sessions, the
                                  clearing's savings and what learning spent (--here: this repository only; history is kept in
                                  ~/.thinker/log.jsonl)
+  models [list]                  the models reachable beyond the agent's own login: providers and what each was found to speak,
+                                 the routes that name them, the subagents written on them (providers.js, docs/usage.md)
+  models add <id> <url> [--key-env NAME|--key-file path|--key value|--no-key] [--model id] [--label text]
+                                 register a provider or a gateway and probe it: GET /v1/models, then one token as Messages
+                                 and as Chat; what answered in its own shape is what the proxy will forward
+  models probe [<id>]            probe a provider again (every provider without an id)
+  models remove <id>             forget a provider and the routes that name it
+  models route <alias> <provider>/<model> [--format messages|chat] [--off]
+                                 name a route: a subagent whose model is thinker/<alias> runs there; --off drops it
+  models assign <Agent> <model> [--template reader|worker] [--description text] [--off]
+                                 write a user-scope Claude Code subagent on that model (thinker/<alias>, thinker/<provider>/<model>
+                                 or a Claude model id); Explore goes through agents.explore; --off removes thinker's file
+  models price <provider>/<model> --input n --output n [--cache-read n]   a price in dollars a million the provider did not report
+  models profile [--days n] [--here] [--json] [--refresh]
+                                 what each model did as a subagent: runs, cost a run, what the parent did after it
+                                 (re-reads, edits, corrections), latency and failures per route, and what that recommends
   savings [--json] [--refresh]   what the footers say: saved today and over the whole log, in dollars, from the context the
                                  proxy cleared, over every repository on this machine. The Report page's own series at
                                  list prices, not a bill (--refresh
@@ -266,10 +283,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
+const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', undefined];
 
 async function main() {
   // Retired entrypoints must not initialize a cache, schedule work or execute a command.
