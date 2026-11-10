@@ -226,9 +226,10 @@ export const UPDATE_NOTE: Note = {
   id: '2026-11-profile-factory',
   title: 'What changed',
   lines: [
-    'thinker keeps a short profile of how you work now — what you are building, how you like answers, which skills you run — read from your own prompts and put at the top of every session. It replaces the knowledge notes.',
-    'The report has a Factory tab: where a session\'s tokens actually go, from prompt to merge, and how much went on work redone after something failed.',
-    'Find Savings is one table — a row per part of your prompt, what it wastes in dollars, and the one action that fixes it.',
+    'thinker builds a memory profile — what you are working on and how you like to work, distilled from your sessions and loaded at the top of each new one.',
+    'Knowledge notes are removed: hit rates were low across many users.',
+    'New Factory tab: the breakdown of your software factory, and which parts spend the most tokens or rework.',
+    'Find Savings is now one more compact table. Skill and tool suggestions from your session history are coming soon.',
   ],
   more: 'See both: thinker ui',
 }

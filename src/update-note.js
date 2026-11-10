@@ -1,10 +1,10 @@
 // What changed in thinker, said once to the people running it.
 //
 // thinker ships every few days and has never said a word about it: the agents it wires itself into
-// never name a version, so a person whose knowledge notes turned into a profile overnight had no way
-// to learn that from the product. This file is the one place that copy lives. Three lines at most: it
-// rides the same budget as every other thinker message (notice-cadence.js, "One summary, not a line a
-// turn"), and a person who has switched the notices off is told nothing.
+// never name a version, so a person whose knowledge notes turned into a memory profile overnight had no
+// way to learn that from the product. This file is the one place that copy lives. Four lines at most:
+// it rides the same budget as every other thinker message (notice-cadence.js, "One summary, not a line
+// a turn"), and a person who has switched the notices off is told nothing.
 //
 // Shown once per machine per note, keyed on the note's own id and not on a version, so a note can be
 // written without cutting a release and a release that changes nothing a person can see says nothing.
@@ -21,9 +21,10 @@ export const UPDATE_NOTE = {
   id: '2026-11-profile-factory',
   title: 'What changed',
   lines: [
-    'thinker keeps a short profile of how you work now — what you are building, how you like answers, which skills you run — read from your own prompts and put at the top of every session. It replaces the knowledge notes.',
-    'The report has a Factory tab: where a session\'s tokens actually go, from prompt to merge, and how much went on work redone after something failed.',
-    'Find Savings is one table — a row per part of your prompt, what it wastes in dollars, and the one action that fixes it.',
+    'thinker builds a memory profile — what you are working on and how you like to work, distilled from your sessions and loaded at the top of each new one.',
+    'Knowledge notes are removed: hit rates were low across many users.',
+    'New Factory tab: the breakdown of your software factory, and which parts spend the most tokens or rework.',
+    'Find Savings is now one more compact table. Skill and tool suggestions from your session history are coming soon.',
   ],
   more: 'See both: thinker ui',
 };

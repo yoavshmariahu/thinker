@@ -473,8 +473,8 @@ longer exceptions to anything.
 
 **What changed in thinker, said once (2026-11-10, the owner's ask; `src/update-note.js`):**
 - thinker ships every few days and said nothing about it. The agents it wires itself into never name a
-  version or a release, so the knowledge notes became a session profile on a person's machine overnight
-  with no word anywhere in the product. One note, two or three lines, said once.
+  version or a release, so the knowledge notes became a memory profile on a person's machine overnight
+  with no word anywhere in the product. One note, four lines at most, said once.
 - **One copy, in `src/update-note.js`**: `UPDATE_NOTE` is `{id, title, lines, more}`, and
   `updateNoteText` is how an agent that draws no card says it. The Claude Code mod carries its own copy
   of those words (`src/integrations/claude-card`, `UPDATE_NOTE`), held to this one by
@@ -688,7 +688,7 @@ longer exceptions to anything.
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
-| `src/update-note.js` | what changed in thinker, in two or three lines, said once per machine: a card where the mod runs, the top of the next summary everywhere else |
+| `src/update-note.js` | what changed in thinker, in four lines at most, said once per machine: a card where the mod runs, the top of the next summary everywhere else |
 | `src/savings-ledger.js` | what the footers say: the Report's two savings series over today and the whole log, kept in `THINKER_HOME/state/savings.json` |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |

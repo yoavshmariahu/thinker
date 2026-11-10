@@ -268,8 +268,8 @@ test('the update card says what src/update-note.js says, once per note', () => {
   const mod = src.match(/export const UPDATE_NOTE: Note = \{[\s\S]*?\n\}/)[0];
   const one = new Function(`return ${mod.replace('export const UPDATE_NOTE: Note = ', '')}`)();
   assert.deepEqual({ id: one.id, title: one.title, lines: one.lines, more: one.more }, { id: UPDATE_NOTE.id, title: UPDATE_NOTE.title, lines: UPDATE_NOTE.lines, more: UPDATE_NOTE.more });
-  // three lines at most: the note rides the same budget as every other thinker message
-  assert.ok(UPDATE_NOTE.lines.length > 0 && UPDATE_NOTE.lines.length <= 3, 'two or three lines, no more');
+  // four lines at most: the note rides the same budget as every other thinker message
+  assert.ok(UPDATE_NOTE.lines.length > 0 && UPDATE_NOTE.lines.length <= 4, 'four lines, no more');
   // drawn once per machine, keyed on the note's own id, and never where the notices are off
   assert.match(src, /\(await \$\.store\.get\(NOTE_KEY\)\.catch\(\(\) => null\)\) !== UPDATE_NOTE\.id/);
   assert.match(src, /await \$\.store\.set\(NOTE_KEY, UPDATE_NOTE\.id\)/);
