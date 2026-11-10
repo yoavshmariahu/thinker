@@ -66,7 +66,7 @@
     </div>
   </main>
 
-  <section class="lp lp-first" id="factory">
+  <section class="lp lp-feature lp-first" id="factory">
     <h2>Your software factory, faster and cheaper.</h2>
     <figure class="lp-pipeline"><img src="/thinker-pipeline.svg" alt="A software factory from prompts to merge: each stage with an illustrative cost per run and share of rework, coloured by whether it is within budget." width="1200" height="410"></figure>
     <p class="lp-intro">Coding agents have transformed the software development lifecycle with automations in every step to production. Thinker wires into your coding agents and finds cost-saving opportunities or efficiency improvements to make sure your agents produce accurate work without burning through your token budgets.</p>
@@ -82,25 +82,15 @@
     </div>
   </section>
 
-  <section class="lp" id="compression">
-    <h2>Compression: pay for the context you still need.</h2>
-    <div class="lp-split">
-      <div>
-        <p>A coding task is many model calls, and each one sends the whole conversation again. Old tool results are the bulk of it. Measured on one real request, results the agent had already finished with were 61% of the context; the live turn&rsquo;s results another 18%; your prompts, 7%.</p>
-        <p>Thinker sits between your agent and the model, through the agent&rsquo;s own settings. At the boundary between turns it prices a cut: what the older results cost to carry on every later call, against what rewriting the cache once will cost. It cuts only when that pays back within the next 25 calls, keeps the newest turn and the last results untouched, and never touches your prompts or the agent&rsquo;s own words. The same cut is applied to every request after it, so the agent&rsquo;s cache stays warm.</p>
-        <p>In the eight sessions published on <a href="/see-the-data">See the data</a>, the same prompts cost 1% to 36% less with thinker than without, at list prices, one run each. Fifteen percent of sessions are held out so the saving is always measured against sessions it did not touch.</p>
+  <section class="lp lp-wide" id="compression">
+    <div class="lp-side">
+      <div class="lp-side-text">
+        <h2>Compression: use only the context you need.</h2>
+        <p class="lp-intro">Thinker identifies cost saving opportunities to safely remove context from your coding agent session. We calculate the cost to re-write the cache compared to how much the context shrinks, and identify the savings on input tokens will be paid off after at most 25 API calls. Typical sessions span hundreds of calls, so a single context cut can significantly reduce your token spend on the session. <a href="/see-the-data">See the data</a> for examples on how we cut costs on real work on open-source repos.</p>
       </div>
-      <div>
-        <figure class="lp-figure">
-          <div class="lp-chart" id="lp-chart"></div>
-          <figcaption>Cost per call, illustrative at Claude Opus 5.5 list prices: the call that compresses pays the cache rewrite once, every later call reads less. Amber repays the rewrite; green is net saving. <a href="/how-it-works">The full walkthrough</a>.</figcaption>
-        </figure>
-        <figure class="lp-figure" style="margin-top:1rem">
-          <div class="lp-comp"><span style="width:61%;background:#15803d"></span><span style="width:18%;background:#86c79a"></span><span style="width:21%;background:#d9d9d9"></span></div>
-          <div class="lp-key"><span><i style="background:#15803d"></i>Older tool results 61%</span><span><i style="background:#86c79a"></i>This turn&rsquo;s results 18%</span><span><i style="background:#d9d9d9"></i>Prompts, agent text, tools, system 21%</span></div>
-          <figcaption>What one real 642k-character request was made of. Thinker reaches the green part only.</figcaption>
-        </figure>
-      </div>
+      <figure class="lp-side-figure">
+        <img src="/thinker-context-compress.svg" alt="An agent builds up context; thinker removes 24,000 of 65,000 tokens from it, and every later API call reads the shorter context." width="736" height="471">
+      </figure>
     </div>
   </section>
 
@@ -172,22 +162,6 @@
   </script>
   <script>
     (() => {
-      // The per-call cost picture from the walkthrough, at rest: the rewrite call, then thirty cheaper calls.
-      const host = document.getElementById('lp-chart');
-      const width = host.clientWidth || 440, height = host.clientHeight || 200;
-      const left = 34, right = width - 8, top = 44, bottom = height - 24;
-      const slot = (right - left) / 31, bar = Math.max(3, slot * .64);
-      const x = i => left + (i + .5) * slot, y = a => bottom - a / .44 * (bottom - top);
-      let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-label="Cost per call: the compressing call costs 38.8 cents including a 28.8 cent cache rewrite; each later call costs 7.6 cents instead of 10. The saving repays the rewrite over twelve calls and is net after that.">';
-      for (const a of [0, .1, .4]) svg += '<line x1="' + left + '" x2="' + right + '" y1="' + y(a) + '" y2="' + y(a) + '" stroke="#e5e5e5"/><text x="' + (left - 6) + '" y="' + (y(a) + 3) + '" text-anchor="end">' + Math.round(a * 100) + '¢</text>';
-      svg += '<rect x="' + (x(0) - bar / 2) + '" y="' + y(.1) + '" width="' + bar + '" height="' + (bottom - y(.1)) + '" fill="#555"/><rect x="' + (x(0) - bar / 2) + '" y="' + y(.388) + '" width="' + bar + '" height="' + (y(.1) - y(.388)) + '" fill="#c78023"/>';
-      svg += '<defs><pattern id="lp-repay" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#f7e4c6"/><path d="M-1,1 L1,-1 M0,4 L4,0 M3,5 L5,3" stroke="#b66d12" stroke-width=".8"/></pattern><pattern id="lp-saved" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#d7efdf"/><path d="M-1,1 L1,-1 M0,4 L4,0 M3,5 L5,3" stroke="#15803d" stroke-width=".8"/></pattern></defs>';
-      for (let i = 1; i <= 30; i++) svg += '<rect x="' + (x(i) - bar / 2) + '" y="' + y(.076) + '" width="' + bar + '" height="' + (bottom - y(.076)) + '" fill="#15803d"/><rect x="' + (x(i) - bar / 2) + '" y="' + y(.1) + '" width="' + bar + '" height="' + (y(.076) - y(.1)) + '" fill="url(#' + (i <= 12 ? 'lp-repay' : 'lp-saved') + ')"/>';
-      svg += '<line x1="' + left + '" x2="' + right + '" y1="' + y(.1) + '" y2="' + y(.1) + '" stroke="#555" stroke-dasharray="4 3"/>';
-      svg += '<text x="' + right + '" y="12" text-anchor="end" style="fill:#555">10¢ a call without compression</text><text x="' + right + '" y="26" text-anchor="end" style="fill:#15803d">7.6¢ after the rewrite · 2.4¢ saved</text>';
-      svg += '<text x="' + (x(0) + bar / 2 + 5) + '" y="' + (y(.388) + 4) + '" style="fill:#9a5a12;font-weight:600">38.8¢ rewrite call</text>';
-      svg += '<text x="' + left + '" y="' + (bottom + 16) + '">Rewrite</text><text x="' + x(12) + '" y="' + (bottom + 16) + '" text-anchor="middle">12 · paid back</text><text x="' + right + '" y="' + (bottom + 16) + '" text-anchor="end">30 calls</text>';
-      host.innerHTML = svg + '</svg>';
       // The eight published runs: control against thinker, at list prices, from See the data's own index.
       const runs = [['click-1', 'Click · CLI bug fix', 6.43, 5.49], ['django-astra', 'Django · Prefetch routing', 13.74, 8.78], ['mlflow-registry', 'MLflow · Latest model version', 15.08, 11.92], ['mlflow-gateway', 'MLflow · Gemini tool choice', 16.94, 11.61], ['mlflow-span', 'MLflow · Span serialization', 13.22, 11.02], ['posthog-invites', 'PostHog · Member invitations', 9.42, 8.42], ['posthog-broadcasts', 'PostHog · Broadcast scheduling', 5.46, 5.41], ['posthog-metrics', 'PostHog · Metric UUIDs', 11.38, 10.11]];
       const max = Math.max(...runs.map(r => r[2]));
