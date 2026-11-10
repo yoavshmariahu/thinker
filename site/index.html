@@ -75,15 +75,6 @@
   </section>
 
 
-  <section class="lp" id="what">
-    <h2>What thinker does</h2>
-    <div class="lp-cards">
-      <div class="lp-card"><h3>Compression</h3><p>Thinker watches each session and removes older tool results the agent has finished with, only when the saving is worth the cache rewrite. Fewer tokens read on every call that follows.</p></div>
-      <div class="lp-card"><h3>Memory profile</h3><p>From your prompts and your agents&rsquo; answers, thinker learns what you are working on, how you want work done, and where agents went wrong here before. Every session starts with that, so you repeat yourself less and get closer to one-shotting a change.</p></div>
-      <div class="lp-card"><h3>Find savings</h3><p>See what each instruction section, skill and tool costs per prompt and how often sessions act on it. Trim, compress or switch off what they never use, as pull requests you review.</p></div>
-    </div>
-  </section>
-
   <section class="lp lp-wide" id="compression">
     <div class="lp-side">
       <div class="lp-side-text">
@@ -96,33 +87,15 @@
     </div>
   </section>
 
-  <section class="lp" id="profile">
-    <h2>Memory profile: start every session already knowing you.</h2>
-    <div class="lp-split">
-      <div>
-        <p>Thinker reads a session&rsquo;s prompts and the agent&rsquo;s answers, never your code or tool output, and keeps a ledger of what was asked, how it went, and what you said back. Once a day it compiles that into a short profile for the repository, in three parts:</p>
-        <ul>
-          <li><strong>Working on.</strong> The workstreams you are in the middle of, so the agent picks up where the last session left off.</li>
-          <li><strong>How this person works.</strong> Rules in the imperative, from your stated preferences and the corrections you had to make more than once.</li>
-          <li><strong>Skills.</strong> Which skills you run here and how they went.</li>
-        </ul>
-        <p>The profile goes into the first prompt of every session, about 1,500 tokens, and again after a compaction. It lives in the repository&rsquo;s local thinker folder and is never committed or uploaded. Half of sessions are held out, and thinker measures how often you had to say something again that you had said before.</p>
+  <section class="lp lp-wide" id="profile">
+    <div class="lp-side lp-flip">
+      <figure class="lp-side-figure">
+        <img src="/thinker-memory.svg" alt="Six sessions feed three memory cards: what you are working on, how you work, and the skills you use." width="920" height="550">
+      </figure>
+      <div class="lp-side-text">
+        <h2>Memory profile: learn from every session.</h2>
+        <p class="lp-intro">Thinker distills reusable information from your sessions so future ones can learn from what went right or wrong. It aggregates context on your workstreams and flags pitfalls past agents hit, like misusing an MCP tool or exploring code in the wrong directory. It also picks up the habits that shape how you work, such as verification steps you previously had to ask for. The overarching goal is to get closer to one-shotting your initial prompt into the end state you wanted.</p>
       </div>
-      <figure class="lp-figure lp-profile"><b>About the person here, from 41 sessions in this repository. Follow how they work; the rest is context.</b>
-
-<b>Working on</b>
-- Moving the billing export from nightly batch to a streamed job; the retry path is open.
-- A flaky integration test in the payments suite, traced to a shared fixture.
-
-<b>How this person works</b>
-- Verify in the live app before calling it done; a passing mock is not evidence.
-- Answer short and plain. No tables, no headings for a two-line answer.
-- Work in a worktree and open a pull request; never commit to main.
-- Say what you did not do, not only what you did.
-
-<b>Skills</b>
-- /review: run before every pull request; asked for fewer style findings.
-<small>Example profile, invented. A real one is built from your own sessions.</small></figure>
     </div>
   </section>
 
