@@ -35,7 +35,7 @@ const argv = process.argv.slice(2);
 const cmd = argv.shift();
 const flags = {}; const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && k === 'codex') || (cmd === 'prs' && ['json', 'detail', 'dry'].includes(k)) || (cmd === 'containers' && ['json', 'devcontainer'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
+  if (argv[i].startsWith('--')) { const k = argv[i].slice(2); const boolean = ['full-repo'].includes(k) || (cmd === 'proxy' && ['codex', 'gateway-openrouter'].includes(k)) || (cmd === 'prs' && ['json', 'detail', 'dry'].includes(k)) || (cmd === 'containers' && ['json', 'devcontainer'].includes(k)) || (cmd === 'system' && ['fixed', 'mutable', 'all', 'json', 'dry', 'again'].includes(k)); const v = !boolean && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[++i] : true; flags[k] = v; }
   else pos.push(argv[i]);
 }
 // A process can be left in a directory that no longer exists: a worktree removed under it, a build directory
@@ -223,6 +223,12 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  there leaves it off): clears older tool results for Claude Code, pi, OpenCode and Codex.
                                  Codex uses its existing OpenAI login through HTTP/SSE; custom providers stay as configured.
                                  Off restores the previous provider; status also prints the report of the last 30 days
+                                 [--gateway-openrouter] [--gateway-litellm url]
+                                 also serve OpenAI Chat Completions behind a path prefix (/openrouter,
+                                 /litellm), for OpenCode's openrouter and litellm providers; openrouter needs
+                                 no URL, litellm the base URL it is already served at. Set them for keeps in
+                                 THINKER_HOME/config.json's proxy block: gateways: { openrouter: true,
+                                 litellm: 'https://…' }. A new gateway is an entry there, not a new door.
   proxy [serve] --port n [--codex] [--protocol anthropic|responses] [--upstream url] [--trigger n] [--keep n|turn] [--keep-min n] [--clear-at-least n] [--holdout share]
                                  the proxy in the foreground (what the service runs; --keep turn, the default: only the
                                  results of earlier turns are cleared; --keep n: all but the newest n);

@@ -100,8 +100,11 @@ export const placeholder = chars =>
 // per-session record (`compression.js:noteCompression`), the log's two sides (`proxy.js:proxyReport`), the
 // telemetry (`telemetry.js:proxyMetrics`), what a pull request saved (`clearedBySession`) and what the
 // rewrites after a clear cost it (`clearingCostBySession`).
-// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js).
-export const clearedOf = r => Math.round(r?.protocol === 'responses'
+// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js);
+// so is a gateway row (`proxy-chat.js`): no upstream is told anything, so the cut's own estimate
+// is the only token figure either door has.
+export const cutEstimateProtocol = r => r?.protocol === 'responses' || r?.protocol === 'chat';
+export const clearedOf = r => Math.round(cutEstimateProtocol(r)
   ? (r?.estimatedRemovedTokens || r?.clientCut?.tokens || 0)
   : (r?.cleared || r?.clientCut?.tokens || 0));
 export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
@@ -110,7 +113,7 @@ export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
 // Keyed on the cut having done it, not on which field carries the figure: `clearedBy` writes the cut's own
 // count into `cleared`, the field the API used to fill, so asking whether `cleared` is set no longer tells
 // a measurement from an estimate. A row from the API-side era carries no `clientCut` at all.
-export const clearedEstimated = r => r?.protocol === 'responses' || r?.clientCut?.tokens > 0;
+export const clearedEstimated = r => cutEstimateProtocol(r) || r?.clientCut?.tokens > 0;
 
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,

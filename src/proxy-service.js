@@ -154,6 +154,12 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
+  // the model gateways (proxy.js): `gateways: { openrouter: true, litellm: 'https://…' }` in the
+  // `proxy` block. OpenRouter needs no URL; any other gateway is its upstream, and a new one is
+  // an entry here, read by the same door.
+  const gateways = cfg.gateways && typeof cfg.gateways === 'object' ? cfg.gateways : {};
+  if (gateways.openrouter === true || typeof gateways.openrouter === 'string') args.push('--gateway-openrouter');
+  if (typeof gateways.litellm === 'string' && gateways.litellm) args.push('--gateway-litellm', gateways.litellm);
   return args;
 }
 
@@ -588,7 +594,9 @@ function piFile(url, home) {
   if (Object.keys(next).length) writeJson(f, next); else fs.rmSync(f, { force: true });
   return { file: f, changed: true };
 }
-// OpenCode: opencode.json `provider.anthropic.options.baseURL`; a config kept as opencode.jsonc (comments) is not rewritten
+// OpenCode: opencode.json `provider.anthropic.options.baseURL`; a config kept as opencode.jsonc (comments) is not rewritten.
+// Where the openrouter gateway is on in the machine config, the openrouter provider is pointed at the same
+// proxy behind its path prefix (`/openrouter/v1`), so the chat door serves it too.
 function opencodeFile(url, home) {
   const dir = opencodeDir();
   const f = path.join(dir, 'opencode.json'), fc = path.join(dir, 'opencode.jsonc');
@@ -597,20 +605,35 @@ function opencodeFile(url, home) {
   const read = readForWrite(f);
   if (read.why) return { file: f, skipped: read.why, unchanged: !url };
   const cur = read.value;
-  const have = cur.provider?.anthropic?.options?.baseURL;
-  if (url) {
-    if (have && !isOwnUrl(have, home)) return { file: f, skipped: `provider.anthropic.options.baseURL is already ${have}` };
-    if (have === url) return { file: f, unchanged: true };
-    if (!fs.existsSync(f) && !fs.existsSync(dir)) return { file: f, unchanged: true, absent: true }; // no OpenCode here
-    const anthropic = cur.provider?.anthropic || {};
-    writeJson(f, { ...cur, provider: { ...(cur.provider || {}), anthropic: { ...anthropic, options: { ...(anthropic.options || {}), baseURL: url } } } });
-    return { file: f, changed: true };
+  // One provider at a time, the same rule each: write ours when absent, leave the person's own
+  // route with the reason, take ours out on the way off. A provider nobody uses is not created.
+  const setProvider = (obj, name, target, label) => {
+    const have = obj.provider?.[name]?.options?.baseURL;
+    if (target) {
+      if (have && !isOwnUrl(have, home)) return { obj, note: `${label} is already ${have}` };
+      if (have === target) return { obj };
+      const p = obj.provider?.[name] || {};
+      return { obj: { ...obj, provider: { ...(obj.provider || {}), [name]: { ...p, options: { ...(p.options || {}), baseURL: target } } } }, changed: true };
+    }
+    if (!have || !isOwnUrl(have, home)) return { obj };
+    const options = { ...obj.provider[name].options }; delete options.baseURL;
+    const p = { ...obj.provider[name] }; if (Object.keys(options).length) p.options = options; else delete p.options;
+    const provider = { ...obj.provider }; if (Object.keys(p).length) provider[name] = p; else delete provider[name];
+    const next = { ...obj }; if (Object.keys(provider).length) next.provider = provider; else delete next.provider;
+    return { obj: next, changed: true };
+  };
+  const gateways = readMachineConfig(home).proxy?.gateways || {};
+  const openrouterOn = gateways.openrouter === true || (typeof gateways.openrouter === 'string' && gateways.openrouter);
+  const anthropic = setProvider(cur, 'anthropic', url, 'provider.anthropic.options.baseURL');
+  if (anthropic.note) return { file: f, skipped: anthropic.note, unchanged: !url };
+  const openrouter = setProvider(anthropic.obj, 'openrouter', openrouterOn && url ? `${String(url).replace(/\/+$/, '')}/openrouter` : null, 'provider.openrouter.options.baseURL');
+  if (openrouter.note) return { file: f, skipped: openrouter.note };
+  const next = openrouter.obj, changed = !!anthropic.changed || !!openrouter.changed;
+  if (!changed) {
+    if (url && !fs.existsSync(f) && !fs.existsSync(dir)) return { file: f, unchanged: true, absent: true }; // no OpenCode here
+    return { file: f, unchanged: true };
   }
-  if (!isOwnUrl(have, home)) return { file: f, unchanged: true };
-  const options = { ...cur.provider.anthropic.options }; delete options.baseURL;
-  const anthropic = { ...cur.provider.anthropic }; if (Object.keys(options).length) anthropic.options = options; else delete anthropic.options;
-  const provider = { ...cur.provider }; if (Object.keys(anthropic).length) provider.anthropic = anthropic; else delete provider.anthropic;
-  const next = { ...cur }; if (Object.keys(provider).length) next.provider = provider; else delete next.provider;
+  if (!fs.existsSync(f) && !fs.existsSync(dir)) return { file: f, unchanged: true, absent: true }; // no OpenCode here: none is created
   writeJson(f, next);
   return { file: f, changed: true };
 }

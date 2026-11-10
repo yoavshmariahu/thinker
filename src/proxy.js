@@ -28,6 +28,7 @@ import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
+import { transformChat, chatUsageTap, chatReport, refusesChatCut } from './proxy-chat.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { BEDROCK_PATH, bedrockRequest, bedrockBody } from './proxy-bedrock.js';
@@ -198,6 +199,18 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
   cfg.codex = flags.codex === true;
+  // The model gateways (the owner's call, 2026-11-10): OpenAI Chat Completions upstreams routed by
+  // path prefix on the same service, so one proxy serves every door. OpenRouter has a home of its
+  // own; any other gateway (LiteLLM first) needs the base URL it is already served at. A new
+  // gateway is a config entry here, not a new door: the wire format is the shared standard, and
+  // what differs is only where the request is answered from.
+  cfg.gateways = {};
+  if (flags['gateway-openrouter']) cfg.gateways.openrouter = { upstream: 'https://openrouter.ai/api/v1' };
+  if (flags['gateway-litellm']) {
+    const u = new URL(String(flags['gateway-litellm']));
+    if (!['http:', 'https:'].includes(u.protocol)) throw new Error('--gateway-litellm must be an HTTP(S) base URL');
+    cfg.gateways.litellm = { upstream: String(flags['gateway-litellm']) };
+  }
   if (!['anthropic', 'responses'].includes(cfg.protocol)) throw new Error('--protocol must be anthropic or responses');
   if (cfg.protocol === 'responses') {
     if (!flags.upstream && !env.THINKER_PROXY_UPSTREAM) throw new Error('--protocol responses needs an explicit --upstream (the existing provider base URL)');
@@ -390,6 +403,7 @@ export function conversationKey(session, j) {
 // What goes upstream. Anything unexpected forwards the agent's bytes as they came.
 export function transformRequest(method, url, headers, body, cfg) {
   if (cfg.protocol === 'responses') return transformResponses(method, url, headers, body, cfg);
+  if (cfg.protocol === 'chat') return transformChat(method, url, headers, body, cfg);
   if (method !== 'POST' || !/^\/v1\/messages(\?|$)/.test(url) || !body.length) return { body, reason: 'other' };
   let j;
   try { j = JSON.parse(body); } catch { return { body, reason: 'unparsed' }; }
@@ -556,6 +570,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   // the switched-off tools whose definitions live on disk (tool-stubs.js): the registry is the machine's, read when it changes
   if (!cfg.stubs) cfg = { ...cfg, stubs: stubsHome ? stubReader(stubsHome) : null };
   const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
+  const chatCutting = cutStore(clearingDir ? path.join(clearingDir, 'chat') : null);
+  // one store per door, so a restarted proxy re-applies the same set whichever door wrote it
+  const cutStoreOf = t => t.protocol === 'responses' ? responseCutting : t.protocol === 'chat' ? chatCutting : cutting;
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();
@@ -583,6 +600,15 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       const upstreams = cfg.codexUpstreams || CODEX_UPSTREAMS;
       requestCfg = { ...cfg, protocol: 'responses', keep: 'turn', upstream: req.headers['chatgpt-account-id'] ? upstreams.chatgpt : upstreams.api };
     }
+    // A gateway is a path prefix on this proxy (`/openrouter/v1/chat/completions`), as `/codex` is:
+    // the agent's provider baseURL names the door, the prefix names the upstream, and one service
+    // serves every door. Nothing configured passes through as it came.
+    if (requestCfg.gateways) for (const [name, g] of Object.entries(requestCfg.gateways)) {
+      if (requestUrl !== `/${name}` && !requestUrl.startsWith(`/${name}/`)) continue;
+      requestUrl = requestUrl.slice(name.length + 1) || '/';
+      requestCfg = { ...requestCfg, protocol: 'chat', gateway: name, upstream: g.upstream };
+      break;
+    }
     const up = new URL(requestCfg.upstream);
     const lib = up.protocol === 'http:' ? http : https;
     // A gateway URL is the destination; HTTP(S)_PROXY/ALL_PROXY is how this machine reaches it.
@@ -604,13 +630,13 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       // The record is read inside the transform, which is where the conversation can be told from the
       // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
       let cutRec = null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)), readChatCut: session => (cutRec = chatCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
       // Reserve the boundary's decision before forwarding, including a decision not to cut.
       // Retries and concurrent requests in this turn must reuse the same set, even when a
       // later tool result would make a previously refused candidate profitable.
       if (cutRec && Array.isArray(t.cut) && t.turn != null) {
         cutRec.cut = t.cut; cutRec.turn = t.turn;
-        (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
+        cutStoreOf(t).write(cutRec);
       }
       let n = null;
       const headers = {};
@@ -670,7 +696,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
               const body = Buffer.concat(parts);
               // not about the edit: the agent's own to see. The bytes are in hand and the stream may already be
               // over, so `deliver` is told to finish the response itself rather than wait for an 'end' that has been
-              if (!refusesEdit(body)) return deliver(Buffer.from(body), ended);
+              const refused = t.protocol === 'chat' ? refusesChatCut(body) : refusesEdit(body);
+              if (!refused) return deliver(Buffer.from(body), ended);
               cutRejected = true;
               ures.resume();
               log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', upstream: up.origin, status: 400, says: String(body).slice(0, 200) });
@@ -691,7 +718,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           const out = {};
           for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
           res.writeHead(ures.statusCode, out);
-          const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
+          const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : t.protocol === 'chat' ? chatUsageTap() : usageTap();
           if (prefix?.length) { res.write(prefix); tap?.push(prefix); }
           ures.removeAllListeners('data');
           ures.on('data', c => { res.write(c); tap?.push(c); });
@@ -702,7 +729,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             res.removeListener('close', record);
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
-              ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
+              ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
               injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
@@ -710,8 +737,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             if (tap && cutRec && Array.isArray(t.cut) && ures.statusCode >= 200 && ures.statusCode < 300) {
               // through the store's read-modify-write, so the counters land on the record as it is now: another
               // request of this conversation may have reserved the next boundary while this answer streamed
-              const store = t.protocol === 'responses' ? responseCutting : cutting;
-              for (const ev of store.update(cutRec.session, rec => cutResponse(rec, requestCfg, t, usage))) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
+              for (const ev of cutStoreOf(t).update(cutRec.session, rec => cutResponse(rec, requestCfg, t, usage))) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
             }
           };
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
@@ -781,7 +807,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
 export function proxyReport(rows, { since } = {}) {
   const sides = {};
   for (const r of rows) {
-    if (r.protocol === 'responses') continue;
+    if (r.protocol === 'responses' || r.protocol === 'chat') continue;
     if (r.op !== 'proxy' || (since && r.at < since)) continue;
     const side = r.injected ? 'clearing' : r.reason === 'holdout' ? 'holdout' : null;
     if (!side) continue;
@@ -808,11 +834,12 @@ export function proxyReport(rows, { since } = {}) {
       overheadP50: ms[Math.floor(ms.length / 2)] ?? 0, overheadP99: ms[Math.min(ms.length - 1, Math.floor(ms.length * 0.99))] ?? 0 };
   }
   const responses = responsesReport(rows, { since });
+  const chat = chatReport(rows, { since });
   // a cut rejected by the API is the one way the editing stops now (proxy.js:cutRejected)
   const rejected = new Set(rows.filter(r => r.op === 'proxy-cut-rejected' && (!since || r.at >= since)).map(r => r.session));
   if (outSides.clearing) outSides.clearing.sessionsRejected = rejected.size;
   const warning = rewriteWarning(outSides);
-  return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}) };
+  return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}), ...(Object.keys(chat).length ? { chat } : {}) };
 }
 // a call this long is one where a rewrite is a cost worth noticing and a clear can have happened
 // LONG_CONTEXT is cutting.js's, re-exported above: it was declared here too, at the same 100000.
