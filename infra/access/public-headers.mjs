@@ -22,5 +22,5 @@ export const RESPONSE_POLICY = name => ({
 export const DAY = 86400, FIVE_MINUTES = 300;
 // Media and the run data change only with a deploy, which invalidates them; pages, scripts and the
 // downloads are revalidated every five minutes so a fix reaches browsers without one.
-export const cacheControlFor = key => /\.(png|ico|svg)$|^clearing-[a-z0-9-]+\.json$/.test(key)
+export const cacheControlFor = key => /\.(png|ico|svg|webm)$|^clearing-[a-z0-9-]+\.json$/.test(key)
   ? `public, max-age=${DAY}` : `public, max-age=${FIVE_MINUTES}`;
