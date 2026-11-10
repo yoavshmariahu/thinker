@@ -1,6 +1,6 @@
 # thinkersh
 
-[Thinker](https://zerotime.dev) helps your coding agent use fewer tokens.
+[Thinker](https://thinker.sh) helps your coding agent use fewer tokens.
 Find wasted context, review what to cut, and reuse what your agent learns about your code.
 
 ```bash
@@ -10,7 +10,7 @@ npx thinkersh
 The installer connects your coding agents and shows suggested savings from your recent sessions.
 Review them in your browser or terminal, then keep coding as usual.
 
-Requires bash, git, curl, tar and Node 20+. [Setup and privacy](https://zerotime.dev/docs#install).
+Requires bash, git, curl, tar and Node 20+. [Setup and privacy](https://thinker.sh/docs#install).
 
 ## Installer details
 
