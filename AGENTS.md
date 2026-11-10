@@ -1017,6 +1017,17 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
 - What set it off: on 2026-11-04 a Claude Desktop session was interrupted mid-answer with a picker reading
   "1 -- compress repeated tool output, or none?" -- the thinnest question thinker has ever put to anyone.
 
+**Find Savings is one table, a part a row (2026-11-09, the owner's ask; `page.html:renderRows`, `wireRows`)**
+- Title, type, per call, used, wasted, action: the action is a dropdown and an Apply in the row, and the `›` beside the
+  title opens the one-line description (the model's sentence where `thinker explain` has written one, else
+  part-describe.js's line, asked for when the row is opened and never for the rows nobody opens) and the part's text.
+- Gone, since the top half of the page was not a row anyone could act on: the view tabs (All, Instruction files, Custom
+  tools, Built-in tools), the Potential savings card on each, the explanatory paragraph, the cards view and its page-ahead
+  explanation writing, the checkboxes and the Apply over the table, the Over N days and Share columns. The figures stay
+  on the opened row and in `thinker context`; `thinker context --cards` is still the terminal's card view.
+- A door's suggested rows (the installer's, the weekly question's) come first with their action picked (`preselectRows`,
+  `PRETOP`, `PREACT`), where they came checked. `applyRows` still takes a list, one row long.
+
 **Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
 - A part sits in the prompt, so it costs its size in every model call that carries it. The table's four numbers are four readings of that, each with a **?** under forty words (the owner: if it needs more, the calculation is wrong).
 - **Per prompt** (`tokens`): its size, what it adds to every prompt that carries it. **Needed** (`usedShare`): of those prompts, the share the agent acted on it in. **Over N days** (`window`): per prompt × every prompt that carried it (`prompts`). **Wasted** (`wastedWindow`; `wasted` a prompt): window × (1 − needed). The savings card leads with the window figure. `perPrompt` (window ÷ every prompt of the window) stays in the data for the tab strip, the totals and `wasteLevel`, not in the table.

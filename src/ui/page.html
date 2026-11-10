@@ -303,6 +303,7 @@
     .ctx-rows td.ctx-type { white-space: normal; color: #4b5563; font-size: 0.78rem; max-width: 20rem; }
     .ctx-rows th.ctx-acthead { text-align: right; }
     .ctx-exline { margin: 0 0 0.5rem; font-size: 0.84rem; line-height: 1.5; color: #1f2937; }
+    .ctx-rows .ctx-detail .md-body { max-height: 18rem; overflow: auto; font-size: 0.82rem; }
     .ctx-unit { font-size: 0.68rem; color: #9ca3af; margin-left: 0.1rem; }
     .rev-list { margin: 0; padding: 0; list-style: none; }
     .rev-list li { padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.86rem; line-height: 1.5; }
@@ -876,7 +877,7 @@ const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', d
 function contextRows(v) {
   const iv = v.instructions || {}, rows = [], repoOf = s => s.repo || (v.all ? null : CREPO);
   (iv.sections || []).forEach((s, i) => rows.push({
-    view: 'instructions', kind: 'section', kindLabel: 'Instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
+    view: 'instructions', kind: 'section', kindLabel: 'instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
     // a section changed inside the window (compressed, rewritten, added) is a new section from then: its row says when,
     // its use and its cost over the window are the sessions since (instruction-value.js:instructionValue `recent`)
     name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent, s.recent ? `changed ${dayOf(s.changedAt)}` : null].filter(Boolean).join(' · '),
@@ -904,7 +905,7 @@ function contextRows(v) {
   for (const s of v.skills || []) {
     const k = skillShort(s.text), o = s.outcome;
     rows.push({
-      view: 'custom', kind: 'skill', kindLabel: 'Skill', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
+      view: 'custom', kind: 'skill', kindLabel: 'skill', key: `${s.client}:${s.key}`, repo: repoOf(s), repoIds: s.repoIds, name: s.name, sub: [CLIENT[s.client] || s.client, s.repos > 1 ? `${s.repos} repositories` : ''].filter(Boolean).join(' · '),
       detail: (k.desc ? `<p class="muted">${esc(k.desc)}</p>` : '') + md(k.body) + (o?.read || o?.missed ? `<p class="muted">Sampled outcome check: rules kept in ${o.read - Math.min(o.read, o.brokenAfterRead)} of ${o.read} sessions that read it; missed (broken without reading it) ${o.missed || 0} times.</p>` : ''),
       about: s.about || k.desc || '', explain: s.explain || null, explainKey: s.explainKey || '', tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.loaded || 0, acted: s.usedShare, actedBy: `invoked in ${fmt(s.usedPrompts || 0)} of ${fmt(s.prompts || 0)} prompts (${s.used} of ${s.loaded} sessions)`,
       wasted: s.off ? null : s.wasted, waste: s.waste, off: Boolean(s.off), options: switchOpts(s), disabled: s.off || s.label ? '' : 'no setting switches this one off',
