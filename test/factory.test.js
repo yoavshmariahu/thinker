@@ -33,7 +33,10 @@ test('a tool is staged in the transcripts\' one vocabulary', () => {
   assert.equal(stageOfTool('Agent', { subagent_type: 'Explore' }), 'explore');
   assert.equal(stageOfTool('Edit', {}), 'build');
   assert.equal(stageOfTool('Write', {}), 'build');
-  assert.equal(stageOfTool('Skill', { skill: 'code-review' }), 'verify');
+  assert.equal(stageOfTool('Skill', { skill: 'code-review' }), 'review');
+  assert.equal(stageOfTool('Agent', { subagent_type: 'general-purpose', description: 'Review the diff' }), 'review');
+  assert.equal(bashStage('gh pr view 12 --comments'), 'review'); assert.equal(bashStage('gh pr diff 12'), 'review');
+  assert.equal(bashStage('gh pr checks 12'), 'merge');
   assert.equal(stageOfTool('Skill', { skill: 'dataviz' }), 'build');
   assert.equal(stageOfTool('TodoWrite', {}), 'think');
   assert.equal(stageOfTool('mcp__claude-in-chrome__computer', {}), 'verify');
@@ -58,7 +61,7 @@ test('a call\'s tokens go to its tool\'s stage; the first call after a prompt is
   assert.equal(r.stages.think.cost, 1);
   assert.equal(r.stages.merge.cost, 1);
   assert.equal(Object.values(r.stages).reduce((a, s) => a + s.cost, 0), 5, 'the stages add up to the session');
-  assert.deepEqual(STAGES.map(([k]) => k), ['prompts', 'think', 'explore', 'build', 'verify', 'merge']);
+  assert.deepEqual(STAGES.map(([k]) => k), ['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge']);
 });
 
 test('a fix loop is a test program failing and then passing, and spans every call between', () => {
@@ -127,23 +130,30 @@ test('a re-read is the same file read again twenty calls later; a review catch i
   assert.deepEqual(rc.map(L => [L.from, L.to]), [[26, 28]]);
 });
 
-test('sent back is a commit or push after the pull request was opened, closed by the next branch or pull request', () => {
-  const calls = Array.from({ length: 12 }, call);
-  const events = [{ t: 'prompt', text: 'x' },
+test('a change to the open pull request is a review round when the person asked, the agent\'s own follow-up otherwise, and a bare push is neither', () => {
+  const calls = Array.from({ length: 16 }, call);
+  const events = [{ t: 'prompt', text: 'do a' },
     tool(0, 'Bash', { command: 'git push -u origin HEAD && gh pr create --title a' }),
-    tool(1, 'Write', { file_path: '/home/me/memory/note.md' }), // a note written after: not a change to the PR on its own
-    tool(2, 'Edit', { file_path: 'src/a.js' }), tool(3, 'Bash', { command: 'git commit -am fix' }), tool(4, 'Bash', { command: 'git push' }),
-    tool(5, 'Bash', { command: 'git checkout -b agent/next' }), // new work: the window closes
-    tool(6, 'Edit', { file_path: 'src/b.js' }), tool(7, 'Bash', { command: 'git commit -am b' }), // not sent back: no PR open for it
-    tool(8, 'Bash', { command: 'gh pr create --title b' }),
-    tool(9, 'Bash', { command: 'git pull' }), // the person merged; nothing committed: no loop
+    tool(1, 'Bash', { command: 'git push' }), // the branch pushed again with nothing changed: not a loop (49 of 153 here were this)
+    { t: 'prompt', text: 'make the cell green, not the text' }, tool(2, 'Read', { file_path: 'src/a.js' }), // the person reviewing the open PR: call 2 is Review, not Prompts
+    tool(3, 'Bash', { command: "python3 - <<'EOF'\nopen('src/a.js','w').write('x')\nEOF" }), // an edit by heredoc counts as a change
+    tool(4, 'Bash', { command: 'git commit -am fix' }), tool(5, 'Bash', { command: 'git push' }),
+    { t: 'prompt', text: '<task-notification>agent done</task-notification>' }, // a harness event, not the person
+    tool(6, 'Edit', { file_path: 'src/a.js' }), tool(7, 'Bash', { command: 'git commit -am ci && git push' }),
+    tool(8, 'Bash', { command: 'git checkout -b agent/next' }), // new work: the window closes
+    { t: 'prompt', text: 'now b' }, tool(9, 'Read', { file_path: 'src/b.js' }),
+    tool(10, 'Edit', { file_path: 'src/b.js' }), tool(11, 'Bash', { command: 'git commit -am b' }), // no PR open: not a loop, and call 9 is Prompts
+    tool(12, 'Bash', { command: 'gh pr create --title b' }),
+    { t: 'prompt', text: 'merged, thanks' }, tool(13, 'Bash', { command: 'git pull' }), // nothing changed: no loop; call 13 is Review
   ];
   const r = sessionFactory({ events, calls }, { price: PRICE });
-  const sb = r.loops.filter(L => L.kind === 'sentback');
-  assert.deepEqual(sb.map(L => [L.from, L.to, L.cost]), [[1, 4, 4]]);
+  assert.deepEqual(r.loops.filter(L => L.kind === 'sentback').map(L => [L.from, L.to, L.cost]), [[2, 5, 4]], 'from the person\'s prompt to the push');
+  assert.deepEqual(r.loops.filter(L => L.kind === 'followup').map(L => [L.from, L.to, L.cost]), [[6, 7, 2]], 'from the first change to the push');
+  assert.equal(r.stages.review.cost, 2, 'the two prompt calls on an open pull request (calls 2 and 13)');
+  assert.equal(r.stages.prompts.cost, 3, 'calls 0, 9 and the task notification');
   // with no commit after the opening there is none
-  const r2 = sessionFactory({ events: events.slice(0, 3), calls }, { price: PRICE });
-  assert.equal(r2.loops.filter(L => L.kind === 'sentback').length, 0);
+  const r2 = sessionFactory({ events: events.slice(0, 5), calls }, { price: PRICE });
+  assert.equal(r2.loops.filter(L => L.kind === 'sentback' || L.kind === 'followup').length, 0);
 });
 
 test('rework counts a call once however many loops hold it, and detectLoops alone returns the spans', () => {
@@ -167,7 +177,7 @@ test('without a price the view stays in tokens, and a call\'s cost prices writes
 test('All repositories adds the sums, takes the shares again, joins the loop kinds and keeps each pull request\'s repository', () => {
   const stage = (key, cost, rework) => ({ key, name: key, desc: '', cost, tokens: cost * 1e6, calls: 1, rework, reworkTokens: rework * 1e6 });
   const view = (cost, rework, rows) => ({ days: 42, from: 0, to: 1, sessions: 1, conversations: 1, calls: 10, cost, tokens: cost * 1e6, priced: true, unpriced: [],
-    stages: [stage('prompts', 0, 0), stage('think', 0, 0), stage('explore', cost / 2, rework / 2), stage('build', cost / 2, rework / 2), stage('verify', 0, 0), stage('merge', 0, 0)],
+    stages: [stage('prompts', 0, 0), stage('think', 0, 0), stage('explore', cost / 2, rework / 2), stage('build', cost / 2, rework / 2), stage('verify', 0, 0), stage('review', 0, 0), stage('merge', 0, 0)],
     loops: [{ key: 'fix', name: 'Fix loop', from: 'verify', to: 'build', loops: 1, sessions: 1, cost: rework, tokens: rework * 1e6, calls: 2, share: rework / cost }],
     rework, reworkTokens: rework * 1e6, reworkShare: rework / cost, prs: { rows } });
   const m = mergeFactory([

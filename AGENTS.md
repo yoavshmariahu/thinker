@@ -640,7 +640,7 @@ longer exceptions to anything.
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
-| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of six stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
+| `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of seven stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/proxy*.js`, `src/commands/proxy.js` | context proxy; `thinker proxy on\|off\|status`; `proxy-route.js` leaves a routed harness alone; clearing results, call text and earlier thinking all on by default (2026-10-28), `--no-clear-inputs`, `--no-clear-thinking` off |
 | `src/cutting.js` | the clearing: the cut set, the ratchet, the priced decision at a turn boundary, the session record |
@@ -1117,9 +1117,9 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   evenly. `transcripts.js` now returns every model call's usage (`calls`) and puts the call's index on each tool event
   (`call`) and a failure flag on a result (`error`, from `is_error`) for this. A shell command is staged by what it does
   (`bashStage`): a commit or push is Merge, a read-only program at the head of the line is Explore, a line that writes is
-  Build, anything else is running something to see what happens, Verify. Verify is any check before merge, by running or
-  by reading: with no human reviewer a Review stage would price the agent's own tokens as a review, so there is none
-  (the owner's call); a change to a pull request after it was opened is a loop out of Merge.
+  Build, anything else is running something to see what happens, Verify. Verify is the agent checking the work by running
+  it. Review is the work being read before it merges (below; it was left out on the first day because with no human
+  reviewer it would have priced the agent's own tokens as a review).
 - **The words (the owner, 2026-11-09, after "rework" read as unclear on the page and a "redo" rename was tried and
   dropped):** a **loop** is the event, work that came back to an earlier stage after something failed; **rework** is what
   it cost, the calls inside the loop, spent after the failure. Not "the same work twice": a fix loop's Build calls are
@@ -1216,6 +1216,28 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   pinned test updated after an intended change); edits here are shell heredocs, so the Edit tool is no measure of what
   a loop changed. The fresh-worktree dependency race was one loop of seven module-not-found ones. Not changed: the
   correction loop still spans its whole exchange, and the other kinds were not read the same way yet.
+- **The Review stage, and the sent-back loop read the same way (2026-11-09, the owner's ask; `STAGES` `review`,
+  `isReviewTool`, `timeline`'s `reviews` and `personExchanges`, the `sentback` and `followup` kinds; `RULES_VERSION` 8).**
+  The sent-back loops over this machine's 37 days (153, $877) were read loop by loop: 49 of them ($10) had no change
+  after `gh pr create` at all, a push of the branch the pull request was just opened from; and of the rest, the person
+  had asked for the follow-up commit in 78% of the cost, in the session, on the open pull request -- seven rounds on
+  the Report page's pull request alone were $217, a quarter of the whole ("highlight the grid cell", "don't show saved
+  as negative", "it's stuck measuring"). Code opened with no suite run first was 7 loops, $74. So "sent back" was not
+  an agent failure the suite-before-PR rule could prevent; it was the person's review, happening in the chat, and
+  opening the pull request later would move that cost rather than remove it. That is the human reviewer the first cut
+  said the Factory had none of, so Review is a station now: the first call after a prompt of the person's while a pull
+  request is open (`gh pr create` to the next branch or pull request; a task notification is not the person,
+  `session-state.js:isHarnessEvent`) is Review rather than Prompts, and so is the agent reading the change -- a review
+  skill, a reviewer subagent, `gh pr view` or `gh pr diff`. A change to the open pull request is a **review round**
+  (`sentback`: the person's prompt opened the exchange; one loop per round, from their prompt's call to the round's last
+  push) or the agent's **own follow-up** (`followup`: the opening exchange itself, or one a harness event opened); a
+  change is any Build call, so a heredoc edit counts; a push with nothing changed behind it is neither. On the same
+  window: Review $540, 8% of spend, 26% of it rework; review rounds 139 loops, $642, in 56 sessions; follow-ups 64,
+  $120. **A review round holds its Review call by construction** (it starts at the prompt), as a fix loop holds its
+  Verify calls, so that stage's rework share is partly the definition and the figure to watch is rounds per pull
+  request. "Fix merge conflicts" on an open pull request reads as a review round under this rule; it is the person
+  asking, so it stays. The levers for review rounds are not the detector's: a round that repeats a preference the person
+  has stated before is the profile's to prevent, and each round re-reads a long context, which is the clearing's.
 
 **A continued session is one session (2026-11-09; `transcripts.js:continuations`, `continuedSince`, `parseTranscript`'s `since`)**
 - Claude Code can continue a session in a new one: the original's last rows carry `continued-in` naming the new session,
