@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { hookRunner } from './runner.js';
 export function opencodePlugin(config, run = hookRunner(config)) {
   // installed machine-wide (no config.repo): the session's checkout is the plugin's worktree. No instructions are
@@ -11,8 +12,18 @@ export function opencodePlugin(config, run = hookRunner(config)) {
         const prompt = output.parts.filter(p => p.type === 'text' && !p.synthetic).map(p => p.text).join('\n');
         if (!prompt) return;
         const text = await run('prompt', { session_id: input.sessionID, cwd, prompt });
-        // Append to an existing text part to preserve the host's part identifiers.
-        if (text) output.parts.find(p => p.type === 'text' && !p.synthetic).text += '\n\n' + text;
+        // Served as a synthetic part, never appended to the person's own: the model reads synthetic text parts,
+        // the host renders none of them (the TUI, the share view and the desktop all filter them per part, and
+        // opencode's own plan-mode reminders ride the same shape). The host stores parts by these identifiers;
+        // opencode assigns its own only before the hook runs, so the part carries its own.
+        if (text) output.parts.push({
+          id: 'prt_' + Date.now().toString(16).padStart(12, '0') + crypto.randomBytes(7).toString('hex'),
+          messageID: output.message?.id || input.messageID || '',
+          sessionID: input.sessionID,
+          type: 'text',
+          synthetic: true,
+          text,
+        });
       },
       ...((config.late || config.learn) ? { 'tool.execute.after': async (input, output) => {
         const text = await run('tool', { session_id: input.sessionID, cwd, tool_name: input.tool, tool_input: input.args, tool_response: output.output });
