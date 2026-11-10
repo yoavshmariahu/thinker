@@ -725,13 +725,24 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
   in `~/.copilot/mcp-config.json` (a checkout set up for itself: `.github/mcp.json`). Some headless
   modes require explicitly enabling repository hooks. This is a CLI adapter,
   not a claim about every VS Code/cloud Copilot hook runtime.
-- **OpenCode:** `.opencode/plugins/thinker.js` uses the documented
-  [plugin API](https://opencode.ai/docs/plugins/) and its
-  [hook types](https://github.com/anomalyco/opencode/blob/dev/packages/plugin/src/index.ts).
-  MCP registration uses the plugin config hook. Idle triggers batch learning;
-  ordinary quiet-session catch-up handles sessions without an end event. The
-  plugin does not claim to record an assistant answer or failed tool result that
-  its subscribed callbacks do not supply.
+- **OpenCode:** the wiring follows the binary's version (`clients.js:opencodeMajor`). OpenCode 1
+  keeps the single generated file `.opencode/plugins/thinker.js` (the documented
+  [v1 plugin API](https://opencode.ai/docs/plugins/), config hook for MCP, `session.idle` for the
+  turn's end, `client.tui.showToast` for the notice). OpenCode 2 does not run v1 plugins at all, so
+  `connect`/`rewire` writes a plugin **directory** instead — `.opencode/plugins/thinker/` with
+  `index.ts` (the server part) and `tui.tsx` (the terminal part). The server part registers
+  everything in one `setup(ctx)`: MCP through `ctx.mcp.transform`, the prompt through
+  `ctx.session.hook('prompt')`, tool results through `ctx.tool.hook('execute.after')`, and the
+  turn's end through `ctx.event.subscribe` (`session.execution.succeeded`, where v1 said
+  `session.idle`; the session id rides `data.sessionID`). v2 gives a server plugin no client, so
+  the end-of-turn summary is delivered by the Stop hook writing
+  `THINKER_HOME/state/notice-last.json` (notice-cadence.js:writeNoticeLast) and the terminal part
+  toasting it (opencode-tui.js). The terminal part also draws the savings footer on the built-in
+  footer row (`home.footer.status`, before the host's version), polling the kept ledger
+  (`THINKER_HOME/state/savings.json`) every 5 s as the Claude Code mod does — the words are
+  `savings-ledger.js:savingsStatus`, the status row's own. A headless `opencode run` has no
+  terminal part and the summary is dropped there, as it was in v1. Checked against a real
+  opencode 2.2.7 (2026-11-10).
 
 For Pi, Windsurf and Copilot, the usual MCP setup option enables CLI retrieval
 guidance instead of registering a user-wide server. OpenCode registers actual

@@ -21,6 +21,10 @@ const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src',
 // Loading it in each of the 45 hook spawns here was 39 s of the suite, and under parallel load its 8 s
 // deadline (CE_DEADLINE_MS) could expire and change what was served, so the file was flaky as well.
 process.env.THINKER_CE = 'off';
+// These tests pin the v1 single-file plugin for OpenCode, which any binary still runs. OpenCode 2 takes
+// a generated directory instead (test/opencode-v2.test.js); this machine may have it installed, and the
+// tests must not follow whatever version happens to sit on the developer's PATH.
+process.env.THINKER_OPENCODE_MAJOR = '1';
 
 function repo() {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-clients-')));
