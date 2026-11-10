@@ -567,12 +567,8 @@
 .lp-friction-text h2{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.25rem}
 .lp-friction-text p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:none;margin:0 0 1rem;text-align:left}
 .lp-friction-text p.lp-intro:last-child{margin-bottom:0}
-.lp-harnesses{text-align:left;color:#9a9a9a}
-.lp-harnesses h3{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#aaa;margin:0 0 .5rem}
-.lp-harnesses ul{list-style:none;margin:0;padding:0}
-.lp-harnesses li{font-size:.95rem;line-height:1.5;color:#9a9a9a;padding:.15rem 0}
-.lp-harnesses .lp-more{margin-top:.75rem;font-size:.85rem}
-.lp-harnesses .lp-more a{color:#9a9a9a}
-@media (min-width:1200px){.lp-harnesses{position:absolute;right:3rem;top:50%;transform:translateY(-50%)}}
-@media (max-width:1199px){.lp-harnesses{margin:2rem auto 0;width:max-content}}
+.lp p.lp-harness-line{max-width:1000px;margin:2rem auto 0;text-align:center;text-wrap:balance;font-size:1rem;line-height:1.7;color:#8a8a8a}
+.lp-harness-label{display:block;font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#aaa;margin-bottom:.35rem}
+.lp p.lp-harness-more{margin:.75rem auto 0;max-width:none;text-align:center;font-size:.9rem}
+.lp-harness-more a{color:#8a8a8a}
 @media (max-width:760px){.lp-friction-text h2{font-size:1.9rem}}
