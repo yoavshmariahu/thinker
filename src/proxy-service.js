@@ -154,11 +154,12 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
-  // the model gateways (proxy.js): `gateways: { openrouter: true, litellm: 'https://…' }` in the
-  // `proxy` block. OpenRouter needs no URL; any other gateway is its upstream, and a new one is
-  // an entry here, read by the same door.
+  // the model gateways (proxy.js): `gateways: { openrouter: true | '<upstream>', litellm: 'https://…' }`
+  // in the `proxy` block. OpenRouter needs no URL; a string moves the same door to another
+  // upstream (a self-hosted mirror, a test fixture); any other gateway is its base URL, and a
+  // new one is an entry here, read by the same door.
   const gateways = cfg.gateways && typeof cfg.gateways === 'object' ? cfg.gateways : {};
-  if (gateways.openrouter === true || typeof gateways.openrouter === 'string') args.push('--gateway-openrouter');
+  if (gateways.openrouter === true || (typeof gateways.openrouter === 'string' && gateways.openrouter)) args.push('--gateway-openrouter', ...(typeof gateways.openrouter === 'string' ? [gateways.openrouter] : []));
   if (typeof gateways.litellm === 'string' && gateways.litellm) args.push('--gateway-litellm', gateways.litellm);
   return args;
 }
