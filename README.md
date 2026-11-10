@@ -19,7 +19,7 @@ Review them in your browser or terminal, then keep coding as usual.
 Works with Claude Code, Codex, Cursor, Gemini CLI, Devin CLI and [more](docs/agent-integrations.md).
 Requires Node 20+, git and a supported agent. Free and open source.
 
-[See how it works](https://zerotime.dev/docs#overview) · [Setup guide](docs/setup.md)
+[See how it works](https://thinker.sh/docs#overview) · [Setup guide](docs/setup.md)
 
 ## What works with which agent
 
