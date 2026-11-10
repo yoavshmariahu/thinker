@@ -1026,7 +1026,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   explanation writing, the checkboxes and the Apply over the table, the Over N days and Share columns. The figures stay
   on the opened row and in `thinker context`; `thinker context --cards` is still the terminal's card view.
 - A door's suggested rows (the installer's, the weekly question's) come first with their action picked (`preselectRows`,
-  `PRETOP`, `PREACT`), where they came checked. `applyRows` still takes a list, one row long.
+  `PRETOP`, `PREACT`), where they came checked. `applyRows` still takes a list, one row long. **Wasted is dollars** (the same day): the row's wasted tokens at what an input token cost the window's sessions at list prices, `context-view.js:inputRate` (every priced session's input cost over its input tokens, the Report's own rule for a part, over the Save window; All repositories adds the dollars and the tokens), the tokens in the cell's hover and the opened row; `thinker context` prints the same column. **A row's colour is one rule on both doors** (`flagOf`, pinned together by `test/cli-ui-sync.test.js`): a part used in under 10% of the calls that carried it is red at 5,000 tokens a call or more, yellow under that, and uncoloured under 500 tokens; the command marks them `!!` and `!`. A section's title shows without anything in parentheses, and the change date left the type cell for the used-share hover.
 
 **Find Savings: one cost rule, per prompt (2026-10-25, the owner's ask)**
 - A part sits in the prompt, so it costs its size in every model call that carries it. The table's four numbers are four readings of that, each with a **?** under forty words (the owner: if it needs more, the calculation is wrong).

@@ -151,6 +151,14 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   // No view tabs, no Potential savings card, no cards view, no checking rows and no Apply over the table: the action is a
   // dropdown and an Apply in the row, and the > beside the title opens the one-line description and the part's text.
   assert.doesNotMatch(page, /CMODE|cardOf\(|data-apply-picked|data-pick=|class="vtabs" id="c-view"|savingsCard|flaggedSavings|id="c-mode"/);
+  // Wasted is dollars (the owner's ask, 2026-11-09): the wasted tokens at the view's input rate (context-view.js:inputRate), on both doors
+  assert.match(page, /money\(wasteUsd\(r, rate\)\)/); assert.match(read('context-view.js'), /export function inputRate\(store, sessions\)/);
+  assert.match(read('commands/context.js'), /formatDollars\(x\.wastedWindow \* vrate\)/);
+  // the row colour is one rule on both doors (the owner's rule, 2026-11-09): used under 10%, red from 5k tokens a call, yellow under, nothing under 500
+  const flagRe = /const FLAG = \{ used: 0\.1, red: 5000, none: 500 \};/; assert.match(page, flagRe); assert.match(read('context-view.js'), flagRe);
+  assert.match(page, /const flagOf = r => r\.off \|\| r\.acted == null \|\| r\.acted >= FLAG\.used \|\| !\(r\.tokens >= FLAG\.none\) \? null : r\.tokens >= FLAG\.red \? 'red' : 'yellow';/);
+  assert.match(read('context-view.js'), /export const flagOf = r => r\.off \|\| r\.usedShare == null \|\| r\.usedShare >= FLAG\.used \|\| !\(r\.tokens >= FLAG\.none\) \? null : r\.tokens >= FLAG\.red \? 'red' : 'yellow';/);
+  assert.match(read('commands/context.js'), /\$\{mark\(s\)\}\$\{pad\(s\.tokens, 6\)\}/);
   assert.match(page, /\['Part', ''\], \['Type', ''\]/); for (const h of ['Per call', 'Used', 'Wasted', 'Action']) assert.match(page, new RegExp(`\\['${h}', `), h);
   assert.match(page, /<button class="ctx-x" data-more="\$\{i\}" data-dk="\$\{dk\}" aria-expanded="false"/);
   assert.match(page, /<select class="sel" data-act="\$\{i\}" data-dk="\$\{dk\}" aria-label="Action">/); assert.match(page, /<button class="btn" data-go="\$\{i\}"/);
@@ -374,7 +382,8 @@ test('All on Find Savings and Recent activity are `thinker context --approve|--d
   assert.doesNotMatch(page, /'compression' : 'removal'\} failed/);
   // a section changed inside the window is measured over the sessions since, said so by both doors (instruction-value.js `recent`)
   assert.match(page, /sessions: s\.sessionsSince \?\? iv\.sessions \?\? 0/);
-  assert.match(page, /s\.recent \? `changed \$\{dayOf\(s\.changedAt\)\}` : null/);
+  // the date left the type cell on 2026-11-09 (the owner's ask); it stays in the used-share hover
+  assert.match(page, /s\.recent \? `too few sessions since it changed on \$\{dayOf\(s\.changedAt\)\}/); assert.doesNotMatch(page, /`changed \$\{dayOf\(s\.changedAt\)\}`/);
   assert.match(read('commands/context.js'), /s\.recent \? ` \(changed \$\{s\.changedAt\.slice\(0, 10\)\}: \$\{s\.sessions\} session/);
   // the page's rows carry the keys allChanges gives, so the server finds the part a row's Apply names
   for (const k of ['`section:${s.file}:${s.id}`', '`${s.client}:${s.key}`']) assert.ok(read('ui/page.html').includes(k), k);
@@ -541,7 +550,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
-  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, renderRows\(all, \{ caption \}\)\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
+  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, renderRows\(all, \{ caption, rate \}\)\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
   assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = prs \? Boolean\(APR\) && APR_FOR === AREPO : Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ key: 'total', thresholds: true \})?\)/g) || []).length, 3);

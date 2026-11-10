@@ -299,8 +299,10 @@
     .ctx-x:hover { color: #111; }
     .ctx-x.open { transform: rotate(90deg); }
     .ctx-rows td { padding: 0.28rem 0.5rem; }
-    .ctx-rows td.ctx-name { min-width: 14rem; }
-    .ctx-rows td.ctx-type { white-space: normal; color: #4b5563; font-size: 0.78rem; max-width: 20rem; }
+    .ctx-rows td.ctx-name { min-width: 12rem; max-width: 24rem; }
+    .ctx-rows td.ctx-type { white-space: normal; color: #4b5563; font-size: 0.78rem; }
+    .ctx-rows tr.hl-red td { background: #fef2f2; }
+    .ctx-rows tr.hl-yellow td { background: #fefce8; }
     .ctx-rows th.ctx-acthead { text-align: right; }
     .ctx-exline { margin: 0 0 0.5rem; font-size: 0.84rem; line-height: 1.5; color: #1f2937; }
     .ctx-rows .ctx-detail .md-body { max-height: 18rem; overflow: auto; font-size: 0.82rem; }
@@ -855,6 +857,14 @@ function preselectRows(rows, suggested) {
 // themselves and below them the order is the ordinary one.
 const PRETOP = new Set();
 const windowCost = r => r.window || 0, windowWaste = r => r.wasted == null ? -1 : (r.wastedWindow || 0);
+const plainTitle = t => String(t || '').replace(/\s*\([^)]*\)/g, '').replace(/\s{2,}/g, ' ').trim() || String(t || '');
+// Wasted in dollars (the owner's ask, 2026-11-09): the wasted tokens at what an input token cost these sessions at list prices (context-view.js:inputRate)
+const rateOf = v => v?.rate?.perToken ?? (v?.rate?.input ? v.rate.usd / v.rate.input : null);
+const wasteUsd = (r, rate) => rate == null || r.wasted == null ? null : windowWaste(r) * rate;
+// the row's colour (the owner's rule, 2026-11-09; context-view.js:flagOf is the same line): used in under 10% of its calls,
+// red at 5,000 tokens a call or more, yellow under that, nothing under 500 tokens
+const FLAG = { used: 0.1, red: 5000, none: 500 };
+const flagOf = r => r.off || r.acted == null || r.acted >= FLAG.used || !(r.tokens >= FLAG.none) ? null : r.tokens >= FLAG.red ? 'red' : 'yellow';
 const cmpRows = (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
 const sortRows = rows => [...rows].sort(PRETOP.size ? (a, b) => (PRETOP.has(pickKey(b)) ? 1 : 0) - (PRETOP.has(pickKey(a)) ? 1 : 0) || cmpRows(a, b) : cmpRows);
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
@@ -890,7 +900,8 @@ function contextRows(v) {
     view: 'instructions', kind: 'section', kindLabel: 'instruction section', key: `section:${s.file}:${s.id}`, id: s.id, repo: s.repo || CREPO, order: i,
     // a section changed inside the window (compressed, rewritten, added) is a new section from then: its row says when,
     // its use and its cost over the window are the sessions since (instruction-value.js:instructionValue `recent`)
-    name: s.title, sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent, s.recent ? `changed ${dayOf(s.changedAt)}` : null].filter(Boolean).join(' · '),
+    // the title without anything in parentheses, and the type cell without the change date (the owner's ask, 2026-11-09): the date stays in the used-share hover and the opened row
+    name: plainTitle(s.title), sub: [s.repoName, (s.fileKind && s.fileKind !== 'root') || (iv.files || []).length > 1 ? s.file : null, s.parent].filter(Boolean).join(' · '),
     about: s.about || '', explain: s.explain || null, explainKey: s.explainKey || '', detail: md(s.text), tokens: s.tokens, perPrompt: s.perPrompt, window: s.window, wastedWindow: s.wastedWindow, prompts: s.prompts, sessions: s.sessionsSince ?? iv.sessions ?? 0, acted: s.usedShare,
     actedBy: s.usedShare == null ? (s.triggered ? 'too few sessions since it changed' : 'it names no file, command or code to look for') : `its files, commands or code came up in ${fmt(s.appliedPrompts || 0)} of ${fmt(s.promptsSince ?? s.prompts ?? 0)} prompts (${s.applied} of ${s.sessions} sessions)`,
     actedBy: (s.usedShare == null ? (s.recent ? `too few sessions since it changed on ${dayOf(s.changedAt)} to say (${s.sessions} of five)` : 'too few sessions to say') : s.usedBy === 'judge' ? 'judged sessions whose agent followed it' : 'sessions that touched its files, commands or code (until five are judged by the model)') + (s.recent && s.usedShare != null ? `, over the ${s.sessions} sessions since it changed on ${dayOf(s.changedAt)}` : ''),
@@ -949,7 +960,7 @@ const HEADS = days => [
   ['Part', ''], ['Type', ''],
   ['Per call', 'What it adds to every call that carries it. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.', 'num'],
   ['Used', 'Of the calls that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names. An estimate from the transcripts.', 'num'],
-  ['Wasted', `Per call × every call that carried it over ${days} days × the share of calls that did not need it. The most that cutting it could save.`, 'num'],
+  ['Wasted', `Per call × every call that carried it over ${days} days × the share of calls that did not need it, at what an input token cost these sessions at list prices. The most that cutting it could save.`, 'num'],
   ['Action', '', 'ctx-acthead'],
 ];
 const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
@@ -961,7 +972,7 @@ const pagerOf = (key, n, page, pageSize) => n > pageSize ? `<div class="ctx-note
 // been written (part-explain.js, `thinker explain`), else part-describe.js's line, with the spinner while one is being written
 const explainLine = r => r.explain?.text ? `<p class="ctx-exline">${esc(r.explain.text)}</p>`
   : `<p class="ctx-exline${r.about ? '' : ' muted'}">${esc(r.about || 'No description recorded.')}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? ' <span class="spinner"></span><span class="muted">writing what this is…</span>' : ''}</p>`;
-function renderRows(rows, { caption }) {
+function renderRows(rows, { caption, rate = null }) {
   rows = VROWS = sortRows(rows);
   const days = CTX?.days || cdays;
   const pages = Math.max(1, Math.ceil(rows.length / ROWS_PAGE)), page = Math.min(pages - 1, RPAGE), from = page * ROWS_PAGE;
@@ -973,14 +984,14 @@ function renderRows(rows, { caption }) {
     const pill = !pt ? '' : r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>`;
     const action = r.options.length ? `<select class="sel" data-act="${i}" data-dk="${dk}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${act === a ? ' selected' : ''}>${t}</option>`).join('')}</select><button class="btn" data-go="${i}" title="${esc(effectOf(r, act)[1])}">Apply</button>`
       : pt ? '' : `<span class="why" title="${esc(r.disabled)}">—</span>`;
-    return `<tr class="${r.off ? 'ctx-off' : ''}" data-row="${i}">
+    return `<tr class="${r.off ? 'ctx-off' : flagOf(r) ? `hl-${flagOf(r)}` : ''}" data-row="${i}">
       <td class="ctx-name"><button class="ctx-x" data-more="${i}" data-dk="${dk}" aria-expanded="false" aria-label="Open ${esc(r.name)}">›</button>${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</td>
       <td class="ctx-type">${esc(r.kindLabel)}${r.sub ? ` <span class="muted">· ${esc(r.sub)}</span>` : ''}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
-      <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
+      <td class="num"${r.wasted != null ? ` title="${fmt(windowWaste(r))} tokens${rate == null ? ', no list price for these sessions\' models' : ''}"` : ''}>${r.wasted == null ? '<span class="muted">–</span>' : rate == null ? '<span class="muted">–</span>' : money(wasteUsd(r, rate))}</td>
       <td class="ctx-actcell"><div class="ctx-act">${pill}${action}</div></td></tr>
-      <tr class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><td colspan="6"><div class="ctx-ex" data-ek="${esc(r.explainKey || '')}">${explainLine(r)}</div><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every call that carries it, ${fmt(windowCost(r))} over ${days} days · used: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${days} days` : ''}</div></td></tr>`;
+      <tr class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><td colspan="6"><div class="ctx-ex" data-ek="${esc(r.explainKey || '')}">${explainLine(r)}</div><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every call that carries it, ${fmt(windowCost(r))} over ${days} days · used: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${days} days${rate != null ? ` (${money(wasteUsd(r, rate))} at list prices)` : ''}` : ''}</div></td></tr>`;
   }).join('');
   return `<figure class="ctx-figure"><figcaption><span class="ctx-sub">${caption}</span></figcaption>
     ${rows.length ? `<table class="ctx-table ctx-rows"><thead><tr>${HEADS(days).map(([h, t, c]) => `<th${c ? ` class="${c}"` : ''}${t ? ` title="${esc(t)}"` : ''}>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pagerOf('rows', rows.length, page, ROWS_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
@@ -1054,7 +1065,7 @@ async function applyRows(items, btn) {
     const used = r.acted == null ? 'How often your agent used this was not measured.'
       : r.acted === 0 ? `Your agent never acted on it in the ${calls} calls that carried it.`
         : `Your agent acted on it in ${Math.round(100 * r.acted)}% of the ${calls} calls that carried it.`;
-    const save = windowWaste(r) > 0 ? ` Cutting it saves up to ${fmt(windowWaste(r))} tokens over ${rdays} days.` : '';
+    const save = windowWaste(r) > 0 ? ` Cutting it saves up to ${rateOf(CTX) == null ? `${fmt(windowWaste(r))} tokens` : money(wasteUsd(r, rateOf(CTX)))} over ${rdays} days.` : '';
     return `<li><div class="rev-what"><b>${esc(r.name)}</b> <span class="muted">${esc([r.kindLabel, r.about].filter(Boolean).join(' — '))}</span></div><div class="rev-do"><b>${esc(label)}:</b> ${esc(full || 'see the row for what this does')}</div><div class="muted">${esc(used + save)}</div></li>`;
   };
   if (!await confirmDialog({
@@ -1104,8 +1115,9 @@ function renderContext(v) {
   if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
   // the one caption line: the sessions, the calls, what every part cost over the window and how much of it was wasted
   const live = all.filter(r => !r.off), n = v.sessions || 0;
-  const caption = `${n} session${n === 1 ? '' : 's'}${v.prompts ? `, ${fmt(v.prompts)} calls` : ''} over ${v.days} days · ${fmt(live.reduce((a, r) => a + windowCost(r), 0))} input tokens on these parts, ${fmt(live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted`;
-  swapBody(el, renderRows(all, { caption }));
+  const rate = rateOf(v), cost = live.reduce((a, r) => a + windowCost(r), 0), waste = live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0);
+  const caption = `${n} session${n === 1 ? '' : 's'}${v.prompts ? `, ${fmt(v.prompts)} calls` : ''} over ${v.days} days · ${rate == null ? `${fmt(cost)} input tokens on these parts, ${fmt(waste)} of it wasted` : `${money(cost * rate)} on these parts at list prices, ${money(waste * rate)} of it wasted`}`;
+  swapBody(el, renderRows(all, { caption, rate }));
   wireRows(el);
 }
 
