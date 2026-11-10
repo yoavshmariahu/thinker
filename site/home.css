@@ -556,3 +556,10 @@
     .lp-side-figure{margin:0}
     .lp-side-figure img{display:block;width:100%;height:auto}
     @media (max-width:900px){.lp-wide{padding-left:1.5rem;padding-right:1.5rem}.lp-side,.lp-side.lp-flip{grid-template-columns:1fr;gap:1.5rem}.lp-side h2{font-size:1.9rem}}
+/* A full-width section: a centred title, the drawing in the middle, a paragraph on each side. */
+.lp-trio-title{text-align:center;font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin:0 auto 2rem;max-width:900px}
+.lp-trio{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:3rem;align-items:center}
+.lp-trio p.lp-intro{font-size:1.1rem;line-height:1.6;color:#333;margin:0}
+.lp-trio-figure{margin:0 auto;max-width:440px;width:100%}
+.lp-trio-figure img{display:block;width:100%;height:auto}
+@media (max-width:900px){.lp-trio{grid-template-columns:1fr;gap:1.5rem}.lp-trio-title{font-size:1.9rem}.lp-trio-figure{order:-1}}
