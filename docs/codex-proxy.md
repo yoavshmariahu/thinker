@@ -140,7 +140,8 @@ See [OpenAI cache accounting](https://developers.openai.com/api/docs/guides/prom
 Codex closes SSE on the completion event, often before the HTTP response ends;
 the proxy records usage and clearing on that close too, exactly once.
 
-`--holdout 0.15` leaves a stable 15% of identified sessions unchanged. A session
+`--holdout 0.5` leaves a stable half of the identified sessions unchanged (the
+service's own default). A session
 comes from `session_id`, `x-codex-session-id`, or `prompt_cache_key`. With a
 nonzero holdout, requests without an identifier are left unchanged.
 
