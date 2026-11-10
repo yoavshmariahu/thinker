@@ -12,7 +12,8 @@ import { wasteLevel } from './instruction-value.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readLog } from './usage.js';
-import { toolOutputs, linkRows } from './tool-outputs.js';
+import { toolOutputs, linkRows, sessionUsage } from './tool-outputs.js';
+import { listPrice, costOf } from './prices.js';
 import { topChanges } from './context-suggest.js';
 
 // The skills' outcome checks over the window, per skill: sessions checked where it applied, read in, broken after
@@ -37,6 +38,28 @@ export const TOOL_GROUPS = { mcp: 'MCP servers', plugins: 'Plugins', builtin: 'B
 export const toolGroup = s => s.kind === 'mcp' || s.kind === 'connector' ? 'mcp' : s.kind === 'plugin' ? 'plugins' : 'builtin';
 
 // `onSession`: each of the three readers calls it with every session it passes (ui/scan-worker.js reads the page's progress off it)
+// What an input token cost in these sessions, at list prices (the owner's ask, 2026-11-09: the Wasted column in dollars):
+// every priced session's input cost (its cost less its output, as the Report prices a part, report.js) over its input
+// tokens, so a part's wasted tokens are priced at the mix of fresh input, cache reads and writes the sessions here
+// actually paid. The records are the ones toolOutputs read, so nothing is parsed again. `usd / input` is the rate;
+// null where no session has a list price, and the doors then show no dollar figure rather than a zero.
+export function inputRate(store, sessions) {
+  const config = (() => { try { return store.config(); } catch { return {}; } })();
+  let input = 0, usd = 0, priced = 0;
+  for (const r of sessionUsage(store, sessions)) {
+    const u = r.usage, price = u ? listPrice(r.model, { config }) : null, cost = costOf(u, price);
+    if (cost == null || !(u.input > 0)) continue;
+    input += u.input; usd += Math.max(0, cost - (u.output || 0) * price.output / 1e6); priced++;
+  }
+  return { input, usd, sessions: priced, perToken: input ? usd / input : null };
+}
+// The row's colour on both doors (the owner's rule, 2026-11-09): a part used in under 10% of the calls that carried it
+// is red at 5,000 tokens a call or more, yellow under that, and nothing at all under 500 tokens, since a part that
+// small is not worth a decision. `page.html:flagOf` is the same line; test/cli-ui-sync.test.js holds the two together.
+export const FLAG = { used: 0.1, red: 5000, none: 500 };
+export const flagOf = r => r.off || r.usedShare == null || r.usedShare >= FLAG.used || !(r.tokens >= FLAG.none) ? null : r.tokens >= FLAG.red ? 'red' : 'yellow';
+export const rateOf = v => v?.rate?.perToken ?? (v?.rate?.input ? v.rate.usd / v.rate.input : null);
+
 export function contextView(store, { days = 30, sessions, usage, log, onSession } = {}) {
   sessions ??= findRepoSessions(store.repo, days);
   usage ??= harnessUsage(store.repo, { days, sessions, onSession });
@@ -96,8 +119,9 @@ export function contextView(store, { days = 30, sessions, usage, log, onSession 
   outputs.tools = outputs.tools.map(t => { const compression = levelOf(diet, t.name); return { ...t, compressible: compressible(t.name), compression, past: (t.level || null) !== (compression || null), since: t.level ? timeline.since(t.name, t.level) : null }; });
   const instructions = { ...iv };
   const sum = (xs, k) => xs.reduce((a, x) => a + (x.off ? 0 : x[k] || 0), 0);
+  const rate = inputRate(store, sessions);
   const view = {
-    days, sessions: usage.sessions, prompts: viewPrompts, harnessOn: on,
+    days, sessions: usage.sessions, prompts: viewPrompts, harnessOn: on, rate,
     totals: {
       instructions: { tokens: iv.tokens || 0, perPrompt: (iv.sections || []).reduce((a, r) => a + r.perPrompt, 0), window: (iv.sections || []).reduce((a, r) => a + r.window, 0) },
       skills: { tokens: sum(skills, 'tokens'), perPrompt: sum(skills, 'perPrompt'), window: sum(skills, 'window') },
@@ -188,6 +212,8 @@ export function mergeViews(list) {
     return { tokens: Math.round(w(views.map(v => ({ ...v.totals[k], s: v.sessions })), 'tokens', 's')), window: win, perPrompt: Math.round(win / prompts), count: Math.max(0, ...views.map(v => v.totals[k]?.count || 0)) }; };
   return {
     all: true, days: views[0]?.days || 30, sessions, prompts, harnessOn: false, repos: list.map(x => ({ repo: x.repo, name: x.name, sessions: x.view.sessions })),
+    // one rate over every repository's priced input: the dollars and the tokens add, never one repository's rate weighted by another's sessions
+    rate: (() => { const input = views.reduce((a, v) => a + (v.rate?.input || 0), 0), usd = views.reduce((a, v) => a + (v.rate?.usd || 0), 0); return { input, usd, sessions: views.reduce((a, v) => a + (v.rate?.sessions || 0), 0), perToken: input ? usd / input : null }; })(),
     totals: Object.fromEntries(Object.keys(views[0]?.totals || {}).map(k => [k, total(k)])),
     instructions: {
       all: true, file: ivs.length ? `${ivs.length} instruction file${ivs.length === 1 ? '' : 's'}` : null, sessions: ivSessions,

@@ -32,17 +32,20 @@ of prompts that did not need it, the most that cutting the part could save. Thes
 definition at the stable front of the prompt is served from the prompt cache on most calls, at a tenth or
 less of the input price, and the Report prices the token types as the model reported them.
 
-**One part at a time, as cards.** Each instruction section, skill and tool beside:
+**One table, a part a row** (since 2026-11-09): its title, its type, what it adds to every call, the share of
+calls that used it, what it wasted over the window, and its action -- a dropdown and Apply in the row. The `›`
+beside the title opens what the part is in one line, its text, and how its use was counted. Each instruction
+section, skill and tool beside:
 
-- *Cost*: per prompt, the share of prompts that needed it, the total over the window, and the waste.
-- *Used* (the page's Sessions used): how often the sessions acted on it. A section is *applied* when a session touched its
+- *Cost*: per call, the share of calls that needed it, and the waste.
+- *Used*: how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on
   the work and whether the agent followed them; that costs a model call, so it runs on a 25% sample of
   sessions as they end (`instructions: { value: { judge: false } }` in `.thinker/config.json` turns it
   off, `share` changes the sample). Once five sessions
-  are judged the share shown is the judged sessions that followed the section. The **?** beside the
-  column header says how each kind is counted. A skill is *read* when a session opened it,
+  are judged the share shown is the judged sessions that followed the section. The column header's
+  hover says how each kind is counted. A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one
   broke them without reading it. A tool is *used* when a session called it.
 - *Wasted*: what the part cost in the sessions that did not use it -- what cutting it would save at
@@ -58,10 +61,10 @@ Every action shows what it will do before it does it, and each one can be undone
 
 | cut | on the page | undo |
 |---|---|---|
-| Shorten an instruction section | pick sections, **Compress**, Apply: in the background a model rewrites them to about a third, keeping the rules, commands and paths, and a pull request opens with the change; the page says once that it started, the row says *Compressing…* while it runs, and Recent activity follows it | close the unmerged PR (**Close PR** under Recent activity); revert a merged change |
-| Drop an instruction section | pick sections, **Remove**, Apply: a pull request opens with the change in a moment | close the unmerged PR; revert a merged change |
-| Switch a skill, MCP server or plugin off | pick them, **Switch off**: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | **Turn back on** |
-| Switch a built-in tool off | the same, under Built-in tools (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | **Turn back on**, or **Revert** under Recent activity |
+| Shorten an instruction section | **Compress** in the row, Apply: in the background a model rewrites them to about a third, keeping the rules, commands and paths, and a pull request opens with the change; the page says once that it started, the row says *Compressing…* while it runs, and Recent activity follows it | close the unmerged PR (**Close PR** under Recent activity); revert a merged change |
+| Drop an instruction section | **Remove** in the row, Apply: a pull request opens with the change in a moment | close the unmerged PR; revert a merged change |
+| Switch a skill, MCP server or plugin off | **Switch off** in the row, Apply: off for this repository from the next session, in the agent's own settings, with a backup; a skill switched off still runs as `/name` | **Turn back on** |
+| Switch a built-in tool off | the same (their rows in bold): Apply asks first, naming the tools, where the switch is written and how they come back | **Turn back on**, or **Revert** under Recent activity |
 
 **Tool outputs are not on this list, and that is the point.** thinker compresses them itself, on every
 machine, with no setting to find: the clearing replaces the results the agent has finished with before the
