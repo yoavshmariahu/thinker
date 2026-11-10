@@ -4,20 +4,20 @@
   <meta charset="UTF-8">
   <link rel="canonical" href="https://thinker.sh/">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>thinker</title>
-  <meta name="description" content="Think ahead. Save tokens. Thinker is a free, open-source tool that connects to your coding agents once and makes every session cheaper: it compresses the context your agents carry, learns how you work in each repository, and shows what your instructions and tools cost.">
+  <title>thinker — reduce Claude Code token usage and agent costs</title>
+  <meta name="description" content="Reduce Claude Code token usage and cut Claude Code costs. Thinker is a free, open-source tool that connects to your coding agents once and makes every session cheaper: it compresses the context your agents carry, learns how you work in each repository, and shows what your instructions and tools cost. Works with Claude Code, Codex, Cursor, Gemini CLI and more.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="thinker">
   <meta property="og:url" content="https://thinker.sh/">
-  <meta property="og:title" content="thinker — Think ahead. Save tokens.">
-  <meta property="og:description" content="Three ways to save coding agent tokens: compress the context, let it learn how you work from your sessions, and trim the instructions your agents never read.">
+  <meta property="og:title" content="thinker — reduce Claude Code token usage and agent costs">
+  <meta property="og:description" content="Three ways to reduce Claude Code token usage and agent costs: compress the context, let it learn how you work from your sessions, and trim the instructions your agents never read.">
   <meta property="og:image" content="https://thinker.sh/card.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="thinker — Think ahead. Save tokens.">
-  <meta name="twitter:description" content="Three ways to save coding agent tokens: compress the context, let it learn how you work from your sessions, and trim the instructions your agents never read.">
+  <meta name="twitter:title" content="thinker — reduce Claude Code token usage and agent costs">
+  <meta name="twitter:description" content="Three ways to reduce Claude Code token usage and agent costs: compress the context, let it learn how you work from your sessions, and trim the instructions your agents never read.">
   <meta name="twitter:image" content="https://thinker.sh/card.png">
   <meta name="twitter:image:alt" content="Three ways to save coding agent tokens: context compression, session profile, instruction analysis.">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='10' cy='22' r='6' fill='%23000'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23000' fill-opacity='0.75'/%3E%3Ccircle cx='22' cy='10' r='6' fill='%23000' fill-opacity='0.5'/%3E%3C/svg%3E">
@@ -60,18 +60,18 @@
     </div>
 
     <div class="supported-agents">
-      Claude Code &bull; Codex CLI &bull; Gemini CLI &bull; Cursor &bull; Devin CLI &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
+      Claude Code and the Claude desktop app &bull; Codex CLI and app &bull; Cursor &bull; Gemini CLI &bull; Devin &bull; Pi &bull; Windsurf &bull; Copilot CLI &bull; OpenCode
     </div>
 
     </div>
   </main>
 
   <section class="lp lp-feature lp-first" id="factory">
-    <h2>Your software factory, faster and cheaper.</h2>
+    <h2>Cut waste and rework in your software factory.</h2>
     <figure class="lp-pipeline">
       <img src="/thinker-pipeline.svg" alt="The software pipeline from prompt to production, with thinker wired into every stage." width="1200" height="410">
     </figure>
-    <p class="lp-intro">Coding agents have transformed the software development lifecycle with automations in every step to production. Thinker wires into your coding agents and finds cost-saving opportunities or efficiency improvements to make sure your agents produce accurate work without burning through your token budgets.</p>
+    <p class="lp-intro">Coding agents have transformed the software development lifecycle with automations in every step to production. Thinker wires into your coding agents and finds cost-saving opportunities or efficiency improvements to make sure your agents produce accurate work without burning through your token budgets. If you are trying to work out where your Claude Code costs go, and how to reduce token usage without changing how you work, that is what it measures and acts on.</p>
   </section>
 
 
@@ -79,8 +79,8 @@
     <div class="lp-side">
       <div class="lp-side-text">
         <h2>Compression: use only the context you need.</h2>
-        <p class="lp-intro">Thinker identifies cost saving opportunities to safely remove context from your coding agent session. We calculate the cost to re-write the cache compared to how much the context shrinks, and identify the savings on input tokens will be paid off after at most 25 API calls.</p>
-        <p class="lp-intro">Typical sessions span hundreds of calls, so a single context cut can significantly reduce your token spend on the session. <a href="/see-the-data">See the data</a> for examples on how we cut costs on real work on open-source repos.</p>
+        <p class="lp-intro">Thinker finds context your agent has finished with and takes it out of the session. We only cut context when the input-token savings repay the cache rewrite within 25 calls. Most sessions run hundreds, so one cut keeps paying for the rest of the session.</p>
+        <p class="lp-intro">That is the single biggest lever on Claude Code token usage, and it needs nothing from you. <a href="/see-the-data">See the data</a> for what it cut on real work in open-source repositories.</p>
       </div>
       <figure class="lp-side-figure">
         <img src="/thinker-context-compress.svg" alt="An agent builds up context; thinker removes 24,000 of 65,000 tokens from it, and every later API call reads the shorter context." width="736" height="471">
@@ -119,17 +119,17 @@
   <section class="lp lp-wide lp-tight lp-friction" id="friction">
     <div class="lp-friction-text">
       <h2>Zero developer friction.</h2>
-      <p class="lp-intro">Thinker plugs into the harnesses you already know. Install it on your machine with one command, <code>npx thinkersh</code>, and Thinker starts working for you behind the scenes. All data stays local. Telemetry metrics such as context compression sizes are exported so we can understand usage and performance and make sure users get a good experience. Opt out with <code>THINKER_TELEMETRY=off</code>.</p>
+      <p class="lp-intro">Thinker plugs into the harnesses you already know. Install it on your machine with one command, <code>npx thinkersh</code>, and Thinker starts working for you behind the scenes.</p>
+      <p class="lp-intro">Your code and prompts never leave your machine. Thinker sends anonymous size and count metrics, such as how much context was compressed, so we can see how it performs across installs. No prompt text, code, file paths or repository names are ever sent. Opt out with <code>THINKER_TELEMETRY=off</code>.</p>
       <p class="lp-intro">Fully <a href="https://github.com/yoavshmariahu/thinker">open source</a>, MIT license.</p>
       <p class="lp-intro">Uninstall any time with <code>thinker uninstall --user</code>.</p>
     </div>
-    <p class="lp-harness-line"><span class="lp-harness-label">Supported harnesses</span> Claude Code &middot; Claude desktop app &middot; Codex CLI and app &middot; Cursor &middot; Gemini CLI &middot; Devin &middot; Pi &middot; Windsurf &middot; Copilot CLI &middot; OpenCode</p>
     <p class="lp-more lp-harness-more"><a href="docs.html">What works with which agent &rarr;</a></p>
   </section>
 
   <section class="lp" id="measured">
     <h2 class="lp-big">Benchmarks you can understand.</h2>
-    <p class="lp-intro">Outside the research community, benchmarks like LoCoMo or BEAM don't answer the question that matters: does this get the job done? Instead, we ran two arms of coding agents, one with Thinker and one without, asked both to work through pull requests on open-source repositories, and had an LLM-as-a-judge verify that correctness did not drop on any task. See the session history and Thinker's activity for yourself <a href="/see-the-data">here</a>.</p>
+    <p class="lp-intro">Outside the research community, benchmarks like LoCoMo or BEAM don't answer the question that matters: does this get the job done at a lower cost? Instead, we ran two arms of coding agents, one with Thinker and one without, asked both to work through pull requests on open-source repositories, and had an LLM-as-a-judge verify that correctness did not drop on any task. See the session history and Thinker's activity for yourself <a href="/see-the-data">here</a>.</p>
     <div class="lp-runs" id="lp-runs"></div>
   </section>
 
