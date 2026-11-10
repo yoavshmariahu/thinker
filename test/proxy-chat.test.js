@@ -23,6 +23,8 @@ test('gateways are opt-in and validate their URLs', () => {
   assert.equal(transform(body, { ...proxyConfig({}, {}), protocol: 'anthropic' }).reason, 'other');
   assert.equal(transformChat('POST', '/v1/messages', {}, body, cfg()).reason, 'other');
   assert.equal(proxyConfig({ 'gateway-openrouter': true }, {}).gateways.openrouter.upstream, 'https://openrouter.ai/api/v1');
+  assert.equal(proxyConfig({ 'gateway-openrouter': 'http://127.0.0.1:9/v1' }, {}).gateways.openrouter.upstream, 'http://127.0.0.1:9/v1', 'the same door at another upstream');
+  assert.throws(() => proxyConfig({ 'gateway-openrouter': 'file:///tmp/no' }, {}), /HTTP\(S\)/);
   assert.equal(proxyConfig({ 'gateway-litellm': 'http://127.0.0.1:4000' }, {}).gateways.litellm.upstream, 'http://127.0.0.1:4000');
   assert.throws(() => proxyConfig({ 'gateway-litellm': 'file:///tmp/no' }, {}), /HTTP\(S\)/);
 });

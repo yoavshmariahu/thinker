@@ -206,7 +206,15 @@ export function proxyConfig(flags = {}, env = process.env) {
   // gateway is a config entry here, not a new door: the wire format is the shared standard, and
   // what differs is only where the request is answered from.
   cfg.gateways = {};
-  if (flags['gateway-openrouter']) cfg.gateways.openrouter = { upstream: 'https://openrouter.ai/api/v1' };
+  if (flags['gateway-openrouter']) {
+    // bare flag: OpenRouter's own home. A URL: the same door at an upstream of the person's
+    // (a self-hosted mirror, a test fixture), as LiteLLM always is.
+    const u = typeof flags['gateway-openrouter'] === 'string' && flags['gateway-openrouter']
+      ? flags['gateway-openrouter'] : 'https://openrouter.ai/api/v1';
+    const parsed = new URL(u);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('--gateway-openrouter must be an HTTP(S) base URL');
+    cfg.gateways.openrouter = { upstream: u };
+  }
   if (flags['gateway-litellm']) {
     const u = new URL(String(flags['gateway-litellm']));
     if (!['http:', 'https:'].includes(u.protocol)) throw new Error('--gateway-litellm must be an HTTP(S) base URL');
