@@ -557,9 +557,17 @@ plugin on a machine without thinker does nothing.
   reports tokens and only on a streamed call that asked, so the proxy adds `stream_options.include_usage` once,
   never over an answer the agent set itself. A new gateway is an entry in that config block, not a new door. What
   is estimated here, said plainly: the cleared-token figure is the cut's own count of characters (no gateway is
-  told anything, so nothing comes back measured), and the decision's cache-write rate is still Anthropic's --
-  implicit caching (OpenAI, Google) has no write charge, so the door over-refuses there until the rates are
-  parameterized per gateway. A 400 that names the placeholder stops the editing for the proxy's life; any other
+  told anything, so nothing comes back measured). The rates the decision prices with are **dynamic**
+  (`src/gateway-rates.js`, 2026-11-10): config beats measurement beats defaults. `proxy: { rates:
+  { '<model>': { read, write }, '*': … } }` in the machine config is the person's word; otherwise the fit of the
+  per-token prices across the gateway's own answers -- OpenRouter reports the account's `cost` beside the token
+  split on every call, so the fit is the account's own arithmetic, solved in memory, no network, no model call;
+  otherwise the Anthropic constants the shared policy has always kept. Every clear and every payback refusal
+  carries its `rates` on the row (`source: config|measured`), so a decision is auditable against the prices that
+  made it. A provider that never reports cache-write tokens gets the rewrite priced at full input price (1.0),
+  which is what implicit caching (OpenAI, Google) charges -- named on the rates (`assumed: ['write']`), not
+  Anthropic's 2.0, so those cuts no longer over-refuse. A 400 that names the placeholder stops the editing for the
+  proxy's life; any other
   400 is passed on once, as it came (the LiteLLM lesson of 2026-10-28).
   **What it saved is shown in the session** (`src/compression.js`, 2026-10-29): the API answers every cleared request with the tokens it left out of that prompt, and the cleared
   set is cumulative within a conversation, so adding those up over a session is the whole of the saving, measured

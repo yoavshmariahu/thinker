@@ -14,6 +14,7 @@ import { compressionHeader } from '../compression.js';
 import { bedrockState } from '../proxy-bedrock.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
+import { readMachineConfig } from '../repo-switch.js';
 
 
 export { proxyLogFile };
@@ -164,6 +165,9 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   let cfg;
   try { cfg = proxyConfig(flags); } catch (e) { out(`thinker proxy: ${e.message}`); process.exitCode = 2; return; }
   if (!cfg.port) { out('thinker proxy: name a port (--port n, or THINKER_PROXY_PORT).'); process.exitCode = 2; return; }
+  // the person's own rate overrides for the cut decision (gateway-rates.js): read once at start,
+  // like the rest of the machine config the service's flags carry
+  try { cfg.ratesConfig = readMachineConfig(thinkerHome()).proxy?.rates || null; } catch { /* no config is no rates */ }
   const server = startProxy(cfg, {
     logFile,
     bedrock: flags.bedrock && serviceState().enabled && serviceState().port === cfg.port ? () => bedrockState(thinkerHome()) : null,

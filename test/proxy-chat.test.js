@@ -205,3 +205,48 @@ test('candidates and apply agree with the Responses door on the recency rule', (
   assert.equal(applied.messages[2].content, placeholder(history()[2].content.length));
   assert.equal(applied.messages[4].content, history()[4].content, 'a result below the size floor stays');
 });
+
+test('the gateways\' own answers become the rates the next decision is priced with', async t => {
+  // the account's own accounting, per call: fresh $1, read $0.1, write $2, out $3 per token
+  const price = u => u.fresh + 0.1 * u.read + 2 * u.write + 3 * u.out;
+  const usageFor = i => {
+    const u = { fresh: 900 + i * 100, read: i % 3 === 0 ? 0 : 500 + (i % 5) * 200, write: i % 2 === 0 ? 0 : 100 + (i % 4) * 50, out: 20 + (i % 7) * 10 };
+    return { prompt_tokens: u.fresh + u.read + u.write, completion_tokens: u.out, prompt_tokens_details: { cached_tokens: u.read, cache_write_tokens: u.write }, cost: Number(price(u).toFixed(6)) };
+  };
+  const upstream = http.createServer((req, res) => {
+    const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(chunk(usageFor(Number(body.messages[0].content.split(' ')[1]))));
+    });
+  });
+  await new Promise(r => upstream.listen(0, '127.0.0.1', r));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-rates-'));
+  const logFile = path.join(dir, 'proxy.jsonl');
+  const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/api/v1`;
+  const proxy = startProxy({
+    ...proxyConfig({ 'gateway-openrouter': true }, {}),
+    trigger: 1, clearAtLeast: 1, keepMin: 1,
+    upstream: upstreamUrl, gateways: { openrouter: { upstream: upstreamUrl } },
+  }, { logFile, clearingDir: path.join(dir, 'clearing'), compressionDir: path.join(dir, 'compression') });
+  await new Promise(r => proxy.once('listening', r));
+  t.after(() => { proxy.close(); upstream.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  // nine one-off conversations, same model: the first eight feed the fit, the ninth is priced by it
+  for (let i = 0; i < 9; i++) {
+    const r = await fetch(`http://127.0.0.1:${proxy.address().port}/openrouter/chat/completions`, {
+      method: 'POST', headers: { authorization: 'Bearer mock-only' },
+      body: raw([user(`task ${i}`), call('a'), result('a'), user('again'), call('b'), result('b', 'y'.repeat(300))]),
+    });
+    assert.equal(r.status, 200);
+  }
+  const rows = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(r => r.op === 'proxy');
+  assert.equal(rows[0].rates, undefined, 'nothing measured yet: the Anthropic defaults priced it, and no row pretends otherwise');
+  const priced = rows[8].rates;
+  assert.equal(priced.source, 'measured');
+  assert.ok(Math.abs(priced.read - 0.1) < 1e-6, `read ${priced.read}`);
+  assert.ok(Math.abs(priced.write - 2) < 1e-6, `write ${priced.write}`);
+  assert.equal(priced.assumed, undefined);
+  // the same rates ride the record, so the savings are read back at the prices they were priced at
+  const store = JSON.parse(fs.readFileSync(path.join(dir, 'clearing', 'chat', `${rows[8].session.replace(/[^\w.-]/g, '_')}.json`), 'utf8'));
+  assert.deepEqual(store.rates, priced);
+});
