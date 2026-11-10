@@ -27,7 +27,7 @@ import { spawn } from 'node:child_process';
 import { isTestMode } from './test-mode.js';
 import { readLog, sessionKey } from './usage.js';
 import { clearingRows, compressionDir } from './compression.js';
-import { proxyLogFile } from './proxy-service.js';
+import { appVersion, proxyLogFile } from './proxy-service.js';
 import { weeklySavings, SAVINGS_SERIES } from './report-savings.js';
 import { formatDollars } from './prices.js';
 import { formatTokens } from './model-usage.js';
@@ -79,6 +79,9 @@ export function computeSavings(store, { now = Date.now() } = {}) {
   const windowOf = from => cellOf(weeklySavings({ columns: [{ t: from }], now, config, events, compression, sessions: [], origin: null, ownership: events }));
   return {
     at: now, day: dayKey(now),
+    // The version that wrote the ledger, so the surfaces that pin a line can name it without reading
+    // thinker's own package.json: the Claude Code mod runs inside the agent and sees this file alone.
+    version: appVersion() || undefined,
     today: windowOf(dayStart(now)),
     lifetime: windowOf(0),
     from: events[0]?.t || null,
@@ -153,9 +156,14 @@ export function savingsLine(ledger, { now = Date.now() } = {}) {
 // session pins there, and named so it is read as thinker's and not the host's. The name in words, not
 // the brain the rest of thinker's lines carry (the owner's ask, 2026-11-06): the status row is a line
 // of small type beside the host's own, where a lone glyph is a puzzle and a word is a label.
+// The version rides this line and no other (the owner's ask, 2026-11-10): a person running thinker has
+// no other way to see which one they are running -- the agents never name it -- and the status row is
+// the one surface that is on screen the whole session. It is the ledger's own version where there is
+// one, so the row names the copy that counted the figures beside it.
 export function savingsStatus(ledger, { now = Date.now() } = {}) {
   const line = savingsLine(ledger, { now });
-  return line ? `thinker: ${line}` : '';
+  const version = ledger?.version || appVersion();
+  return line ? `thinker${version ? ` v${version}` : ''}: ${line}` : '';
 }
 
 // The split, for `thinker savings` and the cards' detail: what each row contributed, and the tokens

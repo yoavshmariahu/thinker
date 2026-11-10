@@ -20,6 +20,7 @@ import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
 import { noticeDue, noticeShown, countPrompt, holdNotice } from '../notice-cadence.js';
+import { updateNoteDue, updateNoteShown, updateNoteText } from '../update-note.js';
 import { setupRepo } from '../repo-onboard.js';
 import { proxyOffer } from '../proxy-offer.js';
 import { containersOffer } from '../containers-offer.js';
@@ -327,15 +328,18 @@ async function hookCommand(ctx) {
       if (!due.due) holdNotice(store, []);
       else {
         const compression = carded ? '' : compressionNotice(cleared);
+        // What changed in thinker, once per machine (update-note.js). Where the card mod runs it is a
+        // card under the answer and this says nothing, as the money does: one figure, one voice per client.
+        const update = !carded && updateNoteDue(store) ? updateNoteText() : '';
         // The money goes with the summary, except where the card mod runs: there the statusline keeps it
         // on screen the whole session, and saying it twice in one client is two voices for one figure.
         const money = carded ? '' : moneyLine();
-        const notice = [money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
+        const notice = [update, money ? `🧠 thinker: ${money}` : '', compression, NO_LEARN ? '' : maintenanceNotice(store)].filter(Boolean).join('\n');
         // The floors start again only once the person has actually been told: nothing to say yet, or a
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.
         const o = stopOutput(client, notice);
-        if (o) { noticeShown(store); out(o); }
+        if (o) { noticeShown(store); if (update) updateNoteShown(store); out(o); }
       }
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

@@ -471,6 +471,26 @@ longer exceptions to anything.
   hooks count the prompts and the cards only read the count: both run in every turn, and counting twice
   would halve the floor. One thinker message, whichever door it comes through.
 
+**What changed in thinker, said once (2026-11-10, the owner's ask; `src/update-note.js`):**
+- thinker ships every few days and said nothing about it. The agents it wires itself into never name a
+  version or a release, so the knowledge notes became a memory profile on a person's machine overnight
+  with no word anywhere in the product. One note, four lines at most, said once.
+- **One copy, in `src/update-note.js`**: `UPDATE_NOTE` is `{id, title, lines, more}`, and
+  `updateNoteText` is how an agent that draws no card says it. The Claude Code mod carries its own copy
+  of those words (`src/integrations/claude-card`, `UPDATE_NOTE`), held to this one by
+  `test/claude-card.test.js`, as every other word the mod says is.
+- **Keyed on the note's own id, never on a version** (`updateNoteDue`, `updateNoteShown`, kept in
+  `<THINKER_HOME>/state/update-note.json` beside the notice cadence, since a person sees one stream of
+  messages however many checkouts they work in). So a note can be written without cutting a release, and
+  a release that changes nothing a person can see says nothing. Change the id to say something new.
+- **Two doors, one voice**: where the card mod runs it is a card under the answer, drawn at the end of
+  the first turn, and the Stop hook says nothing (`carded`, the rule the money already follows); every
+  other agent gets it at the top of the next end-of-turn summary, inside the cadence, so it is still one
+  thinker message. Notices off silences it like everything else.
+- It does not wait for the summary cadence in the card door: a release note is a one-off, and a person
+  who learns a week late what their agent has been doing has learnt it too late. It does not spend the
+  summary either, so the next one still comes when it is due.
+
 **The savings footer: money, on the one surface that keeps it (2026-11-06, the owner's call):**
 - What thinker has saved is shown as dollars, today and over the whole log, in every client it has a
   door into: the Claude Code status row (the terminal) and the status line under the prompt (the desktop app), the Codex desktop card, the
@@ -521,6 +541,15 @@ longer exceptions to anything.
   the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
   lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by
   `test/claude-card.test.js`.
+- **And the version, which nothing else in a session says** (the owner's ask, 2026-11-10): `thinker
+  v0.3.0: saved today ~ · lifetime ~`. An agent never names the thinker it is running, so a person whose
+  knowledge notes became a profile overnight had no way to tell which copy did it or whether their own
+  is current. The status row is the one surface on screen the whole session, so it carries it and no
+  other line does. The figure's own version: `computeSavings` stamps the ledger with `appVersion()` and
+  every door reads it from there, so the row names the copy that counted the dollars beside it (the mod
+  reads one small file and cannot read a `package.json` of thinker's). A ledger from before this, or a
+  checkout with no version to read, says `thinker:` as it did. The desktop line drops the name alone
+  (`desktopStatus`, `/^thinker:? ?/`), since the app heads a pinned line with the plugin's name.
 - **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
   Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
   yet judged, minus anything judged unused or contradicted, priced from the model the session's
@@ -659,6 +688,7 @@ longer exceptions to anything.
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
+| `src/update-note.js` | what changed in thinker, in four lines at most, said once per machine: a card where the mod runs, the top of the next summary everywhere else |
 | `src/savings-ledger.js` | what the footers say: the Report's two savings series over today and the whole log, kept in `THINKER_HOME/state/savings.json` |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
