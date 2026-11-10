@@ -4,6 +4,9 @@ import { piExtension } from '../src/integrations/pi.js';
 import { opencodePlugin } from '../src/integrations/opencode.js';
 import { hookRunner } from '../src/integrations/runner.js';
 import { installClient } from '../src/clients.js';
+// These tests load the generated v1 single-file plugin. OpenCode 2 takes a generated directory
+// (test/opencode-v2.test.js); the installed binary's version must not choose for them.
+process.env.THINKER_OPENCODE_MAJOR = '1';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

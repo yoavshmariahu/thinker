@@ -19,7 +19,7 @@ import { profileTurn, profileArmOf } from '../profile.js';
 import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
 import { claudeCardActive } from '../claude-card.js';
-import { noticeDue, noticeShown, countPrompt, holdNotice } from '../notice-cadence.js';
+import { noticeDue, noticeShown, countPrompt, holdNotice, writeNoticeLast } from '../notice-cadence.js';
 import { updateNoteDue, updateNoteShown, updateNoteText } from '../update-note.js';
 import { setupRepo } from '../repo-onboard.js';
 import { proxyOffer } from '../proxy-offer.js';
@@ -339,7 +339,11 @@ async function hookCommand(ctx) {
         // client with no message at the end of a turn (Cursor's is its footnote above, clients.js:stopOutput),
         // leaves the summary waiting rather than spending it on an answer nobody reads.
         const o = stopOutput(client, notice);
-        if (o) { noticeShown(store); if (update) updateNoteShown(store); out(o); }
+        // OpenCode 2's terminal part toasts it from here: its server part runs this Stop hook but has
+        // no client to show a message with, so the summary lands on disk and the TUI picks it up
+        // (opencode-tui.js). Every delivered notice is written, whatever the client; the file's only
+        // reader is that door.
+        if (o) { noticeShown(store); if (update) updateNoteShown(store); try { writeNoticeLast(store, o); } catch {} out(o); }
       }
     }
     // Claude Code: its transcript. Other agents: the trace the hooks recorded,

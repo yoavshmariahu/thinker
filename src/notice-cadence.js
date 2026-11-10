@@ -37,6 +37,16 @@ const pendingFile = store => path.join(store.dir, 'state', 'notice-pending.json'
 const read = f => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return {}; } };
 const write = (f, v) => { try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(v)); } catch {} }; // a notice must never fail a turn
 
+// What thinker last said at the end of a turn, kept beside the cadence and machine-wide like it.
+// OpenCode 2's server part runs the Stop hook but has no client to toast with (opencode-v2.js), so
+// its terminal part picks the summary up from here. Anything that reads it must judge by `at`, never
+// by the text: a repeated summary carries the same figure.
+export const noticeLastFile = store => path.join(noticeHome() || store.dir, 'state', 'notice-last.json');
+export function writeNoticeLast(store, text, { now = Date.now() } = {}) {
+  if (!text) return;
+  write(noticeLastFile(store), { text, at: now });
+}
+
 // `notice: { everyPrompts, everyHours }` in .thinker/config.json moves the floors; 0 drops one of
 // them. `notice: false` or `"off"` still turns the notices off outright (commands/hooks.js:noticeOn).
 export function noticeCadence(store) {

@@ -35,6 +35,10 @@ test('the footers, the ledger and the Report page price one thing the same way',
   assert.match(read('commands/hooks.js'), /savings-ledger\.js/);
   // and every door says it in the ledger's own words
   for (const [file, fn] of [['commands/savings.js', 'savingsLine'], ['commands/hooks.js', 'savingsLine']]) assert.match(read(file), new RegExp(fn));
+  // OpenCode 2's terminal part is one more door: its footer calls savingsStatus, so the words under the
+  // prompt are the status row's, and a figure there can never disagree with `thinker savings` either.
+  assert.match(read('integrations/opencode-tui.js'), /savingsStatus/);
+  assert.match(read('integrations/opencode-tui.js'), /LEDGER_POLL_MS = 5_000/, 'the Claude mod polls the ledger every 5 s; the terminal part follows the file, not the turn');
   // the command the hooks start in the background is the one a person can run by hand
   assert.match(read('savings-ledger.js'), /'savings', '--refresh', '--quiet'/);
   assert.match(read('cli.js'), /savings \[--json\] \[--refresh\]/, 'the flags are in help, which is what unknownFlags reads');

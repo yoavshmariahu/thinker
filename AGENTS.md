@@ -581,6 +581,31 @@ longer exceptions to anything.
   writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
   ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
 
+- **OpenCode 2's terminal part is one more door** (2026-11-10; `src/integrations/opencode-tui.js`,
+  `src/integrations/opencode-v2.js`; `clients.js:opencodeMajor`). OpenCode 2 does not run v1 plugins at
+  all, so `connect`/`rewire` writes a plugin **directory** (`plugins/thinker/`, `index.ts` server part +
+  `tui.tsx` terminal part) where the binary's major is 2, and the v1 single file where it is not; the
+  wrapper stays two lines that import this checkout's modules by file:// URL, as the v1 file did, so the
+  words stay in one place. The footer rides the built-in footer row (`prompt.footer.status`, the one
+  slot both the launcher and a session view draw -- registering the launcher's `home.footer.status` as
+  well showed the figure twice; checked live), after the host's health indicators and before its
+  version -- the same "a row of thinker's own does not earn one" rule the status tail follows -- reads
+  the kept ledger every 5 s like the mod (`LEDGER_POLL_MS`, held to the same figure by
+  `test/cli-ui-sync.test.js`), and the words are `savingsStatus`, the status row's own.
+  The end-of-turn summary is a toast: v2 gives a server plugin no client (v1's `client.tui.showToast` is
+  gone), so the Stop hook writes what it said to `THINKER_HOME/state/notice-last.json`
+  (notice-cadence.js:writeNoticeLast) and the terminal part toasts it once (`noticed` dedupes by `at`); a
+  headless `opencode run` has no terminal part and the summary is dropped there, as in v1. Everything the
+  shapes rest on was checked against a real opencode 2.2.7 on 2026-11-10: prompt hook edits become the
+  canonical prompt, `tool.execute.after` mutates `result.content`, the turn's end is
+  `session.execution.succeeded` with the session in `data.sessionID` (v1's `session.idle` and
+  `properties` are gone), and `context.storage.memory` is a Solid ProxyObject read as `state.line`.
+  One divergence from the v1 door, same day: v1 serves the block as a `synthetic: true` part the
+  host never renders; v2's admission hook has no synthetic part, so the block rides the prompt text
+  and is visible. `ctx.session.synthetic` from inside the hook answers without error and never
+  reaches the same execution -- the faithful port needs an opencode-side surface that does not exist
+  yet (checked against 2.2.7).
+
 **Exploration subagents on Sonnet, off by default (2026-11-08; `src/explore-agent.js`):**
 - **Off until the owner decides to ship it** (the same day, after #712 landed on by default: "not 100% sure I want to ship
   it"). `exploreModel` returns null unless `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`
