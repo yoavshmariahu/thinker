@@ -565,7 +565,7 @@
 .lp-friction{position:relative;text-align:center}
 .lp-friction-text{max-width:720px;margin:0 auto}
 .lp-friction-text h2{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.25rem}
-.lp-friction-text p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:none;margin:0 0 1rem}
+.lp-friction-text p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:none;margin:0 0 1rem;text-align:left}
 .lp-friction-text p.lp-intro:last-child{margin-bottom:0}
 .lp-harnesses{text-align:left;color:#9a9a9a}
 .lp-harnesses h3{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#aaa;margin:0 0 .5rem}
