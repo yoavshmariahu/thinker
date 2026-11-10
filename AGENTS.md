@@ -183,7 +183,7 @@ longer exceptions to anything.
   removes the copies. The first rewire after this lands repoints the settings away from the app folder; the open
   sessions of that day still watch the app and are reloaded one last time by the next update.
 - Same policy as the proxy (`PROXY_DEFAULTS`: trigger 140k, clear at least 60k, keep the newest turn and 3 results,
-  the service's 15% holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
+  the service's holdout; `test/claude-clear.test.js` holds them together), read from the same `proxy` block of the
   machine config; `proxy: { desktop: false }` keeps the automatic clearing off, `/thinker-clear` runs one by hand. The
   first desktop session on a machine is told once, in a toast, that the clearing reaches it now (`INTRO`; the
   terminal had the proxy all along, so it is not told). It
@@ -398,6 +398,17 @@ longer exceptions to anything.
   byte-consistent (consecutive requests of a session differ only where Claude Code moves its own `cache_control`
   marker), so the cause is not yet known. Judge any change here by cache **write** tokens, against the 15%
   holdout, and dump both arms (`THINKER_PROXY_DUMP`) before trusting a figure.
+- **The holdout is half the sessions, from 15%** (2026-11-09, the owner's call; `proxy-service.js:SERVICE_HOLDOUT`,
+  mirrored by the mod's `HOLDOUT`, pinned together by `test/claude-clear.test.js`). The 15% was inherited from the
+  notes' per-turn holdout, where the held-out side was a regression check on something already shipped. The clearing's
+  question is still open -- the 28-turn pairing above, the cut arm's unexplained extra writes, and the Factory's split
+  on the day it was built (19 cleared sessions against 42 held out, marked thin) -- and at 85/15 the small side carries
+  most of the noise, so every figure waited on the held-out sessions alone. Half is the profile's reasoning applied
+  here (`PROFILE.holdoutRate`): an even split is for a question, an unbalanced one for a guard, and this goes back to
+  85/15 once the clearing's net is known. The side is still per session by hash (`proxy.js:heldOut`), so a session
+  keeps its side across the change; `proxy: { holdout }` in the machine config still wins; the service restarts idle
+  on the next prompt hook after the update, since its flags moved (`replaceReason`). Cost: half the sessions past
+  140k go uncleared for the window, which at this machine's rate is the saving the clearing would have made on them.
 
 **A request that never reached the API is the proxy's to recover (2026-11-05; `src/proxy-retry.js`):**
 - Measured on this machine's log, the 12 days to 2026-11-05 (20,749 rows, 830 error rows): 174 of those rows
@@ -1178,7 +1189,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   profile's arm is the one recorded on the session's state file at its start
   (`profile.js:profileArmOf`); a session from before the profile shipped has none and is left out of that split, never
   given one by recomputing the hash, since it never saw the block. The clearing's side is `proxy.js:heldOut` over the
-  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT` unless the machine config says), so every
+  session id with the service's share (`proxy-service.js:SERVICE_HOLDOUT`, half since 2026-11-09, unless the machine config says), so every
   session has one; a subagent conversation takes its parent's. A pull request counts on a side only when every session
   on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
   5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,

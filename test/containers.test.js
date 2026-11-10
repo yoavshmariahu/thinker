@@ -87,7 +87,7 @@ test('installing copies this build in, leaves the host\'s native modules out, an
     const exec = (bin, args) => {
       calls.push(args.join(' '));
       const line = args.join(' ');
-      if (line.includes('serviceArgs')) return 'proxy --port 44327 --holdout 0.15 --codex';
+      if (line.includes('serviceArgs')) return 'proxy --port 44327 --holdout 0.5 --codex';
       if (line.includes('ANTHROPIC_BASE_URL')) return 'the proxy answers on 44327';
       if (line.includes('version')) return 'thinker 9.9.9';
       return 'Summary: 1 of 1 selected agents connected.';
