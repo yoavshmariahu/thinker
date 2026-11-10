@@ -32,6 +32,9 @@ import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { BEDROCK_PATH, bedrockRequest, bedrockBody } from './proxy-bedrock.js';
 import { stubTools, stubReader } from './tool-stubs.js';
+import { routeOf, routedHeaders, routedBody, routeRow } from './proxy-routing.js';
+import { registryReader } from './providers.js';
+import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js';
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
@@ -511,7 +514,10 @@ const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clien
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker') } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), routes = undefined } = {}) {
+  // the model routes (providers.js): a request naming `thinker/…` goes to its provider (proxy-routing.js). The
+  // registry is the machine's, re-read when its file moves; `routes: false` leaves every request on the upstream.
+  const readRoutes = routes === false ? null : typeof routes === 'function' ? routes : stubsHome ? registryReader(stubsHome) : null;
   // Research only (`THINKER_PROXY_DUMP=<dir>`): every model request as it went up, the edit included, beside what
   // the API answered about it, one file a call under the session. The server's clearing rule can only be read from
   // consecutive requests side by side (2026-11-02: its cleared count fell 23, 22, 20, 19 under a byte-identical edit,
@@ -583,21 +589,33 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       const upstreams = cfg.codexUpstreams || CODEX_UPSTREAMS;
       requestCfg = { ...cfg, protocol: 'responses', keep: 'turn', upstream: req.headers['chatgpt-account-id'] ? upstreams.chatgpt : upstreams.api };
     }
-    const up = new URL(requestCfg.upstream);
-    const lib = up.protocol === 'http:' ? http : https;
-    // A gateway URL is the destination; HTTP(S)_PROXY/ALL_PROXY is how this machine reaches it.
-    // Direct http.Agent connections bypassed corporate proxies (including their DNS), failing
-    // even while the agent's own connection worked. NO_PROXY remains the person's decision.
-    const getAgent = fresh => {
-      const key = `${up.origin}:${fresh}`;
-      if (!agents.has(key)) agents.set(key, new ProxyAgent({ ...agentOptions, keepAlive: !fresh, maxSockets: 256 }));
-      return agents.get(key);
-    };
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', async () => {
       const received = Buffer.concat(chunks);
       const raw = onBedrock ? bedrockBody(received) : received;
+      // a routed request (proxy-routing.js): the provider is the upstream, and a route nobody registered is refused here
+      let routed = null;
+      if (readRoutes && !onBedrock && requestCfg.protocol !== 'responses') {
+        const r = routeOf(raw, requestUrl, readRoutes());
+        if (r?.error) {
+          log({ at: new Date().toISOString(), op: 'proxy-route-refused', session: sessionOf(req.headers), route: r.route, says: r.error.body.error.message });
+          res.writeHead(r.error.status, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(r.error.body));
+          return;
+        }
+        if (r) { routed = r; requestCfg = { ...requestCfg, upstream: r.provider.url }; }
+      }
+      const up = new URL(requestCfg.upstream);
+      const lib = up.protocol === 'http:' ? http : https;
+      // A gateway URL is the destination; HTTP(S)_PROXY/ALL_PROXY is how this machine reaches it.
+      // Direct http.Agent connections bypassed corporate proxies (including their DNS), failing
+      // even while the agent's own connection worked. NO_PROXY remains the person's decision.
+      const getAgent = fresh => {
+        const key = `${up.origin}:${fresh}`;
+        if (!agents.has(key)) agents.set(key, new ProxyAgent({ ...agentOptions, keepAlive: !fresh, maxSockets: 256 }));
+        return agents.get(key);
+      };
       const t0 = process.hrtime.bigint();
       let t;
       const noEdit = cutRejected;
@@ -613,8 +631,24 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
         (t.protocol === 'responses' ? responseCutting : cutting).write(cutRec);
       }
       let n = null;
+      let routedPath = requestUrl, routedStream = false, routeDropped = null;
+      if (routed) {
+        let rb;
+        try { rb = routedBody(t.body, routed); } catch (e) { rb = null; log({ at: new Date().toISOString(), op: 'proxy-route-refused', session: sessionOf(req.headers), route: routed.route, says: e.message }); }
+        if (!rb) { res.writeHead(400, { 'content-type': 'application/json' }); res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'thinker proxy: the request could not be translated for the route' } })); return; }
+        t = { ...t, body: rb.body, addBeta: false };
+        routedStream = rb.stream; routeDropped = rb.dropped;
+        if (rb.path) routedPath = rb.path;
+      }
       const headers = {};
-      for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
+      if (routed) {
+        let rh;
+        try { rh = routedHeaders(req.headers, routed); } catch (e) {
+          log({ at: new Date().toISOString(), op: 'proxy-route-refused', session: sessionOf(req.headers), route: routed.route, says: e.message });
+          res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: `thinker proxy: ${e.message}` } })); return;
+        }
+        for (const [k, v] of Object.entries(rh)) if (!HOP.includes(k)) headers[k] = v;
+      } else for (const [k, v] of Object.entries(req.headers)) if (!HOP.includes(k)) headers[k] = v;
       headers.host = up.host;
       if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
       headers['content-length'] = t.body.length;   // set again in `send`: a retry without the edit sends fewer bytes
@@ -637,7 +671,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
         const started = Date.now();
         headers['content-length'] = t.body.length;
         if (t.addBeta) headers['anthropic-beta'] = withBeta(req.headers['anthropic-beta']);
-        else if (req.headers['anthropic-beta'] != null) headers['anthropic-beta'] = req.headers['anthropic-beta'];
+        else if (!routed && req.headers['anthropic-beta'] != null) headers['anthropic-beta'] = req.headers['anthropic-beta'];
         // One error row per request: a break the agent and the API both notice (the agent leaves, so
         // the proxy drops the upstream request, so that request errors too) is one event, not two.
         // A cancellation gets an op of its own (2026-11-05): 174 of this machine's 830 error rows are
@@ -651,8 +685,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           logged = true;
           log({ at: new Date().toISOString(), op: extra?.aborted ? 'proxy-cancelled' : 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
-        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + requestUrl, method: req.method, headers, agent: getAgent(!!attempt), lookup }, ures => {
+        ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + routedPath, method: req.method, headers, agent: getAgent(!!attempt), lookup }, ures => {
           if (judgeAuth) watch.response(ures.statusCode);
+          const firstByteMs = Date.now() - started;
           // A 400 on a request the proxy cut may be the cut itself being rejected -- a history the API will not
           // take -- or it may be about the request, which is the agent's own to see. The body says which
           // (`refusesEdit`), so it is read before anything reaches the agent: a rejection means the same request
@@ -662,7 +697,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           // the history did exactly that in October. Anything else is passed on once, as it came: a real router
           // (LiteLLM 1.106.5, 2026-10-28) answered 400 over a model name it did not know, and taking that for a
           // rejection stopped the clearing over an unrelated error and sent every failing request twice.
-          if (t.injected && !cutRejected && ures.statusCode === 400 && !res.headersSent) {
+          if (t.injected && !cutRejected && ures.statusCode === 400 && !res.headersSent && routed?.format !== 'chat') {
             const parts = [];
             let read = 0;
             let ended = false;
@@ -688,14 +723,11 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           }
           deliver();
           function deliver(prefix, done = false) {
+          const chat = routed?.format === 'chat';
           const out = {};
-          for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding'].includes(k)) out[k] = v;
-          res.writeHead(ures.statusCode, out);
+          for (const [k, v] of Object.entries(ures.headers)) if (!['connection', 'keep-alive', 'transfer-encoding', ...(chat ? ['content-length', 'content-type', 'content-encoding'] : [])].includes(k)) out[k] = v;
           const tap = t.reason === 'other' ? null : t.protocol === 'responses' ? responsesUsageTap() : usageTap();
-          if (prefix?.length) { res.write(prefix); tap?.push(prefix); }
-          ures.removeAllListeners('data');
-          ures.on('data', c => { res.write(c); tap?.push(c); });
-          if (ures.isPaused?.()) ures.resume();
+          const okStatus = ures.statusCode >= 200 && ures.statusCode < 300;
           const record = () => {
             if (recorded) return;
             recorded = true;
@@ -703,7 +735,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             const usage = tap ? tap.result() : null;
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' ? { protocol: 'responses', removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
@@ -714,10 +746,37 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
               for (const ev of store.update(cutRec.session, rec => cutResponse(rec, requestCfg, t, usage))) log({ at: new Date().toISOString(), op: 'proxy-cut', session: t.session || sessionOf(req.headers), model: t.model, ...ev, read: usage.read, write: usage.write });
             }
           };
+          if (chat && (!okStatus || !routedStream)) {
+            // whole: the provider's JSON becomes the API's shape (an error at its own status) once it is all here
+            const parts = [];
+            ures.removeAllListeners('data');
+            ures.on('data', c => parts.push(c));
+            if (ures.isPaused?.()) ures.resume();
+            const finish = () => {
+              const text = Buffer.concat(parts).toString('utf8');
+              let bodyOut;
+              if (okStatus) { let j = null; try { j = JSON.parse(text); } catch {} bodyOut = JSON.stringify(j ? fromChat(j, { model: routed.model }) : errorToMessages(502, 'the provider answered something that is not JSON')); }
+              else bodyOut = JSON.stringify(errorToMessages(ures.statusCode, text));
+              if (!res.headersSent) res.writeHead(okStatus ? ures.statusCode : ures.statusCode, { ...out, 'content-type': 'application/json', 'content-length': Buffer.byteLength(bodyOut) });
+              res.write(bodyOut); tap?.push(bodyOut);
+              record(); res.end();
+            };
+            ures.on('end', finish);
+            ures.on('error', e => { if (!recorded) { truncated = true; logError(e, { retried: false, truncated: true }); } res.destroy(); });
+            res.once('close', record);
+            return;
+          }
+          const chatStream = chat ? chatStreamToMessages({ model: routed.model }) : null;
+          res.writeHead(ures.statusCode, chat ? { ...out, 'content-type': 'text/event-stream', 'cache-control': 'no-cache' } : out);
+          if (prefix?.length) { res.write(prefix); tap?.push(prefix); }
+          ures.removeAllListeners('data');
+          ures.on('data', c => { if (chatStream) { const s = chatStream.push(c); if (s) { res.write(s); tap?.push(s); } } else { res.write(c); tap?.push(c); } });
+          if (ures.isPaused?.()) ures.resume();
           // Codex closes SSE as soon as response.completed arrives, before the HTTP
           // body ends. Record that request too, exactly once, using usage seen so far.
           res.once('close', record);
           ures.on('end', () => {
+            if (chatStream) { const s = chatStream.end(); if (s) { res.write(s); tap?.push(s); } }
             record();
             res.end();
           });

@@ -10,6 +10,7 @@
 // its TTL since 2026-10-25: Claude Code and pi write every breakpoint at one hour (Claude Code's messages breakpoint at five
 // minutes aside), twice the input rate, and the usage says which (`cache_creation.ephemeral_1h_input_tokens`,
 // transcripts.js:Stats `cacheWrite1hTokens`); until then every write was priced at the five-minute rate, a third under.
+import { registryPrices } from './providers.js';
 import { relativeRate } from './model-usage.js';
 
 export const OPUS_INPUT = 4; // Claude Opus 5.5, dollars per million input tokens (relativeRate's unit)
@@ -25,11 +26,14 @@ const OTHER = [
 
 const fill = p => ({ input: p.input, output: p.output ?? p.input * 5, cacheRead: p.cacheRead ?? p.input / 10, cacheWrite: p.cacheWrite ?? p.input * 1.25, cacheWrite1h: p.cacheWrite1h ?? p.input * 2 });
 // dollars per million tokens of the four kinds, or null for a model without a price
-export function listPrice(model, { config } = {}) {
+export function listPrice(model, { config, home } = {}) {
   const m = String(model || '').toLowerCase().replace(/^(claude|anthropic|cursor|openai|google)\//, '');
   if (!m) return null;
   const own = config?.prices && typeof config.prices === 'object' ? Object.entries(config.prices).find(([k]) => k.toLowerCase() === m || m.startsWith(k.toLowerCase())) : null;
   if (own && own[1] && Number.isFinite(own[1].input)) return fill(own[1]);
+  // a provider's own reported price, as the registry holds it (providers.js:registryPrices); the config above still wins
+  const reg = registryPrices(home); const rp = reg[m] || reg[String(model || '').toLowerCase()];
+  if (rp && Number.isFinite(rp.input)) return fill(rp);
   const other = OTHER.find(([re]) => re.test(m));
   if (other) return other[1];
   const r = relativeRate(m);
