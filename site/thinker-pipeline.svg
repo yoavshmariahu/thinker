@@ -1,0 +1,315 @@
+<svg id="software-factory" xmlns="http://www.w3.org/2000/svg" viewBox="0 50 1200 410" width="1200" height="410" role="img" aria-labelledby="factory-title factory-desc">
+<title id="factory-title">Software factory: from prompts to merge</title>
+<desc id="factory-desc">A staggered isometric software workflow with illustrative efficiency metrics: average dollars per stage execution and the percentage of executions needing rework. Green means cost is within the stage budget and rework is at most 10 percent. Yellow means cost is up to 1.5 times budget or rework is up to 25 percent. Red means either cost exceeds 1.5 times budget or rework exceeds 25 percent. The worse metric sets stage color. Build and Review have blinking red indicators. All three feedback loops are labeled with their source stage rework rate and colored by that rework rate. Values and budgets are examples, not live telemetry. Reduced motion keeps all red warnings steadily visible.</desc>
+<defs>
+  <marker id="flow-arrow" viewBox="0 0 8 8" refX="6.2" refY="4" markerWidth="6" markerHeight="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M2 1.6 L6 4 L2 6.4" fill="none" stroke="#a9a9a9" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="return-green" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M1.7 1.5 L6.2 4 L1.7 6.5" fill="none" stroke="#87dba4" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="return-yellow" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path d="M1.7 1.5 L6.2 4 L1.7 6.5" fill="none" stroke="#dfb82e" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  <marker id="return-red" viewBox="0 0 8 8" refX="6.5" refY="4" markerWidth="9" markerHeight="9" orient="auto" markerUnits="userSpaceOnUse"><path d="M1.7 1.5 L6.2 4 L1.7 6.5" fill="none" stroke="#ef3f3f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<style>
+  #software-factory { color-scheme: light; }
+  #software-factory .station-label { fill:#383838; font: 400 20px 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; text-anchor:middle; }
+  #software-factory .stage-number { fill:#929292; font-size:15px; }
+  #software-factory .loop-label { font:400 19px 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; text-anchor:middle; }
+  #software-factory .status-label { font:400 18px 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; }
+  #software-factory .metric-label { font:400 18px 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; text-anchor:middle; }
+  #software-factory .feedback-path { fill:none; stroke-width:1.9; stroke-dasharray:5 5; stroke-linecap:round; }
+  #software-factory .packet-motion { animation: factory-travel 8.8s linear infinite; }
+  #software-factory .queue-motion { animation: factory-queue 10.8s ease-in-out infinite; }
+  #software-factory .scan-motion { animation: factory-scan 7.2s ease-in-out infinite; }
+  #software-factory .assembly-motion { animation: factory-assemble 10.8s ease-in-out infinite; }
+  #software-factory .return-motion { offset-distance:54%; offset-rotate:0deg; animation: factory-return var(--duration,18s) linear infinite; }
+  #software-factory .flow-idle { animation:none!important; opacity:0!important; }
+  #software-factory .alert-blink { animation:factory-alert-blink 2s ease-in-out infinite; }
+  #software-factory .feedback-loop[data-status="red"] .feedback-path { stroke-width:2.7; }
+  #software-factory.is-paused * { animation-play-state:paused!important; }
+  @keyframes factory-travel { 0% { transform:translate(0,0);opacity:0; } 8% { opacity:1; } 85% { opacity:1; } 100% { transform:translate(var(--dx),var(--dy));opacity:0; } }
+  @keyframes factory-queue { 0%,12% { transform:translate(0,0);opacity:0; } 20% {opacity:1;} 45%,68% { transform:translate(calc(var(--dx) * .48),calc(var(--dy) * .48));opacity:1; } 92% {opacity:1;} 100% {transform:translate(var(--dx),var(--dy));opacity:0;} }
+  @keyframes factory-scan { 0%,18%,82%,100% { transform:translateY(0);opacity:.12; } 35% {opacity:.9;} 68% {transform:translateY(34px);opacity:.9;} 77% {transform:translateY(34px);opacity:0;} }
+  @keyframes factory-assemble { 0%,22%,86%,100% { transform:translateY(-9px); } 39%,70% {transform:translateY(0);} }
+  @keyframes factory-return { 0%,53% { offset-distance:0%;opacity:0; } 58% {opacity:1;} 88% {opacity:1;} 96%,100% {offset-distance:100%;opacity:0;} }
+  @keyframes factory-alert-blink { 0%,40%,100% {opacity:1;} 60%,78% {opacity:.22;} }
+  @media(prefers-reduced-motion:reduce) { #software-factory .packet-motion, #software-factory .queue-motion, #software-factory .scan-motion, #software-factory .assembly-motion, #software-factory .return-motion, #software-factory .alert-blink { animation:none!important; } #software-factory .return-motion {opacity:0;} #software-factory .alert-blink {opacity:1;} #software-factory .scan-motion {opacity:.35;transform:translateY(15px);} }
+</style>
+<metadata id="factory-metrics-data">{"example": true, "unit": "USD per stage execution", "metrics": [{"stage": "prompts", "cost": 0.03, "budget": 0.05, "rework": 2}, {"stage": "think", "cost": 0.17, "budget": 0.15, "rework": 14}, {"stage": "explore", "cost": 0.18, "budget": 0.25, "rework": 6}, {"stage": "build", "cost": 0.98, "budget": 0.6, "rework": 31}, {"stage": "verify", "cost": 0.28, "budget": 0.25, "rework": 18}, {"stage": "review", "cost": 0.21, "budget": 0.25, "rework": 29}, {"stage": "merge", "cost": 0.02, "budget": 0.05, "rework": 1}], "cost_ratio_thresholds": [1, 1.5], "rework_thresholds_percent": [10, 25], "stage_rule": "worst_of_cost_ratio_and_rework", "loop_rule": "source_stage_rework"}</metadata>
+<g id="main-flow" aria-hidden="true">
+<path d="M134.97 254.50 L225.03 202.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M134.97 254.50 L225.03 202.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M134.97 254.50 L225.03 202.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+<path d="M302.97 202.50 L393.03 254.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M302.97 202.50 L393.03 254.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M302.97 202.50 L393.03 254.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+<path d="M470.97 254.50 L561.03 202.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M470.97 254.50 L561.03 202.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M470.97 254.50 L561.03 202.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+<path d="M638.97 202.50 L729.03 254.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M638.97 202.50 L729.03 254.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M638.97 202.50 L729.03 254.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+<path d="M806.97 254.50 L897.03 202.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M806.97 254.50 L897.03 202.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M806.97 254.50 L897.03 202.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+<path d="M974.97 202.50 L1065.03 254.50" fill="none" stroke="#e2e2e2" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M974.97 202.50 L1065.03 254.50" fill="none" stroke="#f8f8f8" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M974.97 202.50 L1065.03 254.50" fill="none" stroke="#c2c2c2" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#flow-arrow)"/>
+</g>
+<g id="feedback">
+<g id="loop-build-think" class="feedback-loop" data-source="build" data-target="think" data-status="red" role="group" aria-label="Build to Think: rethink, Inefficient">
+<path id="feedback-build-think" class="feedback-path alert-blink" d="M520 178 C488 106 383 106 345 177" stroke="#ef3f3f" marker-end="url(#return-red)"/>
+<text class="loop-label" x="432" y="112" fill="#c42d2d">rethink · 31%</text>
+<circle class="return-motion" r="3.5" fill="#ef3f3f" style="offset-path:path('M520 178 C488 106 383 106 345 177');--duration:15s;animation-delay:-2s"/>
+</g>
+<g id="loop-review-build" class="feedback-loop" data-source="review" data-target="build" data-status="red" role="group" aria-label="Review to Build: changes, Inefficient">
+<path id="feedback-review-build" class="feedback-path alert-blink" d="M856 177 C817 83 714 83 658 166" stroke="#ef3f3f" marker-end="url(#return-red)"/>
+<text class="loop-label" x="770" y="91" fill="#c42d2d">changes · 29%</text>
+<circle class="return-motion" r="3.5" fill="#ef3f3f" style="offset-path:path('M856 177 C817 83 714 83 658 166');--duration:19s;animation-delay:-7s"/>
+</g>
+<g id="loop-verify-build" class="feedback-loop" data-source="verify" data-target="build" data-status="yellow" role="group" aria-label="Verify to Build: retry, Watch">
+<path id="feedback-verify-build" class="feedback-path" d="M751 239 C762 201 718 163 681 177" stroke="#dfb82e" marker-end="url(#return-yellow)"/>
+<text class="loop-label" x="768" y="166" fill="#886510">retry · 18%</text>
+<circle class="return-motion" r="3.5" fill="#dfb82e" style="offset-path:path('M751 239 C762 201 718 163 681 177');--duration:23s;animation-delay:-11s"/>
+</g>
+</g>
+<g id="work-packets" aria-hidden="true">
+<g transform="translate(134.97,254.50)"><g class="packet-motion" style="--dx:90.06px;--dy:-52.00px;animation-delay:0.00s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+<g transform="translate(302.97,202.50)"><g class="packet-motion" style="--dx:90.06px;--dy:52.00px;animation-delay:-1.45s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+<g transform="translate(470.97,254.50)"><g class="packet-motion" style="--dx:90.06px;--dy:-52.00px;animation-delay:-2.90s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+<g transform="translate(638.97,202.50)"><g class="queue-motion" style="--dx:90.06px;--dy:52.00px;animation-delay:-4.35s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+<g transform="translate(806.97,254.50)"><g class="packet-motion" style="--dx:90.06px;--dy:-52.00px;animation-delay:-5.80s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+<g transform="translate(974.97,202.50)"><g class="packet-motion" style="--dx:90.06px;--dy:52.00px;animation-delay:-7.25s">
+<polygon points="-6.93,0.00 0.00,4.00 0.00,0.00 -6.93,-4.00" fill="#c7c7c7" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="6.93,0.00 0.00,4.00 0.00,0.00 6.93,-4.00" fill="#a5a5a5" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+<polygon points="0.00,-8.00 6.93,-4.00 0.00,0.00 -6.93,-4.00" fill="#e9e9e9" stroke="#9b9b9b" stroke-width="0.8" stroke-linejoin="round" />
+</g></g>
+</g>
+<g id="stations">
+<g id="station-prompts" class="station" data-stage="Prompts" data-status="green" data-cost="0.03" data-budget="0.05" data-rework="2" role="group" aria-label="Prompts: $0.03 per execution, 2 percent rework, On target">
+<polygon points="101.00,251.00 177.21,295.00 101.00,339.00 24.79,295.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="18.06,285.00 96.00,330.00 96.00,322.00 18.06,277.00" fill="#efefef" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="173.94,285.00 96.00,330.00 96.00,322.00 173.94,277.00" fill="#e2e2e2" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="96.00,232.00 173.94,277.00 96.00,322.00 18.06,277.00" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="32.61,292.10 81.10,320.10 81.10,315.10 32.61,287.10" fill="#87dba4" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<path d="M126.31 255.10 L133.24 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="50.10,269.50 97.73,297.00 97.73,295.00 50.10,267.50" fill="#e8e8e8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="140.17,272.50 97.73,297.00 97.73,295.00 140.17,270.50" fill="#d8d8d8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="92.54,243.00 140.17,270.50 97.73,295.00 50.10,267.50" fill="#fcfcfc" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<path d="M90.80 251.80 L123.71 270.80" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M83.01 256.30 L109.86 271.80" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M75.22 260.80 L105.53 278.30" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="54.43,261.00 102.06,288.50 102.06,286.50 54.43,259.00" fill="#e8e8e8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="144.50,264.00 102.06,288.50 102.06,286.50 144.50,262.00" fill="#d8d8d8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="96.87,234.50 144.50,262.00 102.06,286.50 54.43,259.00" fill="#fcfcfc" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<path d="M95.13 243.30 L128.04 262.30" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M87.34 247.80 L114.19 263.30" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M79.55 252.30 L109.86 269.80" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="58.76,252.50 106.39,280.00 106.39,278.00 58.76,250.50" fill="#e8e8e8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="148.83,255.50 106.39,280.00 106.39,278.00 148.83,253.50" fill="#d8d8d8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="101.20,226.00 148.83,253.50 106.39,278.00 58.76,250.50" fill="#fcfcfc" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<path d="M99.46 234.80 L132.37 253.80" fill="none" stroke="#a5a5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M91.67 239.30 L118.52 254.80" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M83.88 243.80 L114.19 261.30" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+<g id="station-think" class="station" data-stage="Think" data-status="yellow" data-cost="0.17" data-budget="0.15" data-rework="14" role="group" aria-label="Think: $0.17 per execution, 14 percent rework, Watch">
+<polygon points="269.00,154.00 345.21,198.00 269.00,242.00 192.79,198.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="186.06,188.00 264.00,233.00 264.00,225.00 186.06,180.00" fill="#efefef" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="341.94,188.00 264.00,233.00 264.00,225.00 341.94,180.00" fill="#e2e2e2" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,135.00 341.94,180.00 264.00,225.00 186.06,180.00" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="200.61,195.10 249.10,223.10 249.10,218.10 200.61,190.10" fill="#dfb82e" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<path d="M226.76 197.10 L233.69 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M301.24 197.10 L294.31 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="213.77,175.00 264.00,204.00 264.00,200.00 213.77,171.00" fill="#dbdbdb" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="314.23,175.00 264.00,204.00 264.00,200.00 314.23,171.00" fill="#c7c7c7" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,142.00 314.23,171.00 264.00,200.00 213.77,171.00" fill="#e7e7e7" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="220.70,166.00 264.00,191.00 264.00,187.00 220.70,162.00" fill="#dbdbdb" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="307.30,166.00 264.00,191.00 264.00,187.00 307.30,162.00" fill="#c7c7c7" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,137.00 307.30,162.00 264.00,187.00 220.70,162.00" fill="#efefef" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="227.63,157.00 264.00,178.00 264.00,174.00 227.63,153.00" fill="#dbdbdb" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="300.37,157.00 264.00,178.00 264.00,174.00 300.37,153.00" fill="#c7c7c7" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,132.00 300.37,153.00 264.00,174.00 227.63,153.00" fill="#f9f9f9" stroke="#949494" stroke-width="1.1" stroke-linejoin="round" />
+<path d="M252.74 147.50 L257.94 150.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M219.83 179.50 L214.64 182.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M240.62 154.50 L245.81 157.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M231.96 186.50 L226.76 189.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M226.76 162.50 L231.96 165.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M245.81 194.50 L240.62 197.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M214.64 169.50 L219.83 172.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M257.94 201.50 L252.74 204.50" fill="none" stroke="#b1b1b1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="244.95,152.00 264.00,163.00 264.00,148.00 244.95,137.00" fill="#888888" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="283.05,152.00 264.00,163.00 264.00,148.00 283.05,137.00" fill="#676767" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,126.00 283.05,137.00 264.00,148.00 244.95,137.00" fill="#b5b5b5" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="264.00,130.81 274.39,136.81 264.00,142.81 253.61,136.81" fill="#dadada" stroke="none" stroke-width="0" stroke-linejoin="round" />
+</g>
+<g id="station-explore" class="station" data-stage="Explore" data-status="green" data-cost="0.18" data-budget="0.25" data-rework="6" role="group" aria-label="Explore: $0.18 per execution, 6 percent rework, On target">
+<polygon points="437.00,251.00 513.21,295.00 437.00,339.00 360.79,295.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="354.06,285.00 432.00,330.00 432.00,322.00 354.06,277.00" fill="#efefef" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="509.94,285.00 432.00,330.00 432.00,322.00 509.94,277.00" fill="#e2e2e2" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="432.00,232.00 509.94,277.00 432.00,322.00 354.06,277.00" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="368.61,292.10 417.10,320.10 417.10,315.10 368.61,287.10" fill="#87dba4" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<path d="M401.69 255.10 L394.76 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M462.31 255.10 L469.24 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="386.97,274.00 390.43,276.00 390.43,228.00 386.97,226.00" fill="#ededed" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="438.93,248.00 390.43,276.00 390.43,228.00 438.93,200.00" fill="#eeeeee" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="435.46,198.00 438.93,200.00 390.43,228.00 386.97,226.00" fill="#fcfcfc" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<path d="M430.53 219.15 L402.81 235.15" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M430.53 228.15 L409.74 240.15" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M430.53 237.15 L402.81 253.15" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M434.86 243.65 L434.86 211.65" fill="none" stroke="#cdcdcd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="403.42,283.50 406.89,285.50 406.89,237.50 403.42,235.50" fill="#ededed" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="455.38,257.50 406.89,285.50 406.89,237.50 455.38,209.50" fill="#e6e6e6" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="451.92,207.50 455.38,209.50 406.89,237.50 403.42,235.50" fill="#fcfcfc" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<path d="M446.98 228.65 L419.27 244.65" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M446.98 237.65 L426.20 249.65" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M446.98 246.65 L419.27 262.65" fill="none" stroke="#c1c1c1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M451.31 253.15 L451.31 221.15" fill="none" stroke="#cdcdcd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="419.88,293.00 423.34,295.00 423.34,247.00 419.88,245.00" fill="#ededed" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="471.84,267.00 423.34,295.00 423.34,247.00 471.84,219.00" fill="#fafafa" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="468.37,217.00 471.84,219.00 423.34,247.00 419.88,245.00" fill="#fcfcfc" stroke="#939393" stroke-width="1.1" stroke-linejoin="round" />
+<path d="M463.44 238.15 L435.72 254.15" fill="none" stroke="#919191" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M463.44 247.15 L442.65 259.15" fill="none" stroke="#919191" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M463.44 256.15 L435.72 272.15" fill="none" stroke="#919191" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M467.77 262.65 L467.77 230.65" fill="none" stroke="#a5a5a5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+<g id="station-build" class="station" data-stage="Build" data-status="red" data-cost="0.98" data-budget="0.6" data-rework="31" role="group" aria-label="Build: $0.98 per execution, 31 percent rework, Inefficient">
+<polygon points="605.00,154.00 681.21,198.00 605.00,242.00 528.79,198.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="522.06,188.00 600.00,233.00 600.00,225.00 522.06,180.00" fill="#f7e2e0" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="677.94,188.00 600.00,233.00 600.00,225.00 677.94,180.00" fill="#edd0cd" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="600.00,135.00 677.94,180.00 600.00,225.00 522.06,180.00" fill="#fff3f2" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="536.61,195.10 585.10,223.10 585.10,218.10 536.61,190.10" fill="#ef3f3f" stroke="none" stroke-width="0" stroke-linejoin="round" class="alert-blink"/>
+<polygon points="600.00,134.91 677.94,179.91 600.00,224.91 522.06,179.91" fill="none" stroke="#ef3f3f" stroke-width="2" stroke-linejoin="round" class="alert-blink"/>
+<path d="M562.76 197.10 L569.69 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M637.24 197.10 L630.31 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="579.22,160.00 600.00,172.00 600.00,148.00 579.22,136.00" fill="#494949" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="620.78,160.00 600.00,172.00 600.00,148.00 620.78,136.00" fill="#343434" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="600.00,124.00 620.78,136.00 600.00,148.00 579.22,136.00" fill="#656565" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="600.87,172.50 621.65,184.50 621.65,160.50 600.87,148.50" fill="#494949" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="642.44,172.50 621.65,184.50 621.65,160.50 642.44,148.50" fill="#343434" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="621.65,136.50 642.44,148.50 621.65,160.50 600.87,148.50" fill="#656565" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="557.56,172.50 578.35,184.50 578.35,160.50 557.56,148.50" fill="#494949" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="599.13,172.50 578.35,184.50 578.35,160.50 599.13,148.50" fill="#343434" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="578.35,136.50 599.13,148.50 578.35,160.50 557.56,148.50" fill="#656565" stroke="#3b3b3b" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="579.22,135.00 600.00,147.00 600.00,123.00 579.22,111.00" fill="#5d5d5d" stroke="#484848" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="620.78,135.00 600.00,147.00 600.00,123.00 620.78,111.00" fill="#444444" stroke="#484848" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="600.00,99.00 620.78,111.00 600.00,123.00 579.22,111.00" fill="#7b7b7b" stroke="#484848" stroke-width="1.1" stroke-linejoin="round" />
+<g id="assembly-block" class="assembly-motion">
+<polygon points="579.22,182.00 600.00,194.00 600.00,170.00 579.22,158.00" fill="#8c8c8c" stroke="#6f6f6f" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="620.78,182.00 600.00,194.00 600.00,170.00 620.78,158.00" fill="#6a6a6a" stroke="#6f6f6f" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="600.00,146.00 620.78,158.00 600.00,170.00 579.22,158.00" fill="#b6b6b6" stroke="#6f6f6f" stroke-width="1.1" stroke-linejoin="round" />
+</g>
+<path d="M576.62 187.50 L600.00 201.00 L623.38 187.50" fill="none" stroke="#b2b2b2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+<g id="station-verify" class="station" data-stage="Verify" data-status="yellow" data-cost="0.28" data-budget="0.25" data-rework="18" role="group" aria-label="Verify: $0.28 per execution, 18 percent rework, Watch">
+<polygon points="773.00,251.00 849.21,295.00 773.00,339.00 696.79,295.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="690.06,285.00 768.00,330.00 768.00,322.00 690.06,277.00" fill="#efefef" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="845.94,285.00 768.00,330.00 768.00,322.00 845.94,277.00" fill="#e2e2e2" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="768.00,232.00 845.94,277.00 768.00,322.00 690.06,277.00" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="704.61,292.10 753.10,320.10 753.10,315.10 704.61,287.10" fill="#dfb82e" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<path d="M737.69 255.10 L730.76 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M798.31 255.10 L805.24 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="724.70,270.00 771.46,297.00 771.46,294.00 724.70,267.00" fill="#d0d0d0" stroke="#a9a9a9" stroke-width="1" stroke-linejoin="round" />
+<polygon points="809.57,275.00 771.46,297.00 771.46,294.00 809.57,272.00" fill="#c3c3c3" stroke="#a9a9a9" stroke-width="1" stroke-linejoin="round" />
+<polygon points="762.80,245.00 809.57,272.00 771.46,294.00 724.70,267.00" fill="#e8e8e8" stroke="#a9a9a9" stroke-width="1" stroke-linejoin="round" />
+<polygon points="787.05,258.00 795.71,263.00 795.71,199.00 787.05,194.00" fill="#ebebeb" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="802.64,259.00 795.71,263.00 795.71,199.00 802.64,195.00" fill="#d1d1d1" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="793.98,190.00 802.64,195.00 795.71,199.00 787.05,194.00" fill="#fcfcfc" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="790.52,256.00 745.48,282.00 745.48,230.00 790.52,204.00" fill="#acacac" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".15"/>
+<g id="verify-scan" class="scan-motion">
+<path d="M791.38 207.50 L746.35 233.50" fill="none" stroke="#7c7c7c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="791.38,213.50 746.35,239.50 746.35,233.50 791.38,207.50" fill="#a9a9a9" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".28"/>
+</g>
+<polygon points="733.36,289.00 742.02,294.00 742.02,230.00 733.36,225.00" fill="#ebebeb" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="748.95,290.00 742.02,294.00 742.02,230.00 748.95,226.00" fill="#d1d1d1" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="740.29,221.00 748.95,226.00 742.02,230.00 733.36,225.00" fill="#fcfcfc" stroke="#8a8a8a" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="733.36,225.00 742.02,230.00 742.02,222.00 733.36,217.00" fill="#c2c2c2" stroke="#858585" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="802.64,195.00 742.02,230.00 742.02,222.00 802.64,187.00" fill="#adadad" stroke="#858585" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="793.98,182.00 802.64,187.00 742.02,222.00 733.36,217.00" fill="#dfdfdf" stroke="#858585" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="772.33,276.50 780.99,281.50 780.99,276.50 772.33,271.50" fill="#9e9e9e" stroke="#8a8a8a" stroke-width="0.9" stroke-linejoin="round" />
+<polygon points="789.65,276.50 780.99,281.50 780.99,276.50 789.65,271.50" fill="#808080" stroke="#8a8a8a" stroke-width="0.9" stroke-linejoin="round" />
+<polygon points="780.99,266.50 789.65,271.50 780.99,276.50 772.33,271.50" fill="#d1d1d1" stroke="#8a8a8a" stroke-width="0.9" stroke-linejoin="round" />
+</g>
+<g id="station-review" class="station" data-stage="Review" data-status="red" data-cost="0.21" data-budget="0.25" data-rework="29" role="group" aria-label="Review: $0.21 per execution, 29 percent rework, Inefficient">
+<polygon points="941.00,154.00 1017.21,198.00 941.00,242.00 864.79,198.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="858.06,188.00 936.00,233.00 936.00,225.00 858.06,180.00" fill="#f7e2e0" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1013.94,188.00 936.00,233.00 936.00,225.00 1013.94,180.00" fill="#edd0cd" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="936.00,135.00 1013.94,180.00 936.00,225.00 858.06,180.00" fill="#fff3f2" stroke="#df8882" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="872.61,195.10 921.10,223.10 921.10,218.10 872.61,190.10" fill="#ef3f3f" stroke="none" stroke-width="0" stroke-linejoin="round" class="alert-blink"/>
+<polygon points="936.00,134.91 1013.94,179.91 936.00,224.91 858.06,179.91" fill="none" stroke="#ef3f3f" stroke-width="2" stroke-linejoin="round" class="alert-blink"/>
+<path d="M898.76 197.10 L905.69 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M973.24 197.10 L966.31 201.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="879.71,167.50 917.81,189.50 917.81,187.50 879.71,165.50" fill="#e8e8e8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="962.85,163.50 917.81,189.50 917.81,187.50 962.85,161.50" fill="#d8d8d8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="924.74,139.50 962.85,161.50 917.81,187.50 879.71,165.50" fill="#fcfcfc" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<path d="M923.01 148.31 L946.39 161.81" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M915.22 152.81 L932.54 162.81" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M907.42 157.31 L928.21 169.31" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="913.48,160.00 951.59,182.00 951.59,180.00 913.48,158.00" fill="#e8e8e8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="996.62,156.00 951.59,182.00 951.59,180.00 996.62,154.00" fill="#d8d8d8" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<polygon points="958.52,132.00 996.62,154.00 951.59,180.00 913.48,158.00" fill="#fcfcfc" stroke="#989898" stroke-width="1" stroke-linejoin="round" />
+<path d="M956.78 140.81 L980.17 154.31" fill="none" stroke="#a5a5a5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M948.99 145.31 L966.31 155.31" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M941.20 149.81 L961.98 161.81" fill="none" stroke="#b1b1b1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M948.99 147.20 L966.31 157.20" fill="none" stroke="#898989" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M941.20 151.70 L958.52 161.70" fill="none" stroke="#898989" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M901.36 160.70 L920.41 171.70" fill="none" stroke="#b8b8b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+<g id="station-merge" class="station" data-stage="Merge" data-status="green" data-cost="0.02" data-budget="0.05" data-rework="1" role="group" aria-label="Merge: $0.02 per execution, 1 percent rework, On target">
+<polygon points="1109.00,251.00 1185.21,295.00 1109.00,339.00 1032.79,295.00" fill="#e8e8e8" stroke="none" stroke-width="0" stroke-linejoin="round" opacity=".56"/>
+<polygon points="1026.06,285.00 1104.00,330.00 1104.00,322.00 1026.06,277.00" fill="#efefef" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1181.94,285.00 1104.00,330.00 1104.00,322.00 1181.94,277.00" fill="#e2e2e2" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1104.00,232.00 1181.94,277.00 1104.00,322.00 1026.06,277.00" fill="#fafafa" stroke="#b5b5b5" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1040.61,292.10 1089.10,320.10 1089.10,315.10 1040.61,287.10" fill="#87dba4" stroke="none" stroke-width="0" stroke-linejoin="round" />
+<path d="M1073.69 255.10 L1066.76 259.10" fill="none" stroke="#9a9a9a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1094.47 244.50 L1110.93 254.00 L1109.20 278.00" fill="none" stroke="#e1e1e1" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1094.47 244.50 L1110.93 254.00 L1109.20 278.00" fill="none" stroke="#a5a5a5" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="1095.34,247.00 1102.27,251.00 1102.27,249.00 1095.34,245.00" fill="#afafaf" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<polygon points="1107.46,248.00 1102.27,251.00 1102.27,249.00 1107.46,246.00" fill="#9b9b9b" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<polygon points="1100.54,242.00 1107.46,246.00 1102.27,249.00 1095.34,245.00" fill="#d6d6d6" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<path d="M1051.17 269.50 L1067.63 279.00 L1109.20 278.00" fill="none" stroke="#e1e1e1" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M1051.17 269.50 L1067.63 279.00 L1109.20 278.00" fill="none" stroke="#a5a5a5" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" />
+<polygon points="1052.04,272.00 1058.97,276.00 1058.97,274.00 1052.04,270.00" fill="#afafaf" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<polygon points="1064.16,273.00 1058.97,276.00 1058.97,274.00 1064.16,271.00" fill="#9b9b9b" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<polygon points="1057.23,267.00 1064.16,271.00 1058.97,274.00 1052.04,270.00" fill="#d6d6d6" stroke="#9c9c9c" stroke-width="0.7" stroke-linejoin="round" />
+<polygon points="1094.47,281.50 1118.72,295.50 1118.72,267.50 1094.47,253.50" fill="#7c7c7c" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1142.97,281.50 1118.72,295.50 1118.72,267.50 1142.97,253.50" fill="#5c5c5c" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<polygon points="1118.72,239.50 1142.97,253.50 1118.72,267.50 1094.47,253.50" fill="#a8a8a8" stroke="#686868" stroke-width="1.1" stroke-linejoin="round" />
+<path d="M1117.86 246.80 L1129.98 253.80" fill="none" stroke="#d4d4d4" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+</g>
+<g id="factory-labels">
+<text class="station-label" x="96" y="378.00"><tspan class="stage-number">01</tspan><tspan dx="9">Prompts</tspan></text>
+<text class="station-label" x="264" y="281.00"><tspan class="stage-number">02</tspan><tspan dx="9">Think</tspan></text>
+<text class="station-label" x="432" y="378.00"><tspan class="stage-number">03</tspan><tspan dx="9">Explore</tspan></text>
+<text class="station-label" x="600" y="281.00"><tspan class="stage-number">04</tspan><tspan dx="9">Build</tspan></text>
+<text class="station-label" x="768" y="378.00"><tspan class="stage-number">05</tspan><tspan dx="9">Verify</tspan></text>
+<text class="station-label" x="936" y="281.00"><tspan class="stage-number">06</tspan><tspan dx="9">Review</tspan></text>
+<text class="station-label" x="1104" y="378.00"><tspan class="stage-number">07</tspan><tspan dx="9">Merge</tspan></text>
+</g>
+<g id="factory-status-labels">
+<g class="stage-status" data-stage="prompts" data-status="green" transform="translate(96,403.00)"><text class="metric-label metric-cost" y="5.5" fill="#287147">$0.03 / run</text><text class="metric-label metric-rework" y="29.5" fill="#287147">2% rework</text></g>
+<g class="stage-status" data-stage="think" data-status="yellow" transform="translate(264,306.00)"><text class="metric-label metric-cost" y="5.5" fill="#886510">$0.17 / run</text><text class="metric-label metric-rework" y="29.5" fill="#886510">14% rework</text></g>
+<g class="stage-status" data-stage="explore" data-status="green" transform="translate(432,403.00)"><text class="metric-label metric-cost" y="5.5" fill="#287147">$0.18 / run</text><text class="metric-label metric-rework" y="29.5" fill="#287147">6% rework</text></g>
+<g class="stage-status" data-stage="build" data-status="red" transform="translate(600,306.00)"><text class="metric-label metric-cost" y="5.5" fill="#c42d2d">$0.98 / run</text><text class="metric-label metric-rework" y="29.5" fill="#c42d2d">31% rework</text></g>
+<g class="stage-status" data-stage="verify" data-status="yellow" transform="translate(768,403.00)"><text class="metric-label metric-cost" y="5.5" fill="#886510">$0.28 / run</text><text class="metric-label metric-rework" y="29.5" fill="#886510">18% rework</text></g>
+<g class="stage-status" data-stage="review" data-status="red" transform="translate(936,306.00)"><text class="metric-label metric-cost" y="5.5" fill="#287147">$0.21 / run</text><text class="metric-label metric-rework" y="29.5" fill="#c42d2d">29% rework</text></g>
+<g class="stage-status" data-stage="merge" data-status="green" transform="translate(1104,403.00)"><text class="metric-label metric-cost" y="5.5" fill="#287147">$0.02 / run</text><text class="metric-label metric-rework" y="29.5" fill="#287147">1% rework</text></g>
+</g>
+</svg>
