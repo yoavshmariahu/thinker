@@ -37,7 +37,11 @@ test('OpenCode plugin handles concurrent session IDs and augments native context
   const first = { parts: [{ id: 'part1', type: 'text', text: 'task one' }] };
   await handlers['chat.message']({ sessionID: 'one' }, first);
   await handlers['chat.message']({ sessionID: 'two' }, { parts: [{ type: 'text', text: 'task two' }] });
-  assert.equal(first.parts[0].text, 'task one\n\nnotes'); assert.equal(first.parts[0].id, 'part1');
+  assert.equal(first.parts[0].text, 'task one'); assert.equal(first.parts[0].id, 'part1');
+  assert.equal(first.parts[1].text, 'notes');
+  assert.equal(first.parts[1].synthetic, true, 'served as a synthetic part: the model reads it, the host renders none of it');
+  assert.equal(first.parts[1].sessionID, 'one');
+  assert.match(first.parts[1].id, /^prt/);
   const output = { output: 'read result' };
   await handlers['tool.execute.after']({ sessionID: 'one', tool: 'read', args: { filePath: 'a.js' } }, output);
   assert.equal(output.output, 'read result\n\nnotes'); assert.equal(calls[2].event.tool_input.filePath, 'a.js');

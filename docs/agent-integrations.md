@@ -728,7 +728,12 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
 - **OpenCode:** `.opencode/plugins/thinker.js` uses the documented
   [plugin API](https://opencode.ai/docs/plugins/) and its
   [hook types](https://github.com/anomalyco/opencode/blob/dev/packages/plugin/src/index.ts).
-  MCP registration uses the plugin config hook. Idle triggers batch learning;
+  What the prompt hook serves (the profile and any notice) is added as a
+  `synthetic: true` text part of the person's message, so the model reads it
+  and the conversation window shows nothing: OpenCode renders no synthetic
+  text part (its TUI, share view and desktop all filter them per part, and
+  its own plan-mode reminders ride the same shape). MCP registration uses the
+  plugin config hook. Idle triggers batch learning;
   ordinary quiet-session catch-up handles sessions without an end event. The
   plugin does not claim to record an assistant answer or failed tool result that
   its subscribed callbacks do not supply.

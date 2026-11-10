@@ -473,7 +473,9 @@ test('Pi and OpenCode generated extensions retrieve a real note through the CLI'
   const plugin = await oc.default({});
   const output = { parts: [{ type: 'text', text: PROMPT }] };
   await plugin['chat.message']({ sessionID: 'opencode-real' }, output);
-  assert.match(output.parts[0].text, /RateLimiter/);
+  assert.equal(output.parts[0].text, PROMPT, 'the person\'s part is untouched');
+  assert.match(output.parts[1].text, /RateLimiter/);
+  assert.equal(output.parts[1].synthetic, true);
 });
 
 test('connect wires the agents into their own settings, once per machine: no --repo in the hooks, no pinned repository in the MCP entry', () => {
