@@ -1194,7 +1194,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
   5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
   and the split is where the profile's effect on rework will first show as the arms fill.
-- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared**
+- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared (superseded below, 2026-11-10)**
   (2026-11-09; `armsOf` takes `peak`, `treated` on the arm cell, the "Of them actually cleared" row). The first table
   read as if the clearing raised cost and rework across the board: $26 against $15 a session, 23% against 14% rework.
   It did not. Only 19 of the 249 sessions on the clearing's side had ever had a clear, because the clearing fires past
@@ -1210,6 +1210,23 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
   session in diff mode, and the comparison table has a cost-per-merged-pull-request row. A pull request counts on a side
   only when every session on it was on that side.
+- **The clearing's "on" side is the sessions a clear actually happened in, since the current cut policy landed
+  (2026-11-10, the owner's ask; `armsOf` takes `cleared` and `start`, `CLEARING_SINCE`; the "Of them actually cleared"
+  row and `treated` went).** The split above still compared the arm, and the arm is an assignment: on 2026-11-10 the
+  table read +75% cost a session and +50% rework on the clearing's side, over 177 sessions of which 19 had ever been
+  cleared. Read as treatments the same day's merged pull requests were flat: the four with a clear cost $38.9 each
+  against $37.8 for the 23 without, twenty cents a model call on both. So the on side is now the sessions with a clear
+  (`delivery.js:clearedFor`: the proxy's log first, the mod's record where the log has no rows), the held-out side the
+  hash's, and a session on the clearing's arm that was never cleared is on neither, since nothing touched it. Two
+  guards, both the owner's point that a new feature must not be judged on old data: both sides need the trigger
+  reached, as before, **and a session started after `CLEARING_SINCE`** (the merge of #693, 2026-11-06 19:30 UTC: the
+  60k floor after #688's payback of 25, the policy the proxy and the mod run today); a session cleared under the
+  API-side clearing or an earlier cut policy was a different feature, measured as a loss, and is never pooled with
+  this one. Known gaps: a cold-boundary cut below the trigger is left out with the rest of the sub-trigger sessions;
+  the mod's records are pruned after two days, so a desktop clear the proxy's log never saw is on the cleared side
+  only while its record stands; and the current share is used for every session, which is safe only while the share
+  rises (a session held out at 15% is held out at 50%). The sides are now a few sessions each at this repository's
+  pace, and the table says so (`thin`); it fills from here.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first

@@ -24,12 +24,10 @@ import { findRepoSessions } from './instruction-value.js';
 import { readLedger, profileArmOf } from './profile.js';
 import { isHarnessEvent } from './session-state.js';
 import { heldOut, PROXY_DEFAULTS } from './proxy.js';
-import fs from 'node:fs';
-import path from 'node:path';
 import { SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { thinkerHome } from './update.js';
-import { deliveryReport } from './delivery.js';
+import { deliveryReport, clearedFor } from './delivery.js';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 import { weekColumns, REPORT_WEEKS } from './report.js';
 
@@ -220,8 +218,9 @@ export function sessionFactory({ events = [], calls = [], model = null } = {}, {
   return {
     model, priced: Boolean(price), calls: calls.length, exchanges: tl.exchanges,
     cost: cost.reduce((a, b) => a + (b || 0), 0), tokens: tokens.reduce((a, b) => a + b, 0),
-    // the largest context a call carried, and the cache traffic: what the clearing is judged by (its arm needs both)
+    // the largest context a call carried, when the session started, and the cache traffic: what the clearing is judged by (its arm needs all three)
     peak: Math.max(0, ...calls.map(c => (c.fresh || 0) + (c.read || 0) + (c.write || 0))),
+    start: Math.min(Infinity, ...calls.map(c => c.t || Infinity)),
     cacheWrite: calls.reduce((a, c) => a + (c.write || 0), 0), cacheRead: calls.reduce((a, c) => a + (c.read || 0), 0),
     stages,
     loops: loops.map(L => ({ ...L, cost: sum(L.from, L.to, cost), tokens: sum(L.from, L.to, tokens), calls: L.to - L.from + 1 })),
@@ -267,14 +266,15 @@ export function mergeWeekly(list) {
 // The Factory split by a feature's two sides (2026-11-09, the owner's ask: "see diff by"): the sessions the feature reached
 // against the ones held out from it, on the same mix of work. Two features carry a per-session arm: the session profile
 // (`profile.js:profileArm`, recorded on the session's state file at its start; a session from before the profile shipped
-// has none and is left out) and the clearing (`proxy.js:heldOut`, a hash of the session id against the service's share,
-// so every session has a side). Raw sums per side; every ratio is taken where it is shown, as a ratio of sums, so All
-// repositories can add the sides up. Sessions are the person's: a subagent conversation takes its parent's arm.
+// has none and is left out) and the clearing (a session that actually got a clear against one held out from it by
+// `proxy.js:heldOut`, both past the trigger and both since the current cut policy landed; `armsOf` below). Raw sums per
+// side; every ratio is taken where it is shown, as a ratio of sums, so All repositories can add the sides up. Sessions
+// are the person's: a subagent conversation takes its parent's arm.
 export const ARMS = {
   profile: { name: 'Memory profile', on: 'shown', off: 'holdout', onLabel: 'shown the profile', offLabel: 'held out' },
-  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'on the clearing', offLabel: 'held out', eligible: 'past the clearing\'s trigger' },
+  compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'cleared', offLabel: 'held out', eligible: 'past the clearing\'s trigger' },
 };
-const armCell = () => ({ sessions: new Set(), costBy: new Map(), cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, treated: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
+const armCell = () => ({ sessions: new Set(), costBy: new Map(), cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
 export function armTally(share) {
   const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, on: armCell(), holdout: armCell() } };
   const sideOf = (feature, arms) => arms[feature] ? t[feature][arms[feature]] : null;
@@ -284,7 +284,6 @@ export function armTally(share) {
         const c = sideOf(feature, arms); if (!c) continue;
         c.sessions.add(sessionId); c.exchanges += r.exchanges || 0; c.calls += r.calls; c.cost += r.cost; c.tokens += r.tokens; c.cacheWrite += r.cacheWrite || 0; c.cacheRead += r.cacheRead || 0;
         c.costBy.set(sessionId, (c.costBy.get(sessionId) || 0) + (r.cost > 0 ? r.cost : r.tokens / 1e6));
-        if (feature === 'compression' && arms.cleared && !c.sessions.has(sessionId + '#t')) { c.treated++; c.sessions.add(sessionId + '#t'); }
         for (const k of STAGE_KEYS) { const x = r.stages[k], d = c.stages[k]; d.cost += x.cost; d.tokens += x.tokens; d.rework += x.rework; d.reworkTokens += x.reworkTokens; c.rework += x.rework; c.reworkTokens += x.reworkTokens; }
         for (const L of r.loops) { const d = c.loops[L.kind] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; d.loops++; d.cost += L.cost; d.tokens += L.tokens; (c.loopSessions[L.kind] ||= new Set()).add(sessionId); }
       }
@@ -292,14 +291,14 @@ export function armTally(share) {
     pr(arms, firstPass, cost = 0) { for (const feature of Object.keys(ARMS)) { const c = sideOf(feature, arms); if (!c) continue; c.prs.merged++; c.prs.cost += cost || 0; if (firstPass) c.prs.firstPass++; } },
     finish() {
       // `cost2`, the sum of squared session costs, is what the trust level reads the spread from (armRows:trust)
-      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, costBy, ...rest } = c; return { ...rest, cost2: [...costBy.values()].reduce((a, x) => a + x * x, 0), sessions: [...c.sessions].filter(x => !String(x).endsWith('#t')).length }; };
+      const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, costBy, ...rest } = c; return { ...rest, cost2: [...costBy.values()].reduce((a, x) => a + x * x, 0), sessions: c.sessions.size }; };
       return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' ? v : fin(v)]))]));
     },
   };
 }
 export function mergeArms(list) {
   const as = list.filter(Boolean); if (!as.length) return null;
-  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens', 'cacheWrite', 'cacheRead', 'treated', 'cost2']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; a.prs.cost += b.prs?.cost || 0; };
+  const addCell = (a, b) => { for (const f of ['sessions', 'exchanges', 'calls', 'cost', 'tokens', 'rework', 'reworkTokens', 'cacheWrite', 'cacheRead', 'cost2']) a[f] += b[f] || 0; for (const k of STAGE_KEYS) for (const f of Object.keys(a.stages[k])) a.stages[k][f] += b.stages[k]?.[f] || 0; for (const k in b.loops) { a.loops[k] ||= { loops: 0, cost: 0, tokens: 0, sessions: 0 }; for (const f of Object.keys(a.loops[k])) a.loops[k][f] += b.loops[k][f] || 0; } a.prs.merged += b.prs?.merged || 0; a.prs.firstPass += b.prs?.firstPass || 0; a.prs.cost += b.prs?.cost || 0; };
   const out = {};
   for (const feature of Object.keys(ARMS)) {
     const sides = { rate: as[0][feature]?.rate ?? null };
@@ -310,22 +309,29 @@ export function mergeArms(list) {
 }
 // what the clearing's share is on this machine (the service's flag, from the machine config)
 function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).proxy || {}; return cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0; } catch { return SERVICE_HOLDOUT; } }
-// a session's two arms: the profile's from its state file (null where none was recorded); the clearing's from the hash,
-// and only for a session that reached the trigger (`peak`), since below it neither side is touched and the split would
-// compare two samples of untouched sessions (2026-11-09: 230 of 249 "cleared" sessions had never had a clear). `cleared`
-// says whether a clear actually happened, read off the proxy's record of the session (compression.js:noteCompression).
+// a session's two arms: the profile's from its state file (null where none was recorded); the clearing's is a treatment,
+// not an assignment (2026-11-10, the owner's ask): the `on` side holds the sessions that actually got a clear (`cleared`,
+// read from the proxy's log and the clearing mod's records, delivery.js:clearedFor) and the `holdout` side the ones
+// held out by the hash (`proxy.js:heldOut`); a session on the clearing's arm that was never cleared is on neither, since
+// nothing touched it. Until then the on side was the arm itself, and 230 of its 249 sessions had never had a clear
+// (2026-11-09), so the table compared untouched sessions with untouched sessions. Both sides need the trigger reached
+// (`peak`; below it neither side is touched) and a session started after the current cut policy landed
+// (`CLEARING_SINCE`): a session cleared under the API-side clearing or an earlier cut policy is a different feature,
+// measured as a loss, and is never pooled with this one. A cold-boundary cut below the trigger is left out with the rest.
 export const CLEARING_TRIGGER = PROXY_DEFAULTS.trigger;
-export function armsOf(store, session, share, { peak = Infinity, home = null } = {}) {
+// the merge of #693 (the 60k floor, after #688's payback of 25): the cut policy the proxy and the mod run today
+export const CLEARING_SINCE = Date.parse('2026-11-06T19:30:25Z');
+export function armsOf(store, session, share, { peak = Infinity, start = Infinity, cleared = false } = {}) {
   let profile = null; try { profile = profileArmOf(store, session); } catch {}
-  const eligible = share > 0 && peak >= CLEARING_TRIGGER;
-  let cleared = false; if (eligible && home) { try { cleared = fs.statSync(path.join(home, 'state', 'compression', `${session}.json`)).size > 2; } catch {} }
-  return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression: eligible ? (heldOut(session, share) ? 'holdout' : 'on') : null, cleared };
+  const eligible = share > 0 && peak >= CLEARING_TRIGGER && start >= CLEARING_SINCE;
+  const compression = !eligible ? null : cleared ? 'on' : heldOut(session, share) ? 'holdout' : null;
+  return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression, cleared: Boolean(cleared) };
 }
 
 // --- the view ---------------------------------------------------------------------------------------------------------
 // the cache key carries the detectors' version: a changed rule must read every session again, not serve the old loops
 export const RULES_VERSION = 8; // 8: the Review stage; a change to the open pull request is a review round (the person's) or the agent's own follow-up, never a bare push
-const CACHE = diskCache('factory-session', 1);
+const CACHE = diskCache('factory-session', 2); // 2: `start` on the record, for the clearing's policy window
 const parentOf = s => s.parent || s.session;
 // the ledger's corrected and redirected exchanges, by session (profile.js: a row's `turn` is the exchange it observed,
 // and the correction arrived as the prompt after it)
@@ -341,6 +347,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   const cols = weekColumns(now, weeks), from = cols[0].t;
   days = Math.ceil((now - from) / 86400_000) + 1;
   const weekly = weeklyTally(cols), share = clearingShare(), arms = armTally(share), armOf = new Map();
+  let clearedOf = () => 0; try { clearedOf = clearedFor({ home: thinkerHome() }); } catch {}
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
@@ -364,7 +371,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;
     weekly.add(s.mtime, r, parentOf(s));
-    if (!s.parent) armOf.set(s.session, armsOf(store, s.session, share, { peak: r.peak, home: thinkerHome() }));
+    if (!s.parent) armOf.set(s.session, armsOf(store, s.session, share, { peak: r.peak, start: r.start, cleared: clearedOf(s.session) > 0 }));
     if (armOf.has(parentOf(s))) arms.add(armOf.get(parentOf(s)), r, parentOf(s));
     if (!r.priced) unpriced.add(r.model || 'unknown');
     for (const k of STAGE_KEYS) for (const f of ['cost', 'tokens', 'calls', 'rework', 'reworkTokens']) stages[k][f] += r.stages[k][f];
@@ -498,7 +505,6 @@ export function armRows(v, feature) {
   const r = (num, den) => den ? num / den : null;
   const rows = [
     { label: spec.eligible ? `Sessions ${spec.eligible}` : 'Sessions', on: on.sessions, off: off.sessions, kind: 'count' },
-    ...(feature === 'compression' ? [{ label: 'Of them actually cleared', on: on.treated, off: off.treated, kind: 'count' }] : []),
     { label: dollars ? 'Cost per exchange' : 'Tokens per exchange', on: r(dollars ? on.cost : on.tokens, on.exchanges), off: r(dollars ? off.cost : off.tokens, off.exchanges), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
     { label: 'Cache writes, share of cache traffic', on: r(on.cacheWrite, on.cacheWrite + on.cacheRead), off: r(off.cacheWrite, off.cacheWrite + off.cacheRead), kind: 'pct', lowerIsBetter: true },
     { label: dollars ? 'Cost per session' : 'Tokens per session', on: r(dollars ? on.cost : on.tokens, on.sessions), off: r(dollars ? off.cost : off.tokens, off.sessions), kind: dollars ? 'money' : 'tokens', lowerIsBetter: true },
@@ -508,8 +514,9 @@ export function armRows(v, feature) {
   ];
   for (const [key, name] of STAGES) rows.push({ label: `${name} rework`, group: 'stages', key, on: r(dollars ? on.stages[key].rework : on.stages[key].reworkTokens, dollars ? on.stages[key].cost : on.stages[key].tokens), off: r(dollars ? off.stages[key].rework : off.stages[key].reworkTokens, dollars ? off.stages[key].cost : off.stages[key].tokens), kind: 'pct', lowerIsBetter: true });
   for (const L of v.loops) rows.push({ label: `${L.name} per session`, group: 'loops', key: L.key, on: r(on.loops[L.key]?.loops || 0, on.sessions), off: r(off.loops[L.key]?.loops || 0, off.sessions), kind: 'rate', lowerIsBetter: true });
+  // under ten sessions a side nothing is read: every row is flat, never a red mark on three sessions (2026-11-10)
   const t = trust(on, off);
-  for (const row of rows) { const d = row.lowerIsBetter == null || row.on == null || row.off == null || !row.off ? null : (row.on - row.off) / row.off, band = row.n ? t.bandFor(row.n[0], row.n[1]) : t.band; row.diff = d; row.band = band; row.verdict = d == null ? null : (band == null || (row.n && Math.min(...row.n) < 10)) ? 'flat' : Math.abs(d) < band ? 'flat' : (d < 0) === row.lowerIsBetter ? 'good' : 'bad'; }
+  for (const row of rows) { const d = row.lowerIsBetter == null || row.on == null || row.off == null || !row.off ? null : (row.on - row.off) / row.off, band = row.n ? t.bandFor(row.n[0], row.n[1]) : t.band; row.diff = d; row.band = band; row.verdict = d == null ? null : (band == null || t.level === 'none' || (row.n && Math.min(...row.n) < 10)) ? 'flat' : Math.abs(d) < band ? 'flat' : (d < 0) === row.lowerIsBetter ? 'good' : 'bad'; }
   return { feature, name: spec.name, onLabel: spec.onLabel, offLabel: spec.offLabel, rate: a.rate, rows, trust: t, thin: t.level === 'none' };
 }
 export function renderArms(v, feature) {
