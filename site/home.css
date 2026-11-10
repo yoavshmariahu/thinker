@@ -559,3 +559,9 @@
 .lp-tight{padding-top:2.5rem;padding-bottom:2.5rem}
 .lp-side-figure.lp-portrait img{max-width:400px;margin:0 auto}
 .lp-side p.lp-intro+p.lp-intro{margin-top:1rem}
+.lp-harnesses{justify-self:center}
+.lp-harnesses h3{font-size:.85rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#666;margin:0 0 .75rem}
+.lp-harnesses ul{list-style:none;margin:0;padding:0}
+.lp-harnesses li{font-size:1.1rem;line-height:1.5;color:#111;padding:.25rem 0;border-bottom:1px solid #eee}
+.lp-harnesses li:last-child{border-bottom:none}
+.lp-harnesses .lp-more{margin-top:1rem}
