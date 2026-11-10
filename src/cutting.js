@@ -100,8 +100,11 @@ export const placeholder = chars =>
 // per-session record (`compression.js:noteCompression`), the log's two sides (`proxy.js:proxyReport`), the
 // telemetry (`telemetry.js:proxyMetrics`), what a pull request saved (`clearedBySession`) and what the
 // rewrites after a clear cost it (`clearingCostBySession`).
-// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js).
-export const clearedOf = r => Math.round(r?.protocol === 'responses'
+// A Codex row is its own estimate by protocol, not by which field is filled (proxy-responses.js);
+// so is a gateway row (`proxy-chat.js`): no upstream is told anything, so the cut's own estimate
+// is the only token figure either door has.
+export const cutEstimateProtocol = r => r?.protocol === 'responses' || r?.protocol === 'chat';
+export const clearedOf = r => Math.round(cutEstimateProtocol(r)
   ? (r?.estimatedRemovedTokens || r?.clientCut?.tokens || 0)
   : (r?.cleared || r?.clientCut?.tokens || 0));
 export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
@@ -110,7 +113,7 @@ export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
 // Keyed on the cut having done it, not on which field carries the figure: `clearedBy` writes the cut's own
 // count into `cleared`, the field the API used to fill, so asking whether `cleared` is set no longer tells
 // a measurement from an estimate. A row from the API-side era carries no `clientCut` at all.
-export const clearedEstimated = r => r?.protocol === 'responses' || r?.clientCut?.tokens > 0;
+export const clearedEstimated = r => cutEstimateProtocol(r) || r?.clientCut?.tokens > 0;
 
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
@@ -128,13 +131,17 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {}) {
-  const read = readRate(model);
+export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rates = null } = {}) {
+  // Dynamic rates (gateway-rates.js): what a write and a read cost relative to an input token,
+  // resolved per model from config or the gateway's own measured prices. Null keeps the
+  // Anthropic ratios, as before this existed.
+  const read = rates?.read != null ? rates.read : readRate(model);
+  const write = rates?.write != null ? rates.write : writeRate(ttl);
   // `cand.recache` is the tail as it will be sent (proxy.js:cutCandidates), which is what the API writes
   // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
   // place in the cache, and not the system prompt, which is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
-  const cost = cold ? 0 : recache * writeRate(ttl);
+  const cost = cold ? 0 : recache * write;
   // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
   const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
   return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
@@ -155,7 +162,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null } = {
 // shared-policy rule forbids. So the function that decides says why, and both doors print what it says.
 // `candidate` now rides along on a refusal that was not the candidate's fault too, so the same log answers
 // what a lower trigger would have cut.
-export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model } = {}) {
+export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
   // A branch that refused something names itself; a request with nothing cuttable in it says so whichever branch
@@ -172,17 +179,17 @@ export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h',
   // the 100k floor; the other 32 were refused for a cost of zero. Only a refusal the trigger made is left
   // to the trigger: a cold boundary with nothing eligible is still nothing to cut.
   if (cold && cand?.ids.length) {
-    const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
-    return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
+    const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, rates });
+    return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...(rates ? { rates } : {}), ...p };
   }
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
   if (m.prompt < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
-  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model });
-  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: p, reason: 'payback' };
-  return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...p };
+  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, rates });
+  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: { ...p, ...(rates ? { rates } : {}) }, reason: 'payback' };
+  return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...(rates ? { rates } : {}), ...p };
 }
 
 // Accounting after an answer. There is no gauge: a cut that does not pay is not made, and the set
@@ -199,10 +206,12 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   if (ahead && t.cut) rec.cut = t.cut;
   if (t.clear) {
     rec.clears++; rec.chars += t.clientCut?.chars || 0;
+    // the rates this clear was priced with, kept so the record's savings are read at the same rates
+    if (t.rates) rec.rates = t.rates;
     events.push({ clear: true, tokens: Math.round(t.tokens || 0), recache: Math.round(t.recache || 0), cost: Math.round(t.cost || 0), payback: t.payback ?? null, ...(t.cold ? { cold: true } : {}), results: t.clientCut?.cut || 0 });
   }
   // what the cut is worth on this call: the tokens it took out, read at this model's rate
-  if (rec.cut.length && usage) rec.saved += (t.clientCut?.tokens || 0) * readRate(rec.model);
+  if (rec.cut.length && usage) rec.saved += (t.clientCut?.tokens || 0) * (rec.rates?.read ?? readRate(rec.model));
   return events;
 }
 

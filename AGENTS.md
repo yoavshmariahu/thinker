@@ -39,6 +39,8 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Codex and Claude share the cut policy (MANDATORY, 2026-11-04):**
 - `src/proxy-responses.js` adapts Responses tool outputs to `src/cutting.js:decideCut`, the same decision used by Claude's Messages proxy. Never rederive a new cut set on each Codex request.
+- The gateways door (`src/proxy-chat.js`, 2026-11-10) adapts OpenAI Chat Completions (OpenRouter, LiteLLM; routed by path prefix on the service, `proxy: { gateways }` in the machine config) to the same `decideCut`, with its own cut store (`state/clearing/chat/`) and its own conversation key (the first user message; a gateway sends no session header). A new gateway is a config entry, not a new door. Its cleared-token figure is always the cut's own estimate (`cutting.js:clearedOf` reads `protocol: 'chat'` rows so).
+- **The decision's rates are dynamic** (`src/gateway-rates.js`, 2026-11-10): config (`proxy: { rates }`) beats the fit of the gateway's own per-call cost answers (`rateTracker`, in memory, solved once per new observation) beats the Anthropic constants. `priceCut`/`decideCut` take `rates`; a clear and a payback refusal carry theirs on the row, and the record's `saved` is read at the rates its clear was priced with (`cutResponse`). A provider that never reports cache-write tokens gets the rewrite priced at 1.0 (implicit caching charges full input price for it), named `assumed` -- a fit that cannot see a coefficient is never read as one that measured it at zero.
 - Both paths reserve every turn-boundary decision, including a refusal, and persist the cut ids through the shared store. Within a turn, keep applying that exact set; a proxy restart must not restore old results or add new cuts. Protocol-specific serialization and token calibration may differ, policy does not.
 - `test/proxy-responses.test.js` checks candidate parity, payback/threshold decisions, within-turn stability, one-cut mode, and HTTP restart behavior. Missing session identity passes through: no session means no reliable ratchet.
 - The historical Django/Astra visualization used the earlier per-request policy (24 new cut events, 19 mid-turn); it is not evidence for this correction. Savings under the shared policy require a new matched Artemis experiment.
@@ -584,10 +586,12 @@ longer exceptions to anything.
   all, so `connect`/`rewire` writes a plugin **directory** (`plugins/thinker/`, `index.ts` server part +
   `tui.tsx` terminal part) where the binary's major is 2, and the v1 single file where it is not; the
   wrapper stays two lines that import this checkout's modules by file:// URL, as the v1 file did, so the
-  words stay in one place. The footer rides the built-in footer row (`home.footer.status`, after the
-  host's health indicators, before its version -- the same "a row of thinker's own does not earn one"
-  rule the status tail follows), reads the kept ledger every 5 s like the mod (`LEDGER_POLL_MS`, held to
-  the same figure by `test/cli-ui-sync.test.js`), and the words are `savingsStatus`, the status row's own.
+  words stay in one place. The footer rides the built-in footer row (`prompt.footer.status`, the one
+  slot both the launcher and a session view draw -- registering the launcher's `home.footer.status` as
+  well showed the figure twice; checked live), after the host's health indicators and before its
+  version -- the same "a row of thinker's own does not earn one" rule the status tail follows -- reads
+  the kept ledger every 5 s like the mod (`LEDGER_POLL_MS`, held to the same figure by
+  `test/cli-ui-sync.test.js`), and the words are `savingsStatus`, the status row's own.
   The end-of-turn summary is a toast: v2 gives a server plugin no client (v1's `client.tui.showToast` is
   gone), so the Stop hook writes what it said to `THINKER_HOME/state/notice-last.json`
   (notice-cadence.js:writeNoticeLast) and the terminal part toasts it once (`noticed` dedupes by `at`); a
@@ -596,6 +600,11 @@ longer exceptions to anything.
   canonical prompt, `tool.execute.after` mutates `result.content`, the turn's end is
   `session.execution.succeeded` with the session in `data.sessionID` (v1's `session.idle` and
   `properties` are gone), and `context.storage.memory` is a Solid ProxyObject read as `state.line`.
+  One divergence from the v1 door, same day: v1 serves the block as a `synthetic: true` part the
+  host never renders; v2's admission hook has no synthetic part, so the block rides the prompt text
+  and is visible. `ctx.session.synthetic` from inside the hook answers without error and never
+  reaches the same execution -- the faithful port needs an opencode-side surface that does not exist
+  yet (checked against 2.2.7).
 
 **Exploration subagents on Sonnet, off by default (2026-11-08; `src/explore-agent.js`):**
 - **Off until the owner decides to ship it** (the same day, after #712 landed on by default: "not 100% sure I want to ship

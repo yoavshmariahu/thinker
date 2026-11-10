@@ -544,6 +544,31 @@ plugin on a machine without thinker does nothing.
   pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
+  **The model gateways** (2026-11-10; `src/proxy-chat.js`): the cut also reaches any provider that speaks OpenAI
+  Chat Completions through a gateway. `gateways: { openrouter: true, litellm: 'https://…' }` in the `proxy` block of
+  `THINKER_HOME/config.json` (or `--gateway-openrouter` / `--gateway-litellm url` once) adds a path prefix to the
+  service (`/openrouter`, `/litellm`), as `/codex` is one. Where the openrouter gateway is on, `thinker connect` and
+  `rewire` point OpenCode's `provider.openrouter.options.baseURL` at `<proxy>/openrouter` (OpenCode appends
+  `/chat/completions` itself); a LiteLLM provider is pointed at `<proxy>/litellm` by hand. The request is cut by the
+  shared policy (`decideCut`, the same decision as the Messages and Responses doors), the conversation is named by
+  its own first user message (`chatSession`; a gateway sends no session header), and the cut record lives beside the
+  other doors' (`state/clearing/chat/`). Usage comes from the gateway's own answer: OpenRouter reports cached and
+  cache-write tokens and the account's cost in dollars on every call (kept as data on the row, `cost`); LiteLLM
+  reports tokens and only on a streamed call that asked, so the proxy adds `stream_options.include_usage` once,
+  never over an answer the agent set itself. A new gateway is an entry in that config block, not a new door. What
+  is estimated here, said plainly: the cleared-token figure is the cut's own count of characters (no gateway is
+  told anything, so nothing comes back measured). The rates the decision prices with are **dynamic**
+  (`src/gateway-rates.js`, 2026-11-10): config beats measurement beats defaults. `proxy: { rates:
+  { '<model>': { read, write }, '*': … } }` in the machine config is the person's word; otherwise the fit of the
+  per-token prices across the gateway's own answers -- OpenRouter reports the account's `cost` beside the token
+  split on every call, so the fit is the account's own arithmetic, solved in memory, no network, no model call;
+  otherwise the Anthropic constants the shared policy has always kept. Every clear and every payback refusal
+  carries its `rates` on the row (`source: config|measured`), so a decision is auditable against the prices that
+  made it. A provider that never reports cache-write tokens gets the rewrite priced at full input price (1.0),
+  which is what implicit caching (OpenAI, Google) charges -- named on the rates (`assumed: ['write']`), not
+  Anthropic's 2.0, so those cuts no longer over-refuse. A 400 that names the placeholder stops the editing for the
+  proxy's life; any other
+  400 is passed on once, as it came (the LiteLLM lesson of 2026-10-28).
   **What it saved is shown in the session** (`src/compression.js`, 2026-10-29): the API answers every cleared request with the tokens it left out of that prompt, and the cleared
   set is cumulative within a conversation, so adding those up over a session is the whole of the saving, measured
   rather than modelled -- *the tokens the server left out of each prompt since the clear, added up*. The proxy
@@ -728,17 +753,24 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
 - **OpenCode:** the wiring follows the binary's version (`clients.js:opencodeMajor`). OpenCode 1
   keeps the single generated file `.opencode/plugins/thinker.js` (the documented
   [v1 plugin API](https://opencode.ai/docs/plugins/), config hook for MCP, `session.idle` for the
-  turn's end, `client.tui.showToast` for the notice). OpenCode 2 does not run v1 plugins at all, so
-  `connect`/`rewire` writes a plugin **directory** instead — `.opencode/plugins/thinker/` with
-  `index.ts` (the server part) and `tui.tsx` (the terminal part). The server part registers
-  everything in one `setup(ctx)`: MCP through `ctx.mcp.transform`, the prompt through
-  `ctx.session.hook('prompt')`, tool results through `ctx.tool.hook('execute.after')`, and the
-  turn's end through `ctx.event.subscribe` (`session.execution.succeeded`, where v1 said
-  `session.idle`; the session id rides `data.sessionID`). v2 gives a server plugin no client, so
+  turn's end, `client.tui.showToast` for the notice). What the prompt hook serves (the profile and
+  any notice) is added as a `synthetic: true` text part of the person's message, so the model reads
+  it and the conversation window shows nothing: OpenCode renders no synthetic text part (its TUI,
+  share view and desktop all filter them per part, and its own plan-mode reminders ride the same
+  shape). OpenCode 2 does not run v1 plugins at all, so `connect`/`rewire` writes a plugin
+  **directory** instead — `.opencode/plugins/thinker/` with `index.ts` (the server part) and
+  `tui.tsx` (the terminal part). The server part registers everything in one `setup(ctx)`: MCP
+  through `ctx.mcp.transform`, the prompt through `ctx.session.hook('prompt')`, tool results
+  through `ctx.tool.hook('execute.after')`, and the turn's end through `ctx.event.subscribe`
+  (`session.execution.succeeded`, where v1 said `session.idle`; the session id rides
+  `data.sessionID`). v2's admission hook has no synthetic part — its edit becomes the canonical
+  persisted prompt — so the served block rides the prompt text and is visible, where v1's is not;
+  the one alternative, `ctx.session.synthetic` from inside the hook, answers without error and
+  never reaches the same execution (checked against 2.2.7). v2 gives a server plugin no client, so
   the end-of-turn summary is delivered by the Stop hook writing
   `THINKER_HOME/state/notice-last.json` (notice-cadence.js:writeNoticeLast) and the terminal part
   toasting it (opencode-tui.js). The terminal part also draws the savings footer on the built-in
-  footer row (`home.footer.status`, before the host's version), polling the kept ledger
+  footer row (`prompt.footer.status`, before the host's version), polling the kept ledger
   (`THINKER_HOME/state/savings.json`) every 5 s as the Claude Code mod does — the words are
   `savings-ledger.js:savingsStatus`, the status row's own. A headless `opencode run` has no
   terminal part and the summary is dropped there, as it was in v1. Checked against a real
