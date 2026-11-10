@@ -560,6 +560,7 @@
 .lp-trio-title{text-align:center;font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin:0 auto 2rem;max-width:900px}
 .lp-trio{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:3rem;align-items:center}
 .lp-trio p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;margin:0}
+.lp-side p.lp-intro+p.lp-intro,.lp-trio p.lp-intro+p.lp-intro{margin-top:1rem}
 .lp-trio-figure{margin:0 auto;max-width:440px;width:100%}
 .lp-trio-figure img{display:block;width:100%;height:auto}
 @media (max-width:900px){.lp-trio{grid-template-columns:1fr;gap:1.5rem}.lp-trio-title{font-size:1.9rem}.lp-trio-figure{order:-1}}
