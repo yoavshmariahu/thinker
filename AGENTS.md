@@ -1519,6 +1519,13 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
 | Pi, Windsurf, Copilot CLI, OpenCode, Factory Droid, Qwen Code, Kiro CLI, Cline, Kilo Code, Auggie, Goose | see `docs/agent-integrations.md` | | agent's own files |
 
 - `--late` and `--no-late` are accepted for compatibility: the edited-file notes they governed went with the knowledge notes.
+- **Claude Code gets no `PostToolUse` hook** (2026-11-10, the owner's call). It ran `hook tool` after every Read, Bash,
+  Grep, Edit and Write and answered nothing: Claude Code keeps its own transcript, so the hook recorded no trace, and
+  the edited-file notes, the instruction sections and the diet it could have served are gone or off. One node process
+  per tool call for no output. `installClient` writes none, `inferWiring` reads `late: false` for the client whatever
+  the file holds (so an old entry is never carried to another agent as a chosen option), and the event stays in the
+  list `setHooks` clears, so `thinker rewire` takes the entry an older copy wrote out of `~/.claude/settings.json`.
+  The other agents keep theirs: they have no transcript, and the hook is how their tool calls reach the profile.
 - Plugins under `plugins/` run `thinker hook … --plugin` and yield to host hooks (`clients.js:pluginYields`).
 - Pi: `npm/pi/thinker.js`.
 - One copy per checkout (`clients.js:pruneInstalls`). `setup` removes other copies' hooks and repoints MCP. Claude Code `--local` empties the shared settings file.

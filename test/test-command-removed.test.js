@@ -61,6 +61,7 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     c = JSON.parse(fs.readFileSync(f, 'utf8'));
     assert.deepEqual(c.hooks[event], [group(other)], client);
     assert.ok(c.hooks[client === 'cursor' ? 'beforeSubmitPrompt' : 'UserPromptSubmit'], 'note injection remains wired');
-    assert.ok(c.hooks[client === 'cursor' ? 'postToolUse' : 'PostToolUse'], 'context hooks remain wired');
+    if (client === 'claude') assert.equal(c.hooks.PostToolUse, undefined, 'Claude Code gets no tool hook');
+    else assert.ok(c.hooks[client === 'cursor' ? 'postToolUse' : 'PostToolUse'], 'context hooks remain wired');
   }
 });
