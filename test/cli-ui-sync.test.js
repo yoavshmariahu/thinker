@@ -133,7 +133,6 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   assert.match(page, /bold: s\.kind === 'tool'/);
   assert.match(page, /title: `Apply \$\{items\.length === 1 \? 'this change' : `these \$\{items\.length\} changes`\}\?`/);
   assert.match(page, /'builtin:off': \['still usable', "The tool can still be used:/);
-  assert.match(page, /what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used\.'/);
   assert.match(read('part-explain.js'), /builtin: 'moving its full definition out of the prompt[^']*The agent can still use the tool/); assert.match(read('part-explain.js'), /p\.kind === 'tool' && p\.builtin \? ACTION_WORD\.builtin/);
   assert.doesNotMatch(page, /switched off across all repositories|cannot call it at all|loses the ability/);
   assert.match(page, /'builtin:off': \['still usable', "[^"]*in new sessions across all repositories\."\]/, 'one sentence, and it says the tool can still be used');
@@ -148,24 +147,31 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   // and what each part is, in one line, from the same place Recent activity takes it (part-describe.js)
   assert.match(read('ui/server.js'), /describePart\(\{ kind: 'section'/);
   assert.match(page, /class="ctx-about"/);
-  // the cards are the page's default and `thinker explain` is the command behind them: one writer of the words
-  // (part-explain.js), one place they are kept, and the page's button runs that command and nothing else
-  assert.match(page, /let CMODE = [\s\S]{0,120}'table' \? 'table' : 'cards'/);
-  assert.match(page, /function cardOf\(/);
+  // Find Savings is one table, a part a row (2026-11-09, the owner's ask): title, type, per call, used, wasted, action.
+  // No view tabs, no Potential savings card, no cards view, no checking rows and no Apply over the table: the action is a
+  // dropdown and an Apply in the row, and the > beside the title opens the one-line description and the part's text.
+  assert.doesNotMatch(page, /CMODE|cardOf\(|data-apply-picked|data-pick=|class="vtabs" id="c-view"|savingsCard|flaggedSavings|id="c-mode"/);
+  assert.match(page, /\['Part', ''\], \['Type', ''\]/); for (const h of ['Per call', 'Used', 'Wasted', 'Action']) assert.match(page, new RegExp(`\\['${h}', `), h);
+  assert.match(page, /<button class="ctx-x" data-more="\$\{i\}" data-dk="\$\{dk\}" aria-expanded="false"/);
+  assert.match(page, /<select class="sel" data-act="\$\{i\}" data-dk="\$\{dk\}" aria-label="Action">/); assert.match(page, /<button class="btn" data-go="\$\{i\}"/);
+  assert.match(page, /applyRows\(\[\{ r: sorted\[i\], act: root\.querySelector/);
+  assert.doesNotMatch(page, /class="lede">Your agent re-reads/);
+  // the words on what a part is are `thinker explain`'s (part-explain.js), one writer and one place they are kept; the
+  // page asks for them when a row is opened (never for the hundreds nobody opens) and patches them into the open row
   assert.match(read('ui/server.js'), /url\.pathname === '\/api\/explain'/);
   assert.match(read('ui/server.js'), /'--keys', keys\.join\(','\), \.\.\.\(want === 'all' \? \['--all'\] : \[\]\)\]/);
-  // the page names the parts it is showing and the page after them; nothing is written for the rest, and nothing asks
-  assert.match(page, /rows\.slice\(from, from \+ TABLE_PAGE \* 2\)/);
-  assert.match(page, /function explainAhead\(\)/);
-  // and the words arrive on their own, by key, patched into the cards where they stand: the page must never poll the
+  assert.match(page, /function explainRow\(r\)/);
+  assert.match(page, /if \(open\) explainRow\(sorted\[Number\(b\.dataset\.more\)\]\)/);
+  assert.match(page, /\{ keys: \[r\.explainKey\] \}/);
+  // and the words arrive on their own, by key, patched into the rows where they stand: the page must never poll the
   // whole report for them (1.3 MB and five tables redrawn every four seconds, to 2026-10-29)
   assert.match(read('ui/server.js'), /if \(keys\.length\) return json\(res, 200, \{ explains:/);
   assert.match(page, /\/api\/explain\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}&keys=/);
   assert.match(page, /function putExplains\(got\)/);
-  assert.match(page, /class="pcard-ex" data-ek=/);
+  assert.match(page, /class="ctx-ex" data-ek=/);
   assert.doesNotMatch(page, /EXPLAIN_TIMER = setTimeout\([\s\S]{0,400}api\(`\/api\/context\?repo=\$\{encodeURIComponent\(CREPO\)\}&days=\$\{cdays\}`\)/);
   assert.doesNotMatch(page, /pc-offer|explainOffer|No explanation has been written/);
-  // and the paragraph over each table went with it: the card says what a part is, the grey line says what an action does
+  // and the paragraph over each table went with it: the opened row says what a part is, the Apply's hover what an action does
   assert.doesNotMatch(page, /ctx-apply|note: `/);
   assert.match(read('ui/server.js'), /attachExplains\(describeParts\(shown\), have\)/);
   // the ranked changes and the timeline are the kept report's, for the command and the weekly suggestion: the page
@@ -188,9 +194,6 @@ test('CLI and page expose the shared Claude Code, Codex and Cursor harness repor
   // a card someone asked for in a desktop app is answered by the session's own model, so the queued job must survive
   // the next update: rewire dropped it before (retire-background.js), which left that door dead
   assert.match(read('retire-background.js'), /KEPT_JOBS = new Set\(\['distill', 'learn', 'maintain', 'explain'\]\)/);
-  // every view opens with its Potential savings card
-  assert.match(page, /const savingsCard = /);
-  for (const k of ['all', 'instructions', 'custom', 'builtin']) assert.match(page, new RegExp(`savings: sav\\.${k}`), k);
   assert.match(read('ui/page.html'), /cursor: 'Cursor'/);
   assert.match(read('commands/context.js'), /switchSources\(store, \{ keys: list\(flags\['switch-on'\]\), on: true \}\)/);
   // the installer's picker (setup/context-ask.js, `thinker context --machine --ask`) applies its picks through the same
@@ -218,13 +221,13 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   const machine = read('context-machine.js'), install = fs.readFileSync(path.join(SRC, '..', 'install.sh'), 'utf8');
   assert.match(install, /"\$thinker" context --machine/);
   assert.match(read('setup/context-ask.js'), /'ui', '--from-setup', '--tab', 'save', \.\.\.\(all \? \[\] : \['--here'\]\)/);
-  // and that page opens with the terminal picker's suggestions checked: the same rows and actions, from one function
+  // and that page opens with the terminal picker's suggestions first, each on its action: the same rows and actions, from one function
   // (context-machine.js:suggestedPicks, sent with the report as `suggested`; page.html:preselectRows on from=setup)
   assert.match(machine, /export function suggestedPicks\(view/); assert.match(machine, /const act = suggestedAct\(x\), key = suggestedKey\(x\)/);
   assert.match(read('ui/server.js'), /suggested: suggestedPicks\(view\)/);
   assert.match(read('ui/page.html'), /const FROM_SETUP = FROM === 'setup'/);
   assert.match(read('ui/page.html'), /preselectRows\(all, \(FROM === 'suggestion' && v\.offered\?\.length \? v\.offered : v\.suggested\) \|\| \[\]\)/);
-  assert.match(read('setup/context-ask.js'), /suggested savings already checked/);
+  assert.match(read('setup/context-ask.js'), /suggested savings first, each on its suggested action/);
   // and the terminal picker comes checked as that page does, so both answers to the installer's question start from
   // the same suggestions (2026-10-29)
   assert.match(read('setup/context-ask.js'), /value: p, picked: true/);
@@ -494,14 +497,14 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.doesNotMatch(read('ui/page.html'), /SHADE_MIN|rep-up|rep-down/); assert.doesNotMatch(read('report.js'), /TREND_MIN|TREND_BIG|▲/);
   // the decisions table is one function on both pages, the Report's over its window alone
   assert.match(read('ui/page.html'), /historyFigure\(hs, \{ many, caption: 'Decisions'/);
-  // One ordering, most wasted first (the owner's call, 2026-10-29), so the Sort control went: the page writes the
-  // explanations for the cards in view and the page after them, which is only a promise while the order holds still.
-  assert.doesNotMatch(read('ui/page.html'), /id="c-sort"|CSORTS/);
-  assert.match(read('ui/page.html'), /const VSORT = \{ all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted' \}/);
+  // One ordering, most wasted first (the owner's call, 2026-10-29), so the Sort control went; a door's suggested rows
+  // lead it (2026-11-05)
+  assert.doesNotMatch(read('ui/page.html'), /id="c-sort"|CSORTS|VSORT/);
+  assert.match(read('ui/page.html'), /const cmpRows = \(a, b\) => windowWaste\(b\) - windowWaste\(a\) \|\| windowCost\(b\) - windowCost\(a\);/);
   assert.doesNotMatch(read('ui/page.html'), /data-vsort/);
-  // every table on the page shows 20 rows a page
-  assert.match(read('ui/page.html'), /const TABLE_PAGE = 20, VPAGE = \{\};/);
-  assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ TABLE_PAGE\)/);
+  // the Find Savings table shows 50 rows a page, the decisions tables 20
+  assert.match(read('ui/page.html'), /const ROWS_PAGE = 50, TABLE_PAGE = 20;/);
+  assert.match(read('ui/page.html'), /rows\.slice\(from, from \+ ROWS_PAGE\)/);
   // the decisions are not on the Report (2026-10-24, the owner's call): Recent activity and `thinker context --history` show
   // every decision with before, after and saved a prompt, attributed to the thing it changed alone (report.js:actionEffect
   // over the kept report, report-snapshot.js:historyEffects), under a cell over Saved with what a prompt costs on average
@@ -538,7 +541,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+/, 'the token types last, no decisions on the Report');
   // every page is rebuilt in place once on screen (2026-10-25): the three renders go through swapBody, which keeps the scroll and
   // the open rows, and a load of what is already shown does not wipe the body to the spinner
-  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, h\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
+  assert.match(read('ui/page.html'), /function swapBody\(el, html\)/); assert.match(read('ui/page.html'), /swapBody\(el, renderRows\(all, \{ caption \}\)\);/); assert.match(read('ui/page.html'), /swapBody\(el, card \+ pullCard \+ historyFigure\(/);
   assert.match(read('ui/page.html'), /inPlace = Boolean\(CTX\) && CTX_FOR === `\$\{CREPO\}\|\$\{cdays\}`/); assert.match(read('ui/page.html'), /inPlace = prs \? Boolean\(APR\) && APR_FOR === AREPO : Boolean\(ACT\) && ACT_FOR === AREPO/); assert.match(read('ui/page.html'), /inPlace = Boolean\(RPT\) && RPT_FOR === REPO/);
   assert.doesNotMatch(read('ui/page.html'), /Total of these/); assert.doesNotMatch(read('report.js'), /'Total of these'/);
   assert.equal((read('report.js').match(/line\('Total \(the whole session\)', v\.sessionTotals, true(, null, \{ key: 'total', thresholds: true \})?\)/g) || []).length, 3);

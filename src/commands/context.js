@@ -107,7 +107,7 @@ async function contextCommand({ store, flags, out }) {
     return;
   }
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
-  // --cards: the page's own cards in the terminal (part-explain.js). The page shows these words under every row and
+  // --cards: the parts as cards in the terminal (part-explain.js). The page shows these words when a row is opened and
   // the table here showed none of them, so the two doors answered differently about the same part. One source for
   // both: `viewParts` is the page's list in the page's order (most wasted first), and the explanations are the ones
   // kept for the machine -- this prints what is there and names the command for what is not, never spending itself.
@@ -137,7 +137,7 @@ async function contextCommand({ store, flags, out }) {
     });
     if (missing) out(`${missing} of these ${missing === 1 ? 'has' : 'have'} no explanation yet: \`thinker explain\` writes them, six parts to a model call, kept for this machine (in a desktop app it is queued for the session's own model).`);
     else out('Every part here is explained.');
-    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same cards on the page.');
+    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same table on the page, these words under an opened row.');
     return;
   }
   const iv = v.instructions, t = v.totals;
@@ -181,7 +181,7 @@ async function contextCommand({ store, flags, out }) {
     for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`  ${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(formatTokens(s.wastedWindow || 0), 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
-  out('`thinker context --cards` says what each part is and why you would change it, as the page does.');
+  out('`thinker context --cards` says what each part is and why you would change it, as the page does under an opened row.');
   out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
 }
 

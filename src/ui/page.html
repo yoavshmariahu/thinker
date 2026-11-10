@@ -241,32 +241,12 @@
     .savings-table thead th { position: static; }
     .savings-note { color: #777; font-size: .75rem; line-height: 1.6; margin: .85rem 0 0; }
     .metrics-toggle { margin-top: 1.2rem; }
-    .ctx-figure { margin: 1rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
+    .ctx-figure { margin: 0.4rem 0 0; padding: 1rem 1.1rem 0.9rem; border: 1px solid #e5e7eb; border-radius: 12px; background: #fcfcfb; }
     @media (max-width: 1040px) { .ctx-figure { overflow-x: auto; } }
     /* The cards: what a part is and why you would change it, in words, with the figures under them. The table is the
        same rows for someone who already knows what everything is and wants to scan; the cards are the default,
        because a number cannot tell you what Artifact is (the owner's ask, 2026-10-29). */
-    .pcards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; }
-    @media (max-width: 1100px) { .pcards { grid-template-columns: 1fr; } }
-    .pcard { border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; padding: 0.95rem 1.05rem 0.8rem; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
-    .pcard.ctx-picked { border-color: #93c5fd; background: #f8fbff; box-shadow: 0 0 0 1px #bfdbfe inset; }
-    .pcard.ctx-off { background: #fafafa; color: #6b7280; }
-    .pcard-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
-    .pcard-top label { display: flex; align-items: baseline; gap: 0.45rem; font-size: 1.02rem; font-weight: 600; letter-spacing: -0.02em; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
-    .pcard .ctx-kind { margin-top: -0.35rem; }
-    .pcard-ex { display: flex; flex-direction: column; gap: 0.6rem; }
-    .pcard-line { font-size: 0.88rem; line-height: 1.5; color: #1f2937; }
-    .pcard-none { font-size: 0.86rem; line-height: 1.5; color: #6b7280; background: #fafafa; border: 1px dashed #e5e7eb; border-radius: 8px; padding: 0.55rem 0.7rem; }
-    .pcard-nums { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; border-top: 1px solid #f0f0f0; padding-top: 0.6rem; margin-top: auto; }
-    .pcard-nums div { display: flex; align-items: baseline; gap: 0.3rem; font-size: 0.78rem; color: #6b7280; }
-    .pcard-nums b { font-size: 0.98rem; color: #111; font-variant-numeric: tabular-nums; font-weight: 700; }
-    .pcard-foot { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-    .pcard-foot .ctx-effect { margin: 0; text-align: left; flex: 1 1 auto; }
-    .pcard .ctx-detail { display: block; }
-    .pcard .ctx-detail .md-body { font-size: 0.82rem; max-height: 16rem; overflow: auto; }
     .ctx-figure figcaption { font-size: 0.88rem; color: #111; margin-bottom: 0.6rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.6rem; }
-    .ctx-capact { margin-left: auto; display: flex; align-items: center; gap: 0.7rem; }
-    .ctx-capact .btn { padding: 0.3rem 0.8rem; font-size: 0.78rem; }
     .ctx-sub { font-size: 0.78rem; color: #6b7280; font-weight: 400; }
     .ctx-note { font-size: 0.8rem; color: #6b7280; line-height: 1.5; margin: 0.6rem 0 0; }
     /* the ? beside a column header: a popover on hover or keyboard focus */
@@ -278,22 +258,16 @@
     .help-pop li { margin: 0.25rem 0; }
     .help:hover .help-pop, .help:focus-within .help-pop { display: block; }
     /* the Potential savings card at the top of every view */
-    .savings { display: flex; flex-direction: column; gap: 0.25rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
-    .savings.ok { background: #f0fdf4; border-color: #bbf7d0; }
-    .savings .why { line-height: 1.5; }
     .ctx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin: 0; }
-    .cview .ctx-table thead th { position: sticky; top: calc(var(--nav-h, 0px) + var(--vtabs-h, 0px)); background: #fcfcfb; z-index: 8; }
+    #context-body .ctx-table thead th { position: sticky; top: var(--nav-h, 0px); background: #fcfcfb; z-index: 8; }
     .ctx-table th { text-align: left; font-weight: 600; color: #6b7280; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.35rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
     .ctx-table td { padding: 0.42rem 0.5rem; border-bottom: 1px solid #f1f5f9; color: #111; white-space: nowrap; vertical-align: middle; }
     .ctx-table td.ctx-name { white-space: normal; min-width: 16rem; }
-    .ctx-table td.ctx-name label { cursor: pointer; }
     .ctx-table .num, .ctx-table th.num { text-align: center; font-variant-numeric: tabular-nums; }
     /* no tint by waste level: the thresholds (5% and 2% of what the kind cost) flag nearly every row, so colouring
        them taught nothing the sort order had not already said. A row's weight is the Share column's bar. */
     .ctx-table tbody td { transition: background-color 0.15s ease; }
-    .ctx-table tr.ctx-picked td { background: #eff6ff; }
     .ctx-table tr.ctx-off td { color: #6b7280; }
-    .ctx-table input[type=checkbox] { margin: 0 0.3rem 0 0; vertical-align: -1px; accent-color: #111; }
     /* the Report tables: a trending cell is coloured against the first week, a provider's subtotal is bold with its models indented */
     /* the week's count line wraps (th.num is nowrap): the Cost view adds ", n priced" to it, and unwrapped it pushed the table past the figure (2026-10-25) */
     .rep-table th small { display: block; font-weight: 400; text-transform: none; letter-spacing: 0; color: #9ca3af; white-space: normal; }
@@ -320,14 +294,16 @@
     .rep-pager .btn { padding: 0.26rem 0.65rem; font-size: 0.76rem; }
     .tr-num { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .tr-num .muted { font-size: 0.8rem; font-weight: 400; }
-    .ctx-bar { display: inline-block; width: 3.6rem; height: 6px; border-radius: 3px; background: #e9eaec; vertical-align: middle; overflow: hidden; }
-    .ctx-bar span { display: block; height: 100%; background: #ef4444; border-radius: 3px; }
-    .ctx-bar.sm span { background: #f3a8a8; }
-    .ctx-barn { font-size: 0.72rem; color: #4b5563; margin-left: 0.4rem; font-variant-numeric: tabular-nums; }
+    /* Find Savings rows (2026-11-09, the owner's ask: row by row, tight): the › opens the part's description and text */
+    .ctx-x { background: none; border: 0; padding: 0 0.4rem 0 0; margin: 0; font: inherit; font-size: 1.05rem; line-height: 1; color: #9ca3af; cursor: pointer; display: inline-block; transition: transform 0.15s ease; vertical-align: -1px; }
+    .ctx-x:hover { color: #111; }
+    .ctx-x.open { transform: rotate(90deg); }
+    .ctx-rows td { padding: 0.28rem 0.5rem; }
+    .ctx-rows td.ctx-name { min-width: 14rem; }
+    .ctx-rows td.ctx-type { white-space: normal; color: #4b5563; font-size: 0.78rem; max-width: 20rem; }
+    .ctx-rows th.ctx-acthead { text-align: right; }
+    .ctx-exline { margin: 0 0 0.5rem; font-size: 0.84rem; line-height: 1.5; color: #1f2937; }
     .ctx-unit { font-size: 0.68rem; color: #9ca3af; margin-left: 0.1rem; }
-    .ctx-about { display: block; font-size: 0.78rem; color: #4b5563; margin-top: 0.15rem; max-width: 36rem; white-space: normal; line-height: 1.35; }
-    .ctx-effect { font-size: 0.68rem; color: #9ca3af; text-align: right; margin-top: 0.15rem; white-space: nowrap; }
-    .savings-plain { font-size: 0.86rem; color: #111; margin-top: 0.3rem; line-height: 1.5; }
     .rev-list { margin: 0; padding: 0; list-style: none; }
     .rev-list li { padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; font-size: 0.86rem; line-height: 1.5; }
     .rev-list li:last-child { border-bottom: 0; }
@@ -476,12 +452,10 @@
   <main>
     <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
     <section id="tab-save" hidden>
-      <div class="ctx-top"><div><h1>Find Savings</h1>
-      <p class="lede">Your agent re-reads its instructions, its tool definitions and its earlier results on <b>every single call</b> it makes — so anything it rarely uses is paid for every time. Here is what it carries, and what you can drop. <span class="muted" id="c-asof"></span></p></div>
+      <div class="ctx-top"><div><h1>Find Savings</h1><span class="muted" id="c-asof"></span></div>
       <div class="controls">
         <select class="sel" id="c-repo" aria-label="Repository"></select>
         <div class="seg" id="c-days-seg"><button data-days="7">7 days</button><button data-days="30" class="on">30 days</button></div>
-        <span class="seg small" id="c-mode" hidden><button data-mode="cards">Cards</button><button data-mode="table">Table</button></span>
       </div></div>
       <div id="context-body" class="section"><div class="empty"><svg class="logo-spin" viewBox="0 0 32 32" aria-hidden="true"><circle cx="10" cy="22" r="6"/><circle cx="16" cy="16" r="6"/><circle cx="22" cy="10" r="6"/></svg>Reading the transcripts…</div></div>
     </section>
@@ -661,7 +635,7 @@ function show(tab) {
   // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22, and Save's History view is
   // the Recent activity page (`activity`) since 2026-10-24; an old link (context, changes, cache, view=history) and any tab the page
   // does not know open the view that replaced it
-  if (tab === 'changes') { tab = 'save'; CVIEW = 'all'; }
+  if (tab === 'changes') tab = 'save';
   if (tab === 'cache') tab = 'report';
   if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
   if (!['report', 'factory', 'activity'].includes(tab)) tab = 'save';
@@ -757,10 +731,10 @@ async function loadContext() {
     api(`/api/activity?repo=${encodeURIComponent(CREPO)}&progressive=1&measure=0`).then(d => { if (current()) CHIST = d; }).catch(() => {});
     await progressiveView(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, v => {
       CTX_FOR = want; CDREW = Date.now(); renderContext(v); contextAsOf({ ...v, refreshing: false });
-    }, current, () => CTX_FOR === want && Object.values(PICKS).some(m => m.size));
+    }, current);
   } catch (e) { if (seq === CLOAD && TAB === 'save') scanProgress({ progress: { error: e.message } }); if (inPlace && seq === CLOAD) { toast(`Could not read the context: ${e.message}`, true); contextAsOf({ ...CTX, refreshing: false }); } else if (seq === CLOAD) el.innerHTML = `<div class="empty">Could not read the context: ${esc(e.message)}</div>`; }
 }
-// A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with See more (by the
+// A table rebuilt while the person reads it keeps their place: the scroll position, the rows opened with › (by the
 // row's key, not its index, since the rows may have moved), and the body's height until the new content has laid out, so
 // the page neither jumps nor flashes. Every render of the three pages goes through it.
 function swapBody(el, html) {
@@ -769,9 +743,9 @@ function swapBody(el, html) {
   el.style.minHeight = `${el.offsetHeight}px`;
   el.innerHTML = html;
   for (const k of open) {
-    const d = el.querySelector(`.ctx-detail[data-dk="${CSS.escape(k)}"]`), b = el.querySelector(`.ctx-more[data-dk="${CSS.escape(k)}"]`);
+    const d = el.querySelector(`.ctx-detail[data-dk="${CSS.escape(k)}"]`), b = el.querySelector(`.ctx-x[data-dk="${CSS.escape(k)}"]`);
     if (d) d.hidden = false;
-    if (b) { b.setAttribute('aria-expanded', 'true'); b.textContent = 'See less'; }
+    if (b) { b.setAttribute('aria-expanded', 'true'); b.classList.add('open'); }
   }
   // the action picked in a row's dropdown holds too
   for (const [k, v] of acts) { const x = el.querySelector(`select[data-act][data-dk="${CSS.escape(k)}"]`); if (x && [...x.options].some(o => o.value === v)) x.value = v; }
@@ -779,7 +753,7 @@ function swapBody(el, html) {
   requestAnimationFrame(() => requestAnimationFrame(() => { el.style.minHeight = ''; }));
 }
 // The report is kept and made again in the background (context-snapshot.js): the page says when it was measured
-// and, while a newer one is being made, checks back and shows it, unless the person has picked rows to act on.
+// and, while a newer one is being made, checks back and shows it (a row's dropdown and its open › hold across the redraw).
 // All repositories reads the oldest of the fourteen kept reports, so every single repository whose refresh lands moves
 // `asOf` on: redrawing at each one read the whole report and drew all five tables again, once per repository, while
 // the person was trying to read it (2026-10-29). So a newer set is taken when the refreshes have finished, and while
@@ -799,19 +773,17 @@ function contextAsOf(v) {
     // `asOf` has moved, so waiting for a refresh costs a few hundred bytes a poll instead of the whole report
     let n; try { n = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}&stamp=1`); } catch { return; }
     if (CREPO !== want[0] || cdays !== want[1]) return;
-    const picked = Object.values(PICKS).some(m => m.size);
-    if (n.asOf > v.asOf && !picked && (!n.refreshing || Date.now() - CDREW > COALESCE_MS)) {
+    if (n.asOf > v.asOf && (!n.refreshing || Date.now() - CDREW > COALESCE_MS)) {
       let full; try { full = await api(`/api/context?repo=${encodeURIComponent(CREPO)}&days=${cdays}`); } catch { return; }
       if (CREPO !== want[0] || cdays !== want[1]) return;
       CDREW = Date.now(); renderContext(full); contextAsOf(full);
     }
-    else if (n.asOf > v.asOf && !picked) contextAsOf({ ...v, refreshing: n.refreshing, tries });
-    else if (n.asOf > v.asOf) { if (el) el.textContent = `newer figures ready, shown on reload`; }
+    else if (n.asOf > v.asOf) contextAsOf({ ...v, refreshing: n.refreshing, tries });
     else contextAsOf({ ...v, refreshing: n.refreshing, tries });
   }, 5000);
 }
-// an old link to Top suggested (view=suggested) opens All, which lists every part; view=history opens Recent activity (show)
-let CVIEW = ['all', 'instructions', 'custom', 'builtin'].includes(H().get('view')) ? H().get('view') : 'all', CTX = null;
+// an old link naming a view (view=all|instructions|custom|builtin|suggested) opens the one table; view=history opens Recent activity (show)
+let CTX = null;
 // the decisions (/api/activity), read with the report: the pull request pending on a section, or the job under way or failed on it
 // `null` until the first report is in: the activity poll draws Save again when a decision has moved, and an empty
 // starting history differed from every real one, so the very first poll always re-read the whole report a second
@@ -849,44 +821,31 @@ const skillShort = text => {
   const body = fm ? String(text).slice(fm[0].length) : String(text);
   return { desc: desc ? desc.replace(/\s+/g, ' ').trim() : '', body: body.trim() };
 };
-// what is picked in each view (its key → the row), kept across renders; each view's sort
-const PICKS = { all: new Map(), instructions: new Map(), custom: new Map(), builtin: new Map() };
-// the action pre-picked in a row's dropdown (view\tkey → act), and whether All's picks are still the installer's
-const PREACT = new Map(); let PRESUGGESTED = false;
-// The page the installer opens (from=setup) comes with the suggested savings checked on All, each row's dropdown on
-// the suggested action: the rows the installer's terminal picker lists (context-machine.js:suggestedPicks, sent as
-// `suggested` with the report), so both doors offer the same picks. Nothing is applied until the person presses Apply;
-// a changed check is theirs from then on.
+// the action picked in a row's dropdown (key → act), kept across renders
+const PREACT = new Map();
+// The page the installer opens (from=setup) puts the suggested savings first, each row's dropdown on the suggested
+// action: the rows the installer's terminal picker lists (context-machine.js:suggestedPicks, sent as `suggested` with
+// the report), so both doors offer the same picks. Nothing is applied until the person clicks Apply on a row.
 //
-// From the weekly question's link (from=suggestion) the checked rows are the lines that question numbered
+// From the weekly question's link (from=suggestion) the rows put first are the lines that question numbered
 // (context-suggest.js:offeredPicks, sent as `offered`), not these: this page's own ranking is recomputed on arrival,
-// so it would check rows the person was never asked about. A link older than the answer window brings no list, and
+// so it would lead with rows the person was never asked about. A link older than the answer window brings no list, and
 // the suggestions stand in for it.
 function preselectRows(rows, suggested) {
   for (const s of suggested) {
     const r = rows.find(r => r.key === s.key && (!s.repo || !r.repo || r.repo === s.repo) && r.options.some(([a]) => a === s.act));
-    if (r) { PICKS.all.set(pickKey(r), r); PREACT.set(`all\t${pickKey(r)}`, s.act); PRETOP.add(pickKey(r)); }
+    if (r) { PREACT.set(pickKey(r), s.act); PRETOP.add(pickKey(r)); }
   }
-  PRESUGGESTED = PICKS.all.size > 0;
 }
-// One ordering on Find Savings, most wasted first (the owner's call, 2026-10-29): the page writes the explanations
-// for the cards on screen and the page after them, which is only a promise someone can rely on while the order
-// cannot change under them. The Sort control went with it.
-const VSORT = { all: 'wasted', instructions: 'wasted', custom: 'wasted', builtin: 'wasted' };
-// Except that the rows the door checked come first on All (the owner's ask, 2026-11-05). All is paged TABLE_PAGE rows
-// at a time and ranked by waste, which the question's lines are not: a line it numbered could sit on a page nobody
-// had opened, so the line above the Apply said "2 suggested savings checked for you" over rows that were not on
-// screen, and the person had to find what they had already been asked about. Frozen when the door's list is resolved
-// (preselectRows) rather than read from the picks, so unchecking a row leaves it where it is and nothing moves under
-// the hand that unchecked it; among themselves and below them the order is the ordinary one.
+// One ordering, most wasted first (what it cost in the calls of the sessions that did not use it; the owner's call,
+// 2026-10-29), then most costly. Except that the rows a door suggested come first (the owner's ask, 2026-11-05): the
+// table is paged and ranked by waste, which the question's lines are not, so a line it numbered could sit on a page
+// nobody had opened. Frozen when the door's list is resolved (preselectRows), so nothing moves under the hand; among
+// themselves and below them the order is the ordinary one.
 const PRETOP = new Set();
-// one ordering for every table, by the figures the table shows over the window: most wasted (what it cost in the
-// calls of the sessions that did not use it, what the summary ranks by), most costly (the Over N days column), most
-// used (the share), by name;
-// a section also in the file's order
 const windowCost = r => r.window || 0, windowWaste = r => r.wasted == null ? -1 : (r.wastedWindow || 0);
-const sortRows = (rows, by, view) => { const cmp = cmpRows(by); return [...rows].sort(view === 'all' && PRETOP.size ? (a, b) => (PRETOP.has(pickKey(b)) ? 1 : 0) - (PRETOP.has(pickKey(a)) ? 1 : 0) || cmp(a, b) : cmp); };
-const cmpRows = by => by === 'name' ? (a, b) => a.name.localeCompare(b.name) : by === 'file' ? (a, b) => a.order - b.order : by === 'used' ? (a, b) => (b.acted ?? -1) - (a.acted ?? -1) || windowCost(b) - windowCost(a) : by === 'calls' ? (a, b) => (b.calls || 0) - (a.calls || 0) : by === 'cost' ? (a, b) => windowCost(b) - windowCost(a) : (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
+const cmpRows = (a, b) => windowWaste(b) - windowWaste(a) || windowCost(b) - windowCost(a);
+const sortRows = rows => [...rows].sort(PRETOP.size ? (a, b) => (PRETOP.has(pickKey(b)) ? 1 : 0) - (PRETOP.has(pickKey(a)) ? 1 : 0) || cmpRows(a, b) : cmpRows);
 // a button says what it is doing while it works: compressing a section is a model call of several seconds
 const busy = (btn, text) => { btn.disabled = true; btn.dataset.label = btn.textContent; btn.innerHTML = `<span class="spinner"></span>${text}`; };
 const idle = btn => { btn.disabled = false; btn.textContent = btn.dataset.label || btn.textContent; };
@@ -909,11 +868,11 @@ const ACT_EFFECT = {
 };
 const effectKey = (r, act) => `${r.kind === 'tool' && r.view === 'builtin' && act === 'off' ? 'builtin' : r.kind}:${act}`;
 const effectOf = (r, act) => ACT_EFFECT[effectKey(r, act)] || ['', ''];
-// the action a row is on: what the installer pre-picked, else the first it offers
-const actNow = (view, r) => PREACT.get(`${view}\t${pickKey(r)}`) || (r.options[0] || [])[0];
+// the action a row is on: what the door pre-picked or the person last picked, else the first it offers
+const actNow = r => PREACT.get(pickKey(r)) || (r.options[0] || [])[0];
 const dayOf = t => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-// One row per part of the context, in one shape for every table (and all of them on All): what it is, what it costs a
-// call and over the window, the share of sessions that used it, its waste, the detail See more opens, and its actions.
+// One row per part of the context, in one shape: what it is, what it costs a call and over the window, the share of
+// calls that used it, its waste, the text the › opens, and its actions.
 function contextRows(v) {
   const iv = v.instructions || {}, rows = [], repoOf = s => s.repo || (v.all ? null : CREPO);
   (iv.sections || []).forEach((s, i) => rows.push({
@@ -933,7 +892,7 @@ function contextRows(v) {
   // again: the failure is Recent activity's to say (2026-10-25, the owner's ask; until then the pill read "compression failed"). A merged
   // pull request this checkout has not pulled (`unpulled`): the section is still in the file here, but it is decided, so
   // its row is not shown at all (the owner's call, 2026-10-25); Recent activity says to pull and tints the decision until
-  // the checkout has the merge. A row with a decision on it (`decided`) is not counted as a saving still to make (flaggedSavings).
+  // the checkout has the merge. A row with a decision on it (`decided`) keeps its figures and loses its action.
   for (const r of rows) {
     const d = decisionOn(r.repo, r.key); if (!d) continue;
     if (d.unpulled) r.hidden = true;
@@ -968,141 +927,68 @@ function contextRows(v) {
   return rows;
 }
 const pickKey = r => `${r.repo || ''}\t${r.key}`;
-// the ? beside each number column (hover or focus opens it). One rule behind them all: a part sits in the prompt, so it
-// costs its size in every model call that carries it. Under forty words each (the owner's ask, 2026-10-25: if the
-// explanation needs more, the calculation is wrong).
-const helpPop = (label, text) => `<span class="help"><button type="button" class="help-btn" aria-label="${label}">?</button><div class="help-pop" role="tooltip">${text}</div></span>`;
-const PROMPT_HELP = helpPop('What Per prompt counts', 'What it adds to every prompt that carries it. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.');
-// the Share column: what this row is worth against the rest of the table, which the token figures alone do not say
-const SHARE_HELP = helpPop('What Share counts', 'This row&rsquo;s wasted tokens as a share of everything wasted in this table: how much of the problem cutting this one part would solve.');
-const NEEDED_HELP = helpPop('What Needed counts', 'Of the prompts that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names. An estimate from the transcripts.');
-const COST_HELP = helpPop('What the window total counts', 'Per prompt &times; every prompt that carried it in the window.');
-const WASTE_HELP = helpPop('What Wasted counts', 'The window total &times; the share of prompts that did not need it. The most that cutting it could save.');
+// The one table (2026-11-09, the owner's ask: row by row, nothing above it that is not a row): a part a row with its
+// title, its type, what it adds to each call that carries it, the share of those calls that used it, what it wasted over
+// the window, and its action -- a dropdown and Apply in the row, no checking rows and no Apply over the table. The view
+// tabs (All, Instruction files, Custom tools, Built-in tools), the Potential savings cards, the cards view and the
+// explanatory paragraph went with it: half the page was not actionable. One rule behind the figures, in the headers'
+// hovers, under forty words each (the owner's ask, 2026-10-25: if the explanation needs more, the calculation is wrong):
+// a part sits in the prompt, so it costs its size in every model call that carries it.
+const HEADS = days => [
+  ['Part', ''], ['Type', ''],
+  ['Per call', 'What it adds to every call that carries it. Tokens read, not billed: the prompt cache serves them far cheaper after the first call.', 'num'],
+  ['Used', 'Of the calls that carried it, the share where the agent acted on it: called the tool, invoked the skill, touched what the section names. An estimate from the transcripts.', 'num'],
+  ['Wasted', `Per call × every call that carried it over ${days} days × the share of calls that did not need it. The most that cutting it could save.`, 'num'],
+  ['Action', '', 'ctx-acthead'],
+];
 const actedCell = r => r.acted == null ? '<span class="muted">–</span>' : `${Math.round(100 * r.acted)}%`;
-// a row's weight against the rest of the table: the bar is its waste over the heaviest row's, the figure its share of
-// the table's whole waste. This is what the waste pill was meant to say and could not, flagging all but one row alike.
-const impactCell = (r, max, total) => {
-  if (r.off || r.wasted == null || !(windowWaste(r) > 0) || !max) return '';
-  const w = windowWaste(r), share = total ? w / total : 0;
-  return `<span class="ctx-bar${share < 0.05 ? ' sm' : ''}" title="${fmt(w)} of the ${fmt(total)} wasted in this table"><span style="width:${Math.max(4, Math.round(100 * w / max))}%"></span></span><span class="ctx-barn">${share < 0.01 ? '&lt;1' : Math.round(100 * share)}%</span>`;
-};
-// The Potential savings card at the top of every view (back on 2026-10-22, the owner's ask): input tokens a prompt, the share
-// of the view's cost, and the window's total. For a section, skill or tool, what the flagged rows (high or medium waste) cost
-// in the sessions that did not use them, as the Wasted column sums it.
-const savingsCard = ({ perPrompt, share, window, days, cost, text, kicker = 'Potential savings, at most', ok }) => (window || perPrompt) > 0
-  ? `<div class="savings"><div><div class="kicker">${kicker}</div><div class="tr-num">${fmt(window)} <span class="muted">input tokens over ${days} days</span></div></div>
-     <div class="savings-plain">About <b>${fmt(perPrompt)} fewer tokens in every call</b> your agent makes${cost ? `, of the ${fmt(cost)} it reads now` : ''}${share != null ? ` — <b>${Math.round(100 * share)}% less</b>` : ''}.</div>
-     <div class="why">${text}</div></div>`
-  : `<div class="savings ok"><div class="why">${ok}</div></div>`;
-const flaggedSavings = (rows, days, { what, does, ok }) => {
-  // a row with a decision on it (a change under way, a pull request pending or merged) is not a saving still to make
-  const live = rows.filter(r => !r.off), flagged = live.filter(r => (r.waste === 'high' || r.waste === 'medium') && !r.decided), cost = live.reduce((a, r) => a + r.perPrompt, 0);
-  const per = flagged.reduce((a, r) => a + (r.wasted || 0), 0), n = l => flagged.filter(r => r.waste === l).length;
-  return { perPrompt: per, cost, share: cost ? per / cost : null, window: flagged.reduce((a, r) => a + (r.wastedWindow || 0), 0), days, text: `${n('high')} high and ${n('medium')} medium waste ${what}: what they cost in the prompts that did not need them. ${does}`, ok };
-};
-// The table of one view, as the docs' example: a row a part with its box, its size (what it adds to each prompt that carries
-// it), the share of prompts that needed it, its cost over the window and its waste; a dropdown in the row picks what to do, and the one Apply at the top right does it
-// for every checked row; See more opens the part's text under the row.
-// every table is paged, TABLE_PAGE rows at a time (the owner's ask, 2026-10-22); the row index stays the sorted list's,
-// so a pick on one page holds while another is shown
-const TABLE_PAGE = 20, VPAGE = {};
+// the table is paged, ROWS_PAGE rows at a time; the row index is the sorted list's, so a pick holds while another page is shown
+const ROWS_PAGE = 50, TABLE_PAGE = 20;
+let RPAGE = 0, VROWS = [];
 const pagerOf = (key, n, page, pageSize) => n > pageSize ? `<div class="ctx-note rep-pager"><span>${page * pageSize + 1}–${Math.min(n, (page + 1) * pageSize)} of ${n}</span><button class="btn ghost" data-vpage="${key}:${page - 1}"${page ? '' : ' disabled'}>Previous</button><button class="btn ghost" data-vpage="${key}:${page + 1}"${(page + 1) * pageSize < n ? '' : ' disabled'}>Next</button></div>` : '';
-function renderTable(view, rows, { title, sub, nameHead, savings }) {
-  rows = VROWS[view] = sortRows(rows, VSORT[view], view);
-  const days = CTX?.days || cdays, picks = PICKS[view];
-  const pages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE)), page = Math.min(pages - 1, VPAGE[view] || 0), from = page * TABLE_PAGE;
-  // the Share column is read against the whole table, not the page shown, so a row keeps its weight as you page through
-  const weighed = rows.filter(r => !r.off && r.wasted != null && windowWaste(r) > 0);
-  const maxWaste = weighed.reduce((a, r) => Math.max(a, windowWaste(r)), 0), allWaste = weighed.reduce((a, r) => a + windowWaste(r), 0);
-  const body = CMODE === 'cards' ? '' : rows.slice(from, from + TABLE_PAGE).map((r, k) => {
-    const i = from + k;
-    // a pill says what has happened to the row (switched off, a change under way, a pull request pending, compressed);
-    // what the row is worth is the Share bar, which the waste pill could not say with 5%-of-its-kind flagging all but one
-    const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []), on = picks.has(pickKey(r));
-    return `<tr class="${[r.off ? 'ctx-off' : '', on ? 'ctx-picked' : ''].join(' ').trim()}" data-row="${i}">
-      <td class="ctx-name"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</label><button class="ctx-more" data-more="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-expanded="false">See more</button>${(kindOf => kindOf || r.sub ? `<span class="ctx-kind">${esc([kindOf, r.sub].filter(Boolean).join(' · '))}</span>` : '')(view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '')}${r.about ? `<span class="ctx-about">${esc(r.about)}</span>` : ''}</td>
+// what the › beside a part opens, first line: the model's sentence on what it is and what the change means where one has
+// been written (part-explain.js, `thinker explain`), else part-describe.js's line, with the spinner while one is being written
+const explainLine = r => r.explain?.text ? `<p class="ctx-exline">${esc(r.explain.text)}</p>`
+  : `<p class="ctx-exline${r.about ? '' : ' muted'}">${esc(r.about || 'No description recorded.')}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? ' <span class="spinner"></span><span class="muted">writing what this is…</span>' : ''}</p>`;
+function renderRows(rows, { caption }) {
+  rows = VROWS = sortRows(rows);
+  const days = CTX?.days || cdays;
+  const pages = Math.max(1, Math.ceil(rows.length / ROWS_PAGE)), page = Math.min(pages - 1, RPAGE), from = page * ROWS_PAGE;
+  const body = rows.slice(from, from + ROWS_PAGE).map((r, k) => {
+    const i = from + k, dk = esc(pickKey(r)), act = actNow(r);
+    // a pill says what has happened to the row (switched off, a change under way, a pull request pending); beside it the
+    // dropdown and Apply where the row still has an action, a dash with the reason where it has none
+    const [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
+    const pill = !pt ? '' : r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>`;
+    const action = r.options.length ? `<select class="sel" data-act="${i}" data-dk="${dk}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${act === a ? ' selected' : ''}>${t}</option>`).join('')}</select><button class="btn" data-go="${i}" title="${esc(effectOf(r, act)[1])}">Apply</button>`
+      : pt ? '' : `<span class="why" title="${esc(r.disabled)}">—</span>`;
+    return `<tr class="${r.off ? 'ctx-off' : ''}" data-row="${i}">
+      <td class="ctx-name"><button class="ctx-x" data-more="${i}" data-dk="${dk}" aria-expanded="false" aria-label="Open ${esc(r.name)}">›</button>${r.bold ? `<b>${esc(r.name)}</b>` : esc(r.name)}</td>
+      <td class="ctx-type">${esc(r.kindLabel)}${r.sub ? ` <span class="muted">· ${esc(r.sub)}</span>` : ''}</td>
       <td class="num">${fmt(r.tokens)}</td>
       <td class="num">${actedCell(r)}</td>
-      <td class="num">${fmt(windowCost(r))}</td>
       <td class="num">${r.wasted == null ? '<span class="muted">–</span>' : fmt(windowWaste(r))}</td>
-      <td class="num">${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : impactCell(r, maxWaste, allWaste)}</td>
-      <td class="ctx-actcell"><div class="ctx-act">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select>` : `<span class="why" title="${esc(r.disabled)}">—</span>`}</div>${r.options.length ? `<div class="ctx-effect" data-eff="${i}">${esc(effectOf(r, actNow(view, r))[0])}</div>` : ''}</td></tr>
-      <tr class="ctx-detail" data-detail="${i}" data-dk="${esc(`${view}\t${pickKey(r)}`)}" hidden><td colspan="7"><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every prompt that carries it, ${fmt(windowCost(r))} over ${CTX?.days || cdays} days · needed: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${CTX?.days || cdays} days` : ''}</div></td></tr>`;
+      <td class="ctx-actcell"><div class="ctx-act">${pill}${action}</div></td></tr>
+      <tr class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><td colspan="6"><div class="ctx-ex" data-ek="${esc(r.explainKey || '')}">${explainLine(r)}</div><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every call that carries it, ${fmt(windowCost(r))} over ${days} days · used: ${esc(r.actedBy)}${r.wasted != null ? ` · wasted: ${fmt(windowWaste(r))} over ${days} days` : ''}</div></td></tr>`;
   }).join('');
-  return `<figure class="ctx-figure"><figcaption><b>${title}</b> <span class="ctx-sub">${sub}</span><span class="ctx-capact"><span class="ctx-sub" data-seln="${view}"></span><button class="btn" data-apply-picked="${view}" disabled title="Apply the action picked in each checked row">Apply</button></span></figcaption>
-    ${savings ? savingsCard(savings) : ''}
-    ${rows.length && CMODE === 'cards' ? `<div class="pcards">${rows.slice(from, from + TABLE_PAGE).map((r, k) => cardOf(r, from + k, view, { picks, maxWaste, allWaste, days })).join('')}</div>${pagerOf(view, rows.length, page, TABLE_PAGE)}`
-      : rows.length ? `<table class="ctx-table"><thead><tr><th>${nameHead}</th><th class="num">Per prompt ${PROMPT_HELP}</th><th class="num">Needed ${NEEDED_HELP}</th><th class="num">Over ${days} days ${COST_HELP}</th><th class="num">Wasted ${WASTE_HELP}</th><th class="num">Share ${SHARE_HELP}</th><th></th></tr></thead><tbody>${body}</tbody></table>${pagerOf(view, rows.length, page, TABLE_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
+  return `<figure class="ctx-figure"><figcaption><span class="ctx-sub">${caption}</span></figcaption>
+    ${rows.length ? `<table class="ctx-table ctx-rows"><thead><tr>${HEADS(days).map(([h, t, c]) => `<th${c ? ` class="${c}"` : ''}${t ? ` title="${esc(t)}"` : ''}>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table>${pagerOf('rows', rows.length, page, ROWS_PAGE)}` : '<div class="empty">Nothing recorded here yet.</div>'}</figure>`;
 }
 
-// One part, as a card: one sentence on what it is and what the change means (part-explain.js; the owner's call,
-// 2026-11-08: three headed paragraphs were far too much), the figures under it, the action last.
-// The data attributes are the table's, so one wireTable drives both (picks, See more, the action, Apply).
-// what fills the explanation block of a card: the sentence once it is written, and until then what the part is in one
-// clause with the spinner beside it. Both cardOf and putExplains write it, so a card filled in while it is on screen
-// reads exactly as one drawn with its words already in hand.
-function explainBlock(r) {
-  const e = r.explain;
-  if (e?.text) return `<p class="pcard-line">${esc(e.text)}</p>`;
-  return `<div class="pcard-none">${r.about ? `${esc(r.about)}. ` : ''}${r.explainKey && EXPLAIN_ASKED.has(r.explainKey) ? '<span class="spinner"></span>Writing what this is\u2026' : ''}</div>`;
-}
-function cardOf(r, i, view, { picks, maxWaste, allWaste, days }) {
-  const on = picks.has(pickKey(r)), [pc, pt] = r.pill || (r.off ? ['off', 'off'] : []);
-  const dk = esc(`${view}\t${pickKey(r)}`);
-  const kind = [view === 'all' || r.kind === 'skill' || r.kind === 'tool' ? r.kindLabel : '', r.sub].filter(Boolean).join(' \u00b7 ');
-  return `<article class="pcard${on ? ' ctx-picked' : ''}${r.off ? ' ctx-off' : ''}" data-row="${i}">
-    <div class="pcard-top"><label><input type="checkbox" data-pick="${view}" data-k="${esc(pickKey(r))}" data-i="${i}"${r.options.length ? '' : ' disabled'}${on ? ' checked' : ''} aria-label="Pick ${esc(r.name)}"> ${esc(r.name)}</label>${pt ? r.pr?.url ? `<a class="ctx-pill ${pc}" href="${esc(r.pr.url)}" target="_blank" rel="noopener">${esc(pt)}</a>` : `<span class="ctx-pill ${pc}">${r.rawPill ? pt : esc(pt)}</span>` : ''}</div>
-    ${kind ? `<span class="ctx-kind">${esc(kind)}</span>` : ''}
-    <div class="pcard-ex" data-ek="${esc(r.explainKey || '')}">${explainBlock(r)}</div>
-    <div class="pcard-nums">
-      <div><b>${fmt(r.tokens)}</b><span>in every call</span></div>
-      <div><b>${r.acted == null ? '\u2013' : `${Math.round(100 * r.acted)}%`}</b><span>of calls needed it</span></div>
-      ${r.wasted == null ? '' : `<div><b>${fmt(windowWaste(r))}</b><span>wasted over ${days} days</span></div>`}
-      ${windowWaste(r) > 0 && allWaste ? `<div>${impactCell(r, maxWaste, allWaste)}<span>of the waste here</span></div>` : ''}
-    </div>
-    <div class="pcard-foot">${r.options.length ? `<select class="sel" data-act="${i}" data-dk="${dk}" aria-label="Action">${r.options.map(([a, t]) => `<option value="${a}"${PREACT.get(`${view}\t${pickKey(r)}`) === a ? ' selected' : ''}>${t}</option>`).join('')}</select><span class="ctx-effect" data-eff="${i}">${esc(effectOf(r, actNow(view, r))[0])}</span>` : `<span class="why" title="${esc(r.disabled)}">No action here</span>`}<button class="ctx-more" data-more="${i}" data-dk="${dk}" aria-expanded="false">See more</button></div>
-    <div class="ctx-detail" data-detail="${i}" data-dk="${dk}" hidden><div class="md-body">${r.detail}</div><div class="why">${fmt(r.tokens)} tokens in every prompt that carries it, ${fmt(windowCost(r))} over ${days} days \u00b7 needed: ${esc(r.actedBy)}</div></div>
-  </article>`;
-}
-
-// cards or table, kept per person; the cards are the default because they answer "what is this" first
-let CMODE = (() => { try { return localStorage.getItem('thinker.cmode') === 'table' ? 'table' : 'cards'; } catch { return 'cards'; } })();
-function modeControl() {
-  const wrap = $('#c-mode'); if (!wrap) return;
-  wrap.hidden = !CTX || TAB !== 'save';
-  wrap.querySelectorAll('[data-mode]').forEach(b => {
-    b.classList.toggle('on', b.dataset.mode === CMODE);
-    b.onclick = () => { CMODE = b.dataset.mode; try { localStorage.setItem('thinker.cmode', CMODE); } catch {} if (CTX) renderContext(CTX); };
-  });
-}
-// The explanations are written for the cards someone is reading and the page after them, so moving on finds them
-// already there (the owner's ask, 2026-10-29). Nothing is asked of the person, and nothing is written for the
-// five hundred-odd parts nobody will scroll to: a run covers the two pages in view, in the order shown, and the
-// next two are written while these are read. Each part is asked for once a session; `thinker explain --keys` is
-// the same work by hand. The Table shows none of this, so it writes none.
+// The sentence on what a part is and why you would change it is written by a model (`thinker explain`, part-explain.js),
+// once a part for the machine, for the parts someone opens: asked for when the › is clicked, never for the hundreds
+// nobody will open, and patched into the open row when it arrives. The page never polls the whole report for it (1.3 MB
+// and every table redrawn every four seconds, to 2026-10-29); it asks for the keys it is waiting on, a few hundred bytes.
 const EXPLAIN_ASKED = new Set();
 let EXPLAIN_TIMER = null, EXPLAIN_TRIES = 0;
-const VROWS = {};
-// the cards on the two pages in view that have no words yet
-const explainWanted = () => {
-  if (CMODE !== 'cards' || !CTX || CTX.partial) return [];
-  const rows = VROWS[CVIEW] || [], from = (VPAGE[CVIEW] || 0) * TABLE_PAGE;
-  return rows.slice(from, from + TABLE_PAGE * 2).filter(r => r.explainKey && !r.explain);
-};
-function explainAhead() {
-  const here = explainWanted();
-  const want = here.filter(r => !EXPLAIN_ASKED.has(r.explainKey)).map(r => r.explainKey);
-  if (want.length) {
-    want.forEach(k => EXPLAIN_ASKED.add(k));
-    EXPLAIN_TRIES = 0;
-    api(`/api/explain?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, { keys: want }).catch(() => want.forEach(k => EXPLAIN_ASKED.delete(k)));
-  }
-  if (here.length) explainLater();
+function explainRow(r) {
+  if (!r?.explainKey || r.explain || CTX?.partial || EXPLAIN_ASKED.has(r.explainKey)) return;
+  EXPLAIN_ASKED.add(r.explainKey);
+  api(`/api/explain?repo=${encodeURIComponent(CREPO)}&days=${cdays}`, { keys: [r.explainKey] }).catch(() => EXPLAIN_ASKED.delete(r.explainKey));
+  document.querySelectorAll(`.ctx-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainLine(r); });
+  EXPLAIN_TRIES = 0; explainLater();
 }
-// The words arrive on their own and are written into the cards where they stand (2026-10-29). Until then this
-// polled the whole report every four seconds and drew all five tables again for each answer -- 1.3 MB and a full
-// re-render per poll on this machine, for ninety polls, which is what made the page feel slow while it filled in.
-// Nothing here blocks the first render: a card is drawn with what the part is in one clause and fills in later.
+const explainWanted = () => VROWS.filter(r => r.explainKey && !r.explain && EXPLAIN_ASKED.has(r.explainKey));
 function explainLater() {
   if (EXPLAIN_TIMER || EXPLAIN_TRIES > 90) return;
   EXPLAIN_TIMER = setTimeout(async () => {
@@ -1115,58 +1001,34 @@ function explainLater() {
     if (explainWanted().length) explainLater();
   }, 4000);
 }
-// What came back goes onto the report the page holds (so a later render keeps it), onto the rows of every view, and
-// into the block of each card showing that part -- the card's own numbers, picks, open detail and dropdown are left
-// exactly as they are.
+// What came back goes onto the report the page holds (so a later render keeps it), onto the rows, and into the open
+// row showing that part -- the row's own numbers, dropdown and open › are left exactly as they are.
 function putExplains(got) {
   for (const xs of [CTX?.instructions?.sections, CTX?.skills, CTX?.tools]) {
     for (const x of xs || []) if (got[x.explainKey]) x.explain = got[x.explainKey];
   }
-  for (const rows of Object.values(VROWS)) {
-    for (const r of rows || []) {
-      if (!got[r.explainKey]) continue;
-      r.explain = got[r.explainKey];
-      document.querySelectorAll(`.pcard-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainBlock(r); });
-    }
+  for (const r of VROWS) {
+    if (!got[r.explainKey]) continue;
+    r.explain = got[r.explainKey];
+    document.querySelectorAll(`.ctx-ex[data-ek="${CSS.escape(r.explainKey)}"]`).forEach(el => { el.innerHTML = explainLine(r); });
   }
 }
-
-// beside the Apply: what is picked, what it costs a call and over the window
-function bulkState() {
-  for (const [view, m] of Object.entries(PICKS)) {
-    const rs = [...m.values()], days = CTX?.days || cdays;
-    const pre = view === 'all' && PRESUGGESTED && rs.length;
-    document.querySelectorAll(`[data-seln="${view}"]`).forEach(l => l.textContent = rs.length ? `${rs.length} ${pre ? 'suggested savings checked for you' : 'picked'} · ${fmt(rs.reduce((a, r) => a + windowCost(r), 0))} over ${days} days, ${fmt(rs.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted${pre ? ' · review the actions, then Apply, or uncheck' : ''}` : 'Check rows, pick their actions');
-    document.querySelectorAll(`[data-apply-picked="${view}"]`).forEach(b => b.disabled = !rs.length);
-  }
+// what the table does: the ›, the dropdown, Apply, the pager
+function wireRows(root) {
+  const sorted = VROWS;
+  root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const d = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = d.hidden; d.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.classList.toggle('open', open); if (open) explainRow(sorted[Number(b.dataset.more)]); });
+  // the Apply's hover follows the option chosen, so the consequence is never a surprise
+  root.querySelectorAll('[data-act]').forEach(sel => sel.onchange = () => { const i = Number(sel.dataset.act); PREACT.set(pickKey(sorted[i]), sel.value); const go = root.querySelector(`[data-go="${i}"]`); if (go) go.title = effectOf(sorted[i], sel.value)[1]; });
+  root.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const i = Number(b.dataset.go); applyRows([{ r: sorted[i], act: root.querySelector(`[data-act="${i}"]`)?.value }], b); });
+  root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { RPAGE = Math.max(0, Number(b.dataset.vpage.split(':')[1])); renderContext(CTX); });
 }
-// the rows a view shows (by index) and what its table does: picks, See more, Apply, the sort
-function wireTable(root, view, rows) {
-  const sorted = sortRows(rows, VSORT[view], view);
-  root.querySelectorAll(`[data-pick="${view}"]`).forEach(c => { c.onchange = () => { const r = sorted[Number(c.dataset.i)]; c.checked ? PICKS[view].set(pickKey(r), r) : PICKS[view].delete(pickKey(r)); c.closest('tr, .pcard').classList.toggle('ctx-picked', c.checked); if (view === 'all') PRESUGGESTED = false; bulkState(); }; });
-  root.querySelectorAll('[data-more]').forEach(b => b.onclick = () => { const d = root.querySelector(`[data-detail="${b.dataset.more}"]`), open = d.hidden; d.hidden = !open; b.setAttribute('aria-expanded', String(open)); b.textContent = open ? 'See less' : 'See more'; });
-  const actOf = i => root.querySelector(`[data-act="${i}"]`)?.value;
-  // the line under the dropdown follows the option chosen, so the consequence is never a surprise at Apply
-  root.querySelectorAll('[data-act]').forEach(sel => sel.onchange = () => {
-    const i = Number(sel.dataset.act), eff = root.querySelector(`[data-eff="${i}"]`);
-    PREACT.set(`${view}\t${pickKey(sorted[i])}`, sel.value);
-    if (eff) eff.textContent = effectOf(sorted[i], sel.value)[0];
-  });
-  root.querySelector('[data-apply-picked]')?.addEventListener('click', e => {
-    const items = sorted.map((r, i) => PICKS[view].has(pickKey(r)) ? { r, act: actOf(i) } : null).filter(Boolean);
-    if (!items.length) return toast('Check rows first', true);
-    applyRows(view, items, e.target);
-  });
-  root.querySelectorAll('[data-vpage]').forEach(b => b.onclick = () => { const [k, n] = b.dataset.vpage.split(':'); VPAGE[k] = Math.max(0, Number(n)); renderContext(CTX); });
-  bulkState();
-}
-// Every checked row's action: a skill or tool is changed at once (/api/changes/approve,
-// context-suggest.js:approveChanges, each recorded in Recent activity with its undo); a section's change is started in the
-// background (/api/changes/start, context-suggest.js:startSectionJob: `thinker instructions --compress|--remove <ids> --pr`
-// detached, recorded at once) and the page says so once and goes on. The owner's ask of 2026-10-24: a model call of some
-// seconds is nothing to hold the person's attention with in a modal; Recent activity shows the change under way, then the
-// pull request to merge, or a failure with Retry.
-async function applyRows(view, items, btn) {
+// A row's action: a skill or tool is changed at once (/api/changes/approve, context-suggest.js:approveChanges, each
+// recorded in Recent activity with its undo); a section's change is started in the background (/api/changes/start,
+// context-suggest.js:startSectionJob: `thinker instructions --compress|--remove <ids> --pr` detached, recorded at once)
+// and the page says so once and goes on. The owner's ask of 2026-10-24: a model call of some seconds is nothing to hold
+// the person's attention with in a modal; Recent activity shows the change under way, then the pull request to merge, or
+// a failure with Retry. One row an Apply since 2026-11-09; `items` is still a list, since the review reads them the same.
+async function applyRows(items, btn) {
   items = items.filter(x => x.act);
   const secs = items.filter(x => x.r.kind === 'section'), rest = items.filter(x => x.r.kind !== 'section');
   if (!secs.length && !rest.length) return toast('Nothing to apply', true);
@@ -1182,7 +1044,7 @@ async function applyRows(view, items, btn) {
       : r.acted === 0 ? `Your agent never acted on it in the ${calls} calls that carried it.`
         : `Your agent acted on it in ${Math.round(100 * r.acted)}% of the ${calls} calls that carried it.`;
     const save = windowWaste(r) > 0 ? ` Cutting it saves up to ${fmt(windowWaste(r))} tokens over ${rdays} days.` : '';
-    return `<li><div class="rev-what"><b>${esc(r.name)}</b> <span class="muted">${esc([r.kindLabel, r.about].filter(Boolean).join(' \u2014 '))}</span></div><div class="rev-do"><b>${esc(label)}:</b> ${esc(full || 'see the row for what this does')}</div><div class="muted">${esc(used + save)}</div></li>`;
+    return `<li><div class="rev-what"><b>${esc(r.name)}</b> <span class="muted">${esc([r.kindLabel, r.about].filter(Boolean).join(' — '))}</span></div><div class="rev-do"><b>${esc(label)}:</b> ${esc(full || 'see the row for what this does')}</div><div class="muted">${esc(used + save)}</div></li>`;
   };
   if (!await confirmDialog({
     title: `Apply ${items.length === 1 ? 'this change' : `these ${items.length} changes`}?`, ok: items.length === 1 ? 'Apply it' : `Apply ${items.length}`,
@@ -1205,7 +1067,6 @@ async function applyRows(view, items, btn) {
       for (const [repo, g] of byRepo) { try { said.push((await api('/api/changes/start', { repo, ...g, days: cdays })).said); } catch (err) { said.push(`${REPOS.find(x => x.id === repo)?.name || repo}: ${err.message}`); } }
     }
     toast(said.join(' ') || 'Done', false, secs.length ? 6000 : undefined);
-    PICKS[view].clear();
     // the rows show what was done at once: the setting the server wrote on a skill or tool (patchContext), and a
     // section's job under way from the decisions (a quick read); the report itself is read again behind it (loadContext, in
     // place), a second or more after an action, since the action made the kept copy stale
@@ -1225,37 +1086,16 @@ function patchContext(items) {
   }
 }
 function renderContext(v) {
-  const el = $('#context-body'), iv = v.instructions, t = v.totals;
+  const el = $('#context-body');
   CTX = v;
-  let h = '';
-  // one table at a time: every part on All, then one kind each (the decisions are the Recent activity page since 2026-10-24)
-  const all = contextRows(v), of = view => all.filter(r => r.view === view), perPrompt = rs => rs.reduce((a, r) => a + (r.off ? 0 : r.perPrompt), 0);
-  // opened by the installer: All's suggested savings come checked, once (the person's checks hold from then on)
+  const all = contextRows(v);
+  // opened by the installer or the weekly question: that door's suggested savings come first, each on its suggested action, once
   if (PRESELECT && !v.partial && all.length) { PRESELECT = false; preselectRows(all, (FROM === 'suggestion' && v.offered?.length ? v.offered : v.suggested) || []); }
-  const VIEWS = [['all', 'All'], ['instructions', 'Instruction files'], ['custom', 'Custom tools'], ['builtin', 'Built-in tools']];
-  const num = k => `${fmt(k === 'all' ? perPrompt(all) : t[k]?.perPrompt || 0)} <span>a prompt</span>`;
-  h += `<div class="vtabs" id="c-view" role="tablist">${VIEWS.map(([k, name]) => `<button role="tab" data-view="${k}" aria-selected="${CVIEW === k}" class="${CVIEW === k ? 'on' : ''}"><span class="vt-name">${name}</span><span class="vt-num" id="vt-${k}">${num(k)}</span></button>`).join('')}</div>`;
-  // the caption's figures: the sessions, the tokens per call, the cost over the window and how much of it was wasted
-  const cap = (rs, sessions, what) => { const live = rs.filter(r => !r.off); return `${sessions} session${sessions === 1 ? '' : 's'}${CTX?.prompts ? `, ${fmt(CTX.prompts)} prompts` : ''} · ${fmt(live.reduce((a, r) => a + windowCost(r), 0))} input tokens ${what}, ${fmt(live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted`; };
-  const vdiv = (k, inner) => `<div class="cview" data-view="${k}"${CVIEW === k ? '' : ' hidden'} id="c-${k}">${inner}</div>`;
-  // the savings card of each view, and All's as their sum over what everything costs a prompt
-  const sav = {
-    instructions: flaggedSavings(of('instructions'), v.days, { what: 'sections', does: 'Removing or compressing them saves this at most.', ok: 'No section here is wasted enough to flag.' }),
-    custom: flaggedSavings(of('custom'), v.days, { what: 'skills and tools', does: 'Switching them off saves this at most; a skill still runs as /name.', ok: 'Nothing here is wasted enough to flag.' }),
-    builtin: flaggedSavings(of('builtin'), v.days, { what: 'built-in tools', does: 'Moving their definitions out of the prompt saves this at most; the tools can still be used.', ok: 'No built-in tool here is wasted enough to flag.' }),
-  };
-  const sumSav = Object.values(sav).reduce((a, s) => ({ perPrompt: a.perPrompt + s.perPrompt, window: a.window + (s.window || 0) }), { perPrompt: 0, window: 0 });
-  sav.all = { ...sumSav, cost: perPrompt(all), share: perPrompt(all) ? sumSav.perPrompt / perPrompt(all) : null, days: v.days, text: 'Every view\'s card together: the flagged sections, skills and tools in the sessions that did not use them.', ok: 'Nothing here is flagged.' };
-  h += vdiv('all', renderTable('all', all, { nameHead: 'Part', title: 'Everything in the context', sub: cap(all, v.sessions || 0, 'over the window'), savings: sav.all }));
-  h += vdiv('instructions', (iv.file ? renderTable('instructions', of('instructions'), { nameHead: 'Section', title: esc(iv.file), sub: cap(of('instructions'), iv.sessions || 0, 'on the file'), savings: sav.instructions })
-    : '<div class="empty">No AGENTS.md or CLAUDE.md in this repository.</div>') + '<div class="controls"></div>');
-  h += vdiv('custom', renderTable('custom', of('custom'), { nameHead: 'Skill or tool', title: 'Custom tools', sub: cap(of('custom'), v.sessions || 0, 'on them'), savings: sav.custom }));
-  h += vdiv('builtin', renderTable('builtin', of('builtin'), { nameHead: 'Tool', title: 'Built-in tools', sub: cap(of('builtin'), v.sessions || 0, 'on them'), savings: sav.builtin }));
-  swapBody(el, h);
-  for (const [k] of VIEWS) wireTable(el.querySelector(`#c-${k}`), k, k === 'all' ? all : of(k));
-  vtabsHeight();
-  el.querySelectorAll('#c-view button').forEach(b => b.onclick = () => { CVIEW = b.dataset.view; el.querySelectorAll('#c-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); }); el.querySelectorAll('.cview').forEach(x => x.hidden = x.dataset.view !== CVIEW); modeControl(); });
-  modeControl(); explainAhead();
+  // the one caption line: the sessions, the calls, what every part cost over the window and how much of it was wasted
+  const live = all.filter(r => !r.off), n = v.sessions || 0;
+  const caption = `${n} session${n === 1 ? '' : 's'}${v.prompts ? `, ${fmt(v.prompts)} calls` : ''} over ${v.days} days · ${fmt(live.reduce((a, r) => a + windowCost(r), 0))} input tokens on these parts, ${fmt(live.reduce((a, r) => a + Math.max(0, windowWaste(r)), 0))} of it wasted`;
+  swapBody(el, renderRows(all, { caption }));
+  wireRows(el);
 }
 
 // ---- The decisions (context-suggest.js, as `thinker context --history|--revert|--retry`) ----
@@ -1452,7 +1292,7 @@ async function pollActivity() {
     // again in place (loadActivity, loadContext), so a Save row's pill goes from Compressing… to PR pending where it stands
     const sig = (hs, repo) => JSON.stringify((hs || []).filter(e => repo === 'all' || e.scope === 'machine' || e.repo === repo).map(e => [e.id, Boolean(e.running), Boolean(e.pending), Boolean(e.failed), e.attention]));
     if (TAB === 'activity' && AVIEW === 'actions' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
-    if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO) && !Object.values(PICKS).some(m => m.size)) loadContext();
+    if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO)) loadContext();
   }
   APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
@@ -1929,8 +1769,7 @@ function renderReport(v) {
 const navHeight = () => document.documentElement.style.setProperty('--nav-h', `${document.querySelector('nav').getBoundingClientRect().height}px`);
 // and the column headers stick under the view tabs, so a long table never leaves its numbers unlabelled: the tabs'
 // own height is measured the same way, after each render and on resize (it wraps at narrow widths)
-const vtabsHeight = () => { const t = document.querySelector('#c-view'); document.documentElement.style.setProperty('--vtabs-h', `${t ? t.getBoundingClientRect().height : 0}px`); };
-navHeight(); vtabsHeight(); addEventListener('resize', () => { navHeight(); vtabsHeight(); });
+navHeight(); addEventListener('resize', () => { navHeight(); });
 show(H().get('tab') || 'save');
 pollActivity();
 </script>
