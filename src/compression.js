@@ -171,9 +171,24 @@ export function compressionBlock(dir, session, turn, format, { turnsAfter = TURN
 // from there, and the state is only consulted for what the log's tail no longer reaches.
 const LOG_TAIL = 16 * 1024 * 1024;   // a day of heavy use is ~50 KB of rows; the tail covers months
 
+// The parsed tail, kept per process by the file's size and mtime: the Report reads it three times a repository
+// (clearingRows, clearingCostBySession, clearedBySession) and `thinker report --refresh --all` does that once per
+// repository on the machine -- 8 MB of rows parsed fifty times over, two and a half seconds of the fifteen that run
+// took here (2026-11-10). The rows are read, never written, so every caller shares one array.
+const parsedTail = new Map(); // file -> { stamp, rows }
+
 export function compressionRecords(file) {
+  if (!file) return [];
+  let stamp = null; try { const s = fs.statSync(file); stamp = `${s.size}\t${s.mtimeMs}`; } catch {}
+  const hit = stamp && parsedTail.get(file);
+  if (hit && hit.stamp === stamp) return hit.rows;
+  const rows = readCompressionTail(file);
+  if (stamp) parsedTail.set(file, { stamp, rows });
+  return rows;
+}
+
+function readCompressionTail(file) {
   const out = [];
-  if (!file) return out;
   let text = '';
   try {
     const size = fs.statSync(file).size, start = Math.max(0, size - LOG_TAIL);

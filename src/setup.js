@@ -80,11 +80,12 @@ export async function runSetup({
   try {
     const { contextView } = await import('./context-view.js');
     const { recommendations } = await import('./context-machine.js');
-    const { writeSnapshot } = await import('./context-snapshot.js');
+    const { writeSnapshot, contextSources } = await import('./context-snapshot.js');
     const { askMachineReport } = await import('./setup/context-ask.js');
-    const view = contextView(store, { days: 30 });
+    const { sessions, stamp } = contextSources(store, 30);
+    const view = contextView(store, { days: 30, sessions });
     if (view.sessions) {
-      writeSnapshot(store, 30, view);
+      writeSnapshot(store, 30, view, { stamp });
       out('');
       const name = path.basename(repo), one = { repo, name, checkout: repo };
       const r = { days: 30, repos: [{ id: repo, name, checkout: repo, sessions: view.sessions }], views: [{ ...one, view }], view };

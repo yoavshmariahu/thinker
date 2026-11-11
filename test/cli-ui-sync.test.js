@@ -225,7 +225,8 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   // and the Report kept by `thinker report --refresh` (report-snapshot.js), every repository's in one run
   assert.match(read('ui/server.js'), /child\(\['report', '--refresh', '--all'/);
   assert.match(read('commands/report.js'), /refreshReport\(st, \{ weeks \}\)/);
-  assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d \}\)/);
+  // the refresh passes the window's sessions it gathered for the stamp (view-sources.js); nothing else changes
+  assert.match(read('context-snapshot.js'), /contextView\(store, \{ days: d, sessions \}\)/);
   assert.match(read('commands/context.js'), /refreshSnapshots\(store\)/);
   // the installer's report (context-machine.js) is the page's All repositories: one merge, and the reports it
   // keeps are the snapshots the page reads; the browser choice of the installer's question opens the page on it
@@ -459,9 +460,9 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.doesNotMatch(prTable, /<svg/);
   assert.match(read('ui/page.html'), /swapBody\(el, prStatsTable\(v\) \+ parts \+ effectiveness \+ profileFigure\(v\) \+ `<button/, 'PR table leads the Report and stays outside collapsed metrics');
   // both doors read report.js:reportView; the page's All repositories is mergeReports, as the command has no All
-  assert.match(read('commands/report.js'), /reportView\(store, \{ weeks \}\)/);
+  assert.match(read('commands/report.js'), /reportView\(store, \{ weeks, sessions \}\)/);
   // the page reads the report kept in each checkout (report-snapshot.js), made by the same function
-  assert.match(read('report-snapshot.js'), /reportView\(store, \{ weeks, now \}\)/);
+  assert.match(read('report-snapshot.js'), /reportView\(store, \{ weeks, now, sessions \}\)/);
   assert.match(read('ui/server.js'), /reportSnapshot\(st, weeks\)/);
   assert.match(read('ui/server.js'), /mergeReports\(ready\.map/);
   // six weeks; the page's Share toggle is the command's --share (every row but the whole-session total as its share of it), on both doors

@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { reportSnapshot, readReport, writeReport, refreshReport, dropReports, refreshing, keptRows, historyEffects, promptAverageHere, REFRESH_MS } from '../src/report-snapshot.js';
+import { MAX_KEEP_MS } from '../src/view-sources.js';
 
 function repo(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-repsnap-')));
@@ -57,6 +58,24 @@ test('a report made by other code is served and marked for a refresh', t => {
   assert.equal(historyEffects(st, [{ kind: 'tool', key: 'claude:tool:Workflow', at: new Date(now - 1000).toISOString(), decision: 'approved' }], { now })[0].effect.before.perPrompt, 25);
 });
 
+// The point of the stamp (view-sources.js): a refresh over a repository where no session, no log and no record has
+// moved keeps the report it has, instead of reading every session's record back and adding it all up again. On this
+// machine that run over nineteen repositories was fifteen seconds every ten minutes, almost all of it for nothing.
+test('a refresh where nothing has moved keeps the report it has', t => {
+  const st = repo(t), now = Date.now();
+  process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
+  assert.deepEqual(refreshReport(st, { weeks: 6, now }), { written: 6 });
+  const first = readReport(st, 6, { now });
+  const at = now + REFRESH_MS + 1;
+  assert.deepEqual(refreshReport(st, { weeks: 6, now: at }), { kept: 6 }, 'nothing moved: nothing made again');
+  const second = readReport(st, 6, { now: at });
+  assert.deepEqual(second.view, first.view, 'the same report');
+  assert.equal(second.at, at, 'with when it was looked at, so the page reads it as current again');
+  assert.equal(second.current, true);
+  // a report older than MAX_KEEP_MS is made again whatever the stamp says
+  assert.deepEqual(refreshReport(st, { weeks: 6, now: now + MAX_KEEP_MS + REFRESH_MS + 2 }), { written: 6 });
+});
+
 test('a refresh makes the report again, one run at a time, and a drop removes it', t => {
   const st = repo(t), now = Date.now();
   process.env.THINKER_LOG = 'local'; t.after(() => { delete process.env.THINKER_LOG; });
@@ -80,10 +99,10 @@ test('the command refreshes every listed repository in one run, from a directory
   const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
   const env = { ...process.env, THINKER_HOME: home, THINKER_LOG: 'local' }; delete env.THINKER_NOTES_DIR;
   const out = execFileSync(process.execPath, [cli, 'report', '--refresh', '--all'], { cwd, env, encoding: 'utf8' });
-  assert.match(out, /Report kept for 1 of 1 repositories/);
+  assert.match(out, /Report made again for 1 of 1 repositories/);
   assert.ok(readReport(st, 6));
   // current already: not made again
-  assert.match(execFileSync(process.execPath, [cli, 'report', '--refresh', '--all'], { cwd, env, encoding: 'utf8' }), /Report kept for 0 of 1 repositories/);
+  assert.match(execFileSync(process.execPath, [cli, 'report', '--refresh', '--all'], { cwd, env, encoding: 'utf8' }), /Report made again for 0 of 1 repositories/);
 });
 
 // ui/scans.js reads only the sessions changed since a report this code made, however old; another copy's report is

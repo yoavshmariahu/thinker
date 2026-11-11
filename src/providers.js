@@ -45,6 +45,7 @@ export function writeRegistry(reg, home = thinkerHome()) {
   const tmp = `${f}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify({ version: VERSION, providers: reg.providers || {}, routes: reg.routes || {}, agents: reg.agents || {} }, null, 2) + '\n', { mode: 0o600 });
   fs.renameSync(tmp, f);
+  priceStatAt = 0; // a price written here is read by the next registryPrices, throttle or not
   return f;
 }
 const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -244,8 +245,14 @@ export function dropRoute(reg, alias) { if (!reg.routes[alias]) throw Error(`no 
 
 // The prices the registry knows, for prices.js alone (the one door dollars go through): dollars a million per
 // provider model id, as the provider reported them or as `thinker models price` set them.
-let priceCache = null, priceStamp = null;
-export function registryPrices(home = thinkerHome()) {
+// The file is stat'd at most every STAT_MS: prices.js:listPrice is called once per priced row of a report, which on
+// this machine is 18,640 times for one repository's Report -- four tenths of a second of nothing but stat calls on an
+// unchanged file (2026-11-10). A price written while a report is being worked out is read on the next one.
+let priceCache = null, priceStamp = null, priceStatAt = 0;
+const STAT_MS = 1000;
+export function registryPrices(home = thinkerHome(), { now: clock = Date.now() } = {}) {
+  if (priceCache && priceStamp?.startsWith(`${home}:`) && clock - priceStatAt < STAT_MS) return priceCache;
+  priceStatAt = clock;
   let st = null; try { st = fs.statSync(registryFile(home)); } catch {}
   const now = st ? `${home}:${st.mtimeMs}:${st.size}` : `${home}:absent`;
   if (now === priceStamp) return priceCache;

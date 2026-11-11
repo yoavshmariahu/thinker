@@ -41,27 +41,46 @@ export function normalizeClient(client, session = '') {
 
 // The log is parsed once a process for its size and mtime: the page's report over every repository summarized
 // a dozen checkouts, and each one read and parsed the same 14 MB (a sixth of a second each, 2 s in all).
-const parsed = new Map(); // file → { stamp, events }
-const parse = (f, repo) => {
-  let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return []; }
+// What each reader asks for is kept beside it under the same stamp (`sorted`): the events of one repository, or of
+// every one, in order. Until 2026-11-10 only the parse was kept and every call re-made 35,000 objects, filtered them
+// and sorted them again -- a sixth of a second a call, and one report calls this five times over (report.js,
+// context-view.js, delivery.js, profile-metric.js, savings-ledger.js), once per repository of `--refresh --all`:
+// three of the fifteen seconds that run took here. The events are read, never written, so every caller shares one array.
+const parsed = new Map(); // file -> { stamp, rows, sorted: Map(`${repo}\t${all}` -> events) }
+const parse = f => {
+  let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return null; }
   let hit = parsed.get(f);
   if (!hit || hit.stamp !== stamp) {
     let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
-    hit = { stamp, events: raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op) };
+    hit = { stamp, rows: raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op), sorted: new Map() };
     parsed.set(f, hit);
   }
-  return hit.events.map(e => e.repo ? e : { ...e, repo })
+  return hit;
+};
+// the events a reader asked for: `repo` fills in the checkout an event does not name, `all` keeps every repository's
+// The last few asked for, not every one: a run over every repository on the machine asks for two of these a
+// repository, and a copy of a 35,000-event log is tens of megabytes, so holding twenty would cost more than it saves.
+const KEEP_SORTED = 4;
+const logEvents = (f, repo, all) => {
+  const hit = parse(f); if (!hit) return [];
+  const key = `${repo}\t${all}`, kept = hit.sorted.get(key);
+  if (kept) { hit.sorted.delete(key); hit.sorted.set(key, kept); return kept; }
+  const here = repoId(repo);
+  const out = hit.rows
     // which repository: the origin recorded with the event, else that of the checkout it names
-    .map(e => ({ ...e, origin: e.origin || repoId(e.repo) }));
+    .map(e => { const r = e.repo || repo; return { ...e, repo: r, origin: e.origin || repoId(r) }; })
+    .filter(e => all || e.origin === here)
+    .sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+  hit.sorted.set(key, out);
+  for (const k of [...hit.sorted.keys()].slice(0, -KEEP_SORTED)) hit.sorted.delete(k);
+  return out;
 };
 
 // The machine's log; what this repository logged locally before the log was shared is moved into it first.
 export function readLog(store, { all = false } = {}) {
   adoptLocalLog(store);
   const main = logFile(store);
-  const events = main ? parse(main, store.repo) : [];
-  const here = repoId(store.repo);
-  return events.filter(e => all || e.origin === here).sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+  return main ? logEvents(main, store.repo, all) : [];
 }
 
 // Every repository the machine's log has named, with its checkouts (clones, worktrees), over the whole

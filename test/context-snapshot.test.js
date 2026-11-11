@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { snapshotView, readSnapshot, lastSnapshot, refreshSnapshots, dropSnapshots, refreshing, pruneSnapshots, REFRESH_MS, SNAPSHOT_DAYS } from '../src/context-snapshot.js';
+import { MAX_KEEP_MS } from '../src/view-sources.js';
 
 function repo(t) {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ctxsnap-')));
@@ -51,6 +52,22 @@ test('a refresh writes every window the tab offers, one run at a time, and an ac
   for (const d of SNAPSHOT_DAYS) assert.equal(readSnapshot(st, d), null);
 });
 
+// The point of the stamp (view-sources.js): a refresh over a repository where nothing has moved keeps the report it
+// has and reads no session's record again. Before 2026-11-10 every refresh worked every window out from scratch, and
+// the page starts one every ten minutes in every repository it lists.
+test('a refresh where nothing has moved keeps the report it has', t => {
+  const st = repo(t), now = Date.now();
+  assert.deepEqual(refreshSnapshots(st, { now }).written, SNAPSHOT_DAYS);
+  const first = readSnapshot(st, 30);
+  const again = refreshSnapshots(st, { now: now + REFRESH_MS + 1 });
+  assert.deepEqual(again, { written: [], kept: SNAPSHOT_DAYS }, 'nothing moved: nothing made again');
+  const second = readSnapshot(st, 30);
+  assert.deepEqual(second.view, first.view, 'the same report');
+  assert.equal(second.at, now + REFRESH_MS + 1, 'with when it was looked at, so the page stops asking');
+  // a report older than MAX_KEEP_MS is made again whatever the stamp says: nothing the stamp watches is trusted for ever
+  assert.deepEqual(refreshSnapshots(st, { now: now + MAX_KEEP_MS + REFRESH_MS + 2 }).written, SNAPSHOT_DAYS);
+});
+
 test('a linked worktree reads and refreshes the main checkout\'s report: one file per repository', t => {
   const st = repo(t), wt = path.join(st.repo, '.worktrees', 'wt');
   // a worktree shares the main checkout's cache once that has local notes (store.js:cacheCheckout)
@@ -63,7 +80,9 @@ test('a linked worktree reads and refreshes the main checkout\'s report: one fil
   snapshotView(st, 30);
   assert.equal(fs.readdirSync(path.join(st.dir, 'state')).filter(f => f.startsWith('context-view')).length, 1);
   assert.ok(readSnapshot(ws, 30), 'the worktree reads the same report');
-  assert.deepEqual(refreshSnapshots(ws).written, SNAPSHOT_DAYS);
+  // the 30-day report snapshotView just made stands (nothing has moved since); the other window is made now
+  const r = refreshSnapshots(ws);
+  assert.deepEqual([...r.written, ...r.kept].sort((a, b) => a - b), SNAPSHOT_DAYS);
   assert.equal(fs.readdirSync(path.join(st.dir, 'state')).filter(f => f.startsWith('context-view')).length, SNAPSHOT_DAYS.length, 'no file of its own');
   // an instruction file of its own on its branch: the report is made again for it
   fs.appendFileSync(path.join(wt, 'AGENTS.md'), '\n## Branch\n\nx\n');

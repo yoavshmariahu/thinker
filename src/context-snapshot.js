@@ -13,6 +13,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { contextView } from './context-view.js';
+import { findRepoSessions } from './instruction-value.js';
+import { sourceStamp, canKeep, contextWindow } from './view-sources.js';
 
 export const SNAPSHOT_DAYS = [7, 30];
 export const REFRESH_MS = 10 * 60_000;
@@ -54,19 +56,26 @@ export function readSnapshot(store, days) {
   } catch { return null; }
 }
 
+// The window's sessions and the stamp of what the report rests on besides the switches `inputs` already watches
+// (view-sources.js): the sessions themselves and the machine's log, which the skills' outcome checks are read from.
+export function contextSources(store, days) {
+  const sessions = findRepoSessions(store.repo, days);
+  return { sessions, stamp: sourceStamp(store, { sessions, window: contextWindow(days) }) };
+}
+
 // { at, view, current } of the last snapshot kept, whether or not it still holds: what the Context tab's rows and History read, so a
 // click there does not wait for every transcript to be read again (the person's decisions take the changes they
 // settled out of it: context-suggest.js:currentChanges)
 export function lastSnapshot(store, days) {
   // `mine`: this code made it and its inputs hold, so ui/scans.js reads only the sessions changed since it
-  try { const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8')); const current = Boolean(readSnapshot(store, days)); return s.view ? { at: s.at, view: s.view, current, mine: current } : null; } catch { return null; }
+  try { const s = JSON.parse(fs.readFileSync(file(store, days), 'utf8')); const current = Boolean(readSnapshot(store, days)); return s.view ? { at: s.at, view: s.view, stamp: s.stamp || null, current, mine: current } : null; } catch { return null; }
 }
 
-export function writeSnapshot(store, days, view, { now = Date.now() } = {}) {
+export function writeSnapshot(store, days, view, { now = Date.now(), stamp = null } = {}) {
   const f = file(store, days), tmp = `${f}.${process.pid}.tmp`;
   try {
     fs.mkdirSync(path.dirname(f), { recursive: true });
-    fs.writeFileSync(tmp, JSON.stringify({ at: now, days, code: code(), inputs: inputs(store), view }));
+    fs.writeFileSync(tmp, JSON.stringify({ at: now, days, code: code(), inputs: inputs(store), ...(stamp ? { stamp } : {}), view }));
     fs.renameSync(tmp, f);
     pruneSnapshots(path.dirname(f));
   } catch { try { fs.rmSync(tmp, { force: true }); } catch {} }
@@ -87,16 +96,29 @@ export function pruneSnapshots(dir) {
 export function snapshotView(store, days, { now = Date.now() } = {}) {
   const s = readSnapshot(store, days);
   if (s) return { ...s, stale: now - s.at > REFRESH_MS };
-  return { ...writeSnapshot(store, days, contextView(store, { days }), { now }), stale: false };
+  const { sessions, stamp } = contextSources(store, days);
+  return { ...writeSnapshot(store, days, contextView(store, { days, sessions }), { now, stamp }), stale: false };
 }
 
-// `thinker context --refresh`: every window the tab offers, made again; one run at a time per checkout
+// `thinker context --refresh`: every window the tab offers, made again; one run at a time per checkout.
+// A window whose sessions and records have not moved since the snapshot kept here (view-sources.js) keeps it as it
+// is, with only when it was looked at written again: no transcript's record is read and nothing is added up. Until
+// 2026-11-10 every refresh worked every window out again from every session's records, every ten minutes, in every
+// repository the page lists.
 export function refreshSnapshots(store, { days = SNAPSHOT_DAYS, now = Date.now() } = {}) {
   const lock = lockFile(store);
   try { fs.mkdirSync(path.dirname(lock), { recursive: true }); } catch {}
   try { if (now - fs.statSync(lock).mtimeMs < LOCK_MS) return { skipped: 'locked' }; fs.rmSync(lock, { force: true }); } catch {}
   try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); } catch { return { skipped: 'locked' }; }
-  try { return { written: days.map(d => { writeSnapshot(store, d, contextView(store, { days: d }), { now }); return d; }) }; }
+  try {
+    const written = [], kept = [];
+    for (const d of days) {
+      const last = lastSnapshot(store, d), { sessions, stamp } = contextSources(store, d);
+      if (canKeep(last, stamp, { now })) { writeSnapshot(store, d, last.view, { now, stamp }); kept.push(d); continue; }
+      writeSnapshot(store, d, contextView(store, { days: d, sessions }), { now, stamp }); written.push(d);
+    }
+    return { written, kept };
+  }
   finally { fs.rmSync(lock, { force: true }); }
 }
 
