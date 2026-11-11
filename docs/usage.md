@@ -134,6 +134,48 @@ passes whole. `minLines` (120), `window` (40 lines each side of a hit), `cap` (0
 (2000), `searchChars` (8000), `perFile` (3) and `maxFiles` (40) in the same object adjust it; `tests:
 false` leaves test runs alone. Other agents get their results untouched.
 
+## Models from other providers, and subagents on them
+
+A subscription login (Claude, ChatGPT) is only valid at its own vendor, so the main conversation stays
+there. What can run elsewhere is the side traffic: a subagent sent off with a bounded task. `thinker
+models` is how a model outside the login is brought in, and the profile of how it did.
+
+```sh
+thinker models add openrouter https://openrouter.ai/api/v1 --key-env OPENROUTER_API_KEY
+thinker models route explore openrouter/openai/gpt-6-sol      # thinker/explore now means that model
+thinker models assign Scout thinker/explore                   # a read-only subagent on it
+thinker models assign Explore thinker/explore                 # Claude Code's own Explore too (agents.explore)
+thinker models profile                                        # how each model did, and what that recommends
+```
+
+- **A provider is what it was found to speak.** `add` and `probe` call `GET /v1/models`, then send one
+  token as Anthropic Messages and as OpenAI Chat Completions, and record which answered in its own shape.
+  A gateway that speaks Messages (LiteLLM's Anthropic route, OpenRouter, Vercel, Bifrost) gets the request as
+  Claude Code sent it, model swapped; one that speaks Chat alone gets a translation (`src/wire-chat.js`):
+  system prompt, turns, tools, calls and results, images and a JSON schema carry over; thinking, cache
+  markers and Claude's server tools do not, and the log row names what was dropped. Prices the provider
+  reports go to the Report and the profile through `prices.js`; `thinker models price` sets one it did not.
+- **The key never sits in a settings file.** `--key-env` names a variable of the proxy's environment,
+  `--key-file` a private file, `--key` writes one under `~/.thinker/keys`. The proxy reads it per
+  request and adds it as it forwards; the agent's own login never goes to another host, and the
+  registry (`~/.thinker/providers.json`) names where the key is, never the key.
+- **A route is an alias**, `thinker/<alias>`, or a direct `thinker/<provider>/<model>`. A subagent file
+  names the alias, so `thinker models route` moves every subagent on it with no file rewritten. Claude Code
+  sends an id it does not recognise upstream unchanged; the proxy routes it, and a route nobody registered is
+  refused with a 400 on the subagent's first call rather than forwarded to Anthropic.
+- **A subagent is a file** under `~/.claude/agents`, written by `assign` with a marker so only thinker's
+  own file is ever rewritten or removed; a `reader` cannot write, a `worker` can. The Agent tool's
+  `subagent_type` names it. `connect` and `rewire` write what the registry names; `uninstall --user`
+  removes them.
+- **The profile** (`~/.thinker/state/model-profile.json`, `thinker models profile`) reads the subagent
+  transcripts beside their parents: per model and subagent type, the runs, the cost a run, the calls and the
+  time, failed calls, and what the parent did in the exchange after the subagent returned (the share of the
+  subagent's files it read again, whether it edited, whether the person corrected the exchange), plus each
+  route's calls, failures and median first byte from the proxy log. The recommendation is a rule over those
+  figures, printed with them: past five runs, a model that costs less a run and is no worse by ten points on
+  re-reads, corrections and failures is named; it is applied by hand with `thinker models route`, never by
+  the profile itself.
+
 ## Your own model endpoint
 
 Where model traffic must go through a gateway (a corporate proxy with its own base URL and

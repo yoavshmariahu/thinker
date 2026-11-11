@@ -13,6 +13,8 @@ const file = home => path.join(home || thinkerHome(), 'config.json');
 export function readMachineConfig(home) {
   try { return JSON.parse(fs.readFileSync(file(home), 'utf8')) || {}; } catch { return {}; }
 }
+// one read-modify-write of the machine config, for a command that sets one key (thinker models assign Explore)
+export function updateMachineConfig(home, fn) { const cfg = fn(readMachineConfig(home)) || readMachineConfig(home); writeMachineConfig(home, cfg); return cfg; }
 function writeMachineConfig(home, cfg) {
   const f = file(home);
   fs.mkdirSync(path.dirname(f), { recursive: true });

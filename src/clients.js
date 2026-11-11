@@ -46,6 +46,8 @@ import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { installClaudeMods, removeClaudeMods, withCardDir, withoutCardDir, cardDirIn, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
 import { installExploreAgent, removeExploreAgent } from './explore-agent.js';
+import { installAgents, removeAgents } from './model-agents.js';
+import { readRegistry } from './providers.js';
 
 export const CLIENTS = ['claude', 'codex', 'cursor', 'gemini', 'pi', 'windsurf', 'copilot', 'opencode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'devin'];
 
@@ -1405,6 +1407,13 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
         else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
+        // the subagents thinker models assign wrote, on the models the registry names (model-agents.js)
+        let routedAgents = {}; try { routedAgents = readRegistry().agents; } catch {}
+        for (const a of installAgents({ claudeDir: claudeDir(), agents: routedAgents })) {
+          if (a.action === 'written') done.push(`Claude Code: subagent ${a.name} runs on ${a.model} (${rel(a.file)})`);
+          else if (a.action === 'removed') done.push(`Claude Code: removed ${rel(a.file)}, no longer in the registry`);
+          else if (a.action === 'kept') done.push(`Claude Code: ${rel(a.file)} is your own and was left alone`);
+        }
       }
     }
   }
@@ -1662,7 +1671,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
-  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); }
+  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); removeAgents({ claudeDir: claudeDir() }); }
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

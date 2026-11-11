@@ -823,3 +823,12 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
   // the two doors say the attribution rule in the same words
   for (const f of ['factory.js', 'ui/page.html']) assert.match(read(f), /A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think\./);
 });
+
+test('models from other providers are the command line\'s alone: the page has no door to a key, and every flag is in help', () => {
+  // the registry and its key files are the machine's (providers.js); the page never asks for a credential
+  assert.doesNotMatch(read('ui/page.html'), /thinker models|--key-env|providers\.json/);
+  for (const f of ['--key-env NAME|--key-file path|--key value|--no-key', '--format messages|chat', '--template reader|worker', '--input n --output n', 'models profile [--days n] [--here] [--json] [--refresh]']) assert.ok(read('cli.js').includes(f), f);
+  // prices stay one door: the registry's prices reach the Report through prices.js, and nowhere else prices a token
+  assert.match(read('prices.js'), /registryPrices\(home\)/);
+  assert.doesNotMatch(read('model-profile.js'), /\* *price\.input|price\.output *\*/);
+});
