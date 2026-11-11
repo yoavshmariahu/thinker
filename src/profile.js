@@ -109,7 +109,8 @@ const cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, Ma
 // A skill an exchange ran, and by whom: the agent's `Skill` call, or a `/skill` the person typed (Claude Code records
 // it as a command block, which `clean` strips; a prompt that is nothing but the command keeps `/name args` as its
 // text). Claude Code's own commands are not skills (`BUILTIN_COMMANDS`; a typed `/clear` makes no exchange, as before).
-// Two calls of one skill in one exchange are one use. Codex and Cursor sessions carry no skill calls yet.
+// Two calls of one skill in one exchange are one use. opencode's call is the same tool in lowercase with the
+// skill in `input.name` (checked live in a trace, 2026-11-10). Codex and Cursor sessions carry no skill calls yet.
 const BUILTIN_COMMANDS = new Set(['clear', 'compact', 'model', 'login', 'logout', 'doctor', 'effort', 'permissions', 'reload-plugins', 'help', 'config', 'cost', 'status', 'resume', 'exit', 'quit', 'init', 'memory', 'agents', 'mcp', 'plugins', 'hooks', 'terminal-setup', 'vim', 'bug', 'fast', 'context', 'export', 'rewind', 'usage', 'release-notes', 'privacy-settings', 'stats', 'theme', 'add-dir', 'ide', 'install-github-app', 'review', 'upgrade', 'output-style', 'statusline', 'feedback', 'tasks', 'todos', 'branch', 'insights', 'desktop', 'chrome', 'color', 'keybindings', 'sandbox', 'teleport', 'rename', 'copy', 'diff', 'files', 'mobile', 'remote-env', 'session', 'summary', 'btw', 'fork', 'extra-usage', 'voice']);
 const COMMAND = /<command-name>\s*\/?([\w.:-]+)\s*<\/command-name>(?:[\s\S]*?<command-args>([\s\S]*?)<\/command-args>)?/;
 export const skillName = s => { const n = String(s || '').trim().replace(/^\//, '').toLowerCase().slice(0, 60); return /^[\w.:-]+$/.test(n) ? n : ''; };
@@ -137,7 +138,7 @@ export function exchanges(events) {
       out.push({ turn: out.length + 1, prompt: text, answers: [], next: null, at, skills: typed ? [{ name: typed.name, by: 'person' }] : [] });
     }
     else if (e.t === 'say' && out.length) { const text = clean(e.text); if (text && !ASSESSOR_SAY.test(text)) out.at(-1).answers.push(text); }
-    else if (e.t === 'tool' && e.name === 'Skill' && out.length) { const name = skillName(e.input?.skill); if (name) addSkill(out.at(-1), { name, by: 'agent' }); }
+    else if (e.t === 'tool' && /^skill$/i.test(e.name || '') && out.length) { const name = skillName(e.input?.skill ?? e.input?.name); if (name) addSkill(out.at(-1), { name, by: 'agent' }); }
     if (at && out.length && !out.at(-1).at) out.at(-1).at = at;
   }
   for (let i = 0; i < out.length; i++) { if (i) out[i - 1].next = out[i].prompt; if (!out[i].at && i) out[i].at = out[i - 1].at; }

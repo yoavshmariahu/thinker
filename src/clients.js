@@ -470,7 +470,7 @@ export function wiringFiles(client, { scope = 'repo', repo } = {}) {
       : { hooks: at('.cursor', 'hooks.json'), mcp: at('.cursor', 'mcp.json'), rule: at('.cursor', 'rules', 'thinker.mdc') };
     // the checkout files of these four are EXTENSIONS, HOOK_FILES, RULE_FILES and MCP_FILES
     case 'pi': return user ? { ext: path.join(piDir(), 'extensions', 'thinker.js') } : {};
-    case 'opencode': return user ? { ext: path.join(opencodeDir(), 'plugins', 'thinker.js') } : {};
+    case 'opencode': return user ? { ext: path.join(opencodeDir(), 'plugins', 'thinker.js'), dir: path.join(opencodeDir(), 'plugins', 'thinker') } : {};
     case 'copilot': return user ? { hooks: path.join(copilotHome(), 'hooks', 'thinker.json'), mcp: path.join(copilotHome(), 'mcp-config.json') } : {};
     case 'windsurf': return user ? { hooks: path.join(windsurfDir(), 'hooks.json') } : {};
     case 'devin': return user
@@ -737,12 +737,17 @@ export function inferWiring(repo, client, { scope = 'repo' } = {}) {
     w.shared = scope === 'repo' && !local(f.hooks) && !local(f.mcp);
   }
   if (EXTENSIONS[client] || (client === 'kilo' && scope === 'user')) {
-    const text = readText(scope === 'repo' ? path.join(repo, EXTENSIONS[client]) : f.ext);
+    // OpenCode 2 keeps its generated wiring in the plugin directory's index.ts; the v1 single file is
+    // the fallback (and what an older copy wrote). The first line of either is the config.
+    const v2 = client === 'opencode' && fs.existsSync(path.join(opencodeV2Dir({ scope, repo }), 'index.ts'));
+    const text = v2 ? readText(path.join(opencodeV2Dir({ scope, repo }), 'index.ts'))
+      : readText(scope === 'repo' ? path.join(repo, EXTENSIONS[client]) : f.ext);
     if (!text.startsWith(GENERATED_MARK)) return null;
     try {
       const cfg = JSON.parse(text.split('\n')[0].slice(GENERATED_MARK.length));
       Object.assign(w, cfg); scripts.add(cfg.cli); hookScripts.add(cfg.cli);
-      if (text !== extensionText(cfg)) custom.push('modified thinker extension');
+      const expected = v2 ? opencodeV2Files(cfg)['index.ts'] : extensionText(cfg);
+      if (text !== expected) custom.push('modified thinker extension');
     } catch { return null; }
   }
   if ((client === 'windsurf' || client === 'copilot') && scope !== 'repo') {
@@ -1091,6 +1096,7 @@ function uninstallRepoClient(repo, client) {
   const gone = [];
   const ext = EXTENSIONS[client] && path.join(repo, EXTENSIONS[client]);
   if (ext && readText(ext).startsWith(GENERATED_MARK)) { fs.unlinkSync(ext); gone.push(EXTENSIONS[client]); }
+  if (client === 'opencode') { const dir = opencodeV2Dir({ scope: 'repo', repo }); if (readText(path.join(dir, 'index.ts')).startsWith(GENERATED_MARK)) { fs.rmSync(dir, { recursive: true, force: true }); gone.push(path.relative(repo, dir)); } }
   for (const f of HOOK_FILES[client] || []) if (stripThinkerHooks(path.join(repo, f), { keepVersion: true })) gone.push(f);
   for (const f of RULE_FILES[client] || []) if (readText(path.join(repo, f)).includes('<!-- thinker -->')) { fs.unlinkSync(path.join(repo, f)); gone.push(f); }
   if (MCP_FILES[client] && dropMcpEntry(path.join(repo, MCP_FILES[client]))) gone.push(MCP_FILES[client]);
@@ -1238,6 +1244,40 @@ function extensionText(config) {
   return GENERATED_MARK + JSON.stringify(config) + '\n' + `import { ${factory} } from ${JSON.stringify(source)};\n` + body;
 }
 
+// OpenCode 2 does not run v1 plugins at all: the hook map of integrations/opencode.js is dead there,
+// and the plugin becomes a directory -- `index.ts` (the server part, opencode-v2.js) and `tui.tsx`
+// (the terminal part, opencode-tui.js: the savings footer and the end-of-turn toast, which v2's
+// server part has no client for). The wrappers stay two lines of wiring that import this checkout's
+// modules by file:// URL, as the v1 single file did, so the words stay in one place. Everything the
+// three readers need (install, inferWiring, uninstall) goes through `opencodeV2Files`, so they can
+// never disagree about what thinker wrote.
+let ocMajor;
+export function opencodeMajor() {
+  if (process.env.THINKER_OPENCODE_MAJOR !== undefined) return Number(process.env.THINKER_OPENCODE_MAJOR) || 0;
+  if (ocMajor !== undefined) return ocMajor;
+  try {
+    const out = execFileSync('opencode', ['--version'], { timeout: 10_000, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    ocMajor = Number((out.match(/v?(\d+)\./) || [])[1]) || 0;
+  } catch { ocMajor = 0; }
+  return ocMajor;
+}
+const opencodeIsV2 = config => config.client === 'opencode' && opencodeMajor() >= 2;
+const opencodeV2Dir = o => o.scope === 'user' ? path.join(opencodeDir(), 'plugins', 'thinker') : path.join(o.repo, '.opencode', 'plugins', 'thinker');
+function opencodeV2Files(config) {
+  const integrations = pathToFileURL(path.join(path.dirname(config.cli), 'integrations')).href;
+  const mark = GENERATED_MARK + JSON.stringify(config) + '\n';
+  return {
+    'index.ts': mark
+      + `import { Plugin } from "@opencode/plugin";\n`
+      + `import { opencodeV2 } from ${JSON.stringify(`${integrations}/opencode-v2.js`)};\n`
+      + `export default Plugin.define(opencodeV2(${JSON.stringify(config)}));\n`,
+    'tui.tsx': mark
+      + `import { Plugin } from "@opencode/plugin/tui";\n`
+      + `import { thinkerTui } from ${JSON.stringify(`${integrations}/opencode-tui.js`)};\n`
+      + `export default Plugin.define(thinkerTui(${JSON.stringify(config)}, { text: (line, theme) => <text fg={theme.text.muted}>{line}</text> }));\n`,
+  };
+}
+
 // Wire one client in: into the repo (scope 'repo') or the user's files (scope 'user'). Returns lines describing what was done.
 //   opts: scope, repo, cli (path to cli.js), mcpEntry ({command,args,env}), hooks, learn, late, shared, mcp
 export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hooks, learn, late, shared, mcp }) {
@@ -1267,11 +1307,26 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     const before = readText(file);
     if (before && !before.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${rel(file)}: not a generated thinker extension`);
     const config = { client, repo: scope === 'user' ? null : repo, cli, hooks: !!hooks, learn: !!learn, late: !!late, shared: !!shared, mcp: !!mcp, mcpEntry };
-    const text = extensionText(config);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    if (before !== text) fs.writeFileSync(file, text);
-    if (scope === 'repo' && !shared) excludeLocally(repo, [EXTENSIONS[client]]);
-    done.push(`${client}: installed ${rel(file)}${client === 'pi' && mcp ? '; follow-up retrieval uses the CLI (no MCP dependency)' : ''}`);
+    if (opencodeIsV2(config)) {
+      // OpenCode 2: a plugin directory, not a single file. A generated v1 file beside it is this
+      // copy's own older wiring and goes; a file thinker did not write is not ours to remove.
+      const dir = opencodeV2Dir(o);
+      const idx = path.join(dir, 'index.ts');
+      const beforeIdx = readText(idx);
+      if (beforeIdx && !beforeIdx.startsWith(GENERATED_MARK)) throw new Error(`Refusing to overwrite ${rel(idx)}: not a generated thinker extension`);
+      if (before.startsWith(GENERATED_MARK)) { try { fs.unlinkSync(file); } catch {} }
+      const files = opencodeV2Files(config);
+      fs.mkdirSync(dir, { recursive: true });
+      for (const [name, text] of Object.entries(files)) { const p = path.join(dir, name); if (readText(p) !== text) fs.writeFileSync(p, text); }
+      if (scope === 'repo' && !shared) excludeLocally(repo, [path.relative(repo, idx), path.relative(repo, path.join(dir, 'tui.tsx'))]);
+      done.push(`opencode v${opencodeMajor()}: installed ${rel(dir)}/ (hooks, MCP and the savings footer)`);
+    } else {
+      const text = extensionText(config);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      if (before !== text) fs.writeFileSync(file, text);
+      if (scope === 'repo' && !shared) excludeLocally(repo, [EXTENSIONS[client]]);
+      done.push(`${client}: installed ${rel(file)}${client === 'pi' && mcp ? '; follow-up retrieval uses the CLI (no MCP dependency)' : ''}`);
+    }
   }
   if ((client === 'windsurf' || client === 'copilot') && scope === 'user') {
     if (hooks) {
@@ -1587,7 +1642,11 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   stripThinkerHooks(devin.hooks, { flat: scope === 'repo' }); dropMcpEntry(devin.mcp);
   if (scope === 'repo') for (const client of ['pi', 'opencode', 'copilot', 'windsurf']) uninstallRepoClient(repo, client);
   else {
-    for (const client of ['pi', 'opencode']) { const ext = wiringFiles(client, o).ext; if (readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext); }
+    for (const client of ['pi', 'opencode']) {
+      const ext = wiringFiles(client, o).ext;
+      if (ext && readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext);
+      if (client === 'opencode') { const dir = opencodeV2Dir(o); if (readText(path.join(dir, 'index.ts')).startsWith(GENERATED_MARK)) fs.rmSync(dir, { recursive: true, force: true }); }
+    }
     stripThinkerHooks(wiringFiles('copilot', o).hooks, { keepVersion: true }); stripThinkerHooks(wiringFiles('windsurf', o).hooks);
     dropMcpEntry(wiringFiles('copilot', o).mcp);
     // Droid, Qwen Code, Auggie, Kiro CLI, Cline, Kilo, Goose

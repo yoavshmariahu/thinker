@@ -1,15 +1,17 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { compressionHeader, compressionTools, statusTail, tailOf, TURNS_AFTER } from './register'
+import { compressionHeader, compressionTools, statusTail, tailOf, TURNS_AFTER, UPDATE_NOTE } from './register'
 
 const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compact JSON.'
 
 // what stands beneath the mod in a session: the engine's own drawing and the files; `root` is the
 // session's checkout.
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any } = {}) {
-  on('store.get', ($, e) => ({ value: e.key === 'savings-hidden-on' && hidden ? hidden : undefined }))
-  on('store.set', () => ({ value: undefined }))
+// `noted` is the update note this machine has already been told, which is this note by default: the
+// note is a one-off and every other test here is about a machine that has had it.
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any, noted = UPDATE_NOTE.id as string, stored = [] as [string, any][] } = {}) {
+  on('store.get', ($, e) => ({ value: e.key === 'savings-hidden-on' && hidden ? hidden : e.key === 'update-note' ? noted : undefined }))
+  on('store.set', ($, e) => { stored.push([e.key, e.value]); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
   // the engine's own status line under the prompt, the desktop door: what the mod pinned, or cleared
   on('ui.status', ($, e) => { pinned.push(e.text); return { value: undefined } })
@@ -30,6 +32,8 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
   })
   on('fs.stat', ($, e) => ({ value: { kind: 'file', size: e.path.endsWith('clients.js') ? 100000 : 3600, mtimeMs: 0 } as any }))
   on('ui.invalidate', () => ({ value: undefined }))
+  // the ledger poll the mod starts at session.start; a test that starts a session must answer it
+  on('clock.every', () => ({ value: undefined }))
   on('ui.render', { component: 'AssistantMessage' }, ($, e) => { const { Text } = $.ui.resolve(e); return <Text key="answer">{e.props.text}</Text> })
 }
 const end = (turnId: string, text = answer) => ({ answer: text, durationMs: 1, isAborted: false, turnId, reason: 'answer' as const })
@@ -208,3 +212,33 @@ test('a subagent turn keeps no card', async ($, on) => {
   expect((await ui.findAll({ text: /Thinker/ })).length).toBe(0)
 })
 
+
+// What changed in thinker, once per machine. A person's agents never name a version, so a release that
+// turns their notes into a profile has to say so somewhere; this is the Claude Code door for it.
+test('the update note is drawn once, under the first answer, and never again', async ($, on) => {
+  const stored: [string, any][] = []
+  engine(on, { savings: { ...ledger(), version: '0.3.0' }, noted: '', stored })   // a machine that has not been told
+  await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })   // where the ledger, and its version, is first read
+  await $.turn.complete(end('t1'))
+  const ui = await mount($, 'terminal')
+  expect((await ui.findAll({ text: /Thinker v0\.3\.0/ })).length).toBeGreaterThan(0)   // the version, which nothing else in a session says
+  expect((await ui.findAll({ text: new RegExp(UPDATE_NOTE.title) })).length).toBeGreaterThan(0)
+  for (const line of UPDATE_NOTE.lines) expect((await ui.findAll({ text: line.slice(0, 30) })).length).toBeGreaterThan(0)
+  await ui.unmount()
+  // the note's id is kept the moment it is drawn, so the next session asks for nothing
+  expect(stored.find(([k]) => k === 'update-note')?.[1]).toBe(UPDATE_NOTE.id)
+})
+
+test('a machine already told draws no update note', async ($, on) => {
+  engine(on, { savings: ledger() })
+  await $.turn.complete(end('t1'))
+  const ui = await mount($, 'terminal')
+  expect((await ui.findAll({ text: /Thinker/ })).length).toBe(0)
+  await ui.unmount()
+})
+
+test('the status row names the version the ledger was written by', async ($, on) => {
+  const status: (string | undefined)[] = []
+  engine(on, { savings: { ...ledger(), version: '0.3.0' }, status })
+  expect(await row($, status)).toBe('thinker v0.3.0: saved today $3.65 · lifetime $849')
+})

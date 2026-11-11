@@ -117,7 +117,9 @@ test('a figure stamped on another day says lifetime alone, and says it the same 
   const l = computeSavings(store, { now });
   const line = savingsLine(l, { now });
   assert.match(line, /^saved today \$[\d.]+ · lifetime \$[\d.]+$/);
-  assert.equal(savingsStatus(l, { now }), `thinker: ${line}`);
+  // the status row names the version that counted the figures, which is the one place thinker says it
+  assert.equal(savingsStatus(l, { now }), `thinker v${l.version}: ${line}`);
+  assert.equal(savingsStatus({ ...l, version: '9.9.9' }, { now }), `thinker v9.9.9: ${line}`);
   // tomorrow, the same file: today's figure belongs to a day that has passed, so it is not said
   const tomorrow = now + DAY;
   assert.equal(savingsLine(l, { now: tomorrow }), `lifetime ${formatDollars(l.lifetime.cost)}`);
@@ -190,9 +192,15 @@ test('through the Stop hook: the line carries the money in Codex, the card mod c
   const stop = (client, session, extra = {}) => execFileSync(process.execPath, [path.join(ROOT, 'src', 'cli.js'), 'hook', 'stop', '--client', client, '--no-distill', '--repo', repo],
     { input: JSON.stringify({ session_id: session, cwd: repo }), encoding: 'utf8', env: { ...env, ...extra } }).trim();
 
-  // Codex CLI and a Claude Code without the mod: the summary line is the money
-  const line = JSON.parse(stop('codex', 'c1')).systemMessage;
+  // Codex CLI and a Claude Code without the mod: the summary line is the money. The first summary a
+  // machine is given carries the update note above it, once (update-note.js); the money is the line under it.
+  const first = JSON.parse(stop('codex', 'c1')).systemMessage;
+  assert.match(first, /^🧠 thinker v[\d.]+ · What changed\n/, first);
+  const line = first.split('\n').pop();
   assert.match(line, /^🧠 thinker: saved today \$[\d.]+ · lifetime \$[\d.]+$/, line);
+  // and it is said once: the next summary is the money alone
+  fs.rmSync(path.join(home, 'state', 'notice.json'), { force: true });
+  assert.equal(JSON.parse(stop('codex', 'c1')).systemMessage, line);
 
   // Claude Code with the card mod running: the statusline has it, so the line does not say it twice
   fs.mkdirSync(path.join(home, 'state', 'claude-card'), { recursive: true });

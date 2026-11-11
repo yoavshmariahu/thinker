@@ -498,16 +498,20 @@ test('skills: an exchange\'s Skill calls and typed skills ride with its observat
     { t: 'tool', name: 'Skill', input: { skill: 'claude-api', args: 'pricing' }, result: 'x' },
     { t: 'tool', name: 'Skill', input: { skill: 'claude-api' }, result: 'x' },
     { t: 'say', text: 'Priced.' },
+    { t: 'prompt', text: 'now the chart' },
+    { t: 'tool', name: 'skill', input: { name: 'dataviz' }, result: 'x' },
+    { t: 'say', text: 'Charted.' },
     { t: 'prompt', text: 'thanks' }, { t: 'say', text: 'ok' },
   ];
   const xs = exchanges(evs);
-  assert.deepEqual(xs.map(x => x.prompt), ['/code-review high', 'now price the models', 'thanks'], 'a typed skill is a prompt of its own; a built-in command makes no exchange');
+  assert.deepEqual(xs.map(x => x.prompt), ['/code-review high', 'now price the models', 'now the chart', 'thanks'], 'a typed skill is a prompt of its own; a built-in command makes no exchange');
   assert.deepEqual(xs[0].skills, [{ name: 'code-review', by: 'person' }]);
   assert.deepEqual(xs[1].skills, [{ name: 'claude-api', by: 'agent' }], 'two calls of one skill in one exchange are one use');
+  assert.deepEqual(xs[2].skills, [{ name: 'dataviz', by: 'agent' }], 'opencode\'s lowercase skill call, the skill in input.name');
   assert.match(extractionInput(xs), /SKILLS: \/claude-api \(called by the agent\)/);
   assert.ok(!extractionInput(xs).includes('pricing'), 'the call\'s arguments never reach the extraction');
-  const obs = observationSkills([{ turn: 2, request: 'b' }, { turn: 1, request: 'a' }], xs);
-  assert.deepEqual(obs.map(o => o.skills.map(k => k.name)), [['claude-api'], ['code-review']], 'in the caller\'s order, each over the exchanges up to the next observation');
+  const obs = observationSkills([{ turn: 3, request: 'b' }, { turn: 2, request: 'a' }], xs);
+  assert.deepEqual(obs.map(o => o.skills.map(k => k.name)), [['dataviz'], ['claude-api']], 'in the caller\'s order, each over the exchanges up to the next observation');
   assert.deepEqual(obs.map(o => o.interrupts), [0, 0]);
   const now = Date.now();
   const rows = [

@@ -15,10 +15,11 @@ import type { Register } from 'claude-code'
 
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
-export type Card = { tail: string; at: number; prompts?: number; compression: Saving }
+export type Note = { id: string; title: string; lines: string[]; more?: string; version?: string }
+export type Card = { tail: string; at: number; prompts?: number; compression?: Saving; update?: Note }
 // the kept ledger, as src/savings-ledger.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
-export type Ledger = { at: number; day: string; today: Cell; lifetime: Cell }
+export type Ledger = { at: number; day: string; version?: string; today: Cell; lifetime: Cell }
 
 // every string inside a value, however a row nests its content
 export function strings(v: unknown, out: string[] = []): string[] {
@@ -71,8 +72,10 @@ async function markSession($: any): Promise<void> {
 // The status line's words, as src/savings-ledger.js:savingsStatus writes them (test/claude-card.test.js
 // holds the two sentences together). Both figures are already formatted; `today` is null when the kept
 // ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
-export const savingsStatus = (today: string | null, lifetime: string) =>
-  `thinker: ${today ? `saved today ${today} · ` : ''}lifetime ${lifetime}`
+// The version is the ledger's own (the copy that counted these figures), and this row is the only
+// place thinker names it: the agents never do, so a person has no other way to see what they run.
+export const savingsStatus = (today: string | null, lifetime: string, version?: string) =>
+  `thinker${version ? ` v${version}` : ''}: ${today ? `saved today ${today} · ` : ''}lifetime ${lifetime}`
 
 // The figures as the tail of the engine's own status row, which is the whole of what a mod may say
 // about how they are drawn. The engine takes the string and nothing else: it collapses every run of
@@ -113,9 +116,13 @@ async function savings($: any, { now = Date.now() } = {}): Promise<string> {
   try { l = JSON.parse(String(await $.fs.read(`${await thinkerHome($)}/state/savings.json`))) } catch { return '' }
   if (!l?.lifetime || (!l.lifetime.tokens && !l.lifetime.unpricedTokens)) return ''
   const today = l.day === dayKey(now) && Number.isFinite(l.today?.cost) ? formatDollars(l.today.cost) : null
-  return savingsStatus(today, formatDollars(l.lifetime.cost))
+  version = l.version || ''
+  return savingsStatus(today, formatDollars(l.lifetime.cost), l.version)
 }
 
+// The version that wrote the ledger, kept from the same read: the update card names it too, and a card
+// may no more read a file while drawing than the status row may.
+let version = ''
 // The line currently on screen, kept here because a `ui.render` hook draws on every frame and must
 // never read a file: the reads happen at the start of the session, at the end of each turn, and when
 // the ledger's file moves (the poll below), and a changed line asks for a redraw.
@@ -145,7 +152,7 @@ export const HIDDEN_KEY = 'savings-hidden-on'
 // alone, so the dismissal is a command rather than a button. Cleared with `undefined` once hidden.
 // The desktop app heads the line with the plugin's name (`thinker`, plugin.json), so the line itself
 // drops the `thinker: ` the terminal's row carries (`desktopStatus`): it would read thinker twice.
-export const desktopStatus = (line: string) => line.replace(/^thinker: /, '')
+export const desktopStatus = (line: string) => line.replace(/^thinker:? ?/, '')
 const showStatus = ($: any, surface: string) => {
   if (surface !== 'desktop') return
   $.ui.status(line && hiddenOn !== dayKey(Date.now()) ? desktopStatus(line) : undefined)
@@ -211,6 +218,23 @@ async function noticeShown($: any): Promise<void> {
   try { await $.fs.write(await noticeFile($), JSON.stringify({ at: new Date().toISOString(), prompts: 0 })) } catch {}
 }
 
+// What changed in thinker, drawn once per machine as a card under an answer. The words are
+// src/update-note.js's, which test/claude-card.test.js holds this copy to; the mod runs inside Claude
+// Code and can import nothing from thinker. Once per note, keyed on the note's own id, and never where
+// the notices are off -- a person who asked thinker to be quiet did not ask for release notes.
+export const UPDATE_NOTE: Note = {
+  id: '2026-11-profile-factory',
+  title: 'What changed',
+  lines: [
+    'Thinker builds a memory profile — what you are working on and how you like to work, distilled from your sessions and loaded at the top of each new one.',
+    'Knowledge notes are removed: hit rates were low across many users.',
+    'New Factory tab: the breakdown of your software factory, and which parts spend the most tokens or rework.',
+    'Find Savings is now one more compact table. Skill and tool suggestions from your session history are coming soon.',
+  ],
+  more: 'See both: thinker ui',
+}
+export const NOTE_KEY = 'update-note'
+
 const MAX_CARDS = 300
 export const tailOf = (text: string) => text.replace(/\s+/g, ' ').trim().slice(-160)
 let cards: Card[] | null = null
@@ -226,6 +250,7 @@ export const register: Register = on => {
   let sinceClear = -1
   cards = null
   line = ''
+  version = ''
   ledgerAt = -1
   let poll: { cancel: () => void } | null = null
 
@@ -259,10 +284,24 @@ export const register: Register = on => {
       if (state) sinceClear = sinceClear < 0 ? 0 : sinceClear + 1
       const compression = state && sinceClear >= TURNS_AFTER ? state : undefined
       const tail = tailOf(e.answer)
+      // What changed in thinker, once per machine, at the first turn that ends after the update. It
+      // does not wait for the summary cadence and does not spend it: a release note is a one-off, and
+      // a person who learns a week late what their agent has been doing has learnt it too late. The
+      // Stop hook leaves it to this card where the mod runs (commands/hooks.js:carded), so it is said
+      // once whichever door it comes through.
+      if (tail && (await noticeOn($)) && (await $.store.get(NOTE_KEY).catch(() => null)) !== UPDATE_NOTE.id) {
+        await $.store.set(NOTE_KEY, UPDATE_NOTE.id).catch(() => {})
+        const card: Card = { tail, at: Date.now(), update: { ...UPDATE_NOTE, version } }
+        cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
+        await $.store.set('cards', cards).catch(() => {})
+        await markSession($)
+        $.ui.invalidate('ui.render')
+      }
       if (compression && tail) {
         if (!(await noticeDue($))) held++   // the saving comes with the next card
         else {
-          const card: Card = { tail, at: Date.now(), prompts: held + 1, compression }
+          const was = (await load($)).find(c => c.tail === tail)
+          const card: Card = { tail, at: Date.now(), prompts: held + 1, compression, update: was?.update }
           cards = [...(await load($)).filter(c => c.tail !== tail), card].slice(-MAX_CARDS)
           await $.store.set('cards', cards).catch(() => {})
           await markSession($)
@@ -299,11 +338,18 @@ export const register: Register = on => {
     if (e.props.isSummary) return drawn
     const tail = tailOf(e.props.text)
     const card = tail ? (await load($)).find(c => c.tail === tail) : undefined
-    if (!card?.compression) return drawn
+    if (!card?.compression && !card?.update) return drawn
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {drawn}
+        {card.update ? (
+          <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
+            <Text><Text bold>🧠 Thinker{card.update.version ? ` v${card.update.version}` : ''}</Text><Text dimColor> · {card.update.title}</Text></Text>
+            {card.update.lines.map((l, i) => <Text key={i} dimColor>• {l}</Text>)}
+            {card.update.more ? <Text dimColor>{card.update.more}</Text> : null}
+          </Box>
+        ) : null}
         {card.compression ? (
           <Box flexDirection="column" borderStyle="round" paddingX={1} marginTop={1}>
             <Text><Text bold>🗜 Thinker</Text><Text dimColor> · {compressionHeader(card.compression)}</Text></Text>

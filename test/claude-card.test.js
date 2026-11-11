@@ -10,6 +10,7 @@ import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool
 import { NOTICE_PROMPTS, NOTICE_HOURS } from '../src/notice-cadence.js';
 import { formatTokens } from '../src/model-usage.js';
 import { dayKey, savingsStatus } from '../src/savings-ledger.js';
+import { UPDATE_NOTE } from '../src/update-note.js';
 import { formatDollars } from '../src/prices.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -129,15 +130,17 @@ test('the status row says what the ledger says, in the same words and the same d
   // The mod runs inside Claude Code, so it carries its own copy of the sentence and of the two
   // helpers under it. These hold the copies to src/savings-ledger.js and src/prices.js.
   // the line's own template, to the end of its line: it nests a template inside itself
-  const mod = src.match(/export const savingsStatus = \(today: string \| null, lifetime: string\) =>\n  (.+)/);
+  const mod = src.match(/export const savingsStatus = \(today: string \| null, lifetime: string, version\?: string\) =>\n  (.+)/);
   assert.ok(mod, 'the mod exports the status line');
-  const built = (today, lifetime) => new Function('today', 'lifetime', `return ${mod[1]};`)(today, lifetime);
+  const built = (today, lifetime, version) => new Function('today', 'lifetime', 'version', `return ${mod[1]};`)(today, lifetime, version);
   const day = dayKey(Date.parse('2026-11-05T12:00:00Z'));
-  const ledger = { day, today: { cost: 3.65, tokens: 5_636_787 }, lifetime: { cost: 849.2, tokens: 1_339_960_865 } };
+  const ledger = { day, version: '0.3.0', today: { cost: 3.65, tokens: 5_636_787 }, lifetime: { cost: 849.2, tokens: 1_339_960_865 } };
   const now = Date.parse('2026-11-05T15:00:00Z');
-  assert.equal(built(formatDollars(3.65), formatDollars(849.2)), savingsStatus(ledger, { now }));
+  assert.equal(built(formatDollars(3.65), formatDollars(849.2), ledger.version), savingsStatus(ledger, { now }));
   // and the day the figure was stamped on having passed, both say lifetime alone
-  assert.equal(built(null, formatDollars(849.2)), savingsStatus(ledger, { now: now + 86400e3 }));
+  assert.equal(built(null, formatDollars(849.2), ledger.version), savingsStatus(ledger, { now: now + 86400e3 }));
+  // the version is the ledger's own, so the row names the copy that counted the figures beside it
+  assert.match(built(null, formatDollars(849.2), '0.3.0'), /^thinker v0\.3\.0: /);
   // the two helpers, as text
   // the mod's copies are src's with the types put back on; the mod is always given a time, where src
   // defaults it, and that one difference in the signature is allowed for here
@@ -155,7 +158,11 @@ test('the status row says what the ledger says, in the same words and the same d
   // the desktop app draws no tail but does draw the engine's status line under the prompt (seen live,
   // 2026-11-06), so there the line is `$.ui.status`, on that surface alone, and /thinker-hide clears it
   assert.match(src, /\$\.ui\.status\(line && hiddenOn !== dayKey\(Date\.now\(\)\) \? desktopStatus\(line\) : undefined\)/);
-  assert.match(src, /desktopStatus = \(line: string\) => line\.replace\(\/\^thinker: \/, ''\)/, 'the app heads the line with the plugin name, so the line drops its own');
+  assert.match(src, /desktopStatus = \(line: string\) => line\.replace\(\/\^thinker:\? \?\/, ''\)/, 'the app heads the line with the plugin name, so the line drops its own');
+  // the name alone goes: the version stays, since the app's own heading is the plugin's name and nothing else
+  const drop = new Function('line', "return line.replace(/^thinker:? ?/, '')");
+  assert.equal(drop('thinker v0.3.0: saved today $1.14 · lifetime $849'), 'v0.3.0: saved today $1.14 · lifetime $849');
+  assert.equal(drop('thinker: lifetime $849'), 'lifetime $849');
   assert.match(src, /if \(surface !== 'desktop'\) return/);
   assert.match(src, /name: 'thinker-hide'/);
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'src', 'clients.js'), 'utf8'), /statusLine/, 'thinker writes no statusLine into the agent\'s settings');
@@ -251,4 +258,24 @@ test('connect on an installed app names the copies and repoints them only when a
     process.env.HOME = saved.HOME; if (saved.CLAUDE_CONFIG_DIR !== undefined) process.env.CLAUDE_CONFIG_DIR = saved.CLAUDE_CONFIG_DIR;
     fs.rmSync(home, { recursive: true, force: true });
   }
+});
+
+// The update note is one piece of copy in two places, as every other word the mod says is: src writes
+// it for the agents that draw no card, the mod carries its own copy for the card. A note changed in one
+// and not the other would tell two different people two different things about the same release.
+test('the update card says what src/update-note.js says, once per note', () => {
+  const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
+  const mod = src.match(/export const UPDATE_NOTE: Note = \{[\s\S]*?\n\}/)[0];
+  const one = new Function(`return ${mod.replace('export const UPDATE_NOTE: Note = ', '')}`)();
+  assert.deepEqual({ id: one.id, title: one.title, lines: one.lines, more: one.more }, { id: UPDATE_NOTE.id, title: UPDATE_NOTE.title, lines: UPDATE_NOTE.lines, more: UPDATE_NOTE.more });
+  // four lines at most: the note rides the same budget as every other thinker message
+  assert.ok(UPDATE_NOTE.lines.length > 0 && UPDATE_NOTE.lines.length <= 4, 'four lines, no more');
+  // drawn once per machine, keyed on the note's own id, and never where the notices are off
+  assert.match(src, /\(await \$\.store\.get\(NOTE_KEY\)\.catch\(\(\) => null\)\) !== UPDATE_NOTE\.id/);
+  assert.match(src, /await \$\.store\.set\(NOTE_KEY, UPDATE_NOTE\.id\)/);
+  assert.match(src, /if \(tail && \(await noticeOn\(\$\)\)/);
+  // and the Stop hook leaves it to the card where the mod runs, as it leaves the money to the status row
+  const hooks = fs.readFileSync(path.join(ROOT, 'src', 'commands', 'hooks.js'), 'utf8');
+  assert.match(hooks, /const update = !carded && updateNoteDue\(store\) \? updateNoteText\(\) : ''/);
+  assert.match(hooks, /if \(update\) updateNoteShown\(store\)/);
 });

@@ -501,3 +501,79 @@
     .econ-wire-features svg{display:block;margin:0 auto 7px;width:22px;height:22px;fill:none;stroke:var(--saving);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
     .econ-wire-features strong{display:block;font-size:.82rem;font-weight:600;letter-spacing:-.02em}.econ-wire-features span{display:block;font-size:.7rem;color:#555;line-height:1.5;margin-top:5px}.econ-wire-features small{display:block;font-size:.61rem;color:#687b6d;line-height:1.4;margin-top:7px}
     @media(max-width:650px){.econ-wiring{margin-top:20px}.econ-wiring-scene .econ-heading h2{font-size:2rem}.econ-wire-agents{gap:7px}.econ-wire-agents>span{font-size:.65rem;padding:10px 2px}.econ-wire-hub{padding:9px 12px}.econ-wire-hub>span{font-size:.6rem;padding-left:9px}.econ-wire-features{gap:7px}.econ-wire-features>div{padding:12px 6px}.econ-wire-features strong{font-size:.72rem;line-height:1.3;min-height:2.6em}.econ-wire-features span{font-size:.65rem;min-height:3em}.econ-wire-features small{font-size:.56rem;min-height:2.8em}}
+
+    /* Landing sections below the hero (2026-11-09) */
+    .lp{max-width:960px;margin:0 auto;padding:3.5rem 1.5rem;text-align:left;color:#111}
+    .lp+.lp{border-top:1px solid #eee}
+    .lp h2{font-size:1.85rem;letter-spacing:-.03em;line-height:1.15;margin-bottom:1rem}
+    .lp p{font-size:1.02rem;line-height:1.6;color:#333;max-width:680px;margin-bottom:1rem}
+    .lp-lede{font-size:1.05rem;color:#444;max-width:640px;line-height:1.55;margin:.25rem auto 1.75rem}
+    /* The hero stops short of the fold so the first section's heading peeks in and invites a scroll. */
+    body.lp-page main{min-height:84vh;padding-bottom:1rem}
+    .lp-split{display:grid;grid-template-columns:1fr 1fr;gap:2.5rem;align-items:start}
+    @media (max-width:760px){.lp-split{grid-template-columns:1fr}}
+    .lp-figure{border:1px solid #e5e7eb;border-radius:10px;padding:1rem;background:#fafafa;margin:0}
+    .lp-figure figcaption{font-size:.8rem;color:#666;margin-top:.6rem;line-height:1.45}
+    .lp-chart{height:200px}
+    .lp-chart svg{width:100%;height:100%;font-size:11px;fill:#444}
+    .lp-comp{display:flex;height:22px;border-radius:5px;overflow:hidden;margin:.5rem 0 .6rem}
+    .lp-comp span{display:block;height:100%}
+    .lp-key{display:flex;gap:1rem;font-size:.8rem;color:#555;flex-wrap:wrap}
+    .lp-key i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:.35rem;vertical-align:-1px}
+    .lp-runs{display:grid;grid-template-columns:auto 1fr auto;gap:.5rem 1.5rem;align-items:center;font-size:.95rem;margin-top:1.25rem}
+    .lp-runs a{color:#111;text-decoration:none;white-space:nowrap}
+    .lp-runs a:hover{text-decoration:underline}
+    .lp-bar{position:relative;height:22px}
+    .lp-bar span{position:absolute;left:0;height:9px;border-radius:2px}
+    .lp-bar .c{top:1px;background:#c9c9c9}
+    .lp-bar .t{bottom:1px;background:#15803d}
+    .lp-save{color:#15803d;font-weight:600;text-align:right;white-space:nowrap}
+    .lp-agents{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+    .lp-agents span{border:1px solid #e5e7eb;border-radius:999px;padding:.3rem .75rem;font-size:.85rem;color:#333}
+    .lp ul{padding-left:1.1rem;margin:0 0 1rem;color:#333;line-height:1.6;max-width:680px}
+    .lp li{margin-bottom:.35rem}
+    .lp code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:#f3f4f6;padding:.1em .35em;border-radius:4px}
+    .lp-more{font-size:.95rem}
+    .lp-more a{color:#111}
+    footer.lp-footer{border-top:1px solid #eee;padding:2rem 1.5rem 3rem;text-align:center;font-size:.85rem;color:#555;line-height:2}
+    footer.lp-footer a{color:#333;text-decoration:none;margin:0 .6rem}
+    footer.lp-footer a:hover{text-decoration:underline}
+    .lp-feature{text-align:center}
+    .lp-feature h2{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.75rem}
+    .lp-first{padding-top:1rem}
+    .lp-pipeline{margin:0 auto 1.75rem;max-width:960px}
+    .lp-pipeline img{display:block;width:100%;height:auto}
+    .lp-feature p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:820px;margin:0 auto;text-align:left}
+    .lp-install{align-items:flex-start;margin:1.25rem 0 1rem}
+    .lp-install .command-wrapper{width:100%}
+    @media (max-width:760px){.lp-feature h2{font-size:1.9rem}}
+    /* A full-width section: the words on the left, the drawing on the right. */
+    .lp-wide{max-width:none;padding-left:3rem;padding-right:3rem}
+    .lp-side{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:3rem;align-items:center}
+    .lp-side h2{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.25rem}
+    .lp-side p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;margin:0}
+    .lp-side.lp-flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}
+    .lp-side-figure{margin:0}
+    .lp-side-figure img{display:block;width:100%;height:auto}
+    @media (max-width:900px){.lp-wide{padding-left:1.5rem;padding-right:1.5rem}.lp-side,.lp-side.lp-flip{grid-template-columns:1fr;gap:1.5rem}.lp-side h2{font-size:1.9rem}}
+.lp-tight{padding-top:2.5rem;padding-bottom:2.5rem}
+/* The sections the owner set to 60% of the page width (2026-11-10). */
+.lp-mid{width:60%;max-width:none;margin-left:auto;margin-right:auto;padding-left:0;padding-right:0}
+.lp-mid>h2,.lp-mid .lp-friction-text h2{text-align:center}
+@media (max-width:900px){.lp-mid{width:auto;padding-left:1.5rem;padding-right:1.5rem}}
+.lp-side p.lp-intro+p.lp-intro{margin-top:1rem}
+.lp h2.lp-big{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.25rem}
+.lp>p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:820px;margin-bottom:1.5rem}
+.lp-wide>p.lp-intro{max-width:none}
+@media (max-width:760px){.lp h2.lp-big{font-size:1.9rem}}
+/* Zero developer friction: the words centred, the harness list pinned to the far right in grey. */
+.lp-friction{position:relative;text-align:left}
+.lp-friction-text{max-width:none;margin:0 auto}
+.lp-friction-text h2{font-size:2.4rem;letter-spacing:-.04em;line-height:1.1;margin-bottom:1.25rem}
+.lp-friction-text p.lp-intro{font-size:1.3rem;line-height:1.55;color:#333;max-width:none;margin:0 0 1rem;text-align:left;text-wrap:pretty}
+.lp-friction-text p.lp-intro:last-child{margin-bottom:0}
+.lp p.lp-harness-line{max-width:1000px;margin:2rem auto 0;text-align:center;text-wrap:balance;font-size:1rem;line-height:1.7;color:#8a8a8a}
+.lp-harness-label{display:block;font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#aaa;margin-bottom:.35rem}
+.lp p.lp-harness-more{margin:.75rem 0 0;max-width:none;text-align:left;font-size:.9rem}
+.lp-harness-more a{color:#8a8a8a}
+@media (max-width:760px){.lp-friction-text h2{font-size:1.9rem}}

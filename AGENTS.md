@@ -39,6 +39,8 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **Codex and Claude share the cut policy (MANDATORY, 2026-11-04):**
 - `src/proxy-responses.js` adapts Responses tool outputs to `src/cutting.js:decideCut`, the same decision used by Claude's Messages proxy. Never rederive a new cut set on each Codex request.
+- The gateways door (`src/proxy-chat.js`, 2026-11-10) adapts OpenAI Chat Completions (OpenRouter, LiteLLM; routed by path prefix on the service, `proxy: { gateways }` in the machine config) to the same `decideCut`, with its own cut store (`state/clearing/chat/`) and its own conversation key (the first user message; a gateway sends no session header). A new gateway is a config entry, not a new door. Its cleared-token figure is always the cut's own estimate (`cutting.js:clearedOf` reads `protocol: 'chat'` rows so).
+- **The decision's rates are dynamic** (`src/gateway-rates.js`, 2026-11-10): config (`proxy: { rates }`) beats the fit of the gateway's own per-call cost answers (`rateTracker`, in memory, solved once per new observation) beats the Anthropic constants. `priceCut`/`decideCut` take `rates`; a clear and a payback refusal carry theirs on the row, and the record's `saved` is read at the rates its clear was priced with (`cutResponse`). A provider that never reports cache-write tokens gets the rewrite priced at 1.0 (implicit caching charges full input price for it), named `assumed` -- a fit that cannot see a coefficient is never read as one that measured it at zero.
 - Both paths reserve every turn-boundary decision, including a refusal, and persist the cut ids through the shared store. Within a turn, keep applying that exact set; a proxy restart must not restore old results or add new cuts. Protocol-specific serialization and token calibration may differ, policy does not.
 - `test/proxy-responses.test.js` checks candidate parity, payback/threshold decisions, within-turn stability, one-cut mode, and HTTP restart behavior. Missing session identity passes through: no session means no reliable ratchet.
 - The historical Django/Astra visualization used the earlier per-request policy (24 new cut events, 19 mid-turn); it is not evidence for this correction. Savings under the shared policy require a new matched Artemis experiment.
@@ -471,6 +473,26 @@ longer exceptions to anything.
   hooks count the prompts and the cards only read the count: both run in every turn, and counting twice
   would halve the floor. One thinker message, whichever door it comes through.
 
+**What changed in thinker, said once (2026-11-10, the owner's ask; `src/update-note.js`):**
+- thinker ships every few days and said nothing about it. The agents it wires itself into never name a
+  version or a release, so the knowledge notes became a memory profile on a person's machine overnight
+  with no word anywhere in the product. One note, four lines at most, said once.
+- **One copy, in `src/update-note.js`**: `UPDATE_NOTE` is `{id, title, lines, more}`, and
+  `updateNoteText` is how an agent that draws no card says it. The Claude Code mod carries its own copy
+  of those words (`src/integrations/claude-card`, `UPDATE_NOTE`), held to this one by
+  `test/claude-card.test.js`, as every other word the mod says is.
+- **Keyed on the note's own id, never on a version** (`updateNoteDue`, `updateNoteShown`, kept in
+  `<THINKER_HOME>/state/update-note.json` beside the notice cadence, since a person sees one stream of
+  messages however many checkouts they work in). So a note can be written without cutting a release, and
+  a release that changes nothing a person can see says nothing. Change the id to say something new.
+- **Two doors, one voice**: where the card mod runs it is a card under the answer, drawn at the end of
+  the first turn, and the Stop hook says nothing (`carded`, the rule the money already follows); every
+  other agent gets it at the top of the next end-of-turn summary, inside the cadence, so it is still one
+  thinker message. Notices off silences it like everything else.
+- It does not wait for the summary cadence in the card door: a release note is a one-off, and a person
+  who learns a week late what their agent has been doing has learnt it too late. It does not spend the
+  summary either, so the next one still comes when it is due.
+
 **The savings footer: money, on the one surface that keeps it (2026-11-06, the owner's call):**
 - What thinker has saved is shown as dollars, today and over the whole log, in every client it has a
   door into: the Claude Code status row (the terminal) and the status line under the prompt (the desktop app), the Codex desktop card, the
@@ -521,6 +543,15 @@ longer exceptions to anything.
   the rest of thinker's lines carry `🧠 thinker:`. The row is small type beside the host's own, where a
   lone glyph is a puzzle. `savingsStatus` writes it in both copies (src and the mod), held together by
   `test/claude-card.test.js`.
+- **And the version, which nothing else in a session says** (the owner's ask, 2026-11-10): `thinker
+  v0.3.0: saved today ~ · lifetime ~`. An agent never names the thinker it is running, so a person whose
+  knowledge notes became a profile overnight had no way to tell which copy did it or whether their own
+  is current. The status row is the one surface on screen the whole session, so it carries it and no
+  other line does. The figure's own version: `computeSavings` stamps the ledger with `appVersion()` and
+  every door reads it from there, so the row names the copy that counted the dollars beside it (the mod
+  reads one small file and cannot read a `package.json` of thinker's). A ledger from before this, or a
+  checkout with no version to read, says `thinker:` as it did. The desktop line drops the name alone
+  (`desktopStatus`, `/^thinker:? ?/`), since the app heads a pinned line with the plugin's name.
 - **The two windows count servings differently, and say so.** Lifetime is the confirmed estimate the
   Report page shows. Today is the running session's rule (`summarize`'s `onProvisional`): served, not
   yet judged, minus anything judged unused or contradicted, priced from the model the session's
@@ -549,6 +580,31 @@ longer exceptions to anything.
   name, unpriced where none does; a session the log does have rows for is left to the log, since the proxy
   writes the same record beside its rows. Devin's compactor records count the same way. Still not in the
   ledger: what those clears cost, since only the proxy's log sees cache writes (`clearingCostBySession`).
+
+- **OpenCode 2's terminal part is one more door** (2026-11-10; `src/integrations/opencode-tui.js`,
+  `src/integrations/opencode-v2.js`; `clients.js:opencodeMajor`). OpenCode 2 does not run v1 plugins at
+  all, so `connect`/`rewire` writes a plugin **directory** (`plugins/thinker/`, `index.ts` server part +
+  `tui.tsx` terminal part) where the binary's major is 2, and the v1 single file where it is not; the
+  wrapper stays two lines that import this checkout's modules by file:// URL, as the v1 file did, so the
+  words stay in one place. The footer rides the built-in footer row (`prompt.footer.status`, the one
+  slot both the launcher and a session view draw -- registering the launcher's `home.footer.status` as
+  well showed the figure twice; checked live), after the host's health indicators and before its
+  version -- the same "a row of thinker's own does not earn one" rule the status tail follows -- reads
+  the kept ledger every 5 s like the mod (`LEDGER_POLL_MS`, held to the same figure by
+  `test/cli-ui-sync.test.js`), and the words are `savingsStatus`, the status row's own.
+  The end-of-turn summary is a toast: v2 gives a server plugin no client (v1's `client.tui.showToast` is
+  gone), so the Stop hook writes what it said to `THINKER_HOME/state/notice-last.json`
+  (notice-cadence.js:writeNoticeLast) and the terminal part toasts it once (`noticed` dedupes by `at`); a
+  headless `opencode run` has no terminal part and the summary is dropped there, as in v1. Everything the
+  shapes rest on was checked against a real opencode 2.2.7 on 2026-11-10: prompt hook edits become the
+  canonical prompt, `tool.execute.after` mutates `result.content`, the turn's end is
+  `session.execution.succeeded` with the session in `data.sessionID` (v1's `session.idle` and
+  `properties` are gone), and `context.storage.memory` is a Solid ProxyObject read as `state.line`.
+  One divergence from the v1 door, same day: v1 serves the block as a `synthetic: true` part the
+  host never renders; v2's admission hook has no synthetic part, so the block rides the prompt text
+  and is visible. `ctx.session.synthetic` from inside the hook answers without error and never
+  reaches the same execution -- the faithful port needs an opencode-side surface that does not exist
+  yet (checked against 2.2.7).
 
 **Exploration subagents on Sonnet, off by default (2026-11-08; `src/explore-agent.js`):**
 - **Off until the owner decides to ship it** (the same day, after #712 landed on by default: "not 100% sure I want to ship
@@ -733,6 +789,7 @@ longer exceptions to anything.
 | `src/compression.js` | what the clearing saved, per session, shown as a cache hit is (`TURNS_AFTER`, `compressionHeader`); and what it cost, as the cache writes of the calls after a clear (`clearingCostBySession`) |
 | `src/devin-compaction.js` | Devin has no model endpoint for the proxy: its own compaction threshold, written by policy (`devin.compactAt`, off by default), and what each compaction took out, read from Devin's session database |
 | `src/notice-cadence.js` | how often thinker says anything at the end of a turn: one summary every 20 prompts and at most one a day |
+| `src/update-note.js` | what changed in thinker, in four lines at most, said once per machine: a card where the mod runs, the top of the next summary everywhere else |
 | `src/savings-ledger.js` | what the footers say: the Report's two savings series over today and the whole log, kept in `THINKER_HOME/state/savings.json` |
 | `src/report.js`, `src/prices.js`, `src/commands/report.js` | Report page; `thinker report`; `prices.js` only place dollars appear |
 | `src/store.js`, `src/llm.js` | note storage; model access |
@@ -1268,7 +1325,7 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   on it was on that side. Under ten sessions on a side the table is marked thin. On the day it was built this machine had
   5 session state files carrying a profile arm, so the profile split showed next to nothing: that is the honest state,
   and the split is where the profile's effect on rework will first show as the arms fill.
-- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared**
+- **The clearing's split is over the sessions that reached its trigger, and says how many were actually cleared (superseded below, 2026-11-10)**
   (2026-11-09; `armsOf` takes `peak`, `treated` on the arm cell, the "Of them actually cleared" row). The first table
   read as if the clearing raised cost and rework across the board: $26 against $15 a session, 23% against 14% rework.
   It did not. Only 19 of the 249 sessions on the clearing's side had ever had a clear, because the clearing fires past
@@ -1284,6 +1341,23 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   diff mode the two sides' figures; the loop pills and the loops table carry each side's loops per
   session in diff mode, and the comparison table has a cost-per-merged-pull-request row. A pull request counts on a side
   only when every session on it was on that side.
+- **The clearing's "on" side is the sessions a clear actually happened in, since the current cut policy landed
+  (2026-11-10, the owner's ask; `armsOf` takes `cleared` and `start`, `CLEARING_SINCE`; the "Of them actually cleared"
+  row and `treated` went).** The split above still compared the arm, and the arm is an assignment: on 2026-11-10 the
+  table read +75% cost a session and +50% rework on the clearing's side, over 177 sessions of which 19 had ever been
+  cleared. Read as treatments the same day's merged pull requests were flat: the four with a clear cost $38.9 each
+  against $37.8 for the 23 without, twenty cents a model call on both. So the on side is now the sessions with a clear
+  (`delivery.js:clearedFor`: the proxy's log first, the mod's record where the log has no rows), the held-out side the
+  hash's, and a session on the clearing's arm that was never cleared is on neither, since nothing touched it. Two
+  guards, both the owner's point that a new feature must not be judged on old data: both sides need the trigger
+  reached, as before, **and a session started after `CLEARING_SINCE`** (the merge of #693, 2026-11-06 19:30 UTC: the
+  60k floor after #688's payback of 25, the policy the proxy and the mod run today); a session cleared under the
+  API-side clearing or an earlier cut policy was a different feature, measured as a loss, and is never pooled with
+  this one. Known gaps: a cold-boundary cut below the trigger is left out with the rest of the sub-trigger sessions;
+  the mod's records are pruned after two days, so a desktop clear the proxy's log never saw is on the cleared side
+  only while its record stands; and the current share is used for every session, which is safe only while the share
+  rises (a session held out at 15% is held out at 50%). The sides are now a few sessions each at this repository's
+  pace, and the table says so (`thin`); it fills from here.
 - **Where the confidence is, measured the same day.** Of the cost, 17% is placed by definition (the first call of a
   turn), 19% is exact (no tool: Think), 11% is exact by tool name, 3% is split between two stages, and **51% rests on
   reading a shell command** (`bashStage`). That half is where the rules moved: the first cut staged a line by its first
