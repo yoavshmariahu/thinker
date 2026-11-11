@@ -11,10 +11,10 @@
 // (part-explain.js), the same parts in the same order as the table, with the words `thinker explain` wrote.
 import { historyEffects, promptAverageHere, keptRows, inputRateHere } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression, rateOf, flagOf } from '../context-view.js';
-import { judgeRecent, findRepoSessions } from '../instruction-value.js';
+import { judgeRecent } from '../instruction-value.js';
 import { formatTokens } from '../model-usage.js';
 import { formatDollars } from '../prices.js';
-import { refreshSnapshots, writeSnapshot } from '../context-snapshot.js';
+import { refreshSnapshots, writeSnapshot, contextSources } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
 import { approveChanges, dismissChanges, revertDecision, retryJob, pickChanges, currentChanges, changeHistory, refreshPrStates, offeredChanges } from '../context-suggest.js';
 
@@ -48,7 +48,14 @@ async function contextCommand({ store, flags, out }) {
   if (typeof flags['switch-on'] === 'string') { out(switchSources(store, { keys: list(flags['switch-on']), on: true })); return; }
   if (typeof flags['output-compression'] === 'string') { out(setOutputCompression(store, list(flags['output-compression']), ['high', 'moderate'].includes(flags.level) ? flags.level : 'off')); return; }
   // the Context tab's snapshot (context-snapshot.js), made again in the background by the page and maintenance
-  if (flags.refresh) { const r = refreshSnapshots(store); if (!flags.quiet) out(r.skipped ? 'A refresh is already running here.' : `Context report kept for the last ${r.written.join(' and ')} days.`); return; }
+  // a window whose sessions and records have not moved keeps the report it has: `kept`, nothing read again
+  if (flags.refresh) {
+    const r = refreshSnapshots(store);
+    if (!flags.quiet) out(r.skipped ? 'A refresh is already running here.'
+      : r.written.length ? `Context report kept for the last ${r.written.join(' and ')} days.`
+      : `Nothing has moved since the last Context report (${r.kept.join(' and ')} days); it stands as it is.`);
+    return;
+  }
   if (flags.judge !== undefined) {
     const n = flags.judge === true ? 5 : Math.max(1, Number(flags.judge) || 5);
     out(`Judging up to ${n} session${n === 1 ? '' : 's'}, sampled over the last ${days} days, against the instruction file's sections (one model call each)…`);
@@ -56,12 +63,15 @@ async function contextCommand({ store, flags, out }) {
     out(r.skipped === 'no-file' ? 'No AGENTS.md or CLAUDE.md here.' : `Judged ${r.judged} session${r.judged === 1 ? '' : 's'}${r.tokens ? `, ~${formatTokens(r.tokens)} tokens` : ''}.${r.skipped === 'daily-cap' ? ' Stopped at the daily token cap.' : ''}`);
     return;
   }
-  const v = contextView(store, { days, sessions: findRepoSessions(store.repo, days) });
+  // the sessions and the stamp of what they rest on, so the snapshot this command leaves can be kept by the next
+  // refresh instead of being worked out again (context-snapshot.js, view-sources.js)
+  const { sessions, stamp } = contextSources(store, days);
+  const v = contextView(store, { days, sessions });
   // the Wasted figures in dollars, as the page shows them (context-view.js:inputRate: the wasted tokens at what an input
   // token cost these sessions at list prices), tokens where no session has a list price; and the page's row colour as a
   // mark (context-view.js:flagOf): !! for red, ! for yellow
   const vrate = rateOf(v), wasteOf = x => x.wastedWindow == null ? '-' : vrate == null ? `~${formatTokens(x.wastedWindow)}` : formatDollars(x.wastedWindow * vrate), mark = x => { const f = flagOf(x); return f === 'red' ? '!!' : f === 'yellow' ? '! ' : '  '; };
-  writeSnapshot(store, days, v); // what the page shows next
+  writeSnapshot(store, days, v, { stamp }); // what the page shows next
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
   // as the Context tab's rows and History do
   const top = currentChanges(store, v);

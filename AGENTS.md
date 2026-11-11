@@ -1523,6 +1523,32 @@ judged the same way the owner set for it: a per-session holdout, by corrections,
   every session of the window in doubling batches and the strip counted cache hits as sessions read, which is what made
   the page look as if it cached nothing (the owner, 2026-11-08); the sessions themselves were cached all along
   (`session-activity`, `session-harness`, `tool-outputs.json`).
+- **A refresh over a repository where nothing moved keeps the view it has** (2026-11-10, the owner: the page "still
+  seems like it needs to always re-read all files"; `src/view-sources.js`). The rule above brought the page's own worker
+  up to date, but the background commands the page starts (`thinker context --refresh`, `thinker report --refresh
+  --all`) still worked every view out from scratch every ten minutes, in every repository the page lists: 15.5 s of CPU
+  over nineteen repositories here, almost all of it adding up per-session records that had not changed. A snapshot now
+  carries `stamp`, a hash of its sources, and a refresh that finds the same stamp writes the view back under a new `at`
+  without reading one record (`refreshSnapshots` answers `kept`, `refreshReport` `{ kept: weeks }`, the worker's
+  `unchanged` re-stamps on disk so the page stops asking and starts nothing). Over nineteen repositories with nothing
+  moved: 15.5 s → 1.45 s; a full rebuild of all nineteen: 15.5 s → 5.7 s (the memoizing below).
+  - **The stamp is of this repository's slice, never a shared file's mtime.** The machine's log and the proxy's are one
+    file for every repository and are appended to all day; stamped by size and mtime (the first cut of the change) every
+    repository rebuilt every time, exactly as before. So: the window's sessions by file, mtime, size and `since`; this
+    repository's own events in the machine's log (count and last `t`); its delivery journal; and for the Report the proxy
+    rows and desktop clear records **of the window's sessions alone**.
+  - What the stamp does not watch is another repository's log events, which only ever decide whether a session counts as
+    this repository's. `MAX_KEEP_MS` (6 h) is the backstop: a view older than that is made again whatever the stamp says,
+    so a gap is wrong for hours at most and never for ever. The code key and `inputs` checks are unchanged and still come
+    first; a view written before the stamp existed is made again once.
+- **One parse a process for the shared logs** (2026-11-10, the same change): `compression.js:compressionRecords` keeps the
+  proxy log's parsed tail by size and mtime (the Report reads it three times a repository: 8 MB parsed fifty times over
+  a `--all` run, 2.3 s here), `usage.js:logEvents` keeps the events each reader asks for beside the parse rather than
+  re-mapping, filtering and sorting 35,000 of them on all five calls a report makes (3 s), and
+  `providers.js:registryPrices` stats `providers.json` at most once a second instead of once per priced row (18,640
+  stats, 0.42 s, for one repository's Report). One repository's Report: 1.9 s → 1.25 s. The events and rows are read,
+  never written, so every caller shares one array; `logEvents` keeps the last four slices asked for, since a copy of the
+  log is tens of megabytes and a `--all` run asks for two a repository.
 - The Save snapshot is keyed on the settings fields the view reads (`context-snapshot.js:settingsKey`: the denies, the
   disabled servers, the plugins, the skill overrides), not the files' bytes: Claude Code and `rewire` write other fields
   of `~/.claude/settings.json`, and every release dropped every repository's snapshot. `writeSnapshot` prunes the

@@ -6,7 +6,7 @@
 import { discoverRepos } from './machine.js';
 import { Store } from './store.js';
 import { contextView, mergeViews } from './context-view.js';
-import { writeSnapshot, SNAPSHOT_DAYS } from './context-snapshot.js';
+import { writeSnapshot, contextSources, SNAPSHOT_DAYS } from './context-snapshot.js';
 import { refreshCheckouts } from './ui/server.js';
 import { wasteLevel } from './instruction-value.js';
 import { formatTokens } from './model-usage.js';
@@ -31,7 +31,8 @@ export function machineContext(store, { home, days = 30, limit = MACHINE_REPOS, 
       const st = new Store(r.checkout);
       if (!st.exists()) st.init();
       let view = null;
-      for (const d of new Set([...SNAPSHOT_DAYS, days])) { const v = contextView(st, { days: d }); writeSnapshot(st, d, v, { now }); if (d === days) view = v; }
+      // stamped as the refresh stamps it (view-sources.js), so the page's next refresh keeps it instead of remaking it
+      for (const d of new Set([...SNAPSHOT_DAYS, days])) { const { sessions, stamp } = contextSources(st, d); const v = contextView(st, { days: d, sessions }); writeSnapshot(st, d, v, { now, stamp }); if (d === days) view = v; }
       // the sessions read: the harness reader counts those with a tool listing, the instruction reader every transcript
       repos.push({ id: r.id, name: r.name, checkout: r.checkout, sessions: Math.max(view.sessions || 0, view.instructions?.sessions || 0), transcripts: r.sessions });
       views.push({ repo: r.id, name: r.name, checkout: r.checkout, view });

@@ -6,8 +6,9 @@ import { Store, logFile } from '../store.js';
 import { findRepoSessions } from '../instruction-value.js';
 import { contextView } from '../context-view.js';
 import { reportView, weekColumns } from '../report.js';
-import { writeSnapshot } from '../context-snapshot.js';
-import { writeReport } from '../report-snapshot.js';
+import { writeSnapshot, lastSnapshot } from '../context-snapshot.js';
+import { writeReport, readReport } from '../report-snapshot.js';
+import { sourceStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
 import { proxyLogFile } from '../proxy-service.js';
 import { refreshCheckouts, machineRepos } from './server.js';
 
@@ -36,7 +37,7 @@ const fail = (id, e) => parentPort.postMessage({ id, error: String(e.message || 
 function next() {
   const job = queue.shift();
   if (!job) { running = false; return; }
-  const { id, kind, store, window, now, days, sessions, completed, from = 0, changed = null } = job;
+  const { id, kind, store, window, now, days, sessions, completed, from = 0, changed = null, stamp = null } = job;
   try {
     const total = changed ? changed.size : sessions.length, done = completed === sessions.length, subset = sessions.slice(0, completed);
     const onSession = changed ? progressOf(id, changed, 0, total - 1, total) : progressOf(id, new Set(sessions.slice(from, completed).map(s => s.session)), from, completed - 1, total);
@@ -44,8 +45,9 @@ function next() {
       : reportView(store, { weeks: window, now, sessions: subset, includePrs: done, onSession });
     const at = Date.now();
     if (done) {
-      if (kind === 'context') writeSnapshot(store, window, view, { now: at });
-      else writeReport(store, window, view, { now: at });
+      // with the stamp of what it was read from (view-sources.js), so a refresh that finds nothing moved keeps it
+      if (kind === 'context') writeSnapshot(store, window, view, { now: at, stamp });
+      else writeReport(store, window, view, { now: at, stamp });
     }
     parentPort.postMessage({ id, completed: changed ? total : completed, total, view, at, done, ...(changed ? { delta: true } : {}) });
     // Geometric checkpoints bound repeated aggregation to less than three times
@@ -54,6 +56,27 @@ function next() {
   } catch (e) { fail(id, e); }
   // Accept discovery requests and tab switches between checkpoints.
   setImmediate(next);
+}
+
+// The kept view written back under a new `at`, when the stamp of what it rests on is the one it was made at: the
+// page's own answer to "nothing has moved", the same one the commands give (context-snapshot.js, report-snapshot.js).
+// A stamp that does not match (a session dropped out of the window, a record rewritten in place) leaves the view
+// alone: the next visit reads it as old and has it made again, which is what happened to every such view before.
+// `from` is the first week of a Report's window, which is part of its stamp; a Context view's window is its days
+const stampOf = (store, kind, window, { sessions, from }) => {
+  try {
+    return kind === 'context' ? sourceStamp(store, { sessions, window: contextWindow(window) })
+      : sourceStamp(store, { sessions, window: reportWindow(window, from), proxy: true });
+  } catch { return null; }
+};
+function restamp(store, kind, window, { now, sessions, from }) {
+  try {
+    const stamp = stampOf(store, kind, window, { sessions, from });
+    const kept = kind === 'context' ? lastSnapshot(store, window) : readReport(store, window, { now });
+    if (!canKeep(kept, stamp, { now })) return;
+    if (kind === 'context') writeSnapshot(store, window, kept.view, { now, stamp });
+    else writeReport(store, window, kept.view, { now, stamp });
+  } catch {}
 }
 
 // whether a file moved since `since` (a log appended to, a transcript written)
@@ -77,12 +100,19 @@ parentPort.on('message', ({ id, kind, repo, window, home, transcriptsHome, since
       // hits), the page's count over the changed ones, no doubling batches, since the kept view is on the screen meanwhile.
       const changed = new Set(sessions.filter(s => s.mtime > since).map(s => s.session));
       const logs = kind === 'report' && [logFile(store), proxyLogFile()].some(f => f && movedSince(f, since));
-      if (!changed.size && !logs) { parentPort.postMessage({ id, completed: 0, total: 0, done: true, unchanged: true, at: now }); return; }
+      if (!changed.size && !logs) {
+        // Nothing moved: the kept view is written back with when it was looked at (view-sources.js), so the server
+        // stops reading it as old and starts no `--refresh` behind it. Until 2026-11-10 the view's `at` stood where
+        // it was, the page asked again on the next visit, and the command it started worked the whole view out anew.
+        restamp(store, kind, window, { now, sessions, from });
+        parentPort.postMessage({ id, completed: 0, total: 0, done: true, unchanged: true, at: now });
+        return;
+      }
       parentPort.postMessage({ id, completed: 0, total: changed.size, delta: true });
-      queue.push({ id, kind, store, window, now, days, sessions, completed: sessions.length, changed });
+      queue.push({ id, kind, store, window, now, days, sessions, completed: sessions.length, changed, stamp: stampOf(store, kind, window, { sessions, from }) });
     } else {
       parentPort.postMessage({ id, completed: 0, total: sessions.length });
-      queue.push({ id, kind, store, window, now, days, sessions, completed: Math.min(1, sessions.length) });
+      queue.push({ id, kind, store, window, now, days, sessions, completed: Math.min(1, sessions.length), stamp: stampOf(store, kind, window, { sessions, from }) });
     }
     if (!running) { running = true; setImmediate(next); }
   } catch (e) { fail(id, e); }

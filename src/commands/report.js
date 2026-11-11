@@ -3,7 +3,7 @@
 // list prices, --total the week's sum instead of the average and --share each row as its share of the whole session; under it the cache's numbers.
 import { reportView, renderReport, REPORT_WEEKS } from '../report.js';
 import { findRepoSessions } from '../instruction-value.js';
-import { readReport, writeReport, refreshReport } from '../report-snapshot.js';
+import { readReport, writeReport, refreshReport, reportSources } from '../report-snapshot.js';
 import { Store } from '../store.js';
 
 async function reportCommand({ store, flags, out }) {
@@ -14,17 +14,27 @@ async function reportCommand({ store, flags, out }) {
     if (flags.all) {
       const { machineRepos, keptCheckouts } = await import('../ui/server.js');
       const repos = machineRepos(store, { checkouts: keptCheckouts()?.checkouts });
-      let n = 0;
-      for (const r of repos) { try { const st = new Store(r.checkout); if (!readReport(st, weeks)?.current && !refreshReport(st, { weeks }).skipped) n++; } catch {} }
-      if (!flags.quiet) out(`Report kept for ${n} of ${repos.length} repositories.`);
+      // a repository whose sessions and records have not moved keeps the report it has, worked out again for nobody
+      let n = 0, kept = 0;
+      for (const r of repos) {
+        try {
+          const st = new Store(r.checkout);
+          if (readReport(st, weeks)?.current) continue;
+          const x = refreshReport(st, { weeks });
+          if (x.kept) kept++; else if (!x.skipped) n++;
+        } catch {}
+      }
+      if (!flags.quiet) out(`Report made again for ${n} of ${repos.length} repositories${kept ? `; ${kept} had moved on nothing and kept what they had` : ''}.`);
       return;
     }
     const r = refreshReport(store, { weeks });
     if (!flags.quiet) out(r.skipped ? 'A refresh is already running here.' : `Report kept for the last ${weeks} weeks.`);
     return;
   }
-  const v = reportView(store, { weeks });
-  writeReport(store, weeks, v); // what the page shows next
+  // with the stamp of what it rests on, so the next refresh can keep it rather than add every record up again
+  const { sessions, stamp } = reportSources(store, { weeks });
+  const v = reportView(store, { weeks, sessions });
+  writeReport(store, weeks, v, { stamp }); // what the page shows next
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   // dollars at list prices and nothing else, as on the page (the owner, 2026-11-08: "only costs"). --tokens, which counted
   // tokens instead from 2026-10-26, and --cost, which chose cost before that, are still accepted and change nothing; the
