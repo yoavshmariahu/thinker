@@ -8,7 +8,7 @@ import { contextView } from '../context-view.js';
 import { reportView, weekColumns, refreshLogParts } from '../report.js';
 import { writeSnapshot, lastSnapshot } from '../context-snapshot.js';
 import { writeReport, readReport } from '../report-snapshot.js';
-import { sourceStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
+import { sourceStamp, sessionsStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
 import { proxyLogFile } from '../proxy-service.js';
 import { refreshCheckouts, machineRepos } from './server.js';
 
@@ -47,7 +47,7 @@ function next() {
     if (done) {
       // with the stamp of what it was read from (view-sources.js), so a refresh that finds nothing moved keeps it
       if (kind === 'context') writeSnapshot(store, window, view, { now: at, stamp });
-      else writeReport(store, window, view, { now: at, stamp });
+      else writeReport(store, window, view, { now: at, stamp, sessions: sessionsStamp(sessions) });
     }
     parentPort.postMessage({ id, completed: changed ? total : completed, total, view, at, done, ...(changed ? { delta: true } : {}) });
     // Geometric checkpoints bound repeated aggregation to less than three times
@@ -75,7 +75,7 @@ function restamp(store, kind, window, { now, sessions, from }) {
     const kept = kind === 'context' ? lastSnapshot(store, window) : readReport(store, window, { now });
     if (!canKeep(kept, stamp, { now })) return;
     if (kind === 'context') writeSnapshot(store, window, kept.view, { now, stamp });
-    else writeReport(store, window, kept.view, { now, stamp });
+    else writeReport(store, window, kept.view, { now, stamp, sessions: sessionsStamp(sessions) });
   } catch {}
 }
 
@@ -89,9 +89,11 @@ function logsOnly(store, kind, window, { id, now, sessions, from }) {
   if (kind !== 'report') return false;
   try {
     const kept = readReport(store, window, { now });
-    if (!kept?.view) return false;
+    const mine = sessionsStamp(sessions);
+    // not the sessions it was made from (one dropped out of the window, or it predates this): read every one
+    if (!kept?.view || kept.sessions !== mine) return false;
     const view = refreshLogParts(store, kept.view, { now, sessions });
-    writeReport(store, window, view, { now, stamp: stampOf(store, kind, window, { sessions, from }) });
+    writeReport(store, window, view, { now, stamp: stampOf(store, kind, window, { sessions, from }), sessions: mine });
     parentPort.postMessage({ id, completed: 0, total: 0, view, at: now, done: true, delta: true });
     return true;
   } catch { return false; }

@@ -32,9 +32,9 @@ async function reportCommand({ store, flags, out }) {
     return;
   }
   // with the stamp of what it rests on, so the next refresh can keep it rather than add every record up again
-  const { sessions, stamp } = reportSources(store, { weeks });
+  const { sessions, stamp, sessionsAt } = reportSources(store, { weeks });
   const v = reportView(store, { weeks, sessions });
-  writeReport(store, weeks, v, { stamp }); // what the page shows next
+  writeReport(store, weeks, v, { stamp, sessions: sessionsAt }); // what the page shows next
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   // dollars at list prices and nothing else, as on the page (the owner, 2026-11-08: "only costs"). --tokens, which counted
   // tokens instead from 2026-10-26, and --cost, which chose cost before that, are still accepted and change nothing; the

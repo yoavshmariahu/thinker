@@ -20,7 +20,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { reportView, withEffects, REPORT_WEEKS, promptAverage, inputRate, weekColumns } from './report.js';
 import { findRepoSessions } from './instruction-value.js';
-import { sourceStamp, canKeep, reportWindow } from './view-sources.js';
+import { sourceStamp, sessionsStamp, canKeep, reportWindow } from './view-sources.js';
 
 export const REFRESH_MS = 10 * 60_000;
 const LOCK_MS = 5 * 60_000;
@@ -44,14 +44,16 @@ const KEEP_CODES = 4, KEEP_MS = 7 * 86400_000;
 export function readReport(store, weeks = REPORT_WEEKS, { now = Date.now() } = {}) {
   const s = slotOf(readFile(store), weeks);
   // `stamp`: what the report rested on when it was made (view-sources.js), for a refresh to see whether anything moved
-  return s?.view ? { at: s.at, view: s.view, stamp: s.stamp || null, current: s.code === code() && now - s.at <= REFRESH_MS, mine: s.code === code() } : null;
+  return s?.view ? { at: s.at, view: s.view, stamp: s.stamp || null, sessions: s.sessions || null, current: s.code === code() && now - s.at <= REFRESH_MS, mine: s.code === code() } : null;
 }
 
 // the report for `weeks` written into the repository's file, the other windows kept as they are
-export function writeReport(store, weeks, view, { now = Date.now(), stamp = null } = {}) {
+// `sessions`: the stamp of the window's sessions alone (view-sources.js:sessionsStamp), for a later refresh to tell
+// a log-only change from a session that moved or dropped out
+export function writeReport(store, weeks, view, { now = Date.now(), stamp = null, sessions = null } = {}) {
   const f = reportFile(store), tmp = `${f}.${process.pid}.tmp`;
   try {
-    const s = readFile(store), entry = { at: now, code: code(), ...(stamp ? { stamp } : {}), view };
+    const s = readFile(store), entry = { at: now, code: code(), ...(stamp ? { stamp } : {}), ...(sessions ? { sessions } : {}), view };
     s.views[String(weeks)] = entry;
     (s.byCode[code()] ||= {})[String(weeks)] = entry;
     // the slots of other codes: the most recent few, none older than a week, so the file stays a few views long
@@ -70,7 +72,7 @@ export function writeReport(store, weeks, view, { now = Date.now(), stamp = null
 export function reportSources(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
   const from = weekColumns(now, weeks)[0].t, days = Math.ceil((now - from) / 86400_000) + 1;
   const sessions = findRepoSessions(store.repo, days).filter(s => s.mtime >= from);
-  return { sessions, stamp: sourceStamp(store, { sessions, window: reportWindow(weeks, from), proxy: true }) };
+  return { sessions, stamp: sourceStamp(store, { sessions, window: reportWindow(weeks, from), proxy: true }), sessionsAt: sessionsStamp(sessions) };
 }
 
 // The report of one window: the one kept when there is one, else made now and kept. `stale` says it should be made
@@ -78,8 +80,8 @@ export function reportSources(store, { weeks = REPORT_WEEKS, now = Date.now() } 
 export function reportSnapshot(store, weeks = REPORT_WEEKS, { now = Date.now() } = {}) {
   const s = readReport(store, weeks, { now });
   if (s) return { at: s.at, view: s.view, stale: !s.current };
-  const { sessions, stamp } = reportSources(store, { weeks, now });
-  return { ...writeReport(store, weeks, reportView(store, { weeks, now, sessions }), { now, stamp }), stale: false };
+  const { sessions, stamp, sessionsAt } = reportSources(store, { weeks, now });
+  return { ...writeReport(store, weeks, reportView(store, { weeks, now, sessions }), { now, stamp, sessions: sessionsAt }), stale: false };
 }
 
 // `thinker report --refresh`: the report made again and kept; one run at a time per checkout.
@@ -94,9 +96,9 @@ export function refreshReport(store, { weeks = REPORT_WEEKS, now = Date.now() } 
   try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); } catch { return { skipped: 'locked' }; }
   try {
     const kept = readReport(store, weeks, { now });
-    const { sessions, stamp } = reportSources(store, { weeks, now });
-    if (canKeep(kept, stamp, { now })) { writeReport(store, weeks, kept.view, { now, stamp }); return { kept: weeks }; }
-    writeReport(store, weeks, reportView(store, { weeks, now, sessions }), { now, stamp });
+    const { sessions, stamp, sessionsAt } = reportSources(store, { weeks, now });
+    if (canKeep(kept, stamp, { now })) { writeReport(store, weeks, kept.view, { now, stamp, sessions: sessionsAt }); return { kept: weeks }; }
+    writeReport(store, weeks, reportView(store, { weeks, now, sessions }), { now, stamp, sessions: sessionsAt });
     return { written: weeks };
   }
   finally { fs.rmSync(lock, { force: true }); }

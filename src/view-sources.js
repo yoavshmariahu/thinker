@@ -71,11 +71,19 @@ export function sourceStamp(store, { sessions = [], window = '', proxy = false }
   const ids = new Set(sessions.map(s => sessionKey(s.session)));
   const parts = [`window\t${window}`, logSlice(store), `delivery\t${fileStamp(deliveryFile(store) || '')}`];
   if (proxy) parts.push(proxySlice(ids), clearSlice(ids));
-  for (const s of [...sessions].sort((a, b) => String(a.session).localeCompare(String(b.session)))) {
-    parts.push(`${s.session}\t${s.file}\t${Math.round(s.mtime || 0)}\t${fileStamp(s.file)}\t${s.since || 0}`);
-  }
+  parts.push(...sessionLines(sessions));
   return crypto.createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
 }
+
+const sessionLines = sessions => [...sessions].sort((a, b) => String(a.session).localeCompare(String(b.session)))
+  .map(s => `${s.session}\t${s.file}\t${Math.round(s.mtime || 0)}\t${fileStamp(s.file)}\t${s.since || 0}`);
+
+// The stamp of the window's sessions alone, with nothing of the logs in it: kept beside a Report so a later refresh
+// can tell "only a log moved" from "a session moved too", which the mtimes alone cannot -- a session *dropped* from
+// the window (deleted, or aged past the first week) has no new mtime to find, and a refresh that kept the view and
+// wrote today's stamp over it would be claiming the view rests on sessions it has never seen
+// (ui/scan-worker.js:logsOnly). A view kept before this carries none, and is read again once.
+export const sessionsStamp = (sessions = []) => crypto.createHash('sha256').update(sessionLines(sessions).join('\n')).digest('hex').slice(0, 16);
 
 // Whether a kept view may be kept as it is: this code made it, its sources have not moved, and it is not older than
 // MAX_KEEP_MS. `kept.stamp` is absent on a view written before this existed, and such a view is made again once.
