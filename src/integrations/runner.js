@@ -10,8 +10,13 @@ export function hookRunner(config) {
     if (config.learn) args.push('--record');
     else if (what === 'stop') args.push('--no-distill');
     if (config.late && what === 'tool') args.push('--late');
-    // The host may be a Bun executable (OpenCode), not a Node executable.
-    const child = execFile('node', args, { cwd: config.repo || event.cwd || process.cwd(), timeout: 15000, maxBuffer: 1024 * 1024, env: process.env }, (err, stdout) => resolve(err ? '' : stdout.trim()));
+    // The host may be a Bun executable (OpenCode), not a Node executable. The delegation hook (delegate.js)
+    // runs a subagent inside the call, minutes rather than seconds; every other hook answers at once.
+    const timeout = what === 'pretool' ? 300_000 : 15_000;
+    // `config.env` rides over the host's environment: OpenCode runs plugins in a long-lived server process, so a
+    // checkout's copy cannot be driven from the shell that starts `opencode run`.
+    const env = config.env ? { ...process.env, ...config.env } : process.env;
+    const child = execFile('node', args, { cwd: config.repo || event.cwd || process.cwd(), timeout, maxBuffer: 1024 * 1024, env }, (err, stdout) => resolve(err ? '' : stdout.trim()));
     child.stdin.on('error', () => {});
     child.stdin.end(JSON.stringify(event));
   });

@@ -15,7 +15,8 @@ import { hookRunner } from './runner.js';
 // headless `opencode run` there is no terminal part and the notice is dropped, as it was in v1.
 export function opencodeV2(config, run = hookRunner(config)) {
   return {
-    id: 'thinker',
+    // `config.id` lets a checkout's copy load beside the installed one (OpenCode keeps one plugin per id)
+    id: config.id || 'thinker',
     async setup(ctx) {
       const cwd = () => config.repo || ctx.location?.directory || process.cwd();
       if (config.mcp && config.mcpEntry) {
@@ -24,6 +25,18 @@ export function opencodeV2(config, run = hookRunner(config)) {
         });
       }
       if (config.hooks) {
+        // The delegation trigger (delegate.js): a read past the turn's threshold or a whole-suite run is handed
+        // to a subagent, and its report is thrown here, which v2 makes the call's result (checked live on 2.2.7:
+        // the model read the report and answered from it). The CLI answers the same JSON as Claude Code's
+        // PreToolUse deny; a call that goes through gets no answer and the hook returns in silence.
+        await ctx.tool.hook('execute.before', async ev => {
+          if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
+          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent });
+          if (!text) return;
+          let reason = '';
+          try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; } catch {}
+          if (reason) throw new Error(reason);
+        });
         await ctx.session.hook('prompt', async ev => {
           const prompt = ev.prompt?.text;
           if (!prompt) return;

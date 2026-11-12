@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief } from '../src/delegate.js';
+import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS } from '../src/delegate.js';
 import { installClient } from '../src/clients.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -145,6 +145,22 @@ test('wiring: Claude Code gets the PreToolUse entry on Read|Bash with a timeout 
   // a rewire replaces, never doubles
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse.length, 1);
+});
+
+test('hostEvent and readCap: OpenCode names its tools in lower case, takes `path`, and returns one read in chunks', t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  const ev = hostEvent('opencode', { tool_name: 'read', tool_input: { path: big, offset: 1 } });
+  assert.equal(ev.tool_name, 'Read'); assert.equal(ev.tool_input.file_path, big); assert.equal(ev.tool_input.offset, 1);
+  assert.equal(hostEvent('opencode', { tool_name: 'shell', tool_input: { command: 'pytest' } }).tool_name, 'Bash');
+  assert.equal(hostEvent('claude', { tool_name: 'Read', tool_input: { file_path: big } }).tool_name, 'Read');
+  const full = readOf('Read', { file_path: big }, d), capped = readOf('Read', { file_path: big }, d, { readCap: HOSTS.opencode.readCap });
+  assert.ok(capped.tokens < full.tokens && capped.tokens > 20000, `${capped.tokens} of ${full.tokens}`);
+  assert.equal(capped.fileTokens, full.tokens, 'the file asked for is the whole file');
+  // the first chunk of a big file fires, since the model would read the rest anyway; a chunk of a small one does not
+  const st = {}, cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000 };
+  assert.equal(decide(st, { prompt: 'p', read: capped, cfg }).fire, true);
+  assert.equal(decide(st, { prompt: 'p', read: { tokens: 20000, fileTokens: 20000, files: ['m'] }, cfg }).fire, false);
+  assert.equal(decide(st, { prompt: 'p', read: { tokens: 20000, fileTokens: 20000, files: ['m'] }, cfg }).fire, true, 'the tally still adds up');
 });
 
 test('denial and brief shapes', () => {

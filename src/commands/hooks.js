@@ -125,8 +125,7 @@ async function hookCommand(ctx) {
     // PreToolUse: a read or a whole-suite run handed to a subagent on a cheaper model, deterministically
     // (delegate.js). Nothing is printed when the call goes through; a denial carries the subagent's report.
     if (pos[0] === 'pretool') {
-      if (client !== 'claude') return;
-      const o = await preToolHook({ ev, store, session, cwd: ev.cwd || repo });
+      const o = await preToolHook({ ev, store, session, cwd: ev.cwd || repo, client });
       if (o) out(o);
       return;
     }
