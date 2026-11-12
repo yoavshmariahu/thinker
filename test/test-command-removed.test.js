@@ -42,6 +42,12 @@ test('legacy pre hooks are inert even with old opt-in config and user-scope wiri
 
 test('wiring removes old test hooks, preserves other hooks, and never installs new pre hooks', t => {
   const dir = fixture(t);
+  // the wiring reads the machine config for the delegation switch, so this needs a home of its own: on a
+  // machine with the trigger on, the PreToolUse entry is written and the assertion below is about its absence
+  const was = process.env.THINKER_HOME;
+  t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  process.env.THINKER_HOME = path.join(dir, 'thinker-home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   const o = { repo: dir, cli: CLI, hooks: true, learn: true, late: true, shared: true, mcp: false };
   for (const [client, file, event] of [
     ['claude', '.claude/settings.json', 'PreToolUse'],
