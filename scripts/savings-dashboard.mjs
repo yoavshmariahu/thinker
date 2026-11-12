@@ -35,6 +35,15 @@ const usd = (group, name) => `round(${sum(group, name)}, 2)`;
 const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE 'UTC'), coalesce('device:' || device_id, 'install:' || install_id)) *
   FROM reports ORDER BY date_trunc('day', received_at AT TIME ZONE 'UTC'), coalesce('device:' || device_id, 'install:' || install_id), received_at DESC, file_key DESC) daily_snapshots`;
 
+// A day's own figures, exploded from the snapshot that carries them. The 30-day blocks above cannot be added
+// across snapshots -- two a day apart differ by what came in and by what rolled out -- but a day belongs to
+// one snapshot, so taking the latest snapshot per device and summing days gives a true total and a real trend.
+const dayRows = block => `CROSS JOIN LATERAL jsonb_each(CASE WHEN ${valid} THEN coalesce(raw_json #> '{${block},byDay}', '{}'::jsonb) ELSE '{}'::jsonb END) AS dd(day, figures)`;
+const dayDate = "(CASE WHEN dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN dd.day::date END)";
+const fig = name => `sum((dd.figures->>'${name}')::numeric)`;
+const prValid = "raw_json #>> '{prs,schemaVersion}' = '3'";
+const prDays = `CROSS JOIN LATERAL jsonb_each(CASE WHEN ${prValid} THEN coalesce(raw_json #> '{prs,byDay}', '{}'::jsonb) ELSE '{}'::jsonb END) AS dd(day, figures)`;
+
 const netNote = 'Netted, at list prices: the tokens the clearing left out of later prompts at the cache-read rate, less the cache writes the calls after a clear paid for (src/compression.js:clearingCostBySession). A loss reads as a loss. Over the sessions whose model has a price; an unpriced session is in no dollar figure rather than counted at zero.';
 const lengthNote = 'A cleared session is a long session -- the clearing fires past 140k of context -- so its cost per session is higher by nature. Read cost per prompt beside it, which takes the length out.';
 
@@ -54,6 +63,10 @@ export const savingsQuestions = [
   { name: 'Cost per session', display: 'scalar',
     sql: `SELECT ${per(sum('all', 'spendUsd'), sum('all', 'spendSessions'))} AS cost_usd_per_session FROM ${savingsSource}`,
     description: 'Every model call of the session at list prices by token type, subagents each at their own model (src/delivery.js cost.spend). The denominator is the sessions whose counters were complete and whose every model had a price; the rest are in neither column, never at zero. A subscription bills none of it.' },
+
+  { name: 'Total saved, netted · every day reported', display: 'scalar',
+    sql: `SELECT round(${fig('netUsd')}, 2) AS total_net_usd FROM ${savingsSource} ${dayRows('sessions')} WHERE ${dayDate} IS NOT NULL`,
+    description: `A real total, not a window: each day is summed once, from the latest snapshot per device that carries it, so days from different devices and different days add up. This is the figure the 30-day cards above cannot give. It reaches back as far as the reporting devices' own windows do, so it grows as installs keep reporting rather than being a lifetime figure from the start. ${netNote}` },
 
   { name: 'What a session saves, and what it costs', display: 'table', fullWidth: true,
     sql: `SELECT g.label AS sessions_group, sum(g.sessions) AS sessions, sum(g.prompts) AS prompts,
@@ -105,6 +118,21 @@ export const savingsQuestions = [
       FROM ${daily} WHERE ${valid} GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['sessions', 'sessions_cleared'] },
     description: 'Each point is a 30-day rolling block, the latest per reporting device per UTC day. Adjacent points overlap: never add them. The line says how the fleet is moving, not what a day saved.' },
+
+  { name: 'Cost per merged pull request by week', display: 'line',
+    sql: `SELECT date_trunc('week', ${dayDate}) AS week, round(${fig('spendUsd')} / nullif(${fig('spendPrs')}, 0), 2) AS cost_per_merged_pr_usd,
+      ${fig('prs')} AS merged_prs, ${fig('spendPrs')} AS priced_prs, ${fig('clearedPrs')} AS with_a_clear
+      FROM ${savingsSource} ${prDays} WHERE ${dayDate} IS NOT NULL GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['week'], 'graph.metrics': ['cost_per_merged_pr_usd'] },
+    description: 'What a merged pull request cost in model calls, by the week it merged -- dollars at list prices, every session and subagent of it. Days are additive here, so this is a trend and not a rolling window: read it with priced_prs, since a week of two pull requests moves on one of them. A pull request with an unpriced session is in merged_prs and in neither cost column.' },
+
+  { name: 'Saved and spent by week', display: 'line',
+    sql: `SELECT date_trunc('week', ${dayDate}) AS week, round(${fig('netUsd')}, 2) AS net_saved_usd, round(${fig('spendUsd')}, 2) AS spent_usd,
+      ${fig('sessions')} AS sessions, ${fig('clearedSessions')} AS sessions_cleared,
+      round(${fig('spendUsd')} / nullif(${fig('prompts')}, 0), 2) AS cost_per_prompt_usd
+      FROM ${savingsSource} ${dayRows('sessions')} WHERE ${dayDate} IS NOT NULL GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['week'], 'graph.metrics': ['net_saved_usd', 'spent_usd'] },
+    description: `What the clearing netted each week against what those sessions cost, by the week of each session's last request. Cost per prompt is the length-independent figure beside it. ${netNote}` },
 
   { name: 'Savings per session by device', display: 'table', fullWidth: true,
     sql: `SELECT coalesce(device_id, 'install:' || install_id) AS device, version, timestamp::date AS snapshot,

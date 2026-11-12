@@ -295,7 +295,34 @@ against the API's 64 KB). The rows are what can grow without bound, and a 413 lo
 nothing on the machine saying why: the longest list goes first, only as far as the budget needs, the block says
 `rowsDropped` and the payload says what it dropped. This machine's payload is 37 KB with every list in it.
 
-**Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, ten cards) and four
+**A day has its own figures, so a trend and a total are possible** (`byDay` on both blocks, 2026-11-11): the
+day of a session's last request, and the day a pull request merged. Every other dollar figure here is a 30-day
+rolling block, and two snapshots a day apart differ by what came in **and** by what rolled out, with nothing to
+tell them apart -- so they can never be added, which is why every card over them carries "never add these". A day
+belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days add up:
+that is what makes **cost per merged pull request by week** a trend and **total saved** a total rather than a
+window. It reaches back as far as the reporting machines' own windows, so it grows as installs keep reporting.
+
+**A desktop clear now outlives the card's record** (2026-11-11; `compression.js:mirrorClearing`, `loggedClearing`,
+`loggedClearingCost`, the Stop hook). The clearing mod writes the session's clear to `state/compression/<session>.json`
+and no log row, and that directory is a card's working memory: at most 200 files, pruned after two days
+(`PRUNE_AGE`). The proxy's own clears are safe because the log keeps them for months; a desktop user's were real on
+the card that evening and gone from the Report, `thinker prs` and the telemetry's 30-day window by the end of the
+week -- which is also longer than a pull request takes to merge, the case the comment over `clearedBySession` has
+described all along. So the Stop hook mirrors each clear into the machine's log once (`op: 'clearing'`, carrying the
+cleared tokens, the uses, the policy, the model and what the clear cost), where it lives as long as the log.
+- **The figure is cumulative, so a reader takes the newest row and never adds them.** A proxy row is a
+  per-request delta and `clearedBySession` sums those; a mirrored row is the session's running total. `logged` on
+  the record keeps the hook from writing the same total twice, so a session with three clears writes three rows
+  and the largest is its figure.
+- Read by `delivery.js:sessionsOf` (in the event loop it already runs, so no second pass), and by
+  `clearingRows`/`clearingCostBySession` for the ledger and the Report, for the sessions neither the proxy's log
+  nor a live record covers. Priced from the model the row names, as the records are.
+- Not changed: `PRUNE_AGE` itself, because the card does not need a month of files, and the log is where a durable
+  figure belongs.
+
+**Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, thirteen cards: the
+total, the two trends, and the groups) and four
 new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whose `valid` now accepts schema 2 or
 3 so the old cards keep reading older snapshots). No database change and no Lambda deploy: both blocks are read out
 of `reports.raw_json`, which the ingest already stores whole.
