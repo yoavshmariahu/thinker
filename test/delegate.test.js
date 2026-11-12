@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS } from '../src/delegate.js';
+import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS, EXPLORE_MODES } from '../src/delegate.js';
 import { installClient } from '../src/clients.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -108,6 +108,15 @@ test('delegateConfig: defaults, the machine config, and the environment', t => {
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'claude-opus-5-5' }, home }).model, 'claude-opus-5-5');
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE_HOLDOUT: 'off' }, home }).holdout, 0);
+  // the explore mode: subagent unless asked otherwise, and an unknown value is the default, never an error
+  assert.deepEqual(EXPLORE_MODES, ['subagent', 'outline', 'both']);
+  assert.equal(delegateConfig({ env: {}, home }).explore, 'subagent');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE: 'outline' }, home }).explore, 'outline');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE: 'BOTH' }, home }).explore, 'both');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE: 'nonsense' }, home }).explore, 'subagent');
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { explore: 'outline' } }));
+  assert.equal(delegateConfig({ env: {}, home }).explore, 'outline');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE: 'subagent' }, home }).explore, 'subagent', 'the environment wins');
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: false }));
   assert.equal(delegateConfig({ env: {}, home }).enabled, false);
 });
@@ -141,8 +150,14 @@ test('the hook command: a small read passes in silence, a big read is denied wit
 
 test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the trigger is on, with a timeout that covers a subagent run', t => {
   const dir = tmp(t);
-  const was = process.env.THINKER_DELEGATE; t.after(() => { if (was === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = was; });
+  // the wiring reads the machine config, so the test needs a home of its own: on a machine that has the
+  // trigger switched on, `delete process.env.THINKER_DELEGATE` alone left `delegate.enabled` true and the
+  // "off by default" assertion failed on the real config.
+  const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
+  t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
   delete process.env.THINKER_DELEGATE;
+  process.env.THINKER_HOME = path.join(dir, 'home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off by default: no entry, no node process per tool call');
   process.env.THINKER_DELEGATE = 'on';
@@ -179,4 +194,76 @@ test('denial and brief shapes', () => {
   assert.match(j.hookSpecificOutput.permissionDecisionReason, /read a\.py through a m subagent/);
   assert.match(explorerBrief({ files: ['/r/a.py'], prompt: 'P', cwd: '/r' }), /At most 25 lines/);
   assert.ok(TOKENS_PER_CHAR > 0.4 && TOKENS_PER_CHAR < 0.5);
+});
+
+test('explore modes: the outline alone spends nothing, `both` briefs the subagent with it, a file it cannot outline falls back', async t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  const base = { ...DELEGATE_DEFAULTS, holdout: 0 };
+  const ev = { tool_name: 'Read', tool_input: { file_path: big }, prompt_id: 'p1' };
+  const mode = async (explore, { file = big, run } = {}) => {
+    let st = {}; const rows = []; const runs = [];
+    const r = run || (async ({ brief }) => { runs.push(brief); return { report: 'core.py:10 def f10: the thing', cost: 0.2, model: 'claude-sonnet-5-5', ms: 20_000 }; });
+    const out = await delegateTool({
+      ev: { ...ev, tool_input: { file_path: file } }, state: { update: fn => fn(st) }, session: 'sess', cwd: d,
+      cfg: { ...base, explore }, log: x => rows.push(x), run: r, lastPrompt: () => ({ prompt: 'add a column' }),
+    });
+    return { out: out && JSON.parse(out).hookSpecificOutput.permissionDecisionReason, row: rows[0], runs, st };
+  };
+
+  // outline: no subagent at all, and the model is told to read ranges
+  const o = await mode('outline');
+  assert.equal(o.runs.length, 0, 'no model call');
+  assert.equal(o.row.mode, 'outline');
+  assert.equal(o.row.cost, undefined, 'nothing spent');
+  assert.ok(o.row.outlineDefs > 100, `defs ${o.row.outlineDefs}`);
+  assert.ok(o.row.outlineMs < 500);
+  assert.match(o.out, /kept core\.py out of your context/);
+  assert.match(o.out, /offset and limit/);
+  assert.match(o.out, /core\.py: \d+ lines, \d+ definitions/);
+  assert.match(o.out, /function f10/);
+  assert.doesNotMatch(o.out, /subagent/);
+  // the outline is cached for the turn like a report
+  assert.ok(o.st.delegate.reports[big].report.includes('function f10'));
+
+  // both: the outline goes into the brief, and the model gets the report and the outline
+  const b = await mode('both');
+  assert.equal(b.runs.length, 1);
+  assert.match(b.runs[0], /definitions and their line ranges/);
+  assert.match(b.runs[0], /function f10/);
+  assert.match(b.runs[0], /read the ranges the request needs/);
+  assert.equal(b.row.mode, 'both');
+  assert.match(b.out, /core\.py:10 def f10/);
+  assert.match(b.out, /so you can read further yourself/);
+
+  // subagent: unchanged, and nothing about an outline reaches the brief or the row
+  const s = await mode('subagent');
+  assert.equal(s.row.mode, 'subagent');
+  assert.equal(s.row.outlineDefs, undefined);
+  assert.doesNotMatch(s.runs[0], /line ranges/);
+  assert.doesNotMatch(s.out, /read further yourself/);
+
+  // a file with no definitions to find falls back to the subagent and says so on the row
+  const text = path.join(d, 'notes.md');
+  fs.writeFileSync(text, 'word '.repeat(60_000));
+  const f = await mode('outline', { file: text });
+  assert.equal(f.row.mode, 'subagent');
+  assert.equal(f.row.outlineMissed, true);
+  assert.equal(f.runs.length, 1, 'the subagent ran instead');
+  assert.match(f.out, /subagent/);
+
+  // a subagent that fails falls back to the outline where one was asked for, and lets the read through where not
+  const fail = async () => ({ error: 'timeout', ms: 1 });
+  const fb = await mode('both', { run: fail });
+  assert.match(fb.out, /kept core\.py out of your context/);
+  assert.equal(fb.row.error, 'timeout');
+  assert.equal(fb.row.fellBack, 'outline');
+  const none = await mode('subagent', { run: fail });
+  assert.equal(none.out, null, 'no outline asked for: the read goes through');
+  assert.equal(none.row.fellBack, undefined);
+
+  // a held-out session in outline mode spends nothing and still records what it would have answered with
+  let st = {}; const rows = [];
+  const held = await delegateTool({ ev, state: { update: fn => fn(st) }, session: 'sess', cwd: d, cfg: { ...base, explore: 'outline', holdout: 1 }, log: x => rows.push(x), run: async () => assert.fail('no run') });
+  assert.equal(held, null);
+  assert.equal(rows[0].held, true); assert.equal(rows[0].mode, 'outline'); assert.ok(rows[0].outlineDefs > 100);
 });

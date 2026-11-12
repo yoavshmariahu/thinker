@@ -11,6 +11,17 @@
 // itself, and returns the report as the denial's reason, which is what the model reads instead of the file.
 // A whole-suite test run goes the same way to a verifier that reports the summary line verbatim.
 //
+// What answers the read is a switch (`explore`, EXPLORE_MODES below; the owner's ask, 2026-11-12). The measured
+// default is the subagent's report. The alternative is the file's own structure from `outline.js`, which costs no
+// model call and about 6 ms, and which the subagent can be given as well so that it reads ranges instead of the
+// whole file. The AST path is thinker's third attempt at this: `find`/`drilldown` over tree-sitter outlines
+// (2026-10-03) matched codebase-memory-mcp on click comprehension (10/12, 32% fewer calls) and was switched off a
+// week later for overuse (turns 31 to 51 on mitmproxy, 85 to 111 on click), and the persistent symbol table with
+// outline-on-sight (#349, 2026-10-18) passed its replay gate (63% of 120 sessions had a shortenable grep-then-read
+// chain) over a prize of 3.7% of tool-output tokens and never shipped on. Both failures were the same failure:
+// the agent had to choose to call the tool, and in Claude Code the tools were deferred so Opus never did. At this
+// hook nothing is chosen, which is the one thing that has changed.
+//
 // What it is not. It never intercepts a small read (the main model reads the lines it edits), never runs
 // anything on a held-out session (the live measure is those sessions against the others), and never spends
 // more than one subagent run per file per turn (a repeat read gets the cached report). It is off by default:
@@ -270,7 +281,15 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const brief = d.kind === 'verify' ? verifierBrief({ command: suite, cwd })
     : explorerBrief({ files, prompt: ctx.prompt, lastSay: ctx.lastSay, cwd, lines: cfg.reportLines, outline: mode === 'both' ? o.text : '' });
   const r = await run({ kind: d.kind, brief, cwd, cfg });
-  if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
+  if (r.error) {
+    log({ ...row, error: r.error, ms: r.ms, fellBack: o ? 'outline' : undefined });
+    // Where an outline was asked for, a failed subagent falls back to it rather than letting the whole file in:
+    // it costs nothing and is already in hand. In `subagent` mode the read goes through, as before.
+    if (!o) return null;
+    const rec = { report: o.text, mode: 'outline', model: cfg.model };
+    state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {} }; st.delegate.reports[d.key] = rec; });
+    return denial({ ...rec, kind: d.kind, files, cwd });
+  }
   const rec = { report: r.report, mode, model: r.model, outline: mode === 'both' ? o.text : '' };
   state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {} }; st.delegate.reports[d.key] = rec; });
   log({ ...row, model: r.model, usage: r.usage, cost: r.cost, ms: r.ms, reportChars: r.report.length, subagent: r.sessionId });

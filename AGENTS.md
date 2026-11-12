@@ -140,12 +140,41 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
   The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
+- **What answers a delegated read is a switch, and the outline is the third attempt at an AST index here**
+  (2026-11-12, the owner's ask; `delegate.js:EXPLORE_MODES`, `src/outline.js`). `delegate: { explore }` /
+  `THINKER_DELEGATE_EXPLORE` takes `subagent` (the measured default, unchanged), `outline` (the file's own
+  definitions with their line ranges, no model call) or `both` (the outline goes into the explorer's brief as
+  well, and the lead gets the report and the outline). `outline.js` is a line scanner with no dependency, for
+  Python, JavaScript/TypeScript, Go, Rust, Ruby and the brace languages: thinker's real parser
+  (`src/ast.js`, web-tree-sitter and about 50 MB of wasm grammars) went with the knowledge notes on
+  2026-11-08, and what this hook needs is a map good enough to pick a range from, not a syntax tree. It is
+  wrong only by omission -- a header its patterns miss is absent, never invented -- and `coverage()` says what
+  share of the file its top-level definitions account for, which is how a caller decides to trust it.
+- **Measured, and it does not pay as the explorer's helper.** On an 11,002-line Python file (mlflow's
+  `sqlalchemy_store.py`, a whole-file read of ~248,592 tokens) the outline is 272 definitions, 96% coverage,
+  2,617 tokens and **7 ms at no cost**; on a 2,678-line Go file (grafana's `setting.go`, ~54,887 tokens) 79
+  definitions, 47% coverage, 1,499 tokens. It also points at the right place: `log_batch 2395-2412` for a
+  batch-limit question, `readSecuritySettings 2051-2115` for a cookie-default question. But on cold paired runs
+  (`bench/ast-compare/`, 6 cold explorer runs over 2 files and 3 questions each) `both` cost **+16% pooled**
+  against `subagent` (-11% on the Python file, +60% on the Go one), because the explorer already greps and
+  reads ranges on its own, so the outline mostly adds its own tokens to the brief. So the default does not
+  move. What the outline is for is the floor: where a mode asking for one is set and **the subagent fails or
+  times out, the hook now answers with the outline instead of letting the whole file in** (`fellBack: 'outline'`
+  on the row), which is free and strictly better than 248k tokens of context.
+  - **The cache trap this walked into first.** Repeating one question per mode made the outline look 12-19%
+    *dearer*, and a single first pair had made it look 49% *cheaper*. Both readings were the prompt cache: a
+    second run of the same brief read 57-66k tokens from cache and had nothing left to save, and the one
+    flattering pair was an explorer that happened to read the file whole (22,357 cache-write tokens against
+    2,844-8,831 in every later run). Each measured run needs its own question, because in production every
+    explorer is a fresh process with the person's own prompt in its brief, so a cold run is the only honest one.
+    Two of the eight runs recorded under `bench/ast-compare/cold.json` still share a brief with the first pass
+    and are excluded from the figures above.
 - **Off by default (the owner's call, 2026-11-12, for the release that ships it).** On: `THINKER_DELEGATE=on` or
   `delegate: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire` for Claude Code (the PreToolUse
   entry is written only while it is on, since a hook that exits at once is still one node process per tool call;
   `PreToolUse` in setHooks's list takes it out again on the next rewire once it is off) and OpenCode started again
   (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead,
-  holdout, timeoutMs }` tune it;
+  holdout, timeoutMs, explore, outlineLines }` tune it;
   `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Under `THINKER_TEST` the hook
   does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
 - **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin
