@@ -927,6 +927,26 @@ cleared tokens, the uses, the policy, the model and what the clear cost), where 
 - Not changed: `PRUNE_AGE` itself, because the card does not need a month of files, and the log is where a durable
   figure belongs.
 
+**A cold cut is not charged for the write the expired cache was going to pay** (2026-11-11;
+`compression.js:clearingCostBySession`). `decideCut` prices a cold-boundary cut at zero because past the cache's
+hour the request writes its whole context again whether or not anything is replaced -- and the money door then
+charged that very write to the clearing, so the two doors priced the same cut differently. Measured here: both
+Fable cuts of the five days to 2026-11-11 were cold, each wrote its context with a cache read of **zero** (202k
+and 349k, nothing to read back), and **no call after either one rewrote a prefix at all** -- 0 of 227 over 100k of
+context. Those two writes were the whole of the $11.01 charged against $3.89 saved, and at Fable's 80 reads to a
+written token they made a clearing that had cost nothing read as the month's worst loss. A warm cut is still
+charged its own rewrite: there the write is what the cut bought, and the decision priced it (`recache`).
+With it, the five days to 2026-11-11 read 22M cleared, $10.31 saved, nothing charged.
+
+**What the models say, and the old policy's signature** (the same day, this machine's 30 days, Messages path):
+Opus 5 cleared 658M in 23 sessions with rewrites after a clear at **15.9% of 2,854 long calls against 0.8%
+before one** -- the API-side clearing's own signature, and **none of it under today's policy**. Fable: 238M, 8.0%
+against 2.7%, of which only 15.6M is today's. Opus 5.5: 47M, 5.2% against 0.7%, none of it today's. So the
+30-day loss is the policy that was replaced, measured again from a second direction. What cannot be read per
+model is the held-out baseline: a held-out request is returned before its body is parsed (`asCame`), so its row
+carries no model and the holdout's rewrite rate is machine-wide only (1% after a clear against 2% held out, the
+seven days to 2026-11-11).
+
 **Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, thirteen cards: the
 total, the two trends, and the groups) and four
 new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whose `valid` now accepts schema 2 or
