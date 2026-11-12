@@ -115,7 +115,7 @@ const SUITE = [
 // A pipe into tail, head, grep or wc only hides the suite's output; the whole suite still runs (the first live
 // e2e, 2026-11-12: Opus ran `pytest -q 2>&1 | tail -5` and the verifier never fired). The verifier gets the bare
 // command and does the trimming itself in its report.
-const TRIM_TAIL = /(?:\s+2>&1)?(?:\s*\|\s*(?:tail|head|grep|wc|cat)\b[^|]*)*\s*$/;
+const TRIM_TAIL = /(?:\s+2>&1)?(?:\s*\|\s*(?:tail|head|grep|wc|cat)\b(?:"[^"]*"|'[^']*'|[^|"'])*)*\s*$/;
 export function suiteCommand(toolName, input = {}) {
   if (toolName !== 'Bash') return null;
   const cmd = String(input.command || '').trim();
