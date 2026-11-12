@@ -24,6 +24,7 @@ import { readMachineConfig } from './repo-switch.js';
 import { heldOut } from './proxy.js';
 import { findBin, BINS } from './llm.js';
 import { sessionState, locked } from './session-state.js';
+import { outlineFiles } from './outline.js';
 
 export const DELEGATE_DEFAULTS = Object.freeze({
   enabled: false,     // off until switched on (the owner's call, 2026-11-12): THINKER_DELEGATE=on or `delegate: { enabled: true }`
@@ -33,7 +34,19 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   holdout: 0.5,       // share of sessions left alone, by hash of the session id (proxy.js:heldOut)
   timeoutMs: 240_000, // a subagent run past this is abandoned and the read allowed
   reportLines: 25,
+  explore: 'subagent',// what the model gets instead of the file: EXPLORE_MODES below
+  outlineLines: 120,  // most definitions listed in an outline
 });
+// What answers a delegated read (2026-11-12, the owner's ask: try the outline at this hook and compare).
+//   subagent  a report from a subagent that read the file on the cheaper model (the measured default)
+//   outline   the file's definitions and their line ranges, from `outline.js`. No model call, no tokens spent,
+//             about 6 ms. The model reads the ranges it needs, which are under minRead and never delegated.
+//   both      the outline goes to the subagent too, so it reads ranges instead of the whole file, and the
+//             model gets the report and the outline.
+// `outline` and `both` fall back to a plain subagent run for a file that cannot be outlined (an unknown
+// language, or fewer than three definitions found), logged as `outlineMissed`, since denying a read and
+// answering with nothing is the one outcome worse than allowing it.
+export const EXPLORE_MODES = Object.freeze(['subagent', 'outline', 'both']);
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
 export const TOKENS_PER_CHAR = 0.445;
 // Claude Code's Read tool prefixes every line with its number and a tab
@@ -54,6 +67,8 @@ export function delegateConfig({ env = process.env, home } = {}) {
   }
   if (env.THINKER_DELEGATE_THRESHOLD) o.threshold = Number(env.THINKER_DELEGATE_THRESHOLD) || o.threshold;
   if (env.THINKER_DELEGATE_HOLDOUT !== undefined) o.holdout = OFF.test(env.THINKER_DELEGATE_HOLDOUT) ? 0 : Number(env.THINKER_DELEGATE_HOLDOUT);
+  const mode = String(env.THINKER_DELEGATE_EXPLORE || o.explore || '').trim().toLowerCase();
+  o.explore = EXPLORE_MODES.includes(mode) ? mode : DELEGATE_DEFAULTS.explore;
   return o;
 }
 
@@ -152,13 +167,14 @@ export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS }) {
 export const EXPLORER_PROMPT = `You explore a codebase for a lead engineer who will not read the files. Answer exactly the question in the brief. Report in at most {N} lines: each relevant function, class or section as \`path:line\` with one line on what it does and how it connects, and the exact lines to change if the brief asks. Quote at most 5 lines of code in total. Never paste a file or a long excerpt. Use the shell only for read-only commands. Never edit a file, never run tests.`;
 export const VERIFIER_PROMPT = `You verify work for a lead engineer. Run exactly the command in the brief, once. Report in at most 15 lines: first the final summary line exactly as the test runner printed it, copied verbatim; then for each failing test its name, the assertion message and the file:line it points at, and one line on the likely cause. If nothing ran (a collection or import error), say so in the first line. Never paste full output. Never edit a file.`;
 
-export function explorerBrief({ files, prompt, lastSay, cwd, lines = DELEGATE_DEFAULTS.reportLines }) {
+export function explorerBrief({ files, prompt, lastSay, cwd, lines = DELEGATE_DEFAULTS.reportLines, outline = '' }) {
   const list = files.map(f => path.relative(cwd || '', f) || f).join(', ');
   return [
     `Working directory: ${cwd}.`,
     `The lead engineer was about to read ${list} while working on this request from the user:`,
     '---', String(prompt || '').slice(0, 2000), '---',
     lastSay ? `The lead's last words before reaching for the file: "${String(lastSay).slice(0, 600)}"` : '',
+    outline ? `The file's definitions and their line ranges:\n${outline}\nUse it: read the ranges the request needs with offset and limit rather than the whole file.` : '',
     `Read ${list} (and whatever it points to that the request needs) and report what the lead needs from it for this request: the relevant definitions as path:line, what each does, how they connect, and the exact lines to change if the request is a change. At most ${lines} lines, at most 5 quoted lines of code.`,
   ].filter(Boolean).join('\n');
 }
@@ -197,12 +213,19 @@ export function runSubagent({ kind, brief, cwd, cfg = DELEGATE_DEFAULTS, env = p
 }
 
 // ---- what the model reads instead of the result ----
-export function denial({ kind, report, files, cwd, model }) {
-  const what = kind === 'verify' ? 'ran this test command' : `read ${files.map(f => path.relative(cwd || '', f) || f).join(', ')}`;
-  const reason = `thinker ${what} through a ${model} subagent so the full output stays out of your context. Its report is below; work from it. ` +
-    (kind === 'verify' ? 'Running the same command again returns this same report; run a single test file yourself to check a fix.'
-      : 'Reading the same file again this turn returns this same report; read a short range (offset and limit) of the lines you need to edit, which is never delegated.') +
-    `\n\n${report}`;
+export function denial({ kind, report, files, cwd, model, outline = '', mode = 'subagent' }) {
+  const names = files.map(f => path.relative(cwd || '', f) || f).join(', ');
+  const ranges = 'Read the ranges you need with offset and limit, which is never delegated.';
+  let reason;
+  if (kind === 'explore' && mode === 'outline') {
+    reason = `thinker kept ${names} out of your context because of its size, and read its structure instead. Every definition in it is below with its line range. ${ranges}\n\n${report}`;
+  } else {
+    const what = kind === 'verify' ? 'ran this test command' : `read ${names}`;
+    reason = `thinker ${what} through a ${model} subagent so the full output stays out of your context. Its report is below; work from it. ` +
+      (kind === 'verify' ? 'Running the same command again returns this same report; run a single test file yourself to check a fix.'
+        : `Reading the same file again this turn returns this same report; read a short range (offset and limit) of the lines you need to edit, which is never delegated.`) +
+      `\n\n${report}` + (outline ? `\n\nThe file's definitions and their line ranges, so you can read further yourself:\n${outline}` : '');
+  }
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
 }
 
@@ -216,20 +239,42 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const suite = suiteCommand(ev.tool_name, ev.tool_input);
   if (!read && !suite) return null;
   let d, cached, prompt;
-  state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg }); cached = d.fire ? st.delegate.reports[d.key] : undefined; });
+  state.update(st => {
+    prompt = ev.prompt_id || st.turnNo || 0;
+    d = decide(st, { prompt, read, suite, cfg });
+    cached = d.fire ? st.delegate.reports[d.key] : undefined;
+    if (typeof cached === 'string') cached = { report: cached, mode: 'subagent', model: cfg.model };
+  });
   if (!d.fire) return null;
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
-  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, held };
+  // The outline is read before the holdout check, so a held-out session's row says what it would have answered
+  // with, and it is 6 ms whether or not it is used. A file it cannot outline falls back to the subagent.
+  const t0 = Date.now();
+  const want = d.kind === 'explore' ? cfg.explore : 'subagent';
+  const o = want === 'subagent' ? null : outlineFiles(files, { cwd, maxLines: cfg.outlineLines });
+  const mode = want === 'subagent' || !o ? 'subagent' : want;
+  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, mode, held };
+  if (o) { row.outlineDefs = o.defs; row.outlineChars = o.text.length; row.outlineMs = Date.now() - t0; }
+  else if (want !== 'subagent') row.outlineMissed = true;
   if (held) { log(row); return null; }
-  if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
+  if (cached) { log({ ...row, mode: cached.mode || mode, cached: true }); return denial({ ...cached, kind: d.kind, files, cwd }); }
+  // the outline alone: no model call, nothing spent, the model reads the ranges it needs
+  if (mode === 'outline') {
+    const rec = { report: o.text, mode, model: cfg.model };
+    state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {} }; st.delegate.reports[d.key] = rec; });
+    log(row);
+    return denial({ ...rec, kind: d.kind, files, cwd });
+  }
   const ctx = lastPrompt() || {};
-  const brief = d.kind === 'verify' ? verifierBrief({ command: suite, cwd }) : explorerBrief({ files, prompt: ctx.prompt, lastSay: ctx.lastSay, cwd, lines: cfg.reportLines });
+  const brief = d.kind === 'verify' ? verifierBrief({ command: suite, cwd })
+    : explorerBrief({ files, prompt: ctx.prompt, lastSay: ctx.lastSay, cwd, lines: cfg.reportLines, outline: mode === 'both' ? o.text : '' });
   const r = await run({ kind: d.kind, brief, cwd, cfg });
   if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
-  state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {} }; st.delegate.reports[d.key] = r.report; });
+  const rec = { report: r.report, mode, model: r.model, outline: mode === 'both' ? o.text : '' };
+  state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {} }; st.delegate.reports[d.key] = rec; });
   log({ ...row, model: r.model, usage: r.usage, cost: r.cost, ms: r.ms, reportChars: r.report.length, subagent: r.sessionId });
-  return denial({ kind: d.kind, report: r.report, files, cwd, model: r.model });
+  return denial({ ...rec, kind: d.kind, files, cwd });
 }
 
 // The hosts with a door that can refuse a tool call and answer in its place: Claude Code's PreToolUse deny, and
