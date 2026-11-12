@@ -282,7 +282,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
-      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null, rereadUsd: p.cost?.reread ?? null, rereads: p.rereads || 0,
       spend: p.cost?.spendComplete ? p.cost.spend : null,
     })),
   };
@@ -504,7 +504,7 @@ function mergePrSavings(list) {
     meanHours: mean(rows.map(r => r.hours)),
     // the dollars add like the tokens; the mean is signed, since a net can be a loss (delivery.js:meanSigned)
     cost: {
-      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), net: sum(p => p.cost?.net),
+      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), reread: sum(p => p.cost?.reread), net: sum(p => p.cost?.net),
       costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
     },
     meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
@@ -597,7 +597,7 @@ export function renderReport(v, { total = false, share = false } = {}) {
     L.push('', 'Pull requests (what merged work cost and what the clearing saved on it, in dollars)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  spent on them          ${pr.spend == null ? '–' : formatDollars(pr.spend)}${pr.spendComplete < pr.merged ? ` over the ${pr.spendComplete} whose every session is priced` : ''}`,
-      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear`,
+      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear${pr.cost?.reread ? ` and ${formatDollars(pr.cost.reread)} of files read again after a clear took them out` : ''}`,
       `  on the average one     ${pr.meanSpend == null ? '–' : formatDollars(pr.meanSpend)} spent, ${pr.meanSavedUsd == null ? '–' : formatDollars(pr.meanSavedUsd)} saved${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);

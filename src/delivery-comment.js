@@ -22,7 +22,8 @@ export function renderSavingsComment(report, pr, marker, { config } = {}) {
     ? 'Cost estimate unavailable: model prices unknown.'
     : `**~${formatDollars(net)} USD${net < 0 ? ' net cost' : ' net saved'} at list prices${cost.unpricedTokens ? ' (partial)' : ''}.**`
       + `\n\n${formatDollars(pr.cost.saved)} of cache reads and fresh input avoided, less ${formatDollars(pr.cost.rewrite)}`
-      + ` the calls after a clear paid to write the prefix into the cache again.`;
+      + ` the calls after a clear paid to write the prefix into the cache again`
+      + (pr.cost.reread ? `, less ${formatDollars(pr.cost.reread)} for ${pr.rereads} ${pr.rereads === 1 ? 'file' : 'files'} read again after a clear took ${pr.rereads === 1 ? 'it' : 'them'} out.` : '.');
   const savings = [
     ...(pr.saved.cleared ? [`**${formatTokens(pr.saved.cleared)} tokens cleared** (measured)`] : []),
   ];
