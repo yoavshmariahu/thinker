@@ -14,7 +14,10 @@
 // agent wrote, and the cut times on the proxy's log rows (`clear`), the mod's record (`recent`) and the log's mirror of
 // it (compression.js:mirrorClearing). No ids are needed, and nothing is asked of a model.
 //
-// A re-read is a Read of a file whose last earlier Read was in the cleared set when it ran. It is priced like the
+// A re-read is a read of a file whose last earlier read was in the cleared set when it ran: the Read tool, or a shell
+// line that prints a file (delegate.js:shellRead: cat, sed -n, head; a `cd <dir> &&` in front is allowed, since that is
+// how a worktree is read, and the file is taken relative to it). A path written relative matches the absolute path the
+// Read tool wrote, by its tail. A re-read is priced like the
 // clearing itself, at list (delivery.js): its result is written into the cache once, and read again on every later
 // call until a cut takes it too -- the very reads the saving counted as avoided, since the old copy is still out of
 // the prompt. Both come off the saving. One rule: a re-read of a cleared file costs its write and its reads after.
@@ -22,12 +25,28 @@
 // Never understated: a read the model would have made anyway (checking an edit) counts too, so the figure is a ceiling
 // on what the clearing cost in reading, not a floor. What it cannot see is an answer that went wrong without a read,
 // which is the graded run's question (Artemis), not this one's.
+import path from 'node:path';
 import { Buffer } from 'node:buffer';
 import { PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from './proxy.js';
 import { MIN_CHARS, clearedOf } from './cutting.js';
+import { shellRead } from './delegate.js';
 import { compressionRecords, readCompression, CLEARING_OP } from './compression.js';
 
 const ms = v => (typeof v === 'number' ? v : typeof v === 'string' ? Date.parse(v) || 0 : 0);
+const CD = /^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/;
+const clean = f => String(f).replace(/^["']|["']$/g, '').replace(/^\.\//, '');
+// the files a tool call reads, as paths: the Read tool's, or a shell read's (relative to a leading `cd`, where there is one)
+export function filesReadBy(name, input = {}) {
+  if (name === 'Read') return input.file_path ? [clean(input.file_path)] : [];
+  if (name !== 'Bash' || !input.command) return [];
+  const m = String(input.command).match(CD);
+  const dir = m ? clean(m[1]) : '';
+  const r = shellRead(m ? String(input.command).slice(m[0].length) : input.command);
+  if (!r) return [];
+  return r.files.map(clean).map(f => (dir && !path.isAbsolute(f) ? path.join(dir, f) : f));
+}
+// the same file, written absolute by one tool and relative by another: equal, or one the tail of the other
+const sameFile = (a, b) => a === b || (path.isAbsolute(a) && !path.isAbsolute(b) ? a.endsWith('/' + b) : (!path.isAbsolute(a) && path.isAbsolute(b) ? b.endsWith('/' + a) : false));
 const chars = v => (typeof v === 'string' ? v.length : v == null ? 0 : Buffer.byteLength(JSON.stringify(v)));
 
 // When a session's cuts were made, in ms, oldest first: the proxy's rows (one cut wherever the set left out of the
@@ -88,15 +107,17 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
     let n = 0; for (const t of callTimes) if (t > from && t < to) n++;
     return n;
   };
-  // a Read whose last earlier Read of the same file was out of the prompt when it ran
-  const last = new Map();
+  // a read whose last earlier read of the same file was out of the prompt when it ran; a shell line naming several
+  // files is one read, and a re-read if any of them was
+  const last = [];   // [file, result], newest last
+  const lastOf = file => { for (let i = last.length - 1; i >= 0; i--) if (sameFile(last[i][0], file)) return last[i][1]; return null; };
   const out = { reads: 0, tokens: 0, laterTokens: 0 };
   for (const r of results) {
-    const file = r.e.name === 'Read' && r.e.input?.file_path ? String(r.e.input.file_path) : null;
-    if (!file) continue;
-    const prev = last.get(file);
-    last.set(file, r);
-    if (!prev?.cleared || prev.cleared > r.at) continue;
+    const files = filesReadBy(r.e.name, r.e.input);
+    if (!files.length) continue;
+    const again = files.some(f => { const prev = lastOf(f); return prev?.cleared && prev.cleared <= r.at; });
+    for (const f of files) last.push([f, r]);
+    if (!again) continue;
     const tokens = Math.round(r.chars * RESULT_TOKENS_PER_CHAR) + (r.e.imageTokens || 0);
     out.reads++; out.tokens += tokens; out.laterTokens += tokens * laterCalls(r);
   }

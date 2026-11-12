@@ -91,17 +91,26 @@ export function readOf(toolName, input = {}, cwd, { readCap = 0 } = {}) {
     return { tokens: Math.round((bytes + n * READ_LINE_OVERHEAD) * TOKENS_PER_CHAR), fileTokens, files: [st.path] };
   }
   if (toolName === 'Bash') {
-    const cmd = String(input.command || '');
-    if (SHRINKS.test(cmd) || /[;&]|\|\|/.test(cmd.replace(/\|\|/g, ';'))) return null;
-    const m = cmd.match(READ_CMD);
-    if (!m) return null;
-    const files = splitArgs(m[2]).filter(a => !a.startsWith('-')).map(f => fileStats(f, cwd)).filter(Boolean);
+    const r = shellRead(input.command);
+    if (!r) return null;
+    const files = r.files.map(f => fileStats(f, cwd)).filter(Boolean);
     if (!files.length) return null;
     let bytes = files.reduce((a, f) => a + f.bytes, 0);
-    if (m[1]) bytes = Math.min(bytes, Number(m[1]) * 40);
+    if (r.lines) bytes = Math.min(bytes, r.lines * 40);
     return { tokens: Math.round(bytes * TOKENS_PER_CHAR), files: files.map(f => f.path) };
   }
   return null;
+}
+// A shell line whose work is to print a file: the files it names (as written) and the line count a `head -n` caps it at,
+// or null. The one reading of a shell read, shared with the re-read measure (rereads.js), which replays it over a
+// transcript where the files no longer need to exist.
+export function shellRead(command) {
+  const cmd = String(command || '');
+  if (SHRINKS.test(cmd) || /[;&]|\|\|/.test(cmd.replace(/\|\|/g, ';'))) return null;
+  const m = cmd.match(READ_CMD);
+  if (!m) return null;
+  const files = splitArgs(m[2]).filter(a => !a.startsWith('-'));
+  return files.length ? { files, lines: m[1] ? Number(m[1]) : 0 } : null;
 }
 
 // A whole-suite run: the test program with no path of its own. A single file's run is the main model

@@ -61,8 +61,10 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - **Re-reads of cleared files are measured per session instead** (`src/rereads.js`, programmatic, no model): the Stop
   hook replays the cut policy over the transcript (a cut at T takes the results of the turns before its own, bar the
   newest `keepMin`, bar those under `MIN_CHARS`) with the session's cut times (`cutTimesFor`: proxy rows where the cleared
-  set grew, the mod's `recent`, the log's mirror rows), and a Read whose last earlier Read was out of the prompt is a
-  re-read. `rereads: { reads, tokens, laterTokens }` on the `op: session` row; `delivery.js` prices it at list (its write
+  set grew, the mod's `recent`, the log's mirror rows), and a read whose last earlier read was out of the prompt is a
+  re-read: the Read tool or a shell line that prints a file (`delegate.js:shellRead`, one parser for both; a `cd <dir>
+  &&` in front allowed, a relative path matched to an absolute by its tail). On this machine's 41 cut sessions
+  (2026-11-12): 12 re-reads in 6 sessions, $0.56 against $586 cleared at the cache-read rate. `rereads: { reads, tokens, laterTokens }` on the `op: session` row; `delivery.js` prices it at list (its write
   once, its reads after at the cache-read rate) as `cost.reread`, and **net = saved − rewrite − reread** on every door
   (`thinker prs`, the posted comment, the Report's PR rows, telemetry `rereadUsd`/`rereads`/`rereadSessions`). A ceiling:
   a read the model would have made anyway counts too. What it cannot see, an answer gone wrong without a read, is the

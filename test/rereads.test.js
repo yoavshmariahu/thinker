@@ -61,6 +61,36 @@ test('a Read of a file whose last read a cut took out is a re-read; a kept resul
   assert.equal(r.laterTokens, 3 * tokens);
 });
 
+test('a shell read counts too: cat, sed -n and head, behind a cd, by the path\'s tail; a piped cat is not a read', () => {
+  const lines = [];
+  let n = 0;
+  const prompt = (at, text) => lines.push({ type: 'user', timestamp: T(at), message: { role: 'user', content: text } });
+  const call = (at, name, input, result) => {
+    const id = `t${++n}`;
+    lines.push({ type: 'assistant', timestamp: T(at), message: { model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id, name, input }] } });
+    lines.push({ type: 'user', timestamp: T(at), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: result }] } });
+  };
+  prompt('00:00', 'look');
+  call('00:05', 'Read', { file_path: '/r/src/a.py' }, BIG);
+  call('00:10', 'Bash', { command: 'cat src/b.py' }, BIG);
+  call('00:15', 'Bash', { command: 'cd /r && sed -n 1,80p src/c.py' }, BIG);
+  call('00:20', 'Bash', { command: 'cat src/d.py | grep def' }, BIG);      // the model trimming for itself: not a read
+  call('00:25', 'Bash', { command: 'ls' }, BIG);
+  call('00:30', 'Bash', { command: 'ls -la' }, BIG);
+  call('00:35', 'Bash', { command: 'git status' }, BIG);
+  prompt('10:00', 'go on');
+  call('10:05', 'Bash', { command: 'sed -n 10,20p /r/src/a.py' }, SMALL);   // a is gone: a re-read, priced at its own size
+  call('10:10', 'Read', { file_path: '/r/src/b.py' }, BIG);                // b was read by cat src/b.py: a re-read
+  call('10:15', 'Bash', { command: 'head -n 40 /r/src/c.py' }, BIG);       // c was read behind a cd: a re-read
+  call('10:20', 'Bash', { command: 'cat src/d.py' }, BIG);                 // d's first read was piped: no read before, not one
+  call('10:25', 'Bash', { command: 'cat src/d.py | wc -l' }, SMALL);       // piped: not a read
+  const f = path.join(tmp(), 's.jsonl');
+  fs.writeFileSync(f, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+  const r = rereadsOf(parseTranscript(f), [Date.parse(T('10:01'))]);
+  assert.equal(r.reads, 3);
+  assert.equal(r.tokens, Math.round(SMALL.length * RESULT_TOKENS_PER_CHAR) + 2 * Math.round(BIG.length * RESULT_TOKENS_PER_CHAR));
+});
+
 test('no cut, no re-read; a cut before the first turn clears nothing', () => {
   const p = session();
   assert.deepEqual(rereadsOf(p, []), { reads: 0, tokens: 0, laterTokens: 0 });
