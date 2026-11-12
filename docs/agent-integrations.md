@@ -763,10 +763,15 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
   through `ctx.mcp.transform`, the prompt through `ctx.session.hook('prompt')`, tool results
   through `ctx.tool.hook('execute.after')`, and the turn's end through `ctx.event.subscribe`
   (`session.execution.succeeded`, where v1 said `session.idle`; the session id rides
-  `data.sessionID`). v2's admission hook has no synthetic part — its edit becomes the canonical
-  persisted prompt — so the served block rides the prompt text and is visible, where v1's is not;
-  the one alternative, `ctx.session.synthetic` from inside the hook, answers without error and
-  never reaches the same execution (checked against 2.2.7). v2 gives a server plugin no client, so
+  `data.sessionID`). v2's admission hook holds a draft (`text`, `files`, `agents`, `skills`) and no
+  parts of its own, so an edit there *is* the person's prompt: the served block is instead a
+  **synthetic message** (`ctx.session.synthetic`, which v2 exposes to plugins), the host's own door
+  for context the model reads and the screens do not — opencode's plan-mode reminders and its
+  subagent and shell notices ride it, the TUI draws the message's `description` as one muted notice
+  line and never its text, and an export reads it as `[Synthetic context]`. Checked live on 2.2.7
+  (2026-11-12): the message reaches the same execution — the model quoted the profile's first line
+  in its answer to that prompt — the person's draft comes through untouched, and the next turn of
+  the session sees one block, not two. v2 gives a server plugin no client, so
   the end-of-turn summary is delivered by the Stop hook writing
   `THINKER_HOME/state/notice-last.json` (notice-cadence.js:writeNoticeLast) and the terminal part
   toasting it (opencode-tui.js). The terminal part also draws the savings footer on the built-in

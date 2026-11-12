@@ -16,7 +16,7 @@ process.env.THINKER_HOLDOUT = '0';
 process.env.THINKER_CE = 'off';
 
 const { installClient, inferWiring, uninstallWiring } = await import('../src/clients.js');
-const { opencodeV2 } = await import('../src/integrations/opencode-v2.js');
+const { opencodeV2, SYNTHETIC_NOTE } = await import('../src/integrations/opencode-v2.js');
 const { thinkerTui, readFooterLine, LEDGER_POLL_MS } = await import('../src/integrations/opencode-tui.js');
 const { savingsStatus } = await import('../src/savings-ledger.js');
 const { writeNoticeLast, noticeLastFile } = await import('../src/notice-cadence.js');
@@ -100,13 +100,18 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   const runs = [];
   const run = async (what, ev) => { runs.push([what, ev]); if (what === 'pretool') return ev.tool_name === 'read' ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'REPORT' } }) : ''; return what === 'prompt' ? 'SERVED' : 'NOTED'; };
   const hooks = {};
+  const synthetic = [];
+  let refuse = false;
   const pending = [];
   let resolveNext = null;
   const push = ev => { if (resolveNext) { const r = resolveNext; resolveNext = null; r({ value: ev, done: false }); } else pending.push(ev); };
   const ctx = {
     location: { directory: '/tmp/session-cwd' },
     mcp: { transform: async fn => { const set = []; await fn({ set: (n, c) => set.push([n, c]) }); hooks.mcp = set; } },
-    session: { hook: async (name, fn) => { hooks[name] = fn; } },
+    session: {
+      hook: async (name, fn) => { hooks[name] = fn; },
+      synthetic: async a => { synthetic.push(a); if (refuse) throw new Error('Session.SyntheticConflictError'); return { id: 'msg1' }; },
+    },
     tool: { hook: async (name, fn) => { hooks[`tool:${name}`] = fn; } },
     event: { subscribe: ({ signal }) => ({
       [Symbol.asyncIterator]: () => ({
@@ -124,11 +129,21 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   assert.equal(plugin.id, 'thinker');
   const cleanup = await plugin.setup(ctx);
   assert.deepEqual(hooks.mcp, [['thinker', { type: 'local', command: ENTRY.command ? [ENTRY.command, ...ENTRY.args] : ENTRY.args, environment: ENTRY.env || {}, enabled: true }]]);
-  // the prompt hook: the CLI's answer is appended to the draft's text
+  // the prompt hook: what the CLI serves goes as a synthetic message (the model reads it, the screens draw
+  // the description alone), and the person's own prompt is left exactly as they typed it. Checked live on
+  // 2.2.7: `ctx.session.synthetic` from inside the hook reaches the same execution -- the model quoted the
+  // block's first line in its answer -- and the next turn of that session sees one block, not two.
   const ev = { sessionID: 'ses1', prompt: { text: 'hello' } };
   await hooks.prompt(ev);
-  assert.match(ev.prompt.text, /hello\n\nSERVED$/);
+  assert.equal(ev.prompt.text, 'hello', 'the draft is the person\'s, untouched');
+  assert.deepEqual(synthetic, [{ sessionID: 'ses1', text: 'SERVED', description: SYNTHETIC_NOTE, resume: false }]);
   assert.deepEqual(runs[0], ['prompt', { session_id: 'ses1', cwd: '/tmp/session-cwd', prompt: 'hello' }]);
+  // a host that refuses the message still gets the bundle: served in sight beats not served
+  refuse = true;
+  const refused = { sessionID: 'ses1', prompt: { text: 'hello' } };
+  await hooks.prompt(refused);
+  assert.match(refused.prompt.text, /hello\n\nSERVED$/);
+  refuse = false;
   // the before hook (delegate.js): a denied read throws the report, which v2 makes the call's result; a call
   // that goes through gets silence; a tool that is neither a read nor a shell line never reaches the CLI
   const before = hooks['tool:execute.before'];
