@@ -436,7 +436,7 @@ export function renderDelivery(r, { detail = false } = {}) {
     L.push('', `In dollars, at list prices${c.costed < s.merged ? ` (${c.costed} of ${s.merged} on a model with a price)` : ''}`);
     L.push(`  saved           ${d(c.saved)} the clearing saved: cleared tokens at the cache-read rate`);
     L.push(`  rewrites        ${d(-c.rewrite)} the calls after a clear paid to write the cache again`);
-    L.push(`  re-reads        ${d(-(c.reread || 0))} ${s.rereads || 0} ${s.rereads === 1 ? 'file' : 'files'} read again after a clear took them out: written once, read on every later call`);
+    L.push(`  re-reads        ${d(-(c.reread || 0))} ${s.rereads ? `${s.rereads} ${s.rereads === 1 ? 'file' : 'files'} read again after a clear took ${s.rereads === 1 ? 'it' : 'them'} out: written once, read on every later call` : 'no file read again after a clear took it out'}`);
     L.push(`  net             ${d(c.net)}${s.merged ? ` · ${d(s.meanNetPerMergedPr)} on the average one` : ''}`);
   }
   L.push('', 'What they cost');
