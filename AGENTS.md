@@ -156,6 +156,22 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
   The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
+- **A structural outline is not what answers a delegated read (2026-11-12, the owner's call: "no I'm convinced
+  this won't work well"; the fourth AST attempt here, closed unmerged as #766, the code on branch
+  `agent/ast-outline`).** A dependency-free line scanner was built and measured against this hook: 0.09 ms a file
+  over 17,445 files, and against Python's own `ast` module on 2,010 files **99.5% recall, 98.2% precision and
+  88.8% exact end lines**, naming the right function in both live cases. Capability was not the problem, and the
+  measurements are not worth taking again. Two things decided it. Given to the Sonnet explorer the outline cost
+  **+16% over 6 cold paired runs**, because the explorer already greps and reads ranges, so the map is only more
+  tokens in its brief. And given to the lead instead of a report it makes the model cycle between ranges and
+  bodies: four ranged reads of 300 Python lines is ~30k tokens against the 43.7k a whole-file read would have
+  cost, plus four turns each re-reading the grown prefix. **An outline is cheap for thinker and expensive for the
+  model, because it moves the picking to the costliest place**, which is the same failure as the 2026-10-10
+  overuse (turns 31 to 51 on mitmproxy) arriving by another route; a hook fixes who chooses the tool, not where
+  the work lands. A subagent does that cycling on Sonnet and hands back a conclusion, so it stays the default. If
+  it is ever revived, the one defensible place is the **fallback** where the subagent has failed or timed out and
+  the alternative is the whole file, and the revival needs a live session counting the ranged reads that follow
+  each denial against the subagent's own turn cost.
 - **Off by default (the owner's call, 2026-11-12, for the release that ships it).** On: `THINKER_DELEGATE=on` or
   `delegate: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire` for Claude Code (the PreToolUse
   entry is written only while it is on, since a hook that exits at once is still one node process per tool call;

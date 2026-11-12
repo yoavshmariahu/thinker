@@ -141,8 +141,14 @@ test('the hook command: a small read passes in silence, a big read is denied wit
 
 test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the trigger is on, with a timeout that covers a subagent run', t => {
   const dir = tmp(t);
-  const was = process.env.THINKER_DELEGATE; t.after(() => { if (was === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = was; });
+  // the wiring reads the machine config, so the test needs a home of its own: on a machine that has the
+  // trigger switched on, `delete process.env.THINKER_DELEGATE` alone left `delegate.enabled` true and the
+  // "off by default" assertion below failed against the real config.
+  const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
+  t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
   delete process.env.THINKER_DELEGATE;
+  process.env.THINKER_HOME = path.join(dir, 'home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off by default: no entry, no node process per tool call');
   process.env.THINKER_DELEGATE = 'on';
