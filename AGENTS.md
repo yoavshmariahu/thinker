@@ -140,8 +140,12 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
   The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
-- Off: `THINKER_DELEGATE=off`, or `delegate: false` / `delegate: { enabled: false }` in `<THINKER_HOME>/config.json`;
-  `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead, holdout, timeoutMs }` tune it;
+- **Off by default (the owner's call, 2026-11-12, for the release that ships it).** On: `THINKER_DELEGATE=on` or
+  `delegate: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire` for Claude Code (the PreToolUse
+  entry is written only while it is on, since a hook that exits at once is still one node process per tool call;
+  `PreToolUse` in setHooks's list takes it out again on the next rewire once it is off) and OpenCode started again
+  (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead,
+  holdout, timeoutMs }` tune it;
   `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Under `THINKER_TEST` the hook
   does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
 - **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin

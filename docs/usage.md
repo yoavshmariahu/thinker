@@ -264,9 +264,10 @@ process.stdout.write(reply.choices[0].message.content);
 
 In Claude Code and OpenCode 2, a read of about a thousand lines or more, or a whole test-suite run, is handed to a subagent on
 Claude Sonnet 5.5 and the main model gets its report instead of the output. The report names what the request needs
-as `path:line`; the main model still reads the lines it edits itself. It is on by default and half the sessions are
-held out so the saving can be measured; `thinker usage` and the log's `delegate` rows carry each run's cost.
+as `path:line`; the main model still reads the lines it edits itself. It is off by default; when on, half the
+sessions are held out so the saving can be measured, and the log's `delegate` rows carry each run's cost.
 
-- Off: `THINKER_DELEGATE=off`, or `"delegate": false` in `~/.thinker/config.json`.
+- On: `"delegate": { "enabled": true }` in `~/.thinker/config.json` (or `THINKER_DELEGATE=on`), then `thinker rewire`;
+  OpenCode reads it when it starts. Off again: `"delegate": false` and `thinker rewire`.
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
 - The threshold (tokens of reads in one turn before the rest is delegated, 35000): `"delegate": { "threshold": 20000 }`.

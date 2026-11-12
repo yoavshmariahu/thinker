@@ -99,9 +99,10 @@ test('delegateTool: denies with the report, caches per file and turn, holds out 
 
 test('delegateConfig: defaults, the machine config, and the environment', t => {
   const home = tmp(t);
-  assert.equal(delegateConfig({ env: {}, home }).enabled, true);
+  assert.equal(delegateConfig({ env: {}, home }).enabled, false, 'off by default');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'on' }, home }).enabled, true);
   assert.equal(delegateConfig({ env: {}, home }).threshold, 35000);
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { threshold: 20000, model: 'claude-haiku-5-5' } }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, threshold: 20000, model: 'claude-haiku-5-5' } }));
   const c = delegateConfig({ env: {}, home });
   assert.equal(c.threshold, 20000); assert.equal(c.model, 'claude-haiku-5-5'); assert.equal(c.enabled, true);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
@@ -118,7 +119,7 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   // a fake claude binary: answers the JSON shape of `claude -p --output-format json`
   const bin = path.join(home, 'claude');
   fs.writeFileSync(bin, `#!/bin/sh\necho '{"result":"core.py:1 def f0: the first function","session_id":"sub1","total_cost_usd":0.02,"model":"claude-sonnet-5-5","usage":{"output_tokens":9}}'\n`); fs.chmodSync(bin, 0o755);
-  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off' };
+  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off' };
   const hook = (input, over = {}) => execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'claude', '--user'], { input: JSON.stringify(input), encoding: 'utf8', env: { ...env, ...over } });
   const ev = f => ({ session_id: 'hooksess', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: f } });
   assert.equal(hook(ev(small)), '');
@@ -138,8 +139,13 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   assert.equal(execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'codex', '--user'], { input: JSON.stringify(ev(big)), encoding: 'utf8', env }), '');
 });
 
-test('wiring: Claude Code gets the PreToolUse entry on Read|Bash with a timeout that covers a subagent run', t => {
+test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the trigger is on, with a timeout that covers a subagent run', t => {
   const dir = tmp(t);
+  const was = process.env.THINKER_DELEGATE; t.after(() => { if (was === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = was; });
+  delete process.env.THINKER_DELEGATE;
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off by default: no entry, no node process per tool call');
+  process.env.THINKER_DELEGATE = 'on';
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   const c = JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
   assert.equal(c.hooks.PreToolUse.length, 1);

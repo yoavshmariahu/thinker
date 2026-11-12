@@ -122,7 +122,10 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   };
   const plugin = opencodeV2({ client: 'opencode', repo: null, cli: CLI, hooks: true, learn: true, late: true, mcp: true, mcpEntry: ENTRY }, run);
   assert.equal(plugin.id, 'thinker');
+  // the delegation hook registers only while the trigger is on (off by default)
+  const wasOn = process.env.THINKER_DELEGATE; process.env.THINKER_DELEGATE = 'on';
   const cleanup = await plugin.setup(ctx);
+  if (wasOn === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = wasOn;
   assert.deepEqual(hooks.mcp, [['thinker', { type: 'local', command: ENTRY.command ? [ENTRY.command, ...ENTRY.args] : ENTRY.args, environment: ENTRY.env || {}, enabled: true }]]);
   // the prompt hook: the CLI's answer is appended to the draft's text
   const ev = { sessionID: 'ses1', prompt: { text: 'hello' } };
