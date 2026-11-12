@@ -1,6 +1,17 @@
-// What leaves the machine about pull requests: counts, token totals and the netted dollars at list prices
-// (delivery.js `summary.cost`: cleared at the cache-read rate plus reading avoided at the input rate, less
-// the cache writes after a clear), nothing else.
+// What leaves the machine about what thinker saved: two blocks from one walk of the repositories.
+//
+// `prs` -- the pull requests the sessions here produced: counts, token totals, the netted dollars at list
+// prices (delivery.js `summary.cost`: cleared at the cache-read rate, less the cache writes after a clear),
+// what each cost in model calls, whether it got a context clear and how much was cleared on it.
+//
+// `sessions` -- the same savings per session, which is the figure the pull request cannot give: most sessions
+// belong to no pull request, and a long one is not a cheap one. Groups of sums, so every rate a dashboard
+// shows is a ratio of sums (the Report's own rule), with the work denominator beside it (`prompts`, the
+// session's own model calls) so cost per session and cost per prompt can be told apart.
+//
+// Both are grouped by the cut policy that made the saving (cutting.js:policyId), because the policies differ
+// by more than rounding and nothing here can know when another machine updated to one. An unstamped saving
+// (made before the policy was recorded) says so and is never pooled with a stamped one.
 //
 // Never the pull request's number, title, URL, branch, author or repository, and never a session id. A
 // person's work in progress stays on their machine; what is counted is how many pull requests thinker was
@@ -10,6 +21,39 @@ import { Store, repoId } from './store.js';
 import { readLog } from './usage.js';
 import { deliveryReport, WINDOW_DAYS, SAVED_BUCKETS } from './delivery.js';
 import { deliveryCheckouts } from './delivery-journal.js';
+
+// The dollars a session's clearing netted, bucketed, so the spread shows and not only the mean: on this
+// machine's own pull requests five of them were most of a fortnight's saving. The first bucket holds every
+// session that broke even or lost, and `lossSessions` counts the losses on their own.
+export const NET_BUCKETS = [0, 1, 5, 20, null];
+const PR_ROWS = 50;
+
+const group = () => ({
+  sessions: 0, prompts: 0, agentTokens: 0, tokenComplete: 0,
+  clearedSessions: 0, clearedTokens: 0, clearRequests: 0,
+  savedUsd: 0, rewriteUsd: 0, netUsd: 0, pricedSessions: 0, lossSessions: 0,
+  spendUsd: 0, spendSessions: 0,
+});
+const bumpGroup = (g, x) => {
+  g.sessions++; g.prompts += x.prompts || 0;
+  if (Number.isFinite(x.tokens)) { g.agentTokens += x.tokens; if (x.complete) g.tokenComplete++; }
+  if (x.cleared > 0) { g.clearedSessions++; g.clearedTokens += x.cleared; }
+  g.clearRequests += x.rewrites || 0;
+  if (x.cost?.priced) {
+    g.pricedSessions++;
+    g.savedUsd += x.cost.saved || 0; g.rewriteUsd += x.cost.rewrite || 0; g.netUsd += x.cost.net || 0;
+    if ((x.cost.net || 0) < 0) g.lossSessions++;
+  }
+  if (x.spend != null) { g.spendUsd += x.spend; g.spendSessions++; }
+  return g;
+};
+const roundGroup = g => {
+  for (const k of ['agentTokens', 'clearedTokens']) g[k] = Math.round(g[k]);
+  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
+  return g;
+};
+// a saving whose policy was never recorded is its own key, never folded into today's
+const policyKey = x => (x.cleared > 0 ? (x.policyChanged ? 'mixed' : x.policy || 'unstamped') : 'none');
 
 export function deliveryMetrics(store, { all = true, now = Date.now(), home } = {}) {
   const candidates = new Map(), visited = new Set(), excluded = new Set();
@@ -32,7 +76,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     for (const checkout of deliveryCheckouts(store)) add(checkout);
   }
   const out = {
-    schemaVersion: 2, windowDays: WINDOW_DAYS,
+    schemaVersion: 3, windowDays: WINDOW_DAYS,
     repositories: 0, repositoriesWithPrs: 0, unreadableRepositories: 0,
     merged: 0, mergedSeen: 0, mergedAssisted: 0, open: 0, worked: 0,
     clearedTokens: 0, savedTokens: 0,
@@ -41,9 +85,43 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     // device on the dashboard). Signed: a loss reads as a loss. `costedPrs` is how many of the merged pull
     // requests could be priced at all; a session known only from an observation names no model.
     savedUsd: 0, rewriteUsd: 0, netUsd: 0, costedPrs: 0,
+    // What those pull requests cost in model calls, in dollars at list prices by token type (delivery.js
+    // `cost.spend`), over the ones whose every session could be priced -- `spendPrs` is that count and the
+    // only honest denominator for a cost per pull request. A pull request with one unpriced session is in
+    // neither figure, never counted at zero.
+    spendUsd: 0, spendPrs: 0,
+    // Whether a pull request got a context clear, and how much was cleared on it. `clearedPrs` counts the
+    // merged ones with a clear behind them; `clearedTokens` above is how much, over all of them.
+    clearedPrs: 0,
     linkedSessions: 0, unlinkedSessions: 0,
     hoursToMerge: 0, hoursToMergeSamples: 0,
     savedBuckets: SAVED_BUCKETS.map(upper => ({ upper, count: 0 })),
+    // The merged pull requests themselves, newest first, numbers only: a mean cannot show that five pull
+    // requests were most of a month's saving, and a median needs the rows. Nothing here names one.
+    rows: [],
+    // By the cut policy behind the saving (cutting.js:policyId): 'none' never cleared, 'unstamped' cleared
+    // before the policy was recorded, 'mixed' cleared under two.
+    byPolicy: {},
+  };
+  // Savings per session: every session of the window, once each, whether or not it belongs to a pull request.
+  // Groups of sums -- a rate is the dashboard's own division, never a mean of per-session ratios. `cleared`
+  // and `uncleared` split a session by what actually happened to it, not by the arm it was assigned to: on
+  // this machine 230 of 249 sessions on the clearing's side had never had a clear, and comparing the arms
+  // compared untouched sessions with untouched sessions (the owner's correction, 2026-11-10).
+  const sessions = {
+    schemaVersion: 1, windowDays: WINDOW_DAYS, unreadableSessions: 0,
+    all: group(), cleared: group(), uncleared: group(),
+    byPolicy: {}, byClient: {},
+    netBuckets: NET_BUCKETS.map(upper => ({ upper, count: 0 })),
+  };
+  const rows = [];
+  const countSession = x => {
+    const key = policyKey(x), client = String(x.client || 'unknown');
+    bumpGroup(sessions.all, x);
+    bumpGroup(x.cleared > 0 ? sessions.cleared : sessions.uncleared, x);
+    bumpGroup(sessions.byPolicy[key] ||= group(), x);
+    bumpGroup(sessions.byClient[client] ||= group(), x);
+    if (x.cleared > 0 && x.cost?.priced) sessions.netBuckets.find(b => b.upper === null || x.cost.net <= b.upper).count++;
   };
   for (const [origin, stores] of candidates) {
     if (excluded.has(origin)) continue;
@@ -60,15 +138,42 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       out.clearedTokens += s.saved.cleared; out.savedTokens += s.saved.total;
       out.agentTokens += s.tokens.agent; out.completeTokenPrs += s.tokens.complete;
       out.savedUsd += s.cost?.saved || 0; out.rewriteUsd += s.cost?.rewrite || 0; out.netUsd += s.cost?.net || 0; out.costedPrs += s.cost?.costed || 0;
+      out.spendUsd += s.cost?.spend || 0; out.spendPrs += s.cost?.spendComplete || 0;
       out.linkedSessions += s.sessions.linked; out.unlinkedSessions += s.sessions.unlinked;
       for (const p of report.prs.filter(p => p.sessions.length && p.mergedAt && p.mergedAt >= report.since)) {
         out.savedBuckets.find(b => b.upper === null || p.saved.total <= b.upper).count++;
+        if (p.cleared) out.clearedPrs++;
         if (typeof p.hoursToMerge === 'number' && Number.isFinite(p.hoursToMerge)) { out.hoursToMerge += p.hoursToMerge; out.hoursToMergeSamples++; }
+        const key = p.policy || 'none';
+        const g = out.byPolicy[key] ||= { prs: 0, clearedPrs: 0, clearedTokens: 0, agentTokens: 0, sessions: 0, savedUsd: 0, rewriteUsd: 0, netUsd: 0, spendUsd: 0, spendPrs: 0 };
+        g.prs++; if (p.cleared) g.clearedPrs++;
+        g.clearedTokens += p.saved.cleared; g.agentTokens += p.tokens.agent; g.sessions += p.sessions.length;
+        if (p.cost?.priced) { g.savedUsd += p.cost.saved; g.rewriteUsd += p.cost.rewrite; g.netUsd += p.cost.net; }
+        if (p.cost?.spendComplete) { g.spendUsd += p.cost.spend; g.spendPrs++; }
+        rows.push({
+          at: p.mergedAt, cleared: Boolean(p.cleared), policy: p.policy || null,
+          clearedTokens: Math.round(p.saved.cleared), agentTokens: p.tokens.complete ? Math.round(p.tokens.agent) : null,
+          sessions: p.sessions.length, prompts: Math.round(p.tokens.prompts),
+          spendUsd: p.cost?.spendComplete ? Math.round(p.cost.spend * 100) / 100 : null,
+          netUsd: p.cost?.priced ? Math.round(p.cost.net * 100) / 100 : null,
+          hours: typeof p.hoursToMerge === 'number' && Number.isFinite(p.hoursToMerge) ? Math.round(p.hoursToMerge * 100) / 100 : null,
+        });
       }
-    } catch { out.unreadableRepositories++; }
+      for (const x of report.sessions) countSession(x);
+    } catch { out.unreadableRepositories++; sessions.unreadableSessions++; }
   }
   for (const k of ['clearedTokens', 'savedTokens', 'agentTokens']) out[k] = Math.round(out[k]);
   out.hoursToMerge = Math.round(out.hoursToMerge * 100) / 100;
-  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd']) out[k] = Math.round(out[k] * 100) / 100;
-  return out;
+  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) out[k] = Math.round(out[k] * 100) / 100;
+  for (const g of Object.values(out.byPolicy)) {
+    for (const k of ['clearedTokens', 'agentTokens']) g[k] = Math.round(g[k]);
+    for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
+  }
+  // newest merge first, and only as many as the payload carries: a row is five numbers, and the sums above
+  // are over every pull request whether or not its row is here (`merged` says how many that was)
+  out.rows = rows.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, PR_ROWS).map(({ at, ...r }) => r);
+  roundGroup(sessions.all); roundGroup(sessions.cleared); roundGroup(sessions.uncleared);
+  for (const g of Object.values(sessions.byPolicy)) roundGroup(g);
+  for (const g of Object.values(sessions.byClient)) roundGroup(g);
+  return { prs: out, sessions };
 }

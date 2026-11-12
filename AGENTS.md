@@ -792,7 +792,7 @@ longer exceptions to anything.
 | `src/update.js` | self and background updates |
 | `src/usage.js` | usage log summary |
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
-| `src/delivery-telemetry.js` | the same as counts and tokens, for the telemetry payload's `prs` block |
+| `src/delivery-telemetry.js` | what leaves the machine about savings: the `prs` block (counts, tokens, cost, the clear on each) and the `sessions` block (the same saving per session), both grouped by the cut policy that made it |
 | `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of seven stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/providers.js`, `src/wire-chat.js`, `src/proxy-routing.js` | models from other providers: the registry and probe, Messages to Chat and back, the proxy forwarding a `thinker/…` model to its provider |
@@ -858,7 +858,73 @@ ignored; its history is in git before 2026-11-08.
 - **Journal**: `<log dir>/delivery/<digest>.jsonl`, three record kinds, gitignored.
 - **Posting** (`delivery-comment.js`): `thinker prs comment --pr n`; `--dry`, `--days 30`. Shows netted figure: clearing at cache-read rate, reading at input rate, minus cache-write cost.
 - **Auto-posting** (`delivery-auto.js`): 4-hour job, posts once per merged PR after 20 min quiet if netted dollars ≥ 0. Disabled by `prComments: false`. Receipts in `<THINKER_HOME>/state/pr-comments.json`.
-- **Telemetry** (`delivery-telemetry.js`): counts and tokens only.
+- **Telemetry** (`delivery-telemetry.js`): counts, tokens, dollars, and the policy behind each saving. See the section below.
+
+## What a user's savings are, measured (2026-11-11, the owner's ask)
+
+The question was what thinker saves **per session** on other people's machines, what a pull request **costs**, and
+**whether a pull request got a context clear and how much was cleared**. The pieces were nearly all on the machines
+already (`delivery.js` prices every session and every pull request at list rates, `compression.js` measures what the
+clearing took out by either door) and nearly none of it was leaving them. What the dashboard could be asked on the
+day of the ask, read from production: 262 installs in 30 days, 11 of them active, `prs.netUsd / prs.linkedSessions`
+the only per-session figure there was -- and three reasons it could not be read.
+
+- **The denominators disagreed.** `activity.sessions` is the report's own period (one hour for an hourly send) and
+  the proxy's `sessions` is 30 days of `x-claude-code-session-id`, subagents and title calls included: one install
+  reported 2 sessions and 2,563 on the same snapshot. Neither is a person's session, so cleared over sessions meant
+  nothing. The figure is now built from the sessions themselves (`sessionsOf`, the usage log's `op: session` rows,
+  one row per session), each with its own cleared tokens, its own cost and its own prompt count.
+- **The window pooled dead policies.** The two biggest installs read -$980 and -$225 over 30 days that span the
+  API-side clearing and the pre-#693 cut, both measured as losses. Now every saving names the policy that made it
+  (below), so a reader never adds two.
+- **Desktop clears were invisible and a pull request's cost never left the machine.** One install with 101 merged
+  pull requests sent no proxy block at all. The per-session block reads `clearingFor`, which takes the proxy's log
+  first and the clearing mod's own record where the log has no rows, so a desktop session counts; `prs.spendUsd`
+  and `prs.spendPrs` carry what those pull requests cost.
+
+**Every saving names the cut policy that made it; no date in the code** (`cutting.js:policyId`, `POLICY_REV`).
+`r1-t140k-f60k-p25-deep`: the revision of what no setting can change (the cold-boundary rule, the payback pricing,
+the ratchet), then the settings that were in force -- trigger, size floor, payback, one cut a session or many.
+`proxy.js` puts it on the row it logs, on a clear and on a refusal alike (a refusal's policy says which floor
+refused); `compression.js:noteCompression` keeps it on the session's record, and marks `policyChanged` where a
+session spans an update; the desktop mod writes the same string from its own mirrored constants, held to the
+proxy's by `test/claude-clear.test.js`, because one policy may not have two names. A saving made before this
+shipped reads `unstamped` and is never folded into today's.
+- **Why not a date.** `factory.js:CLEARING_SINCE` dates the current policy from the merge of #693, which is true
+  for this machine and wrong for everybody else: a person still on an older copy is running the older policy
+  today, so a date would count their old sessions as current, and a person who updated a week late would have good
+  sessions thrown away. Nothing on one machine can know when another updated, and with the stamp it does not have
+  to. The Factory's own date stays as it is -- it reads this machine's transcripts, where the update time is known.
+
+**`sessions` in the payload** (`delivery-telemetry.js:deliveryMetrics` returns `{ prs, sessions }` from one walk of
+the repositories): groups of **sums**, never per-session averages, so every rate a dashboard shows is a ratio of
+sums -- the mean of per-session ratios read $13.93 against the true $5.97 on this machine's own ledger. `all`,
+`cleared` and `uncleared` (a session grouped by **what happened to it**, not the arm it was assigned to: 230 of
+249 sessions on one machine's clearing arm had never had a clear), `byPolicy`, `byClient`, and `netBuckets` for the
+spread, since five pull requests were most of a fortnight's saving here. `prompts` -- the session's own model calls
+-- rides beside the dollars, because a cleared session is a long session and cost per session cannot tell the two
+apart; cost per prompt can.
+
+**`prs` is schema 3**: `spendUsd` and `spendPrs` (what they cost, over the pull requests whose **every** session
+could be priced -- one unpriced session leaves a pull request out of both figures rather than counting it at zero),
+`clearedPrs` (how many got a clear), `byPolicy`, and `rows`, the newest 50 merged pull requests as numbers alone.
+Nothing names a pull request, a repository or a session, as before.
+
+**A payload that does not fit loses its lists, not its figures** (`telemetry.js:fitPayload`, `PAYLOAD_BUDGET` 56 KB
+against the API's 64 KB). The rows are what can grow without bound, and a 413 loses the **whole** report with
+nothing on the machine saying why: the longest list goes first, only as far as the budget needs, the block says
+`rowsDropped` and the payload says what it dropped. This machine's payload is 37 KB with every list in it.
+
+**Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, ten cards) and four
+new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whose `valid` now accepts schema 2 or
+3 so the old cards keep reading older snapshots). No database change and no Lambda deploy: both blocks are read out
+of `reports.raw_json`, which the ingest already stores whole.
+
+**What it still cannot say.** A cleared session is not a comparable session, and nothing here is a controlled
+comparison -- the holdout is, and it is per machine (`thinker profile holdout`, `thinker factory --diff
+compression`). The policy stamp starts empty: every clear on this machine today reads `unstamped`, and the current
+policy's per-session figure only begins once installs carry this build. A session whose agent reports no usage
+(Cursor) counts as a session and in no dollar figure.
 
 ## Usage history
 

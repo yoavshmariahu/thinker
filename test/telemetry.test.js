@@ -34,6 +34,8 @@ import {
   DEFAULT_TELEMETRY_ENDPOINT,
   proxyMetrics,
   spendMetrics,
+  fitPayload,
+  PAYLOAD_BUDGET,
 } from '../src/telemetry.js';
 import { writeReport } from '../src/report-snapshot.js';
 
@@ -779,4 +781,32 @@ test('a repository that opted out of telemetry contributes no decisions', () => 
   } finally {
     removeTree(tmpRepo);
   }
+});
+
+
+// The metrics API refuses anything over 64 KB and the refusal loses the whole report, so a machine with many
+// repositories would quietly stop reporting altogether. The row lists are what can grow without bound, so they
+// are what goes -- never a count or a sum, which are the figures the dashboards read.
+test('a payload too big for the metrics API loses its row lists, never its figures', () => {
+  const rows = (n, pad) => Array.from({ length: n }, (_, i) => ({ i, pad: 'x'.repeat(pad) }));
+  const payload = {
+    prs: { merged: 12, netUsd: -3.5, rows: rows(50, 400) },
+    savings: { decisions: 9, rows: rows(50, 900) },
+    sessions: { all: { sessions: 300, netUsd: 12.5 } },
+  };
+  const out = fitPayload(payload);
+  assert.ok(Buffer.byteLength(JSON.stringify(out), 'utf8') <= PAYLOAD_BUDGET, 'it fits');
+  // the longest list goes first, and only as many as the budget needs
+  assert.deepEqual(out.trimmed, ['savings.rows']);
+  assert.equal(out.savings.rows.length, 0);
+  assert.equal(out.savings.rowsDropped, true, 'the block says its rows were dropped, so no reader reads none as none made');
+  assert.equal(out.prs.rows.length, 50, 'the shorter list survives');
+  // the figures are untouched: a sum is the measurement, a row list is only its spread
+  assert.equal(out.prs.merged, 12);
+  assert.equal(out.prs.netUsd, -3.5);
+  assert.deepEqual(out.sessions.all, { sessions: 300, netUsd: 12.5 });
+  // a payload that fits is returned as it is, with no marker to explain
+  const small = fitPayload({ prs: { merged: 1, rows: [{ a: 1 }] } });
+  assert.equal(small.trimmed, undefined);
+  assert.equal(small.prs.rows.length, 1);
 });

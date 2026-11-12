@@ -83,6 +83,22 @@ async function telemetryCommand(ctx) {
     const c = payload.proxy.sides?.clearing, h = payload.proxy.sides?.holdout;
     out(`  Proxy:        ${payload.proxy.service.on ? (payload.proxy.service.running ? 'on and running' : 'on, not running') : 'off'}; ${c?.requests || 0} requests cleared, ${h?.requests || 0} held out, ${(c?.cleared || 0).toLocaleString()} tokens cleared (30 days)`);
   }
+  // what the machine will say it saved per session, and what its pull requests cost (delivery-telemetry.js):
+  // the same figures the Savings per session dashboard reads, so a person can see them before they are sent
+  if (payload.sessions?.all?.sessions) {
+    const s = payload.sessions, c = s.cleared;
+    // a loss reads as a loss, and reads like one: -$16.90, never $-16.90
+    const per = (a, b) => { if (!b) return 'unpriced'; const n = a / b; return `${n < 0 ? '-' : ''}$${Math.abs(n).toFixed(2)}`; };
+    out(`  Sessions:     ${s.all.sessions} in 30 days, ${c.sessions} with a clear (${c.clearedTokens.toLocaleString()} tokens cleared); `
+      + `${per(c.netUsd, c.pricedSessions)} net a cleared session, ${per(s.all.spendUsd, s.all.spendSessions)} a session at list prices`);
+    const policies = Object.entries(s.byPolicy).filter(([k]) => k !== 'none').map(([k, g]) => `${k}: ${g.sessions}`).join(', ');
+    if (policies) out(`  Cut policy:   ${policies}`);
+  }
+  if (payload.prs?.merged) {
+    const p = payload.prs;
+    out(`  Pull requests: ${p.merged} merged, ${p.clearedPrs} with a clear`
+      + (p.spendPrs ? `, $${(p.spendUsd / p.spendPrs).toFixed(2)} each over the ${p.spendPrs} priced` : ', none priced'));
+  }
   if (payload.actions) {
     const s = payload.savings;
     out(`  Actions:      ${payload.actions.approvedChanges} changes approved, ${payload.actions.dismissedChanges} dismissed, ${payload.actions.reverts} reverted; ${s.measured} of ${s.decisions} decisions measured${s.promptAverage ? `, ${s.promptAverage.perPrompt.toLocaleString()} tokens a prompt here` : ''}`);
