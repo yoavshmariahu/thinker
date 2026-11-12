@@ -25,6 +25,7 @@ import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptA
 import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
 import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
+import { findRepoSessions } from '../instruction-value.js';
 import { uiScans, scanStatus } from './scans.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -43,19 +44,32 @@ export const DEFAULT_PORT = 4848;
 // or the machine's log name that has a .thinker folder. A repository with several checkouts (clones,
 // worktrees) is read from the one whose profile rests on the most observations, this one when they tie. `checkouts`: the ones
 // found before (keptCheckouts), instead of looking again.
-export function machineRepos(store, { home, checkouts } = {}) {
+//
+// **A repository with nothing to show is not one of them** (2026-11-12). Every checkout an agent has ever worked in
+// gets a .thinker folder, so the list filled up with probes, e2e targets and benchmark checkouts: eighteen here, of
+// which two had a profile and four had no session at all in any window the page reads. They showed as empty rows, and
+// All repositories paid for each of them on every visit -- a report read, merged, and adding nothing to a single
+// figure. So a repository is listed when it holds something the page can show: a profile, or a session in the widest
+// window the page reads (the Report's weeks). This checkout is always listed, so a repository thinker has just started
+// in is never missing from its own page.
+export const LIST_DAYS = REPORT_WEEKS * 7 + 7;
+export function machineRepos(store, { home, checkouts, now = Date.now() } = {}) {
   const here = isGitCheckout(store.repo) && store.exists() ? store.repo : null;
   const byOrigin = new Map();
   const add = c => { const o = repoId(c); if (!byOrigin.has(o)) byOrigin.set(o, new Set()); byOrigin.get(o).add(c); };
   if (here) add(here);
   for (const c of checkouts || discoverCheckouts(store, { home })) if (fs.existsSync(path.join(c, '.thinker'))) add(c);
   const count = c => { try { return fs.existsSync(path.join(c, '.thinker')) ? (JSON.parse(fs.readFileSync(path.join(c, '.thinker', 'local', 'profile', 'profile.json'), 'utf8')).window?.observations || 0) : -1; } catch { return fs.existsSync(path.join(c, '.thinker')) ? 0 : -1; } };
+  // a session of the window in any of the repository's checkouts (findRepoSessions gathers over all of them)
+  const since = now - LIST_DAYS * 86400_000;
+  const worked = c => { try { return findRepoSessions(c, LIST_DAYS).some(s => s.mtime >= since); } catch { return false; } };
   const out = [];
   for (const [id, checkouts] of byOrigin) {
     const scored = [...checkouts].map(c => [c, count(c)]).filter(([, n]) => n >= 0).sort((a, b) => b[1] - a[1] || (b[0] === here) - (a[0] === here));
     if (!scored.length) continue;
-    const checkout = scored[0][0];
-    out.push({ id, name: displayName(id, checkout), checkout, current: checkout === here, disabled: isDisabledRepo(checkout) });
+    const checkout = scored[0][0], current = checkout === here;
+    if (!current && scored[0][1] <= 0 && !worked(checkout)) continue;
+    out.push({ id, name: displayName(id, checkout), checkout, current, disabled: isDisabledRepo(checkout) });
   }
   return out.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));
 }
