@@ -68,7 +68,7 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       if (Array.isArray(e.subagents)) x.subagents = e.subagents.filter(a => a && typeof a === 'object');
     }
   }
-  const cleared = clearedFor({ home, env, since });
+  const clearing = clearingFor({ home, env, since });
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, env, since, config });
   for (const x of sessions.values()) {
@@ -77,7 +77,8 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     const subTokens = x.subagents.reduce((a, s) => a + (finite(s.totalTokens) ? s.totalTokens : 0), 0);
     x.subagentTokens = subTokens;
     x.tokens = finite(x.ownTokens) ? x.ownTokens + subTokens : null;
-    x.cleared = cleared(x.id);
+    const c = clearing(x.id);
+    x.cleared = c.cleared; x.policy = c.policy; x.policyChanged = c.policyChanged;
     x.rewrite = rewriteCost(x.id);
     // a desktop session's record names the model the API answered with, where no hook logged one
     if (!x.model && x.rewrite?.model) x.model = x.rewrite.model;
@@ -103,17 +104,25 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
 
 // What the context proxy's clearing saved in a session: the proxy's own log first, since it is the durable
 // record, and the card's state file only where the log's tail no longer reaches (compression.js).
-export function clearedFor({ home = thinkerHome(), env = process.env, since = '' } = {}) {
+export function clearingFor({ home = thinkerHome(), env = process.env, since = '' } = {}) {
   let logged = new Map();
-  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since })) logged.set(sessionKey(id), row.cleared); } catch { logged = new Map(); }
+  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since })) logged.set(sessionKey(id), row); } catch { logged = new Map(); }
   const dir = compressionDir(home);
   return id => {
-    let state = 0;
-    try { state = readCompression(dir, id)?.saved || 0; } catch { state = 0; }
-    const a = logged.get(id) || 0;
-    return Math.max(finite(a) ? a : 0, finite(state) ? state : 0);
+    let state = null;
+    try { state = readCompression(dir, id); } catch { state = null; }
+    const a = logged.get(id);
+    const cleared = Math.max(finite(a?.cleared) ? a.cleared : 0, finite(state?.saved) ? state.saved : 0);
+    // Which cut policy saved it (cutting.js:policyId), off whichever record carried the figure -- the log
+    // first, as above. Null for a clear made before the policy was stamped on the row, which is not the same
+    // as a clear under today's policy: a reader comparing savings leaves those out rather than pooling them.
+    const named = a?.policy ? a : state?.policy ? state : null;
+    return { cleared, policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
   };
 }
+
+// What a session's clearing saved, as a number, for the readers that want only that.
+export function clearedFor(opts = {}) { const clearing = clearingFor(opts); return id => clearing(id).cleared; }
 
 // What the clearing cost in that session: the cache writes on the calls from its first clear onwards
 // (compression.js:clearingCostBySession). The proxy's log knows this for the sessions it served; a desktop
@@ -168,7 +177,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   }
   // An observation is the only record of a session that served nothing and was never assessed.
   const sessions = sessionsOf(store, { since, log, home });
-  const cleared = clearedFor({ home, since });
+  const clearing = clearingFor({ home, since });
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, since, config });
   // An observation carries no model, so a session known only this way can be priced for what the clearing
@@ -181,7 +190,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   for (const e of events) {
     if (e.op !== 'observation' || !e.session || e.t < since) continue;
     const key = sessionKey(e.session);
-    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], tokens: null, prompts: 0, complete: false, cleared: cleared(key), rewrite: rewriteCost(key), cost: costOfObserved(key) });
+    if (!sessions.has(key)) sessions.set(key, { id: key, client: e.client || null, model: null, firstAt: e.t, lastAt: e.t, branches: [], heads: [], tokens: null, prompts: 0, complete: false, ...clearing(key), rewrite: rewriteCost(key), cost: costOfObserved(key) });
     const x = sessions.get(key);
     x.lastAt = x.lastAt && x.lastAt > e.t ? x.lastAt : e.t;
     if (e.branch && !x.branches.includes(e.branch)) x.branches.push(e.branch);
@@ -203,6 +212,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       if (finite(x.tokens)) p.tokens.agent += x.tokens * share; else p.tokens.unknownSessions++;
       p.tokens.prompts += x.prompts * share;
       p.saved.cleared += x.cleared * share;
+      if (x.cleared > 0) p.policies.add(x.policy || 'unstamped');
       p.cost.saved += x.cost.saved * share;
       p.cost.rewrite += x.cost.rewrite * share;
       if (x.cost.priced) p.cost.priced++; else p.cost.unpriced++;
@@ -219,6 +229,12 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     p.tokens.complete = p.sessions.length > 0 && p.tokens.unknownSessions === 0 && p.sessions.every(s => s.complete);
     // the dollar figure is whole only when every session of the pull request could be priced; a partial one is never shown as the cost
     p.cost.spendComplete = p.sessions.length > 0 && p.cost.spendUnknown === 0;
+    // The cut policy behind this pull request's saving: one policy, 'mixed' where its sessions cleared under
+    // two (an update mid-flight), null where it was never cleared at all. The question "did this pull request
+    // get a clear, and under which policy" is then one field, and a comparison can drop what it cannot place.
+    p.policy = p.policies.size === 1 ? [...p.policies][0] : p.policies.size > 1 ? 'mixed' : null;
+    delete p.policies;
+    p.cleared = p.saved.cleared > 0;
     p.hoursToMerge = hours(p.createdAt, p.mergedAt);
     p.assisted = p.saved.total > 0;
     p.sessions.sort((a, b) => String(a.lastAt).localeCompare(String(b.lastAt)));
@@ -237,6 +253,10 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     scope: repoId(store.repo),
     since, generatedAt: new Date(now).toISOString(), windowDays: days, warnings,
     prs: selected.sort((a, b) => b.number - a.number),
+    // Every session of the window, once each, whether or not it belongs to a pull request. A linked session is
+    // in `prs[].sessions` too, there with its share of the pull request; this list is the sessions themselves,
+    // which is what a per-session figure has to be averaged over (delivery-telemetry.js:sessionMetrics).
+    sessions: [...sessions.values()].map(summary),
     summary: {
       merged: merged.length,
       mergedSeen: inWindow.length,
@@ -272,8 +292,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   };
 }
 
-const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0, spend: 0, spendUnknown: 0, spendComplete: false } });
-const summary = x => ({ id: x.id, cost: x.cost, spend: x.cost?.spend ?? null, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared });
+const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], policies: new Set(), tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, cost: { saved: 0, rewrite: 0, net: 0, priced: 0, unpriced: 0, spend: 0, spendUnknown: 0, spendComplete: false } });
+const summary = x => ({ id: x.id, cost: x.cost, spend: x.cost?.spend ?? null, rewrites: x.rewrite?.rewrites || 0, client: x.client, model: x.model, firstAt: x.firstAt, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared, policy: x.policy ?? null, ...(x.policyChanged ? { policyChanged: true } : {}) });
 
 
 // ---------------------------------------------------------------------------

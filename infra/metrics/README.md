@@ -90,7 +90,7 @@ node scripts/metrics-dashboard.mjs login
 
 Open **http://localhost:3030** and use the printed login. The **Thinker metrics**
 collection contains **Cache & distillation performance**, **Telemetry diagnostics**,
-**PR delivery & review**, **Holdout: what the notes save**, **Cache health**, **Token spend**, and **Waitlist** dashboards with saved SQL queries. Choose
+**PR delivery & review**, **Savings per session**, **Holdout: what the notes save**, **Cache health**, **Token spend**, and **Waitlist** dashboards with saved SQL queries. Choose
 **New → SQL query → Thinker telemetry (read-only)** to write your own SQL, save
 results, chart them, or export CSV. `start` prints the direct dashboard URLs.
 All dashboards have platform, version, device ID, and report-type filters.
@@ -133,6 +133,59 @@ labels report arrivals separately from usage. Historical reports may include
 test telemetry; the snapshot-pattern query helps inspect it. Device coverage is
 partial, and usage fields are rolling snapshots, so raw report sums are not
 reliable totals of real users or cumulative savings.
+
+### Savings per session, and what a pull request cost (client 0.3.3+)
+
+`raw_json.sessions` (`schemaVersion: 1`) is what thinker saved per session over 30 days, and
+`raw_json.prs` (now `schemaVersion: 3`) adds what those pull requests cost, whether each got a
+context clear and how much was cleared on it. Both are built by `src/delivery-telemetry.js` from one
+walk of the machine's repositories, and both are stored in `raw_json` alone: no column, no view and
+no deploy. The **Savings per session** dashboard reads them, as do four cards on **Pull requests
+delivered**.
+
+Three things to know before reading a number out of them:
+
+- **They are sums, so every rate is your own division.** The client never sends a per-session
+  average. A mean of per-session ratios weighs a three-prompt session like a forty-prompt one; on the
+  machine this was built for that read $13.93 a session against the true $5.97.
+- **`cleared` against `uncleared`, not arm against arm.** The clearing fires past 140k of context, so
+  most sessions are never touched by it. A session is grouped by what actually happened to it.
+- **Never add two cut policies.** `byPolicy` keys are the policy the client stamped on the saving
+  itself (`src/cutting.js:policyId`, e.g. `r1-t140k-f60k-p25-deep`): the revision of the rules no
+  setting can change, then the trigger, the size floor, the payback and whether a session gets one cut
+  or many. `unstamped` is a clear made by a client older than the stamp, `none` a session nothing
+  cleared, `mixed` a session spanning an update. The API-side clearing was measured as a loss and the
+  100k floor cut almost nothing, so a figure mixing policies says nothing about the one shipping now.
+  A date could not do this job: nothing in the payload says when that machine updated.
+
+```sql
+-- net dollars per cleared session and cost per prompt, by the policy that saved it
+SELECT p.key AS cut_policy,
+       sum((p.value->>'sessions')::numeric)                                   AS sessions,
+       sum((p.value->>'clearedTokens')::numeric)                              AS cleared_tokens,
+       round(sum((p.value->>'netUsd')::numeric)
+             / nullif(sum((p.value->>'pricedSessions')::numeric), 0), 2)      AS net_per_session_usd,
+       round(sum((p.value->>'spendUsd')::numeric)
+             / nullif(sum((p.value->>'prompts')::numeric), 0), 2)             AS cost_per_prompt_usd,
+       sum((p.value->>'lossSessions')::numeric)                               AS sessions_that_lost
+FROM v_latest_installs
+CROSS JOIN LATERAL jsonb_each(raw_json #> '{sessions,byPolicy}') p
+WHERE raw_json #>> '{sessions,schemaVersion}' = '1'
+GROUP BY 1 ORDER BY 2 DESC;
+
+-- cost per merged pull request, and how many got a clear
+SELECT round(sum((raw_json #>> '{prs,spendUsd}')::numeric)
+             / nullif(sum((raw_json #>> '{prs,spendPrs}')::numeric), 0), 2) AS cost_per_merged_pr_usd,
+       sum((raw_json #>> '{prs,clearedPrs}')::numeric)                      AS merged_with_a_clear,
+       sum((raw_json #>> '{prs,merged}')::numeric)                          AS merged
+FROM v_latest_installs WHERE raw_json #>> '{prs,schemaVersion}' = '3';
+```
+
+Dollars are list prices, netted of the cache writes the calls after a clear paid for; a subscription
+bills none of it. A pull request whose every session could not be priced is in no cost figure rather
+than counted at zero, which is why `spendPrs` is the only honest denominator. The payload is trimmed
+to 56 KB before sending (`src/telemetry.js:fitPayload`): the row lists go first, longest first, and
+the block that lost its rows says `rowsDropped` -- so an empty `rows` is never read as "none made".
 
 ### Distillation performance (client 0.1.2+)
 

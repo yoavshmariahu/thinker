@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, POLICY_REV, PAYBACK } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -342,4 +342,36 @@ test('a refusal says which branch refused it, and a request with nothing to cut 
     const d = decideCut(rec(5, ['keep']), cfg, big, o);
     assert.deepEqual(d.cut, ['keep']); assert.equal(d.clear, false);
   }
+});
+
+
+// --- which policy made a saving ------------------------------------------------------------------------------
+// A date in the code was the alternative, and it is wrong for everybody but the machine that shipped the
+// change: a person on an older copy runs the older policy today. So the saving names its own policy, and a
+// reader groups by it (cutting.js:policyId, the comment there).
+test('a policy names itself from the settings in force, so two floors are never pooled', () => {
+  const now = { trigger: 140000, clearAtLeast: 60000, clearDeep: true };
+  assert.equal(policyId(now), `r${POLICY_REV}-t140k-f60k-p${PAYBACK}-deep`);
+  // every lever that changes what a cut is worth changes the id
+  assert.notEqual(policyId({ ...now, clearAtLeast: 100000 }), policyId(now), 'the floor that gates a cut');
+  assert.notEqual(policyId({ ...now, trigger: 110000 }), policyId(now), 'the trigger');
+  assert.notEqual(policyId({ ...now, clearDeep: false }), policyId(now), 'one cut a session against many');
+  // and the same settings always give the same id, whatever else is in the config
+  assert.equal(policyId({ ...now, holdout: 0.5, keepMin: 3, upstream: 'https://example.invalid' }), policyId(now));
+  // a config with nothing in it is not today's policy by default: it says so
+  assert.ok(policyId({}).includes('?'), 'a setting that is not there is unknown, never assumed');
+});
+
+test('the row the proxy logs names the policy, on a clear and on a refusal alike', () => {
+  const ms = session(4);
+  const rec = { ...freshCut('s'), cut: [], turn: 0 };
+  const clearing = cfg({ cutRecord: rec });
+  const cut = transformRequest('POST', '/v1/messages', headers, body(ms), clearing);
+  assert.ok(cut.injected, 'the request was cut');
+  assert.equal(cut.policy, policyId(clearing), 'a clear carries the policy that allowed it');
+  const refusing = cfg({ cutRecord: rec, clearAtLeast: 1e9 });
+  const left = transformRequest('POST', '/v1/messages', headers, body(ms), refusing);
+  assert.equal(left.reason, 'below-clear-minimum');
+  assert.equal(left.policy, policyId(refusing), 'and a refusal carries the policy that refused it');
+  assert.notEqual(left.policy, cut.policy, 'the floor is in the id, so the two are told apart');
 });

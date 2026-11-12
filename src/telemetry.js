@@ -567,7 +567,8 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
   const device = deviceIdentity({ home });
   const tokenSpend = spendMetrics(store, { all });
-  return {
+  const delivery = deliveryMetrics(store, { all, home });
+  return fitPayload({
     installId: getInstallId(home),
     deviceId: device.id,
     deviceSource: device.source,
@@ -579,9 +580,13 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     cacheSize,
 
-    // The pull requests this machine's sessions produced and what thinker saved on them, 30 days
-    // regardless of the usage snapshot's periodHours (delivery-telemetry.js). Counts and tokens only.
-    prs: deliveryMetrics(store, { all, home }),
+    // The pull requests this machine's sessions produced and what thinker saved on them, 30 days regardless
+    // of the usage snapshot's periodHours (delivery-telemetry.js): counts, tokens, what each cost and whether
+    // it got a context clear. `sessions` is the same saving per session, from the same walk -- the figure a
+    // pull request cannot give, since most sessions belong to none. Both grouped by the cut policy that made
+    // the saving, so a dashboard never pools two policies or dates one from this machine's clock.
+    prs: delivery.prs,
+    sessions: delivery.sessions,
 
     // The profile: the sessions it was shown to against the ones held out, by what the person corrected, 30 days (profileMetrics).
     profile: profileMetrics(store, { all }),
@@ -625,7 +630,29 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // requests and sessions, the denominators the dashboards count a machine as active by; the note servings and
     // their assessments that stood here until 2026-11-08 went with the knowledge notes
     activity: { schemaVersion: 1, requestsTotal: u.requests, sessions: u.sessions },
-  };
+  });
+}
+
+// The metrics API refuses a payload over 64 KB (infra/metrics/handler.mjs), and a refusal loses the whole
+// report, not the block that overflowed it: a machine with many repositories would stop reporting at all, and
+// nothing on it would say why. So the lists go before the budget does, longest first, and the payload says what
+// it dropped. The counts and sums are never trimmed -- a row list is a distribution, and a sum is the figure.
+export const PAYLOAD_BUDGET = 56 * 1024;
+const ROW_LISTS = [['prs', 'rows'], ['savings', 'rows']];
+export function fitPayload(payload, { budget = PAYLOAD_BUDGET } = {}) {
+  const size = () => Buffer.byteLength(JSON.stringify(payload), 'utf8');
+  if (size() <= budget) return payload;
+  const dropped = [];
+  for (const [block, key] of [...ROW_LISTS].sort((a, b) =>
+    JSON.stringify(payload[b[0]]?.[b[1]] ?? '').length - JSON.stringify(payload[a[0]]?.[a[1]] ?? '').length)) {
+    if (!Array.isArray(payload[block]?.[key]) || !payload[block][key].length) continue;
+    dropped.push(`${block}.${key}`);
+    payload[block][key] = [];
+    payload[block].rowsDropped = true;
+    if (size() <= budget) break;
+  }
+  if (dropped.length) payload.trimmed = dropped;
+  return payload;
 }
 
 export async function sendTelemetry({

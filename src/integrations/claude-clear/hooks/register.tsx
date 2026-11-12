@@ -40,6 +40,14 @@ export const writeRatio = (model: string) => 2 / readRate(model)
 // A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK,
 // which carries the measurement that set it). test/claude-clear.test.js holds the two together.
 export const PAYBACK = 25
+// Which cut policy made a saving, in the proxy's own spelling (cutting.js:policyId, POLICY_REV; held to it by
+// test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
+// policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
+// so they must name it with one string. Bump POLICY_REV there and here together.
+export const POLICY_REV = 1
+const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
+export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean }) =>
+  `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}`
 // What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
 // holds the two together): from the first clear onward, a request that wrote more than half of a long context
 // into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,
@@ -184,7 +192,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
 export type Kinds = { results: number; inputs: number; thinking: number; total: number; measured: boolean }
 // `cost` and `model` are this door's own too: the proxy's log carries each request's writes and model on its rows,
 // and a desktop session has no rows, so the record keeps what the netted figure needs (delivery.js:rewriteCostFor).
-export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; cost?: Cost; model?: string; firstTurn?: number; told?: boolean }
+export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; policy?: string; policyChanged?: boolean; tools?: Clear['tools']; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; cost?: Cost; model?: string; firstTurn?: number; told?: boolean }
 
 // module state: starts over on a reload (the record on disk does not)
 let policy: Policy = DEFAULTS
@@ -432,6 +440,10 @@ export const register: Register = (on) => {
       tools: c.tools,
       recent: [...(state?.recent ?? []), { at: now, cleared: c.tokens, uses }].slice(-RECENT),
       kinds,
+      // the policy this clear was made under, as the proxy stamps its own rows (policyId); a session that spans
+      // an update carries the newest and says so, so a comparison can leave it out rather than read it as either
+      policy: policyId(policy),
+      ...(state?.policy && state.policy !== policyId(policy) ? { policyChanged: true } : state?.policyChanged ? { policyChanged: true } : {}),
       cost: state?.cost ?? { rewrites: 0, write: 0 },
       ...(state?.model ? { model: state.model } : {}),
       ...(state?.firstTurn != null ? { firstTurn: state.firstTurn } : {}),
