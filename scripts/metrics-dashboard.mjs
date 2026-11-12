@@ -290,10 +290,14 @@ export async function provision({ call = api, config = state, persist = save, re
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 5,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## What does thinker save a session, and what does a session cost?\n30-day blocks from clients on 0.3.3 and later, latest per known device (installation fallback). No data means not measured, not zero.\n**Cleared against never cleared, not arm against arm.** The clearing fires past 140k of context, so most sessions are never touched by it. A session is grouped by what actually happened to it: grouping by the arm it was assigned to compares untouched sessions with untouched sessions.\n**A cleared session is a long session,** so its cost per session is higher by nature -- read cost per prompt beside it.\n**Two cut policies are never pooled.** Every saving names the policy that made it (src/cutting.js:policyId). The API-side clearing was measured as a loss and the 100k floor cut almost nothing; a figure mixing them says nothing about the policy shipping today. Dollars are list prices, netted of the cache writes after a clear, and a subscription bills none of it.' } }];
     // four scalars, then the tables: full-width ones take a row of their own, the rest go two to a row
-    let row = 9, col = 0;
+    // the scalars across the top in the order they are written, then the tables and lines: two to a row, a
+    // full-width one taking a row of its own. Keyed on the display, so a scalar added later cannot land in
+    // a table slot (which is what an index rule did to the total-saved card the hour it was written).
+    const scalarRows = Math.ceil(savingsQuestions.filter(q => q.display === 'scalar').length / 4);
+    let row = 5 + scalarRows * 4, col = 0, scalars = 0;
     savingsQuestions.forEach((q, i) => {
       const id = state.cards[q.name];
-      if (i < 4) return cards.push({ id: -(i + 2), card_id: id, row: 5, col: i * 6, size_x: 6, size_y: 4, parameter_mappings: mappings(id) });
+      if (q.display === 'scalar') { const at = scalars++; return cards.push({ id: -(i + 2), card_id: id, row: 5 + Math.floor(at / 4) * 4, col: (at % 4) * 6, size_x: 6, size_y: 4, parameter_mappings: mappings(id) }); }
       if (q.fullWidth && col) { row += 8; col = 0; }
       cards.push({ id: -(i + 2), card_id: id, row, col, size_x: q.fullWidth ? 24 : 12, size_y: 8, parameter_mappings: mappings(id) });
       if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;

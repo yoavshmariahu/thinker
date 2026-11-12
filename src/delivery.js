@@ -12,7 +12,7 @@ import { repoId } from './store.js';
 import { readLog, sessionKey } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { listPrice, formatDollars, costOf } from './prices.js';
-import { compressionDir, readCompression, clearedBySession, clearingCostBySession } from './compression.js';
+import { compressionDir, readCompression, clearedBySession, clearingCostBySession, CLEARING_OP } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { appendDelivery, readDelivery, positiveInteger } from './delivery-journal.js';
@@ -67,6 +67,10 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
       // the session's subagents, each on its own model (transcripts.js:subagentStats); the last row has them all
       if (Array.isArray(e.subagents)) x.subagents = e.subagents.filter(a => a && typeof a === 'object');
     }
+    // A desktop clear mirrored into the log at the end of a turn (compression.js:mirrorClearing), for the
+    // sessions the proxy never served and whose card record has since been pruned. Cumulative, so the newest
+    // row is the session's figure and rows are never added.
+    if (e.op === CLEARING_OP && e.cleared > 0 && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
   }
   const clearing = clearingFor({ home, env, since });
   const config = (() => { try { return store.config(); } catch { return {}; } })();
@@ -78,10 +82,15 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     x.subagentTokens = subTokens;
     x.tokens = finite(x.ownTokens) ? x.ownTokens + subTokens : null;
     const c = clearing(x.id);
-    x.cleared = c.cleared; x.policy = c.policy; x.policyChanged = c.policyChanged;
-    x.rewrite = rewriteCost(x.id);
+    // the proxy's log and the live record first (`clearingFor`), then the log's own mirror of a desktop clear
+    x.cleared = Math.max(c.cleared, x.logged?.cleared || 0);
+    x.policy = c.policy || x.logged?.policy || null;
+    x.policyChanged = Boolean(c.policyChanged || x.logged?.policyChanged);
+    x.rewrite = rewriteCost(x.id) || rewriteOfLogged(x.logged, config);
     // a desktop session's record names the model the API answered with, where no hook logged one
     if (!x.model && x.rewrite?.model) x.model = x.rewrite.model;
+    if (!x.model && x.logged?.model) x.model = x.logged.model;
+    delete x.logged;
     // Dollars, at the session's own model's list rates: a cleared token saved a cache read, and the writes after a
     // clear are what it cost (prices.js).
     const price = listPrice(x.model, { config });
@@ -124,6 +133,16 @@ export function clearingFor({ home = thinkerHome(), env = process.env, since = '
 // What a session's clearing saved, as a number, for the readers that want only that.
 export function clearedFor(opts = {}) { const clearing = clearingFor(opts); return id => clearing(id).cleared; }
 
+// What a mirrored desktop clear cost, priced here because the row carries the write tokens the mod counted
+// and the model that answered (compression.js:loggedClearingCost prices the same row for the Report).
+function rewriteOfLogged(logged, config) {
+  if (!logged?.cost) return null;
+  const price = listPrice(logged.model, { config });
+  const write = logged.cost.write || 0;
+  return { rewrites: logged.cost.rewrites || 0, write, usd: price ? writeCostOf(write, price) : 0,
+    unpriced: price || !write ? 0 : 1, ...(logged.model ? { model: logged.model } : {}) };
+}
+
 // What the clearing cost in that session: the cache writes on the calls from its first clear onwards
 // (compression.js:clearingCostBySession). The proxy's log knows this for the sessions it served; a desktop
 // session never reaches the proxy, and its record (the clearing mod's, in the card's state directory) keeps
@@ -145,6 +164,8 @@ export function rewriteCostFor({ home = thinkerHome(), env = process.env, since 
 // Commits a session sitting there is proof it was working on this pull request. The listing gives the head
 // and the merge commit; the whole list comes only with `--pr n`. The base is where the branch started, so a
 // session there says nothing.
+const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6;
+
 const prCommits = p => [...(p.commits || []), p.head, p.mergeCommit].filter(sha => sha && sha !== p.base);
 
 export function linkFor(session, prs, links) {

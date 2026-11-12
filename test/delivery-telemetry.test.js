@@ -8,6 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
+import { mirrorClearing } from '../src/compression.js';
 import { buildTelemetryPayload } from '../src/telemetry.js';
 import { normalizeReport } from '../infra/metrics/report.mjs';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
@@ -59,7 +60,7 @@ test('pull request metrics are numbers only, and name nothing', t => {
   // every figure is a number, a list of numbers, or a group of them under a policy name
   for (const [key, value] of Object.entries(d)) {
     if (Array.isArray(value)) continue;
-    if (key === 'byPolicy') { for (const g of Object.values(value)) for (const n of Object.values(g)) assert.equal(typeof n, 'number'); continue; }
+    if (key === 'byPolicy' || key === 'byDay') { for (const g of Object.values(value)) for (const n of Object.values(g)) assert.equal(typeof n, 'number'); continue; }
     assert.equal(typeof value, 'number', key);
   }
   // what a pull request cost in model calls, and whether it got a clear and how much (the owner's ask, 2026-11-11)
@@ -73,6 +74,14 @@ test('pull request metrics are numbers only, and name nothing', t => {
     assert.equal(typeof r.sessions, 'number');
     assert.ok(r.spendUsd === null || typeof r.spendUsd === 'number');
   }
+  // the day a pull request merged carries its own figures, so a cost per pull request can be trended and a
+  // total added up -- which the 30-day rolling sums above can never be
+  const days = Object.keys(d.byDay);
+  assert.equal(days.length, 1, 'both merged on the same day');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(days[0]));
+  assert.equal(d.byDay[days[0]].prs, 2);
+  assert.equal(d.byDay[days[0]].clearedPrs, 2);
+  assert.equal(d.byDay[days[0]].clearedTokens, d.clearedTokens, 'the days account for every cleared token');
   // a saving made before the policy was stamped on the record says so, and is never pooled with today's
   assert.deepEqual(Object.keys(d.byPolicy), ['unstamped']);
   assert.equal(d.byPolicy.unstamped.prs, 2);
@@ -107,6 +116,41 @@ test('savings per session are counted once each, split by what actually happened
   // a session is counted here whether or not it reached a pull request, which is the point of the block
   assert.ok(s.all.sessions >= prs.linkedSessions);
   for (const secret of ['PRIVATE', 'github.com', store.repo]) assert.ok(!JSON.stringify(s).includes(secret), `leaked ${secret}`);
+});
+
+// A desktop session reaches no proxy, so its clear lives in the clearing mod's own state file -- which is a
+// card's working memory, pruned after two days. Every window that reads a saving is longer than that, so the
+// Stop hook mirrors the clear into the machine's log, where it lasts as long as the log does.
+test('a desktop clear still counts after its record is pruned, with its cost and its policy', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  const dir = path.join(home, 'state', 'compression');
+  fs.mkdirSync(dir, { recursive: true });
+  const session = 'PRIVATE_DESKTOP_SESSION';
+  const record = { session, saved: 90_000, uses: 5, requests: 3, policy: 'r1-t140k-f60k-p25-deep',
+    model: 'claude-opus-5-5', lastAt: now - 3600_000, cost: { rewrites: 2, write: 120_000 } };
+  const file = path.join(dir, `${session}.json`);
+  fs.writeFileSync(file, JSON.stringify(record));
+  store.log({ op: 'session', t: at(4), session, client: 'claude', model: 'claude-opus-5-5', turns: 8, totalTokens: 300_000, tokenCoverage: 'complete' });
+
+  // the hook mirrors it once, and does not write the same total again
+  const first = mirrorClearing(dir, session, row => store.log({ ...row, t: at(3) }));
+  assert.equal(first.cleared, 90_000);
+  assert.equal(first.policy, 'r1-t140k-f60k-p25-deep');
+  assert.deepEqual(first.cost, { rewrites: 2, write: 120_000 });
+  assert.equal(mirrorClearing(dir, session, () => { throw new Error('wrote the same clear twice'); }), null);
+  // a later clear in the same session raises the total, so a new row is written
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), saved: 150_000 }));
+  assert.equal(mirrorClearing(dir, session, row => store.log({ ...row, t: at(2) })).cleared, 150_000);
+
+  // now the record is gone, as the prune would leave it
+  fs.rmSync(file);
+  const { sessions: s } = deliveryMetrics(store, { all: false, now, home });
+  assert.equal(s.cleared.sessions, 1, 'the session still reads as cleared');
+  assert.equal(s.cleared.clearedTokens, 150_000, 'at the newest total, never the sum of the rows');
+  assert.equal(s.byPolicy['r1-t140k-f60k-p25-deep'].sessions, 1, 'under the policy that cleared it');
+  assert.ok(s.cleared.savedUsd > 0, 'priced from the model the record named');
+  assert.ok(s.cleared.rewriteUsd > 0, 'and what the clear cost is charged too');
+  assert.equal(s.cleared.netUsd, Math.round((s.cleared.savedUsd - s.cleared.rewriteUsd) * 100) / 100);
 });
 
 test('the payload carries them, and the metrics API promotes them to columns', t => {

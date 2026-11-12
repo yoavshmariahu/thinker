@@ -282,12 +282,73 @@ export function desktopClearingCost(dir, { covered = new Set(), since = '', key 
 // The rows the ledger and the Report price: the proxy's log, and the recorded clears of the sessions it
 // has none for (above). `events` is the machine's log, where a session's own rows name its model; `key`
 // is usage.js:sessionKey, passed in because usage.js imports this module.
+// --- a desktop clear has to outlive the card's record --------------------------------------------------
+// The record above is a card's working memory: at most MAX_FILES of them, pruned after PRUNE_AGE. For a
+// session the proxy served that is fine, because the log holds the same clear for months. A desktop session
+// reaches no proxy, so its clear lived in that file and nowhere else -- gone in two days, which is shorter
+// than every window that reads it: the 30 days a person's savings are reported over, and the days a pull
+// request takes to merge. A desktop user's saving was therefore real on the card that evening and absent
+// from the Report, `thinker prs` and the telemetry by the end of the week.
+//
+// So the Stop hook mirrors each clear into the machine's log once (`mirrorClearing`), where it lives as long
+// as the log. The figure is the session's own running total, not a per-request delta like a proxy row, so a
+// reader takes the newest row per session and NEVER adds them; `logged` on the record keeps the hook from
+// writing the same total twice.
+export const CLEARING_OP = 'clearing';
+export function mirrorClearing(dir, session, log) {
+  if (!dir || !session || session === 'unknown' || typeof log !== 'function') return null;
+  const file = fileFor(dir, session);
+  const r = read(file);
+  const saved = Math.round(r?.saved || 0);
+  if (!r || !(saved > 0) || saved <= Math.round(r.logged || 0)) return null;
+  const row = { op: CLEARING_OP, session, cleared: saved, uses: r.uses || 0, requests: r.requests || 0,
+    ...(r.policy ? { policy: r.policy } : {}), ...(r.policyChanged ? { policyChanged: true } : {}),
+    ...(r.model ? { model: r.model } : {}), ...(r.kind ? { kind: r.kind } : {}),
+    ...(r.cost ? { cost: { rewrites: r.cost.rewrites || 0, write: r.cost.write || 0 } } : {}) };
+  try { log(row); } catch { return null; }                      // a card is never worth a failed turn
+  try { write(file, { ...r, logged: saved }); } catch {}
+  return row;
+}
+
+// The newest mirrored row per session. Cumulative, so the largest is the session's figure; a row carries what
+// the record carried, including the policy that cleared and what the clear cost.
+export function loggedClearing(events = [], { key = s => String(s), since = '' } = {}) {
+  const out = new Map();
+  for (const e of events) {
+    if (e?.op !== CLEARING_OP || !e.session || !(e.cleared > 0)) continue;
+    if (since && e.t && e.t < since) continue;
+    const id = key(e.session), prev = out.get(id);
+    if (!prev || e.cleared >= prev.cleared) out.set(id, { ...e, at: e.t || prev?.at || null });
+  }
+  return out;
+}
+
+// What a mirrored clear cost, priced as the proxy's rows and the records are (`desktopClearingCost`).
+export function loggedClearingCost(events, { covered = new Set(), key = s => String(s), since = '', config } = {}) {
+  const out = new Map();
+  for (const [id, e] of loggedClearing(events, { key, since })) {
+    if (covered.has(id) || !e.cost) continue;
+    const x = { rewrites: e.cost.rewrites || 0, write: e.cost.write || 0, usd: 0, unpriced: 0, ...(e.model ? { model: e.model } : {}) };
+    const price = listPrice(e.model, { config });
+    if (price) x.usd += writeCostOf(x.write, price); else if (x.write > 0) x.unpriced++;
+    out.set(id, x);
+  }
+  return out;
+}
+
 export function clearingRows(file, dir, { events = [], key = s => String(s) } = {}) {
   const rows = compressionRecords(file);
   const covered = new Set(rows.map(r => key(r.session)));
   const models = new Map();
   for (const e of events) if (e.op === 'session' && e.session && e.model) models.set(key(e.session), e.model);
-  return [...rows, ...desktopClearRows(dir, { covered, key, modelOf: id => models.get(key(id)) || null })];
+  const desktop = desktopClearRows(dir, { covered, key, modelOf: id => models.get(key(id)) || null });
+  // and the clears whose record is gone: the log's own mirror, for the sessions neither source covers
+  for (const r of desktop) covered.add(key(r.session));
+  const mirrored = [...loggedClearing(events, { key })].filter(([id]) => !covered.has(id))
+    .map(([, e]) => ({ op: 'proxy', session: e.session, at: e.at, model: e.model || models.get(key(e.session)) || null,
+      status: 200, cleared: e.cleared, clearedUses: e.uses || 0, recorded: 'log',
+      ...(e.policy ? { policy: e.policy } : {}), ...(e.policyChanged ? { policyChanged: true } : {}) }));
+  return [...rows, ...desktop, ...mirrored];
 }
 
 // a write after a clear is a one-hour write for the agents the proxy serves, as proxy-replay.js prices it
@@ -295,7 +356,7 @@ const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * 
 
 // With `dir`, the sessions the log has no rows for are read from their records (desktopClearingCost): a clear
 // made inside a desktop session is charged its writes as a proxied one is, so no door shows it gross.
-export function clearingCostBySession(file, { since = '', config, dir = null, key = s => String(s) } = {}) {
+export function clearingCostBySession(file, { since = '', config, dir = null, key = s => String(s), events = [] } = {}) {
   const out = new Map(), cleared = new Set(), covered = new Set();
   const rows = compressionRecords(file);
   for (const r of rows) {
@@ -309,7 +370,8 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
     if (price) x.usd += writeCostOf(r.write, price); else x.unpriced++;
     out.set(r.session, x);
   }
-  if (dir) for (const [id, x] of desktopClearingCost(dir, { covered, since, key, config })) out.set(id, x);
+  if (dir) for (const [id, x] of desktopClearingCost(dir, { covered, since, key, config })) { out.set(id, x); covered.add(id); }
+  for (const [id, x] of loggedClearingCost(events, { covered, since, key, config })) out.set(id, x);
   return out;
 }
 
