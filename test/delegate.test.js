@@ -31,8 +31,12 @@ test('readOf: a Read is sized from the file, a ranged Read from its lines, a cat
 test('suiteCommand: whole-suite runs only', () => {
   for (const c of ['.venv/bin/python -m pytest -q', 'pytest', 'python -m pytest -v', 'npm test', 'go test ./...', 'cargo test', 'node --test', 'cd src && npm test'])
     assert.equal(suiteCommand('Bash', { command: c }), c, c);
-  for (const c of ['pytest tests/test_x.py', '.venv/bin/python -m pytest -q tests/test_a.py::test_b', 'npm test -- test/one.test.js', 'pytest -q 2>&1 | tail -3', 'ls', 'python script.py'])
+  for (const c of ['pytest tests/test_x.py', '.venv/bin/python -m pytest -q tests/test_a.py::test_b', 'npm test -- test/one.test.js', 'ls', 'python script.py', 'pytest -q | python summarise.py'])
     assert.equal(suiteCommand('Bash', { command: c }), null, c);
+  // a pipe that only trims the output still runs the whole suite: the verifier gets the bare command
+  assert.equal(suiteCommand('Bash', { command: '.venv/bin/python -m pytest -q 2>&1 | tail -5' }), '.venv/bin/python -m pytest -q');
+  assert.equal(suiteCommand('Bash', { command: 'npm test 2>&1 | grep -E "pass|fail" | head -3' }), 'npm test');
+  assert.equal(suiteCommand('Bash', { command: 'pytest tests/test_x.py 2>&1 | tail -3' }), null, 'one file stays with the model');
   assert.equal(suiteCommand('Read', { file_path: 'pytest' }), null);
 });
 

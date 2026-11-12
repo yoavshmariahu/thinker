@@ -112,13 +112,18 @@ const SUITE = [
   /^cargo\s+test(?:\s+--?[\w-]+)*\s*$/,
   /^node\s+--test(?:\s+--?[\w-]+)*\s*$/,
 ];
+// A pipe into tail, head, grep or wc only hides the suite's output; the whole suite still runs (the first live
+// e2e, 2026-11-12: Opus ran `pytest -q 2>&1 | tail -5` and the verifier never fired). The verifier gets the bare
+// command and does the trimming itself in its report.
+const TRIM_TAIL = /(?:\s+2>&1)?(?:\s*\|\s*(?:tail|head|grep|wc|cat)\b(?:"[^"]*"|'[^']*'|[^|"'])*)*\s*$/;
 export function suiteCommand(toolName, input = {}) {
   if (toolName !== 'Bash') return null;
   const cmd = String(input.command || '').trim();
-  if (/\|/.test(cmd)) return null;
-  const parts = cmd.split(/\s*(?:&&|;)\s*/);
+  const bare = cmd.replace(TRIM_TAIL, '').trim();
+  if (/\|/.test(bare)) return null;
+  const parts = bare.split(/\s*(?:&&|;)\s*/);
   const head = parts[0].startsWith('cd ') && parts.length === 2 ? parts[1] : parts[0];
-  return parts.length <= 2 && SUITE.some(r => r.test(head)) ? cmd : null;
+  return parts.length <= 2 && SUITE.some(r => r.test(head)) ? bare : null;
 }
 
 // ---- the turn's tally, kept on the session's state file ----
