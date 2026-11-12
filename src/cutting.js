@@ -75,6 +75,28 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // nothing here reads how long a session has run, which is what made REMAINING wrong.
 export const PAYBACK = 25;
 
+// --- which policy made a saving ---------------------------------------------------------------------------
+// A cleared token is worth what the policy that cleared it was worth, and the policies differ by more than
+// rounding: the API-side clearing was measured as a loss, and the 100k floor cut nothing at all on this
+// machine for two days. So anything that compares savings has to know which policy made each one, and the
+// record says so -- `proxy.js` puts this id on the row it logs, `compression.js` keeps it on the session's
+// record, and a reader groups by it.
+//
+// The alternative, a date in the code, was tried and dropped the same hour (2026-11-11): a date is true for
+// the machine that shipped the change and wrong for everybody else. A person still on an older copy is
+// running the older policy today, so a date would count their old sessions as current; a person who updated
+// a week late would have good sessions thrown away. Nothing on this machine can know when another machine
+// updated, and it does not have to: the policy names itself.
+//
+// `POLICY_REV` covers what no setting can change -- the cold-boundary rule, the payback pricing, the ratchet.
+// Bump it when one of those moves. The rest is the settings that were in force for that request
+// (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the machine config), so two machines running the same
+// code with different floors are never pooled either.
+export const POLICY_REV = 1;
+const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
+export const policyId = (cfg = {}) =>
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`;
+
 export const MIN_CHARS = 200;
 // What these words must carry, found 2026-11-04 by reading what the model did with the old ones
 // ("tool result cleared by thinker to save context"): they were silent on WHEN, and it assumed the

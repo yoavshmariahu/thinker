@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
+import { savingsQuestions } from './savings-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
 import { spendQuestions } from './spend-dashboard.mjs';
@@ -126,7 +127,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...holdoutQuestions, ...cacheQuestions, ...spendQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...savingsQuestions, ...holdoutQuestions, ...cacheQuestions, ...spendQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -264,7 +265,7 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What people shipped with thinker and what it saved on it: merged pull requests worked on, tokens cleared (measured) and reading avoided (estimate), what each cost. Aggregate 30-day snapshots per device; no causal improvement claim.' })).id;
     save();
   }
-  if (state.deliveryDashboardVersion !== 2) {
+  if (state.deliveryDashboardVersion !== 3) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 4,
       visualization_settings: { virtual_card: { display: 'text' }, text: '## What did people ship with Thinker, and what did it save them?\n30-day snapshots from clients on 0.2.15 and later. No data means not measured, not zero.\n**The two savings are not the same evidence.** *Cleared* is measured: the tokens the API reported leaving out of those prompts after the context proxy cleared them. *Reading avoided* is the cache own estimate: one read per file behind each note a session acted on. Any figure that adds them says so.\n**Attribution:** counts are pull request observations, not unique team pull requests -- latest snapshot per known device (installation fallback), and several contributors can observe the same one. *Merged with thinker* counts only pull requests a recorded session worked on; the repository other merges are shown apart. Comparative improvement is not established: nobody is running without Thinker to compare against.' } }];
     deliveryQuestions.forEach((q, i) => {
@@ -274,10 +275,34 @@ export async function provision({ call = api, config = state, persist = save, re
         parameter_mappings: mappings(state.cards[q.name]) });
     });
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters, dashcards: cards });
-    state.deliveryDashboardVersion = 2; save();
+    state.deliveryDashboardVersion = 3; save();
   } else {
     const dashboard = await api(`/dashboard/${state.deliveryId}`);
     await api(`/dashboard/${state.deliveryId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
+  if (!state.savingsId) {
+    state.savingsId = (await api('/dashboard', 'POST', { name: 'Savings per session', collection_id: state.collectionId,
+      description: 'What thinker saved per session and what those sessions cost, from the latest 30-day block per device (src/delivery-telemetry.js). Sessions are grouped by whether a clear actually happened in them, and every saving is grouped by the cut policy that made it, so two policies are never pooled. Rates are ratios of sums.' })).id;
+    save();
+  }
+  if (state.savingsDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 5,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What does thinker save a session, and what does a session cost?\n30-day blocks from clients on 0.3.3 and later, latest per known device (installation fallback). No data means not measured, not zero.\n**Cleared against never cleared, not arm against arm.** The clearing fires past 140k of context, so most sessions are never touched by it. A session is grouped by what actually happened to it: grouping by the arm it was assigned to compares untouched sessions with untouched sessions.\n**A cleared session is a long session,** so its cost per session is higher by nature -- read cost per prompt beside it.\n**Two cut policies are never pooled.** Every saving names the policy that made it (src/cutting.js:policyId). The API-side clearing was measured as a loss and the 100k floor cut almost nothing; a figure mixing them says nothing about the policy shipping today. Dollars are list prices, netted of the cache writes after a clear, and a subscription bills none of it.' } }];
+    // four scalars, then the tables: full-width ones take a row of their own, the rest go two to a row
+    let row = 9, col = 0;
+    savingsQuestions.forEach((q, i) => {
+      const id = state.cards[q.name];
+      if (i < 4) return cards.push({ id: -(i + 2), card_id: id, row: 5, col: i * 6, size_x: 6, size_y: 4, parameter_mappings: mappings(id) });
+      if (q.fullWidth && col) { row += 8; col = 0; }
+      cards.push({ id: -(i + 2), card_id: id, row, col, size_x: q.fullWidth ? 24 : 12, size_y: 8, parameter_mappings: mappings(id) });
+      if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
+    });
+    await api(`/dashboard/${state.savingsId}`, 'PUT', { parameters, dashcards: cards });
+    state.savingsDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.savingsId}`);
+    await api(`/dashboard/${state.savingsId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
   if (!state.holdoutId) {
@@ -389,6 +414,7 @@ export async function provision({ call = api, config = state, persist = save, re
   }
   console.log(`Messages: http://localhost:3030/dashboard/${state.messagesId}`);
   console.log(`Delivery: http://localhost:3030/dashboard/${state.deliveryId}`);
+  console.log(`Savings per session: http://localhost:3030/dashboard/${state.savingsId}`);
   console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
   console.log(`Cache health: http://localhost:3030/dashboard/${state.cacheId}`);
   console.log(`Token spend: http://localhost:3030/dashboard/${state.spendId}`);
@@ -426,6 +452,12 @@ export async function verify({ call = api, config = state } = {}) {
       if (result.status !== 'completed' || result.data.rows[0][0] !== 0) throw new Error(`Delivery filter did not restrict data: ${id}`);
     }
     console.log('PASS: delivery layout and filters.');
+  }
+  if (state.savingsId) {
+    const savings = await api(`/dashboard/${state.savingsId}`);
+    if (savingsQuestions.some(q => !savings.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Savings per session dashboard is missing cards');
+    if (filterDefs.some(([id]) => !savings.parameters.some(p => p.id === id) || savings.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped savings filter');
+    console.log('PASS: savings per session layout and filters.');
   }
   if (state.holdoutId) {
     const holdout = await api(`/dashboard/${state.holdoutId}`);

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, policyId, POLICY_REV } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -90,6 +90,20 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   // the floor itself: one policy, so a move on either door fails here until the other follows. Nothing pinned it
   // until 2026-11-06, the day the proxy's went from 20 to 25, which is exactly the divergence #588 cost a release.
   assert.equal(modConst(s, 'PAYBACK'), PAYBACK, "the mod's payback floor is the proxy's");
+  // One policy means one name for it. Every saving's record carries the policy that made it (cutting.js:policyId),
+  // and the two doors must spell the same policy the same way or a dashboard would read one machine as two.
+  assert.equal(modConst(s, 'POLICY_REV'), POLICY_REV, "the mod's policy revision is the proxy's");
+  const modPolicy = (() => {
+    const m = s.match(/export const policyId = \(p: \{[^}]*\}\) =>\n  (`[^`]+`)/);
+    assert.ok(m, 'the mod builds a policy id on one line');
+    const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
+    return cfg => new Function('p', 'POLICY_REV', 'PAYBACK', 'roundTo', `return ${m[1].replace(/ as number/g, '')}`)(cfg, POLICY_REV, PAYBACK, round);
+  })();
+  for (const cfg of [PROXY_DEFAULTS, { ...PROXY_DEFAULTS, clearAtLeast: 20000 }, { ...PROXY_DEFAULTS, trigger: 250000, clearDeep: false }, {}]) {
+    assert.equal(modPolicy(cfg), policyId(cfg), `the mod names the policy as the proxy does (${policyId(cfg)})`);
+  }
+  // and the record it writes carries it, or the saving reaches no comparison at all
+  assert.ok(/policy: policyId\(policy\),/.test(s), "the mod's session record names the policy that cleared");
   // one price: the mod's reads-per-written-token is the proxy's write rate over its read rate for the model (20 on
   // most models, 40 on Opus 5.5, 80 on Fable; a read priced at 2.5% for every model stopped the first paired smoke on
   // 2026-11-02, and one at 10% for every model would call a losing clear on Opus 5.5 a win)

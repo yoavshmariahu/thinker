@@ -51,7 +51,10 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     const f = path.join(dir, file);
     installClient(client, o);
     let c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    assert.equal(c.hooks[event], undefined, client);
+    // Claude Code's PreToolUse now carries the delegation hook (delegate.js, 2026-11-11); the retired `pre` never comes back
+    const pretool = client === 'claude' ? c.hooks[event] : undefined;
+    if (client === 'claude') { assert.equal(pretool.length, 1); assert.match(pretool[0].hooks[0].command, /hook pretool/); assert.equal(pretool[0].matcher, 'Read|Bash'); }
+    else assert.equal(c.hooks[event], undefined, client);
     const ours = { type: 'command', command: `node "${CLI}" hook pre --client ${client} --repo "${dir}"`, timeout: 10 };
     const other = { type: 'command', command: 'my-security-check', timeout: 10 };
     const group = h => client === 'cursor' ? h : { hooks: [h] };
@@ -59,7 +62,7 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     fs.writeFileSync(f, JSON.stringify(c));
     installClient(client, o);
     c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    assert.deepEqual(c.hooks[event], [group(other)], client);
+    assert.deepEqual(c.hooks[event], client === 'claude' ? [group(other), ...pretool] : [group(other)], client);
     assert.ok(c.hooks[client === 'cursor' ? 'beforeSubmitPrompt' : 'UserPromptSubmit'], 'note injection remains wired');
     if (client === 'claude') assert.equal(c.hooks.PostToolUse, undefined, 'Claude Code gets no tool hook');
     else assert.ok(c.hooks[client === 'cursor' ? 'postToolUse' : 'PostToolUse'], 'context hooks remain wired');

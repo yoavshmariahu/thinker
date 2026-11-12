@@ -10,6 +10,7 @@ import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
+import { preToolHook } from '../delegate.js';
 import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
@@ -121,6 +122,14 @@ async function hookCommand(ctx) {
     if (isDisabledRepo(repo)) return;
     if (!store.exists()) store.init();
     const session = sessionOf(ev);
+    // PreToolUse: a read or a whole-suite run handed to a subagent on a cheaper model, deterministically
+    // (delegate.js). Nothing is printed when the call goes through; a denial carries the subagent's report.
+    if (pos[0] === 'pretool') {
+      if (client !== 'claude') return;
+      const o = await preToolHook({ ev, store, session, cwd: ev.cwd || repo });
+      if (o) out(o);
+      return;
+    }
     // What thinker has saved, today and over the whole log, off the kept ledger (savings-ledger.js): a
     // read of one small file, because the figure itself is a second of log and transcript reading and a
     // hook may not spend that. The Stop hook starts the refresh in the background. Nothing where the

@@ -92,6 +92,12 @@ export function noteCompression(dir, row, { now = Date.now(), actions = null } =
     // thinker's own count of what it removed, not a figure the API reported: said once on the record so no
     // door shows it as measured (every row since the cut shipped is this)
     ...(clearedEstimated(row) || prev?.estimated ? { estimated: true } : {}),
+    // Which cut policy made this saving (cutting.js:policyId; the clearing mod writes its own, from the same
+    // constants). Every door that compares savings groups by it, because the policies differ by more than
+    // rounding and nothing on this machine can know when another machine updated to one. A session spanning an
+    // update carries the newest and says so, so a comparison can leave it out rather than read it as either.
+    ...(row.policy || prev?.policy ? { policy: row.policy || prev.policy } : {}),
+    ...((prev?.policy && row.policy && prev.policy !== row.policy) || prev?.policyChanged ? { policyChanged: true } : {}),
     ...(Array.isArray(actions) && actions.length ? { tools: actions.slice(0, TOP_TOOLS) } : prev?.tools ? { tools: prev.tools } : {}),
     recent: [...(prev?.recent || []), { at: row.at, cleared, uses: clearedUsesOf(row) }].slice(-RECENT),
     ...(prev?.firstTurn != null ? { firstTurn: prev.firstTurn } : {}),
@@ -253,7 +259,8 @@ function desktopRecords(dir, { covered = new Set(), key = s => String(s) } = {})
 
 export function desktopClearRows(dir, { covered = new Set(), modelOf = () => null, key = s => String(s) } = {}) {
   return desktopRecords(dir, { covered, key }).map(({ record: r, at }) =>
-    ({ op: 'proxy', session: r.session, at, model: r.model || modelOf(r.session) || null, status: 200, cleared: Math.round(r.saved), clearedUses: r.uses || 0, recorded: 'session' }));
+    ({ op: 'proxy', session: r.session, at, model: r.model || modelOf(r.session) || null, status: 200, cleared: Math.round(r.saved), clearedUses: r.uses || 0, recorded: 'session',
+      ...(r.policy ? { policy: r.policy } : {}), ...(r.policyChanged ? { policyChanged: true } : {}) }));
 }
 
 // What a desktop session's clears cost, read from the record: the mod counts, on every request from its first
@@ -312,7 +319,10 @@ export function clearedBySession(file, { since = '' } = {}) {
     const cleared = clearedOf(r);
     if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
     const prev = out.get(r.session) || { cleared: 0, requests: 0 };
-    out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1 });
+    out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
+      // the policy the rows name (cutting.js:policyId), the newest winning, and a mark where a session spans two
+      ...(r.policy || prev.policy ? { policy: r.policy || prev.policy } : {}),
+      ...((prev.policy && r.policy && prev.policy !== r.policy) || prev.policyChanged ? { policyChanged: true } : {}) });
   }
   return out;
 }
