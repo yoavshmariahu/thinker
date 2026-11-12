@@ -595,6 +595,19 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
   list `setHooks` clears, so `thinker rewire` takes the entry an older copy wrote out of `~/.claude/settings.json`.
   The other agents keep theirs: they have no transcript, and the hook is how their tool calls reach the profile.
 - Plugins under `plugins/` run `thinker hook … --plugin` and yield to host hooks (`clients.js:pluginYields`).
+- **Orca is a host, not an agent, and wants nothing of thinker's own (2026-11-12, checked live on 1.4.257).**
+  It runs the agents' CLIs, one git worktree to a task, and reads each repository's `.claude/` and `.codex/`:
+  a terminal pane, Orca's structured chat and a pane on an Orca **managed account** alike serve the profile,
+  log the session and route through the proxy. Orca appends its managed hooks to the agents' files instead of
+  replacing them and `setHooks` only ever drops thinker's own entries, so neither takes the other's out. A
+  managed account's home is `<Orca userData>/claude-profiles/<accountId>/home` (Codex: `codex-accounts/`), and
+  Orca **mirrors the person's `~/.claude/settings.json` keys into it**, each key's `JSON.stringify` hashed in
+  the account's `settings-sync.json` so it re-syncs when their side changes: `env` -- the proxy's route and the
+  mods' plugin directory -- arrives byte-identical, `hooks` arrives with Orca's own added. So thinker must
+  **not** write into such a home; that would desync the ledger Orca reconciles by. Its worktrees live in
+  `~/orca/workspaces/<repo>/<name>` and are linked, so `store.js:cacheCheckout` already points them at the main
+  checkout's cache. #764 wired those homes from a string in Orca's minified bundle that read like an exclusion
+  of `settings.json`; one real account disproved it, and it was reverted. Make the state and look at it.
 - Pi: `npm/pi/thinker.js`.
 - One copy per checkout (`clients.js:pruneInstalls`). `setup` removes other copies' hooks and repoints MCP. Claude Code `--local` empties the shared settings file.
 - Prompt hook prunes gone or older copies (`olderOnly`), logs `op: "prune"`. Never delete old copy's files.
