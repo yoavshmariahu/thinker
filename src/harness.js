@@ -1,5 +1,5 @@
 import { discoverRepos } from './machine.js';
-import { addStub, removeStub, stubbedNames, toolFile, STUB_TOKENS } from './tool-stubs.js';
+import { addStub, removeStub, stubbedNames, readStubs, toolFile, STUB_TOKENS } from './tool-stubs.js';
 import { readScopedState, writeScopedState } from './scoped-state.js';
 // What an agent's harness loads into every session, against what the sessions use: MCP servers,
 // plugins and skills that cost context each time and are never called. "thinker loads what this
@@ -270,6 +270,11 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHo
     return rows.get(key);
   };
   const records = desktopFor(home), read = sessions.map(s => { const h = claudeSessionHarness(s.file, records, s.since || 0); onSession?.(s); return { s, h }; });
+  // A stubbed tool costs the pointer, not the definition (tool-stubs.js). The transcript records the definition
+  // the engine built, and the proxy replaces it on the way out, so a session that ran after the switch would
+  // otherwise be costed at what it no longer sends -- and `thinker context --history` read the switch as a loss.
+  // A session that spans the switch is costed at the pointer throughout; its calls before it are the residue.
+  const stubbedAt = new Map(Object.entries(readStubs(tHome).tools).map(([n, v]) => [`tool:${n}`, Date.parse(v.at) || 0]));
   config.connectors = new Map(read.flatMap(({ h }) => [...h.connectors]));
   // the plugins the settings and the skill names name, longest first, to read a plugin server's key against
   const known = [...new Set([...config.plugins.keys(), ...read.flatMap(({ h }) => [...h.loaded.keys()].filter(k => k.startsWith('skill:')).map(k => pluginOfSkill(k.slice(6))).filter(Boolean))])].sort((a, b) => b.length - a.length);
@@ -293,6 +298,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHo
       // the newest transcript that carried a built-in tool's definition: what the switch writes to disk (apply)
       if (k.startsWith('tool:')) { const r = row(k); if (!r.fileAt || s.mtime > r.fileAt) { r.file = s.file; r.fileAt = s.mtime; } }
     }
+    for (const [k, at] of stubbedAt) if (tokens.has(k) && s.mtime > at) tokens.set(k, STUB_TOKENS);
     // `loaded`: each source's tokens a call, so the Report can cost one source a session before and since it was switched off (report.js:actionEffect)
     timeline.push({ t: s.mtime, session: s.session, client: 'claude', calls: h.calls, parts: partsOf(tokens), loaded: Object.fromEntries(tokens) });
     for (const [k, t] of tokens) {
