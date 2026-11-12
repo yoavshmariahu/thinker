@@ -94,6 +94,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 **OpenCode 2 terminal (2026-11-10):**
 - Plugin directory (`plugins/thinker/`) with `index.ts` (server) + `tui.tsx` (terminal); v1 single file for major < 2.
 - Footer on built-in footer row (`prompt.footer.status`); summary as toast (Stop hook writes `state/notice-last.json`).
+- **Served bundle is never on the person's prompt** (2026-11-12): v2's draft has no parts, so the profile goes as a
+  synthetic message (`ctx.session.synthetic`, `resume: false`), model-read and screen-hidden (TUI draws
+  `description` = `SYNTHETIC_NOTE` alone). Same execution, once a session; refused call falls back to the draft.
 
 **Exploration subagents on Sonnet, off by default (2026-11-08):**
 - Off until owner ships: `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`.
