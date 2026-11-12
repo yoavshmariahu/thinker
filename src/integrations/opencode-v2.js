@@ -1,3 +1,4 @@
+import { delegateConfig } from '../delegate.js';
 import { hookRunner } from './runner.js';
 
 // OpenCode 2's server part. OpenCode 1 plugins returned a map of hook handlers; v2 registers everything
@@ -29,7 +30,8 @@ export function opencodeV2(config, run = hookRunner(config)) {
         // to a subagent, and its report is thrown here, which v2 makes the call's result (checked live on 2.2.7:
         // the model read the report and answered from it). The CLI answers the same JSON as Claude Code's
         // PreToolUse deny; a call that goes through gets no answer and the hook returns in silence.
-        await ctx.tool.hook('execute.before', async ev => {
+        // Off by default (2026-11-12); read once at setup, so switching it on needs OpenCode started again.
+        if (delegateConfig().enabled) await ctx.tool.hook('execute.before', async ev => {
           if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
           const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent });
           if (!text) return;

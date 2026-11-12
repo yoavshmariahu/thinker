@@ -33,6 +33,7 @@
 // the others the hooks record the session themselves (prompt, every tool call
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
+import { delegateConfig } from './delegate.js';
 import fs from 'node:fs';
 import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
@@ -1381,8 +1382,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
       // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read past the turn's threshold, or a whole-suite
       // run, is denied and answered with a subagent's report. The timeout covers the subagent's run; the hook
-      // itself answers in a few milliseconds when the call goes through. THINKER_DELEGATE=off turns it off.
-      entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: 300 }] }]);
+      // itself answers in a few milliseconds when the call goes through. Written only while the trigger is on
+      // (off by default, 2026-11-12): a hook that exits at once is still one node process per tool call, and
+      // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
+      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: 300 }] }]);
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
       // everything else it could answer with (the edited-file notes, instruction sections, the diet) is gone or
       // off. It was one node process per tool call for no output. `PostToolUse` stays in the list below so a
