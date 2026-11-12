@@ -14,12 +14,15 @@
 // Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
 // fixed OpenAI/ChatGPT Responses route, and proxy-codex.js selects the managed provider.
 //
-// The service runs with a holdout share (SERVICE_HOLDOUT, half of the sessions since 2026-11-09, the owner's call; 15%
-// from 2026-10-24, the share the hooks' notes had) so that `thinker proxy report` and the Factory's split compare the
-// two sides on the machine's own work. Half, as the profile's holdout is: at 85/15 the small side carries most of the
-// noise, and the clearing's measure (cache writes, cost an exchange) is still an open question, not a regression check.
+// The service runs with no holdout (SERVICE_HOLDOUT 0 since 2026-11-12, the owner's call; half of the sessions from
+// 2026-11-09, 15% from 2026-10-24). The holdout compared sessions that got a cut with sessions held out from one, and a
+// session that gets a cut is a long session, so the two sides were never like with like, and at half the sessions it
+// cost every install half the saving to answer a question it could not answer. What it was kept for -- the model
+// reading again what was cleared -- is read out of each session's own transcript instead (rereads.js) and taken off
+// the netted saving (delivery.js); whether the answers got worse is the graded run's question (Artemis).
 // `proxy: { holdout, trigger, keep, keepMin, clearAtLeast }` in THINKER_HOME/config.json changes the service's flags
-// (holdout 0: none). The desktop mod mirrors the share (claude-clear/hooks/register.tsx:HOLDOUT).
+// (holdout 0.5: an experiment arm, read by the Factory's "see diff by"). The desktop mod mirrors the share
+// (claude-clear/hooks/register.tsx:HOLDOUT).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -33,7 +36,7 @@ import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 import { bedrockState, prepareBedrock, commitBedrock, wireBedrock, restoreBedrock } from './proxy-bedrock.js';
 
-export const SERVICE_HOLDOUT = 0.5;
+export const SERVICE_HOLDOUT = 0;
 export const PROXY_LABEL = 'com.thinker.proxy';
 export const PROXY_ENV = BASE_URL_VAR;
 // Claude Code on a cloud route speaks that provider's format, which the proxy does not read

@@ -55,7 +55,18 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 60k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
-- Holdout 50%, per session by hash; `proxy: { holdout }` in config overrides.
+- **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
+  is a long session, so "cleared against held out" never compared like with like, and at 50% it cost every install half
+  the saving. `proxy: { holdout }` in config puts an arm back for an experiment; the Factory's compression diff then reads it.
+- **Re-reads of cleared files are measured per session instead** (`src/rereads.js`, programmatic, no model): the Stop
+  hook replays the cut policy over the transcript (a cut at T takes the results of the turns before its own, bar the
+  newest `keepMin`, bar those under `MIN_CHARS`) with the session's cut times (`cutTimesFor`: proxy rows where the cleared
+  set grew, the mod's `recent`, the log's mirror rows), and a Read whose last earlier Read was out of the prompt is a
+  re-read. `rereads: { reads, tokens, laterTokens }` on the `op: session` row; `delivery.js` prices it at list (its write
+  once, its reads after at the cache-read rate) as `cost.reread`, and **net = saved − rewrite − reread** on every door
+  (`thinker prs`, the posted comment, the Report's PR rows, telemetry `rereadUsd`/`rereads`/`rereadSessions`). A ceiling:
+  a read the model would have made anyway counts too. What it cannot see, an answer gone wrong without a read, is the
+  graded Artemis run's question. Sessions logged before this carry no `rereads` and net as before.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
@@ -355,8 +366,10 @@ new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whos
 of `reports.raw_json`, which the ingest already stores whole.
 
 **What it still cannot say.** A cleared session is not a comparable session, and nothing here is a controlled
-comparison -- the holdout is, and it is per machine (`thinker profile holdout`, `thinker factory --diff
-compression`). The policy stamp starts empty: every clear on this machine today reads `unstamped`, and the current
+comparison. The clearing's holdout was one, per machine, and is off since 2026-11-12: a session that gets a cut is a
+long session, so its two sides were never alike. What the holdout was kept for, the model reading back what was cleared,
+is measured in each session and netted (`src/rereads.js`); `proxy: { holdout }` puts an arm back for `thinker factory
+--diff compression`. The policy stamp starts empty: every clear on this machine today reads `unstamped`, and the current
 policy's per-session figure only begins once installs carry this build. A session whose agent reports no usage
 (Cursor) counts as a session and in no dollar figure.
 

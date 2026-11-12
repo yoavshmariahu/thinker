@@ -523,6 +523,9 @@ export function renderArms(v, feature) {
   const t = armRows(v, feature); if (!t) return [];
   const f = (x, kind) => x == null ? '–' : kind === 'money' ? money(x) : kind === 'pct' ? pct(x) : kind === 'rate' ? x.toFixed(2) : kind === 'tokens' ? k(x) : String(Math.round(x));
   const out = [`${t.name}: ${t.onLabel} against ${t.offLabel}${t.rate != null ? ` (${pct(t.rate)} of sessions held out)` : ''}`];
+  // the clearing's holdout is off (2026-11-12, proxy-service.js:SERVICE_HOLDOUT): what the model read again after a cut is
+  // measured in each session instead (rereads.js, thinker prs); `proxy: { holdout }` in the machine config puts an arm back
+  if (feature === 'compression' && !(t.rate > 0)) out.push('The clearing has no holdout: re-reads of cleared files are measured in each session and netted in thinker prs. proxy: { holdout } in the machine config puts a held-out side back.');
   out.push(`Trust: ${TRUST_WORDS[t.trust.level]}. The smaller side has ${t.trust.smaller} sessions${t.trust.band != null ? `; a difference under ±${Math.round(100 * t.trust.band)}% is within what two random samples of these sessions would show, and is marked flat` : ''}.`);
   out.push(''.padEnd(26) + t.onLabel.padStart(14) + t.offLabel.padStart(14) + 'difference'.padStart(13));
   for (const r of t.rows) { const d = r.diff; out.push(r.label.padEnd(26) + f(r.on, r.kind).padStart(14) + f(r.off, r.kind).padStart(14) + (d == null ? '–' : `${d > 0 ? '+' : ''}${Math.round(100 * d)}%${r.verdict === 'flat' ? ' ~' : r.verdict === 'good' ? ' ✓' : ' ✗'}`).padStart(15) + (r.note ? `   ${r.note}` : '')); }

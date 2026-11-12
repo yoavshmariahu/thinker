@@ -18,7 +18,7 @@ import type { Register, SessionMessage } from 'claude-code'
 export const TRIGGER = 140000
 export const CLEAR_AT_LEAST = 60000
 export const KEEP_MIN = 3
-export const HOLDOUT = 0.5
+export const HOLDOUT = 0
 export const TOKENS_PER_CHAR = 1.44 / 4
 // a tool result's own rate, for the breakdown's estimate of the results (proxy.js:RESULT_TOKENS_PER_CHAR, measured on results)
 export const RESULT_TOKENS_PER_CHAR = 0.445

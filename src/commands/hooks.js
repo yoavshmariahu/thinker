@@ -36,7 +36,8 @@ import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
-import { ensureProxy, gatewayHint } from '../proxy-service.js';
+import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
+import { cutTimesFor, rereadsOf } from '../rereads.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -319,7 +320,18 @@ async function hookCommand(ctx) {
     // Claude Code continued in a new one carries the original's history in its file: the row counts from the moment it
     // was continued, found in the original's tail beside this file (transcripts.js:continuedSince)
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) {
+      try {
+        const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 });
+        const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : [];
+        // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
+        // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
+        let rereads = null;
+        try { const cuts = cutTimesFor({ session, proxyLog: proxyLogFile(), dir: compressionDir() }); rereads = cuts.length ? rereadsOf(p, cuts) : null; } catch { rereads = null; }
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
+        store.log(record);
+      } catch {}
+    }
     // A clear the proxy never saw -- a desktop session's, made by the clearing mod -- lives in the card's own
     // state file, which is pruned after two days. Every window that reads a saving is longer than that, so it
     // is mirrored into the machine's log once per clear, where it lasts as long as the log
