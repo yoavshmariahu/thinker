@@ -177,6 +177,32 @@ test('a session is charged for the prefix rewrites of the calls after its first 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+// The two doors must price a cold cut alike. Past the cache's hour the request writes its whole context again
+// whether or not anything is replaced, which is why `decideCut` prices that cut at zero -- so charging the
+// same write here made a cut that cost nothing read as the clearing's biggest loss.
+test('a cold cut is not charged for the write the expired cache was going to pay anyway', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.log');
+  const call = (over = {}) => JSON.stringify({
+    at: '2026-11-10T10:00:00.000Z', op: 'proxy', session: 's1', model: 'claude-fable-5-1',
+    cleared: 0, input: 0, read: 0, write: 0, ...over,
+  });
+  fs.writeFileSync(log, [
+    // the cold cut itself: nothing in cache to read back, so its write is the expired cache's, not the cut's
+    call({ cleared: 95_000, write: 349_000, read: 0, clear: { tokens: 95_000, cold: true } }),
+    // and the calls after it read the shorter prefix back: no rewrite, nothing charged
+    call({ write: 0, read: 300_000 }),
+  ].join('\n') + '\n');
+  assert.equal(clearingCostBySession(log).has('s1'), false, 'a cold cut that caused no rewrite costs nothing');
+
+  // a warm cut is charged: there the rewrite IS what the cut bought, and the decision priced it (`recache`)
+  fs.writeFileSync(log, [
+    call({ cleared: 95_000, write: 349_000, read: 0, clear: { tokens: 95_000, recache: 349_000, payback: 12 } }),
+    call({ write: 0, read: 300_000 }),
+  ].join('\n') + '\n');
+  assert.equal(clearingCostBySession(log).get('s1').write, 349_000, 'a warm cut pays for its own rewrite');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('the clearing cost honours the window, so a report of today never charges yesterday', () => {
   const dir = tmp(), log = path.join(dir, 'proxy.log');
   const call = (at, over = {}) => JSON.stringify({

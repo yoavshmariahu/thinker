@@ -364,6 +364,15 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
     if (since && r.at && r.at < since) continue;
     if (clearedOf(r) > 0) cleared.add(r.session);
     if (!cleared.has(r.session) || !isRewrite(r)) continue;
+    // A cold cut's own call is not the clearing's cost. Past the cache's hour the request writes its whole
+    // context again whether or not anything was replaced, which is exactly why `decideCut` prices that cut at
+    // zero (cutting.js, the cold branch) -- and then this door charged the very same write to the clearing.
+    // Measured on this machine: both Fable cuts of the five days to 2026-11-11 were cold, each wrote its
+    // context with a cache read of ZERO (202k and 349k, nothing to read back), and no call after either one
+    // rewrote a prefix at all -- 0 of 227 over 100k of context. Those two writes were the whole of the $11.01
+    // charged against $3.89 saved, and at Fable's 80 reads to a written token they read as the clearing
+    // losing money on a session it had not cost a token. The two doors have to price a cold cut alike.
+    if (r.clear?.cold) continue;
     const price = listPrice(r.model, { config });
     const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
     x.rewrites++; x.write += r.write || 0;
@@ -382,6 +391,11 @@ export function clearedBySession(file, { since = '' } = {}) {
     if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
     const prev = out.get(r.session) || { cleared: 0, requests: 0 };
     out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
+      // The model the API answered with, from the rows themselves. Without it a session is priced only when
+      // the usage log's own `session` row names one, and on this machine that left 96% of the cleared tokens
+      // in a five-day window unpriced -- so the netted dollars were computed from a handful of sessions and
+      // read as noise. The proxy has known the model all along; nothing asked it.
+      ...(r.model || prev.model ? { model: r.model || prev.model } : {}),
       // the policy the rows name (cutting.js:policyId), the newest winning, and a mark where a session spans two
       ...(r.policy || prev.policy ? { policy: r.policy || prev.policy } : {}),
       ...((prev.policy && r.policy && prev.policy !== r.policy) || prev.policyChanged ? { policyChanged: true } : {}) });
