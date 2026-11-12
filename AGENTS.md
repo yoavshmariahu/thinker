@@ -54,7 +54,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **A fresh worktree needs its dependencies before the suite means anything:**
 - A worktree has no `node_modules` of its own. The first `npm test` there can race whatever puts them in place and fail about 9 spawn-based tests with `ERR_MODULE_NOT_FOUND` on a real dependency (`smol-toml`, imported by `proxy-codex.js`), then pass on every later run. Seen twice on 2026-10-28, in two worktrees, with `node_modules/.package-lock.json` written in the middle of the failing run.
-- Run `npm ci` in a new worktree before the suite, and treat a first run with those failures as nothing. What installed them is not confirmed; if it turns out to be a prompt hook, that breaks the rule that hooks do no installs or side work (2026-10-22), and is worth chasing.
+- Run `npm ci` in a new worktree before the suite, and treat a first run with those failures as nothing. What installed them is not confirmed; if it turns out to be a prompt hook, it is an install nobody asked for (the rule that hooks do no side work went on 2026-11-11, the installer-from-a-hook ban did not), and is worth chasing.
 
 **Test selection:**
 - `npm test` runs test files reached by the change vs `origin/main` (commits since merge base, working tree, untracked).
@@ -706,9 +706,23 @@ longer exceptions to anything.
   live run against a real gateway -- the translation is tested against fakes shaped like OpenAI's stream and the probe
   against fakes shaped like OpenRouter's and LiteLLM's lists. `docs/usage.md` has the person's side.
 
-**Hooks never run or rewrite test commands (MANDATORY, 2026-10-30):**
-- Thinker is the cache and context reduction harness. The test wrapper and its automatic command interception have been removed.
-- Legacy `hook pre` calls do nothing; wiring refresh removes those hooks while preserving other hooks.
+**A hook may hand a tool call to a subagent (2026-11-11, the owner's call; two rules removed):**
+- Two rules stood here and are gone at the owner's instruction: *hooks never run or rewrite test commands*
+  (2026-10-30, after the test wrapper and its automatic command interception were removed) and *hooks are only for
+  the cache, no installs or side work from a hook* (2026-10-22, after PR #434 made a prompt hook start the installer).
+  What they were for: a hook runs in every turn of a person's session, so an action it takes is one nobody asked for
+  in that turn, and the interception of test commands had bought nothing. What they cost: the delegation trigger. The
+  stage-delegation bench of 2026-11-10/11 (43 paired runs, Opus inline against an Opus lead with Sonnet subagents;
+  the owner's memory notes `delegation-trigger-rules` and `stage-delegation-bench-2026-11-10`) measured that handing
+  a turn's exploration to a Sonnet explorer once its reads pass ~35k tokens saves 11-50% on such sessions, projects
+  to ~4.6% of this machine's spend over 30 days, and that a nudge the model may ignore is not a trigger. The only
+  deterministic door Claude Code has is a PreToolUse hook that denies the read or the suite run, runs the subagent
+  itself, and returns its report as the denial. That is side work from a hook, and it intercepts test commands, so
+  both rules had to go for it.
+- What stays: the installer is still a command, a skill or the page, never a hook branch, since downloading software
+  from a hook is what directory reviews reject. Legacy `hook pre` calls still do nothing and the wiring refresh still
+  removes them. A hook that spends the person's tokens does so under a switch the person can turn off, logs every
+  interception with its cost, and is judged live against a per-session holdout, as the clearing is.
 
 **Telemetry and tests (MANDATORY):**
 - Set `THINKER_TEST=1` for tests, benchmarks, eval harnesses, scratch experiments, and their setup/install steps (`npm test` sets it).
