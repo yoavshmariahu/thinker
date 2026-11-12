@@ -158,9 +158,12 @@ test('a session is charged for the prefix rewrites of the calls after its first 
     // a rewrite before any clear: real, but nothing to do with the clearing
     call({ write: 150_000, read: 0 }),
     // the clearing request itself, and the rewrite on the call after it. A rewrite is a call whose write is
-    // more than half its context (cutting.js:isRewrite), so these carry no cache read worth speaking of.
-    call({ cleared: 80_000, write: 120_000, read: 0 }),
-    call({ write: 100_000, read: 0 }),
+    // more than half its context (cutting.js:isRewrite); the system prompt is what a warm prefix still reads back.
+    call({ cleared: 80_000, write: 120_000, read: 12_000 }),
+    call({ write: 100_000, read: 12_000 }),
+    // a rewrite that read nothing back: the cache had expired (a pause past its hour), so the write was coming with
+    // or without the clearing and is not charged to it (cutting.js:chargedRewrite)
+    call({ write: 150_000, read: 0 }),
     // a cache read on a long prompt: not a rewrite, so not charged
     call({ write: 0, read: 300_000 }),
     // another session that was never cleared is charged nothing at all
@@ -196,7 +199,7 @@ test('a cold cut is not charged for the write the expired cache was going to pay
 
   // a warm cut is charged: there the rewrite IS what the cut bought, and the decision priced it (`recache`)
   fs.writeFileSync(log, [
-    call({ cleared: 95_000, write: 349_000, read: 0, clear: { tokens: 95_000, recache: 349_000, payback: 12 } }),
+    call({ cleared: 95_000, write: 349_000, read: 12_000, clear: { tokens: 95_000, recache: 349_000, payback: 12 } }),
     call({ write: 0, read: 300_000 }),
   ].join('\n') + '\n');
   assert.equal(clearingCostBySession(log).get('s1').write, 349_000, 'a warm cut pays for its own rewrite');
@@ -206,7 +209,7 @@ test('a cold cut is not charged for the write the expired cache was going to pay
 test('the clearing cost honours the window, so a report of today never charges yesterday', () => {
   const dir = tmp(), log = path.join(dir, 'proxy.log');
   const call = (at, over = {}) => JSON.stringify({
-    at, op: 'proxy', session: 's1', model: 'claude-opus-5-5', cleared: 0, input: 0, read: 0, write: 0, ...over,
+    at, op: 'proxy', session: 's1', model: 'claude-opus-5-5', cleared: 0, input: 0, read: 12_000, write: 0, ...over,
   });
   fs.writeFileSync(log, [
     call('2026-11-01T10:00:00.000Z', { cleared: 80_000, write: 150_000 }),
@@ -259,7 +262,7 @@ test('a desktop session\'s record is charged its own count of rewrites, where th
   const dir = tmp(), log = path.join(dir, 'proxy.jsonl'), records = path.join(dir, 'compression');
   fs.mkdirSync(records);
   // the proxy's own session: its rows carry the writes, and its record (which the proxy writes too) is left alone
-  fs.writeFileSync(log, JSON.stringify({ at: '2026-11-06T10:00:00.000Z', op: 'proxy', session: 'p', model: 'claude-opus-5-5', cleared: 80_000, input: 0, read: 0, write: 120_000 }) + '\n');
+  fs.writeFileSync(log, JSON.stringify({ at: '2026-11-06T10:00:00.000Z', op: 'proxy', session: 'p', model: 'claude-opus-5-5', cleared: 80_000, input: 0, read: 12_000, write: 120_000 }) + '\n');
   fs.writeFileSync(path.join(records, 'p.json'), JSON.stringify({ session: 'p', firstAt: 1, lastAt: Date.parse('2026-11-06T10:00:00Z'), requests: 1, saved: 80_000, uses: 1, recent: [], cost: { rewrites: 9, write: 9e6 }, model: 'claude-opus-5-5' }));
   // the desktop session: the mod's record alone, with the count the mod made and the model the API answered with
   fs.writeFileSync(path.join(records, 'd.json'), JSON.stringify({ session: 'd', firstAt: 1, lastAt: Date.parse('2026-11-06T11:00:00Z'), requests: 6, saved: 300_000, uses: 4, recent: [], cost: { rewrites: 2, write: 220_000 }, model: 'claude-opus-5-5' }));

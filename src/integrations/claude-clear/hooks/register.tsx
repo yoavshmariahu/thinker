@@ -51,17 +51,19 @@ export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep
 // What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
 // holds the two together): from the first clear onward, a request that wrote more than half of a long context
 // into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,
-// priced at the one-hour write rate (compression.js:clearingCostBySession). The engine reports every request's
+// priced at the one-hour write rate (compression.js:clearingCostBySession) -- unless it read nothing back, which
+// means the cache had expired and the write was coming anyway (cutting.js:chargedRewrite). The engine reports every request's
 // usage to `turn.step` in the API's own counts, so the figure is measured, not modelled.
 export const LONG_CONTEXT = 100000
 export const isRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx }
+export const chargedRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { return isRewrite(u) && (u?.read || 0) > 0 }
 // the API's counts, as `turn.step`'s usage carries them, in the proxy log's spelling
 export const usageOf = (usage: any) => usage ? { input: Number(usage.input_tokens) || 0, read: Number(usage.cache_read_input_tokens) || 0, write: Number(usage.cache_creation_input_tokens) || 0 } : null
 export type Cost = { rewrites: number; write: number }
 // the cost after one more request: the write counted when the request rewrote its prefix, as the proxy charges it
 export const charge = (cost: Cost | undefined, usage: any): Cost => {
   const u = usageOf(usage), c = { rewrites: cost?.rewrites ?? 0, write: cost?.write ?? 0 }
-  if (u && isRewrite(u)) { c.rewrites++; c.write += u.write }
+  if (u && chargedRewrite(u)) { c.rewrites++; c.write += u.write }
   return c
 }
 export const DELAY_MS = 1500

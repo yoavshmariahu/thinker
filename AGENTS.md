@@ -312,6 +312,18 @@ shipped reads `unstamped` and is never folded into today's.
   sessions thrown away. Nothing on one machine can know when another updated, and with the stamp it does not have
   to. The Factory's own date stays as it is -- it reads this machine's transcripts, where the update time is known.
 
+**The dashboard reads the stamped policies alone (2026-11-12, the owner's ask).** On that day every install read as a
+loss: the window pooled the API-side clearing and the 100k-floor cut with the live policy's first week, and on the biggest
+install the rewrite dollars went from $1,602 on Nov 7 to $1,632 on Nov 12 -- the live cut added $30 in five days against
+$1,600 from before. So the headline card, the per-session table and the by-day line read `byPolicy` keys of the form
+`r<rev>-...` only (`scripts/savings-dashboard.mjs:STAMPED`); the clears from before the stamp are their own row and
+column, and leave the window on their own. The figures that carry no policy (`byDay`, `netBuckets`) still pool, and
+say so. Two rewrites the clearing did not cause are not charged to it, in both doors (`cutting.js:chargedRewrite`,
+`register.tsx:chargedRewrite`, held together by `test/claude-clear.test.js`): a cold cut's own call (#760 of
+2026-11-11, `r.clear.cold`) and any rewrite that read nothing back, which found the cache expired -- a pause past its
+hour, a session's first request -- so the write was coming anyway and the cut only made it smaller. On this machine's
+30 days to 2026-11-12, 601 of the 604 rewrites charged were the API-side policy's and 30 were of the expired kind.
+
 **`sessions` in the payload** (`delivery-telemetry.js:deliveryMetrics` returns `{ prs, sessions }` from one walk of
 the repositories): groups of **sums**, never per-session averages, so every rate a dashboard shows is a ratio of
 sums -- the mean of per-session ratios read $13.93 against the true $5.97 on this machine's own ledger. `all`,

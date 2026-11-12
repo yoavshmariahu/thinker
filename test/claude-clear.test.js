@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, policyId, POLICY_REV } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, POLICY_REV } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -177,9 +177,16 @@ test('the record keeps what the clear cost, counted as the proxy counts a rewrit
   const mine = new Function('LONG_CONTEXT', 'u', body)
   for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 0, write: 40_000, input: 10 }, { read: 60_000, write: 70_000, input: 0 }, null])
     assert.equal(mine(LONG_CONTEXT, u), isRewrite(u), `the two doors agree on ${JSON.stringify(u)}`);
+  // and one rule for which of those the clearing is charged for (cutting.js:chargedRewrite): a read of zero is the cold cache's
+  const chargedBody = s.match(/export const chargedRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
+  assert.ok(chargedBody, 'the mod defines chargedRewrite');
+  const charged = new Function('isRewrite', 'u', chargedBody);
+  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 }, null])
+    assert.equal(charged(isRewrite, u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
   // counted on every request after a clear, from the usage the engine reports for that request, in the API's spelling
   const step = s.slice(s.indexOf("on('turn.step'"), s.indexOf("on('turn.complete'"));
   assert.ok(step.includes('state.cost = charge(state.cost, r?.usage)'), 'every request after a clear is charged');
+  assert.ok(s.includes('if (u && chargedRewrite(u))'), 'the mod charges by the one rule');
   assert.ok(step.includes('state.model = String(r.usage.model)'), 'the model that answered is kept');
   for (const f of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) assert.ok(s.includes(`usage.${f}`), `reads ${f}`);
   // and kept across clears in the same shape compression.js:clearingCostBySession returns

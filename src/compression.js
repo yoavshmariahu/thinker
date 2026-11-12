@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { isRewrite, clearedOf, clearedUsesOf, clearedEstimated } from './cutting.js';
+import { chargedRewrite, clearedOf, clearedUsesOf, clearedEstimated } from './cutting.js';
 import { listPrice } from './prices.js';
 
 // Turns after the first clear of a session before the saving is shown. Three: enough that the figure is the
@@ -363,7 +363,7 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
     covered.add(key(r.session));
     if (since && r.at && r.at < since) continue;
     if (clearedOf(r) > 0) cleared.add(r.session);
-    if (!cleared.has(r.session) || !isRewrite(r)) continue;
+    if (!cleared.has(r.session) || !chargedRewrite(r)) continue;
     // A cold cut's own call is not the clearing's cost. Past the cache's hour the request writes its whole
     // context again whether or not anything was replaced, which is exactly why `decideCut` prices that cut at
     // zero (cutting.js, the cold branch) -- and then this door charged the very same write to the clearing.
@@ -373,6 +373,7 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
     // charged against $3.89 saved, and at Fable's 80 reads to a written token they read as the clearing
     // losing money on a session it had not cost a token. The two doors have to price a cold cut alike.
     if (r.clear?.cold) continue;
+    // and a rewrite that read nothing back is the expired cache's for the same reason (cutting.js:chargedRewrite)
     const price = listPrice(r.model, { config });
     const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
     x.rewrites++; x.write += r.write || 0;
