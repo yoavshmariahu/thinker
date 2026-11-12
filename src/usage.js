@@ -46,13 +46,26 @@ export function normalizeClient(client, session = '') {
 // and sorted them again -- a sixth of a second a call, and one report calls this five times over (report.js,
 // context-view.js, delivery.js, profile-metric.js, savings-ledger.js), once per repository of `--refresh --all`:
 // three of the fifteen seconds that run took here. The events are read, never written, so every caller shares one array.
-const parsed = new Map(); // file -> { stamp, rows, sorted: Map(`${repo}\t${all}` -> events) }
+//
+// **Nothing is copied to answer a read** (2026-11-12). An event records the repository it happened in, so the two
+// fields a reader needs -- `repo` and `origin` -- are put on the rows once, here, in the order they are read in; a
+// reader then gets the rows themselves (`all`) or an array of references to the ones it asked for. Until then every
+// (repository, all) pair spread all 35,000 events into 35,000 new objects: 51 MB of heap for this machine's 18 MB log,
+// four of them held at once, re-made for each of eighteen repositories of an All repositories visit. The time was
+// hidden by the cache below; the allocation was not, and it is what a page load costs on a machine already short of
+// memory, which is when the person notices. A log whose rows do not all name a repository (`anonymous`) keeps the old
+// path, since there the fields depend on which checkout is asking.
+const parsed = new Map(); // file -> { stamp, rows, anonymous, sorted: Map(`${repo}\t${all}` -> events) }
 const parse = f => {
   let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return null; }
   let hit = parsed.get(f);
   if (!hit || hit.stamp !== stamp) {
     let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
-    hit = { stamp, rows: raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op), sorted: new Map() };
+    const rows = raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op);
+    rows.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+    let anonymous = false;
+    for (const e of rows) { if (!e.repo) { anonymous = true; continue; } if (!e.origin) e.origin = repoId(e.repo); }
+    hit = { stamp, rows, anonymous, sorted: new Map() };
     parsed.set(f, hit);
   }
   return hit;
@@ -63,14 +76,16 @@ const parse = f => {
 const KEEP_SORTED = 4;
 const logEvents = (f, repo, all) => {
   const hit = parse(f); if (!hit) return [];
+  if (!hit.anonymous && all) return hit.rows; // in order, with their origins already on them
   const key = `${repo}\t${all}`, kept = hit.sorted.get(key);
   if (kept) { hit.sorted.delete(key); hit.sorted.set(key, kept); return kept; }
   const here = repoId(repo);
-  const out = hit.rows
-    // which repository: the origin recorded with the event, else that of the checkout it names
-    .map(e => { const r = e.repo || repo; return { ...e, repo: r, origin: e.origin || repoId(r) }; })
-    .filter(e => all || e.origin === here)
-    .sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
+  const out = hit.anonymous
+    ? hit.rows
+      // which repository: the origin recorded with the event, else that of the checkout it names
+      .map(e => { const r = e.repo || repo; return e.repo && e.origin ? e : { ...e, repo: r, origin: e.origin || repoId(r) }; })
+      .filter(e => all || e.origin === here)
+    : hit.rows.filter(e => e.origin === here);
   hit.sorted.set(key, out);
   for (const k of [...hit.sorted.keys()].slice(0, -KEEP_SORTED)) hit.sorted.delete(k);
   return out;
