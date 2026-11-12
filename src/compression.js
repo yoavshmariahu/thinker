@@ -382,6 +382,11 @@ export function clearedBySession(file, { since = '' } = {}) {
     if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
     const prev = out.get(r.session) || { cleared: 0, requests: 0 };
     out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
+      // The model the API answered with, from the rows themselves. Without it a session is priced only when
+      // the usage log's own `session` row names one, and on this machine that left 96% of the cleared tokens
+      // in a five-day window unpriced -- so the netted dollars were computed from a handful of sessions and
+      // read as noise. The proxy has known the model all along; nothing asked it.
+      ...(r.model || prev.model ? { model: r.model || prev.model } : {}),
       // the policy the rows name (cutting.js:policyId), the newest winning, and a mark where a session spans two
       ...(r.policy || prev.policy ? { policy: r.policy || prev.policy } : {}),
       ...((prev.policy && r.policy && prev.policy !== r.policy) || prev.policyChanged ? { policyChanged: true } : {}) });

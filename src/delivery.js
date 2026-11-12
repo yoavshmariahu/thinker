@@ -90,6 +90,7 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     // a desktop session's record names the model the API answered with, where no hook logged one
     if (!x.model && x.rewrite?.model) x.model = x.rewrite.model;
     if (!x.model && x.logged?.model) x.model = x.logged.model;
+    if (!x.model && c.model) x.model = c.model;   // the model the proxy's own clearing rows name
     delete x.logged;
     // Dollars, at the session's own model's list rates: a cleared token saved a cache read, and the writes after a
     // clear are what it cost (prices.js).
@@ -120,13 +121,22 @@ export function clearingFor({ home = thinkerHome(), env = process.env, since = '
   return id => {
     let state = null;
     try { state = readCompression(dir, id); } catch { state = null; }
+    // The record is the session's whole life, so it may only be read inside the window the log's rows are read
+    // over -- otherwise a clear made days before `since` counts as a saving inside it. On this machine a
+    // five-day window drew in 16 sessions cleared 8 to 13 days earlier, 425M of its 441M tokens, which is how
+    // a question about the last five days got answered with a fortnight's clears (`desktopClearRows` and
+    // `desktopClearingCost` have dated their rows all along; this door did not).
+    const at = state?.lastAt ?? state?.firstAt;
+    const dated = typeof at === 'number' ? new Date(at).toISOString() : at;
+    if (state && since && dated && dated < since) state = null;
     const a = logged.get(id);
     const cleared = Math.max(finite(a?.cleared) ? a.cleared : 0, finite(state?.saved) ? state.saved : 0);
     // Which cut policy saved it (cutting.js:policyId), off whichever record carried the figure -- the log
     // first, as above. Null for a clear made before the policy was stamped on the row, which is not the same
     // as a clear under today's policy: a reader comparing savings leaves those out rather than pooling them.
     const named = a?.policy ? a : state?.policy ? state : null;
-    return { cleared, policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
+    return { cleared, model: a?.model || state?.model || null,
+      policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
   };
 }
 

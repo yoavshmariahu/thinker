@@ -9,6 +9,7 @@ import { Store } from '../src/store.js';
 import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { mirrorClearing } from '../src/compression.js';
+import { sessionsOf } from '../src/delivery.js';
 import { buildTelemetryPayload } from '../src/telemetry.js';
 import { normalizeReport } from '../infra/metrics/report.mjs';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
@@ -151,6 +152,35 @@ test('a desktop clear still counts after its record is pruned, with its cost and
   assert.ok(s.cleared.savedUsd > 0, 'priced from the model the record named');
   assert.ok(s.cleared.rewriteUsd > 0, 'and what the clear cost is charged too');
   assert.equal(s.cleared.netUsd, Math.round((s.cleared.savedUsd - s.cleared.rewriteUsd) * 100) / 100);
+});
+
+// Two faults that made every windowed dollar figure wrong, found by asking what the last five days saved.
+test('a window holds the clears made inside it, priced at the model the proxy saw', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  const dir = path.join(home, 'state', 'compression');
+  fs.mkdirSync(dir, { recursive: true });
+  const old = 'PRIVATE_OLD_SESSION', fresh = 'PRIVATE_FRESH_SESSION';
+  // a session whose clear happened well before the window, with an event inside it
+  fs.writeFileSync(path.join(dir, `${old}.json`), JSON.stringify({ session: old, saved: 400_000_000, requests: 9, lastAt: now - 12 * 86400_000 }));
+  store.log({ op: 'session', t: at(1), session: old, client: 'claude', turns: 4, totalTokens: 10_000, tokenCoverage: 'complete' });
+  // and one cleared inside it, whose own `session` row names no model: the proxy's rows do
+  fs.writeFileSync(path.join(dir, `${fresh}.json`), JSON.stringify({ session: fresh, saved: 5_000_000, requests: 3, lastAt: now - 3600_000, model: 'claude-opus-5-5' }));
+  store.log({ op: 'session', t: at(2), session: fresh, client: 'claude', turns: 6, totalTokens: 20_000, tokenCoverage: 'complete' });
+
+  const five = new Date(now - 5 * 86400_000).toISOString();
+  const inWindow = sessionsOf(store, { since: five, home });
+  assert.equal(inWindow.get(old).cleared, 0, 'a clear made before the window is not a saving inside it');
+  assert.equal(inWindow.get(fresh).cleared, 5_000_000);
+  assert.ok(inWindow.get(fresh).cost.priced, 'priced from the model the clearing itself recorded');
+  assert.ok(inWindow.get(fresh).cost.saved > 0);
+  // the same record counts in a window that holds it
+  const all = sessionsOf(store, { since: new Date(now - 30 * 86400_000).toISOString(), home });
+  assert.equal(all.get(old).cleared, 400_000_000);
+  // a record with no date at all cannot be judged, so it is kept rather than dropped
+  const undated = 'PRIVATE_UNDATED';
+  fs.writeFileSync(path.join(dir, `${undated}.json`), JSON.stringify({ session: undated, saved: 7_000, requests: 1 }));
+  store.log({ op: 'session', t: at(1), session: undated, client: 'claude', turns: 1, totalTokens: 100, tokenCoverage: 'complete' });
+  assert.equal(sessionsOf(store, { since: five, home }).get(undated).cleared, 7_000);
 });
 
 test('the payload carries them, and the metrics API promotes them to columns', t => {
