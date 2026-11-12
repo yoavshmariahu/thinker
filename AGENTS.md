@@ -606,11 +606,51 @@ longer exceptions to anything.
   reaches the same execution -- the faithful port needs an opencode-side surface that does not exist
   yet (checked against 2.2.7).
 
+**The delegation trigger: a read or a suite run handed to a Sonnet subagent, deterministically (2026-11-11, the owner's
+call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse on `Read|Bash`):**
+- The mechanism. A PreToolUse hook sees every Read and Bash call before it runs. A read past the rule (below) or a
+  whole-suite test run is **denied**, the hook runs the subagent itself through `claude -p` on `delegate.model`
+  (Sonnet 5.5) with read-only tools, and the subagent's report comes back as the denial's reason, which is what the
+  model reads instead of the file. A repeat of the same read in the same turn gets the cached report; a ranged Read
+  (`offset`/`limit`, under `minRead` 8k tokens) is never delegated, so the model still reads the lines it edits. A
+  subagent that fails or times out (`timeoutMs` 240 s) lets the call through. The hook answers in ~0.25 s when the
+  call goes through (the CLI's module load; nothing is read); the settings entry's timeout is 300 s for the run.
+- The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
+  (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
+  35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
+  on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
+  `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
+  itself). A suite run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./...,
+  cargo test, node --test); a single file's run stays with the model.
+- Why those numbers: the stage-delegation bench (43 paired runs on Click and MLflow, 2026-11-10/11; the owner's
+  memory notes `delegation-trigger-rules`, `stage-delegation-bench-2026-11-10`). Every run whose inline context
+  reached 90k won by delegating (11-50%), every run under 50k lost; the saving is the read's cache write at Sonnet's
+  rate instead of Opus's ($4 against $8 a million, paid at once) plus Opus's cache read of it on every later call,
+  so a ~35k read pays for its subagent on the write alone. The edits stay with the model: a builder subagent was a
+  wash (it re-reads and re-reasons what the lead holds). Replayed over this machine's 30 days the rule projects to
+  ~4.6% of spend, 96% of it in sessions that also reach the clearing's trigger -- the two act on the same tokens,
+  so their figures are never added; the write half (~$190 of $291 a month here) is delegation's alone.
+- Measured from day one: every firing is a log row (`op: delegate`: kind, files, tokens, the subagent's usage and
+  `total_cost_usd`, its session id, `cached`, `error`), and **half the sessions are held out** (`holdout` 0.5 by hash
+  of the session id, `proxy.js:heldOut`, the same rule as the clearing's); a held-out session logs the row with
+  `held: true` and reads as it would have. Judge it by cost per exchange, cleared and held-out, over a window, and
+  by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
+  The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
+  explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
+- Off: `THINKER_DELEGATE=off`, or `delegate: false` / `delegate: { enabled: false }` in `<THINKER_HOME>/config.json`;
+  `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead, holdout, timeoutMs }` tune it;
+  `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Claude Code only: no other
+  agent's hook can deny a tool call and answer in its place (Cursor can deny a shell command; Codex's cannot deny).
+  Under `THINKER_TEST` the hook does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
+- Removed on the way (#750): the rules that hooks never run or rewrite test commands and do no side work. What
+  stays: the installer is never a hook branch.
+
 **Exploration subagents on Sonnet, off by default (2026-11-08; `src/explore-agent.js`):**
 - **Off until the owner decides to ship it** (the same day, after #712 landed on by default: "not 100% sure I want to ship
   it"). `exploreModel` returns null unless `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`
   opts the machine in; a file written while it was on is removed at the next connect or rewire, and connect says so. The
-  delegation nudge that would make it worth having is a todo; the measurement doors (#716, #717) are in place.
+  delegation nudge it waited for became the deterministic trigger above (`src/delegate.js`), which runs its own explorer
+  and does not use this file; the measurement doors (#716, #717) are in place.
 - Claude Code's built-in Explore subagent runs on the main conversation's model, so on an Opus or Fable session a
   delegated exploration is billed at that model's rates. A user or project subagent named `Explore` overrides the
   built-in one and keeps its own `model` (code.claude.com/docs/en/sub-agents), so `thinker connect` and `rewire` write
@@ -794,6 +834,7 @@ longer exceptions to anything.
 | `src/delivery.js`, `src/delivery-journal.js`, `src/commands/prs.js` | `thinker prs`: the pull requests the sessions here produced, what each cost and what was saved on it, in tokens and in netted dollars |
 | `src/delivery-telemetry.js` | what leaves the machine about savings: the `prs` block (counts, tokens, cost, the clear on each) and the `sessions` block (the same saving per session), both grouped by the cut policy that made it |
 | `src/factory.js`, `src/commands/factory.js` | the Factory: every model call at one of seven stages by the tool it called, the loops detected in the sessions by code, the first-pass yield; kept with the Report, read by the page's Factory tab and `thinker factory` |
+| `src/delegate.js` | the delegation trigger: a read past the turn's threshold or a whole-suite run, denied by the PreToolUse hook and answered with a Sonnet subagent's report; the rule, the subagent run, the log row, the holdout |
 | `src/explore-agent.js` | the user-scope Explore subagent on Sonnet: written by connect/rewire, removed by uninstall --user, never a person's own file |
 | `src/providers.js`, `src/wire-chat.js`, `src/proxy-routing.js` | models from other providers: the registry and probe, Messages to Chat and back, the proxy forwarding a `thinker/…` model to its provider |
 | `src/model-agents.js`, `src/model-profile.js`, `src/commands/models.js` | subagents on a chosen model, and the profile of how each model did as one; `thinker models` |

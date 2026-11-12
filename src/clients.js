@@ -642,7 +642,7 @@ function isLocalFile(client, file, repo) {
 // --budget: what a benchmark arm writes). `thinker rewire` runs it for the user's files and every
 // repository on the machine, `thinker update` after an update, and the prompt hook for its own
 // checkout and the user's files.
-const HOOK_COMMAND = /^node "[^"]+" hook (prompt|pre|tool|stop)(?: --client \w+)?(?: --user)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?(?: --no-distill)?$/;
+const HOOK_COMMAND = /^node "[^"]+" hook (prompt|pre|pretool|tool|stop)(?: --client \w+)?(?: --user)?(?: --repo "[^"]+")?(?: --late)?(?: --record)?(?: --no-distill)?$/;
 const readJsonOr = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const ourGroups = (hooks, ev) => (hooks?.[ev] || []).filter(isOurs);
 const commandOf = g => { const c = (g?.hooks ? g.hooks[0] : g)?.command; return c === undefined ? c : realCommand(c); };
@@ -1379,6 +1379,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (hooks) {
       const target = shared && f.shared ? f.shared : f.local;
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
+      // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read past the turn's threshold, or a whole-suite
+      // run, is denied and answered with a subagent's report. The timeout covers the subagent's run; the hook
+      // itself answers in a few milliseconds when the call goes through. THINKER_DELEGATE=off turns it off.
+      entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: 300 }] }]);
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
       // everything else it could answer with (the edited-file notes, instruction sections, the diet) is gone or
       // off. It was one node process per tool call for no output. `PostToolUse` stays in the list below so a
