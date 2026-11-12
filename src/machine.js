@@ -53,11 +53,37 @@ function checkoutOf(p) {
   try {
     const real = fs.realpathSync(p);
     const root = findRepoRoot(real);
-    const scratch = isScratchCheckout(root) || TMP.some(t => root.startsWith(t + path.sep));
+    const scratch = isScratchCheckout(root) || TMP.some(t => root.startsWith(t + path.sep)) || toolArea(root) || insideAnother(root);
     if (!isGitCheckout(root) || (scratch && !isTestMode()) || root === fs.realpathSync(os.homedir())) return null;
     return root;
   } catch { return null; }
 }
+
+// Two more kinds of checkout that are nobody's work (2026-11-12). The page listed eighteen repositories on the owner's
+// machine and five of them were these: they had sessions, so they were not idle, and they cost a report read and a
+// merge on every All repositories visit to contribute nothing anybody wanted to see.
+//
+// A checkout inside a hidden folder of the home directory is a tool's own working area, not a repository the person
+// works in: an agent's job directory (`~/.claude/jobs/<id>/tmp/probe-repo`), a benchmark harness's checkouts
+// (`~/.artemis/repos/mlflow-b2`). Anything the person keeps themselves is somewhere they can see it.
+const toolArea = root => {
+  try {
+    const rel = path.relative(fs.realpathSync(os.homedir()), root);
+    return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel) && rel.split(path.sep)[0].startsWith('.');
+  } catch { return false; }
+};
+// A checkout of one repository inside another's working tree is a fixture or a vendored copy: a benchmark's
+// `bench/worktrees/.../posthog/test-wt` under the thinker checkout is posthog, and belongs to nobody's week. A linked
+// worktree of the *same* repository is not that -- it is the person's own second desk -- and keeps its place, which is
+// why this compares the repository and not the path alone.
+const insideAnother = root => {
+  const mine = repoId(root);
+  for (let dir = path.dirname(root), prev = root; dir !== prev; prev = dir, dir = path.dirname(dir)) {
+    if (!isGitCheckout(dir)) continue;
+    return repoId(dir) !== mine;
+  }
+  return false;
+};
 
 // The directories a build can be narrowed to: every tracked directory up to three levels deep, hidden
 // ones and dependency folders left out, for the page's search box.
