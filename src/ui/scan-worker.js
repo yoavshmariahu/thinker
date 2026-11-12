@@ -5,7 +5,7 @@ import { parentPort } from 'node:worker_threads';
 import { Store, logFile } from '../store.js';
 import { findRepoSessions } from '../instruction-value.js';
 import { contextView } from '../context-view.js';
-import { reportView, weekColumns } from '../report.js';
+import { reportView, weekColumns, refreshLogParts } from '../report.js';
 import { writeSnapshot, lastSnapshot } from '../context-snapshot.js';
 import { writeReport, readReport } from '../report-snapshot.js';
 import { sourceStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
@@ -82,6 +82,21 @@ function restamp(store, kind, window, { now, sessions, from }) {
 // whether a file moved since `since` (a log appended to, a transcript written)
 const movedSince = (f, since) => { try { return fs.statSync(f).mtimeMs > since; } catch { return false; } };
 
+// A Report whose sessions have not moved and whose logs have: the kept view with its log half read again
+// (report.js:refreshLogParts), written back under the stamp of what it now rests on. Answers whether it was done:
+// false leaves the caller to read every session, which is what happens when there is no kept view to build on.
+function logsOnly(store, kind, window, { id, now, sessions, from }) {
+  if (kind !== 'report') return false;
+  try {
+    const kept = readReport(store, window, { now });
+    if (!kept?.view) return false;
+    const view = refreshLogParts(store, kept.view, { now, sessions });
+    writeReport(store, window, view, { now, stamp: stampOf(store, kind, window, { sessions, from }) });
+    parentPort.postMessage({ id, completed: 0, total: 0, view, at: now, done: true, delta: true });
+    return true;
+  } catch { return false; }
+}
+
 parentPort.on('message', ({ id, kind, repo, window, home, transcriptsHome, since = null }) => {
   try {
     const store = new Store(repo), now = Date.now();
@@ -108,6 +123,11 @@ parentPort.on('message', ({ id, kind, repo, window, home, transcriptsHome, since
         parentPort.postMessage({ id, completed: 0, total: 0, done: true, unchanged: true, at: now });
         return;
       }
+      // Only a log moved: the sessions' half of the Report cannot have changed, so it is kept and the logs' half read
+      // again (report.js:refreshLogParts). The logs move every few seconds of a live session, so before this a
+      // repository with no session of its own still re-read every session it has on every visit, and All repositories
+      // paid that for each of them: ~2.7 s of the ~3 s a visit cost on this machine, for figures that could not move.
+      if (!changed.size && logsOnly(store, kind, window, { id, now, sessions, from })) return;
       parentPort.postMessage({ id, completed: 0, total: changed.size, delta: true });
       queue.push({ id, kind, store, window, now, days, sessions, completed: sessions.length, changed, stamp: stampOf(store, kind, window, { sessions, from }) });
     } else {
