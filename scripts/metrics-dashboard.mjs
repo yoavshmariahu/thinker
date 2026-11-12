@@ -185,13 +185,17 @@ export async function provision({ call = api, config = state, persist = save, re
   state.cards ||= {};
   for (const question of questions) {
     const existingId = state.cards[question.name];
-    if (existingId && (question.spend ? state.spendCardVersion === 3 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 3 : state.cardVersion === 8)) continue;
+    // A card's SQL is only rewritten when its family's version moves, so a query edited without bumping the
+    // marker here never reaches Metabase: the delivery cards sat on SQL from before the CTE fix for a view
+    // production does not hold (`v_snapshots`, below), and read "v_snapshots does not exist" for months while
+    // the code that fixed it looked right. 4: the schema-3 fields, and that fix finally landing.
+    if (existingId && (question.spend ? state.spendCardVersion === 3 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 1 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 3; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 3; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 3; state.savingsCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
