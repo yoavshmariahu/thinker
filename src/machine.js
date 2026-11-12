@@ -53,7 +53,7 @@ function checkoutOf(p) {
   try {
     const real = fs.realpathSync(p);
     const root = findRepoRoot(real);
-    const scratch = isScratchCheckout(root) || TMP.some(t => root.startsWith(t + path.sep)) || toolArea(root) || insideAnother(root);
+    const scratch = isScratchCheckout(root) || TMP.some(t => root.startsWith(t + path.sep)) || notYourWork(root);
     if (!isGitCheckout(root) || (scratch && !isTestMode()) || root === fs.realpathSync(os.homedir())) return null;
     return root;
   } catch { return null; }
@@ -66,9 +66,9 @@ function checkoutOf(p) {
 // A checkout inside a hidden folder of the home directory is a tool's own working area, not a repository the person
 // works in: an agent's job directory (`~/.claude/jobs/<id>/tmp/probe-repo`), a benchmark harness's checkouts
 // (`~/.artemis/repos/mlflow-b2`). Anything the person keeps themselves is somewhere they can see it.
-const toolArea = root => {
+const toolArea = (root, home) => {
   try {
-    const rel = path.relative(fs.realpathSync(os.homedir()), root);
+    const rel = path.relative(fs.realpathSync(home), fs.realpathSync(root));
     return Boolean(rel) && !rel.startsWith('..') && !path.isAbsolute(rel) && rel.split(path.sep)[0].startsWith('.');
   } catch { return false; }
 };
@@ -84,6 +84,7 @@ const insideAnother = root => {
   }
   return false;
 };
+export const notYourWork = (root, { home = os.homedir() } = {}) => toolArea(root, home) || insideAnother(root);
 
 // The directories a build can be narrowed to: every tracked directory up to three levels deep, hidden
 // ones and dependency folders left out, for the page's search box.
