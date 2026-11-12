@@ -34,7 +34,6 @@
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
 import { delegateConfig } from './delegate.js';
-import { orcaConfigHomes } from './orca.js';
 import fs from 'node:fs';
 import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
@@ -455,18 +454,15 @@ const droidHooks = () => { const f = path.join(factoryDir(), 'hooks.json'); retu
 const flatHooks = file => path.basename(file) === 'hooks.json' && path.dirname(file) === factoryDir();
 // Cline's hooks: one executable per event, named after it; the CLI's names for the end of a session too
 const CLINE_EVENTS = ['UserPromptSubmit', 'PostToolUse', 'TaskComplete', 'TaskCancel', 'SessionShutdown'];
-// `configDir` is one of Orca's managed account homes (orca.js) instead of the agent's own
-// directory: the same two files, in the directory Orca starts that account's agent in.
-export function wiringFiles(client, { scope = 'repo', repo, configDir } = {}) {
+export function wiringFiles(client, { scope = 'repo', repo } = {}) {
   const user = scope === 'user';
-  const claudeAt = configDir || claudeDir(), codexAt = configDir || codexHome();
   const at = (...p) => path.join(repo, ...p);
   switch (client) {
     // Claude Code runs the hooks of both settings files; thinker's live in one of them (`shared` picks the committed one)
     case 'claude': return user
-      ? { local: path.join(claudeAt, 'settings.json'), shared: null, mcp: configDir || process.env.CLAUDE_CONFIG_DIR ? path.join(claudeAt, '.claude.json') : home('.claude.json') }
+      ? { local: path.join(claudeDir(), 'settings.json'), shared: null, mcp: process.env.CLAUDE_CONFIG_DIR ? path.join(claudeDir(), '.claude.json') : home('.claude.json') }
       : { local: at('.claude', 'settings.local.json'), shared: at('.claude', 'settings.json'), mcp: at('.mcp.json') };
-    case 'codex': return user ? { hooks: path.join(codexAt, 'hooks.json'), toml: path.join(codexAt, 'config.toml') } : { hooks: at('.codex', 'hooks.json'), toml: at('.codex', 'config.toml') };
+    case 'codex': return user ? { hooks: path.join(codexHome(), 'hooks.json'), toml: path.join(codexHome(), 'config.toml') } : { hooks: at('.codex', 'hooks.json'), toml: at('.codex', 'config.toml') };
     case 'gemini': return user
       ? { settings: home('.gemini', 'settings.json'), agyHooks: home('.gemini', 'config', 'hooks.json'), agyMcp: home('.gemini', 'config', 'mcp_config.json') }
       : { settings: at('.gemini', 'settings.json') };
@@ -619,17 +615,11 @@ function extraFiles(client, o) {
   if (client === 'goose' && f.yaml) return [f.yaml, path.join(goosePlugin(), 'plugin.json')];
   return [];
 }
-const wiringOf = (c, o) => {
+const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => {
   const f = wiringFiles(c, o);
   const extra = o.scope === 'repo' ? [...(EXTENSIONS[c] ? [EXTENSIONS[c]] : []), ...(HOOK_FILES[c] || []), ...(RULE_FILES[c] || []), ...(MCP_FILES[c] ? [MCP_FILES[c]] : [])].map(x => path.join(o.repo, x)) : [];
   return [...instructionFiles(c, o), ...jsonWiring(c, o).map(e => e.file), ...(c === 'codex' ? [f.toml] : []), ...(c === 'cursor' && f.rule ? [f.rule] : []), ...(f.ext ? [f.ext] : []), ...extraFiles(c, o), ...extra];
-};
-// Every file a scope's wiring touches. At user scope that includes this client's files in each of
-// Orca's managed account homes (orca.js), so refreshWiring's snapshot and its dry run cover them.
-const allWiring = (o, clients = CLIENTS) => [...new Set(clients.flatMap(c => [
-  ...wiringOf(c, o),
-  ...(o.scope === 'user' && !o.configDir ? orcaConfigHomes(c).flatMap(configDir => wiringOf(c, { ...o, configDir })) : []),
-]))];
+}))];
 // how a file is named to the user: relative to the checkout, or under ~
 const label = (file, { scope, repo }) => scope === 'user' ? file.replace(os.homedir(), '~') : path.relative(repo, file);
 // a checkout file this machine wrote for itself, as against one the team commits
@@ -1221,26 +1211,18 @@ export function enableCodexSubagents({ file = codexConfig() } = {}) {
   return [`Codex: turned on subagents ([features] multi_agent = true) in ${file}`];
 }
 // Mark thinker's hooks in the user's own hooks.json as reviewed, and turn Codex's subagents on.
-// `configDir` is one of Orca's managed Codex homes (orca.js). A review mark is keyed on the real path
-// of the hooks file and kept in the config of the home that reads it, so each home needs its own, or
-// Codex asks for a review of hooks thinker wrote there. Called with nothing, this does the agent's own
-// home and then every Orca account home, so every caller covers them all.
-export function trustCodexUser(configDir) {
-  const file = configDir ? path.join(configDir, 'config.toml') : codexConfig();
+export function trustCodexUser() {
+  const file = codexConfig();
   const done = enableCodexSubagents({ file });
   const before = readText(file);
-  const { text, n } = trustHooksIn(before, wiringFiles('codex', { scope: 'user', configDir }).hooks, null);
-  let out = done;
-  if (n && text !== before) {
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, text);
-    out = [...done, `Codex: marked thinker's ${n} hooks as reviewed in ${file}`];
-  }
-  if (!configDir) for (const dir of orcaConfigHomes('codex')) { try { out = [...out, ...trustCodexUser(dir)]; } catch {} }
-  return out;
+  const { text, n } = trustHooksIn(before, wiringFiles('codex', { scope: 'user' }).hooks, null);
+  if (!n || text === before) return done;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, text);
+  return [...done, `Codex: marked thinker's ${n} hooks as reviewed in ${file}`];
 }
-function untrustCodexHooks(hooksFile, configDir) {
-  const file = configDir ? path.join(configDir, 'config.toml') : codexConfig();
+function untrustCodexHooks(hooksFile) {
+  const file = codexConfig();
   const cur = readText(file); if (!cur) return;
   const prefix = trustPrefix(hooksFile);
   const next = dropTomlTables(cur, h => h.startsWith(prefix)).replace(/\n{3,}/g, '\n\n');
@@ -1299,12 +1281,11 @@ function opencodeV2Files(config) {
 
 // Wire one client in: into the repo (scope 'repo') or the user's files (scope 'user'). Returns lines describing what was done.
 //   opts: scope, repo, cli (path to cli.js), mcpEntry ({command,args,env}), hooks, learn, late, shared, mcp
-export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hooks, learn, late, shared, mcp, configDir }) {
-  const o = { scope, repo, configDir };
+export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hooks, learn, late, shared, mcp }) {
+  const o = { scope, repo };
   const f = wiringFiles(client, o);
-  // whatever another copy of thinker left in this client's files goes first: one copy per checkout.
-  // Another copy's installs are this machine's, not one configuration home's: pruned once.
-  const done = configDir ? [] : prunedLines(pruneInstalls(repo, { scope, cli, mcpEntry: mcp ? mcpEntry : undefined, clients: [client] }));
+  // whatever another copy of thinker left in this client's files goes first: one copy per checkout
+  const done = prunedLines(pruneInstalls(repo, { scope, cli, mcpEntry: mcp ? mcpEntry : undefined, clients: [client] }));
   // a hook at user scope says so (--user): the command is otherwise the same as a checkout's, and the
   // hook must know which it is. Claude Code's checkout hooks keep their bare form (the checkout is
   // the working directory), as every checkout wired before 2026-10-04 has them.
@@ -1429,13 +1410,13 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
         // exploration subagents on a cheaper model: a user-scope Explore agent overrides the built-in one,
         // which runs on the session's own model (explore-agent.js). A person's own Explore.md is left alone.
-        const ex = installExploreAgent({ claudeDir: path.dirname(f.local) });
+        const ex = installExploreAgent({ claudeDir: claudeDir() });
         if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
         else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
         // the subagents thinker models assign wrote, on the models the registry names (model-agents.js)
         let routedAgents = {}; try { routedAgents = readRegistry().agents; } catch {}
-        for (const a of installAgents({ claudeDir: path.dirname(f.local), agents: routedAgents })) {
+        for (const a of installAgents({ claudeDir: claudeDir(), agents: routedAgents })) {
           if (a.action === 'written') done.push(`Claude Code: subagent ${a.name} runs on ${a.model} (${rel(a.file)})`);
           else if (a.action === 'removed') done.push(`Claude Code: removed ${rel(a.file)}, no longer in the registry`);
           else if (a.action === 'kept') done.push(`Claude Code: ${rel(a.file)} is your own and was left alone`);
@@ -1626,14 +1607,6 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
   // tools it named are gone and the hook's bundle says what the notes are. Run on install and by `rewire` after
   // every update, so a machine set up before loses it on its next update.
   for (const file of instructionFiles(client, o)) { try { if (updateInstructions(file, null)) done.push(`${client}: removed the Thinker workflow from ${rel(file)}`); } catch {} }
-
-  // Orca's managed accounts (orca.js): the same wiring in every configuration home Orca starts this
-  // agent in. Done after this home's own, so a home that cannot be written leaves the agent's own
-  // wiring standing; a home added later is wired by the next `rewire`.
-  if (scope === 'user' && !configDir) for (const dir of orcaConfigHomes(client)) {
-    try { done.push(...installClient(client, { scope, repo, cli, mcpEntry, hooks, learn, late, shared, mcp, configDir: dir })); }
-    catch (e) { done.push(`${client}: left the Orca account home ${label(dir, o)} as it was: ${e.message}`); }
-  }
   return done;
 }
 
@@ -1704,39 +1677,17 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
     if (gemini.agyMcp) dropMcpEntry(gemini.agyMcp);
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
-  const dropMcpJson = file => {
-    if (!file || !fs.existsSync(file)) return;
+  if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
+  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); removeAgents({ claudeDir: claudeDir() }); }
+  for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
+  stripHooks(cursor.hooks, true);
+  for (const file of [claude.mcp, cursor.mcp]) {
+    if (!fs.existsSync(file)) continue;
     mergeJson(file, c => { const m = { ...(c.mcpServers || {}) }; delete m.thinker; return { ...c, mcpServers: m }; });
     const left = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (Object.keys(left).length === 1 && !Object.keys(left.mcpServers).length) fs.unlinkSync(file);
-  };
-  // What installClient wrote into one configuration home of Claude Code, and of Codex: the agent's
-  // own, and one per Orca managed account (orca.js). One copy of each, run once per home, so an
-  // account's home never keeps hooks that `uninstall --user` has taken out of the agent's own.
-  const clearClaudeHome = g => {
-    if (scope === 'user' && (cardDirIn(readJsonOr(g.local, {})) || clearDirIn(readJsonOr(g.local, {})))) mergeJson(g.local, c => withoutClearDir(withoutCardDir(c)));
-    if (scope === 'user') { removeExploreAgent({ claudeDir: path.dirname(g.local) }); removeAgents({ claudeDir: path.dirname(g.local) }); }
-    for (const f of [g.local, g.shared]) stripHooks(f);
-    dropMcpJson(g.mcp);
-  };
-  const clearCodexHome = g => {
-    stripHooks(g.hooks);
-    if (fs.existsSync(g.toml)) { const t = stripTomlBlock(fs.readFileSync(g.toml, 'utf8')); if (t.trim()) fs.writeFileSync(g.toml, t); else fs.unlinkSync(g.toml); }
-  };
-  if (scope === 'user') removeClaudeMods();
-  clearClaudeHome(claude);
-  clearCodexHome(codex);
-  if (scope === 'user') {
-    for (const configDir of orcaConfigHomes('claude')) clearClaudeHome(wiringFiles('claude', { scope, repo, configDir }));
-    for (const configDir of orcaConfigHomes('codex')) {
-      const g = wiringFiles('codex', { scope, repo, configDir });
-      untrustCodexHooks(g.hooks, configDir);
-      clearCodexHome(g);
-    }
   }
-  stripHooks(gemini.settings);
-  stripHooks(cursor.hooks, true);
-  dropMcpJson(cursor.mcp);
+  if (fs.existsSync(codex.toml)) { const t = stripTomlBlock(fs.readFileSync(codex.toml, 'utf8')); if (t.trim()) fs.writeFileSync(codex.toml, t); else fs.unlinkSync(codex.toml); }
   if (cursor.rule) fs.rmSync(cursor.rule, { force: true });
 }
 export const uninstallClients = repo => uninstallWiring({ scope: 'repo', repo });
