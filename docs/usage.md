@@ -262,7 +262,7 @@ process.stdout.write(reply.choices[0].message.content);
 
 ## Delegation: big reads and suite runs on a Sonnet subagent
 
-In Claude Code, a read of about a thousand lines or more, or a whole test-suite run, is handed to a subagent on
+In Claude Code and OpenCode 2, a read of about a thousand lines or more, or a whole test-suite run, is handed to a subagent on
 Claude Sonnet 5.5 and the main model gets its report instead of the output. The report names what the request needs
 as `path:line`; the main model still reads the lines it edits itself. It is on by default and half the sessions are
 held out so the saving can be measured; `thinker usage` and the log's `delegate` rows carry each run's cost.

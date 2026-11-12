@@ -68,8 +68,12 @@ function fileStats(file, cwd) {
 }
 function linesOf(p) { try { return fs.readFileSync(p, 'utf8').split('\n').length; } catch { return 0; } }
 
-/** What this tool call would put into the context: { tokens, files }, or null when it is not a read. */
-export function readOf(toolName, input = {}, cwd) {
+/**
+ * What this tool call would put into the context: { tokens, files }, or null when it is not a read. `readCap` is
+ * the most characters the host's Read returns in one call (OpenCode truncates at about 58k and tells the model to
+ * continue at an offset, so a whole file there is several reads, which the turn's tally adds up).
+ */
+export function readOf(toolName, input = {}, cwd, { readCap = 0 } = {}) {
   if (toolName === 'Read') {
     const st = input.file_path && fileStats(input.file_path, cwd);
     if (!st) return null;
@@ -79,7 +83,10 @@ export function readOf(toolName, input = {}, cwd) {
       n = Math.max(0, Math.min(Number(input.limit) || lines, lines - (Number(input.offset) || 0)));
       bytes = Math.round(st.bytes * n / lines);
     } else n = Math.max(1, Math.round(bytes / 40));
-    return { tokens: Math.round((bytes + n * READ_LINE_OVERHEAD) * TOKENS_PER_CHAR), files: [st.path] };
+    const fileTokens = Math.round((bytes + n * READ_LINE_OVERHEAD) * TOKENS_PER_CHAR);
+    if (readCap && bytes > readCap) { n = Math.round(n * readCap / bytes); bytes = readCap; }
+    // `fileTokens` is what the read asks for; `tokens` what the host returns in this call (the rest follows)
+    return { tokens: Math.round((bytes + n * READ_LINE_OVERHEAD) * TOKENS_PER_CHAR), fileTokens, files: [st.path] };
   }
   if (toolName === 'Bash') {
     const cmd = String(input.command || '');
@@ -128,7 +135,8 @@ export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS }) {
   const key = read.files.join('\n');
   const before = d.readTokens;
   d.readTokens += read.tokens;
-  const fire = read.tokens >= cfg.threshold || (read.tokens >= cfg.minRead && d.readTokens >= cfg.threshold);
+  // a host that returns a big file in chunks: the first chunk fires when the file asked for is over the threshold
+  const fire = read.tokens >= cfg.threshold || (read.fileTokens || 0) >= cfg.threshold || (read.tokens >= cfg.minRead && d.readTokens >= cfg.threshold);
   if (fire) d.readTokens = before; // a delegated read never enters the context
   return { fire, kind: 'explore', key, tokens: read.tokens, turnTokens: d.readTokens };
 }
@@ -196,8 +204,8 @@ export function denial({ kind, report, files, cwd, model }) {
  * (two tool calls of one turn run their hooks at the same time); the subagent runs outside it. `run` and
  * `lastPrompt` are injected so the logic is testable without a subagent. Resolves to the hook's stdout, or null.
  */
-export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}) }) {
-  const read = readOf(ev.tool_name, ev.tool_input, cwd);
+export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client }) {
+  const read = readOf(ev.tool_name, ev.tool_input, cwd, { readCap });
   const suite = suiteCommand(ev.tool_name, ev.tool_input);
   if (!read && !suite) return null;
   let d, cached, prompt;
@@ -205,7 +213,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (!d.fire) return null;
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
-  const row = { op: 'delegate', session, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, held };
+  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, held };
   if (held) { log(row); return null; }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const ctx = lastPrompt() || {};
@@ -217,12 +225,33 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   return denial({ kind: d.kind, report: r.report, files, cwd, model: r.model });
 }
 
+// The hosts with a door that can refuse a tool call and answer in its place: Claude Code's PreToolUse deny, and
+// OpenCode 2's `tool.hook('execute.before')`, where a thrown error is the call's result (checked live on 2.2.7,
+// 2026-11-12: the model read the report in the denial's words and answered from it; an error that read as a
+// "pre-baked report" was distrusted and routed around with grep and sed, so the words matter). OpenCode names
+// its tools in lower case (`read`, `shell`) and its Read takes `path`; one Read there returns at most ~58k
+// characters and tells the model to continue at an offset.
+export const HOSTS = Object.freeze({
+  claude: { readCap: 0 },
+  opencode: { readCap: 58000, tools: { read: 'Read', shell: 'Bash', bash: 'Bash' } },
+});
+/** A host's event in the hook's own shape: tool names as Claude Code's, `file_path` for the Read's file. */
+export function hostEvent(client, ev) {
+  const h = HOSTS[client];
+  if (!h || !h.tools) return ev;
+  const tool_name = h.tools[ev.tool_name] || ev.tool_name;
+  const input = ev.tool_input || {};
+  const tool_input = tool_name === 'Read' && input.path && !input.file_path ? { ...input, file_path: input.path } : input;
+  return { ...ev, tool_name, tool_input };
+}
+
 /** The PreToolUse hook's body, over the repository's store and the session's state file. */
-export async function preToolHook({ ev, store, session, cwd, cfg = delegateConfig(), run }) {
-  if (!cfg.enabled) return null;
+export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude' }) {
+  if (!cfg.enabled || !HOSTS[client]) return null;
+  const ev = hostEvent(client, raw);
   if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   const state = { update: fn => locked(store, session, () => { const { st, save } = sessionState(store, session); fn(st); save(); }) };
-  return delegateTool({ ev, state, session, cwd, cfg, run, log: row => store.log(row), lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : {} });
+  return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : {} });
 }
 
 /** The current prompt and the model's last words, from the transcript's tail (written with a lag, so a best effort). */

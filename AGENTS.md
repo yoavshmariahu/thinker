@@ -639,9 +639,29 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
 - Off: `THINKER_DELEGATE=off`, or `delegate: false` / `delegate: { enabled: false }` in `<THINKER_HOME>/config.json`;
   `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead, holdout, timeoutMs }` tune it;
-  `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Claude Code only: no other
-  agent's hook can deny a tool call and answer in its place (Cursor can deny a shell command; Codex's cannot deny).
-  Under `THINKER_TEST` the hook does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
+  `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Under `THINKER_TEST` the hook
+  does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
+- **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin
+  registers `tool.hook('execute.before')` on `read` and `shell`, sends the call to the same `hook pretool` (the
+  runner gives that one hook 300 s), and **throws the denial's reason**, which v2 makes the call's result. Checked
+  live on 2.2.7 with a probe plugin: an error-shaped result worded as a report was distrusted ("an odd error
+  containing what looks like a pre-baked report") and the model routed around it with grep and sed; the denial's
+  own words ("thinker read core.py through a claude-sonnet-5-5 subagent... work from it; a short range is never
+  delegated") were accepted, and the model answered from the report and said the read was delegated. So the words
+  are the mechanism there, and `denial()` is the one copy of them. OpenCode names its tools in lower case and its
+  Read takes `path`; one Read returns at most ~58k characters and tells the model to continue at an offset, so a
+  whole file is several reads of ~26k tokens, under the single-read threshold: the first chunk fires when the file
+  asked for is over it (`readOf` returns `fileTokens` beside the chunk's `tokens`; `HOSTS.opencode.readCap` sizes a
+  chunk as the host returns it), since the model would read the rest anyway. Project-scope plugins load from
+  `<repo>/.opencode/plugins/`, user-scope from `~/.config/opencode/plugins/` whatever `XDG_CONFIG_HOME` says, and
+  **plugins run in a long-lived OpenCode server process** (one `run=` id in its log for days): the shell that
+  starts `opencode run` does not reach them, so a checkout's copy is driven through the plugin config (`id` to
+  load beside the installed one, `env` merged over the server's by `runner.js`), never through the shell. The
+  live smoke (2026-11-12, `opencode run` on a 3,681-line file): the first read denied, the explorer 12 s for
+  $0.20, the model worked from the report, took two ranged reads of 25 and 18 lines, and answered right; the
+  same run an hour earlier had fired through the installed plugin and been held out (`held: true` rows in the
+  machine log), which is the holdout doing its job.
+  No other agent has such a door: Cursor can deny a shell command but not answer for it; Codex's hooks cannot deny.
 - Removed on the way (#750): the rules that hooks never run or rewrite test commands and do no side work. What
   stays: the installer is never a hook branch.
 

@@ -98,7 +98,7 @@ test('a checkout wired at repo scope gets the directory, and uninstallWiring rep
 
 test('the v2 server part calls the CLI hooks the way the v1 plugin did', async () => {
   const runs = [];
-  const run = async (what, ev) => { runs.push([what, ev]); return what === 'prompt' ? 'SERVED' : 'NOTED'; };
+  const run = async (what, ev) => { runs.push([what, ev]); if (what === 'pretool') return ev.tool_name === 'read' ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'REPORT' } }) : ''; return what === 'prompt' ? 'SERVED' : 'NOTED'; };
   const hooks = {};
   const pending = [];
   let resolveNext = null;
@@ -129,16 +129,27 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   await hooks.prompt(ev);
   assert.match(ev.prompt.text, /hello\n\nSERVED$/);
   assert.deepEqual(runs[0], ['prompt', { session_id: 'ses1', cwd: '/tmp/session-cwd', prompt: 'hello' }]);
+  // the before hook (delegate.js): a denied read throws the report, which v2 makes the call's result; a call
+  // that goes through gets silence; a tool that is neither a read nor a shell line never reaches the CLI
+  const before = hooks['tool:execute.before'];
+  await assert.rejects(before({ tool: 'read', sessionID: 'ses1', agent: 'build', input: { path: '/r/core.py' } }), /REPORT/);
+  assert.deepEqual(runs.at(-1), ['pretool', { session_id: 'ses1', cwd: '/tmp/session-cwd', tool_name: 'read', tool_input: { path: '/r/core.py' }, agent: 'build' }]);
+  const shell = { tool: 'shell', sessionID: 'ses1', agent: 'build', input: { command: 'ls' } };
+  assert.equal(await before(shell), undefined); assert.deepEqual(shell.input, { command: 'ls' }, 'the args are left as they came');
+  const n = runs.length;
+  assert.equal(await before({ tool: 'glob', sessionID: 'ses1', input: { pattern: '*' } }), undefined);
+  assert.equal(runs.length, n, 'glob makes no call');
   // the tool hook: the note rides the result's content, completed results only
   const tool = { status: 'completed', tool: 'shell', sessionID: 'ses1', input: { command: 'ls' }, result: { content: [{ type: 'text', text: 'out' }], output: { output: 'out' } } };
   hooks['tool:execute.after'](tool);
   await new Promise(r => setTimeout(r, 20));
-  assert.deepEqual(runs[1], ['tool', { session_id: 'ses1', cwd: '/tmp/session-cwd', tool_name: 'shell', tool_input: { command: 'ls' }, tool_response: 'out' }]);
+  assert.deepEqual(runs.at(-1), ['tool', { session_id: 'ses1', cwd: '/tmp/session-cwd', tool_name: 'shell', tool_input: { command: 'ls' }, tool_response: 'out' }]);
   assert.deepEqual(tool.result.content[1], { type: 'text', text: 'NOTED' });
   const failed = { status: 'failed', tool: 'shell', sessionID: 'ses1', result: { content: [] } };
+  const before_failed = runs.length;
   hooks['tool:execute.after'](failed);
   await new Promise(r => setTimeout(r, 20));
-  assert.equal(runs.length, 2, 'a failed tool makes no call');
+  assert.equal(runs.length, before_failed, 'a failed tool makes no call');
   // the turn's end: stop runs with the session id v2 carries in data
   push({ type: 'session.execution.succeeded', data: { sessionID: 'ses1' } });
   await new Promise(r => setTimeout(r, 20));
