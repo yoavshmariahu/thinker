@@ -68,7 +68,8 @@
   .stamp { color: var(--muted); font-size: 12px; }
 
   /* KPI row */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 680px) { .tiles { grid-template-columns: 1fr; } }
   .tile {
     background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
   }
@@ -205,12 +206,12 @@ const cls = n => (n == null ? '' : n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 const WINDOW_DAYS = 365;
 
 function tiles(t) {
+  // Three, and only three. Everything else the page can say, it says in a row of the machines table or in
+  // the session below; a fourth tile only competes with these for the reader's first glance.
   const items = [
     { label: 'Net saved', value: usd(t.net), note: `${pct(t.netShareOfSpend)} of what was spent`, cls: cls(t.net) },
-    { label: 'Total spent', value: usd(t.spend), note: `${usd(t.spendPerPrompt)} a prompt · ${compact(t.spendSessions)}/${compact(t.sessions)} priced` },
-    { label: 'Context cuts', value: compact(t.cuts), note: `${compact(t.cleared)} tokens out of ${compact(t.callsCleared)} calls` },
-    { label: 'Sessions cleared', value: pct(t.clearedShare), note: `${compact(t.clearedSessions)} of ${compact(t.sessions)}` },
-    { label: 'Results dropped', value: compact(t.results), note: 'tool results the agent had finished with' },
+    { label: 'Total spent', value: usd(t.spend), note: `${usd(t.spendPerPrompt)} a prompt · ${compact(t.spendSessions)}/${compact(t.sessions)} sessions priced` },
+    { label: 'Context cuts', value: compact(t.cuts), note: `${compact(t.cleared)} tokens out, over ${compact(t.callsCleared)} calls` },
   ];
   $('tiles').innerHTML = items.map(i => `
     <div class="tile">
