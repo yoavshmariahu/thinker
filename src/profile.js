@@ -38,6 +38,7 @@ export const PROFILE = {
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
   perSection: { workingOn: 6, howWeWork: 12, skills: 6 },
   textChars: 240,
+  retireShown: 15,      // a line judged in this many sessions and found to bear on none leaves the served block (the owner's call, 2026-11-12)
 };
 // Three sections (2026-11-08, the owner's call, after reading this repository's own profile). `whatFails` went:
 // it was the howWeWork rule in negative form, and the compile wrote both, so the top three rules were each paid
@@ -446,10 +447,12 @@ export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(),
   }
   const text = new Map();
   const prof = profile || readProfile(store);
-  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e) });
+  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e), retired: e.retired || null });
   const out = [...by.values()].map(e => {
     const applied = e.followed + e.ignored + e.contradicted;
-    return { ...e, applied, followRate: applied ? e.followed / applied : null, gone: !text.has(e.id), ...(text.get(e.id) || {}) };
+    const meta = text.get(e.id) || {};
+    // retired: out of the served block, by the compile's mark or because the rule holds now (`retireDue`)
+    return { ...e, applied, followRate: applied ? e.followed / applied : null, gone: !text.has(e.id), ...meta, retired: !!meta.retired || retireDue({ shown: e.shown, applied }) };
   });
   // worst first: a line that was shown often, applied, and not followed is the one to cut or reword
   out.sort((a, b) => (a.followRate ?? 2) - (b.followRate ?? 2) || b.applied - a.applied);
@@ -496,13 +499,14 @@ You are given the profile as it stands, each entry with an id; the observations 
 
 Sections, and the most lines each may have:
 - workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what it is and where it stands by the person's last reaction, not by the agent's account of finishing it. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
-- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). The strongest evidence is a stated preference (prefs), then a correction repeated across sessions, then one sharp correction whose lesson is specific. A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
+- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). Corrections weigh most: an exchange the person corrected, redirected or interrupted is the evidence a line rests on first, then a stated preference (prefs). The code ranks the section by the corrections cited behind each line and the render trims from the bottom, so cite every correction a line answers. A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
 - skills (6): one line per skill run in this repository (a skills line on an observation, or a pref naming it): what it is used for here, how it has gone by the person's reactions, and what the person has said about it. skill = the name as given, without the slash. The use counts below are computed and shown beside the line; write what they do not say. Never a skill no observation ran or named.
 
 Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
 - approach is the agent's own account. An observation with outcome unknown can support workingOn and skills, and howWeWork through its prefs alone. An interrupted observation (the person stopped the agent) is a correction whatever its outcome says.
 - Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
+- A RETIRED list names lines that were shown to many sessions and bore on none: the code took them out of the served block. Never add a line that says what a retired one says, in any words; an update rewords a retired line but leaves it retired; a drop removes it for good.
 - Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
 const entry = (props, required) => ({ type: 'array', items: { type: 'object', properties: { ...props, obs: { type: 'array', items: { type: 'string' } } }, required: [...required, 'obs'] } });
@@ -539,8 +543,8 @@ export function instructionHeadings(repo, { max = 80 } = {}) {
 }
 
 // Observations as the compile reads them: newest first.
-export function ledgerText(rows) {
-  const sorted = [...rows].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+export function ledgerText(rows, { correctionsFirst = false } = {}) {
+  const sorted = [...rows].sort((a, b) => (correctionsFirst ? isCorrection(b) - isCorrection(a) : 0) || Date.parse(b.at) - Date.parse(a.at));
   return sorted.map(r => {
     const head = `${r.id} | ${String(r.at).slice(0, 10)} | outcome=${r.outcome}${r.interrupts ? ` | interrupted by the person${r.interrupts > 1 ? ` x${r.interrupts}` : ''}` : ''}${r.dirs?.length ? ` | dirs=${r.dirs.slice(0, 4).join(',')}` : ''}`;
     const lines = [`  request: ${r.request}`, r.approach && `  approach: ${r.approach}`, r.reaction && `  reaction: "${r.reaction}"`, r.lesson && `  lesson: ${r.lesson}`, r.prefs?.length && `  prefs: ${r.prefs.join(' | ')}`, r.skills?.length && `  skills: ${r.skills.map(k => `/${k.name} (${k.by})`).join(', ')}`, r.topics?.length && `  topics: ${r.topics.join(', ')}`].filter(Boolean);
@@ -586,12 +590,32 @@ export function applyPatch(previous, patch) {
 // What the patch left, held to the ledger: citations the window does not hold are dropped, an entry with none
 // goes, counts and dates come from the cited observations, the evidence floors apply, and each section is capped.
 // A how-we-work line needs two sessions, unless one observation states the preference outright (prefs), corrects
-// it in so many words (a correction with its reaction), or was interrupted by the person. Entries come out with ids
-// for the next patch (`w1`, `h2`, `s3`).
+// it in so many words (a correction with its reaction), or was interrupted by the person.
+//
+// **Ids are stable** (2026-11-12): an entry keeps the id it came in with, and a new one takes the next number for
+// its section from the counters the profile carries (`ids`; `idCounters` derives them for a profile from before).
+// Until then ids were the rank (`h1` was the top line), so a line's verdicts (`lines.jsonl`, keyed on the id) were
+// about whichever line held that rank when each session ran, and nothing per line could be trusted across compiles.
+//
+// **Corrections weigh most** (the owner's call, 2026-11-12): a how-we-work line ranks by the corrections cited
+// behind it (`isCorrection`: the person corrected, redirected or interrupted the exchange, the Factory's own
+// correction-loop rule), then by sessions, then by recency. The section's cap and the render's trim both take from
+// the bottom, so a line that answers no correction is the first to go.
+//
+// **A retired entry stays, out of the block**: `retired` (a date) is carried through, the entry is not counted
+// against the section's live cap and comes last, so the compile keeps seeing it and does not add it again.
 const PREFIX = { workingOn: 'w', howWeWork: 'h', skills: 's' };
-export function settle(sections, rows, { now = Date.now() } = {}) {
+export const isCorrection = o => !!o && (o.interrupts > 0 || o.outcome === 'corrected' || o.outcome === 'redirected');
+export function idCounters(profile) {
+  const out = { w: 0, h: 0, s: 0 };
+  for (const s of SECTIONS) for (const e of profile?.sections?.[s] || []) { const m = /^([whs])(\d+)$/.exec(e?.id || ''); if (m) out[m[1]] = Math.max(out[m[1]], Number(m[2])); }
+  return out;
+}
+export function settle(sections, rows, { now = Date.now(), ids = null } = {}) {
+  const next = ids || idCounters({ sections });
   const byId = new Map(rows.map(r => [r.id, r]));
   const out = {};
+  const taken = new Set();
   for (const s of SECTIONS) {
     const items = [];
     for (const raw of Array.isArray(sections?.[s]) ? sections[s] : []) {
@@ -600,7 +624,8 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       if (!cited.length) continue;
       const obs = cited.map(id => byId.get(id));
       const ats = obs.map(o => Date.parse(o.at)).sort((a, b) => a - b);
-      const e = { obs: cited, count: new Set(obs.map(o => o.session || o.id)).size, firstSeen: new Date(ats[0]).toISOString().slice(0, 10), lastSeen: new Date(ats.at(-1)).toISOString().slice(0, 10) };
+      const e = { obs: cited, count: new Set(obs.map(o => o.session || o.id)).size, firstSeen: new Date(ats[0]).toISOString().slice(0, 10), lastSeen: new Date(ats.at(-1)).toISOString().slice(0, 10), corrections: obs.filter(isCorrection).length };
+      if (raw.retired) e.retired = String(raw.retired).slice(0, 10);
       if (s === 'skills') {
         // the line rests on the observations that ran the skill or named it (a pref, the request, the reaction); its
         // counts are measured from those, never written by the model
@@ -617,12 +642,33 @@ export function settle(sections, rows, { now = Date.now() } = {}) {
       const age = (now - ats.at(-1)) / 86400_000;
       if (s === 'howWeWork' && e.count < PROFILE.minSessions && !obs.some(o => o.prefs?.length || o.interrupts > 0 || (['corrected', 'redirected'].includes(o.outcome) && o.reaction))) continue;
       if (s === 'workingOn' && age > PROFILE.workingOnDays) continue;
+      // the entry's own id where it is this section's and not yet used here; else the next number
+      const own = typeof raw.id === 'string' && raw.id.startsWith(PREFIX[s]) && /^[whs]\d+$/.test(raw.id) && !taken.has(raw.id) ? raw.id : null;
+      e.id = own || `${PREFIX[s]}${++next[PREFIX[s]]}`; taken.add(e.id);
       items.push(e);
     }
-    items.sort(s === 'howWeWork' || s === 'skills' ? (a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen) : (a, b) => b.lastSeen.localeCompare(a.lastSeen) || b.count - a.count);
-    out[s] = items.slice(0, PROFILE.perSection[s]).map((e, i) => ({ id: `${PREFIX[s]}${i + 1}`, ...e }));
+    const rank = s === 'howWeWork' ? (a, b) => b.corrections - a.corrections || b.count - a.count || b.lastSeen.localeCompare(a.lastSeen)
+      : s === 'skills' ? (a, b) => b.count - a.count || b.lastSeen.localeCompare(a.lastSeen)
+      : (a, b) => b.lastSeen.localeCompare(a.lastSeen) || b.count - a.count;
+    const live = items.filter(e => !e.retired).sort(rank).slice(0, PROFILE.perSection[s]);
+    const retired = items.filter(e => e.retired).sort(rank).slice(0, PROFILE.perSection[s]);
+    out[s] = [...live, ...retired].map(({ id, ...e }) => ({ id, ...e }));
   }
   return out;
+}
+
+// The code retires what the sessions never used (the owner's call, 2026-11-12). A line shown to `retireShown`
+// sessions and judged `na` in every one bore on nothing in fifteen tries and was costing its characters in every
+// prompt for nothing; it leaves the served block and stays on the profile marked `retired`, so the compile sees it
+// and does not add it again, and `thinker profile lines` still says what became of it. One predicate, two doors:
+// `profileBlock` applies it live, so a line goes on the day its fifteenth verdict lands, and the compile writes it.
+export const retireDue = stat => !!stat && stat.shown >= PROFILE.retireShown && !stat.applied;
+export function retire(profile, report, { now = Date.now() } = {}) {
+  if (!profile?.sections || !report?.lines?.length) return profile;
+  const due = new Set(report.lines.filter(retireDue).map(l => l.id));
+  if (!due.size) return profile;
+  const when = dateOf(now);
+  return { ...profile, sections: Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).map(e => e?.id && due.has(e.id) && !e.retired ? { ...e, retired: when } : e)])) };
 }
 
 export function readProfile(store) { return readJson(profileFile(store)); }
@@ -660,6 +706,9 @@ export function relatedCited(previous, batch, rows, { max = 40 } = {}) {
 async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config }) {
   // a profile written before entries carried ids (version 2) gets them here, so a patch can name its entries
   if (previous) previous = { ...previous, sections: Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map((e, i) => e.id ? e : { id: `${PREFIX[s]}${i + 1}`, ...e })])) };
+  // what the sessions since have said of each line: a line due for retirement is marked before the model sees it
+  if (previous) previous = retire(previous, lineReport(store, { now, profile: previous }), { now });
+  const ids = { ...(previous?.ids || idCounters(previous)) };
   const cited = relatedCited(previous, batch, rows);
   // the observations that ran a skill, so a skills line can cite them: few (18 of 116 sessions here), and otherwise
   // out of the step's sight once they are past the batch
@@ -667,23 +716,26 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   const ranSkill = rows.filter(r => r.skills?.length && !seen.has(r.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 40);
   const headings = instructionHeadings(store.repo);
   const span = a => a.length ? `${dateOf(Math.min(...a.map(r => Date.parse(r.at))))} to ${dateOf(Math.max(...a.map(r => Date.parse(r.at))))}` : '';
-  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map(({ id, skill, text, count, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), text, sessions: count, firstSeen, lastSeen, obs }))])) : null;
+  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).filter(e => !e.retired).map(({ id, skill, text, count, corrections, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), text, sessions: count, ...(corrections ? { corrections } : {}), firstSeen, lastSeen, obs }))])) : null;
+  const retired = previous ? SECTIONS.flatMap(s => (previous.sections?.[s] || []).filter(e => e.retired).map(e => `[${e.id}] ${line(s, e)} (retired ${e.retired})`)) : [];
   const tally = skillTallyText(rows);
+  const corrections = batch.filter(isCorrection).length;
   const input = [
     `Repository: ${path.basename(store.repo)}\nToday: ${dateOf(now)}`,
     `INSTRUCTION FILE HEADINGS (do not repeat what these cover):\n${headings.map(h => '- ' + h).join('\n') || '(none)'}`,
     `PROFILE SO FAR (compiled ${previous?.compiledAt?.slice(0, 10) || 'never'}):\n${shown ? JSON.stringify(shown) : '(none: every entry is an add)'}`,
+    retired.length ? `RETIRED (${retired.length}; shown to ${PROFILE.retireShown} or more sessions and bore on none, out of the served block):\n${retired.join('\n')}` : null,
     cited.length ? `OBSERVATIONS BEHIND THE ENTRIES THESE MIGHT TOUCH (${cited.length}):\n\n${ledgerText(cited)}` : null,
     tally ? `SKILL USE IN THE WINDOW (computed over every observation; cite the observations, not this list):\n${tally}` : null,
     ranSkill.length ? `OTHER OBSERVATIONS THAT RAN A SKILL (${ranSkill.length}):\n\n${ledgerText(ranSkill)}` : null,
-    `NEW OBSERVATIONS (${batch.length}, from ${new Set(batch.map(r => r.session)).size} sessions, ${span(batch)}, newest first):\n\n${ledgerText(batch)}`,
+    `NEW OBSERVATIONS (${batch.length}, from ${new Set(batch.map(r => r.session)).size} sessions, ${span(batch)}; the ${corrections} the person corrected, redirected or interrupted first, then the rest, newest first):\n\n${ledgerText(batch, { correctionsFirst: true })}`,
     'Return the patch JSON.',
   ].filter(Boolean).join('\n\n');
   const res = await completeProfile({ system: COMPILE_SYSTEM, prompt: input, schema: PATCH_SCHEMA, maxTokens: 16000, thinkingTokens: 0, structuredRetries: 2, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   const patch = res.json || {};
-  const sections = settle(applyPatch(previous, patch), rows, { now });
+  const sections = settle(applyPatch(previous, patch), rows, { now, ids });
   const ats = rows.map(r => Date.parse(r.at));
-  const profile = { version: 3, compiledAt: new Date(now).toISOString(), model: res.model || null, window: { days: PROFILE.ledgerDays, observations: rows.length, sessions: new Set(rows.map(r => r.session).filter(Boolean)).size, from: dateOf(Math.min(...ats)), to: dateOf(Math.max(...ats)) }, sections };
+  const profile = { version: 4, compiledAt: new Date(now).toISOString(), model: res.model || null, window: { days: PROFILE.ledgerDays, observations: rows.length, sessions: new Set(rows.map(r => r.session).filter(Boolean)).size, from: dateOf(Math.min(...ats)), to: dateOf(Math.max(...ats)) }, ids, sections };
   const changes = { kept: (patch.keep || []).length, updated: (patch.update || []).length, dropped: (patch.drop || []).length, added: SECTIONS.reduce((n, s) => n + (patch.add?.[s]?.length || 0), 0) };
   return { profile, tokens: tokensOf(res) || 0, cost: res.cost ?? null, chars: input.length, changes };
 }
@@ -739,7 +791,7 @@ const TRIM = [['workingOn', 3], ['skills', 3], ['howWeWork', 4]];
 // never disagree; `renderProfile` is the text alone, which is what every older caller wants.
 export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
   if (!profile?.sections) return { text: '', ids: [] };
-  const kept = Object.fromEntries(SECTIONS.map(s => [s, [...(profile.sections[s] || [])]]));
+  const kept = Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).filter(e => e && !e.retired)]));
   const w = profile.window || {};
   const head = `About the person here, from ${plural(w.sessions || 0, 'session')} in this repository. Follow how they work; the rest is context.`;
   const text = () => [head, ...SECTIONS.filter(s => kept[s].length).map(s => `## ${TITLES[s]}\n${kept[s].map(e => line(s, e)).join('\n')}`)].join('\n\n');
@@ -753,7 +805,9 @@ export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
 }
 export function renderProfile(profile, opts = {}) { return fitProfile(profile, opts).text; }
 export function profileBlock(store) {
-  const { text, ids } = fitProfile(readProfile(store));
+  // the retire rule applied live: a line whose fifteenth `na` landed since the last compile is out today
+  const profile = readProfile(store);
+  const { text, ids } = fitProfile(profile ? retire(profile, lineReport(store, { profile })) : null);
   return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids };
 }
 
