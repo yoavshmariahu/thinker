@@ -25,6 +25,7 @@ import { historyEffects, promptAverageHere, readReport } from './report-snapshot
 import { mergePromptAverages, REPORT_WEEKS } from './report.js';
 import { mergeArms, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
 import { partIdentity, publicToolName } from './part-describe.js';
+import { readLabels } from './labels.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -616,6 +617,12 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     platform: process.platform,
     timestamp: new Date().toISOString(),
     periodHours: (days || 1) * 24,
+
+    // What an operator says this machine is (labels.js): `{}` on every machine that has not set one, which
+    // is the point of sending it either way -- an empty block says "no label set", an absent one says the
+    // build is too old to carry any, and a fleet dashboard needs to tell those apart. The one block in a
+    // payload whose contents somebody chose; everything else here is counts.
+    labels: readLabels({ home }),
 
     cacheSize,
 

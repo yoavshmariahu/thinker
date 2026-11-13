@@ -38,6 +38,7 @@ import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js'
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
 import { cutTimesFor, rereadsOf } from '../rereads.js';
+import { labelBlock } from '../labels.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -318,7 +319,11 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the profile's holdout (profile.js:holdoutReport): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened. A session
     // Claude Code continued in a new one carries the original's history in its file: the row counts from the moment it
-    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince)
+    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince).
+    // This row is also the one event thinker writes per session, so it is what an export reads: a stream of
+    // sessions, each already carrying its client, its model, its arm and (labels.js) whatever an operator
+    // named this machine, summed by whoever consumes it rather than by us. A machine with no label set adds
+    // no key here -- most machines have none, and a log line is written on every session that ends.
     const t = currentTurn(store, session);
     if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) {
       try {
@@ -328,7 +333,7 @@ async function hookCommand(ctx) {
         // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
         let rereads = null;
         try { const cuts = cutTimesFor({ session, proxyLog: proxyLogFile(), dir: compressionDir() }); rereads = cuts.length ? rereadsOf(p, cuts) : null; } catch { rereads = null; }
-        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
         store.log(record);
       } catch {}
     }

@@ -110,6 +110,36 @@ Other than an explicitly posted comment, the evidence stays local. The counts an
 (`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
 title, URL, branch and author, the repository, and the session ids never do.
 
+## Labels: naming the machine a figure came from
+
+Everything thinker reports is pseudonymous: an install id, a device id, counts and sums, never a path, a
+repository, a prompt or a symbol. On one person's machine that is the whole story. A company running
+thinker inside its own coding agent needs one thing more — which customer, harness build or job a session
+belonged to — and nothing in a payload can say it, because the only identity there is the machine's own.
+
+Labels are that, and they are set rather than inferred:
+
+```json
+{ "labels": { "tenant": "acme", "harness": "orbit-1" } }
+```
+
+in `~/.thinker/config.json` (bake it into an image), or
+
+```
+THINKER_LABELS='{"tenant":"acme","job":"17"}'     # or: THINKER_LABELS=tenant=acme,job=17
+```
+
+per container, merged over the config a key at a time. They appear in the telemetry payload as `labels`
+and on each session's row in the usage log, so an export can group sessions by them. Eight labels at most,
+keys of up to 40 characters from `[A-Za-z0-9_.-]`, values of up to 64; anything longer or structured is
+dropped rather than cut short, and a malformed value is simply no label.
+
+Nothing is read from the environment for you — not a hostname, a cloud instance id or a git remote. A
+label exists because somebody wrote one, which makes it the one place in a payload where identifying data
+can appear: whether a customer's name leaves a machine is yours to decide, not a default of ours. With
+telemetry off (`THINKER_TELEMETRY=off`) nothing is sent at all and the labels stay on the session rows,
+where `thinker telemetry --json` will show them to you before anything leaves.
+
 ## The context diet
 
 Off until an experiment shows it helps. With
