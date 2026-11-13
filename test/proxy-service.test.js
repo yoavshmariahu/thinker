@@ -751,7 +751,7 @@ test('replaceReason: a service running this version with these flags is left alo
   assert.equal(replaceReason(home), null, 'what rewire and the prompt hook would start is what runs: no restart');
   state({ args: serviceArgs(home, { port: 6901 }).join(' '), version: '0.0.1' });
   assert.match(replaceReason(home), /a new version \(0\.0\.1 -> /);
-  state({ args: 'proxy --port 6901 --holdout 0 --codex', version: appVersion() });
+  state({ args: 'proxy --port 6901 --holdout 0.5 --codex', version: appVersion() });   // the share before 2026-11-12: not what runs now
   assert.equal(replaceReason(home), 'the flags changed');
   state({});
   assert.equal(replaceReason(home), 'the first run that records them');

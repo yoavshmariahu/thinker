@@ -5,10 +5,10 @@ import { parentPort } from 'node:worker_threads';
 import { Store, logFile } from '../store.js';
 import { findRepoSessions } from '../instruction-value.js';
 import { contextView } from '../context-view.js';
-import { reportView, weekColumns } from '../report.js';
+import { reportView, weekColumns, refreshLogParts } from '../report.js';
 import { writeSnapshot, lastSnapshot } from '../context-snapshot.js';
 import { writeReport, readReport } from '../report-snapshot.js';
-import { sourceStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
+import { sourceStamp, sessionsStamp, canKeep, contextWindow, reportWindow } from '../view-sources.js';
 import { proxyLogFile } from '../proxy-service.js';
 import { refreshCheckouts, machineRepos } from './server.js';
 
@@ -47,7 +47,7 @@ function next() {
     if (done) {
       // with the stamp of what it was read from (view-sources.js), so a refresh that finds nothing moved keeps it
       if (kind === 'context') writeSnapshot(store, window, view, { now: at, stamp });
-      else writeReport(store, window, view, { now: at, stamp });
+      else writeReport(store, window, view, { now: at, stamp, sessions: sessionsStamp(sessions) });
     }
     parentPort.postMessage({ id, completed: changed ? total : completed, total, view, at, done, ...(changed ? { delta: true } : {}) });
     // Geometric checkpoints bound repeated aggregation to less than three times
@@ -75,12 +75,29 @@ function restamp(store, kind, window, { now, sessions, from }) {
     const kept = kind === 'context' ? lastSnapshot(store, window) : readReport(store, window, { now });
     if (!canKeep(kept, stamp, { now })) return;
     if (kind === 'context') writeSnapshot(store, window, kept.view, { now, stamp });
-    else writeReport(store, window, kept.view, { now, stamp });
+    else writeReport(store, window, kept.view, { now, stamp, sessions: sessionsStamp(sessions) });
   } catch {}
 }
 
 // whether a file moved since `since` (a log appended to, a transcript written)
 const movedSince = (f, since) => { try { return fs.statSync(f).mtimeMs > since; } catch { return false; } };
+
+// A Report whose sessions have not moved and whose logs have: the kept view with its log half read again
+// (report.js:refreshLogParts), written back under the stamp of what it now rests on. Answers whether it was done:
+// false leaves the caller to read every session, which is what happens when there is no kept view to build on.
+function logsOnly(store, kind, window, { id, now, sessions, from }) {
+  if (kind !== 'report') return false;
+  try {
+    const kept = readReport(store, window, { now });
+    const mine = sessionsStamp(sessions);
+    // not the sessions it was made from (one dropped out of the window, or it predates this): read every one
+    if (!kept?.view || kept.sessions !== mine) return false;
+    const view = refreshLogParts(store, kept.view, { now, sessions });
+    writeReport(store, window, view, { now, stamp: stampOf(store, kind, window, { sessions, from }), sessions: mine });
+    parentPort.postMessage({ id, completed: 0, total: 0, view, at: now, done: true, delta: true });
+    return true;
+  } catch { return false; }
+}
 
 parentPort.on('message', ({ id, kind, repo, window, home, transcriptsHome, since = null }) => {
   try {
@@ -108,6 +125,11 @@ parentPort.on('message', ({ id, kind, repo, window, home, transcriptsHome, since
         parentPort.postMessage({ id, completed: 0, total: 0, done: true, unchanged: true, at: now });
         return;
       }
+      // Only a log moved: the sessions' half of the Report cannot have changed, so it is kept and the logs' half read
+      // again (report.js:refreshLogParts). The logs move every few seconds of a live session, so before this a
+      // repository with no session of its own still re-read every session it has on every visit, and All repositories
+      // paid that for each of them: ~2.7 s of the ~3 s a visit cost on this machine, for figures that could not move.
+      if (!changed.size && logsOnly(store, kind, window, { id, now, sessions, from })) return;
       parentPort.postMessage({ id, completed: 0, total: changed.size, delta: true });
       queue.push({ id, kind, store, window, now, days, sessions, completed: sessions.length, changed, stamp: stampOf(store, kind, window, { sessions, from }) });
     } else {

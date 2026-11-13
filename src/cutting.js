@@ -48,6 +48,12 @@ export const COLD_MS = 65 * 60 * 1000;
 // over a 21k file read into a 40k conversation (2026-11-02).
 export const LONG_CONTEXT = 100000;
 export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
+// Of those, the ones the clearing can be charged for. A rewrite that read nothing back found the cache cold -- a
+// pause past the cache's hour, a session's first request -- and that write was coming with or without the cut; the
+// cut only made it smaller. A warm prefix always reads at least the system prompt back, so a read of zero is the
+// mark. On this machine's 30 days to 2026-11-12, 30 of the 604 rewrites charged after a clear were of that kind.
+// The desktop clearing mod holds the same rule (register.tsx:chargedRewrite, test/claude-clear.test.js).
+export const chargedRewrite = u => isRewrite(u) && (u?.read || 0) > 0;
 // What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
 // plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
 // known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written

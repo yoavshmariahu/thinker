@@ -11,7 +11,7 @@ import { seedProfile } from './fixtures/seed-profile.js';
 import { Store } from '../src/store.js';
 import { batchProgress } from '../src/progress.js';
 import { activity, cancelActivity, latestBatch, batchEta } from '../src/activity.js';
-import { agentWorkDirs, discoverRepos, cacheStats } from '../src/machine.js';
+import { agentWorkDirs, discoverRepos, cacheStats, notYourWork } from '../src/machine.js';
 import { createUiServer, machineRepos, keptCheckouts, REPOS_REFRESH_MS } from '../src/ui/server.js';
 
 const tmp = p => fs.mkdtempSync(path.join(os.tmpdir(), p));
@@ -182,4 +182,29 @@ test('the page keeps the checkouts it found, reads them back, and looks again in
   assert.equal(c.spawned.length, 1);
   // a list read from other transcripts is not used
   assert.equal(keptCheckouts({ home, transcriptsHome: tmp('thinker-th-other-') }), null);
+});
+
+test('a checkout in a tool\'s own area, or of another repository inside one, is not a repository of the person\'s', t => {
+  const home = tmp('thinker-home-');
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const make = (p, origin) => {
+    fs.mkdirSync(p, { recursive: true });
+    const git = (...a) => execFileSync('git', ['-c', 'core.hooksPath=/dev/null', ...a], { cwd: p, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    git('init', '-q', '-b', 'main');
+    if (origin) git('remote', 'add', 'origin', origin);
+    return p;
+  };
+  // the person's own repository, where they keep their work
+  const mine = make(path.join(home, 'src', 'app'), 'https://github.com/me/app.git');
+  assert.equal(notYourWork(mine, { home }), false);
+  // an agent's job directory and a benchmark harness's checkouts: hidden folders of the home directory
+  assert.equal(notYourWork(make(path.join(home, '.claude', 'jobs', 'abc', 'tmp', 'probe-repo')), { home }), true);
+  assert.equal(notYourWork(make(path.join(home, '.artemis', 'repos', 'mlflow-b2')), { home }), true);
+  // another repository checked out inside the person's tree is a fixture, not their week
+  assert.equal(notYourWork(make(path.join(mine, 'bench', 'repos', 'posthog'), 'https://github.com/posthog/posthog.git'), { home }), true);
+  // but a linked worktree of the same repository is their own second desk, wherever it sits
+  const wt = path.join(mine, '.worktrees', 'feature');
+  execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: mine, env: { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.com' } });
+  execFileSync('git', ['-c', 'core.hooksPath=/dev/null', 'worktree', 'add', '-q', '-b', 'feature', wt], { cwd: mine, stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.equal(notYourWork(wt, { home }), false, 'a worktree of the same repository keeps its place');
 });

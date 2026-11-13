@@ -15,7 +15,7 @@ import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
-import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
+import { compressionBlock, compressionDir, markCompressionTurn, mirrorClearing } from '../compression.js';
 import { profileTurn, profileArmOf } from '../profile.js';
 import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
@@ -36,7 +36,8 @@ import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
-import { ensureProxy, gatewayHint } from '../proxy-service.js';
+import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
+import { cutTimesFor, rereadsOf } from '../rereads.js';
 import { labelBlock } from '../labels.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
@@ -324,7 +325,23 @@ async function hookCommand(ctx) {
     // named this machine, summed by whoever consumes it rather than by us. A machine with no label set adds
     // no key here -- most machines have none, and a log line is written on every session that ends.
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) {
+      try {
+        const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 });
+        const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : [];
+        // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
+        // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
+        let rereads = null;
+        try { const cuts = cutTimesFor({ session, proxyLog: proxyLogFile(), dir: compressionDir() }); rereads = cuts.length ? rereadsOf(p, cuts) : null; } catch { rereads = null; }
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
+        store.log(record);
+      } catch {}
+    }
+    // A clear the proxy never saw -- a desktop session's, made by the clearing mod -- lives in the card's own
+    // state file, which is pruned after two days. Every window that reads a saving is longer than that, so it
+    // is mirrored into the machine's log once per clear, where it lasts as long as the log
+    // (compression.js:mirrorClearing). Cheap: one small file read, and a row only when the figure has grown.
+    if (session !== 'unknown') { try { mirrorClearing(compressionDir(), session, row => store.log(row)); } catch {} }
     if (noticeOn(store)) {
       // where the card mod runs, the status line carries the money the whole session (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);

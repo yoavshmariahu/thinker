@@ -55,7 +55,20 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 60k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
-- Holdout 50%, per session by hash; `proxy: { holdout }` in config overrides.
+- **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
+  is a long session, so "cleared against held out" never compared like with like, and at 50% it cost every install half
+  the saving. `proxy: { holdout }` in config puts an arm back for an experiment; the Factory's compression diff then reads it.
+- **Re-reads of cleared files are measured per session instead** (`src/rereads.js`, programmatic, no model): the Stop
+  hook replays the cut policy over the transcript (a cut at T takes the results of the turns before its own, bar the
+  newest `keepMin`, bar those under `MIN_CHARS`) with the session's cut times (`cutTimesFor`: proxy rows where the cleared
+  set grew, the mod's `recent`, the log's mirror rows), and a read whose last earlier read was out of the prompt is a
+  re-read: the Read tool or a shell line that prints a file (`delegate.js:shellRead`, one parser for both; a `cd <dir>
+  &&` in front allowed, a relative path matched to an absolute by its tail). On this machine's 41 cut sessions
+  (2026-11-12): 12 re-reads in 6 sessions, $0.56 against $586 cleared at the cache-read rate. `rereads: { reads, tokens, laterTokens }` on the `op: session` row; `delivery.js` prices it at list (its write
+  once, its reads after at the cache-read rate) as `cost.reread`, and **net = saved − rewrite − reread** on every door
+  (`thinker prs`, the posted comment, the Report's PR rows, telemetry `rereadUsd`/`rereads`/`rereadSessions`). A ceiling:
+  a read the model would have made anyway counts too. What it cannot see, an answer gone wrong without a read, is the
+  graded Artemis run's question. Sessions logged before this carry no `rereads` and net as before.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
@@ -94,6 +107,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 **OpenCode 2 terminal (2026-11-10):**
 - Plugin directory (`plugins/thinker/`) with `index.ts` (server) + `tui.tsx` (terminal); v1 single file for major < 2.
 - Footer on built-in footer row (`prompt.footer.status`); summary as toast (Stop hook writes `state/notice-last.json`).
+- **Served bundle is never on the person's prompt** (2026-11-12): v2's draft has no parts, so the profile goes as a
+  synthetic message (`ctx.session.synthetic`, `resume: false`), model-read and screen-hidden (TUI draws
+  `description` = `SYNTHETIC_NOTE` alone). Same execution, once a session; refused call falls back to the draft.
 
 **Exploration subagents on Sonnet, off by default (2026-11-08):**
 - Off until owner ships: `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`.
@@ -118,13 +134,21 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   (`offset`/`limit`, under `minRead` 8k tokens) is never delegated, so the model still reads the lines it edits. A
   subagent that fails or times out (`timeoutMs` 240 s) lets the call through. The hook answers in ~0.25 s when the
   call goes through (the CLI's module load; nothing is read); the settings entry's timeout is 300 s for the run.
+  The brief carries the **person's own request**, read from the transcript (`lastPromptOf`): the last 400 KB first,
+  and the whole file when that holds no prompt, since one prompt and a hundred tool calls is a 1.5 MB transcript with
+  the request at the top of it (2026-11-12: three firings briefed with an empty request each answered with a map of
+  the file instead of the answer). A whole-file read is 12 ms for 1.5 MB, once per firing.
 - The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
   (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
   35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
   on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
   `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
-  itself). A suite run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./...,
-  cargo test, node --test); a single file's run stays with the model.
+  itself). A shell line that names a range (`sed -n 10,60p`, `head -n 40`, `sedLines`) is sized by the lines it asks
+  for, as a ranged Read is, so it falls under `minRead` and is never the thing that fires: a ranged read is the model
+  reading the lines it edits, and the denial sends it there (2026-11-12, after an 18-line `sed -n` of a 290-line file
+  was delegated). An open range or a pattern (`100,$p`) says nothing about the size, so the whole file counts. A suite
+  run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./..., cargo test,
+  node --test); a single file's run stays with the model.
 - Why those numbers: the stage-delegation bench (43 paired runs on Click and MLflow, 2026-11-10/11; the owner's
   memory notes `delegation-trigger-rules`, `stage-delegation-bench-2026-11-10`). Every run whose inline context
   reached 90k won by delegating (11-50%), every run under 50k lost; the saving is the read's cache write at Sonnet's
@@ -140,8 +164,28 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
   The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
-- Off: `THINKER_DELEGATE=off`, or `delegate: false` / `delegate: { enabled: false }` in `<THINKER_HOME>/config.json`;
-  `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead, holdout, timeoutMs }` tune it;
+- **A structural outline is not what answers a delegated read (2026-11-12, the owner's call: "no I'm convinced
+  this won't work well"; the fourth AST attempt here, closed unmerged as #766, the code on branch
+  `agent/ast-outline`).** A dependency-free line scanner was built and measured against this hook: 0.09 ms a file
+  over 17,445 files, and against Python's own `ast` module on 2,010 files **99.5% recall, 98.2% precision and
+  88.8% exact end lines**, naming the right function in both live cases. Capability was not the problem, and the
+  measurements are not worth taking again. Two things decided it. Given to the Sonnet explorer the outline cost
+  **+16% over 6 cold paired runs**, because the explorer already greps and reads ranges, so the map is only more
+  tokens in its brief. And given to the lead instead of a report it makes the model cycle between ranges and
+  bodies: four ranged reads of 300 Python lines is ~30k tokens against the 43.7k a whole-file read would have
+  cost, plus four turns each re-reading the grown prefix. **An outline is cheap for thinker and expensive for the
+  model, because it moves the picking to the costliest place**, which is the same failure as the 2026-10-10
+  overuse (turns 31 to 51 on mitmproxy) arriving by another route; a hook fixes who chooses the tool, not where
+  the work lands. A subagent does that cycling on Sonnet and hands back a conclusion, so it stays the default. If
+  it is ever revived, the one defensible place is the **fallback** where the subagent has failed or timed out and
+  the alternative is the whole file, and the revival needs a live session counting the ranged reads that follow
+  each denial against the subagent's own turn cost.
+- **Off by default (the owner's call, 2026-11-12, for the release that ships it).** On: `THINKER_DELEGATE=on` or
+  `delegate: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire` for Claude Code (the PreToolUse
+  entry is written only while it is on, since a hook that exits at once is still one node process per tool call;
+  `PreToolUse` in setHooks's list takes it out again on the next rewire once it is off) and OpenCode started again
+  (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead,
+  holdout, timeoutMs }` tune it;
   `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Under `THINKER_TEST` the hook
   does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
 - **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin
@@ -242,79 +286,20 @@ ignored; its history is in git before 2026-11-08.
 
 ## What a user's savings are, measured (2026-11-11, the owner's ask)
 
-The question was what thinker saves **per session** on other people's machines, what a pull request **costs**, and
-**whether a pull request got a context clear and how much was cleared**. The pieces were nearly all on the machines
-already (`delivery.js` prices every session and every pull request at list rates, `compression.js` measures what the
-clearing took out by either door) and nearly none of it was leaving them. What the dashboard could be asked on the
-day of the ask, read from production: 262 installs in 30 days, 11 of them active, `prs.netUsd / prs.linkedSessions`
-the only per-session figure there was -- and three reasons it could not be read.
-
-- **The denominators disagreed.** `activity.sessions` is the report's own period (one hour for an hourly send) and
-  the proxy's `sessions` is 30 days of `x-claude-code-session-id`, subagents and title calls included: one install
-  reported 2 sessions and 2,563 on the same snapshot. Neither is a person's session, so cleared over sessions meant
-  nothing. The figure is now built from the sessions themselves (`sessionsOf`, the usage log's `op: session` rows,
-  one row per session), each with its own cleared tokens, its own cost and its own prompt count.
-- **The window pooled dead policies.** The two biggest installs read -$980 and -$225 over 30 days that span the
-  API-side clearing and the pre-#693 cut, both measured as losses. Now every saving names the policy that made it
-  (below), so a reader never adds two.
-- **Desktop clears were invisible and a pull request's cost never left the machine.** One install with 101 merged
-  pull requests sent no proxy block at all. The per-session block reads `clearingFor`, which takes the proxy's log
-  first and the clearing mod's own record where the log has no rows, so a desktop session counts; `prs.spendUsd`
-  and `prs.spendPrs` carry what those pull requests cost.
-
-**Every saving names the cut policy that made it; no date in the code** (`cutting.js:policyId`, `POLICY_REV`).
-`r1-t140k-f60k-p25-deep`: the revision of what no setting can change (the cold-boundary rule, the payback pricing,
-the ratchet), then the settings that were in force -- trigger, size floor, payback, one cut a session or many.
-`proxy.js` puts it on the row it logs, on a clear and on a refusal alike (a refusal's policy says which floor
-refused); `compression.js:noteCompression` keeps it on the session's record, and marks `policyChanged` where a
-session spans an update; the desktop mod writes the same string from its own mirrored constants, held to the
-proxy's by `test/claude-clear.test.js`, because one policy may not have two names. A saving made before this
-shipped reads `unstamped` and is never folded into today's.
-- **Why not a date.** `factory.js:CLEARING_SINCE` dates the current policy from the merge of #693, which is true
-  for this machine and wrong for everybody else: a person still on an older copy is running the older policy
-  today, so a date would count their old sessions as current, and a person who updated a week late would have good
-  sessions thrown away. Nothing on one machine can know when another updated, and with the stamp it does not have
-  to. The Factory's own date stays as it is -- it reads this machine's transcripts, where the update time is known.
-
-**`sessions` in the payload** (`delivery-telemetry.js:deliveryMetrics` returns `{ prs, sessions }` from one walk of
-the repositories): groups of **sums**, never per-session averages, so every rate a dashboard shows is a ratio of
-sums -- the mean of per-session ratios read $13.93 against the true $5.97 on this machine's own ledger. `all`,
-`cleared` and `uncleared` (a session grouped by **what happened to it**, not the arm it was assigned to: 230 of
-249 sessions on one machine's clearing arm had never had a clear), `byPolicy`, `byClient`, and `netBuckets` for the
-spread, since five pull requests were most of a fortnight's saving here. `prompts` -- the session's own model calls
--- rides beside the dollars, because a cleared session is a long session and cost per session cannot tell the two
-apart; cost per prompt can.
-
-**`prs` is schema 3**: `spendUsd` and `spendPrs` (what they cost, over the pull requests whose **every** session
-could be priced -- one unpriced session leaves a pull request out of both figures rather than counting it at zero),
-`clearedPrs` (how many got a clear), `byPolicy`, and `rows`, the newest 50 merged pull requests as numbers alone.
-Nothing names a pull request, a repository or a session, as before.
-
-**What an operator says the machine is** (2026-11-12, `src/labels.js`): `labels`, a map of up to 8 short
-names, from `labels` in `THINKER_HOME/config.json` with `THINKER_LABELS` (JSON or `k=v,k2=v2`) merged over
-it per key. On the payload (always, `{}` where none: an empty block says no label is set, an absent one
-says the build is too old to carry any, and a fleet must tell those apart) and on the usage log's
-`op: session` row, which is the one event per session an export reads. Set, never inferred -- nothing reads
-a hostname, an instance id or a remote -- because this is the only part of a payload where identifying data
-can appear, and whose it is to put there is the operator's call. A repository's `.thinker/config.json` is
-not a source: a checkout is not a trust boundary for fleet attribution. The ingest stores the payload whole
-(`infra/metrics/report.mjs`), so labels need no deploy to arrive.
-
-**A payload that does not fit loses its lists, not its figures** (`telemetry.js:fitPayload`, `PAYLOAD_BUDGET` 56 KB
-against the API's 64 KB). The rows are what can grow without bound, and a 413 loses the **whole** report with
-nothing on the machine saying why: the longest list goes first, only as far as the budget needs, the block says
-`rowsDropped` and the payload says what it dropped. This machine's payload is 37 KB with every list in it.
-
-**Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, ten cards) and four
-new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whose `valid` now accepts schema 2 or
-3 so the old cards keep reading older snapshots). No database change and no Lambda deploy: both blocks are read out
-of `reports.raw_json`, which the ingest already stores whole.
-
-**What it still cannot say.** A cleared session is not a comparable session, and nothing here is a controlled
-comparison -- the holdout is, and it is per machine (`thinker profile holdout`, `thinker factory --diff
-compression`). The policy stamp starts empty: every clear on this machine today reads `unstamped`, and the current
-policy's per-session figure only begins once installs carry this build. A session whose agent reports no usage
-(Cursor) counts as a session and in no dollar figure.
+- **Session clearing tracked per-session, not by denominator:** `sessionsOf` (usage log `op: session` rows) with cleared tokens, cost, prompt count.
+- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r1-t140k-f60k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
+- **Dashboard reads stamped policies only** (`scripts/savings-dashboard.mjs:STAMPED`). Pre-stamp clears in separate row. Unstamped clears left out.
+- **Two rewrites not charged:** cold cut's own call (`r.clear.cold`) and rewrites from expired cache (no read found). Both doors enforce via `cutting.js:chargedRewrite`, `register.tsx:chargedRewrite`.
+- **Factory's two arms:** `telemetry.js:armsMetrics` sends `factory.arms` sums (sessions, exchanges, dollars, rework, cache traffic, merged PRs) per stage/loop, by policy stamp. Schema 1, read by **Diff by feature** dashboard.
+- **`sessions` payload groups:** sums not averages. `all`, `cleared`, `uncleared`, `byPolicy`, `byClient`, `netBuckets`. Cost per prompt beside cost per session.
+- **`prs` schema 3:** `spendUsd`, `spendPrs` (over PRs with all sessions priced), `clearedPrs`, `byPolicy`, `rows` (newest 50). No PR/repo/session names.
+- **`labels`, what an operator says the machine is** (2026-11-12, `src/labels.js`): up to 8 short names from `labels` in `THINKER_HOME/config.json`, `THINKER_LABELS` (JSON or `k=v,k2=v2`) merged over it per key. On the payload always (`{}` = none set, absent = build too old; a fleet must tell those apart) and on the `op: session` row, the one event per session an export reads. Set, never inferred (no hostname, instance id or remote): the only part of a payload where identifying data can appear, so whose it is to put there is the operator's. Repo config is not a source — a checkout is not a trust boundary for fleet attribution. Ingest stores the payload whole, so no deploy.
+- **Oversized payload:** `fitPayload`, `PAYLOAD_BUDGET` 56 KB. Drops rows first, sets `rowsDropped`.
+- **`byDay` cumulative per snapshot:** day of session's last request or PR merge. Never add snapshots; explode days, add those.
+- **Desktop clears outlive card record:** `compression.js:mirrorClearing` writes to `state/compression/<session>.json` (max 200 files, pruned after `PRUNE_AGE` 2 days) and once to log (`op: 'clearing'`). `delivery.js:sessionsOf` reads; `clearedBySession` sums cumulative. Take newest row, never add.
+- **Cold cut pricing:** `compression.js:clearingCostBySession` prices at zero (cache expired, rewrite happens anyway). Warm cuts charged their rewrite.
+- **Dashboards:** **Savings per session** (`scripts/savings-dashboard.mjs`), **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, `valid` accepts schema 2 or 3). Read from `reports.raw_json`.
+- **Limits:** Clearing holdout off since 2026-11-12 (was per-machine baseline, now end). Unstamped clears on current machine until next build. Sessions with no usage (Cursor) counted but no cost. Model per-session reread tracked in `src/rereads.js`.
 
 ## Usage history
 
@@ -328,13 +313,14 @@ policy's per-session figure only begins once installs carry this build. A sessio
 
 - **Two stages, one ledger.** Sessions end by pairing each prompt with answers until the next prompt, asking the model for observations: request, approach, outcome (`accepted`, `corrected`, `redirected`, `unknown`), quoted reaction, lesson where supported. Written to `.thinker/local/profile/ledger.jsonl`, 60-day window. Rows carry `at` (session clock) and `seen` (ledger read time).
 - **Compile is a daily patch** (`compileHours` 24, `compileBatch` 200). Due when a session enters the ledger and last compile is 24h old. Model shown profile with id on each entry, new observations, and related rows (max 40, `relatedCited`). Returns keep / update / drop / add. Entry with no citations leaves by code. Updates apply floors and window; full compile via `thinker profile compile --full` or changed prompt; backlog longer than 200 patches in steps, oldest first.
-- **Citations hold entries to observation window** (`settle`): dropped if window does not hold; entry with none leaves. Counts and dates from cited observations. `howWeWork` line needs two sessions or one stating/correcting preference or interrupted. Workstream leaves if not seen in 21 days. Stated preferences and corrections worth most; repeated rules get marked "in AGENTS.md; still missed".
+- **Citations hold entries to observation window** (`settle`): dropped if window does not hold; entry with none leaves. Counts and dates from cited observations. `howWeWork` line needs two sessions or one stated preference (a lone correction or interruption no longer suffices, 2026-11-12: that is where the narrow lines came from). Workstream leaves if not seen in 21 days. Stated preferences and corrections worth most; repeated rules get marked "in AGENTS.md; still missed".
 - **Model: Opus only** (`PROFILE_MODELS`, `completeProfile`). Calls get 10 minutes. Another model set via `learn.profileModel`.
 - **Skills** (`exchanges` carries `skills`, `observationSkills`; `/skill` or agent `Skill` call). Extractor sees `SKILLS:` line per exchange. Compile shown tally per skill (sessions, observations, person/agent typed, outcomes) and related observations (max 40, newest). Line per skill: use and person's reaction. Kept only when cited observation ran or named skill; two sessions or person naming it. Rendered `/name: text`. Backfill via `thinker profile backfill [--dry]`.
 - **Rendered block** (~1500 tokens, `renderChars`; `renderProfile`, `profileBlock`). Headed with one sentence and session count. **Served text only** (no counts, dates, outcome tallies; use `show --why`). Oldest workstreams first (to 3), least-used skills (to 3), weakest ways of working (to 4), longest last (`TRIM`).
 - **Served by prompt hook, held out by session** (deterministic share via `profileHoldoutRate` 0.5, `learn: { profileHoldout }`, env `THINKER_PROFILE_HOLDOUT|THINKER_HOLDOUT`). Block goes first in session; state file holds arm, count, compactions seen (`st.profile`). `profile-served` row logged per injection and once per held-out session.
 - **Measure: cost per exchange and recurrence.** Cost is ratio of sums (tokens over exchanges), stratified by model, bootstrapped interval. Recurrence: how often person restates prior preference (`repeats` on observation; extractor shown profile lines and 200 prior distinct prefs/lessons, newest first). Judged `profile` (line held it) or `ledger` (compile failed). `servedRate` is holdout's question; `unlearnedRate` checks extractor. Rows before `repeats` extraction not measured (`measured` field).
 - **Line verdicts** (`LINE_VERDICTS`, `shownLines`, `profileTurn` keeps ids in `st.profile.shown`; `thinker profile lines [--why]`). Per-line per-session: `applied`, `ignored` (evidence of violation or silence where line covered work; person restating in prompt is `ignored`), `na` (no bearing). `followRate` over sessions line applied to; `null` where none. Default `na`. Verdict on unseen id or second verdict on same line dropped.
+- **Corrections weigh most, lines retire by code, ids are stable** (2026-11-12, the owner's call). `settle` ranks `howWeWork` by the corrections cited behind a line (`isCorrection`: corrected, redirected or interrupted, the Factory's rule), then sessions; the cap and the render's trim take from the bottom. The compile sees a batch's corrections first and each live entry's `corrections` and `use` (shown, applied, followed, ignored, contradicted from `lineReport`), with the rule to reword, move or drop a line applied in a fifth or fewer of five-plus sessions: the fix is at the source, the retire rule is the backstop. The prompt bars state from a workstream (no PR number, merged/unmerged, deployed, on/off, "done"). A line judged `na` in `retireShown` (15) sessions is `retired` (`retireDue`, `retire`): out of the served block the day it happens (`profileBlock`), marked on the profile at compile and listed to the model as RETIRED, never re-added; `thinker profile lines` and `show --why` mark it; `lines.retired` on the metric. Entry ids keep across compiles (`ids` counters on the profile, `idCounters` for one from before), so a verdict keyed on an id is about one line; until then `h1` was the rank.
 - **Full compile once a month** (`rebaseDays` 30, `rebasedAt` on profile). `thinker profile [show [--why] | ledger | compile [--full] | extract <transcript> | rebuild [--days 30]]`; `rebuild --dry` lists sessions and chars. Reads all worktrees' sessions.
 - Profile under `.thinker/local/`, never committed. Log rows carry counts and tokens, not text.
 
@@ -416,6 +402,9 @@ policy's per-session figure only begins once installs carry this build. A sessio
 - Background one at a time. `usage.js:parse` caches log per process (size, mtime). `transcripts.js:sessionModel` cached.
 - **Kept view brought up to date, not made again** (2026-11-08; `ui/scans.js` passes `since`, `scan-worker.js` acts). This code's view older than 10 min checked: worker stats sessions, log, proxy; nothing moved = `unchanged`; something moved = read every session in one pass. Strip counts changed sessions ("N of M changed"; "Updating…"). Stamp = hash of slice (window sessions by file/mtime/size/`since`, this repo's log events, delivery journal, proxy rows/desktop clears of window only). Not watched: other repos' log (only decide if session counts here). `MAX_KEEP_MS` (6 h) backstop.
 - **One parse per process for shared logs** (2026-11-10): `compression.js:compressionRecords` keeps proxy log's parsed tail, `usage.js:logEvents` keeps events beside parse, `providers.js:registryPrices` stats `providers.json` ≤1/s. One repo's Report: 1.9 s → 1.25 s.
+- **A log append is not a reason to read a session** (2026-11-12; `report.js:logParts`, `refreshLogParts`, `scan-worker.js:logsOnly`). Report has two halves: sessions (parts, models, token types, Factory) and logs (`actions`, `savings`, `prs`, `profile`). Logs are shared and appended every few seconds of a live session, so any visit re-read every session of every repo for figures that could not move. Now: no session moved + a log moved = log half alone, one message, kept view's session half stands. Guard: `sessionsStamp` (`view-sources.js`) kept with the report; shortcut refused unless sessions are the ones it was made from (a *dropped* session has no new mtime). 13 repos here: 2.4 s → 1.4 s a visit.
+- **Log rows are shared, never copied per reader** (2026-11-12; `usage.js:parse`). Rows sorted once and `origin` put on each at parse; `all` returns the rows themselves, one repo an array of references. Was: `{...e}` over 35k events per (repo, all) pair, 51 MB of heap a copy, four held. 13 repos: 349 ms/+158 MB → 92 ms/+67 MB, same rows. Readers must not mutate an event. A log whose rows don't all name a repo (`anonymous`) keeps the copying path.
+- **A checkout in a tool's area or inside another checkout is nobody's work** (2026-11-12; `machine.js:toolArea`, `insideAnother`, beside the `TMP` rule). Hidden folder of home (`~/.claude/jobs/…`, `~/.artemis/repos/…`) or a *different* repository nested in a checkout's tree (`bench/worktrees/…/posthog/test-wt`). Linked worktree of the same repo stays (compares repo id, not path). This machine: 18 repos listed → 13.
 - Save snapshot keyed on settings fields (`context-snapshot.js:settingsKey`), not file bytes. `writeSnapshot` prunes old `context-view-*` and pre-2026-10-24 per-worktree files.
 - Instruction sections read transcript once (`instruction-value.js:sessionRecord`), kept as `session-activity`. Re-read only if transcript grew or sections name new code.
 
@@ -465,37 +454,11 @@ policy's per-session figure only begins once installs carry this build. A sessio
 
 ## Error reports, with consent (2026-10-29, the owner's ask)
 
-thinker swallows its own failures by design: a hook must never fail a tool call, so each is wrapped in a bare
-`catch {}`, and a command that dies prints a stack to a terminal nobody reads again. A fault that hits many
-machines is therefore invisible: the Codex 404 of 2026-10-24 ran four days on the owner's own machine, and the
-installer leaving a shell with no working directory was found by reading a container log.
-
-`error-report.js` records those failures locally, asks once whether to send them, and sends nothing until the
-person says yes.
-
-- **What a record is.** `{at, op, version, node, platform, name, code, message, frames}`. `recordError` is called
-  from the catch sites that used to swallow (`hook.pre`, `hook.proxy`, and `cli.<command>` from `main().catch`);
-  it never throws, writes one line, and does nothing at all in test mode (`THINKER_ERRORS_TEST` forces it on
-  for the tests). The same failure again counts up (`seen`) instead of filling the file; at most `ERRORS.keep`
-  (20) records, `keepDays` (14).
-- **What it may not carry** (`scrub`, and `test/error-report.test.js` is mostly about this): thinker's own
-  install path becomes `<thinker>` and the repository `<repo>`, the home directory `~`, a credential `<token>`,
-  a URL `<url>`, and any absolute path left keeps its last two segments. So `proxy-service.js:ensureProxy` stays
-  readable — that is the whole value of the record — and the person, their employer's repository and their
-  gateway do not appear.
-- **The question** is the second owner-approved exception to "one suggestion, not three", and the same shape as
-  the first: asked once per machine, after the proxy repair in the hook's one-question chain, through the agent's
-  own question tool, answered through thinker's `errors` MCP tool or `thinker errors --answer yes|no|never`. It is
-  asked only where there is something to send, and never where telemetry is off — one switch covers both. No
-  answer sends nothing: there is no reminder and no default yes.
-- **`thinker errors`** prints the records exactly as they would be sent, which is the only honest way to ask for
-  consent: a person can read what would leave their machine before agreeing. `--send` sends now, `--json` is the
-  data, `--answer` records a decision.
-- **The endpoint** is `/errors` on the metrics API (`infra/metrics/errors.mjs`, `handler.mjs`), one row per error
-  in `error_reports` so one fault can be counted across installs. It refuses a payload that still looks like a
-  path, a URL or a credential (`LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`), so a client with a
-  scrubbing bug cannot store one either. The API was made with quick-create, so `$default` already routes the
-  new path; the table and the `GRANT` need a deploy (`infra/metrics/README.md`).
+- **Recording:** `recordError` called from catch sites; never throws, writes one line. Disabled in test mode (`THINKER_ERRORS_TEST`). Deduplicates, keeps max 20 records over 14 days.
+- **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths). Checked in `test/error-report.test.js`.
+- **Consent:** Asked once per machine via agent's question tool, answered through `thinker errors --answer yes|no|never`. Only asked where records exist and telemetry is on.
+- **`thinker errors`:** Prints records. Flags: `--send`, `--json`, `--answer`.
+- **Endpoint:** `/errors` on metrics API (`infra/metrics/errors.mjs`, `handler.mjs`). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`. Requires table and GRANT deploy in `infra/metrics/README.md`.
 
 ## Knowledge notes, removed (2026-11-08)
 
@@ -551,6 +514,19 @@ from 7 to 11 of 15, and an input-class checklist to 12 of 15.
   list `setHooks` clears, so `thinker rewire` takes the entry an older copy wrote out of `~/.claude/settings.json`.
   The other agents keep theirs: they have no transcript, and the hook is how their tool calls reach the profile.
 - Plugins under `plugins/` run `thinker hook … --plugin` and yield to host hooks (`clients.js:pluginYields`).
+- **Orca is a host, not an agent, and wants nothing of thinker's own (2026-11-12, checked live on 1.4.257).**
+  It runs the agents' CLIs, one git worktree to a task, and reads each repository's `.claude/` and `.codex/`:
+  a terminal pane, Orca's structured chat and a pane on an Orca **managed account** alike serve the profile,
+  log the session and route through the proxy. Orca appends its managed hooks to the agents' files instead of
+  replacing them and `setHooks` only ever drops thinker's own entries, so neither takes the other's out. A
+  managed account's home is `<Orca userData>/claude-profiles/<accountId>/home` (Codex: `codex-accounts/`), and
+  Orca **mirrors the person's `~/.claude/settings.json` keys into it**, each key's `JSON.stringify` hashed in
+  the account's `settings-sync.json` so it re-syncs when their side changes: `env` -- the proxy's route and the
+  mods' plugin directory -- arrives byte-identical, `hooks` arrives with Orca's own added. So thinker must
+  **not** write into such a home; that would desync the ledger Orca reconciles by. Its worktrees live in
+  `~/orca/workspaces/<repo>/<name>` and are linked, so `store.js:cacheCheckout` already points them at the main
+  checkout's cache. #764 wired those homes from a string in Orca's minified bundle that read like an exclusion
+  of `settings.json`; one real account disproved it, and it was reverted. Make the state and look at it.
 - Pi: `npm/pi/thinker.js`.
 - One copy per checkout (`clients.js:pruneInstalls`). `setup` removes other copies' hooks and repoints MCP. Claude Code `--local` empties the shared settings file.
 - Prompt hook prunes gone or older copies (`olderOnly`), logs `op: "prune"`. Never delete old copy's files.

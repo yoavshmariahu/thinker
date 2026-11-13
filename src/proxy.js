@@ -77,8 +77,9 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 //   140k/100k +inputs +thinking  +7.3% at list  (<60 req -0.1%, 60-119 +0.5%, 120+ +10.2%,  6 sessions costlier)
 //   180k/140k +inputs +thinking  +5.8% at list  (<60 req +0.1%, 60-119 +0.7%, 120+  +8.0%,  4 sessions costlier)
 // 140k gives up half a point of the saving to halve the sessions it can cost, and no long session is costlier.
-// Still not measured, and the reason the holdout stays: the model reading again what was cleared, which the replay
-// cannot see (proxy-replay.js).
+// The model reading again what was cleared, which the replay cannot see (proxy-replay.js), is measured per session
+// from the transcript since 2026-11-12 (rereads.js) and taken off the netted saving; the holdout that was kept for it
+// is off (proxy-service.js:SERVICE_HOLDOUT).
 export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 60000, holdout: 0, clearDeep: true };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code

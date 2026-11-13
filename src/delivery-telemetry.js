@@ -28,10 +28,25 @@ import { deliveryCheckouts } from './delivery-journal.js';
 export const NET_BUCKETS = [0, 1, 5, 20, null];
 const PR_ROWS = 50;
 
+// A day's own figures, so a trend can be read and a total can be added up. The 30-day blocks below cannot:
+// two snapshots a day apart differ by what came in AND by what rolled out of the window, and nothing tells
+// the two apart -- which is why the proxy block grew its own `byDay` (telemetry.js:proxyMetrics). A day here
+// belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days
+// from different devices and different days add up.
+const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, netUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
+const dayOf = at => (typeof at === 'string' && at.length >= 10 && Number.isFinite(Date.parse(at)) ? at.slice(0, 10) : null);
+const roundDays = byDay => {
+  for (const d of Object.values(byDay)) {
+    d.clearedTokens = Math.round(d.clearedTokens);
+    for (const k of ['netUsd', 'spendUsd']) d[k] = Math.round(d[k] * 100) / 100;
+  }
+  return byDay;
+};
+
 const group = () => ({
   sessions: 0, prompts: 0, agentTokens: 0, tokenComplete: 0,
   clearedSessions: 0, clearedTokens: 0, clearRequests: 0,
-  savedUsd: 0, rewriteUsd: 0, netUsd: 0, pricedSessions: 0, lossSessions: 0,
+  savedUsd: 0, rewriteUsd: 0, rereadUsd: 0, rereads: 0, rereadSessions: 0, netUsd: 0, pricedSessions: 0, lossSessions: 0,
   spendUsd: 0, spendSessions: 0,
 });
 const bumpGroup = (g, x) => {
@@ -39,9 +54,11 @@ const bumpGroup = (g, x) => {
   if (Number.isFinite(x.tokens)) { g.agentTokens += x.tokens; if (x.complete) g.tokenComplete++; }
   if (x.cleared > 0) { g.clearedSessions++; g.clearedTokens += x.cleared; }
   g.clearRequests += x.rewrites || 0;
+  // files read again after a cut took them out (rereads.js): the count, and the sessions it happened in
+  if (x.rereads > 0) { g.rereads += x.rereads; g.rereadSessions++; }
   if (x.cost?.priced) {
     g.pricedSessions++;
-    g.savedUsd += x.cost.saved || 0; g.rewriteUsd += x.cost.rewrite || 0; g.netUsd += x.cost.net || 0;
+    g.savedUsd += x.cost.saved || 0; g.rewriteUsd += x.cost.rewrite || 0; g.rereadUsd += x.cost.reread || 0; g.netUsd += x.cost.net || 0;
     if ((x.cost.net || 0) < 0) g.lossSessions++;
   }
   if (x.spend != null) { g.spendUsd += x.spend; g.spendSessions++; }
@@ -49,7 +66,7 @@ const bumpGroup = (g, x) => {
 };
 const roundGroup = g => {
   for (const k of ['agentTokens', 'clearedTokens']) g[k] = Math.round(g[k]);
-  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
+  for (const k of ['savedUsd', 'rewriteUsd', 'rereadUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
   return g;
 };
 // a saving whose policy was never recorded is its own key, never folded into today's
@@ -84,7 +101,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     // Dollars, netted, over the merged pull requests' sessions (the owner's ask, 2026-11-06: net savings per
     // device on the dashboard). Signed: a loss reads as a loss. `costedPrs` is how many of the merged pull
     // requests could be priced at all; a session known only from an observation names no model.
-    savedUsd: 0, rewriteUsd: 0, netUsd: 0, costedPrs: 0,
+    savedUsd: 0, rewriteUsd: 0, rereadUsd: 0, netUsd: 0, costedPrs: 0,
     // What those pull requests cost in model calls, in dollars at list prices by token type (delivery.js
     // `cost.spend`), over the ones whose every session could be priced -- `spendPrs` is that count and the
     // only honest denominator for a cost per pull request. A pull request with one unpriced session is in
@@ -102,6 +119,9 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     // By the cut policy behind the saving (cutting.js:policyId): 'none' never cleared, 'unstamped' cleared
     // before the policy was recorded, 'mixed' cleared under two.
     byPolicy: {},
+    // by the UTC day the pull request merged; days add up, so a cost per pull request can be trended and a
+    // total saving added, which a 30-day rolling figure can never be
+    byDay: {},
   };
   // Savings per session: every session of the window, once each, whether or not it belongs to a pull request.
   // Groups of sums -- a rate is the dashboard's own division, never a mean of per-session ratios. `cleared`
@@ -113,10 +133,20 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     all: group(), cleared: group(), uncleared: group(),
     byPolicy: {}, byClient: {},
     netBuckets: NET_BUCKETS.map(upper => ({ upper, count: 0 })),
+    // by the UTC day of the session's last request, as the Report places a session in a week; days add up
+    byDay: {},
   };
   const rows = [];
   const countSession = x => {
     const key = policyKey(x), client = String(x.client || 'unknown');
+    const day = dayOf(x.lastAt);
+    if (day) {
+      const d = sessions.byDay[day] ||= dayGroup();
+      d.sessions++; d.prompts += x.prompts || 0;
+      if (x.cleared > 0) { d.clearedSessions++; d.clearedTokens += x.cleared; }
+      if (x.cost?.priced) { d.pricedSessions++; d.netUsd += x.cost.net || 0; }
+      if (x.spend != null) { d.spendUsd += x.spend; d.spendSessions++; }
+    }
     bumpGroup(sessions.all, x);
     bumpGroup(x.cleared > 0 ? sessions.cleared : sessions.uncleared, x);
     bumpGroup(sessions.byPolicy[key] ||= group(), x);
@@ -137,7 +167,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       out.merged += s.merged; out.mergedSeen += s.mergedSeen; out.mergedAssisted += s.mergedAssisted; out.open += s.open; out.worked += s.worked;
       out.clearedTokens += s.saved.cleared; out.savedTokens += s.saved.total;
       out.agentTokens += s.tokens.agent; out.completeTokenPrs += s.tokens.complete;
-      out.savedUsd += s.cost?.saved || 0; out.rewriteUsd += s.cost?.rewrite || 0; out.netUsd += s.cost?.net || 0; out.costedPrs += s.cost?.costed || 0;
+      out.savedUsd += s.cost?.saved || 0; out.rewriteUsd += s.cost?.rewrite || 0; out.rereadUsd += s.cost?.reread || 0; out.netUsd += s.cost?.net || 0; out.costedPrs += s.cost?.costed || 0;
       out.spendUsd += s.cost?.spend || 0; out.spendPrs += s.cost?.spendComplete || 0;
       out.linkedSessions += s.sessions.linked; out.unlinkedSessions += s.sessions.unlinked;
       for (const p of report.prs.filter(p => p.sessions.length && p.mergedAt && p.mergedAt >= report.since)) {
@@ -145,11 +175,19 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
         if (p.cleared) out.clearedPrs++;
         if (typeof p.hoursToMerge === 'number' && Number.isFinite(p.hoursToMerge)) { out.hoursToMerge += p.hoursToMerge; out.hoursToMergeSamples++; }
         const key = p.policy || 'none';
-        const g = out.byPolicy[key] ||= { prs: 0, clearedPrs: 0, clearedTokens: 0, agentTokens: 0, sessions: 0, savedUsd: 0, rewriteUsd: 0, netUsd: 0, spendUsd: 0, spendPrs: 0 };
+        const g = out.byPolicy[key] ||= { prs: 0, clearedPrs: 0, clearedTokens: 0, agentTokens: 0, sessions: 0, savedUsd: 0, rewriteUsd: 0, rereadUsd: 0, netUsd: 0, spendUsd: 0, spendPrs: 0 };
         g.prs++; if (p.cleared) g.clearedPrs++;
         g.clearedTokens += p.saved.cleared; g.agentTokens += p.tokens.agent; g.sessions += p.sessions.length;
-        if (p.cost?.priced) { g.savedUsd += p.cost.saved; g.rewriteUsd += p.cost.rewrite; g.netUsd += p.cost.net; }
+        if (p.cost?.priced) { g.savedUsd += p.cost.saved; g.rewriteUsd += p.cost.rewrite; g.rereadUsd += p.cost.reread || 0; g.netUsd += p.cost.net; }
         if (p.cost?.spendComplete) { g.spendUsd += p.cost.spend; g.spendPrs++; }
+        const day = dayOf(p.mergedAt);
+        if (day) {
+          const d = out.byDay[day] ||= { prs: 0, clearedPrs: 0, clearedTokens: 0, netUsd: 0, spendUsd: 0, spendPrs: 0, sessions: 0, prompts: 0 };
+          d.prs++; if (p.cleared) d.clearedPrs++;
+          d.clearedTokens += p.saved.cleared; d.sessions += p.sessions.length; d.prompts += p.tokens.prompts;
+          if (p.cost?.priced) d.netUsd += p.cost.net;
+          if (p.cost?.spendComplete) { d.spendUsd += p.cost.spend; d.spendPrs++; }
+        }
         rows.push({
           at: p.mergedAt, cleared: Boolean(p.cleared), policy: p.policy || null,
           clearedTokens: Math.round(p.saved.cleared), agentTokens: p.tokens.complete ? Math.round(p.tokens.agent) : null,
@@ -164,14 +202,15 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
   }
   for (const k of ['clearedTokens', 'savedTokens', 'agentTokens']) out[k] = Math.round(out[k]);
   out.hoursToMerge = Math.round(out.hoursToMerge * 100) / 100;
-  for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) out[k] = Math.round(out[k] * 100) / 100;
+  for (const k of ['savedUsd', 'rewriteUsd', 'rereadUsd', 'netUsd', 'spendUsd']) out[k] = Math.round(out[k] * 100) / 100;
   for (const g of Object.values(out.byPolicy)) {
     for (const k of ['clearedTokens', 'agentTokens']) g[k] = Math.round(g[k]);
-    for (const k of ['savedUsd', 'rewriteUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
+    for (const k of ['savedUsd', 'rewriteUsd', 'rereadUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
   }
   // newest merge first, and only as many as the payload carries: a row is five numbers, and the sums above
   // are over every pull request whether or not its row is here (`merged` says how many that was)
   out.rows = rows.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, PR_ROWS).map(({ at, ...r }) => r);
+  roundDays(out.byDay); roundDays(sessions.byDay);
   roundGroup(sessions.all); roundGroup(sessions.cleared); roundGroup(sessions.uncleared);
   for (const g of Object.values(sessions.byPolicy)) roundGroup(g);
   for (const g of Object.values(sessions.byClient)) roundGroup(g);

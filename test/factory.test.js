@@ -3,6 +3,7 @@
 // touched two stages, and the merge over repositories, on synthetic sessions whose answers are known.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { bashStage, stageOfTool, sessionFactory, detectLoops, mergeFactory, callCost, STAGES, REWORK_THRESHOLDS, verdictOf, renderFactory, weeklyTally, mergeWeekly, armTally, mergeArms, armRows, renderArms, ARMS, armsOf, trust, CLEARING_SINCE } from '../src/factory.js';
 import { weekColumns } from '../src/report.js';
 
@@ -245,6 +246,25 @@ test('the clearing\'s on side is a session that actually got a clear, its held-o
   assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: after, cleared: false }).compression, 'holdout');
   assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: after, cleared: true }).compression, 'on', 'a clear is a clear whatever the hash says');
   assert.equal(armsOf(st, 'abc', 0, { peak: 200_000, start: after, cleared: true }).compression, null, 'no share, no split');
+  // a clear that names its policy (cutting.js:policyId) is placed by the stamp, not the date: the policy this machine
+  // runs today is on, whenever it was made; any other policy is a different feature. The held-out side keeps the date.
+  const current = 'r1-t140k-f60k-p25-deep';
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: before, cleared: true, policy: current, current }).compression, 'on', 'stamped with today\'s policy: on, whatever the date');
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: after, cleared: true, policy: 'r1-t100k-f10k-p25-deep', current }).compression, null, 'stamped with another policy: neither side');
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: after, cleared: true, policy: null, current }).compression, 'on', 'unstamped: the date rule');
+  assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: before, cleared: false, policy: null, current }).compression, null, 'held out before the policy landed: the date rule, nothing to stamp');
+  const tally = armTally(0.5, current); assert.equal(tally.finish().compression.policy, current, 'the tally names the policy its on side was cleared under');
+  assert.equal(mergeArms([tally.finish(), armTally(0.5, current).finish()]).compression.policy, current); assert.equal(mergeArms([tally.finish(), armTally(0.5, 'other').finish()]).compression.policy, null, 'two policies merge to none');
+});
+
+test('with the clearing\'s holdout off the comparison says so, and names where the re-reads are netted instead', () => {
+  assert.equal(SERVICE_HOLDOUT, 0, 'no holdout since 2026-11-12: re-reads of cleared files are measured per session (rereads.js)');
+  const cell = () => ({ sessions: 0, cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, stages: Object.fromEntries(STAGES.map(([k]) => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
+  const v = { cost: 0, loops: [], arms: { compression: { rate: 0, on: cell(), holdout: cell() } } };
+  const lines = renderArms(v, 'compression');
+  assert.ok(lines.some(l => /no holdout.*re-reads of cleared files.*netted in thinker prs/.test(l)), lines.join('\n'));
+  v.arms.compression.rate = 0.5;
+  assert.ok(!renderArms(v, 'compression').some(l => /no holdout/.test(l)), 'an arm put back by the machine config is compared as before');
 });
 
 test('trust is computed from the sides\' sizes and the spread of their session costs, and a difference inside the band is flat', () => {

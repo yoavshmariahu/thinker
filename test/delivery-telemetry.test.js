@@ -8,7 +8,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
-import { buildTelemetryPayload } from '../src/telemetry.js';
+import { mirrorClearing } from '../src/compression.js';
+import { sessionsOf } from '../src/delivery.js';
+import { buildTelemetryPayload, armsMetrics } from '../src/telemetry.js';
+import { writeReport } from '../src/report-snapshot.js';
+import { armTally } from '../src/factory.js';
+import { REPORT_WEEKS } from '../src/report.js';
 import { normalizeReport } from '../infra/metrics/report.mjs';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
 import { guardScript, install, MARKER } from '../scripts/install-pr-guard.mjs';
@@ -33,6 +38,36 @@ function evidence(store, home, number = 12, { tokens = 400_000, clearedTokens = 
   fs.writeFileSync(path.join(dir, `${session}.json`), JSON.stringify({ session, saved: clearedTokens, requests: 4 }));
   appendDelivery(store, { t: at(3), op: 'pr', pr: { number, title: 'PRIVATE PR TITLE', url: 'https://github.com/private/repo/pull/12', state: 'MERGED', branch: `PRIVATE_BRANCH_${number}`, author: 'PRIVATE_AUTHOR', createdAt: at(12), mergedAt: at(4), commits: [`PRIVATE_SHA_${number}`] } });
 }
+
+// The Factory's two sides leave the machine as sums off the kept report (telemetry.js:armsMetrics): a repository with no
+// kept report counts as such and sends nothing, the policy the on side was cleared under rides along, and nothing names
+// a repository, a session or a pull request.
+test('the arms block is the kept report\'s two sides per feature, as sums, with the cut policy and nothing named', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  store.log({ op: 'session', t: at(2), session: 'PRIVATE_SESSION_A', client: 'claude' });
+  const empty = armsMetrics(store, { all: false, now });
+  assert.equal(empty.schemaVersion, 1); assert.equal(empty.repos, 1); assert.equal(empty.reposWithoutReport, 1);
+  assert.equal(empty.profile.shown, null); assert.equal(empty.compression.on, null); assert.equal(empty.reportsFrom, null);
+  assert.match(empty.policy, /^r\d+-t\d+k-f\d+k-p\d+-(deep|one)$/, 'the policy this machine runs today');
+  const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
+  const r = (cost, exchanges, loops = []) => ({ cost, tokens: cost * 1e5, calls: 10, exchanges, stages: { ...stages, build: { cost: cost / 2, tokens: 0, rework: cost / 10, reworkTokens: 0 } }, loops, cacheWrite: 1000, cacheRead: 9000 });
+  const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');
+  tally.add({ profile: 'shown', compression: 'on' }, r(10, 4, [{ kind: 'fix', cost: 1, tokens: 0 }]), 'PRIVATE_SESSION_A');
+  tally.add({ profile: 'holdout', compression: 'holdout' }, r(30, 6), 'PRIVATE_SESSION_B');
+  tally.pr({ profile: 'shown', compression: 'on' }, true, 10);
+  writeReport(store, REPORT_WEEKS, { factory: { arms: tally.finish() } }, { now });
+  const a = armsMetrics(store, { all: false, now });
+  assert.equal(a.repos, 1); assert.equal(a.reposWithoutReport, 0); assert.equal(a.reportsFrom, new Date(now).toISOString());
+  assert.deepEqual([a.profile.shown.sessions, a.profile.shown.cost, a.profile.shown.exchanges, a.profile.shown.cost2], [1, 10, 4, 100]);
+  assert.deepEqual([a.profile.holdout.sessions, a.profile.holdout.cost, a.profile.holdout.exchanges], [1, 30, 6]);
+  assert.deepEqual(a.compression.on.prs, { merged: 1, firstPass: 1, cost: 10 }); assert.equal(a.compression.rate, 0.5);
+  assert.deepEqual(a.compression.on.loops, { fix: { loops: 1, cost: 1, tokens: 0, sessions: 1 } }); assert.equal(a.profile.shown.stages.build.rework, 1);
+  assert.equal(a.compression.holdout.cacheWrite, 1000);
+  const text = JSON.stringify(a);
+  assert.ok(!/PRIVATE|session|\/tmp|thinker-delivery/i.test(text.replace(/"sessions"/g, '')), 'no session id, path or repository in the block');
+  const payload = buildTelemetryPayload(store, { all: false, home });
+  assert.equal(payload.arms.profile.shown.sessions, 1, 'the payload carries it');
+});
 
 test('pull request metrics are numbers only, and name nothing', t => {
   const store = fixture(t), home = path.join(store.repo, 'home');
@@ -59,7 +94,7 @@ test('pull request metrics are numbers only, and name nothing', t => {
   // every figure is a number, a list of numbers, or a group of them under a policy name
   for (const [key, value] of Object.entries(d)) {
     if (Array.isArray(value)) continue;
-    if (key === 'byPolicy') { for (const g of Object.values(value)) for (const n of Object.values(g)) assert.equal(typeof n, 'number'); continue; }
+    if (key === 'byPolicy' || key === 'byDay') { for (const g of Object.values(value)) for (const n of Object.values(g)) assert.equal(typeof n, 'number'); continue; }
     assert.equal(typeof value, 'number', key);
   }
   // what a pull request cost in model calls, and whether it got a clear and how much (the owner's ask, 2026-11-11)
@@ -73,6 +108,14 @@ test('pull request metrics are numbers only, and name nothing', t => {
     assert.equal(typeof r.sessions, 'number');
     assert.ok(r.spendUsd === null || typeof r.spendUsd === 'number');
   }
+  // the day a pull request merged carries its own figures, so a cost per pull request can be trended and a
+  // total added up -- which the 30-day rolling sums above can never be
+  const days = Object.keys(d.byDay);
+  assert.equal(days.length, 1, 'both merged on the same day');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(days[0]));
+  assert.equal(d.byDay[days[0]].prs, 2);
+  assert.equal(d.byDay[days[0]].clearedPrs, 2);
+  assert.equal(d.byDay[days[0]].clearedTokens, d.clearedTokens, 'the days account for every cleared token');
   // a saving made before the policy was stamped on the record says so, and is never pooled with today's
   assert.deepEqual(Object.keys(d.byPolicy), ['unstamped']);
   assert.equal(d.byPolicy.unstamped.prs, 2);
@@ -107,6 +150,70 @@ test('savings per session are counted once each, split by what actually happened
   // a session is counted here whether or not it reached a pull request, which is the point of the block
   assert.ok(s.all.sessions >= prs.linkedSessions);
   for (const secret of ['PRIVATE', 'github.com', store.repo]) assert.ok(!JSON.stringify(s).includes(secret), `leaked ${secret}`);
+});
+
+// A desktop session reaches no proxy, so its clear lives in the clearing mod's own state file -- which is a
+// card's working memory, pruned after two days. Every window that reads a saving is longer than that, so the
+// Stop hook mirrors the clear into the machine's log, where it lasts as long as the log does.
+test('a desktop clear still counts after its record is pruned, with its cost and its policy', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  const dir = path.join(home, 'state', 'compression');
+  fs.mkdirSync(dir, { recursive: true });
+  const session = 'PRIVATE_DESKTOP_SESSION';
+  const record = { session, saved: 90_000, uses: 5, requests: 3, policy: 'r1-t140k-f60k-p25-deep',
+    model: 'claude-opus-5-5', lastAt: now - 3600_000, cost: { rewrites: 2, write: 120_000 } };
+  const file = path.join(dir, `${session}.json`);
+  fs.writeFileSync(file, JSON.stringify(record));
+  store.log({ op: 'session', t: at(4), session, client: 'claude', model: 'claude-opus-5-5', turns: 8, totalTokens: 300_000, tokenCoverage: 'complete' });
+
+  // the hook mirrors it once, and does not write the same total again
+  const first = mirrorClearing(dir, session, row => store.log({ ...row, t: at(3) }));
+  assert.equal(first.cleared, 90_000);
+  assert.equal(first.policy, 'r1-t140k-f60k-p25-deep');
+  assert.deepEqual(first.cost, { rewrites: 2, write: 120_000 });
+  assert.equal(mirrorClearing(dir, session, () => { throw new Error('wrote the same clear twice'); }), null);
+  // a later clear in the same session raises the total, so a new row is written
+  fs.writeFileSync(file, JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), saved: 150_000 }));
+  assert.equal(mirrorClearing(dir, session, row => store.log({ ...row, t: at(2) })).cleared, 150_000);
+
+  // now the record is gone, as the prune would leave it
+  fs.rmSync(file);
+  const { sessions: s } = deliveryMetrics(store, { all: false, now, home });
+  assert.equal(s.cleared.sessions, 1, 'the session still reads as cleared');
+  assert.equal(s.cleared.clearedTokens, 150_000, 'at the newest total, never the sum of the rows');
+  assert.equal(s.byPolicy['r1-t140k-f60k-p25-deep'].sessions, 1, 'under the policy that cleared it');
+  assert.ok(s.cleared.savedUsd > 0, 'priced from the model the record named');
+  assert.ok(s.cleared.rewriteUsd > 0, 'and what the clear cost is charged too');
+  assert.equal(s.cleared.netUsd, Math.round((s.cleared.savedUsd - s.cleared.rewriteUsd) * 100) / 100);
+});
+
+// Two faults that made every windowed dollar figure wrong, found by asking what the last five days saved.
+test('a window holds the clears made inside it, priced at the model the proxy saw', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  const dir = path.join(home, 'state', 'compression');
+  fs.mkdirSync(dir, { recursive: true });
+  const old = 'PRIVATE_OLD_SESSION', fresh = 'PRIVATE_FRESH_SESSION';
+  // a session whose clear happened well before the window, with an event inside it
+  fs.writeFileSync(path.join(dir, `${old}.json`), JSON.stringify({ session: old, saved: 400_000_000, requests: 9, lastAt: now - 12 * 86400_000 }));
+  store.log({ op: 'session', t: at(1), session: old, client: 'claude', turns: 4, totalTokens: 10_000, tokenCoverage: 'complete' });
+  // and one cleared inside it, whose own `session` row names no model: the proxy's rows do
+  fs.writeFileSync(path.join(dir, `${fresh}.json`), JSON.stringify({ session: fresh, saved: 5_000_000, requests: 3, lastAt: now - 3600_000, model: 'claude-opus-5-5' }));
+  store.log({ op: 'session', t: at(2), session: fresh, client: 'claude', turns: 6, totalTokens: 20_000, tokenCoverage: 'complete' });
+
+  const five = new Date(now - 5 * 86400_000).toISOString();
+  const inWindow = sessionsOf(store, { since: five, home });
+  assert.equal(inWindow.get(old).cleared, 0, 'a clear made before the window is not a saving inside it');
+  assert.equal(inWindow.get(fresh).cleared, 5_000_000);
+  assert.ok(inWindow.get(fresh).cost.priced, 'priced from the model the clearing itself recorded');
+  assert.ok(inWindow.get(fresh).cost.saved > 0);
+  // the same record counts in a window that holds it
+  const all = sessionsOf(store, { since: new Date(now - 30 * 86400_000).toISOString(), home });
+  assert.equal(all.get(old).cleared, 400_000_000);
+  // a record with no date at all cannot be judged, so it is kept rather than dropped
+  const undated = 'PRIVATE_UNDATED';
+  fs.writeFileSync(path.join(dir, `${undated}.json`), JSON.stringify({ session: undated, saved: 7_000, requests: 1 }));
+  store.log({ op: 'session', t: at(1), session: undated, client: 'claude', turns: 1, totalTokens: 100, tokenCoverage: 'complete' });
+  assert.equal(sessionsOf(store, { since: five, home }).get(undated).cleared, 7_000);
 });
 
 test('the payload carries them, and the metrics API promotes them to columns', t => {

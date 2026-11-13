@@ -54,7 +54,9 @@ export function profileMetric(store, opts = {}) {
   const prof = readProfile(store);
   const learned = SECTIONS.reduce((a, sec) => a + (prof?.sections?.[sec] || []).filter(e => e.id).length, 0);
   const lr = (() => { try { return lineReport(store, { days, now, profile: prof }); } catch { return null; } })();
-  const live = lr ? lr.lines.filter(l => !l.gone && l.shown) : [];
+  // a retired line (profile.js:retire) is out of the block: counted on its own, not among the lines judged
+  const live = lr ? lr.lines.filter(l => !l.gone && l.shown && !l.retired) : [];
+  const retired = lr ? lr.lines.filter(l => !l.gone && l.retired).length : 0;
   const bands = lineBands(live);
   return {
     days, holdoutRate: rate, minExchanges: PROFILE.holdoutMinObs, minSessions: PROFILE.holdoutMinSessions,
@@ -64,7 +66,7 @@ export function profileMetric(store, opts = {}) {
     pace: pace({ shown, holdout, spanDays, min: PROFILE.holdoutMinObs }),
     // `shown` is line-sessions (a line shown to a session), `applied` those where it bore on the work: their ratio is how
     // much of the profile a session actually used (the owner's measure of its relevance, 2026-11-08); `followed` of `applied`
-    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, sessions: lr?.sessions || 0, shown: live.reduce((a, l) => a + l.shown, 0), applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => !l.applied).length, ...bands },
+    lines: { learned, fromSessions: prof?.window?.sessions || 0, judged: live.length, sessions: lr?.sessions || 0, shown: live.reduce((a, l) => a + l.shown, 0), applied: lr?.applied || 0, followed: lr?.followed || 0, followRate: lr?.followRate ?? null, neverApplied: live.filter(l => !l.applied).length, retired, retireShown: PROFILE.retireShown, ...bands },
   };
 }
 // How often each line is used, in three bands (the owner's ask, 2026-11-08): a line's rate is the sessions it bore on over
@@ -118,7 +120,7 @@ export function mergeProfileMetrics(metrics) {
     recurrence: { delta: rec.delta, ci: rec.ci, relative: rec.relative, verdict: rec.verdict },
     cost: { delta: costDelta, ci: null, relative: costDelta != null && holdout.tokens ? costDelta / holdout.tokens : null, verdict: null },
     pace: pace({ shown, holdout, spanDays: Math.max(...ms.map(m => m.pace?.spanDays || 0)), min: ms[0].minExchanges }),
-    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), sessions: sumOf(m => m.lines?.sessions), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied), rarely: sumOf(m => m.lines?.rarely), sometimes: sumOf(m => m.lines?.sometimes), frequently: sumOf(m => m.lines?.frequently) },
+    lines: { learned: sumOf(m => m.lines?.learned), fromSessions: sumOf(m => m.lines?.fromSessions), judged: sumOf(m => m.lines?.judged), sessions: sumOf(m => m.lines?.sessions), shown: shownLines, applied, followed, followRate: applied ? followed / applied : null, neverApplied: sumOf(m => m.lines?.neverApplied), retired: sumOf(m => m.lines?.retired), retireShown: PROFILE.retireShown, rarely: sumOf(m => m.lines?.rarely), sometimes: sumOf(m => m.lines?.sometimes), frequently: sumOf(m => m.lines?.frequently) },
     repos: ms.length,
   };
 }

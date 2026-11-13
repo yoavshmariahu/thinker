@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate } from '../src/profile.js';
+import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -109,8 +109,9 @@ test('settle holds the profile to the ledger: citations, evidence floors by sess
   }, rows, { now });
   assert.deepEqual(s.workingOn.map(e => e.text), ['current'], 'an uncited entry, an empty one and a workstream past 21 days go');
   assert.deepEqual(s.workingOn[0].obs, ['a'], 'a citation the window does not hold is dropped');
-  assert.deepEqual(s.howWeWork.map(e => e.text), ['never push main', 'one correction, in words', 'no headers', 'interrupted once'],
-    'two sessions, or one stated preference, one correction with the person\'s words, or one interruption; two observations of one session are not two sessions; most sessions first, then newest');
+  assert.deepEqual(s.howWeWork.map(e => e.text), ['never push main', 'no headers'],
+    'two sessions, or one stated preference; one correction or one interruption alone is a lesson about one task, not a rule; two observations of one session are not two sessions; most corrections first, then most sessions, then newest');
+  assert.deepEqual(s.howWeWork.map(e => e.corrections), [1, 0], 'the corrections behind a line are counted from its citations');
   assert.equal(s.howWeWork[0].count, 3, 'count is distinct sessions among the citations'); assert.equal(s.howWeWork[0].firstSeen, iso(now, 30).slice(0, 10));
   assert.equal('whatFails' in s, false, 'a section that went is not settled');
   assert.deepEqual(Object.keys(s), SECTIONS);
@@ -590,4 +591,74 @@ test('session directories are relative to the repository across its worktrees, d
   assert.deepEqual(sessionDirs(events, fs.realpathSync(repo)), ['src', 'src/commands', 'src/ui', 'test'], 'real and given paths place alike');
   assert.deepEqual(sessionDirs([tool(path.join(other, 'src', 'd.js'))], other), ['src'], 'the other repository\'s own paths are its own');
   assert.deepEqual(sessionDirs(events), ['src', 'src/commands', 'src/ui', 'test'], 'with no repository given, any checkout places its own paths');
+});
+
+// Corrections weigh most, ids are stable, and the code retires what no session used (2026-11-12, the owner's call).
+test('ids are stable across settles, how-we-work ranks by corrections, and a retired entry stays out of the live cap', () => {
+  const now = Date.now();
+  const rows = [
+    { id: 'a', at: iso(now, 1), session: 's1', outcome: 'corrected', reaction: 'wrong', prefs: [] },
+    { id: 'b', at: iso(now, 2), session: 's2', outcome: 'accepted', reaction: 'ok', prefs: ['no headers'] },
+    { id: 'c', at: iso(now, 3), session: 's3', outcome: 'accepted', reaction: 'ok', prefs: ['no headers'] },
+    { id: 'd', at: iso(now, 4), session: 's4', outcome: 'unknown', reaction: '', prefs: [], interrupts: 1 },
+  ];
+  const ids = { w: 0, h: 0, s: 0 };
+  const first = settle({ howWeWork: [{ text: 'no headers', obs: ['b', 'c'] }, { text: 'check before merging', obs: ['a', 'd'] }] }, rows, { now, ids });
+  assert.deepEqual(first.howWeWork.map(e => [e.id, e.text, e.corrections]), [['h2', 'check before merging', 2], ['h1', 'no headers', 0]], 'two corrections outrank two stated sessions; ids are given in order of arrival, not rank');
+  assert.deepEqual(ids, { w: 0, h: 2, s: 0 });
+  // a second settle keeps the ids, and a new entry takes the next number, never an old one
+  const second = settle({ howWeWork: [...first.howWeWork, { text: 'new rule', obs: ['a', 'b'] }] }, rows, { now, ids });
+  assert.equal(settle({ howWeWork: [{ text: 'one correction, no stated preference', obs: ['a'] }] }, rows, { now }).howWeWork.length, 0, 'a correction needs a second session before it is a rule');
+  assert.deepEqual(second.howWeWork.map(e => e.id), ['h2', 'h3', 'h1'], 'ranked by corrections (2, 1, 0) under the ids they keep; a one-session correction alone would not have made a line');
+  assert.equal(idCounters({ sections: second }).h, 3, 'the counters can be read back from a profile that carries none');
+  assert.deepEqual(settle({ howWeWork: [{ id: 'w9', text: 'wrong section id', obs: ['a', 'b'] }, { id: 'h1', text: 'x', obs: ['a', 'b'] }, { id: 'h1', text: 'y', obs: ['a', 'b'] }] }, rows, { now }).howWeWork.map(e => e.id).sort(), ['h1', 'h2', 'h3'], 'an id of another section or a duplicate is replaced');
+  // a retired entry is carried, comes last, and does not take a live slot
+  const many = Array.from({ length: PROFILE.perSection.howWeWork }, (_, i) => ({ text: `rule ${i}`, obs: ['a', 'b'] }));
+  const third = settle({ howWeWork: [{ id: 'h1', text: 'no headers', obs: ['b', 'c'], retired: '2026-11-12' }, ...many] }, rows, { now, ids });
+  assert.equal(third.howWeWork.length, PROFILE.perSection.howWeWork + 1);
+  assert.equal(third.howWeWork.at(-1).id, 'h1'); assert.equal(third.howWeWork.at(-1).retired, '2026-11-12');
+  assert.ok(third.howWeWork.slice(0, -1).every(e => !e.retired));
+  assert.ok(!renderProfile({ window: { sessions: 3 }, sections: third }).includes('no headers'), 'a retired entry is never rendered');
+});
+
+test('the compile reads a batch with its corrections first', () => {
+  const now = Date.now();
+  const rows = [{ id: 'a', at: iso(now, 1), outcome: 'accepted', request: 'r1' }, { id: 'b', at: iso(now, 2), outcome: 'corrected', request: 'r2' }, { id: 'c', at: iso(now, 3), outcome: 'unknown', interrupts: 1, request: 'r3' }];
+  assert.deepEqual(ledgerText(rows).split('\n\n').map(b => b.slice(0, 1)), ['a', 'b', 'c'], 'newest first by default');
+  assert.deepEqual(ledgerText(rows, { correctionsFirst: true }).split('\n\n').map(b => b.slice(0, 1)), ['b', 'c', 'a']);
+  assert.deepEqual(rows.map(isCorrection), [false, true, true]);
+});
+
+test('a line shown to retireShown sessions that bore on none is retired by the code: out of the block at once, marked at compile, named to the model', async t => {
+  const { store } = tmpRepo(t, { learn: { mode: 'profile' } });
+  const now = Date.now();
+  appendObservations(store, [fakeObs()], { session: 's0', now });
+  await compileProfile(store, { now, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [{ text: 'Work in a worktree', obs: readLedger(store).map(r => r.id) }], howWeWork: [{ text: 'A --since flag takes a date', obs: readLedger(store).map(r => r.id) }], skills: [] } }, model: 'fake-opus' }) });
+  for (let i = 0; i < PROFILE.retireShown - 1; i++) appendLineVerdicts(store, [{ id: 'h1', verdict: 'na' }, { id: 'w1', verdict: i ? 'na' : 'followed', evidence: 'made one' }], { session: `s${i + 1}`, now });
+  assert.equal(lineReport(store).lines.find(l => l.id === 'h1').retired, false, 'fourteen sessions are not fifteen');
+  assert.match(profileBlock(store).text, /--since flag/);
+  appendLineVerdicts(store, [{ id: 'h1', verdict: 'na' }, { id: 'w1', verdict: 'na' }], { session: 'sX', now });
+  const rep = lineReport(store);
+  assert.equal(rep.lines.find(l => l.id === 'h1').retired, true);
+  assert.equal(rep.lines.find(l => l.id === 'w1').retired, false, 'a line that bore on one session is not retired');
+  const block = profileBlock(store);
+  assert.ok(!block.text.includes('--since flag') && block.text.includes('Work in a worktree'), 'the served block drops it the day the rule holds');
+  assert.deepEqual(block.ids, ['w1']);
+  assert.equal(readProfile(store).sections.howWeWork[0].retired, undefined, 'serving does not write the profile');
+  // the compile marks it, lists it as retired apart from the live entries, and the entry stays on the profile
+  appendObservations(store, [fakeObs({ turn: 2, request: 'later' })], { session: 'sY', now: now + 5000 });
+  let prompt = null, system = null;
+  const c = await compileProfile(store, { now: now + 6000, have: ['claude'], completeFn: async opts => { prompt = opts.prompt; system = opts.system; return { json: { keep: ['w1', 'h1'], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; } });
+  assert.match(prompt, /RETIRED \(1; shown to 15 or more sessions and bore on none, out of the served block\):\n\[h1\] - A --since flag takes a date \(retired \d{4}-\d{2}-\d{2}\)/);
+  assert.ok(!prompt.includes('"id":"h1"'), 'the retired line is not among the live entries');
+  assert.match(prompt, /NEW OBSERVATIONS \(1, from 1 sessions, [^;]*; the 1 the person corrected, redirected or interrupted first, then the rest, newest first\)/);
+  assert.match(prompt, /"corrections":1/, 'the live entries carry the corrections behind them');
+  assert.match(prompt, /"id":"w1"[^}]*"use":\{"shown":15,"applied":1,"followed":1,"ignored":0,"contradicted":0\}/, 'and what the sessions shown them did with each, the compile\'s own feedback');
+  assert.match(system, /applied in a fifth of them or fewer is too narrow: reword it as the general rule/, 'with the rule for a narrow line');
+  assert.match(system, /Never a pull request number, a merged or unmerged state/, 'and no state in a workstream');
+  const h1 = c.profile.sections.howWeWork.find(e => e.id === 'h1');
+  assert.match(h1.retired, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(c.profile.version, 4); assert.deepEqual(c.profile.ids, { w: 1, h: 1, s: 0 });
+  assert.ok(!renderProfile(c.profile).includes('--since flag'));
+  assert.equal(lineReport(store).lines.find(l => l.id === 'h1').retired, true);
 });

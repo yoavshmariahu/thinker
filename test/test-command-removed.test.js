@@ -42,6 +42,12 @@ test('legacy pre hooks are inert even with old opt-in config and user-scope wiri
 
 test('wiring removes old test hooks, preserves other hooks, and never installs new pre hooks', t => {
   const dir = fixture(t);
+  // the wiring reads the machine config for the delegation switch, so this needs a home of its own: on a
+  // machine with the trigger on, the PreToolUse entry is written and the assertion below is about its absence
+  const was = process.env.THINKER_HOME;
+  t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  process.env.THINKER_HOME = path.join(dir, 'thinker-home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   const o = { repo: dir, cli: CLI, hooks: true, learn: true, late: true, shared: true, mcp: false };
   for (const [client, file, event] of [
     ['claude', '.claude/settings.json', 'PreToolUse'],
@@ -51,10 +57,8 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     const f = path.join(dir, file);
     installClient(client, o);
     let c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    // Claude Code's PreToolUse now carries the delegation hook (delegate.js, 2026-11-11); the retired `pre` never comes back
-    const pretool = client === 'claude' ? c.hooks[event] : undefined;
-    if (client === 'claude') { assert.equal(pretool.length, 1); assert.match(pretool[0].hooks[0].command, /hook pretool/); assert.equal(pretool[0].matcher, 'Read|Bash'); }
-    else assert.equal(c.hooks[event], undefined, client);
+    // the delegation hook (delegate.js) is off by default and writes nothing here; test/delegate.test.js covers it on
+    assert.equal(c.hooks[event], undefined, client);
     const ours = { type: 'command', command: `node "${CLI}" hook pre --client ${client} --repo "${dir}"`, timeout: 10 };
     const other = { type: 'command', command: 'my-security-check', timeout: 10 };
     const group = h => client === 'cursor' ? h : { hooks: [h] };
@@ -62,7 +66,7 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     fs.writeFileSync(f, JSON.stringify(c));
     installClient(client, o);
     c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    assert.deepEqual(c.hooks[event], client === 'claude' ? [group(other), ...pretool] : [group(other)], client);
+    assert.deepEqual(c.hooks[event], [group(other)], client);
     assert.ok(c.hooks[client === 'cursor' ? 'beforeSubmitPrompt' : 'UserPromptSubmit'], 'note injection remains wired');
     if (client === 'claude') assert.equal(c.hooks.PostToolUse, undefined, 'Claude Code gets no tool hook');
     else assert.ok(c.hooks[client === 'cursor' ? 'postToolUse' : 'PostToolUse'], 'context hooks remain wired');
