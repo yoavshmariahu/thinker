@@ -275,8 +275,10 @@ export function sessionTrend(db, { install, session }) {
   return { ...r, labels: JSON.parse(r.labels || '{}'), decisions: d };
 }
 
-export function recent(db, { limit = 50 } = {}) {
-  return db.prepare(`select install, session, at, client, model, version, prompts, tokens, cleared, net, spend, priced, labels
+export function recent(db, { limit = 200 } = {}) {
+  return db.prepare(`select install, session, at, first_at as firstAt, client, model, version, prompts, tokens,
+    cleared, cuts, calls_cleared as callsCleared, results, net, saved, rewrite, reread, spend, priced, labels,
+    json_array_length(json_extract(decisions, '$.series')) as calls
     from sessions order by at desc limit ?`).all(limit)
     .map(r => ({ ...r, labels: JSON.parse(r.labels || '{}') }));
 }

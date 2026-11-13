@@ -33,7 +33,7 @@ import { compressionRecords, compressionDir, readCompression } from './compressi
 import { clearedOf } from './cutting.js';
 import { listPrice, costOf } from './prices.js';
 import { proxyLogFile } from './proxy-service.js';
-import { sessionKey } from './usage.js';
+import { sessionKey, readLog } from './usage.js';
 import { readLabels } from './labels.js';
 import { getInstallId } from './telemetry.js';
 import { appVersion } from './proxy-service.js';
@@ -134,7 +134,46 @@ function seriesOf(rows, { config, max = EVENTS.seriesMax } = {}) {
   return [...keep].sort((a, b) => a - b).map(i => points[i]);
 }
 
-export function decisionsOf({ session, home = thinkerHome(), env = process.env, since = '' } = {}) {
+// Everything thinker *did* in this session, in the order it did it. The series says what happened to the
+// context; this says who did it and why, which is the other half of the same question.
+//
+// Four kinds, each from the row its own feature already writes: a **cut** (the proxy's log, with what left
+// the prompt, the turn and the policy), the **results dropped** with it (the session's compression record,
+// by tool), the **profile** served or held out (`op: profile-served`), and a **delegation** of a read or a
+// suite run to a subagent (`op: delegate`, with what it cost and whether that session was held out).
+//
+// Names and counts: a tool's name, a file's name as the delegation row already holds it, never an argument,
+// a result or a prompt.
+export function actionsOf({ session, events = [], rows = [], record = null }) {
+  const key = sessionKey(session);
+  const out = [];
+  for (const r of rows) {
+    if (!r.clear) continue;
+    out.push({ at: r.at, kind: 'cut', turn: r.turn ?? null, tokens: clearedOf(r) || r.clear.tokens || 0,
+      policy: r.policy || null, cold: Boolean(r.clear.cold), results: r.clearedUses || 0 });
+  }
+  for (const e of events) {
+    if (!e || sessionKey(e.session || '') !== key) continue;
+    if (e.op === 'profile-served') {
+      out.push({ at: e.at || e.t, kind: 'profile', arm: e.arm || null, lines: e.lines || 0, chars: e.chars || 0,
+        afterCompaction: Boolean(e.afterCompaction) });
+    }
+    if (e.op === 'delegate') {
+      out.push({ at: e.at || e.t, kind: 'delegate', of: e.kind || null, tool: e.tool || null,
+        files: Array.isArray(e.files) ? e.files.slice(0, 4) : [], tokens: e.tokens || 0,
+        held: Boolean(e.held), cached: Boolean(e.cached), error: e.error ? String(e.error).slice(0, 120) : null,
+        model: e.model || null, usd: Number.isFinite(e.total_cost_usd) ? e.total_cost_usd : null });
+    }
+  }
+  // the tools whose results the cuts took out: one entry, since the set is the latest cut's, not a sum
+  if (record?.tools?.length) {
+    out.push({ at: record.lastAt || null, kind: 'dropped', results: record.uses || 0,
+      tools: record.tools.map(t => ({ name: t.name, calls: t.calls, tokens: t.tokens })) });
+  }
+  return out.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+}
+
+export function decisionsOf({ session, home = thinkerHome(), env = process.env, since = '', log = null } = {}) {
   const key = sessionKey(session);
   let rows = [];
   try { rows = compressionRecords(proxyLogFile(home, env)).filter(r => sessionKey(r.session) === key && (!since || r.at >= since)); } catch { rows = []; }
@@ -151,6 +190,8 @@ export function decisionsOf({ session, home = thinkerHome(), env = process.env, 
   return {
     // the session as it ran, one point a model call, for the trend the cuts happened in
     series: seriesOf(rows, { config }),
+    // and what thinker did in it, in order (actionsOf)
+    actions: actionsOf({ session, events: log || [], rows, record: rec }),
     calls: rows.length,
     cuts: cuts.length,
     callsCleared: rec?.requests || 0,
@@ -168,7 +209,9 @@ export function decisionsOf({ session, home = thinkerHome(), env = process.env, 
 // (labels.js), and the only place a customer, a harness build or a job can be named.
 export function sessionEvent(store, { session, home = thinkerHome(), env = process.env, log = null, since = defaultSince(), now = new Date() } = {}) {
   if (!session || session === 'unknown') return null;
-  const sessions = sessionsOf(store, { since, log, home, env });
+  // one read of the usage log, shared by the figures and by what thinker did (actionsOf)
+  const logEvents = log || (() => { try { return readLog(store); } catch { return []; } })();
+  const sessions = sessionsOf(store, { since, log: logEvents, home, env });
   const x = sessions.get(sessionKey(session));
   if (!x) return null;
   const num = v => (Number.isFinite(v) ? v : null);
@@ -206,7 +249,7 @@ export function sessionEvent(store, { session, home = thinkerHome(), env = proce
     },
     // what thinker decided here and why (above): the cuts with their policy, the reasons it cut nothing,
     // and which tools' results left the prompt
-    decisions: decisionsOf({ session, home, env, since }),
+    decisions: decisionsOf({ session, home, env, since, log: logEvents }),
   };
 }
 

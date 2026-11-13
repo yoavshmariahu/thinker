@@ -17,27 +17,27 @@
   no cost rather than $0.00.
 -->
 <style>
+  /* thinker.sh's own tokens (site/compression.html): neutral greys, white cards, blue for a control arm and
+     green for thinker's. The warm off-white set this started on read as an orange tint beside the site.
+     The site is light and nothing of it is themed, so this is light too. */
   :root {
-    --surface: #fcfcfb; --plane: #f9f9f7;
-    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-    --rule: #e1e0d9; --border: rgba(11, 11, 11, 0.10);
-    --good: #006300; --bad: #d03b3b;
-    --axis: #c3c2b7; --series: #2f5cc4;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --surface: #1a1a19; --plane: #0d0d0d;
-      --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
-      --rule: #2c2c2a; --border: rgba(255, 255, 255, 0.10);
-      --good: #0ca30c; --bad: #d03b3b;
-      --axis: #383835; --series: #7aa2f7;
-    }
+    --fg: #111111; --fg-2: #333333; --muted: #666666; --faint: #9a9a9a;
+    --line: #e5e7eb; --line-2: #f0f0f2; --card: #ffffff; --card-2: #fafafa;
+    --ctl: #2563eb; --thk: #15803d; --flag: #b45309;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* what the rules below call things */
+    --surface: var(--card); --plane: #ffffff;
+    --ink: var(--fg); --ink-2: var(--fg-2);
+    --rule: var(--line); --border: var(--line); --axis: #d1d5db;
+    --good: var(--thk); --bad: #b91c1c; --series: var(--thk);
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; padding: 28px 24px 56px;
     background: var(--plane); color: var(--ink);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 1120px; margin: 0 auto; }
   h1 { font-size: 19px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; }
@@ -55,7 +55,7 @@
     border: 1px solid var(--border); border-radius: 7px;
     padding: 6px 32px 6px 10px; min-width: 150px; max-width: 100%;
     appearance: none; -webkit-appearance: none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23898781' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 11px 7px;
@@ -63,7 +63,6 @@
   }
   select:hover { border-color: var(--axis); }
   select:focus-visible { outline: 2px solid var(--series); outline-offset: 1px; }
-  #session { min-width: 360px; }
   .spacer { flex: 1; }
   .stamp { color: var(--muted); font-size: 12px; }
 
@@ -89,10 +88,19 @@
   td.l { font-variant-numeric: normal; }
   td { font-variant-numeric: tabular-nums; }
   td:first-child { font-variant-numeric: normal; }
-  tbody tr:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
+  tbody tr:hover { background: var(--line-2); }
   tbody tr:last-child td { border-bottom: none; }
-  tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: color-mix(in oklab, var(--ink) 3%, transparent); }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: var(--card-2); }
   .dim { color: var(--muted); }
+  .filternote { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+  tbody tr.click { cursor: pointer; }
+  tbody tr.on { background: #eef4ff; }
+  .back { color: var(--ink-2); text-decoration: none; font-size: 13px; }
+  .back:hover { color: var(--ink); text-decoration: underline; }
+  .kind { display: inline-block; min-width: 74px; font-weight: 600; }
+  .kind.cut { color: var(--good); }
+  .kind.delegate { color: var(--ctl); }
+  .kind.held { color: var(--muted); font-weight: 400; }
   .pickrow { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
   figure { margin: 0; }
   .chart { padding: 4px 10px 10px; position: relative; }
@@ -120,53 +128,59 @@
   details { margin-top: 20px; }
   summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
   .foot { margin-top: 22px; color: var(--muted); font-size: 12px; max-width: 70ch; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  code { font-family: var(--mono); font-size: 12px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>thinker · fleet</h1>
   <p class="sub">What thinker did on every machine reporting here.</p>
-
   <p class="stamp" id="stamp"></p>
 
-  <div class="tiles" id="tiles"></div>
+  <!-- Overview: the fleet, its machines, and their sessions. -->
+  <div id="overview">
+    <div class="tiles" id="tiles"></div>
 
-  <!-- The critical view: one row a machine. A roll-up answers "which customer costs what"; this answers
-       "which machine is behaving unlike the others", which is what a fleet is actually read for. -->
-  <div class="card">
-    <h2>Machines</h2>
-    <div id="machines"></div>
+    <div class="card">
+      <h2>Machines</h2>
+      <div id="machines"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Sessions <span class="filternote" id="filterNote"></span></h2>
+      <div id="sessions"></div>
+    </div>
   </div>
 
-  <!-- The depth, after the website's "See the data": a session as it ran, one point a model call, with the
-       cuts marked on the line. A tally of reasons never showed this -- a cut is an event in a session's
-       life and only reads as one against the trend it changed. Two charts, never two axes on one. -->
-  <div class="card" style="margin-top:20px">
-    <h2>Context and cost over a session</h2>
-    <div class="pickrow">
-      <select id="session"></select>
-      <span class="stamp" id="sessionNote"></span>
+  <!-- One session, in depth: the trend, what thinker did in it, and the calls it is made of. -->
+  <div id="detail" hidden>
+    <p><a href="#" class="back" id="back">← all machines</a></p>
+    <div class="card">
+      <h2 id="detailTitle">Session</h2>
+      <div class="pickrow"><span class="stamp" id="sessionNote"></span></div>
+      <div class="two">
+        <figure>
+          <div class="colhead">Context carried, per model call</div>
+          <div class="chart" id="chartCtx"></div>
+        </figure>
+        <figure>
+          <div class="colhead">Cumulative cost, per model call</div>
+          <div class="chart" id="chartCost"></div>
+        </figure>
+      </div>
+      <div class="legend" id="chartLegend"></div>
     </div>
-    <div class="two">
-      <figure>
-        <div class="colhead">Context carried, per model call</div>
-        <div class="chart" id="chartCtx"></div>
-      </figure>
-      <figure>
-        <div class="colhead">Cumulative cost, per model call</div>
-        <div class="chart" id="chartCost"></div>
-      </figure>
-    </div>
-    <div class="legend" id="chartLegend"></div>
-    <div class="colhead" style="border-top:1px solid var(--rule)">What happened in this session</div>
-    <div id="events"></div>
-  </div>
 
-  <details>
-    <summary>Recent sessions</summary>
-    <div class="card" style="margin-top:8px"><div id="recent"></div></div>
-  </details>
+    <div class="card" style="margin-top:20px">
+      <h2>Actions thinker took</h2>
+      <div id="actions"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Calls <span class="filternote">the session as it ran</span></h2>
+      <div id="calls"></div>
+    </div>
+  </div>
 
   <p class="foot">
     A session is an upsert keyed on install and session id, never an addition: its clearing figure settles a
@@ -179,6 +193,7 @@
 
 <script type="module">
 const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // auto-compact, the stat-tile contract: 1,284 / 12.9K / $4.2M
 const compact = n => {
@@ -259,20 +274,6 @@ function machineTable(rows) {
   $('machines').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
-function recentTable(rows) {
-  if (!rows.length) { $('recent').innerHTML = `<div class="empty">Nothing yet.</div>`; return; }
-  const head = `<tr><th>when</th><th>machine</th><th>client</th><th>model</th><th>prompts</th><th>tokens</th><th>cleared</th><th>net</th><th>spend</th></tr>`;
-  const body = rows.map(r => `<tr>
-      <td>${new Date(r.at).toLocaleString()}</td>
-      <td><code>${esc(String(r.install).slice(0, 8))}</code></td>
-      <td>${esc(r.client || '—')}</td><td>${esc(r.model || '—')}</td>
-      <td>${compact(r.prompts)}</td><td>${compact(r.tokens)}</td><td>${compact(r.cleared)}</td>
-      <td class="${cls(r.net)}">${usd(r.net)}</td>
-      <td>${r.priced ? usd(r.spend) : '<span class="dim">unpriced</span>'}</td>
-    </tr>`).join('');
-  $('recent').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-}
-
 // decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw.
 const WHY = {
   'nothing-to-cut': 'nothing left to cut — every finished result already out',
@@ -349,71 +350,129 @@ function drawSession(d) {
   lineChart($('chartCost'), cumulative, { value: p => p.cum, format: v => usd(v), cuts });
   $('chartLegend').innerHTML = `<span><i></i>${esc(d.model || 'the session')}</span><span><i class="cut"></i>cut by thinker</span>`;
   const peak = Math.max(0, ...series.map(p => p.carried));
+  $('detailTitle').innerHTML = `Session <code>${esc(d.session)}</code> <span class="filternote">on machine ${esc(String(d.install).slice(0, 8))}</span>`;
   $('sessionNote').innerHTML = `${compact(d.decisions?.calls || series.length)} calls · peak context ${compact(peak)} tokens · `
     + `${compact(d.cuts || 0)} ${d.cuts === 1 ? 'cut' : 'cuts'} · net <span class="${cls(d.net)}">${usd(d.net)}</span> on ${usd(d.spend)} spent`;
-  eventTable(d);
+  actionTable(d);
+  callTable(series, d.decisions || {});
 }
 
-// What happened, in order: the cuts with what each took out, then why nothing was cut on the rest.
-function eventTable(d) {
-  const dec = d.decisions || {};
-  const rows = (dec.rows || []).map(c => `<tr>
-      <td class="l">cut</td><td>turn ${c.turn ?? '—'}</td><td>${compact(c.tokens)} tokens out</td>
-      <td class="l"><code class="dim">${esc(c.policy || 'unstamped')}</code></td>
-      <td class="l"><span class="dim">${since(c.at)}</span></td></tr>`).join('');
-  const total = Object.values(dec.refusals || {}).reduce((a, n) => a + n, 0);
-  const why = Object.entries(dec.refusals || {}).sort((a, b) => b[1] - a[1]).map(([reason, n]) => `<tr>
-      <td class="l dim">no cut</td><td>${compact(n)} ${n === 1 ? 'call' : 'calls'}</td>
-      <td class="l" colspan="2">${esc(WHY[reason] || reason)}</td>
-      <td class="l"><span class="dim">${pct(n / (total || 1))}</span></td></tr>`).join('');
-  const tools = (dec.tools || []).length
-    ? `<tr><td class="l">dropped</td><td>${compact(dec.results || 0)} results</td><td class="l" colspan="3">${
-        dec.tools.map(t => `${esc(t.name)} ×${t.calls} (${compact(t.tokens)})`).join(', ')}</td></tr>` : '';
-  $('events').innerHTML = rows || why || tools
-    ? `<table><tbody>${rows}${tools}${why}</tbody></table>`
-    : `<div class="empty">Nothing recorded for this session.</div>`;
+// Everything thinker did in this session, in order. Each row says what it did, to what, and what it cost or
+// saved -- a cut with its policy, a delegation with its model and price, the profile served or held out.
+function actionTable(d) {
+  const acts = d.decisions?.actions || [];
+  if (!acts.length) { $('actions').innerHTML = `<div class="empty">thinker took no action in this session.</div>`; return; }
+  const row = a => {
+    if (a.kind === 'cut') return [`<span class="kind cut">cut</span>`, `turn ${a.turn ?? '—'}`,
+      `${compact(a.tokens)} tokens out`, `${compact(a.results)} results`,
+      `<code class="dim">${esc(a.policy || 'unstamped')}${a.cold ? ' · cold' : ''}</code>`];
+    if (a.kind === 'dropped') return [`<span class="kind">dropped</span>`, `${compact(a.results)} results`,
+      esc(a.tools.map(t => `${t.name} ×${t.calls}`).join(', ')), `${compact(a.tools.reduce((x, t) => x + t.tokens, 0))} tokens`, ''];
+    if (a.kind === 'profile') return [`<span class="kind${a.arm === 'shown' ? '' : ' held'}">profile</span>`,
+      a.arm === 'shown' ? `${compact(a.lines)} lines` : 'held out',
+      a.arm === 'shown' ? `${compact(a.chars)} chars` : '', a.afterCompaction ? 'after a compaction' : '', ''];
+    if (a.kind === 'delegate') return [`<span class="kind${a.held ? ' held' : ' delegate'}">delegate</span>`,
+      esc(a.of || '') + (a.held ? ' (held out)' : a.cached ? ' (cached)' : ''),
+      esc(a.files.join(', ')), `${compact(a.tokens)} tokens`,
+      a.error ? `<span class="neg">${esc(a.error)}</span>` : a.usd != null ? usd(a.usd) : (a.model ? `<code class="dim">${esc(a.model)}</code>` : '')];
+    return [esc(a.kind), '', '', '', ''];
+  };
+  $('actions').innerHTML = `<table><tbody>${acts.map(a => {
+    const [k, b, c, dd, e] = row(a);
+    return `<tr><td class="l">${k}</td><td class="l">${b}</td><td class="l">${c}</td><td>${dd}</td><td class="l">${e}</td>
+      <td class="l"><span class="dim">${since(a.at)}</span></td></tr>`;
+  }).join('')}</tbody></table>`;
 }
 
-let plottable = [];
-// Picked by index into `plottable`: an install id and a session id joined into one option value needed a
-// separator, and a NUL is mangled by the HTML parser (which is what left the picker blank).
-async function openSession(i) {
-  const row = plottable[Number(i)];
-  if (!row) return;
-  const res = await fetch(`/api/session?install=${encodeURIComponent(row.install)}&session=${encodeURIComponent(row.session)}`);
-  if (!res.ok) return;
+// The calls themselves: the structural transcript. No prompt or result text ever leaves a machine, so what
+// a call is here is its size, its cost, the turn it belongs to and what thinker decided on it.
+function callTable(series, dec) {
+  if (!series.length) { $('calls').innerHTML = `<div class="empty">No calls recorded.</div>`; return; }
+  const head = `<tr><th>call</th><th>turn</th><th>context carried</th><th>output</th><th>cost</th><th class="l">thinker</th></tr>`;
+  const body = series.map(p => `<tr${p.cut ? ' class="on"' : ''}>
+      <td>${p.c}</td><td>${p.turn ?? '—'}</td><td>${compact(p.carried)}</td><td>${compact(p.out)}</td>
+      <td>${p.cost == null ? '<span class="dim">unpriced</span>' : usd(p.cost)}</td>
+      <td class="l">${p.cut ? `<strong>cut ${compact(p.cut)} tokens</strong>` : `<span class="dim">${esc(WHY[p.reason] || p.reason || '')}</span>`}</td>
+    </tr>`).join('');
+  const note = dec.calls > series.length
+    ? `<div class="empty">${compact(dec.calls)} calls in all; every cut is kept and the rest sampled to ${series.length}.</div>` : '';
+  $('calls').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>${note}`;
+}
+
+// ---------------------------------------------------------------------------
+// Views. The overview is the fleet; a session is its own page, reachable by its own URL.
+let FLEET = { recent: [], machines: [] };
+let machineFilter = null;
+
+function sessionTable() {
+  const rows = FLEET.recent.filter(r => !machineFilter || r.install === machineFilter);
+  $('filterNote').innerHTML = machineFilter
+    ? `on machine ${esc(String(machineFilter).slice(0, 8))} · <a href="#" class="back" id="clearFilter">show all</a>`
+    : `every machine`;
+  const clear = $('clearFilter');
+  if (clear) clear.addEventListener('click', e => { e.preventDefault(); machineFilter = null; render(); });
+  if (!rows.length) { $('sessions').innerHTML = `<div class="empty">No session recorded yet.</div>`; return; }
+  const head = `<tr><th class="l">session</th><th class="l">machine</th><th class="l">model</th><th>calls</th><th>prompts</th>`
+    + `<th>cuts</th><th>cleared</th><th>net</th><th>spend</th><th class="l">when</th></tr>`;
+  const body = rows.map(r => `<tr class="click" data-i="${esc(r.install)}" data-s="${esc(r.session)}">
+      <td class="l"><code>${esc(r.session)}</code></td>
+      <td class="l"><code class="dim">${esc(String(r.install).slice(0, 8))}</code></td>
+      <td class="l">${esc(r.model || '—')}</td>
+      <td>${compact(r.calls)}</td><td>${compact(r.prompts)}</td>
+      <td>${compact(r.cuts)}</td><td>${compact(r.cleared)}</td>
+      <td class="${cls(r.net)}">${usd(r.net)}</td>
+      <td>${r.priced ? usd(r.spend) : '<span class="dim">unpriced</span>'}</td>
+      <td class="l"><span class="dim">${since(r.at)}</span></td>
+    </tr>`).join('');
+  $('sessions').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  for (const tr of $('sessions').querySelectorAll('tr.click')) {
+    tr.addEventListener('click', () => { location.hash = `#s/${encodeURIComponent(tr.dataset.i)}/${encodeURIComponent(tr.dataset.s)}`; });
+  }
+}
+
+async function openSession(install, session) {
+  const res = await fetch(`/api/session?install=${encodeURIComponent(install)}&session=${encodeURIComponent(session)}`);
+  if (!res.ok) { location.hash = ''; return; }
+  $('overview').hidden = true;
+  $('detail').hidden = false;
   drawSession(await res.json());
 }
 
-function sessionPicker(rows) {
-  plottable = rows;
-  const sel = $('session');
-  const was = sel.selectedOptions[0]?.dataset.key;
-  sel.innerHTML = rows.map((r, i) => `<option value="${i}" data-key="${esc(r.install + '/' + r.session)}">`
-    + `${esc(String(r.install).slice(0, 8))} · ${esc(r.model || 'unpriced')} · `
-    + `${r.cuts ? `${r.cuts} cut${r.cuts > 1 ? 's' : ''}` : 'no cut'} · ${compact(r.prompts)} prompts · ${since(r.at)}</option>`).join('');
-  if (!rows.length) { $('events').innerHTML = `<div class="empty">No session with a recorded trend yet.</div>`; return; }
-  const keep = rows.findIndex(r => `${r.install}/${r.session}` === was);
-  sel.value = String(keep >= 0 ? keep : 0);
-  openSession(sel.value);
+function render() {
+  machineTable(FLEET.machines);
+  sessionTable();
 }
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function route() {
+  const m = /^#s\/([^/]+)\/(.+)$/.exec(location.hash || '');
+  if (m) return openSession(decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+  $('detail').hidden = true;
+  $('overview').hidden = false;
+  render();
+}
+
 
 async function load() {
   const res = await fetch(`/api/fleet?by=client&days=${WINDOW_DAYS}`);
   const data = await res.json();
-  $('stamp').textContent = `${compact(data.total.installs)} machines · ${compact(data.total.sessions)} sessions`
-    + (data.total.sessions ? ` · since ${new Date(data.machines.reduce((a, m) => a && a < m.firstAt ? a : (m.firstAt || m.lastAt), null) || data.since).toLocaleDateString()}` : '');
+  FLEET = data;
+  $('stamp').textContent = `${compact(data.total.installs)} machines · ${compact(data.total.sessions)} sessions`;
   tiles(data.total);
-  machineTable(data.machines || []);
-  sessionPicker(data.plottable || []);
-  recentTable(data.recent || []);
+  route();
 }
 
-$('session').addEventListener('change', e => openSession(e.target.value));
+// a machine's row filters the sessions beneath it, and clicking it again clears the filter. The page does
+// not navigate for that -- only a session does, and it gets a URL of its own so one can be linked to.
+function onMachineClick(install) {
+  machineFilter = machineFilter === install ? null : install;
+  render();
+}
+
+$('back').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+window.addEventListener('hashchange', route);
 load();
-setInterval(load, 10_000);
+// the overview refreshes itself; a session being read does not move under its reader
+setInterval(() => { if (!location.hash) load(); }, 10_000);
 </script>
 </body>
 </html>
