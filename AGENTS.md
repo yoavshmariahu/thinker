@@ -278,140 +278,19 @@ ignored; its history is in git before 2026-11-08.
 
 ## What a user's savings are, measured (2026-11-11, the owner's ask)
 
-The question was what thinker saves **per session** on other people's machines, what a pull request **costs**, and
-**whether a pull request got a context clear and how much was cleared**. The pieces were nearly all on the machines
-already (`delivery.js` prices every session and every pull request at list rates, `compression.js` measures what the
-clearing took out by either door) and nearly none of it was leaving them. What the dashboard could be asked on the
-day of the ask, read from production: 262 installs in 30 days, 11 of them active, `prs.netUsd / prs.linkedSessions`
-the only per-session figure there was -- and three reasons it could not be read.
-
-- **The denominators disagreed.** `activity.sessions` is the report's own period (one hour for an hourly send) and
-  the proxy's `sessions` is 30 days of `x-claude-code-session-id`, subagents and title calls included: one install
-  reported 2 sessions and 2,563 on the same snapshot. Neither is a person's session, so cleared over sessions meant
-  nothing. The figure is now built from the sessions themselves (`sessionsOf`, the usage log's `op: session` rows,
-  one row per session), each with its own cleared tokens, its own cost and its own prompt count.
-- **The window pooled dead policies.** The two biggest installs read -$980 and -$225 over 30 days that span the
-  API-side clearing and the pre-#693 cut, both measured as losses. Now every saving names the policy that made it
-  (below), so a reader never adds two.
-- **Desktop clears were invisible and a pull request's cost never left the machine.** One install with 101 merged
-  pull requests sent no proxy block at all. The per-session block reads `clearingFor`, which takes the proxy's log
-  first and the clearing mod's own record where the log has no rows, so a desktop session counts; `prs.spendUsd`
-  and `prs.spendPrs` carry what those pull requests cost.
-
-**Every saving names the cut policy that made it; no date in the code** (`cutting.js:policyId`, `POLICY_REV`).
-`r1-t140k-f60k-p25-deep`: the revision of what no setting can change (the cold-boundary rule, the payback pricing,
-the ratchet), then the settings that were in force -- trigger, size floor, payback, one cut a session or many.
-`proxy.js` puts it on the row it logs, on a clear and on a refusal alike (a refusal's policy says which floor
-refused); `compression.js:noteCompression` keeps it on the session's record, and marks `policyChanged` where a
-session spans an update; the desktop mod writes the same string from its own mirrored constants, held to the
-proxy's by `test/claude-clear.test.js`, because one policy may not have two names. A saving made before this
-shipped reads `unstamped` and is never folded into today's.
-- **Why not a date.** `factory.js:CLEARING_SINCE` dates the current policy from the merge of #693, which is true
-  for this machine and wrong for everybody else: a person still on an older copy is running the older policy
-  today, so a date would count their old sessions as current, and a person who updated a week late would have good
-  sessions thrown away. Nothing on one machine can know when another updated, and with the stamp it does not have
-  to. The Factory's own date stays as it is -- it reads this machine's transcripts, where the update time is known.
-
-**The dashboard reads the stamped policies alone (2026-11-12, the owner's ask).** On that day every install read as a
-loss: the window pooled the API-side clearing and the 100k-floor cut with the live policy's first week, and on the biggest
-install the rewrite dollars went from $1,602 on Nov 7 to $1,632 on Nov 12 -- the live cut added $30 in five days against
-$1,600 from before. So the headline card, the per-session table and the by-day line read `byPolicy` keys of the form
-`r<rev>-...` only (`scripts/savings-dashboard.mjs:STAMPED`); the clears from before the stamp are their own row and
-column, and leave the window on their own. The figures that carry no policy (`byDay`, `netBuckets`) still pool, and
-say so. Two rewrites the clearing did not cause are not charged to it, in both doors (`cutting.js:chargedRewrite`,
-`register.tsx:chargedRewrite`, held together by `test/claude-clear.test.js`): a cold cut's own call (#760 of
-2026-11-11, `r.clear.cold`) and any rewrite that read nothing back, which found the cache expired -- a pause past its
-hour, a session's first request -- so the write was coming anyway and the cut only made it smaller. On this machine's
-30 days to 2026-11-12, 601 of the 604 rewrites charged were the API-side policy's and 30 were of the expired kind.
-
-**The Factory's two sides leave the machine (2026-11-12, the owner's ask).** The only controlled comparison thinker has is
-`thinker factory --diff profile|compression`, per machine, and production could not answer whether either feature pays.
-`telemetry.js:armsMetrics` merges `factory.arms` off every repository's kept report (never recomputed; a repository
-with none is counted in `reposWithoutReport`) and sends each side as sums -- sessions, exchanges, dollars, rework,
-cache traffic, per stage and loop kind, merged pull requests, `cost2` for the noise band -- as the payload's `arms`
-block (schema 1), read by the **Diff by feature** dashboard (`scripts/arms-dashboard.mjs`), ratios of sums over the
-fleet. The clearing's on side is placed by the policy stamp where the clear has one (`armsOf`: today's policy is on,
-any other policy is neither side; the `CLEARING_SINCE` date rule stays for unstamped clears and the held-out side),
-and the block carries `policy` (`factory.js:currentPolicy`), so the dashboard groups by it and never pools two.
-
-**`sessions` in the payload** (`delivery-telemetry.js:deliveryMetrics` returns `{ prs, sessions }` from one walk of
-the repositories): groups of **sums**, never per-session averages, so every rate a dashboard shows is a ratio of
-sums -- the mean of per-session ratios read $13.93 against the true $5.97 on this machine's own ledger. `all`,
-`cleared` and `uncleared` (a session grouped by **what happened to it**, not the arm it was assigned to: 230 of
-249 sessions on one machine's clearing arm had never had a clear), `byPolicy`, `byClient`, and `netBuckets` for the
-spread, since five pull requests were most of a fortnight's saving here. `prompts` -- the session's own model calls
--- rides beside the dollars, because a cleared session is a long session and cost per session cannot tell the two
-apart; cost per prompt can.
-
-**`prs` is schema 3**: `spendUsd` and `spendPrs` (what they cost, over the pull requests whose **every** session
-could be priced -- one unpriced session leaves a pull request out of both figures rather than counting it at zero),
-`clearedPrs` (how many got a clear), `byPolicy`, and `rows`, the newest 50 merged pull requests as numbers alone.
-Nothing names a pull request, a repository or a session, as before.
-
-**A payload that does not fit loses its lists, not its figures** (`telemetry.js:fitPayload`, `PAYLOAD_BUDGET` 56 KB
-against the API's 64 KB). The rows are what can grow without bound, and a 413 loses the **whole** report with
-nothing on the machine saying why: the longest list goes first, only as far as the budget needs, the block says
-`rowsDropped` and the payload says what it dropped. This machine's payload is 37 KB with every list in it.
-
-**A day has its own figures, so a trend and a total are possible** (`byDay` on both blocks, 2026-11-11): the
-day of a session's last request, and the day a pull request merged. Every other dollar figure here is a 30-day
-rolling block, and two snapshots a day apart differ by what came in **and** by what rolled out, with nothing to
-tell them apart -- so they can never be added, which is why every card over them carries "never add these". A day
-belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days add up:
-that is what makes **cost per merged pull request by week** a trend and **total saved** a total rather than a
-window. It reaches back as far as the reporting machines' own windows, so it grows as installs keep reporting.
-
-**A desktop clear now outlives the card's record** (2026-11-11; `compression.js:mirrorClearing`, `loggedClearing`,
-`loggedClearingCost`, the Stop hook). The clearing mod writes the session's clear to `state/compression/<session>.json`
-and no log row, and that directory is a card's working memory: at most 200 files, pruned after two days
-(`PRUNE_AGE`). The proxy's own clears are safe because the log keeps them for months; a desktop user's were real on
-the card that evening and gone from the Report, `thinker prs` and the telemetry's 30-day window by the end of the
-week -- which is also longer than a pull request takes to merge, the case the comment over `clearedBySession` has
-described all along. So the Stop hook mirrors each clear into the machine's log once (`op: 'clearing'`, carrying the
-cleared tokens, the uses, the policy, the model and what the clear cost), where it lives as long as the log.
-- **The figure is cumulative, so a reader takes the newest row and never adds them.** A proxy row is a
-  per-request delta and `clearedBySession` sums those; a mirrored row is the session's running total. `logged` on
-  the record keeps the hook from writing the same total twice, so a session with three clears writes three rows
-  and the largest is its figure.
-- Read by `delivery.js:sessionsOf` (in the event loop it already runs, so no second pass), and by
-  `clearingRows`/`clearingCostBySession` for the ledger and the Report, for the sessions neither the proxy's log
-  nor a live record covers. Priced from the model the row names, as the records are.
-- Not changed: `PRUNE_AGE` itself, because the card does not need a month of files, and the log is where a durable
-  figure belongs.
-
-**A cold cut is not charged for the write the expired cache was going to pay** (2026-11-11;
-`compression.js:clearingCostBySession`). `decideCut` prices a cold-boundary cut at zero because past the cache's
-hour the request writes its whole context again whether or not anything is replaced -- and the money door then
-charged that very write to the clearing, so the two doors priced the same cut differently. Measured here: both
-Fable cuts of the five days to 2026-11-11 were cold, each wrote its context with a cache read of **zero** (202k
-and 349k, nothing to read back), and **no call after either one rewrote a prefix at all** -- 0 of 227 over 100k of
-context. Those two writes were the whole of the $11.01 charged against $3.89 saved, and at Fable's 80 reads to a
-written token they made a clearing that had cost nothing read as the month's worst loss. A warm cut is still
-charged its own rewrite: there the write is what the cut bought, and the decision priced it (`recache`).
-With it, the five days to 2026-11-11 read 22M cleared, $10.31 saved, nothing charged.
-
-**What the models say, and the old policy's signature** (the same day, this machine's 30 days, Messages path):
-Opus 5 cleared 658M in 23 sessions with rewrites after a clear at **15.9% of 2,854 long calls against 0.8%
-before one** -- the API-side clearing's own signature, and **none of it under today's policy**. Fable: 238M, 8.0%
-against 2.7%, of which only 15.6M is today's. Opus 5.5: 47M, 5.2% against 0.7%, none of it today's. So the
-30-day loss is the policy that was replaced, measured again from a second direction. What cannot be read per
-model is the held-out baseline: a held-out request is returned before its body is parsed (`asCame`), so its row
-carries no model and the holdout's rewrite rate is machine-wide only (1% after a clear against 2% held out, the
-seven days to 2026-11-11).
-
-**Where to read it**: the **Savings per session** dashboard (`scripts/savings-dashboard.mjs`, thirteen cards: the
-total, the two trends, and the groups) and four
-new cards on **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, whose `valid` now accepts schema 2 or
-3 so the old cards keep reading older snapshots). No database change and no Lambda deploy: both blocks are read out
-of `reports.raw_json`, which the ingest already stores whole.
-
-**What it still cannot say.** A cleared session is not a comparable session, and nothing here is a controlled
-comparison. The clearing's holdout was one, per machine, and is off since 2026-11-12: a session that gets a cut is a
-long session, so its two sides were never alike. What the holdout was kept for, the model reading back what was cleared,
-is measured in each session and netted (`src/rereads.js`); `proxy: { holdout }` puts an arm back for `thinker factory
---diff compression`. The policy stamp starts empty: every clear on this machine today reads `unstamped`, and the current
-policy's per-session figure only begins once installs carry this build. A session whose agent reports no usage
-(Cursor) counts as a session and in no dollar figure.
+- **Session clearing tracked per-session, not by denominator:** `sessionsOf` (usage log `op: session` rows) with cleared tokens, cost, prompt count.
+- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r1-t140k-f60k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
+- **Dashboard reads stamped policies only** (`scripts/savings-dashboard.mjs:STAMPED`). Pre-stamp clears in separate row. Unstamped clears left out.
+- **Two rewrites not charged:** cold cut's own call (`r.clear.cold`) and rewrites from expired cache (no read found). Both doors enforce via `cutting.js:chargedRewrite`, `register.tsx:chargedRewrite`.
+- **Factory's two arms:** `telemetry.js:armsMetrics` sends `factory.arms` sums (sessions, exchanges, dollars, rework, cache traffic, merged PRs) per stage/loop, by policy stamp. Schema 1, read by **Diff by feature** dashboard.
+- **`sessions` payload groups:** sums not averages. `all`, `cleared`, `uncleared`, `byPolicy`, `byClient`, `netBuckets`. Cost per prompt beside cost per session.
+- **`prs` schema 3:** `spendUsd`, `spendPrs` (over PRs with all sessions priced), `clearedPrs`, `byPolicy`, `rows` (newest 50). No PR/repo/session names.
+- **Oversized payload:** `fitPayload`, `PAYLOAD_BUDGET` 56 KB. Drops rows first, sets `rowsDropped`.
+- **`byDay` cumulative per snapshot:** day of session's last request or PR merge. Never add snapshots; explode days, add those.
+- **Desktop clears outlive card record:** `compression.js:mirrorClearing` writes to `state/compression/<session>.json` (max 200 files, pruned after `PRUNE_AGE` 2 days) and once to log (`op: 'clearing'`). `delivery.js:sessionsOf` reads; `clearedBySession` sums cumulative. Take newest row, never add.
+- **Cold cut pricing:** `compression.js:clearingCostBySession` prices at zero (cache expired, rewrite happens anyway). Warm cuts charged their rewrite.
+- **Dashboards:** **Savings per session** (`scripts/savings-dashboard.mjs`), **Pull requests delivered** (`scripts/delivery-dashboard.mjs`, `valid` accepts schema 2 or 3). Read from `reports.raw_json`.
+- **Limits:** Clearing holdout off since 2026-11-12 (was per-machine baseline, now end). Unstamped clears on current machine until next build. Sessions with no usage (Cursor) counted but no cost. Model per-session reread tracked in `src/rereads.js`.
 
 ## Usage history
 
@@ -565,37 +444,11 @@ policy's per-session figure only begins once installs carry this build. A sessio
 
 ## Error reports, with consent (2026-10-29, the owner's ask)
 
-thinker swallows its own failures by design: a hook must never fail a tool call, so each is wrapped in a bare
-`catch {}`, and a command that dies prints a stack to a terminal nobody reads again. A fault that hits many
-machines is therefore invisible: the Codex 404 of 2026-10-24 ran four days on the owner's own machine, and the
-installer leaving a shell with no working directory was found by reading a container log.
-
-`error-report.js` records those failures locally, asks once whether to send them, and sends nothing until the
-person says yes.
-
-- **What a record is.** `{at, op, version, node, platform, name, code, message, frames}`. `recordError` is called
-  from the catch sites that used to swallow (`hook.pre`, `hook.proxy`, and `cli.<command>` from `main().catch`);
-  it never throws, writes one line, and does nothing at all in test mode (`THINKER_ERRORS_TEST` forces it on
-  for the tests). The same failure again counts up (`seen`) instead of filling the file; at most `ERRORS.keep`
-  (20) records, `keepDays` (14).
-- **What it may not carry** (`scrub`, and `test/error-report.test.js` is mostly about this): thinker's own
-  install path becomes `<thinker>` and the repository `<repo>`, the home directory `~`, a credential `<token>`,
-  a URL `<url>`, and any absolute path left keeps its last two segments. So `proxy-service.js:ensureProxy` stays
-  readable — that is the whole value of the record — and the person, their employer's repository and their
-  gateway do not appear.
-- **The question** is the second owner-approved exception to "one suggestion, not three", and the same shape as
-  the first: asked once per machine, after the proxy repair in the hook's one-question chain, through the agent's
-  own question tool, answered through thinker's `errors` MCP tool or `thinker errors --answer yes|no|never`. It is
-  asked only where there is something to send, and never where telemetry is off — one switch covers both. No
-  answer sends nothing: there is no reminder and no default yes.
-- **`thinker errors`** prints the records exactly as they would be sent, which is the only honest way to ask for
-  consent: a person can read what would leave their machine before agreeing. `--send` sends now, `--json` is the
-  data, `--answer` records a decision.
-- **The endpoint** is `/errors` on the metrics API (`infra/metrics/errors.mjs`, `handler.mjs`), one row per error
-  in `error_reports` so one fault can be counted across installs. It refuses a payload that still looks like a
-  path, a URL or a credential (`LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`), so a client with a
-  scrubbing bug cannot store one either. The API was made with quick-create, so `$default` already routes the
-  new path; the table and the `GRANT` need a deploy (`infra/metrics/README.md`).
+- **Recording:** `recordError` called from catch sites; never throws, writes one line. Disabled in test mode (`THINKER_ERRORS_TEST`). Deduplicates, keeps max 20 records over 14 days.
+- **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths). Checked in `test/error-report.test.js`.
+- **Consent:** Asked once per machine via agent's question tool, answered through `thinker errors --answer yes|no|never`. Only asked where records exist and telemetry is on.
+- **`thinker errors`:** Prints records. Flags: `--send`, `--json`, `--answer`.
+- **Endpoint:** `/errors` on metrics API (`infra/metrics/errors.mjs`, `handler.mjs`). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`. Requires table and GRANT deploy in `infra/metrics/README.md`.
 
 ## Knowledge notes, removed (2026-11-08)
 
