@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>thinker · fleet</title>
 <!--
-  The fleet page: what thinker did on every machine reporting here, grouped by the labels an operator set.
+  The fleet page: what thinker did on every machine reporting here, one row a machine.
 
   Stat tiles and a table, no chart: the data's job here is magnitude and identity across a handful of
   groups, which a table reads better than any plot, and the headline figures are single numbers, which is
@@ -125,25 +125,9 @@
 <body>
 <div class="wrap">
   <h1>thinker · fleet</h1>
-  <p class="sub">What thinker did on every machine reporting here, grouped by the labels its operators set.</p>
+  <p class="sub">What thinker did on every machine reporting here.</p>
 
-  <div class="filters">
-    <div class="field">
-      <label for="by">Group by</label>
-      <select id="by"></select>
-    </div>
-    <div class="field">
-      <label for="days">Window</label>
-      <select id="days">
-        <option value="1">Last 24 hours</option>
-        <option value="7">Last 7 days</option>
-        <option value="30" selected>Last 30 days</option>
-        <option value="90">Last 90 days</option>
-      </select>
-    </div>
-    <div class="spacer"></div>
-    <div class="stamp" id="stamp"></div>
-  </div>
+  <p class="stamp" id="stamp"></p>
 
   <div class="tiles" id="tiles"></div>
 
@@ -177,14 +161,6 @@
     <div class="colhead" style="border-top:1px solid var(--rule)">What happened in this session</div>
     <div id="events"></div>
   </div>
-
-  <details open>
-    <summary>Rolled up by group</summary>
-    <div class="card" style="margin-top:8px">
-      <h2 id="tableTitle">By group</h2>
-      <div id="table"></div>
-    </div>
-  </details>
 
   <details>
     <summary>Recent sessions</summary>
@@ -224,7 +200,9 @@ const usd = (n, { sign = false } = {}) => {
 const pct = n => (n == null || !Number.isFinite(n) ? '—' : (n * 100).toFixed(n < 0.1 ? 1 : 0) + '%');
 const cls = n => (n == null ? '' : n > 0 ? 'pos' : n < 0 ? 'neg' : '');
 
-const state = { by: 'client', days: 30 };
+// No window control and no group-by: the fleet is small and every machine runs the same build, so a filter
+// here only ever hides a row somebody came to see. The server's cap is the window.
+const WINDOW_DAYS = 365;
 
 function tiles(t) {
   const items = [
@@ -242,15 +220,10 @@ function tiles(t) {
     </div>`).join('');
 }
 
-// One row a machine. `labels` and `version` come from its newest session, not from the window: what a
-// machine *is* changes under a long-lived install, and the current answer is the one owed to the reader.
+// One row a machine. No group-by and no window control: every machine runs the same build and the fleet is
+// small, so a filter here only hides a row somebody came to see.
 const MACHINE_COLS = [
-  ['labels', r => {
-    const pairs = Object.entries(r.labels || {});
-    return pairs.length ? pairs.map(([k, v]) => `${esc(k)}=${esc(v)}`).join(' ') : '<span class="dim">unlabelled</span>';
-  }, 'left'],
   ['client', r => esc(r.client || '—'), 'left'],
-  ['version', r => r.version ? esc(r.version) : '<span class="dim">—</span>', 'left'],
   ['sessions', r => compact(r.sessions)],
   ['prompts', r => compact(r.prompts)],
   ['cuts', r => compact(r.cuts)],
@@ -285,36 +258,12 @@ function machineTable(rows) {
   $('machines').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
-const COLS = [
-  ['sessions', r => compact(r.sessions)],
-  ['prompts', r => compact(r.prompts)],
-  ['cleared', r => pct(r.clearedShare)],
-  ['net', r => `<span class="${cls(r.net)}">${usd(r.net)}</span>`],
-  ['spend', r => usd(r.spend)],
-  ['saved vs spend', r => pct(r.netShareOfSpend)],
-  ['per prompt', r => usd(r.spendPerPrompt)],
-  ['unpriced', r => (r.unpricedSessions ? compact(r.unpricedSessions) : '—')],
-];
-
-function table(data) {
-  if (!data.rows.length) {
-    $('table').innerHTML = `<div class="empty">No sessions in this window yet.<br>
-      Point a machine here with <code>THINKER_EVENTS=http://host:8787/v1/sessions</code>.</div>`;
-    return;
-  }
-  const head = `<tr><th>${data.by}</th>${COLS.map(([h]) => `<th>${h}</th>`).join('')}</tr>`;
-  const body = data.rows.map(r => `<tr><td>${r.dim === '(unlabelled)' || r.dim === '(none)'
-    ? `<span class="dim">${r.dim}</span>` : esc(r.dim)}</td>${COLS.map(([, f]) => `<td>${f(r)}</td>`).join('')}</tr>`).join('');
-  const foot = `<tr><td>All</td>${COLS.map(([, f]) => `<td>${f(data.total)}</td>`).join('')}</tr>`;
-  $('table').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
-}
-
 function recentTable(rows) {
   if (!rows.length) { $('recent').innerHTML = `<div class="empty">Nothing yet.</div>`; return; }
-  const head = `<tr><th>when</th><th>labels</th><th>client</th><th>model</th><th>prompts</th><th>tokens</th><th>cleared</th><th>net</th><th>spend</th></tr>`;
+  const head = `<tr><th>when</th><th>machine</th><th>client</th><th>model</th><th>prompts</th><th>tokens</th><th>cleared</th><th>net</th><th>spend</th></tr>`;
   const body = rows.map(r => `<tr>
       <td>${new Date(r.at).toLocaleString()}</td>
-      <td>${esc(Object.entries(r.labels).map(([k, v]) => `${k}=${v}`).join(' ')) || '<span class="dim">none</span>'}</td>
+      <td><code>${esc(String(r.install).slice(0, 8))}</code></td>
       <td>${esc(r.client || '—')}</td><td>${esc(r.model || '—')}</td>
       <td>${compact(r.prompts)}</td><td>${compact(r.tokens)}</td><td>${compact(r.cleared)}</td>
       <td class="${cls(r.net)}">${usd(r.net)}</td>
@@ -439,10 +388,9 @@ function sessionPicker(rows) {
   plottable = rows;
   const sel = $('session');
   const was = sel.selectedOptions[0]?.dataset.key;
-  sel.innerHTML = rows.map((r, i) => {
-    const who = Object.entries(r.labels || {}).map(([k, v]) => `${k}=${v}`).join(' ') || String(r.install).slice(0, 8);
-    return `<option value="${i}" data-key="${esc(r.install + '/' + r.session)}">${esc(who)} · ${r.cuts ? `${r.cuts} cut${r.cuts > 1 ? 's' : ''}` : 'no cut'} · ${compact(r.prompts)} prompts · ${since(r.at)}</option>`;
-  }).join('');
+  sel.innerHTML = rows.map((r, i) => `<option value="${i}" data-key="${esc(r.install + '/' + r.session)}">`
+    + `${esc(String(r.install).slice(0, 8))} · ${esc(r.model || 'unpriced')} · `
+    + `${r.cuts ? `${r.cuts} cut${r.cuts > 1 ? 's' : ''}` : 'no cut'} · ${compact(r.prompts)} prompts · ${since(r.at)}</option>`).join('');
   if (!rows.length) { $('events').innerHTML = `<div class="empty">No session with a recorded trend yet.</div>`; return; }
   const keep = rows.findIndex(r => `${r.install}/${r.session}` === was);
   sel.value = String(keep >= 0 ? keep : 0);
@@ -452,25 +400,17 @@ function sessionPicker(rows) {
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function load() {
-  const res = await fetch(`/api/fleet?by=${encodeURIComponent(state.by)}&days=${state.days}`);
+  const res = await fetch(`/api/fleet?by=client&days=${WINDOW_DAYS}`);
   const data = await res.json();
-  const sel = $('by');
-  if (sel.options.length !== data.dimensions.length) {
-    sel.innerHTML = data.dimensions.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
-  }
-  sel.value = state.by;
-  $('tableTitle').textContent = `By ${data.by}`;
-  $('stamp').textContent = `${compact(data.total.installs)} installs · ${compact(data.total.sessions)} sessions · since ${new Date(data.since).toLocaleDateString()}`;
+  $('stamp').textContent = `${compact(data.total.installs)} machines · ${compact(data.total.sessions)} sessions`
+    + (data.total.sessions ? ` · since ${new Date(data.machines.reduce((a, m) => a && a < m.firstAt ? a : (m.firstAt || m.lastAt), null) || data.since).toLocaleDateString()}` : '');
   tiles(data.total);
   machineTable(data.machines || []);
   sessionPicker(data.plottable || []);
-  table(data);
   recentTable(data.recent || []);
 }
 
 $('session').addEventListener('change', e => openSession(e.target.value));
-$('by').addEventListener('change', e => { state.by = e.target.value; load(); });
-$('days').addEventListener('change', e => { state.days = Number(e.target.value); load(); });
 load();
 setInterval(load, 10_000);
 </script>
