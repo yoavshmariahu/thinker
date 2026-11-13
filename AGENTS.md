@@ -324,6 +324,16 @@ say so. Two rewrites the clearing did not cause are not charged to it, in both d
 hour, a session's first request -- so the write was coming anyway and the cut only made it smaller. On this machine's
 30 days to 2026-11-12, 601 of the 604 rewrites charged were the API-side policy's and 30 were of the expired kind.
 
+**The Factory's two sides leave the machine (2026-11-12, the owner's ask).** The only controlled comparison thinker has is
+`thinker factory --diff profile|compression`, per machine, and production could not answer whether either feature pays.
+`telemetry.js:armsMetrics` merges `factory.arms` off every repository's kept report (never recomputed; a repository
+with none is counted in `reposWithoutReport`) and sends each side as sums -- sessions, exchanges, dollars, rework,
+cache traffic, per stage and loop kind, merged pull requests, `cost2` for the noise band -- as the payload's `arms`
+block (schema 1), read by the **Diff by feature** dashboard (`scripts/arms-dashboard.mjs`), ratios of sums over the
+fleet. The clearing's on side is placed by the policy stamp where the clear has one (`armsOf`: today's policy is on,
+any other policy is neither side; the `CLEARING_SINCE` date rule stays for unstamped clears and the held-out side),
+and the block carries `policy` (`factory.js:currentPolicy`), so the dashboard groups by it and never pools two.
+
 **`sessions` in the payload** (`delivery-telemetry.js:deliveryMetrics` returns `{ prs, sessions }` from one walk of
 the repositories): groups of **sums**, never per-session averages, so every rate a dashboard shows is a ratio of
 sums -- the mean of per-session ratios read $13.93 against the true $5.97 on this machine's own ledger. `all`,

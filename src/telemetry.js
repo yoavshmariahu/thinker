@@ -21,8 +21,9 @@ import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
-import { historyEffects, promptAverageHere } from './report-snapshot.js';
-import { mergePromptAverages } from './report.js';
+import { historyEffects, promptAverageHere, readReport } from './report-snapshot.js';
+import { mergePromptAverages, REPORT_WEEKS } from './report.js';
+import { mergeArms, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
 import { partIdentity, publicToolName } from './part-describe.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
@@ -144,6 +145,44 @@ export function profileMetrics(store, { all = true, now = Date.now() } = {}) {
 }
 
 export const HOLDOUT_WINDOW_DAYS = 30;
+
+// The Factory's two-sided comparisons (factory.js:ARMS, "See diff by"), merged over every repository's kept report
+// (2026-11-12, the owner's ask: the only controlled comparison thinker has is per machine, and nothing of it left
+// the machine). The memory profile: the sessions shown the block against the ones held out from it, assigned at the
+// session's start. The clearing: the sessions that actually got a clear under the policy this machine runs today
+// (`policy`, cutting.js:policyId; the stamp decides where there is one, the date `clearingSince` for the clears
+// from before the stamp) against the ones the hash held out past the clearing's trigger. Each side is sums alone --
+// sessions, exchanges, calls, dollars at list, tokens, rework, cache traffic, per stage and per loop kind, merged
+// pull requests -- so a dashboard takes every rate as a ratio of sums over the fleet, plus `cost2`, the sum of
+// squared session costs, which is what the noise band is read from (factory.js:trust). Read off the report each
+// repository keeps (report-snapshot.js), as the Save page does; a repository with no kept report yet is counted
+// in `reposWithoutReport` and contributes nothing. Nothing here names a repository, a session or a pull request.
+export function armsMetrics(store, { all = true, now = Date.now() } = {}) {
+  const parts = []; let repos = 0, without = 0, from = null, to = null;
+  for (const r of knownRepos(store, { all })) for (const checkout of r.checkouts) {
+    let kept = null;
+    try { if (!fs.existsSync(path.join(checkout, '.thinker'))) continue; repos++; kept = readReport(new Store(checkout, { readonly: true }), REPORT_WEEKS, { now }); } catch {}
+    const arms = kept?.view?.factory?.arms;
+    if (!arms) { without++; continue; }
+    parts.push(arms); from = from == null ? kept.at : Math.min(from, kept.at); to = to == null ? kept.at : Math.max(to, kept.at);
+  }
+  const m = mergeArms(parts);
+  const r2 = x => Math.round((x || 0) * 100) / 100, int = x => Math.round(x || 0);
+  const cell = c => !c ? null : {
+    sessions: int(c.sessions), exchanges: int(c.exchanges), calls: int(c.calls), cost: r2(c.cost), cost2: Math.round((c.cost2 || 0) * 1e4) / 1e4,
+    tokens: int(c.tokens), rework: r2(c.rework), reworkTokens: int(c.reworkTokens), cacheWrite: int(c.cacheWrite), cacheRead: int(c.cacheRead),
+    stages: Object.fromEntries(Object.entries(c.stages || {}).map(([k, s]) => [k, { cost: r2(s.cost), tokens: int(s.tokens), rework: r2(s.rework), reworkTokens: int(s.reworkTokens) }])),
+    loops: Object.fromEntries(Object.entries(c.loops || {}).map(([k, l]) => [k, { loops: int(l.loops), cost: r2(l.cost), tokens: int(l.tokens), sessions: int(l.sessions) }])),
+    prs: { merged: int(c.prs?.merged), firstPass: int(c.prs?.firstPass), cost: r2(c.prs?.cost) },
+  };
+  const out = { schemaVersion: 1, windowWeeks: REPORT_WEEKS, repos, reposWithoutReport: without, reportsFrom: from ? new Date(from).toISOString() : null, reportsTo: to ? new Date(to).toISOString() : null,
+    policy: currentPolicy(), clearingSince: new Date(CLEARING_SINCE).toISOString() };
+  for (const feature of Object.keys(ARMS)) {
+    const spec = ARMS[feature], a = m?.[feature];
+    out[feature] = { ...(feature === 'compression' ? { rate: a?.rate ?? null } : {}), [spec.on]: cell(a?.[spec.on]), [spec.off]: cell(a?.[spec.off]) };
+  }
+  return out;
+}
 
 // Whether the agents on this machine run thinker at all, for a device with caches and no cache request
 // (2026-10-16: three such devices, and nothing said whether their agents were wired or simply unused): each
@@ -593,6 +632,10 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 
     // the context proxy, 30 days: the service here, the clearing side against the holdout side, by model (proxyMetrics)
     proxy: proxyMetrics({ home }),
+
+    // the Factory's "see diff by": the profile's two sides and the clearing's, sums per side over every repository's
+    // kept report, with the cut policy the on side was cleared under (armsMetrics). The Diff by feature dashboard reads it.
+    arms: armsMetrics(store, { all }),
 
     // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.

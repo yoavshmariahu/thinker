@@ -426,6 +426,27 @@ preserves the existing performance/diagnostics/waitlist layouts. Verification
 executes every saved query, validates filter mappings and checks read-only TLS.
 No test or demo payload is sent to production to populate the charts.
 
+## Diff by feature (`arms` schema 1, client 0.3.5+)
+
+The Factory page's "See diff by" (`src/factory.js:ARMS`), pooled over the fleet: the one controlled comparison thinker
+has is per machine, and until 2026-11-12 nothing of it left the machine. `src/telemetry.js:armsMetrics` merges the arms
+of every repository's kept report (`.thinker/state/report.json`, what the Save page and `thinker report` wrote; a
+repository with none counts in `reposWithoutReport` and sends nothing) and sends sums per side:
+
+- `profile.shown` / `profile.holdout`: the sessions shown the memory profile against the ones held out, assigned at
+  the session's start by a hash of its id.
+- `compression.on` / `compression.holdout`, with `rate` (the clearing's holdout share) and the block's `policy`
+  (`src/cutting.js:policyId`, the cut policy this machine runs): the sessions a clear actually happened in under that
+  policy (the stamp on the clear decides; for a clear from before the stamp, a start after `clearingSince`) against the
+  ones the hash held out past the clearing's trigger. A session on the arm that never reached a clear is on neither.
+- A side is `{ sessions, exchanges, calls, cost, cost2, tokens, rework, reworkTokens, cacheWrite, cacheRead, stages:
+  { <stage>: { cost, tokens, rework, reworkTokens } }, loops: { <kind>: { loops, cost, tokens, sessions } }, prs: { merged,
+  firstPass, cost } }`; dollars at list prices, `cost2` the sum of squared session costs for the noise band
+  (`src/factory.js:trust`). Nothing names a repository, a session or a pull request.
+
+The **Diff by feature** dashboard (`scripts/arms-dashboard.mjs`, nine cards) reads it from `reports.raw_json`, every
+rate a ratio of sums over the latest snapshot per device, the clearing's tables grouped by cut policy. No database change.
+
 ## Holdout: what the notes save (holdout schema 2)
 
 Every client withholds notes from a share of prompts (15% by default) and records

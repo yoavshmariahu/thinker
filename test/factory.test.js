@@ -246,6 +246,15 @@ test('the clearing\'s on side is a session that actually got a clear, its held-o
   assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: after, cleared: false }).compression, 'holdout');
   assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: after, cleared: true }).compression, 'on', 'a clear is a clear whatever the hash says');
   assert.equal(armsOf(st, 'abc', 0, { peak: 200_000, start: after, cleared: true }).compression, null, 'no share, no split');
+  // a clear that names its policy (cutting.js:policyId) is placed by the stamp, not the date: the policy this machine
+  // runs today is on, whenever it was made; any other policy is a different feature. The held-out side keeps the date.
+  const current = 'r1-t140k-f60k-p25-deep';
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: before, cleared: true, policy: current, current }).compression, 'on', 'stamped with today\'s policy: on, whatever the date');
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: after, cleared: true, policy: 'r1-t100k-f10k-p25-deep', current }).compression, null, 'stamped with another policy: neither side');
+  assert.equal(armsOf(st, 'abc', 1e-9, { peak: 200_000, start: after, cleared: true, policy: null, current }).compression, 'on', 'unstamped: the date rule');
+  assert.equal(armsOf(st, 'abc', 1, { peak: 200_000, start: before, cleared: false, policy: null, current }).compression, null, 'held out before the policy landed: the date rule, nothing to stamp');
+  const tally = armTally(0.5, current); assert.equal(tally.finish().compression.policy, current, 'the tally names the policy its on side was cleared under');
+  assert.equal(mergeArms([tally.finish(), armTally(0.5, current).finish()]).compression.policy, current); assert.equal(mergeArms([tally.finish(), armTally(0.5, 'other').finish()]).compression.policy, null, 'two policies merge to none');
 });
 
 test('with the clearing\'s holdout off the comparison says so, and names where the re-reads are netted instead', () => {

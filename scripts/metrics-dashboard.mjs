@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { savingsQuestions } from './savings-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
+import { armsQuestions } from './arms-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
 import { spendQuestions } from './spend-dashboard.mjs';
 import path from 'node:path';
@@ -127,7 +128,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...savingsQuestions, ...holdoutQuestions, ...cacheQuestions, ...spendQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...savingsQuestions, ...holdoutQuestions, ...armsQuestions, ...cacheQuestions, ...spendQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -313,6 +314,30 @@ export async function provision({ call = api, config = state, persist = save, re
     await api(`/dashboard/${state.savingsId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.armsId) {
+    state.armsId = (await api('/dashboard', 'POST', { name: 'Diff by feature', collection_id: state.collectionId,
+      description: 'The Factory\'s two-sided comparisons pooled over the fleet (src/telemetry.js:armsMetrics): sessions shown the memory profile against held out, and sessions the clearing cleared against held out, by cut policy. Sums per side from the latest snapshot per device; every rate a ratio of sums.' })).id;
+    save();
+  }
+  if (state.armsDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 5,
+      visualization_settings: { virtual_card: { display: 'text' }, text: '## What does each feature change, against its own holdout?\nThe one controlled comparison thinker has is per machine: the Factory page\'s "See diff by" (src/factory.js:ARMS). Clients on 0.3.5 and later send its two sides as sums, over every repository with a kept report, in their latest 30-day snapshot. No data means not measured, not zero.\n**Memory profile is an assignment:** a session is shown the block or held out from it at its start, so the sides are the same work.\n**Context clearing is a treatment:** the cleared side is the sessions a clear actually happened in, the held-out side the ones the hash held out past the trigger, and the cleared side is grouped by the cut policy that made it. Two policies are never pooled.\n**Read the noise band first.** Cost per exchange tells a longer session from a dearer one. Dollars are list prices.' } }];
+    const scalarRows = Math.ceil(armsQuestions.filter(q => q.display === 'scalar').length / 4);
+    let row = 5 + scalarRows * 4, col = 0, scalars = 0;
+    armsQuestions.forEach((q, i) => {
+      const id = state.cards[q.name];
+      if (q.display === 'scalar') { const at = scalars++; return cards.push({ id: -(i + 2), card_id: id, row: 5 + Math.floor(at / 4) * 4, col: (at % 4) * 6, size_x: 6, size_y: 4, parameter_mappings: mappings(id) }); }
+      if (q.fullWidth && col) { row += 8; col = 0; }
+      cards.push({ id: -(i + 2), card_id: id, row, col, size_x: q.fullWidth ? 24 : 12, size_y: 8, parameter_mappings: mappings(id) });
+      if (q.fullWidth || col) { row += 8; col = 0; } else col = 12;
+    });
+    await api(`/dashboard/${state.armsId}`, 'PUT', { parameters, dashcards: cards });
+    state.armsDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.armsId}`);
+    await api(`/dashboard/${state.armsId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.holdoutId) {
     state.holdoutId = (await api('/dashboard', 'POST', { name: 'Holdout: what the notes save', collection_id: state.collectionId,
       description: 'Prompts served notes against prompts with notes withheld, pooled over the latest 30-day snapshot per device. Per-prompt averages, with prompt counts.' })).id;
@@ -466,6 +491,12 @@ export async function verify({ call = api, config = state } = {}) {
     if (savingsQuestions.some(q => !savings.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Savings per session dashboard is missing cards');
     if (filterDefs.some(([id]) => !savings.parameters.some(p => p.id === id) || savings.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped savings filter');
     console.log('PASS: savings per session layout and filters.');
+  }
+  if (state.armsId) {
+    const arms = await api(`/dashboard/${state.armsId}`);
+    if (armsQuestions.some(q => !arms.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Diff by feature dashboard is missing cards');
+    if (filterDefs.some(([id]) => !arms.parameters.some(p => p.id === id) || arms.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped diff-by-feature filter');
+    console.log('PASS: diff by feature layout and filters.');
   }
   if (state.holdoutId) {
     const holdout = await api(`/dashboard/${state.holdoutId}`);

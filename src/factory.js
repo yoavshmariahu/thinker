@@ -27,7 +27,8 @@ import { heldOut, PROXY_DEFAULTS } from './proxy.js';
 import { SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { thinkerHome } from './update.js';
-import { deliveryReport, clearedFor } from './delivery.js';
+import { deliveryReport, clearingFor } from './delivery.js';
+import { policyId } from './cutting.js';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 import { weekColumns, REPORT_WEEKS } from './report.js';
 
@@ -275,8 +276,8 @@ export const ARMS = {
   compression: { name: 'Compression', on: 'on', off: 'holdout', onLabel: 'cleared', offLabel: 'held out', eligible: 'past the clearing\'s trigger' },
 };
 const armCell = () => ({ sessions: new Set(), costBy: new Map(), cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, stages: Object.fromEntries(STAGE_KEYS.map(k => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, loopSessions: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
-export function armTally(share) {
-  const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, on: armCell(), holdout: armCell() } };
+export function armTally(share, policy = null) {
+  const t = { profile: { rate: null, shown: armCell(), holdout: armCell() }, compression: { rate: share, policy, on: armCell(), holdout: armCell() } };
   const sideOf = (feature, arms) => arms[feature] ? t[feature][arms[feature]] : null;
   return {
     add(arms, r, sessionId) {
@@ -292,7 +293,7 @@ export function armTally(share) {
     finish() {
       // `cost2`, the sum of squared session costs, is what the trust level reads the spread from (armRows:trust)
       const fin = c => { for (const k in c.loops) c.loops[k].sessions = c.loopSessions[k].size; const { loopSessions, costBy, ...rest } = c; return { ...rest, cost2: [...costBy.values()].reduce((a, x) => a + x * x, 0), sessions: c.sessions.size }; };
-      return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' ? v : fin(v)]))]));
+      return Object.fromEntries(Object.entries(t).map(([f, sides]) => [f, Object.fromEntries(Object.entries(sides).map(([k, v]) => [k, k === 'rate' || k === 'policy' ? v : fin(v)]))]));
     },
   };
 }
@@ -302,6 +303,8 @@ export function mergeArms(list) {
   const out = {};
   for (const feature of Object.keys(ARMS)) {
     const sides = { rate: as[0][feature]?.rate ?? null };
+    // the policy rides along where every part names the same one (one machine's repositories do); mixed reads as none
+    if (feature === 'compression') { const ps = new Set(as.map(a => a[feature]?.policy ?? null)); sides.policy = ps.size === 1 ? [...ps][0] : null; }
     for (const side of [ARMS[feature].on, ARMS[feature].off]) { const c = { ...armCell(), sessions: 0 }; delete c.loopSessions; delete c.costBy; for (const a of as) if (a[feature]?.[side]) addCell(c, a[feature][side]); sides[side] = c; }
     out[feature] = sides;
   }
@@ -309,6 +312,8 @@ export function mergeArms(list) {
 }
 // what the clearing's share is on this machine (the service's flag, from the machine config)
 function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).proxy || {}; return cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0; } catch { return SERVICE_HOLDOUT; } }
+// the cut policy this machine runs today (cutting.js:policyId over the proxy's settings), the one a stamped clear must name
+export function currentPolicy() { try { return policyId({ ...PROXY_DEFAULTS, ...(readMachineConfig(thinkerHome()).proxy || {}) }); } catch { return policyId(PROXY_DEFAULTS); } }
 // a session's two arms: the profile's from its state file (null where none was recorded); the clearing's is a treatment,
 // not an assignment (2026-11-10, the owner's ask): the `on` side holds the sessions that actually got a clear (`cleared`,
 // read from the proxy's log and the clearing mod's records, delivery.js:clearedFor) and the `holdout` side the ones
@@ -318,12 +323,17 @@ function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).pr
 // (`peak`; below it neither side is touched) and a session started after the current cut policy landed
 // (`CLEARING_SINCE`): a session cleared under the API-side clearing or an earlier cut policy is a different feature,
 // measured as a loss, and is never pooled with this one. A cold-boundary cut below the trigger is left out with the rest.
+// Since 2026-11-12 a clear names its policy (cutting.js:policyId; `clearingFor` reads it off the record), and where it
+// does the stamp decides instead of the date: a clear under the policy this machine runs today is on the on side
+// whenever it was made, and a clear under any other policy is on neither. The date rule stays for the unstamped clears
+// of before the stamp, and for the held-out side, which nothing stamps. The date is right on this machine and the
+// stamp is right everywhere, which is what lets the arms leave the machine (telemetry.js:armsMetrics).
 export const CLEARING_TRIGGER = PROXY_DEFAULTS.trigger;
 // the merge of #693 (the 60k floor, after #688's payback of 25): the cut policy the proxy and the mod run today
 export const CLEARING_SINCE = Date.parse('2026-11-06T19:30:25Z');
-export function armsOf(store, session, share, { peak = Infinity, start = Infinity, cleared = false } = {}) {
+export function armsOf(store, session, share, { peak = Infinity, start = Infinity, cleared = false, policy = null, current = null } = {}) {
   let profile = null; try { profile = profileArmOf(store, session); } catch {}
-  const eligible = share > 0 && peak >= CLEARING_TRIGGER && start >= CLEARING_SINCE;
+  const eligible = share > 0 && peak >= CLEARING_TRIGGER && (cleared && policy ? policy === current : start >= CLEARING_SINCE);
   const compression = !eligible ? null : cleared ? 'on' : heldOut(session, share) ? 'holdout' : null;
   return { profile: profile === 'shown' || profile === 'holdout' ? profile : null, compression, cleared: Boolean(cleared) };
 }
@@ -346,8 +356,8 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
   weeks ??= days ? Math.max(1, Math.ceil(days / 7)) : REPORT_WEEKS;
   const cols = weekColumns(now, weeks), from = cols[0].t;
   days = Math.ceil((now - from) / 86400_000) + 1;
-  const weekly = weeklyTally(cols), share = clearingShare(), arms = armTally(share), armOf = new Map();
-  let clearedOf = () => 0; try { clearedOf = clearedFor({ home: thinkerHome() }); } catch {}
+  const weekly = weeklyTally(cols), share = clearingShare(), policy = currentPolicy(), arms = armTally(share, policy), armOf = new Map();
+  let clearingOf = () => ({ cleared: 0, policy: null }); try { clearingOf = clearingFor({ home: thinkerHome() }); } catch {}
   sessions ??= findRepoSessions(store.repo, days);
   sessions = sessions.filter(s => s.mtime >= from);
   const all = sessions.concat(subagentSessions(sessions).filter(s => s.mtime >= from));
@@ -371,7 +381,7 @@ export function factoryView(store, { weeks, days, now = Date.now(), sessions, on
     if (!r) continue;
     measured++; calls += r.calls; cost += r.cost; tokens += r.tokens;
     weekly.add(s.mtime, r, parentOf(s));
-    if (!s.parent) armOf.set(s.session, armsOf(store, s.session, share, { peak: r.peak, start: r.start, cleared: clearedOf(s.session) > 0 }));
+    if (!s.parent) { const c = clearingOf(s.session) || {}; armOf.set(s.session, armsOf(store, s.session, share, { peak: r.peak, start: r.start, cleared: c.cleared > 0, policy: c.policy || null, current: policy })); }
     if (armOf.has(parentOf(s))) arms.add(armOf.get(parentOf(s)), r, parentOf(s));
     if (!r.priced) unpriced.add(r.model || 'unknown');
     for (const k of STAGE_KEYS) for (const f of ['cost', 'tokens', 'calls', 'rework', 'reworkTokens']) stages[k][f] += r.stages[k][f];

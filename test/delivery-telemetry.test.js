@@ -10,7 +10,10 @@ import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { mirrorClearing } from '../src/compression.js';
 import { sessionsOf } from '../src/delivery.js';
-import { buildTelemetryPayload } from '../src/telemetry.js';
+import { buildTelemetryPayload, armsMetrics } from '../src/telemetry.js';
+import { writeReport } from '../src/report-snapshot.js';
+import { armTally } from '../src/factory.js';
+import { REPORT_WEEKS } from '../src/report.js';
 import { normalizeReport } from '../infra/metrics/report.mjs';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
 import { guardScript, install, MARKER } from '../scripts/install-pr-guard.mjs';
@@ -35,6 +38,36 @@ function evidence(store, home, number = 12, { tokens = 400_000, clearedTokens = 
   fs.writeFileSync(path.join(dir, `${session}.json`), JSON.stringify({ session, saved: clearedTokens, requests: 4 }));
   appendDelivery(store, { t: at(3), op: 'pr', pr: { number, title: 'PRIVATE PR TITLE', url: 'https://github.com/private/repo/pull/12', state: 'MERGED', branch: `PRIVATE_BRANCH_${number}`, author: 'PRIVATE_AUTHOR', createdAt: at(12), mergedAt: at(4), commits: [`PRIVATE_SHA_${number}`] } });
 }
+
+// The Factory's two sides leave the machine as sums off the kept report (telemetry.js:armsMetrics): a repository with no
+// kept report counts as such and sends nothing, the policy the on side was cleared under rides along, and nothing names
+// a repository, a session or a pull request.
+test('the arms block is the kept report\'s two sides per feature, as sums, with the cut policy and nothing named', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  store.log({ op: 'session', t: at(2), session: 'PRIVATE_SESSION_A', client: 'claude' });
+  const empty = armsMetrics(store, { all: false, now });
+  assert.equal(empty.schemaVersion, 1); assert.equal(empty.repos, 1); assert.equal(empty.reposWithoutReport, 1);
+  assert.equal(empty.profile.shown, null); assert.equal(empty.compression.on, null); assert.equal(empty.reportsFrom, null);
+  assert.match(empty.policy, /^r\d+-t\d+k-f\d+k-p\d+-(deep|one)$/, 'the policy this machine runs today');
+  const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
+  const r = (cost, exchanges, loops = []) => ({ cost, tokens: cost * 1e5, calls: 10, exchanges, stages: { ...stages, build: { cost: cost / 2, tokens: 0, rework: cost / 10, reworkTokens: 0 } }, loops, cacheWrite: 1000, cacheRead: 9000 });
+  const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');
+  tally.add({ profile: 'shown', compression: 'on' }, r(10, 4, [{ kind: 'fix', cost: 1, tokens: 0 }]), 'PRIVATE_SESSION_A');
+  tally.add({ profile: 'holdout', compression: 'holdout' }, r(30, 6), 'PRIVATE_SESSION_B');
+  tally.pr({ profile: 'shown', compression: 'on' }, true, 10);
+  writeReport(store, REPORT_WEEKS, { factory: { arms: tally.finish() } }, { now });
+  const a = armsMetrics(store, { all: false, now });
+  assert.equal(a.repos, 1); assert.equal(a.reposWithoutReport, 0); assert.equal(a.reportsFrom, new Date(now).toISOString());
+  assert.deepEqual([a.profile.shown.sessions, a.profile.shown.cost, a.profile.shown.exchanges, a.profile.shown.cost2], [1, 10, 4, 100]);
+  assert.deepEqual([a.profile.holdout.sessions, a.profile.holdout.cost, a.profile.holdout.exchanges], [1, 30, 6]);
+  assert.deepEqual(a.compression.on.prs, { merged: 1, firstPass: 1, cost: 10 }); assert.equal(a.compression.rate, 0.5);
+  assert.deepEqual(a.compression.on.loops, { fix: { loops: 1, cost: 1, tokens: 0, sessions: 1 } }); assert.equal(a.profile.shown.stages.build.rework, 1);
+  assert.equal(a.compression.holdout.cacheWrite, 1000);
+  const text = JSON.stringify(a);
+  assert.ok(!/PRIVATE|session|\/tmp|thinker-delivery/i.test(text.replace(/"sessions"/g, '')), 'no session id, path or repository in the block');
+  const payload = buildTelemetryPayload(store, { all: false, home });
+  assert.equal(payload.arms.profile.shown.sessions, 1, 'the payload carries it');
+});
 
 test('pull request metrics are numbers only, and name nothing', t => {
   const store = fixture(t), home = path.join(store.repo, 'home');
