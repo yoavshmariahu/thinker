@@ -40,7 +40,7 @@ async function profileCommand(ctx) {
       for (const s of SECTIONS) for (const e of p.sections[s] || []) {
         // the counts and dates live here, not in the served block
         const tally = e.skill && e.used ? `${e.count} sessions; ${e.accepted} accepted, ${e.corrected} corrected` : e.skill ? `named in ${e.count} sessions` : `${e.count} sessions, ${e.firstSeen} to ${e.lastSeen}`;
-        out(`${s}: ${e.skill ? `/${e.skill}: ${e.text}` : e.text} (${tally})`);
+        out(`${s}: ${e.skill ? `/${e.skill}: ${e.text}` : e.text} (${tally}${e.corrections ? `, ${e.corrections} corrections` : ''}${e.retired ? `; retired ${e.retired}, out of the served block` : ''})`);
         for (const id of e.obs) { const r = byId.get(id); if (!r) { out(`    ${id} (not in the window)`); continue; } out(`    ${r.at.slice(0, 10)} ${r.outcome.padEnd(10)}${r.interrupts ? ' [interrupted]' : ''} ${r.request.slice(0, 110)}${r.reaction ? `\n        reaction: "${r.reaction}"` : ''}${r.lesson ? `\n        lesson: ${r.lesson}` : ''}${r.prefs?.length ? `\n        prefs: ${r.prefs.join(' | ')}` : ''}`); }
       }
       const tally = skillTallyText(rows); if (tally) out(`skill use in the window:\n${tally}`);
@@ -69,12 +69,13 @@ async function profileCommand(ctx) {
     out(`${'line'.padEnd(6)} ${'shown'.padStart(5)} ${'applied'.padStart(7)} ${'followed'.padStart(8)} ${'ignored'.padStart(7)} ${'contra.'.padStart(7)} ${'rate'.padStart(6)}  text`);
     for (const l of rep.lines) {
       const rate = l.followRate == null ? '    –' : `${String(Math.round(100 * l.followRate)).padStart(4)}%`;
-      out(`${l.id.padEnd(6)} ${String(l.shown).padStart(5)} ${String(l.applied).padStart(7)} ${String(l.followed).padStart(8)} ${String(l.ignored).padStart(7)} ${String(l.contradicted).padStart(7)} ${rate.padStart(6)}  ${l.gone ? '(no longer in the profile) ' : ''}${(l.text || '').slice(0, 70)}`);
+      out(`${l.id.padEnd(6)} ${String(l.shown).padStart(5)} ${String(l.applied).padStart(7)} ${String(l.followed).padStart(8)} ${String(l.ignored).padStart(7)} ${String(l.contradicted).padStart(7)} ${rate.padStart(6)}  ${l.gone ? '(no longer in the profile) ' : l.retired ? '(retired) ' : ''}${(l.text || '').slice(0, 70)}`);
       if (flags.why) for (const e of l.evidence.slice(0, 3)) out(`         ${e.verdict}: "${e.text.slice(0, 90)}"`);
     }
     out('');
     out('applied is the sessions the line had any bearing on; a rate of – means it has never come up, which is an');
-    out('untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.');
+    out(`untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.`);
+    out(`A line shown to ${PROFILE.retireShown} sessions that bore on none is retired by the code: kept on the profile, out of the served block.`);
     return;
   }
   if (sub === 'holdout') {
