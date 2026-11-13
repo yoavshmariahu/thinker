@@ -134,13 +134,21 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   (`offset`/`limit`, under `minRead` 8k tokens) is never delegated, so the model still reads the lines it edits. A
   subagent that fails or times out (`timeoutMs` 240 s) lets the call through. The hook answers in ~0.25 s when the
   call goes through (the CLI's module load; nothing is read); the settings entry's timeout is 300 s for the run.
+  The brief carries the **person's own request**, read from the transcript (`lastPromptOf`): the last 400 KB first,
+  and the whole file when that holds no prompt, since one prompt and a hundred tool calls is a 1.5 MB transcript with
+  the request at the top of it (2026-11-12: three firings briefed with an empty request each answered with a map of
+  the file instead of the answer). A whole-file read is 12 ms for 1.5 MB, once per firing.
 - The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
   (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
   35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
   on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
   `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
-  itself). A suite run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./...,
-  cargo test, node --test); a single file's run stays with the model.
+  itself). A shell line that names a range (`sed -n 10,60p`, `head -n 40`, `sedLines`) is sized by the lines it asks
+  for, as a ranged Read is, so it falls under `minRead` and is never the thing that fires: a ranged read is the model
+  reading the lines it edits, and the denial sends it there (2026-11-12, after an 18-line `sed -n` of a 290-line file
+  was delegated). An open range or a pattern (`100,$p`) says nothing about the size, so the whole file counts. A suite
+  run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./..., cargo test,
+  node --test); a single file's run stays with the model.
 - Why those numbers: the stage-delegation bench (43 paired runs on Click and MLflow, 2026-11-10/11; the owner's
   memory notes `delegation-trigger-rules`, `stage-delegation-bench-2026-11-10`). Every run whose inline context
   reached 90k won by delegating (11-50%), every run under 50k lost; the saving is the read's cache write at Sonnet's

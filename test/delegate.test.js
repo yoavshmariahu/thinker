@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS } from '../src/delegate.js';
+import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS, lastPromptOf, shellRead } from '../src/delegate.js';
 import { installClient } from '../src/clients.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -23,6 +23,14 @@ test('readOf: a Read is sized from the file, a ranged Read from its lines, a cat
   assert.equal(readOf('Bash', { command: 'cat core.py' }, d).files[0], big);
   assert.equal(readOf('Bash', { command: 'cat core.py | grep def' }, d), null);
   assert.equal(readOf('Bash', { command: 'sed -n 1,50p core.py' }, d).files[0], big);
+  // a shell line that asks for a range is the model reading the lines it edits, and is sized by that range
+  const sedRange = readOf('Bash', { command: "sed -n '273,290p' core.py" }, d);
+  assert.ok(sedRange.tokens < 1000, String(sedRange.tokens));
+  assert.ok(readOf('Bash', { command: "sed -n '42p' core.py" }, d).tokens < 100);
+  assert.deepEqual(shellRead("sed -n '10,+20p' core.py"), { files: ['core.py'], lines: 21 });
+  // an open range or a pattern says nothing about the size: the whole file counts
+  assert.equal(shellRead("sed -n '100,$p' core.py").lines, 0);
+  assert.equal(readOf('Bash', { command: "sed -n '100,$p' core.py" }, d).tokens, readOf('Bash', { command: 'cat core.py' }, d).tokens);
   assert.equal(readOf('Bash', { command: 'ls -la' }, d), null);
   assert.equal(readOf('Grep', { pattern: 'x' }, d), null);
   assert.ok(readOf('Read', { file_path: small }, d).tokens < 100);
@@ -185,4 +193,22 @@ test('denial and brief shapes', () => {
   assert.match(j.hookSpecificOutput.permissionDecisionReason, /read a\.py through a m subagent/);
   assert.match(explorerBrief({ files: ['/r/a.py'], prompt: 'P', cwd: '/r' }), /At most 25 lines/);
   assert.ok(TOKENS_PER_CHAR > 0.4 && TOKENS_PER_CHAR < 0.5);
+});
+
+test('lastPromptOf: the request is found past the tail window', t => {
+  const d = tmp(t), f = path.join(d, 'session.jsonl');
+  const rows = [JSON.stringify({ type: 'user', message: { content: 'rewrite the savings footer in dollars' } })];
+  // one prompt and a hundred tool calls: the person's words sit far behind the tail thinker reads first
+  for (let i = 0; i < 200; i++) {
+    rows.push(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ` + 'x'.repeat(200) }] } }));
+    rows.push(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'y'.repeat(2000) }] } }));
+  }
+  fs.writeFileSync(f, rows.join('\n') + '\n');
+  assert.ok(fs.statSync(f).size > 400_000, 'the fixture must outgrow the tail');
+  const r = lastPromptOf(f);
+  assert.equal(r.prompt, 'rewrite the savings footer in dollars');
+  assert.ok(r.lastSay.startsWith('step 199'));
+  // the tail alone is what a short session costs, and it still answers
+  assert.equal(lastPromptOf(f, 600_000).prompt, 'rewrite the savings footer in dollars');
+  assert.deepEqual(lastPromptOf(path.join(d, 'gone.jsonl')), {});
 });
