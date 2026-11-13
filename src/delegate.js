@@ -60,9 +60,19 @@ export function delegateConfig({ env = process.env, home } = {}) {
 // ---- what a tool call would read ----
 // A Read of a file, or a shell line whose work is to print a file (cat, sed -n, head with a large count),
 // with nothing after it that would shrink the output. Anything piped into grep, head, tail, wc or awk is
-// the model trimming for itself, and is left alone.
+// the model trimming for itself, and is left alone. A line range (`sed -n 10,60p`, `head -n 40`) is sized
+// by the lines it asks for, as a ranged Read is: it is the model reading the lines it edits, and the denial
+// sends it there, so it may not be the thing that fires.
 const SHRINKS = /\|\s*(grep|rg|head|tail|wc|awk|cut|sort|uniq|jq|python|node)\b/;
-const READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+(?:'[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/;
+const READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+('[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/;
+// The lines a `sed -n` script prints, or 0 where that cannot be read off it (an open range, a pattern, several ranges).
+function sedLines(script) {
+  const a = String(script || '').replace(/^["']|["']$/g, '');
+  let m = a.match(/^(\d+),(\d+)p$/); if (m) return Math.max(1, Number(m[2]) - Number(m[1]) + 1);
+  m = a.match(/^(\d+)p$/); if (m) return 1;
+  m = a.match(/^(\d+),\+(\d+)p$/); if (m) return Number(m[2]) + 1;
+  return 0;
+}
 function splitArgs(s) { return (s.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(a => a.replace(/^["']|["']$/g, '')); }
 function fileStats(file, cwd) {
   const p = path.isAbsolute(file) ? file : path.join(cwd || process.cwd(), file);
@@ -109,8 +119,8 @@ export function shellRead(command) {
   if (SHRINKS.test(cmd) || /[;&]|\|\|/.test(cmd.replace(/\|\|/g, ';'))) return null;
   const m = cmd.match(READ_CMD);
   if (!m) return null;
-  const files = splitArgs(m[2]).filter(a => !a.startsWith('-'));
-  return files.length ? { files, lines: m[1] ? Number(m[1]) : 0 } : null;
+  const files = splitArgs(m[3]).filter(a => !a.startsWith('-'));
+  return files.length ? { files, lines: m[2] ? Number(m[2]) : sedLines(m[1]) } : null;
 }
 
 // A whole-suite run: the test program with no path of its own. A single file's run is the main model
@@ -270,18 +280,33 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : {} });
 }
 
-/** The current prompt and the model's last words, from the transcript's tail (written with a lag, so a best effort). */
-export function lastPromptOf(transcriptPath) {
+const TRANSCRIPT_TAIL = 400_000;
+/**
+ * The current prompt and the model's last words, from the transcript's tail (written with a lag, so a best effort).
+ * One prompt and a hundred tool calls is a 1.5 MB transcript with the person's words at the top of it, so when the
+ * tail holds no prompt the whole file is read: a brief with an empty request gets a map of the file back instead of
+ * an answer (seen live on 2026-11-12, three firings), and the read costs 12 ms for 1.5 MB beside a subagent that
+ * runs for ten seconds.
+ */
+export function lastPromptOf(transcriptPath, tail = TRANSCRIPT_TAIL) {
   try {
-    const size = fs.statSync(transcriptPath).size, fd = fs.openSync(transcriptPath, 'r');
-    const len = Math.min(size, 400_000), buf = Buffer.alloc(len);
-    fs.readSync(fd, buf, 0, len, size - len); fs.closeSync(fd);
-    const rows = buf.toString('utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
-    let prompt = '', lastSay = '';
-    for (const r of rows) {
-      if (r.type === 'user' && typeof r.message?.content === 'string' && !/^<(task-notification|agent-message|system-reminder|command-name)/.test(r.message.content)) { prompt = r.message.content; lastSay = ''; }
-      else if (r.type === 'assistant') for (const p of r.message?.content || []) if (p.type === 'text' && p.text) lastSay = p.text;
-    }
-    return { prompt, lastSay };
+    const size = fs.statSync(transcriptPath).size;
+    const near = scanTranscript(transcriptRows(transcriptPath, size, Math.min(size, tail)));
+    if (near.prompt || size <= tail) return near;
+    const all = scanTranscript(transcriptRows(transcriptPath, size, size));
+    return { prompt: all.prompt, lastSay: near.lastSay || all.lastSay };
   } catch { return {}; }
+}
+function transcriptRows(transcriptPath, size, len) {
+  const fd = fs.openSync(transcriptPath, 'r'), buf = Buffer.alloc(len);
+  try { fs.readSync(fd, buf, 0, len, size - len); } finally { fs.closeSync(fd); }
+  return buf.toString('utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+}
+function scanTranscript(rows) {
+  let prompt = '', lastSay = '';
+  for (const r of rows) {
+    if (r.type === 'user' && typeof r.message?.content === 'string' && !/^<(task-notification|agent-message|system-reminder|command-name)/.test(r.message.content)) { prompt = r.message.content; lastSay = ''; }
+    else if (r.type === 'assistant') for (const p of r.message?.content || []) if (p.type === 'text' && p.text) lastSay = p.text;
+  }
+  return { prompt, lastSay };
 }
