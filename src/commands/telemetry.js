@@ -72,6 +72,10 @@ async function telemetryCommand(ctx) {
   } catch {}
   out(`  Last sent:    ${lastSent}`);
   out(`  Install ID:   ${payload.installId}`);
+  // the labels an operator set, shown because they are the one part of a payload somebody chose and so the
+  // one part worth reading back before it is sent (labels.js)
+  const labels = Object.entries(payload.labels || {});
+  if (labels.length) out(`  Labels:       ${labels.map(([k, v]) => `${k}=${v}`).join(', ')}`);
   out(`  Caches:       ${payload.cacheSize.repositoriesCount} repositories, ${payload.cacheSize.profiles} with a profile (${payload.cacheSize.observations} observations)`);
   out(`  Activity:     ${payload.activity.requestsTotal} requests in ${payload.activity.sessions} sessions`);
   out(`  Profile:      shown in ${payload.profile.served.shown} sessions, held out of ${payload.profile.served.holdout} (30 days)`);

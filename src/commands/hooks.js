@@ -37,6 +37,7 @@ import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../se
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint } from '../proxy-service.js';
+import { labelBlock } from '../labels.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -317,9 +318,13 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the profile's holdout (profile.js:holdoutReport): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened. A session
     // Claude Code continued in a new one carries the original's history in its file: the row counts from the moment it
-    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince)
+    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince).
+    // This row is also the one event thinker writes per session, so it is what an export reads: a stream of
+    // sessions, each already carrying its client, its model, its arm and (labels.js) whatever an operator
+    // named this machine, summed by whoever consumes it rather than by us. A machine with no label set adds
+    // no key here -- most machines have none, and a log line is written on every session that ends.
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
     if (noticeOn(store)) {
       // where the card mod runs, the status line carries the money the whole session (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);

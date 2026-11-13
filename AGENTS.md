@@ -290,6 +290,16 @@ could be priced -- one unpriced session leaves a pull request out of both figure
 `clearedPrs` (how many got a clear), `byPolicy`, and `rows`, the newest 50 merged pull requests as numbers alone.
 Nothing names a pull request, a repository or a session, as before.
 
+**What an operator says the machine is** (2026-11-12, `src/labels.js`): `labels`, a map of up to 8 short
+names, from `labels` in `THINKER_HOME/config.json` with `THINKER_LABELS` (JSON or `k=v,k2=v2`) merged over
+it per key. On the payload (always, `{}` where none: an empty block says no label is set, an absent one
+says the build is too old to carry any, and a fleet must tell those apart) and on the usage log's
+`op: session` row, which is the one event per session an export reads. Set, never inferred -- nothing reads
+a hostname, an instance id or a remote -- because this is the only part of a payload where identifying data
+can appear, and whose it is to put there is the operator's call. A repository's `.thinker/config.json` is
+not a source: a checkout is not a trust boundary for fleet attribution. The ingest stores the payload whole
+(`infra/metrics/report.mjs`), so labels need no deploy to arrive.
+
 **A payload that does not fit loses its lists, not its figures** (`telemetry.js:fitPayload`, `PAYLOAD_BUDGET` 56 KB
 against the API's 64 KB). The rows are what can grow without bound, and a 413 loses the **whole** report with
 nothing on the machine saying why: the longest list goes first, only as far as the budget needs, the block says
