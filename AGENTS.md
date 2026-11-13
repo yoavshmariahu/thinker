@@ -115,8 +115,10 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Off until owner ships: `THINKER_EXPLORE_MODEL=on|<model>` or `agents: { explore: true | "<model>" }`.
 - File: `<claude config dir>/agents/Explore.md`, read-only, marker `<!-- thinker-explore -->`, Sonnet 5.5 by default.
 - `connect`/`rewire` write it; `uninstall --user` removes; person's own file left alone.
-- The delegation nudge it waited for became the trigger below (`src/delegate.js`), which runs its own
-  explorer and does not use this file.
+- The delegation nudge it waited for became the trigger below (`src/delegate.js`), and **since 2026-11-12 the
+  trigger uses this file**: its denial hands the read to Claude Code's own `Explore` subagent, so while the
+  trigger is on the file is written on `delegate.model` even where `agents.explore` is unset
+  (`delegate-agents.js:delegateExploreModel`; explore-agent.js is still the only writer of it).
 
 **Models from other providers (2026-11-10):**
 - Registry: `<THINKER_HOME>/providers.json`, key never in it (`auth: { env | file }`).
@@ -127,17 +129,57 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **The delegation trigger: a read or a suite run handed to a Sonnet subagent, deterministically (2026-11-11, the owner's
 call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse on `Read|Bash`):**
-- The mechanism. A PreToolUse hook sees every Read and Bash call before it runs. A read past the rule (below) or a
-  whole-suite test run is **denied**, the hook runs the subagent itself through `claude -p` on `delegate.model`
-  (Sonnet 5.5) with read-only tools, and the subagent's report comes back as the denial's reason, which is what the
-  model reads instead of the file. A repeat of the same read in the same turn gets the cached report; a ranged Read
-  (`offset`/`limit`, under `minRead` 8k tokens) is never delegated, so the model still reads the lines it edits. A
-  subagent that fails or times out (`timeoutMs` 240 s) lets the call through. The hook answers in ~0.25 s when the
-  call goes through (the CLI's module load; nothing is read); the settings entry's timeout is 300 s for the run.
-  The brief carries the **person's own request**, read from the transcript (`lastPromptOf`): the last 400 KB first,
-  and the whole file when that holds no prompt, since one prompt and a hundred tool calls is a 1.5 MB transcript with
-  the request at the top of it (2026-11-12: three firings briefed with an empty request each answered with a map of
-  the file instead of the answer). A whole-file read is 12 ms for 1.5 MB, once per firing.
+- The mechanism, **the host's own subagent since 2026-11-12** (the owner's call: "delegation is not supposed to
+  happen this way. we need to use native subagents in every harness"). A PreToolUse hook sees every Read and Bash
+  call before it runs. A read past the rule (below) or a whole-suite test run is **denied**, and the denial's reason
+  tells the model to hand the work to **its own named native subagent**, with a brief thinker has already written
+  (`handoff` mode, `executionFor`). The rule stays thinker's -- `decide`, the thresholds, the holdout, the `op:
+  delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under `minRead` 8k tokens) is
+  never delegated, so the model still reads the lines it edits. The hook answers in ~0.25 s either way, because it
+  starts nothing: the settings entry's timeout is 30 s, and only 300 s while the fallback below is on.
+  The brief carries the **person's own request**, read from the transcript (`lastPromptOf`, #777): the last 400 KB
+  first, and the whole file when that holds no prompt, since one prompt and a hundred tool calls is a 1.5 MB
+  transcript with the request at the top of it (2026-11-12: three firings briefed with an empty request each
+  answered with a map of the file instead of the answer). A whole-file read is 12 ms for 1.5 MB, once per firing.
+  A handoff needs this as much as the fallback did -- the brief is thinker's text either way -- though there the
+  model pastes it from its own turn, so an empty request is recoverable rather than wasted.
+- **Why not a subagent of thinker's own.** Until that day the hook spawned `claude -p` itself. That is a second
+  billing path and a second credential requirement, invisible to the host and to its transcript, and dead where no
+  `claude` CLI and no Anthropic key exist -- a vendor's cloud OpenCode harness on the vendor's own models, which is
+  the case it has to work in. The handoff has none of those, and it is **better measured**: the host bills, shows
+  and records the subagent like any other, and the Report already prices a subagent conversation at its own model
+  (`tool-outputs.js:sessionUsage`). `runSubagent` survives as `delegate: { fallback: true }`, **off by default**,
+  for a host with a door but no subagent; with it off such a host simply reads as before (`mode: 'none'`,
+  `skipped: 'no-native-subagent'` on the row).
+- **A door can only deny, so the words are the whole mechanism** (`denial()`, still the one copy of them). A hook
+  cannot invoke the host's subagent itself. The wording therefore says, in the first person, what thinker did and
+  why, then the exact call to make (tool, parameter, agent name, label, brief), then that nothing has gone wrong --
+  because the live OpenCode check of 2026-11-12 showed a denial read as a fault gets routed around with grep and
+  sed. A handoff is an instruction and never a pre-baked report, which is the shape that was distrusted.
+- **One handoff of each kind per turn** (`handoffsPerTurn` 1, `decide`'s `spent`, `noteHandoff`), and this is what
+  makes a handoff impossible to loop. The subagent reads the files itself, in the same turn, and on OpenCode in a
+  child session with an id of its own; those reads must go through. So once a kind is handed over, every later read
+  of that kind is allowed and logged (`after: 'handoff'`, `fired: false`) -- which is also the one free signal of
+  whether the model obeyed. The budget is per kind, so an exploration handoff does not use up the turn's suite run.
+  Beside it, a positive guard: a subagent's own call is never delegated (`fromSubagent` -- Claude Code's
+  `agent_type`/`agent_id`, OpenCode's `agent` on every event, where anything but a primary agent fails closed).
+- **What each host has** (read off the installed binaries and schemas on 2026-11-12, not from memory):
+  `HOSTS[client].subagent`. Claude Code 2.1.323: the **`Agent`** tool (`Task` before 2.1.63), parameter
+  `subagent_type`, and `Explore` and `general-purpose` are **built in**, so a handoff there installs nothing; a
+  user-scope `agents/Explore.md` overrides the built-in `Explore` and pins its model, so while the trigger is on
+  that file is written on `delegate.model` (`delegate-agents.js:delegateExploreModel`, explore-agent.js still the
+  only writer of it) and the exploration runs on Sonnet rather than the conversation's model. OpenCode 2.2.7: the
+  **`subagent`** tool, parameter `agent`, beside `description` and `prompt`; `experimental.subagent_depth` is 1 so
+  a subagent cannot spawn one; and it has **nothing built in** -- `/api/agent` is empty in two directories here,
+  and its `agent` parameter tells the model that an unrecognised name "most likely mean[s] a model", so naming an
+  agent that does not resolve is worse than naming none. Hence thinker writes the two it names into the directory
+  OpenCode scans (`{agent,agents}/**/*.md`), **with no model pinned**: OpenCode names a model `providerID/modelID`
+  from the person's own providers, and on a vendor's harness thinker has no business choosing one. A subagent on
+  the session's own model still keeps the read out of the lead's context for the rest of the session, which is the
+  larger half of the saving and the half that does not depend on which models the person has. Its frontmatter is
+  `Config.AgentEncoded`, `additionalProperties: false`: no `name` (the file is the id), `permissions` a list of
+  `{action, resource, effect}` and not a map, and no `": "` inside a plain scalar -- any of those three makes the
+  file unreadable and the name unresolvable.
 - The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
   (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
   35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
@@ -157,8 +199,11 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   wash (it re-reads and re-reasons what the lead holds). Replayed over this machine's 30 days the rule projects to
   ~4.6% of spend, 96% of it in sessions that also reach the clearing's trigger -- the two act on the same tokens,
   so their figures are never added; the write half (~$190 of $291 a month here) is delegation's alone.
-- Measured from day one: every firing is a log row (`op: delegate`: kind, files, tokens, the subagent's usage and
-  `total_cost_usd`, its session id, `cached`, `error`), and **half the sessions are held out** (`holdout` 0.5 by hash
+- Measured from day one: every firing is a log row (`op: delegate`: kind, files, tokens, `mode`, and for a handoff
+  the `agent` and `handoffTool` it named; for the fallback the subagent's usage and `total_cost_usd`, its session
+  id, `cached`, `error`). A handoff carries no cost of its own on the row **on purpose** -- the host bills it, and
+  the Report reads it as a subagent conversation priced at its own model, so a cost here would be counted twice.
+  **Half the sessions are held out** (`holdout` 0.5 by hash
   of the session id, `proxy.js:heldOut`, the same rule as the clearing's); a held-out session logs the row with
   `held: true` and reads as it would have. Judge it by cost per exchange, cleared and held-out, over a window, and
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
@@ -185,9 +230,20 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   entry is written only while it is on, since a hook that exits at once is still one node process per tool call;
   `PreToolUse` in setHooks's list takes it out again on the next rewire once it is off) and OpenCode started again
   (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead,
-  holdout, timeoutMs }` tune it;
-  `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm. Under `THINKER_TEST` the hook
-  does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
+  holdout, timeoutMs, handoff, fallback, handoffsPerTurn }` tune it;
+  `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm, and
+  `THINKER_DELEGATE_HANDOFF=off` / `THINKER_DELEGATE_FALLBACK=on` to run the old owned-subagent arm instead.
+  Under `THINKER_TEST` the hook does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
+- **What is still unmeasured, and the one measurement to make.** Whether the model *obeys* a handoff. The bench
+  behind the thresholds compared an Opus lead with Sonnet subagents against Opus inline, which is what a handoff
+  now is, so the saving's shape is unchanged -- but a nudge the model may ignore was the thing the trigger was
+  built to replace, and a denial that instructs is one step weaker than a report that arrives. The measure is the
+  live one this project already uses: over a window of sessions with the trigger on, the share of `op: delegate`
+  handoff rows followed in the same turn by a subagent conversation in the host's own transcript (Claude Code
+  writes one per subagent; the Report already reads them), against the `after: 'handoff'` rows that say the lead
+  read the file itself anyway -- beside cost per exchange on the 50% holdout. Not run here: it spends model
+  tokens, which is the owner's to approve. The live smoke before any of it is one `opencode run` and one Claude
+  Code session on a 3,000-line file, checking that the named agent resolves and the report comes back.
 - **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin
   registers `tool.hook('execute.before')` on `read` and `shell`, sends the call to the same `hook pretool` (the
   runner gives that one hook 300 s), and **throws the denial's reason**, which v2 makes the call's result. Checked
@@ -208,7 +264,21 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   $0.20, the model worked from the report, took two ranged reads of 25 and 18 lines, and answered right; the
   same run an hour earlier had fired through the installed plugin and been held out (`held: true` rows in the
   machine log), which is the holdout doing its job.
-  No other agent has such a door: Cursor can deny a shell command but not answer for it; Codex's hooks cannot deny.
+- **Three more hosts have a door, and none of them is wired yet** (surveyed 2026-11-12; the old line here said
+  "no other agent has such a door: Cursor can deny a shell command but not answer for it; Codex's hooks cannot
+  deny", and both halves are now false). **Codex 0.166.0** registers `PreToolUse` and `PermissionRequest` as live
+  hook events -- this machine's own `~/.codex/config.toml` holds `[hooks.state."…:pre_tool_use:0:0"]` trust
+  entries -- and its documented deny JSON is Claude Code's shape exactly, so `denial()` would serve it unchanged;
+  its subagents are `spawn_agent` over `~/.codex/agents/*.toml` with built-in `explorer` and `worker`, but an
+  agent file **cannot** override the parent's sandbox, so there is no read-only explorer there. **Cursor**'s
+  `preToolUse` returns snake_case `{permission: "deny", agent_message}`, and `agent_message` is exactly the
+  model-visible channel this needs; its subagent tool is `Task`, built-in `explore`, and it reads
+  `~/.claude/agents/` as well as its own, so the Explore.md thinker writes is already picked up there.
+  **Gemini CLI**'s `BeforeTool` takes `decision: "deny"` with a `reason` its docs say is "sent to the agent", and
+  a subagent is exposed as a tool of its own name from `.gemini/agents/*.md`. What is **not** verified for any of
+  the three: that the model obeys the handoff live. Each needs a `HOSTS` entry, a per-host denial envelope (only
+  Claude Code's and Codex's are the same JSON) and a hook entry in `clients.js`; none is worth writing before the
+  live check, since the wording is the mechanism and only a live run shows whether it is believed.
 - Removed on the way (#750): the rules that hooks never run or rewrite test commands and do no side work. What
   stays: the installer is never a hook branch.
 
