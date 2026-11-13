@@ -498,14 +498,15 @@ You are given the profile as it stands, each entry with an id; the observations 
 - add: new entries, by section. One entry over several observations beats several entries.
 
 Sections, and the most lines each may have:
-- workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what it is and where it stands by the person's last reaction, not by the agent's account of finishing it. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
-- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). Corrections weigh most: an exchange the person corrected, redirected or interrupted is the evidence a line rests on first, then a stated preference (prefs). The code ranks the section by the corrections cited behind each line and the render trims from the bottom, so cite every correction a line answers. A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
+- workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what the work is and what the person has decided about it, in words that stay true for weeks. Never a pull request number, a merged or unmerged state, a deployed or released state, a setting's on or off, or "done": those change within days, a future session trusts them, and the person has asked for none of them. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
+- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). A line must be a way of working that bears on most sessions here whatever the task: a lesson about one flag, one file or one feature is not one, and goes nowhere unless a second session shows the general rule it was a case of; a decision about the product's design is a workingOn line. Corrections weigh most: an exchange the person corrected, redirected or interrupted is the evidence a line rests on first, then a stated preference (prefs). The code ranks the section by the corrections cited behind each line and the render trims from the bottom, so cite every correction a line answers. The code keeps a line only when two sessions support it, unless one observation states the preference in so many words (prefs). A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
 - skills (6): one line per skill run in this repository (a skills line on an observation, or a pref naming it): what it is used for here, how it has gone by the person's reactions, and what the person has said about it. skill = the name as given, without the slash. The use counts below are computed and shown beside the line; write what they do not say. Never a skill no observation ran or named.
 
 Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
 - approach is the agent's own account. An observation with outcome unknown can support workingOn and skills, and howWeWork through its prefs alone. An interrupted observation (the person stopped the agent) is a correction whatever its outcome says.
 - Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
+- Each entry of the profile so far carries use, measured in the sessions it was shown to: shown, applied (the sessions it had any bearing on), followed, ignored, contradicted. This is what the lines you write come to. An entry shown to five or more sessions and applied in a fifth of them or fewer is too narrow: reword it as the general rule it was a case of, move it to workingOn if it is a product decision, or drop it. An entry contradicted more than followed is worded so the agent misreads it: reword it. The code retires an entry that bore on none of ${PROFILE.retireShown} sessions; do not leave one to that.
 - A RETIRED list names lines that were shown to many sessions and bore on none: the code took them out of the served block. Never add a line that says what a retired one says, in any words; an update rewords a retired line but leaves it retired; a drop removes it for good.
 - Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
@@ -589,8 +590,11 @@ export function applyPatch(previous, patch) {
 
 // What the patch left, held to the ledger: citations the window does not hold are dropped, an entry with none
 // goes, counts and dates come from the cited observations, the evidence floors apply, and each section is capped.
-// A how-we-work line needs two sessions, unless one observation states the preference outright (prefs), corrects
-// it in so many words (a correction with its reaction), or was interrupted by the person.
+// A how-we-work line needs two sessions, unless one observation states the preference outright (prefs). Until
+// 2026-11-12 one correction with the person's words, or one interruption, was enough: that is where the narrow
+// lines came from (a lesson about one flag, served to eighteen sessions and bearing on none), so a correction's
+// lesson now waits for the second session that shows the general rule it was a case of. The owner's call: the
+// compile is to produce what is wanted, not lines for the retire rule to take out.
 //
 // **Ids are stable** (2026-11-12): an entry keeps the id it came in with, and a new one takes the next number for
 // its section from the counters the profile carries (`ids`; `idCounters` derives them for a profile from before).
@@ -640,7 +644,7 @@ export function settle(sections, rows, { now = Date.now(), ids = null } = {}) {
       }
       else { e.text = str(raw.text); if (!e.text) continue; }
       const age = (now - ats.at(-1)) / 86400_000;
-      if (s === 'howWeWork' && e.count < PROFILE.minSessions && !obs.some(o => o.prefs?.length || o.interrupts > 0 || (['corrected', 'redirected'].includes(o.outcome) && o.reaction))) continue;
+      if (s === 'howWeWork' && e.count < PROFILE.minSessions && !obs.some(o => o.prefs?.length)) continue;
       if (s === 'workingOn' && age > PROFILE.workingOnDays) continue;
       // the entry's own id where it is this section's and not yet used here; else the next number
       const own = typeof raw.id === 'string' && raw.id.startsWith(PREFIX[s]) && /^[whs]\d+$/.test(raw.id) && !taken.has(raw.id) ? raw.id : null;
@@ -707,8 +711,12 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   // a profile written before entries carried ids (version 2) gets them here, so a patch can name its entries
   if (previous) previous = { ...previous, sections: Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map((e, i) => e.id ? e : { id: `${PREFIX[s]}${i + 1}`, ...e })])) };
   // what the sessions since have said of each line: a line due for retirement is marked before the model sees it
-  if (previous) previous = retire(previous, lineReport(store, { now, profile: previous }), { now });
+  const lr = previous ? lineReport(store, { now, profile: previous }) : null;
+  if (previous) previous = retire(previous, lr, { now });
   const ids = { ...(previous?.ids || idCounters(previous)) };
+  // what the sessions did with each line: the compile's own feedback, so a narrow line is reworded or dropped at
+  // the next patch, not left to the retire rule fifteen sessions on
+  const use = new Map((lr?.lines || []).filter(l => l.shown).map(l => [l.id, { shown: l.shown, applied: l.applied, followed: l.followed, ignored: l.ignored, contradicted: l.contradicted }]));
   const cited = relatedCited(previous, batch, rows);
   // the observations that ran a skill, so a skills line can cite them: few (18 of 116 sessions here), and otherwise
   // out of the step's sight once they are past the batch
@@ -716,7 +724,7 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   const ranSkill = rows.filter(r => r.skills?.length && !seen.has(r.id)).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).slice(0, 40);
   const headings = instructionHeadings(store.repo);
   const span = a => a.length ? `${dateOf(Math.min(...a.map(r => Date.parse(r.at))))} to ${dateOf(Math.max(...a.map(r => Date.parse(r.at))))}` : '';
-  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).filter(e => !e.retired).map(({ id, skill, text, count, corrections, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), text, sessions: count, ...(corrections ? { corrections } : {}), firstSeen, lastSeen, obs }))])) : null;
+  const shown = previous ? Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).filter(e => !e.retired).map(({ id, skill, text, count, corrections, firstSeen, lastSeen, obs }) => ({ id, ...(skill ? { skill } : {}), text, sessions: count, ...(corrections ? { corrections } : {}), ...(use.has(id) ? { use: use.get(id) } : {}), firstSeen, lastSeen, obs }))])) : null;
   const retired = previous ? SECTIONS.flatMap(s => (previous.sections?.[s] || []).filter(e => e.retired).map(e => `[${e.id}] ${line(s, e)} (retired ${e.retired})`)) : [];
   const tally = skillTallyText(rows);
   const corrections = batch.filter(isCorrection).length;
