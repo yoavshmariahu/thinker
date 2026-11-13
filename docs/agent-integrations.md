@@ -474,6 +474,41 @@ marker and only a marked file is ever rewritten or removed; an Explore.md of you
 `.claude/agents/Explore.md` wins over it in Claude Code's order. Either switch may name another model (`haiku`, a full
 model id); `off` removes the file at the next connect or rewire, and so does `thinker uninstall --user`.
 
+Since 2026-11-12 the delegation trigger hands its reads to this same agent, so while the trigger is on
+(`THINKER_DELEGATE=on`) the file is written on `delegate.model` even where `agents.explore` is unset.
+
+## Delegation goes to each host's own subagent
+
+The delegation trigger (`src/delegate.js`) denies a large read or a whole-suite run and its denial tells the
+model to hand that work to **the host's own native subagent**, by name. thinker runs no model process of its
+own for it: that would be a second billing path and a second credential, invisible to the host, and dead
+wherever no `claude` CLI and no Anthropic key exist. What each host offers, read off the installed binaries
+and schemas on 2026-11-12:
+
+| host | subagent tool | names the agent by | definitions | model pinnable | read-only | hook can deny with a reason the model reads | wired |
+|---|---|---|---|---|---|---|---|
+| Claude Code 2.1.323 | `Agent` (`Task` before 2.1.63) | `subagent_type` | `~/.claude/agents/*.md`, `.claude/agents/` | yes (`model:`) | yes (`disallowedTools`) | yes, `permissionDecision: "deny"` + `permissionDecisionReason` | **yes** |
+| OpenCode 2.2.7 | `subagent` | `agent` | `{agent,agents}/**/*.md` under the config dirs | yes, but `providerID/modelID` | yes (`permissions` rules) | yes, `tool.hook('execute.before')` throws | **yes** |
+| Codex 0.166.0 | `spawn_agent` | agent `name` | `~/.codex/agents/*.toml` | yes | **no** (cannot override the parent sandbox) | yes, `PreToolUse`, Claude Code's JSON exactly | no |
+| Cursor | `Task` | `description`, or `/name` | `.cursor/agents/`, and `~/.claude/agents/` | yes | yes (`readonly: true`) | yes, `preToolUse` → `{permission: "deny", agent_message}` | no |
+| Gemini CLI 0.62.0 | a tool named after the agent | the tool's own name | `.gemini/agents/*.md` | yes | yes (`tools:` allow-list) | yes, `BeforeTool` `decision: "deny"` + `reason` | no |
+| Factory Droid, Qwen Code, Auggie | `Task`/`agent`/by name | `subagent_type` or the name | the host's own agents dir | unverified | unverified | documented as Claude Code's JSON; unverified | no |
+| Cline | `spawn_agent` | — (no named definitions) | — | n/a | n/a | unverified | no |
+| Kilo Code, Goose, Copilot CLI | task tool / sub-recipes / custom agents | varies | the host's own | unverified | partial | unverified | no |
+| Windsurf | none found (unverified negative) | — | — | — | — | hooks exist, contract unread | no |
+
+Only Claude Code and OpenCode are wired, because only their doors have been checked live. Three facts shape
+the rest. **Claude Code needs nothing installed** -- `Explore` and `general-purpose` are built in. **OpenCode
+has nothing built in** and its `agent` parameter tells the model that an unrecognised name "most likely
+mean[s] a model", so naming an agent that does not resolve is worse than naming none; thinker writes the two
+it names, with **no model pinned**, since OpenCode's models are the person's own and on a vendor's cloud
+harness thinker has no business choosing one. **Codex cannot make a read-only subagent at all**: an agent
+file can ask the model to avoid edits but creates no sandbox.
+
+Where a host has a door but no subagent, the call goes through untouched and the log row says why
+(`mode: 'none'`, `skipped: 'no-native-subagent'`); `delegate: { fallback: true }` asks for thinker's own
+`claude -p` subagent there instead, and is off by default.
+
 ## Plugins, the pi package and the proxy
 
 Three more doors to the same hooks, each a pointer to the thinker installed on the machine

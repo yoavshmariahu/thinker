@@ -68,9 +68,11 @@ test('decide: the turn tally, the thresholds, and the prompt boundary', () => {
   assert.equal(decide(st, { prompt: 'p2', suite: 'pytest', cfg }).kind, 'verify');
 });
 
+// The fallback path: thinker's own `claude -p` subagent, which is off by default since 2026-11-12 (the host's
+// own subagent does the work; test/delegate-handoff.test.js covers that). These tests ask for it by name.
 test('delegateTool: denies with the report, caches per file and turn, holds out by session, and allows on a subagent failure', async t => {
   const d = tmp(t); const big = bigFile(d, 'core.py');
-  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0 };
+  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0, handoff: false, fallback: true };
   let st = {}; const state = { update: fn => fn(st) }; const rows = []; const runs = [];
   const run = async ({ kind, brief }) => { runs.push({ kind, brief }); return { report: 'core.py:10 class Foo: the thing', usage: { output_tokens: 5 }, cost: 0.01, model: 'claude-sonnet-5-5', ms: 5 }; };
   const ev = { tool_name: 'Read', tool_input: { file_path: big }, prompt_id: 'p1' };
@@ -127,7 +129,7 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   // a fake claude binary: answers the JSON shape of `claude -p --output-format json`
   const bin = path.join(home, 'claude');
   fs.writeFileSync(bin, `#!/bin/sh\necho '{"result":"core.py:1 def f0: the first function","session_id":"sub1","total_cost_usd":0.02,"model":"claude-sonnet-5-5","usage":{"output_tokens":9}}'\n`); fs.chmodSync(bin, 0o755);
-  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off' };
+  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off', THINKER_DELEGATE_HANDOFF: 'off', THINKER_DELEGATE_FALLBACK: 'on' };
   const hook = (input, over = {}) => execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'claude', '--user'], { input: JSON.stringify(input), encoding: 'utf8', env: { ...env, ...over } });
   const ev = f => ({ session_id: 'hooksess', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: f } });
   assert.equal(hook(ev(small)), '');
@@ -165,7 +167,14 @@ test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the 
   assert.equal(c.hooks.PreToolUse.length, 1);
   assert.equal(c.hooks.PreToolUse[0].matcher, 'Read|Bash');
   assert.match(c.hooks.PreToolUse[0].hooks[0].command, /hook pretool/);
-  assert.ok(c.hooks.PreToolUse[0].hooks[0].timeout >= 240, 'a subagent run takes minutes');
+  // a handoff spawns nothing, so the hook answers at once and does not need the fallback's long timeout
+  assert.ok(c.hooks.PreToolUse[0].hooks[0].timeout <= 60, 'a handoff needs no room for a subagent run');
+  process.env.THINKER_DELEGATE_FALLBACK = 'on';
+  t.after(() => { delete process.env.THINKER_DELEGATE_FALLBACK; });
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  assert.ok(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse[0].hooks[0].timeout >= 240, 'the fallback subagent run takes minutes');
+  delete process.env.THINKER_DELEGATE_FALLBACK;
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   // a rewire replaces, never doubles
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse.length, 1);
