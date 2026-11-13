@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>thinker · fleet</title>
+<!--
+  The fleet page: what thinker did on every machine reporting here, grouped by the labels an operator set.
+
+  Stat tiles and a table, no chart: the data's job here is magnitude and identity across a handful of
+  groups, which a table reads better than any plot, and the headline figures are single numbers, which is
+  what a stat tile is for. Dark mode is chosen, not an automatic flip -- its own steps from the same ramps,
+  against the dark surface.
+
+  Every rate comes from the server as a ratio of sums (server.mjs:rates). Nothing is computed from tokens
+  here: dollars are the ones the machines priced with `prices.js`, and a group with no priced session shows
+  no cost rather than $0.00.
+-->
+<style>
+  :root {
+    --surface: #fcfcfb; --plane: #f9f9f7;
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --rule: #e1e0d9; --border: rgba(11, 11, 11, 0.10);
+    --good: #006300; --bad: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19; --plane: #0d0d0d;
+      --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+      --rule: #2c2c2a; --border: rgba(255, 255, 255, 0.10);
+      --good: #0ca30c; --bad: #d03b3b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 56px;
+    background: var(--plane); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 13px; margin: 0 0 22px; }
+
+  /* filters in one row above the figures */
+  .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  select {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; min-width: 150px;
+  }
+  .spacer { flex: 1; }
+  .stamp { color: var(--muted); font-size: 12px; }
+
+  /* KPI row */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .tile .value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .tile .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .pos { color: var(--good); }
+  .neg { color: var(--bad); }
+
+  /* table */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card h2 { font-size: 13px; font-weight: 600; margin: 0; padding: 13px 16px; border-bottom: 1px solid var(--rule); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 16px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
+  th:first-child, td:first-child { text-align: left; }
+  td { font-variant-numeric: tabular-nums; }
+  td:first-child { font-variant-numeric: normal; }
+  tbody tr:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
+  tbody tr:last-child td { border-bottom: none; }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: color-mix(in oklab, var(--ink) 3%, transparent); }
+  .dim { color: var(--muted); }
+  .empty { padding: 40px 16px; text-align: center; color: var(--muted); }
+  details { margin-top: 20px; }
+  summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
+  .foot { margin-top: 22px; color: var(--muted); font-size: 12px; max-width: 70ch; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>thinker · fleet</h1>
+  <p class="sub">What thinker did on every machine reporting here, grouped by the labels its operators set.</p>
+
+  <div class="filters">
+    <div class="field">
+      <label for="by">Group by</label>
+      <select id="by"></select>
+    </div>
+    <div class="field">
+      <label for="days">Window</label>
+      <select id="days">
+        <option value="1">Last 24 hours</option>
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <div class="stamp" id="stamp"></div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <h2 id="tableTitle">By group</h2>
+    <div id="table"></div>
+  </div>
+
+  <details>
+    <summary>Recent sessions</summary>
+    <div class="card" style="margin-top:8px"><div id="recent"></div></div>
+  </details>
+
+  <p class="foot">
+    A session is an upsert keyed on install and session id, never an addition: its clearing figure settles a
+    few turns after the cut, so the same session arrives again carrying more. Every rate is a ratio of sums.
+    Dollars are the ones each machine priced at list rates; a session whose model has no price is counted as
+    a session and in no dollar figure. <strong>Net</strong> is cleared at the cache-read rate, less the cache
+    writes after a clear, less the re-reads of cleared files.
+  </p>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+
+// auto-compact, the stat-tile contract: 1,284 / 12.9K / $4.2M
+const compact = n => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+// a loss reads as a loss: -$16.90, never $-16.90
+const usd = (n, { sign = false } = {}) => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  const body = a >= 1e6 ? '$' + (a / 1e6).toFixed(2) + 'M'
+    : a >= 1e4 ? '$' + (a / 1e3).toFixed(1) + 'K'
+    : '$' + a.toFixed(2);
+  return (n < 0 ? '-' : sign ? '+' : '') + body;
+};
+const pct = n => (n == null || !Number.isFinite(n) ? '—' : (n * 100).toFixed(n < 0.1 ? 1 : 0) + '%');
+const cls = n => (n == null ? '' : n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+
+const state = { by: 'client', days: 30 };
+
+function tiles(t) {
+  const items = [
+    { label: 'Net saved', value: usd(t.net), note: `${compact(t.cleared)} tokens cleared`, cls: cls(t.net) },
+    { label: 'Spent at list', value: usd(t.spend), note: `${compact(t.spendSessions)} of ${compact(t.sessions)} sessions priced` },
+    { label: 'Saved against spend', value: pct(t.netShareOfSpend), note: 'net ÷ spend, both sums' },
+    { label: 'Cost per prompt', value: usd(t.spendPerPrompt), note: `${compact(t.spendPrompts)} prompts priced` },
+    { label: 'Sessions cleared', value: pct(t.clearedShare), note: `${compact(t.clearedSessions)} of ${compact(t.sessions)}` },
+  ];
+  $('tiles').innerHTML = items.map(i => `
+    <div class="tile">
+      <div class="label">${i.label}</div>
+      <div class="value ${i.cls || ''}">${i.value}</div>
+      <div class="note">${i.note}</div>
+    </div>`).join('');
+}
+
+const COLS = [
+  ['sessions', r => compact(r.sessions)],
+  ['prompts', r => compact(r.prompts)],
+  ['cleared', r => pct(r.clearedShare)],
+  ['net', r => `<span class="${cls(r.net)}">${usd(r.net)}</span>`],
+  ['spend', r => usd(r.spend)],
+  ['saved vs spend', r => pct(r.netShareOfSpend)],
+  ['per prompt', r => usd(r.spendPerPrompt)],
+  ['unpriced', r => (r.unpricedSessions ? compact(r.unpricedSessions) : '—')],
+];
+
+function table(data) {
+  if (!data.rows.length) {
+    $('table').innerHTML = `<div class="empty">No sessions in this window yet.<br>
+      Point a machine here with <code>THINKER_EVENTS=http://host:8787/v1/sessions</code>.</div>`;
+    return;
+  }
+  const head = `<tr><th>${data.by}</th>${COLS.map(([h]) => `<th>${h}</th>`).join('')}</tr>`;
+  const body = data.rows.map(r => `<tr><td>${r.dim === '(unlabelled)' || r.dim === '(none)'
+    ? `<span class="dim">${r.dim}</span>` : esc(r.dim)}</td>${COLS.map(([, f]) => `<td>${f(r)}</td>`).join('')}</tr>`).join('');
+  const foot = `<tr><td>All</td>${COLS.map(([, f]) => `<td>${f(data.total)}</td>`).join('')}</tr>`;
+  $('table').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody><tfoot>${foot}</tfoot></table>`;
+}
+
+function recentTable(rows) {
+  if (!rows.length) { $('recent').innerHTML = `<div class="empty">Nothing yet.</div>`; return; }
+  const head = `<tr><th>when</th><th>labels</th><th>client</th><th>model</th><th>prompts</th><th>tokens</th><th>cleared</th><th>net</th><th>spend</th></tr>`;
+  const body = rows.map(r => `<tr>
+      <td>${new Date(r.at).toLocaleString()}</td>
+      <td>${esc(Object.entries(r.labels).map(([k, v]) => `${k}=${v}`).join(' ')) || '<span class="dim">none</span>'}</td>
+      <td>${esc(r.client || '—')}</td><td>${esc(r.model || '—')}</td>
+      <td>${compact(r.prompts)}</td><td>${compact(r.tokens)}</td><td>${compact(r.cleared)}</td>
+      <td class="${cls(r.net)}">${usd(r.net)}</td>
+      <td>${r.priced ? usd(r.spend) : '<span class="dim">unpriced</span>'}</td>
+    </tr>`).join('');
+  $('recent').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function load() {
+  const res = await fetch(`/api/fleet?by=${encodeURIComponent(state.by)}&days=${state.days}`);
+  const data = await res.json();
+  const sel = $('by');
+  if (sel.options.length !== data.dimensions.length) {
+    sel.innerHTML = data.dimensions.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+  }
+  sel.value = state.by;
+  $('tableTitle').textContent = `By ${data.by}`;
+  $('stamp').textContent = `${compact(data.total.installs)} installs · ${compact(data.total.sessions)} sessions · since ${new Date(data.since).toLocaleDateString()}`;
+  tiles(data.total);
+  table(data);
+  recentTable(data.recent || []);
+}
+
+$('by').addEventListener('change', e => { state.by = e.target.value; load(); });
+$('days').addEventListener('change', e => { state.days = Number(e.target.value); load(); });
+load();
+setInterval(load, 10_000);
+</script>
+</body>
+</html>
