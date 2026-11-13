@@ -69,13 +69,18 @@
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 9px 16px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
   th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
-  th:first-child, td:first-child { text-align: left; }
+  th:first-child, td:first-child, th.l, td.l { text-align: left; }
+  td.l { font-variant-numeric: normal; }
   td { font-variant-numeric: tabular-nums; }
   td:first-child { font-variant-numeric: normal; }
   tbody tr:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
   tbody tr:last-child td { border-bottom: none; }
   tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: color-mix(in oklab, var(--ink) 3%, transparent); }
   .dim { color: var(--muted); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; }
+  .two > div + div { border-left: 1px solid var(--rule); }
+  .colhead { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 11px 16px 7px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } .two > div + div { border-left: none; border-top: 1px solid var(--rule); } }
   .empty { padding: 40px 16px; text-align: center; color: var(--muted); }
   details { margin-top: 20px; }
   summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
@@ -108,10 +113,38 @@
 
   <div class="tiles" id="tiles"></div>
 
+  <!-- The critical view: one row a machine. A roll-up answers "which customer costs what"; this answers
+       "which machine is behaving unlike the others", which is what a fleet is actually read for. -->
   <div class="card">
-    <h2 id="tableTitle">By group</h2>
-    <div id="table"></div>
+    <h2>Machines</h2>
+    <div id="machines"></div>
   </div>
+
+  <!-- The depth: what thinker decided and why. Each cut with what it took out and under which policy; the
+       reasons it cut nothing (decideCut's own branches); and which tools' results left the prompt. -->
+  <div class="card" style="margin-top:20px">
+    <h2>What thinker decided, and why</h2>
+    <div class="two">
+      <div>
+        <div class="colhead">Why no cut was made</div>
+        <div id="refusals"></div>
+      </div>
+      <div>
+        <div class="colhead">Whose results were dropped</div>
+        <div id="tools"></div>
+      </div>
+    </div>
+    <div class="colhead" style="border-top:1px solid var(--rule)">Cuts, newest first</div>
+    <div id="cuts"></div>
+  </div>
+
+  <details open>
+    <summary>Rolled up by group</summary>
+    <div class="card" style="margin-top:8px">
+      <h2 id="tableTitle">By group</h2>
+      <div id="table"></div>
+    </div>
+  </details>
 
   <details>
     <summary>Recent sessions</summary>
@@ -155,11 +188,11 @@ const state = { by: 'client', days: 30 };
 
 function tiles(t) {
   const items = [
-    { label: 'Net saved', value: usd(t.net), note: `${compact(t.cleared)} tokens cleared`, cls: cls(t.net) },
-    { label: 'Spent at list', value: usd(t.spend), note: `${compact(t.spendSessions)} of ${compact(t.sessions)} sessions priced` },
-    { label: 'Saved against spend', value: pct(t.netShareOfSpend), note: 'net ÷ spend, both sums' },
-    { label: 'Cost per prompt', value: usd(t.spendPerPrompt), note: `${compact(t.spendPrompts)} prompts priced` },
+    { label: 'Net saved', value: usd(t.net), note: `${pct(t.netShareOfSpend)} of what was spent`, cls: cls(t.net) },
+    { label: 'Total spent', value: usd(t.spend), note: `${usd(t.spendPerPrompt)} a prompt · ${compact(t.spendSessions)}/${compact(t.sessions)} priced` },
+    { label: 'Context cuts', value: compact(t.cuts), note: `${compact(t.cleared)} tokens out of ${compact(t.callsCleared)} calls` },
     { label: 'Sessions cleared', value: pct(t.clearedShare), note: `${compact(t.clearedSessions)} of ${compact(t.sessions)}` },
+    { label: 'Results dropped', value: compact(t.results), note: 'tool results the agent had finished with' },
   ];
   $('tiles').innerHTML = items.map(i => `
     <div class="tile">
@@ -167,6 +200,49 @@ function tiles(t) {
       <div class="value ${i.cls || ''}">${i.value}</div>
       <div class="note">${i.note}</div>
     </div>`).join('');
+}
+
+// One row a machine. `labels` and `version` come from its newest session, not from the window: what a
+// machine *is* changes under a long-lived install, and the current answer is the one owed to the reader.
+const MACHINE_COLS = [
+  ['labels', r => {
+    const pairs = Object.entries(r.labels || {});
+    return pairs.length ? pairs.map(([k, v]) => `${esc(k)}=${esc(v)}`).join(' ') : '<span class="dim">unlabelled</span>';
+  }, 'left'],
+  ['client', r => esc(r.client || '—'), 'left'],
+  ['version', r => r.version ? esc(r.version) : '<span class="dim">—</span>', 'left'],
+  ['sessions', r => compact(r.sessions)],
+  ['prompts', r => compact(r.prompts)],
+  ['cuts', r => compact(r.cuts)],
+  ['cleared', r => pct(r.clearedShare)],
+  ['net', r => `<span class="${cls(r.net)}">${usd(r.net)}</span>`],
+  ['spend', r => usd(r.spend)],
+  ['saved vs spend', r => pct(r.netShareOfSpend)],
+  ['per prompt', r => usd(r.spendPerPrompt)],
+  ['last seen', r => `<span class="dim">${since(r.lastAt)}</span>`, 'left'],
+];
+
+const since = iso => {
+  if (!iso) return '—';
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 48 * 60) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+};
+
+function machineTable(rows) {
+  if (!rows.length) {
+    $('machines').innerHTML = `<div class="empty">No machine is reporting yet.<br>
+      Point one here with <code>THINKER_EVENTS=http://host:PORT/v1/sessions</code>.</div>`;
+    return;
+  }
+  const head = `<tr><th>machine</th>${MACHINE_COLS.map(([h, , align]) => `<th${align === 'left' ? ' class="l"' : ''}>${h}</th>`).join('')}</tr>`;
+  const body = rows.map(r => `<tr>
+      <td title="${esc(r.install)}"><code>${esc(String(r.install).slice(0, 8))}</code></td>
+      ${MACHINE_COLS.map(([, f, align]) => `<td${align === 'left' ? ' class="l"' : ''}>${f(r)}</td>`).join('')}
+    </tr>`).join('');
+  $('machines').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
 const COLS = [
@@ -207,6 +283,47 @@ function recentTable(rows) {
   $('recent').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
+// decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw
+// rather than being guessed at.
+const WHY = {
+  'nothing-to-cut': 'nothing left to cut — every result already out',
+  'below-trigger': 'prompt under the trigger — a short session needs no cut',
+  'below-clear-minimum': 'too little to be worth it — under the size floor',
+  'mid-turn': 'mid-turn — a cut waits for a turn boundary',
+  'one-cut': 'already cut once this session',
+  'payback': 'would not pay back — the rewrite costs more than the saving',
+};
+
+function refusalTable(rows) {
+  if (!rows.length) { $('refusals').innerHTML = `<div class="empty">No refusals recorded.</div>`; return; }
+  const total = rows.reduce((a, r) => a + r.calls, 0);
+  $('refusals').innerHTML = `<table><tbody>${rows.map(r => `<tr>
+      <td class="l">${esc(WHY[r.reason] || r.reason)}<br><span class="dim"><code>${esc(r.reason)}</code></span></td>
+      <td>${compact(r.calls)}</td><td>${pct(r.calls / total)}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function toolTable(rows) {
+  if (!rows.length) { $('tools').innerHTML = `<div class="empty">Nothing dropped yet.</div>`; return; }
+  $('tools').innerHTML = `<table><tbody>${rows.map(r => `<tr>
+      <td class="l">${esc(r.name)}</td><td>×${compact(r.calls)}</td><td>${compact(r.tokens)} tokens</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function cutTable(rows) {
+  if (!rows.length) { $('cuts').innerHTML = `<div class="empty">No cut has fired in this window.</div>`; return; }
+  const head = `<tr><th>when</th><th class="l">machine</th><th class="l">model</th><th>turn</th><th>tokens out</th><th class="l">policy</th></tr>`;
+  const body = rows.map(r => `<tr>
+      <td class="l"><span class="dim">${since(r.at)}</span></td>
+      <td class="l" title="${esc(r.install)}">${esc(Object.entries(r.labels || {}).map(([k, v]) => `${k}=${v}`).join(' ')) || `<code>${esc(String(r.install).slice(0, 8))}</code>`}</td>
+      <td class="l">${esc(r.model || '—')}</td>
+      <td>${r.turn ?? '—'}</td>
+      <td>${compact(r.tokens)}</td>
+      <td class="l"><code class="dim">${esc(r.policy || 'unstamped')}</code></td>
+    </tr>`).join('');
+  $('cuts').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function load() {
@@ -220,6 +337,10 @@ async function load() {
   $('tableTitle').textContent = `By ${data.by}`;
   $('stamp').textContent = `${compact(data.total.installs)} installs · ${compact(data.total.sessions)} sessions · since ${new Date(data.since).toLocaleDateString()}`;
   tiles(data.total);
+  machineTable(data.machines || []);
+  refusalTable(data.decisions?.refusals || []);
+  toolTable(data.decisions?.tools || []);
+  cutTable(data.decisions?.cuts || []);
   table(data);
   recentTable(data.recent || []);
 }

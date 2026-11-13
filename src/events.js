@@ -29,9 +29,13 @@ import path from 'node:path';
 import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { sessionsOf } from './delivery.js';
+import { compressionRecords, compressionDir, readCompression } from './compression.js';
+import { clearedOf } from './cutting.js';
+import { proxyLogFile } from './proxy-service.js';
 import { sessionKey } from './usage.js';
 import { readLabels } from './labels.js';
 import { getInstallId } from './telemetry.js';
+import { appVersion } from './proxy-service.js';
 import { isTestMode } from './test-mode.js';
 
 export const EVENTS = {
@@ -39,6 +43,7 @@ export const EVENTS = {
   timeoutMs: 2000,      // a hook may not hang on a sink that is down
   spoolMax: 500,        // lines kept when the sink refuses; oldest dropped first
   batchMax: 50,         // lines per POST when the spool is draining
+  decisionRows: 12,     // cut decisions carried on an event, newest last
   // How far back the one session's figures are read over. `sessionsOf` walks the log from `since`, and the
   // session being shipped has just ended, so two days is generous; the whole log would make a hook's cost
   // grow with the machine's history for nothing.
@@ -76,6 +81,43 @@ export function eventsTarget({ env = process.env, home = thinkerHome() } = {}) {
   return { kind: 'file', path: path.resolve(raw) };
 }
 
+// What thinker decided in this session, and why -- the part that makes a saving explicable rather than just
+// asserted. Two sources, both already written and neither of them new:
+//
+//   the proxy's log  one row a request, carrying either the cut it made (`clear`, with the policy and the
+//                    turn) or the reason it made none -- `cutting.js:decideCut`'s own six branches
+//                    (`nothing-to-cut`, `below-trigger`, `below-clear-minimum`, `mid-turn`, `one-cut`,
+//                    `payback`), so "why was nothing cut here" has a recorded answer per request
+//   the session's    `state/compression/<session>.json`: how many calls carried a cut, how many tool
+//   own record       results left the prompt, and which tools' results they were (`compression.js`)
+//
+// Counts, reasons and tool *names*, never a tool's arguments or its output. A refusal is as interesting as a
+// cut here: a fleet reading "below-trigger on 412 of 430 requests" has learnt that those sessions are simply
+// short, which is the honest reading and not a fault.
+export function decisionsOf({ session, home = thinkerHome(), env = process.env, since = '' } = {}) {
+  const key = sessionKey(session);
+  let rows = [];
+  try { rows = compressionRecords(proxyLogFile(home, env)).filter(r => sessionKey(r.session) === key && (!since || r.at >= since)); } catch { rows = []; }
+  const refusals = {};
+  const cuts = [];
+  for (const r of rows) {
+    if (r.clear) cuts.push({ at: r.at, turn: r.turn ?? null, tokens: clearedOf(r) || 0, policy: r.policy || null, model: r.model || null });
+    else if (r.reason) refusals[r.reason] = (refusals[r.reason] || 0) + 1;
+  }
+  let rec = null;
+  try { rec = readCompression(compressionDir(home), session); } catch { rec = null; }
+  return {
+    cuts: cuts.length,
+    callsCleared: rec?.requests || 0,
+    results: rec?.uses || 0,
+    estimated: Boolean(rec?.estimated),
+    policyChanged: Boolean(rec?.policyChanged),
+    tools: (rec?.tools || []).map(t => ({ name: t.name, calls: t.calls, tokens: t.tokens })),
+    refusals,
+    rows: cuts.slice(-EVENTS.decisionRows),
+  };
+}
+
 // The event: what one session was, cost and saved, as the machine already measured it. Counts and dollars
 // only -- no path, no branch, no prompt, no repository name. `labels` is the one part somebody chose
 // (labels.js), and the only place a customer, a harness build or a job can be named.
@@ -89,6 +131,10 @@ export function sessionEvent(store, { session, home = thinkerHome(), env = proce
     v: EVENTS.schemaVersion,
     at: now.toISOString(),
     install: getInstallId(home),
+    // thinker's own version, because a fleet view's first question about a machine behaving unlike the rest
+    // is which build it is on, and the answer is never in the figures. thinker's own, not the host's: no
+    // hostname, no instance id, nothing inferred about the machine (labels.js is the only door for that).
+    version: appVersion(),
     labels: readLabels({ env, home }),
     session: sessionKey(session),
     client: x.client || null,
@@ -113,6 +159,9 @@ export function sessionEvent(store, { session, home = thinkerHome(), env = proce
       spend: x.cost?.spend ?? null,
       priced: Boolean(x.cost?.priced),
     },
+    // what thinker decided here and why (above): the cuts with their policy, the reasons it cut nothing,
+    // and which tools' results left the prompt
+    decisions: decisionsOf({ session, home, env, since }),
   };
 }
 

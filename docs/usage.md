@@ -140,6 +140,35 @@ can appear: whether a customer's name leaves a machine is yours to decide, not a
 telemetry off (`THINKER_TELEMETRY=off`) nothing is sent at all and the labels stay on the session rows,
 where `thinker telemetry --json` will show them to you before anything leaves.
 
+## Exporting sessions
+
+thinker can hand each session to a sink of your own as it ends: one JSON object per session,
+newline-delimited, carrying what that session cost, what the clearing saved on it, the labels above, and
+what thinker decided and why.
+
+```
+THINKER_EVENTS=off                                  # the default: nothing leaves
+THINKER_EVENTS=stdout                               # one line a session, for a container's logs
+THINKER_EVENTS=/var/log/thinker/sessions.jsonl      # appended, for a log agent to tail
+THINKER_EVENTS=http://collector.internal/v1/sessions
+```
+
+or `events` in `~/.thinker/config.json`. The figures are the ones `thinker prs` and the Report already
+computed, so an exported dollar can never disagree with a printed one.
+
+Two things a consumer must know. A session is shipped when it ends and **may be shipped again** -- the
+clearing's figure settles a few turns after the cut -- so events are upserts keyed on the install and the
+session id, newest wins, and adding two events for one session double-counts it. And a sink that is down
+costs a session nothing: the line waits in `~/.thinker/state/events-spool.jsonl` and rides out with the
+next session.
+
+Each event carries `decisions`: how many cuts fired and under which policy, the reasons thinker cut nothing
+(the cut policy's own branches, so "why was nothing cut here" has a recorded answer), and which tools'
+results left the prompt. Counts, reasons and tool names -- never a tool's arguments or its output.
+
+`demo/collector/` is a working sink and a page over it: one row a machine with its own figures, a roll-up by
+label, and the decisions behind the saving.
+
 ## The context diet
 
 Off until an experiment shows it helps. With
