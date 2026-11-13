@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { EVENTS, eventsTarget, isTestShipBlocked, sessionEvent, emitSession } from '../src/events.js';
+import { EVENTS, eventsTarget, isTestShipBlocked, sessionEvent, emitSession, decisionsOf } from '../src/events.js';
 
 const ago = ms => new Date(Date.now() - ms).toISOString();
 
@@ -145,4 +145,38 @@ test('a file sink is appended as newline JSON, and no sink does nothing at all',
 
   const none = await emitSession(store, { session: 's1', home, env: {} });
   assert.deepEqual(none, { shipped: 0, skipped: 'no-target' }, 'the default costs a session nothing');
+});
+
+test('the per-call series is the session as it ran, thinned but never truncated', t => {
+  const { store, home } = fixture(t);
+  session(store, home, { id: 's1' });
+  // a proxy log of this session: a long climb, one cut near the end
+  const log = path.join(home, 'state', 'proxy.jsonl');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const rows = [];
+  for (let i = 0; i < 400; i++) {
+    const cut = i === 380;
+    rows.push(JSON.stringify({
+      at: new Date(Date.now() - (400 - i) * 60_000).toISOString(), op: 'proxy', session: 's1',
+      model: 'claude-opus-5', status: 200, turn: Math.floor(i / 40) + 1,
+      input: 500, read: i * 400, write: cut ? 90_000 : 0, out: 300,
+      ...(cut ? { clear: { tokens: 55_000, cold: false }, policy: 'r1-t140k-f60k-p25-deep', cleared: 55_000 } : { reason: i % 3 ? 'mid-turn' : 'below-trigger' }),
+    }));
+  }
+  fs.writeFileSync(log, rows.join('\n') + '\n');
+
+  const d = decisionsOf({ session: 's1', home, env: { THINKER_PROXY_LOG: log } });
+  assert.equal(d.calls, 400, 'every call is counted');
+  assert.ok(d.series.length <= EVENTS.seriesMax, 'a long session is thinned to fit');
+  assert.ok(d.series.length > 50, 'and still has a shape');
+  assert.equal(d.series.filter(p => p.cut).length, 1, 'the cut is always kept — it is the thing being shown');
+  assert.equal(d.series[d.series.length - 1].c, 400, 'the line ends where the session did');
+  assert.equal(d.cuts, 1);
+  assert.ok(d.refusals['mid-turn'] > 0 && d.refusals['below-trigger'] > 0, 'and why nothing was cut on the rest');
+
+  // carried is the whole input of the call, and a priced call carries its own cost. Any surviving point
+  // will do: thinning drops calls, it never rewrites the ones it keeps.
+  const p = d.series.find(x => !x.cut && x.c > 1);
+  assert.equal(p.carried, 500 + (p.c - 1) * 400, 'fresh + cache read + cache write');
+  assert.ok(p.cost > 0);
 });

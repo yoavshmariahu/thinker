@@ -22,6 +22,7 @@
     --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
     --rule: #e1e0d9; --border: rgba(11, 11, 11, 0.10);
     --good: #006300; --bad: #d03b3b;
+    --axis: #c3c2b7; --series: #2f5cc4;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -29,6 +30,7 @@
       --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
       --rule: #2c2c2a; --border: rgba(255, 255, 255, 0.10);
       --good: #0ca30c; --bad: #d03b3b;
+      --axis: #383835; --series: #7aa2f7;
     }
   }
   * { box-sizing: border-box; }
@@ -45,10 +47,23 @@
   .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  /* The chevron is drawn, not the platform's: a native arrow sits hard against the right edge and at a
+     different offset per platform, so it reads as misaligned beside a sized control. Drawn at a fixed
+     10px inset with the padding reserved for it, both modes using currentColor at the muted ink. */
   select {
     font: inherit; color: var(--ink); background: var(--surface);
-    border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px; min-width: 150px;
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 32px 6px 10px; min-width: 150px; max-width: 100%;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23898781' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 11px 7px;
+    cursor: pointer;
   }
+  select:hover { border-color: var(--axis); }
+  select:focus-visible { outline: 2px solid var(--series); outline-offset: 1px; }
+  #session { min-width: 360px; }
   .spacer { flex: 1; }
   .stamp { color: var(--muted); font-size: 12px; }
 
@@ -77,6 +92,25 @@
   tbody tr:last-child td { border-bottom: none; }
   tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: color-mix(in oklab, var(--ink) 3%, transparent); }
   .dim { color: var(--muted); }
+  .pickrow { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+  figure { margin: 0; }
+  .chart { padding: 4px 10px 10px; position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .chart .grid line { stroke: var(--rule); stroke-width: 1; }
+  .chart .axis text { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart .axis line { stroke: var(--axis); }
+  .chart .ln { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: var(--series); opacity: 0.08; }
+  .chart .cutline { stroke: var(--ink-2); stroke-width: 2; stroke-dasharray: 3 3; }
+  .chart .dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+  .chart .cross { stroke: var(--axis); stroke-width: 1; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+         border-radius: 7px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.14);
+         white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 0 16px 14px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 16px; border-top: 2px solid var(--series); }
+  .legend i.cut { width: 0; height: 12px; border-top: 0; border-left: 2px dashed var(--ink-2); }
   .two { display: grid; grid-template-columns: 1fr 1fr; }
   .two > div + div { border-left: 1px solid var(--rule); }
   .colhead { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 11px 16px 7px; }
@@ -120,22 +154,28 @@
     <div id="machines"></div>
   </div>
 
-  <!-- The depth: what thinker decided and why. Each cut with what it took out and under which policy; the
-       reasons it cut nothing (decideCut's own branches); and which tools' results left the prompt. -->
+  <!-- The depth, after the website's "See the data": a session as it ran, one point a model call, with the
+       cuts marked on the line. A tally of reasons never showed this -- a cut is an event in a session's
+       life and only reads as one against the trend it changed. Two charts, never two axes on one. -->
   <div class="card" style="margin-top:20px">
-    <h2>What thinker decided, and why</h2>
-    <div class="two">
-      <div>
-        <div class="colhead">Why no cut was made</div>
-        <div id="refusals"></div>
-      </div>
-      <div>
-        <div class="colhead">Whose results were dropped</div>
-        <div id="tools"></div>
-      </div>
+    <h2>Context and cost over a session</h2>
+    <div class="pickrow">
+      <select id="session"></select>
+      <span class="stamp" id="sessionNote"></span>
     </div>
-    <div class="colhead" style="border-top:1px solid var(--rule)">Cuts, newest first</div>
-    <div id="cuts"></div>
+    <div class="two">
+      <figure>
+        <div class="colhead">Context carried, per model call</div>
+        <div class="chart" id="chartCtx"></div>
+      </figure>
+      <figure>
+        <div class="colhead">Cumulative cost, per model call</div>
+        <div class="chart" id="chartCost"></div>
+      </figure>
+    </div>
+    <div class="legend" id="chartLegend"></div>
+    <div class="colhead" style="border-top:1px solid var(--rule)">What happened in this session</div>
+    <div id="events"></div>
   </div>
 
   <details open>
@@ -283,45 +323,130 @@ function recentTable(rows) {
   $('recent').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
 }
 
-// decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw
-// rather than being guessed at.
+// decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw.
 const WHY = {
-  'nothing-to-cut': 'nothing left to cut — every result already out',
-  'below-trigger': 'prompt under the trigger — a short session needs no cut',
-  'below-clear-minimum': 'too little to be worth it — under the size floor',
+  'nothing-to-cut': 'nothing left to cut — every finished result already out',
+  'below-trigger': 'under the trigger — the prompt was still small',
+  'below-clear-minimum': 'under the size floor — too little to be worth a rewrite',
   'mid-turn': 'mid-turn — a cut waits for a turn boundary',
   'one-cut': 'already cut once this session',
-  'payback': 'would not pay back — the rewrite costs more than the saving',
+  'payback': 'would not pay back — the rewrite would cost more than the saving',
+  'holdout': 'held out — this session is the comparison arm',
 };
 
-function refusalTable(rows) {
-  if (!rows.length) { $('refusals').innerHTML = `<div class="empty">No refusals recorded.</div>`; return; }
-  const total = rows.reduce((a, r) => a + r.calls, 0);
-  $('refusals').innerHTML = `<table><tbody>${rows.map(r => `<tr>
-      <td class="l">${esc(WHY[r.reason] || r.reason)}<br><span class="dim"><code>${esc(r.reason)}</code></span></td>
-      <td>${compact(r.calls)}</td><td>${pct(r.calls / total)}</td>
-    </tr>`).join('')}</tbody></table>`;
+// ---------------------------------------------------------------------------
+// Two charts, never two axes on one: context carried per call, and cost accumulating per call. The cuts are
+// dashed rules across both, because a cut is the event the trend bends at.
+const PAD = { l: 52, r: 12, t: 10, b: 22 }, VW = 560, VH = 190;
+
+const niceTicks = (max, n = 4) => {
+  if (!(max > 0)) return [0];
+  const raw = max / n, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw) || mag * 10;
+  const out = []; for (let v = 0; v <= max * 1.0001; v += step) out.push(v);
+  return out;
+};
+
+function lineChart(el, pts, { value, format, cuts }) {
+  if (!pts.length) { el.innerHTML = '<div class="empty">No calls recorded.</div>'; return; }
+  const vals = pts.map(value);
+  const max = Math.max(...vals, 0) || 1;
+  const lastCall = pts[pts.length - 1].c || pts.length;
+  const X = c => PAD.l + ((c - 1) / Math.max(1, lastCall - 1)) * (VW - PAD.l - PAD.r);
+  const Y = v => VH - PAD.b - (v / max) * (VH - PAD.t - PAD.b);
+  const ticks = niceTicks(max);
+
+  let g = `<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="${el.id === 'chartCtx' ? 'Context carried per model call' : 'Cumulative cost per model call'}">`;
+  g += '<g class="grid">' + ticks.map(v => `<line x1="${PAD.l}" x2="${VW - PAD.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('') + '</g>';
+  g += '<g class="axis">' + ticks.map(v => `<text x="${PAD.l - 6}" y="${Y(v) + 3}" text-anchor="end">${format(v)}</text>`).join('')
+    + `<line x1="${PAD.l}" x2="${VW - PAD.r}" y1="${VH - PAD.b}" y2="${VH - PAD.b}"/>`
+    + `<text x="${PAD.l}" y="${VH - 6}">call 1</text>`
+    + `<text x="${VW - PAD.r}" y="${VH - 6}" text-anchor="end">call ${lastCall}</text></g>`;
+  // the cuts, behind the line
+  for (const c of cuts) g += `<line class="cutline" x1="${X(c.c)}" x2="${X(c.c)}" y1="${PAD.t}" y2="${VH - PAD.b}"/>`;
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.c).toFixed(1)},${Y(value(p)).toFixed(1)}`).join('');
+  g += `<path class="area" d="${d}L${X(lastCall)},${VH - PAD.b}L${X(pts[0].c)},${VH - PAD.b}Z"/><path class="ln" d="${d}"/>`;
+  g += `<g class="hover"></g></svg>`;
+  el.innerHTML = g;
+
+  // hover: a crosshair and a tooltip, the default on a line chart
+  const svg = el.querySelector('svg'), hover = el.querySelector('.hover');
+  let tip = null;
+  const clear = () => { hover.innerHTML = ''; if (tip) { tip.remove(); tip = null; } };
+  svg.addEventListener('mousemove', e => {
+    const box = svg.getBoundingClientRect();
+    const sx = (e.clientX - box.left) / box.width * VW;
+    let best = pts[0], bd = Infinity;
+    for (const p of pts) { const d2 = Math.abs(X(p.c) - sx); if (d2 < bd) { bd = d2; best = p; } }
+    const px = X(best.c), py = Y(value(best));
+    hover.innerHTML = `<line class="cross" x1="${px}" x2="${px}" y1="${PAD.t}" y2="${VH - PAD.b}"/><circle class="dot" cx="${px}" cy="${py}" r="4.5"/>`;
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; el.appendChild(tip); }
+    const why = best.cut ? `cut ${compact(best.cut)} tokens` : best.reason ? (WHY[best.reason] || best.reason) : '';
+    tip.innerHTML = `<strong>call ${best.c}</strong>${best.turn != null ? ` · turn ${best.turn}` : ''}<br>${format(value(best))}${why ? `<br><span class="dim">${esc(why)}</span>` : ''}`;
+    const left = Math.min(Math.max(px / VW * box.width - 60, 4), box.width - 150);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${Math.max(2, py / VH * box.height - 54)}px`;
+  });
+  svg.addEventListener('mouseleave', clear);
 }
 
-function toolTable(rows) {
-  if (!rows.length) { $('tools').innerHTML = `<div class="empty">Nothing dropped yet.</div>`; return; }
-  $('tools').innerHTML = `<table><tbody>${rows.map(r => `<tr>
-      <td class="l">${esc(r.name)}</td><td>×${compact(r.calls)}</td><td>${compact(r.tokens)} tokens</td>
-    </tr>`).join('')}</tbody></table>`;
+function drawSession(d) {
+  const series = d.decisions?.series || [];
+  const cuts = series.filter(p => p.cut);
+  let run = 0;
+  const cumulative = series.map(p => ({ ...p, cum: (run += (p.cost || 0)) }));
+  lineChart($('chartCtx'), series, { value: p => p.carried, format: compact, cuts });
+  lineChart($('chartCost'), cumulative, { value: p => p.cum, format: v => usd(v), cuts });
+  $('chartLegend').innerHTML = `<span><i></i>${esc(d.model || 'the session')}</span><span><i class="cut"></i>cut by thinker</span>`;
+  const peak = Math.max(0, ...series.map(p => p.carried));
+  $('sessionNote').innerHTML = `${compact(d.decisions?.calls || series.length)} calls · peak context ${compact(peak)} tokens · `
+    + `${compact(d.cuts || 0)} ${d.cuts === 1 ? 'cut' : 'cuts'} · net <span class="${cls(d.net)}">${usd(d.net)}</span> on ${usd(d.spend)} spent`;
+  eventTable(d);
 }
 
-function cutTable(rows) {
-  if (!rows.length) { $('cuts').innerHTML = `<div class="empty">No cut has fired in this window.</div>`; return; }
-  const head = `<tr><th>when</th><th class="l">machine</th><th class="l">model</th><th>turn</th><th>tokens out</th><th class="l">policy</th></tr>`;
-  const body = rows.map(r => `<tr>
-      <td class="l"><span class="dim">${since(r.at)}</span></td>
-      <td class="l" title="${esc(r.install)}">${esc(Object.entries(r.labels || {}).map(([k, v]) => `${k}=${v}`).join(' ')) || `<code>${esc(String(r.install).slice(0, 8))}</code>`}</td>
-      <td class="l">${esc(r.model || '—')}</td>
-      <td>${r.turn ?? '—'}</td>
-      <td>${compact(r.tokens)}</td>
-      <td class="l"><code class="dim">${esc(r.policy || 'unstamped')}</code></td>
-    </tr>`).join('');
-  $('cuts').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+// What happened, in order: the cuts with what each took out, then why nothing was cut on the rest.
+function eventTable(d) {
+  const dec = d.decisions || {};
+  const rows = (dec.rows || []).map(c => `<tr>
+      <td class="l">cut</td><td>turn ${c.turn ?? '—'}</td><td>${compact(c.tokens)} tokens out</td>
+      <td class="l"><code class="dim">${esc(c.policy || 'unstamped')}</code></td>
+      <td class="l"><span class="dim">${since(c.at)}</span></td></tr>`).join('');
+  const total = Object.values(dec.refusals || {}).reduce((a, n) => a + n, 0);
+  const why = Object.entries(dec.refusals || {}).sort((a, b) => b[1] - a[1]).map(([reason, n]) => `<tr>
+      <td class="l dim">no cut</td><td>${compact(n)} ${n === 1 ? 'call' : 'calls'}</td>
+      <td class="l" colspan="2">${esc(WHY[reason] || reason)}</td>
+      <td class="l"><span class="dim">${pct(n / (total || 1))}</span></td></tr>`).join('');
+  const tools = (dec.tools || []).length
+    ? `<tr><td class="l">dropped</td><td>${compact(dec.results || 0)} results</td><td class="l" colspan="3">${
+        dec.tools.map(t => `${esc(t.name)} ×${t.calls} (${compact(t.tokens)})`).join(', ')}</td></tr>` : '';
+  $('events').innerHTML = rows || why || tools
+    ? `<table><tbody>${rows}${tools}${why}</tbody></table>`
+    : `<div class="empty">Nothing recorded for this session.</div>`;
+}
+
+let plottable = [];
+// Picked by index into `plottable`: an install id and a session id joined into one option value needed a
+// separator, and a NUL is mangled by the HTML parser (which is what left the picker blank).
+async function openSession(i) {
+  const row = plottable[Number(i)];
+  if (!row) return;
+  const res = await fetch(`/api/session?install=${encodeURIComponent(row.install)}&session=${encodeURIComponent(row.session)}`);
+  if (!res.ok) return;
+  drawSession(await res.json());
+}
+
+function sessionPicker(rows) {
+  plottable = rows;
+  const sel = $('session');
+  const was = sel.selectedOptions[0]?.dataset.key;
+  sel.innerHTML = rows.map((r, i) => {
+    const who = Object.entries(r.labels || {}).map(([k, v]) => `${k}=${v}`).join(' ') || String(r.install).slice(0, 8);
+    return `<option value="${i}" data-key="${esc(r.install + '/' + r.session)}">${esc(who)} · ${r.cuts ? `${r.cuts} cut${r.cuts > 1 ? 's' : ''}` : 'no cut'} · ${compact(r.prompts)} prompts · ${since(r.at)}</option>`;
+  }).join('');
+  if (!rows.length) { $('events').innerHTML = `<div class="empty">No session with a recorded trend yet.</div>`; return; }
+  const keep = rows.findIndex(r => `${r.install}/${r.session}` === was);
+  sel.value = String(keep >= 0 ? keep : 0);
+  openSession(sel.value);
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -338,13 +463,12 @@ async function load() {
   $('stamp').textContent = `${compact(data.total.installs)} installs · ${compact(data.total.sessions)} sessions · since ${new Date(data.since).toLocaleDateString()}`;
   tiles(data.total);
   machineTable(data.machines || []);
-  refusalTable(data.decisions?.refusals || []);
-  toolTable(data.decisions?.tools || []);
-  cutTable(data.decisions?.cuts || []);
+  sessionPicker(data.plottable || []);
   table(data);
   recentTable(data.recent || []);
 }
 
+$('session').addEventListener('change', e => openSession(e.target.value));
 $('by').addEventListener('change', e => { state.by = e.target.value; load(); });
 $('days').addEventListener('change', e => { state.days = Number(e.target.value); load(); });
 load();

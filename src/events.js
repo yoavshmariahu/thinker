@@ -31,6 +31,7 @@ import { readMachineConfig } from './repo-switch.js';
 import { sessionsOf } from './delivery.js';
 import { compressionRecords, compressionDir, readCompression } from './compression.js';
 import { clearedOf } from './cutting.js';
+import { listPrice, costOf } from './prices.js';
 import { proxyLogFile } from './proxy-service.js';
 import { sessionKey } from './usage.js';
 import { readLabels } from './labels.js';
@@ -44,6 +45,7 @@ export const EVENTS = {
   spoolMax: 500,        // lines kept when the sink refuses; oldest dropped first
   batchMax: 50,         // lines per POST when the spool is draining
   decisionRows: 12,     // cut decisions carried on an event, newest last
+  seriesMax: 160,       // points on the per-call series; a longer session is thinned, never truncated
   // How far back the one session's figures are read over. `sessionsOf` walks the log from `since`, and the
   // session being shipped has just ended, so two days is generous; the whole log would make a hook's cost
   // grow with the machine's history for nothing.
@@ -94,6 +96,44 @@ export function eventsTarget({ env = process.env, home = thinkerHome() } = {}) {
 // Counts, reasons and tool *names*, never a tool's arguments or its output. A refusal is as interesting as a
 // cut here: a fleet reading "below-trigger on 412 of 430 requests" has learnt that those sessions are simply
 // short, which is the honest reading and not a fault.
+// The session as it actually ran: one point per model call, context carried and what that call cost, with
+// the cuts marked on it. This is the shape the question "how did context and cost trend" has an answer in --
+// a tally of reasons never did, because a cut is an event in a session's life and only reads as one against
+// the line it changed.
+//
+// Carried is the whole input of that call (fresh + cache read + cache write), which is what the window
+// actually held; cost is that call at its own model's list rates through `prices.js:costOf`, the only door.
+// A call whose model has no price carries `null` rather than a zero, and the page draws the gap.
+//
+// A long session is **thinned, never truncated**: a cut point is always kept (it is the thing being shown),
+// and the plain calls between them are sampled down to fit. The last call is always kept, so the line ends
+// where the session did.
+function seriesOf(rows, { config, max = EVENTS.seriesMax } = {}) {
+  const points = rows.map((r, i) => {
+    const read = r.read || 0, write = r.write || 0, fresh = r.input || 0;
+    const carried = fresh + read + write;
+    const price = listPrice(r.model, { config });
+    const cost = price ? costOf({ input: carried, cacheRead: read, cacheWrite: write, cacheWrite1h: r.write1h || 0, output: r.out || 0 }, price) : null;
+    return {
+      c: i + 1,
+      at: r.at,
+      carried,
+      out: r.out || 0,
+      cost,
+      ...(r.turn != null ? { turn: r.turn } : {}),
+      ...(r.clear ? { cut: clearedOf(r) || r.clear.tokens || 0, ...(r.clear.cold ? { cold: true } : {}) } : {}),
+      ...(r.reason && !r.clear ? { reason: r.reason } : {}),
+    };
+  });
+  if (points.length <= max) return points;
+  const keep = new Set([0, points.length - 1]);
+  points.forEach((p, i) => { if (p.cut) keep.add(i); });
+  const room = Math.max(0, max - keep.size);
+  const step = Math.max(1, Math.floor(points.length / Math.max(1, room)));
+  for (let i = 0; i < points.length && keep.size < max; i += step) keep.add(i);
+  return [...keep].sort((a, b) => a - b).map(i => points[i]);
+}
+
 export function decisionsOf({ session, home = thinkerHome(), env = process.env, since = '' } = {}) {
   const key = sessionKey(session);
   let rows = [];
@@ -106,7 +146,12 @@ export function decisionsOf({ session, home = thinkerHome(), env = process.env, 
   }
   let rec = null;
   try { rec = readCompression(compressionDir(home), session); } catch { rec = null; }
+  let config = {};
+  try { config = JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')) || {}; } catch { config = {}; }
   return {
+    // the session as it ran, one point a model call, for the trend the cuts happened in
+    series: seriesOf(rows, { config }),
+    calls: rows.length,
     cuts: cuts.length,
     callsCleared: rec?.requests || 0,
     results: rec?.uses || 0,

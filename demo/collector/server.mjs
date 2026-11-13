@@ -255,6 +255,26 @@ export function decisions(db, { days = 30, now = Date.now(), limit = 40 } = {}) 
   };
 }
 
+// The sessions a trend can be drawn for, newest first, the ones a cut happened in before the rest: those
+// are the ones worth opening, since a cut only reads as anything against the line it changed.
+export function plottable(db, { days = 30, now = Date.now(), limit = 40 } = {}) {
+  const since = new Date(now - days * 864e5).toISOString();
+  return db.prepare(`select install, session, at, client, model, labels, cuts, prompts, cleared, net, spend, priced
+    from sessions where at >= ? and json_array_length(json_extract(decisions, '$.series')) > 1
+    order by cuts > 0 desc, at desc limit ?`).all(since, limit)
+    .map(r => ({ ...r, labels: JSON.parse(r.labels || '{}') }));
+}
+
+// One session's own trend: the per-call series the machine sent, with the row it belongs to.
+export function sessionTrend(db, { install, session }) {
+  const r = db.prepare(`select install, session, at, client, model, labels, decisions, prompts, tokens, cleared,
+    cuts, calls_cleared as callsCleared, results, net, saved, rewrite, reread, spend, priced
+    from sessions where install = ? and session = ?`).get(install, session);
+  if (!r) return null;
+  let d = {}; try { d = JSON.parse(r.decisions || '{}'); } catch { d = {}; }
+  return { ...r, labels: JSON.parse(r.labels || '{}'), decisions: d };
+}
+
 export function recent(db, { limit = 50 } = {}) {
   return db.prepare(`select install, session, at, client, model, version, prompts, tokens, cleared, net, spend, priced, labels
     from sessions order by at desc limit ?`).all(limit)
@@ -286,9 +306,14 @@ export function createServer(db) {
         ...fleet(db, { by, days }),
         machines: machines(db, { days }),
         decisions: decisions(db, { days }),
+        plottable: plottable(db, { days }),
         dimensions: [...Object.keys(GROUPS), ...labelKeys(db)],
         recent: recent(db),
       });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/session') {
+      const row = sessionTrend(db, { install: url.searchParams.get('install'), session: url.searchParams.get('session') });
+      return row ? json(res, 200, row) : json(res, 404, { error: 'no such session' });
     }
     if (req.method === 'POST' && url.pathname === '/v1/sessions') {
       let size = 0;
