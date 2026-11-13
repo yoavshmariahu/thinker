@@ -293,7 +293,7 @@ export function denial({ kind, report, files, cwd, model, handoff }) {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
 }
 /** The short label the host's subagent tool wants beside the brief ("A short 3-5 word label", OpenCode). */
-export function handoffLabel(kind, files = [], cwd) {
+export function handoffLabel(kind, files = []) {
   if (kind === 'verify') return 'Run the test suite';
   const names = files.map(f => path.basename(f));
   if (!names.length) return 'Explore the codebase';
@@ -316,7 +316,15 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const exec = executionFor(client, suite ? 'verify' : 'explore', cfg);
   const handoff = exec.mode === 'handoff';
   let d, cached, prompt;
-  state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
+  // One pass under the session's lock: two tool calls of one turn run their hooks in two processes at the same
+  // time, so the turn's handoff has to be spent in the same locked update that decided to make it. Deciding
+  // here and recording it afterwards left a window in which both calls fired.
+  state.update(st => {
+    prompt = ev.prompt_id || st.turnNo || 0;
+    d = decide(st, { prompt, read, suite, cfg, handoff });
+    cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined;
+    if (d.fire && handoff && !heldOut(session, cfg.holdout)) noteHandoff(st, prompt, d.kind);
+  });
   if (!d.fire && !d.spent) return null;
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
@@ -334,11 +342,9 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (handoff) {
     // The host runs it. Nothing is spawned here, so the hook answers at once, and the subagent's cost is the
     // host's to bill and to show -- which is also how it is measured (the Report prices a subagent
-    // conversation at its own model). The budget is spent before the denial goes out, so a second read of the
-    // turn cannot be denied even if its hook runs at the same moment as this one.
-    state.update(st => noteHandoff(st, prompt, d.kind));
+    // conversation at its own model). The turn's budget was spent in the locked update above.
     log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length });
-    return denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label: handoffLabel(d.kind, files, cwd) } });
+    return denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label: handoffLabel(d.kind, files) } });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });

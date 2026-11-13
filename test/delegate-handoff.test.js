@@ -119,6 +119,9 @@ test('delegateTool, handoff: denies with the handoff, spawns nothing, logs the m
   assert.equal(rows[0].handoffTool, 'Agent'); assert.equal(rows[0].held, false); assert.equal(rows[0].kind, 'explore');
   assert.deepEqual(rows[0].files, ['core.py']);
   assert.equal(rows[0].cost, undefined, 'the host bills its own subagent');
+  // the turn's budget is spent in the same locked update that decided to fire, not afterwards: two tool calls
+  // of one turn run their hooks in two processes at once, and a window between the two would fire twice
+  assert.equal(st.delegate.handoffs.explore, 1);
 
   // the same read again, and a different big read: both go through, both say they are after the handoff
   assert.equal(await call(ev), null);
