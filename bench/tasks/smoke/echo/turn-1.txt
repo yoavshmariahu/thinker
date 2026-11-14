@@ -1,0 +1,1 @@
+{CWD} is a tiny Python package. Read mod.py and tell me in one line what alpha() returns.

@@ -1,0 +1,75 @@
+{
+ "tag": "posthog-delegate-haiku",
+ "question": "On two long PostHog sessions, what does the delegation handoff to a native Explore subagent do to cost, and does pinning that subagent to Haiku differ from Sonnet?",
+ "rule": "The two tasks of posthog-opus-demo-four-2026-11-04 whose paired runs are published on the website (PR106936 'Member invitations', PR106672 'Metric UUIDs'), on their frozen nine-turn prompts. Chosen 2026-11-13 by which website runs exist and are complete, not by any outcome. Note the published runs set kronus's no-subagents flag, which disables the Agent tool and so the delegation handoff itself: these runs cannot be a like-for-like replication of those numbers, and that one setting has to differ.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
+ "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasksDir": "bench/tasks/posthog",
+ "tasks": ["PR106936", "PR106672"],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "bare": {
+   "env": { "ANTHROPIC_BASE_URL": "https://api.anthropic.com", "THINKER_TEST": "1" }
+  },
+  "haiku": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1",
+    "THINKER_HOOKS": "on",
+    "THINKER_DELEGATE": "claude-haiku-5-5",
+    "THINKER_DELEGATE_HOLDOUT": "off",
+    "THINKER_LOG": "local",
+    "THINKER_NO_LEARN": "1"
+   },
+   "hooks": {
+    "PreToolUse": [
+     {
+      "matcher": "Read|Bash",
+      "hooks": [{ "type": "command", "command": "node '/Users/yoavshmariahu/src/thinker/.worktrees/delegate-haiku/src/cli.js' hook pretool --client claude", "timeout": 300 }]
+     }
+    ]
+   },
+   "agents": {
+    "Explore": {
+     "description": "Fast, read-only agent for searching and understanding the codebase.",
+     "model": "claude-haiku-5-5",
+     "disallowedTools": "Write, Edit, MultiEdit, NotebookEdit, Agent",
+     "omitClaudeMd": "true",
+     "body": "You are an exploration subagent for a lead coding agent. The lead delegates a question about this codebase to you so the files you read stay out of its context. Find the files, functions and mechanisms relevant to the request, then report back so the lead can act without reading them again. Report in at most 25 lines: each relevant function or class as `path:line` with one line on what it does, and the exact lines to change if asked. Quote at most 5 lines of code in total. Never paste a file. Never edit, write or run tests."
+    }
+   },
+   "after": ["node", "-e", "const fs=require('fs');let r=[];try{r=fs.readFileSync('{CWD}/.thinker/log.jsonl','utf8').split('\\n').filter(Boolean).map(l=>{try{return JSON.parse(l)}catch{return null}}).filter(x=>x&&x.op==='delegate')}catch{};const f=r.filter(x=>x.fired!==false);process.stdout.write(JSON.stringify({rows:r.length,fired:f.length,kinds:f.map(x=>x.kind),modes:[...new Set(r.map(x=>x.mode))],skipped:r.filter(x=>x.skipped).map(x=>x.skipped),firedTokens:f.reduce((a,x)=>a+(Number(x.tokens)||0),0)}))"]
+  },
+  "sonnet": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1",
+    "THINKER_HOOKS": "on",
+    "THINKER_DELEGATE": "claude-sonnet-5-5",
+    "THINKER_DELEGATE_HOLDOUT": "off",
+    "THINKER_LOG": "local",
+    "THINKER_NO_LEARN": "1"
+   },
+   "hooks": {
+    "PreToolUse": [
+     {
+      "matcher": "Read|Bash",
+      "hooks": [{ "type": "command", "command": "node '/Users/yoavshmariahu/src/thinker/.worktrees/delegate-haiku/src/cli.js' hook pretool --client claude", "timeout": 300 }]
+     }
+    ]
+   },
+   "agents": {
+    "Explore": {
+     "description": "Fast, read-only agent for searching and understanding the codebase.",
+     "model": "claude-sonnet-5-5",
+     "disallowedTools": "Write, Edit, MultiEdit, NotebookEdit, Agent",
+     "omitClaudeMd": "true",
+     "body": "You are an exploration subagent for a lead coding agent. The lead delegates a question about this codebase to you so the files you read stay out of its context. Find the files, functions and mechanisms relevant to the request, then report back so the lead can act without reading them again. Report in at most 25 lines: each relevant function or class as `path:line` with one line on what it does, and the exact lines to change if asked. Quote at most 5 lines of code in total. Never paste a file. Never edit, write or run tests."
+    }
+   },
+   "after": ["node", "-e", "const fs=require('fs');let r=[];try{r=fs.readFileSync('{CWD}/.thinker/log.jsonl','utf8').split('\\n').filter(Boolean).map(l=>{try{return JSON.parse(l)}catch{return null}}).filter(x=>x&&x.op==='delegate')}catch{};const f=r.filter(x=>x.fired!==false);process.stdout.write(JSON.stringify({rows:r.length,fired:f.length,kinds:f.map(x=>x.kind),modes:[...new Set(r.map(x=>x.mode))],skipped:r.filter(x=>x.skipped).map(x=>x.skipped),firedTokens:f.reduce((a,x)=>a+(Number(x.tokens)||0),0)}))"]
+  }
+ }
+}

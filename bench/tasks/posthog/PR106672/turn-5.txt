@@ -1,0 +1,8 @@
+Turn 5 of 9. Review integration and backwards compatibility using the related source and tests below. Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+frontend/src/scenes/experiments/metricQueryUtils.ts
+frontend/src/scenes/experiments/metricQueryUtils.test.ts
+products/experiments/backend/metric_events.py
+products/experiments/backend/test/test_metric_events.py
+
+Keep observations tied to the requested behavior; repair regressions you find without unrelated changes.

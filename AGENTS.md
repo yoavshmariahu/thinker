@@ -320,10 +320,14 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - Same model and effort per phase (exploration, coding, judging). Agent config fixed except intervention.
 - Record model before run. Disable silent fallback. Report correctness, tokens, latency separately.
 
-**Evals only through Artemis (MANDATORY):**
-- `~/src/artemis` (web, MCP). `.agents/skills/run-evals/SKILL.md`: `create_pr_set`, `plan_experiment`, user approves, `start_experiment`.
-- thinker CLI only: `thinker mcp`, `hook`, `version`.
-- Artemis config: `"thinker"` → tested build.
+**Evals run in `bench/` (MANDATORY, 2026-11-14, the owner's call; `bench/README.md`):**
+- `node bench/bench.mjs run bench/experiments/<spec>.json`. State the estimate, get a yes, then run; `--dry` starts nothing.
+- System of record: `bench/ledger.jsonl`, one line a session, committed. Runs under `bench/runs/` (ignored).
+- Spec names the rule before the run; tasks are `turn-N.txt` files at a commit, hashed onto every record (`taskHash`, `armHash`).
+- Errored or turn-capped session is `valid: false` and enters no figure. `maxTurns` defaults to 180 (the old runner's 60 voided six PostHog sessions, $25.53, 2026-11-14).
+- Arms are project scope only (`--setting-sources project`) and each pins `ANTHROPIC_BASE_URL`: no session inherits this machine's proxy.
+- Rates are ratios of sums; arms paired by task and rep.
+- **Artemis and kronus are retired.** `~/.artemis/artemis.db` stays as the archive of everything before 2026-11-14, including the website's published numbers; start nothing new there.
 
 **Worktrees (MANDATORY):**
 - All changes in isolated worktree. Never edit primary.

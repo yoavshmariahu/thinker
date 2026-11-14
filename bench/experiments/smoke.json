@@ -1,0 +1,20 @@
+{
+ "tag": "smoke",
+ "question": "Does the bench run, record and compare two arms end to end?",
+ "rule": "One throwaway task, written to exercise the runner rather than to measure anything.",
+ "base": "/private/tmp/claude-501/-Users-yoavshmariahu-src-thinker/3e7a7d84-9ae0-4ed3-9393-21144c89caf6/scratchpad/smokebase",
+ "ref": "HEAD",
+ "tasksDir": "bench/tasks/smoke",
+ "tasks": ["echo"],
+ "model": "claude-haiku-5-5",
+ "maxTurns": 30,
+ "reps": 1,
+ "arms": {
+  "plain": { "env": { "ANTHROPIC_BASE_URL": "https://api.anthropic.com", "THINKER_TEST": "1" } },
+  "pinned": {
+   "env": { "ANTHROPIC_BASE_URL": "https://api.anthropic.com", "THINKER_TEST": "1" },
+   "agents": { "Explore": { "description": "read-only explorer", "model": "claude-haiku-5-5", "body": "Explore only. Never edit." } },
+   "after": ["node", "-e", "process.stdout.write(JSON.stringify({pinned:require('fs').existsSync('{CWD}/.claude/agents/Explore.md')}))"]
+  }
+ }
+}
