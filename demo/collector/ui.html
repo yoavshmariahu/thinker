@@ -132,16 +132,36 @@
 
   /* The control form: a row a setting, its own value beside what it means. */
   .say { padding: 0 16px 4px; margin: 0 0 6px; color: var(--muted); font-size: 12.5px; max-width: 78ch; line-height: 1.55; }
-  .set { display: grid; grid-template-columns: 190px 160px 1fr; gap: 12px; align-items: baseline;
-         padding: 11px 16px; border-bottom: 1px solid var(--line-2); }
+  .set { display: grid; grid-template-columns: 180px 230px 1fr; gap: 16px; align-items: center;
+         padding: 13px 16px; border-bottom: 1px solid var(--line-2); }
   .set:last-child { border-bottom: none; }
   .set label { font-size: 13px; color: var(--ink); }
   .set .help { font-size: 12px; color: var(--muted); line-height: 1.5; }
   .set .unit { font-size: 11px; color: var(--faint); margin-left: 5px; }
-  .set input[type=text], .set input[type=number] {
-    width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
-    padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--plane); color: var(--ink); }
-  .set input:focus { outline: 2px solid var(--ctl); outline-offset: -1px; border-color: var(--ctl); }
+
+  /* A number is a slider: the range it may take is part of what the control says, and a free text box
+     invites a figure the machine would refuse. The readout carries the value and whose it is. */
+  .set .val { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .set .num { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .set .num.own { color: var(--muted); }
+  .set .own-note { font-size: 11px; color: var(--faint); }
+  .set .own-note a { color: var(--ctl); text-decoration: none; }
+  .set .own-note a:hover { text-decoration: underline; }
+  .set input[type=range] { appearance: none; -webkit-appearance: none; width: 100%; height: 18px;
+    background: transparent; display: block; cursor: pointer; margin: 0; }
+  .set input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--line); }
+  .set input[type=range]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--line); }
+  .set input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--ctl); border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); margin-top: -5px; }
+  .set input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ctl);
+    border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); }
+  /* unset is the machine's own: the thumb sits on the default, greyed, until somebody moves it */
+  .set input[type=range].own::-webkit-slider-thumb { background: var(--faint); box-shadow: 0 0 0 1px var(--faint); }
+  .set input[type=range].own::-moz-range-thumb { background: var(--faint); box-shadow: 0 0 0 1px var(--faint); }
+  .set input[type=range]:focus { outline: none; }
+  .set input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--ctl), 0 0 0 4px #dbeafe; }
+  .set .ends { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--faint);
+               font-variant-numeric: tabular-nums; margin-top: 2px; }
   .set select { appearance: none; -webkit-appearance: none; width: 100%; box-sizing: border-box; font: inherit;
     font-size: 13px; padding: 5px 30px 5px 8px; border: 1px solid var(--border); border-radius: 6px;
     background: var(--plane) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 9px center;
@@ -189,7 +209,7 @@
       <h2>Settings <span class="filternote" id="revNote"></span></h2>
       <p class="say">Set here, taken by the machine on its next session. thinker asks its collector for these
         each time it reports, so nothing listens on the machine and nothing needs reaching into it. A setting
-        left blank is the machine's own to decide.</p>
+        showing <em>machine's own</em> is one nobody here has decided, and the machine keeps whatever it has.</p>
       <div id="settings"></div>
       <div class="pickrow" style="margin-top:14px">
         <button id="save" class="btn">Save settings</button>
@@ -498,32 +518,59 @@ async function openSession(install, session) {
 
 let MACHINE = null; // { machine, control, settings }
 
-const SETTING_HELP_WIDTH = 2;
 const atPath = (o, p) => p.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
+const idOf = s => `set-${s.path.replace(/\./g, '-')}`;
 
+// A row's two states: set, or the machine's own. Unset is not zero and not the default-as-a-decision -- it
+// is nobody having decided, which is what a blank must keep meaning once the control is a slider that always
+// has a position. So the thumb rests on the default, greyed, and says so until a hand moves it.
 function settingField(s, value) {
-  const id = `set-${s.path.replace(/\./g, '-')}`;
-  const v = value === undefined || value === null ? '' : value;
+  const id = idOf(s), set = value !== undefined && value !== null;
   if (s.type === 'bool') {
     return `<select id="${id}" data-path="${esc(s.path)}" data-type="bool">
-      <option value=""${v === '' ? ' selected' : ''}>machine's own</option>
-      <option value="true"${v === true ? ' selected' : ''}>on</option>
-      <option value="false"${v === false ? ' selected' : ''}>off</option>
+      <option value=""${!set ? ' selected' : ''}>machine's own (${s.dflt ? 'on' : 'off'})</option>
+      <option value="true"${value === true ? ' selected' : ''}>on</option>
+      <option value="false"${value === false ? ' selected' : ''}>off</option>
     </select>`;
   }
-  const kind = s.type === 'int' || s.type === 'rate' ? 'number' : 'text';
-  const step = s.type === 'rate' ? ' step="0.05" min="0" max="1"' : s.type === 'int' ? ' step="1"' : '';
-  return `<input type="${kind}"${step} id="${id}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
-    value="${esc(String(v))}" placeholder="machine's own">`;
+  const at = set ? value : s.dflt;
+  return `<div class="val">
+      <span class="num${set ? '' : ' own'}" id="${id}-out">${compact(at)}</span>
+      <span class="own-note" id="${id}-note">${set ? `<a href="#" data-own="${esc(s.path)}">machine's own</a>` : "machine's own"}</span>
+    </div>
+    <input type="range" id="${id}" class="${set ? '' : 'own'}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
+      data-set="${set ? '1' : ''}" min="${s.min}" max="${s.max}" step="${s.step}" value="${at}">
+    <div class="ends"><span>${compact(s.min)}</span><span>${compact(s.max)}</span></div>`;
 }
 
 function settingsForm() {
   const { settings, control } = MACHINE;
   $('settings').innerHTML = settings.map(s => `<div class="set">
-      <label for="set-${s.path.replace(/\./g, '-')}">${esc(s.label)}${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ''}</label>
+      <label for="${idOf(s)}">${esc(s.label)}${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ''}</label>
       <div>${settingField(s, atPath(control.config, s.path))}</div>
       <div class="help">${esc(s.help)}</div>
     </div>`).join('');
+
+  // Moving a slider is deciding; the link beside it hands the setting back to the machine.
+  for (const el of $('settings').querySelectorAll('input[type=range]')) {
+    const s = settings.find(x => x.path === el.dataset.path);
+    const paint = () => {
+      const on = el.dataset.set === '1';
+      el.classList.toggle('own', !on);
+      $(`${el.id}-out`).textContent = compact(Number(el.value));
+      $(`${el.id}-out`).classList.toggle('own', !on);
+      $(`${el.id}-note`).innerHTML = on ? `<a href="#" data-own="${esc(s.path)}">machine's own</a>` : "machine's own";
+      const back = $(`${el.id}-note`).querySelector('a');
+      if (back) back.addEventListener('click', e => {
+        e.preventDefault();
+        el.dataset.set = '';
+        el.value = s.dflt;
+        paint();
+      });
+    };
+    el.addEventListener('input', () => { el.dataset.set = '1'; paint(); });
+    paint();
+  }
 
   // Sent against taken. A machine that has never been set is on its own settings and says so.
   const { rev, seenRev, at, seenAt } = control;
@@ -539,13 +586,13 @@ async function saveSettings() {
   const btn = $('save');
   btn.disabled = true;
   $('saveNote').textContent = 'saving…';
-  // A blank field is null: the setting goes back to being the machine's own, which is not the same as zero.
+  // Nothing chosen is null: the setting goes back to being the machine's own, which is not the same as zero
+  // and not the same as setting it to what the default happens to be today.
   const config = {};
   for (const el of $('settings').querySelectorAll('[data-path]')) {
-    const raw = el.value.trim();
     const t = el.dataset.type;
-    let v = null;
-    if (raw !== '') v = t === 'bool' ? raw === 'true' : (t === 'int' || t === 'rate') ? Number(raw) : raw;
+    const chosen = t === 'bool' ? el.value !== '' : el.dataset.set === '1';
+    const v = !chosen ? null : t === 'bool' ? el.value === 'true' : Number(el.value);
     const ks = el.dataset.path.split('.'), last = ks.pop();
     let node = config;
     for (const k of ks) node = node[k] || (node[k] = {});

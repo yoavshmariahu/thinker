@@ -36,26 +36,32 @@ import { thinkerHome } from './update.js';
 export const MANAGED_FILE = home => path.join(home, 'state', 'managed.json');
 
 const int = (min, max) => v => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= min && n <= max ? n : undefined; };
-const rate = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 1 ? n : undefined; };
 const bool = v => (typeof v === 'boolean' ? v : v === 'true' ? true : v === 'false' ? false : undefined);
-const text = max => v => { const s = String(v ?? '').trim(); return s && s.length <= max ? s : undefined; };
-const url = v => { try { const u = new URL(String(v)); return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : undefined; } catch { return undefined; } };
 
 // Every setting an operator may set, with the type and bounds it is coerced to. The path is the one
-// `readMachineConfig` already answers at, so nothing downstream changes. `label` and `help` are what the
-// page shows; this list is the single description of the control surface, read by the UI through /api/schema.
+// `readMachineConfig` already answers at, so nothing downstream changes. `label`, `help`, `dflt` and the
+// slider's bounds are what the page draws from: this list is the single description of the control surface,
+// read by the UI through /api/schema, so a control that does nothing cannot appear on the page.
+//
+// Four, and deliberately four. Each is a decision an operator running other people's agents actually makes
+// -- when to cut, whether to delegate and from what size, whether to serve the profile -- and each of them
+// changes what a session costs. What is not here: the holdouts (an experiment arm, set for a measurement and
+// not per machine), the cut's floor and kept-results count (internals of a policy that is judged as a whole,
+// `cutting.js:policyId`), the subagent's model, and the sink URL. They are all still settings; they are not
+// knobs to hand somebody looking at a fleet. A short list a reader can hold in their head beats a long one
+// where the two that matter are lost.
+//
+// A slider's `min`/`max` are the coercion's bounds, never wider: what the page offers is exactly what a
+// machine will take, so a value cannot be set that is then silently dropped on arrival.
 export const MANAGED = [
-  { path: 'proxy.trigger', type: 'int', coerce: int(20_000, 1_000_000), label: 'Cut above', unit: 'tokens', help: 'Context size a call must reach before thinker cuts finished tool results out of it. Default 140,000.' },
-  { path: 'proxy.clearAtLeast', type: 'int', coerce: int(0, 1_000_000), label: 'Smallest cut', unit: 'tokens', help: 'A cut smaller than this is not worth the cache rewrite it costs, so it is refused (below-clear-minimum). Default 60,000.' },
-  { path: 'proxy.keep', type: 'int', coerce: int(0, 100), label: 'Results kept', unit: 'results', help: 'Tool results kept whole at the end of the conversation, newest first. Default 3, plus the whole newest turn.' },
-  { path: 'proxy.holdout', type: 'rate', coerce: rate, label: 'Clearing holdout', unit: 'share', help: 'Share of sessions held out from the cut as a control arm, by hash of the session id. 0 runs the cut everywhere; 0.5 is an experiment.' },
-  { path: 'delegate.enabled', type: 'bool', coerce: bool, label: 'Delegate big reads', help: 'A read past the threshold, or a whole-suite test run, is handed to a Sonnet subagent and its report comes back instead of the file.' },
-  { path: 'delegate.model', type: 'text', coerce: text(80), label: 'Subagent model', help: 'The model the delegated read runs on. Default claude-sonnet-5-5.' },
-  { path: 'delegate.threshold', type: 'int', coerce: int(4_000, 500_000), label: 'Delegate above', unit: 'tokens', help: "One read this size fires at once; smaller reads fire once the turn's reads have passed it. Default 35,000." },
-  { path: 'delegate.holdout', type: 'rate', coerce: rate, label: 'Delegation holdout', unit: 'share', help: 'Share of sessions that read as they would have, so the trigger can be measured against them. Default 0.5.' },
-  { path: 'learn.profile', type: 'bool', coerce: bool, label: 'Session profile', help: 'Whether what a machine learns about how someone works is compiled and served on the first prompt.' },
-  { path: 'learn.profileHoldout', type: 'rate', coerce: rate, label: 'Profile holdout', unit: 'share', help: 'Share of sessions served no profile, so its effect on cost can be read. Default 0.5.' },
-  { path: 'events.url', type: 'url', coerce: url, label: 'Report to', help: 'Where this machine ships one JSON object per session. Changing it moves the machine to another collector; it takes effect on the next session.' },
+  { path: 'proxy.trigger', type: 'int', coerce: int(40_000, 400_000), min: 40_000, max: 400_000, step: 10_000, dflt: 140_000,
+    label: 'Cut above', unit: 'tokens', help: 'Context size a call must reach before thinker cuts finished tool results out of it. Lower cuts sooner and more often; too low and the cache rewrite costs more than the cut saves.' },
+  { path: 'delegate.enabled', type: 'bool', coerce: bool, dflt: false,
+    label: 'Delegate big reads', help: 'A read past the size below, or a whole-suite test run, is handed to a Sonnet subagent and its report comes back instead of the file.' },
+  { path: 'delegate.threshold', type: 'int', coerce: int(8_000, 120_000), min: 8_000, max: 120_000, step: 1_000, dflt: 35_000,
+    label: 'Delegate above', unit: 'tokens', help: "One read this size fires at once; smaller reads fire once the turn's reads have passed it together." },
+  { path: 'learn.profile', type: 'bool', coerce: bool, dflt: true,
+    label: 'Session profile', help: 'Whether what thinker learns about how someone works is compiled and served on the first prompt of a session.' },
 ];
 const BY_PATH = new Map(MANAGED.map(m => [m.path, m]));
 

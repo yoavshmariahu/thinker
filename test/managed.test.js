@@ -22,15 +22,16 @@ test('only the allow-list may be set, and each value is held to its own bounds',
     prices: { 'claude-opus-5': { input: 0 } },
     disabledRepos: [],
   });
-  assert.deepEqual(config.proxy, { trigger: 90_000, holdout: 0.25 }, 'coerced, and the route is not settable from a server');
+  assert.deepEqual(config.proxy, { trigger: 90_000 }, 'coerced; the route is not settable from a server, and the holdout is an experiment arm, not a fleet knob');
   assert.deepEqual(config.delegate, { enabled: true, threshold: 40_000 });
   assert.equal(config.prices, undefined, 'a sink may not move what a token costs');
-  assert.ok(dropped.includes('proxy.upstream') && dropped.includes('prices') && dropped.includes('disabledRepos'));
+  assert.ok(['proxy.upstream', 'proxy.holdout', 'prices', 'disabledRepos'].every(k => dropped.includes(k)));
 
   // out of bounds is dropped, not clamped: a trigger of 10 would cut on every call and nobody asked for that
-  const bad = sanitize({ proxy: { trigger: 10, holdout: 7 } });
+  // The slider's ends are these bounds, so a figure outside them is one no page could have offered.
+  const bad = sanitize({ proxy: { trigger: 10 }, delegate: { threshold: 900_000 } });
   assert.deepEqual(bad.config, {});
-  assert.deepEqual(bad.dropped.sort(), ['proxy.holdout', 'proxy.trigger']);
+  assert.deepEqual(bad.dropped.sort(), ['delegate.threshold', 'proxy.trigger']);
 });
 
 test('a managed setting wins over the machine config, and null hands it back', t => {

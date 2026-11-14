@@ -103,6 +103,11 @@ export function openDb(file = DB_PATH) {
 // so a control that does nothing cannot be drawn. A collector that knew a key thinker did not would be a
 // dashboard promising what no machine does.
 
+// The control surface as the page receives it: everything but the coercion function itself, which is the
+// machine's business. Drawn once -- the page's form and thinker's allow-list are one list, not two.
+const SCHEMA = MANAGED.map(({ path: p, type, label, unit, help, min, max, step, dflt }) =>
+  ({ path: p, type, label, unit, help, min, max, step, dflt }));
+
 export function getConfig(db, install) {
   const row = db.prepare('select install, rev, config, at, by, seen_rev, seen_at from installs where install = ?').get(install);
   if (!row) return { install, rev: 0, config: {}, at: null, by: null, seenRev: null, seenAt: null };
@@ -370,14 +375,14 @@ export function createServer(db) {
     }
     // The control surface, as thinker itself describes it: the page draws its form from this and nothing else.
     if (req.method === 'GET' && url.pathname === '/api/schema') {
-      return json(res, 200, { settings: MANAGED.map(({ path: p, type, label, unit, help }) => ({ path: p, type, label, unit, help })) });
+      return json(res, 200, { settings: SCHEMA });
     }
     if (req.method === 'GET' && url.pathname === '/api/machine') {
       const install = url.searchParams.get('install');
       if (!install) return json(res, 400, { error: 'install required' });
       const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days')) || 30));
       const row = machines(db, { days }).find(m => m.install === install) || null;
-      return json(res, 200, { machine: row, control: getConfig(db, install), settings: MANAGED.map(({ path: p, type, label, unit, help }) => ({ path: p, type, label, unit, help })) });
+      return json(res, 200, { machine: row, control: getConfig(db, install), settings: SCHEMA });
     }
     if (req.method === 'PUT' && url.pathname === '/api/config') {
       let size = 0; const chunks = [];
