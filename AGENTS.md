@@ -52,7 +52,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Tests cover desktop path (`appFn`, missing CLI login).
 
 **The clearing: thinker cuts results itself (MANDATORY, 2026-11-04):**
-- Cut and keep newest turn + 3 results. Trigger 140k, floor 60k, payback 25 calls, cold boundary.
+- Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
 - **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
@@ -84,7 +84,13 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.
 - `payback` 0 is reachable and means repaid on the call that makes the cut; it cannot go below (clamped, to keep `Math.ceil`'s `-0` out of the log).
 - The mod decides in ratios: `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
-- **The candidate walk is the open problem, not the price.** `proxy.js:cutCandidates` takes every eligible result, so the rewrite starts at the OLDEST one and spans nearly the whole conversation: the set removes 26-34% of what it rewrites against a bar of 42% at Anthropic's hourly rates, which is why 0 of the 12 boundaries under the current stamp pass. A removed token saves the same wherever it sat; only the cost depends on position, so the set should be taken from the tail backwards. Unbuilt. `proxy-replay.js` cannot judge it -- it models the API-side edit this replaced.
+**The cut is taken from the tail backwards (2026-11-13, `proxy.js:cutCandidates`, `cutting.js:decideCut`):**
+- Taking every eligible result starts the rewrite at the OLDEST one, so it spans nearly the whole conversation while removing only the results in that span -- 26-34% of it on this machine's 93 priced warm boundaries against the 42% Anthropic's hourly rates need, which is why 0 of the 12 boundaries under the current stamp were cut.
+- A removed token saves the same wherever it sat; only the cost depends on position. So `cutCandidates` returns `steps`, the nested suffixes from the tail backwards, built in one backward pass (the set only grows backwards, so a message already passed never changes and the running sum is every deeper rung's tail). The deepest rung IS the old whole-set candidate, held to the single stringify's figure by `test/cut-ladder.test.js`.
+- `decideCut` takes the largest-saving rung that pays. No new constant: the pricing is the whole of the economics and this chooses among priced options. Row carries `depth` and `rungs`. Chat and Responses build no ladder yet and hand one set, which is picked as before.
+- `clearAtLeast` 60k → **8k**, and it no longer scales with the route (#781 scaled it while it was economics). The floor was the economics when a boundary had one candidate; now it only guards against acting on `recache`'s estimation noise, and noise is in tokens, not in what a provider charges. The trigger still scales.
+- The mod holds the same policy: `clearLadder`, `chooseDepth`, and `clearOld({ depth })`. The check prices every rung and queues a compaction turn only if one repays; a hand-run clear still takes everything.
+- **Unmeasured, and what to watch.** `proxy-replay.js` cannot judge it (it models the API-side edit this replaced) and the holdout is off since 2026-11-12, so the judges are cost per exchange and `rereads.js` -- which is what this puts most at risk, a cut nearer the tail being a cut of results the model used more recently.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
