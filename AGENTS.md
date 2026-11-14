@@ -52,7 +52,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Tests cover desktop path (`appFn`, missing CLI login).
 
 **The clearing: thinker cuts results itself (MANDATORY, 2026-11-04):**
-- Cut and keep newest turn + 3 results. Trigger 140k, floor 60k, payback 25 calls, cold boundary.
+- Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
 - **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
@@ -74,9 +74,23 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Trigger and `clearAtLeast` × `clamp((write/read) / 20, 0.1, 1)`. 20 is Anthropic's 1h ratio, the harshest any provider charges, and the reason a cut needs a tail ≤1.25× what it removes.
 - Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the mod holds this policy from mirrored constants and cannot know a rate. Anthropic unmoved, keeps its policy id.
 - GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so 14k/6k and `r1-t14k-f6k-p25-deep`. Never pooled with an Anthropic saving; no `POLICY_REV` bump, the guards are already in the stamp.
-- `PAYBACK` 25 unchanged and does the policing: a small cut late in a long conversation is still refused because the tail dwarfs it, so a cheap route cuts **early and in small batches**, not merely more often.
+- `PAYBACK` 25 unchanged and does the policing, but it polices less than this said: with the rewrite charged whole, a 7k cut behind a 180k tail priced at 52 and was refused; corrected (below) it prices at 25 and is made. A cheap route still prefers **early and small**, since the tail is what it is paying for, but "late and small is refused" now needs a tail 40x the cut, not 25x.
 - A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
-- Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged live on the existing holdout, not by replay.
+- Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged on live cost per exchange, not by replay.
+
+**A cut is charged what it adds to the call, not the whole rewrite (2026-11-13, `cutting.js:priceCut`, `POLICY_REV` 2):**
+- `cost = recache x (write - read) - read x removed`. Without the cut this same call reads the whole prompt back from the cache, the tail included, so the rewrite is not charged in full: the read it displaces comes off it, and so does the read of what the cut removes. Identically, payback falls by `tail/cut + 1`.
+- On Anthropic a read is a tenth of a write, so it is a ~6% change -- invisible while only Anthropic was priced. Where a read is half the input price it is most of the cost.
+- Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.
+- `payback` 0 is reachable and means repaid on the call that makes the cut; it cannot go below (clamped, to keep `Math.ceil`'s `-0` out of the log).
+- The mod decides in ratios: `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
+**The cut is taken from the tail backwards (2026-11-13, `proxy.js:cutCandidates`, `cutting.js:decideCut`):**
+- Taking every eligible result starts the rewrite at the OLDEST one, so it spans nearly the whole conversation while removing only the results in that span -- 26-34% of it on this machine's 93 priced warm boundaries against the 42% Anthropic's hourly rates need, which is why 0 of the 12 boundaries under the current stamp were cut.
+- A removed token saves the same wherever it sat; only the cost depends on position. So `cutCandidates` returns `steps`, the nested suffixes from the tail backwards, built in one backward pass (the set only grows backwards, so a message already passed never changes and the running sum is every deeper rung's tail). The deepest rung IS the old whole-set candidate, held to the single stringify's figure by `test/cut-ladder.test.js`.
+- `decideCut` takes the largest-saving rung that pays. No new constant: the pricing is the whole of the economics and this chooses among priced options. Row carries `depth` and `rungs`. Chat and Responses build no ladder yet and hand one set, which is picked as before.
+- `clearAtLeast` 60k → **8k**, and it no longer scales with the route (#781 scaled it while it was economics). The floor was the economics when a boundary had one candidate; now it only guards against acting on `recache`'s estimation noise, and noise is in tokens, not in what a provider charges. The trigger still scales.
+- The mod holds the same policy: `clearLadder`, `chooseDepth`, and `clearOld({ depth })`. The check prices every rung and queues a compaction turn only if one repays; a hand-run clear still takes everything.
+- **Unmeasured, and what to watch.** `proxy-replay.js` cannot judge it (it models the API-side edit this replaced) and the holdout is off since 2026-11-12, so the judges are cost per exchange and `rereads.js` -- which is what this puts most at risk, a cut nearer the tail being a cut of results the model used more recently.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.

@@ -115,18 +115,22 @@ test('the floor is 25 because 20 cut nothing, and 25 still refuses the cuts that
   // the two days after the cut landed: refused at 20, made at 25, in a session that then ran 283 more calls.
   const opus = { model: 'claude-opus-5' };
   const cheapest = priceCut({ prompt: 337692 }, { tokens: 105472, recache: 127570 }, opus);
-  assert.equal(cheapest.payback, 25, 'the cheapest real boundary of 2026-11-05 repays in 25 calls');
-  assert.equal(cheapest.pays, true, 'and 25 is inside the floor');
+  // 22 since the cost became what the cut adds to the call rather than the whole rewrite (2026-11-13): the
+  // same boundary priced at 25 while the read the rewrite displaces was ignored. The verdict is the one the
+  // floor was chosen for, and the reason 20 cut nothing is unchanged -- it is still over 20.
+  assert.equal(cheapest.payback, 22, 'the cheapest real boundary of 2026-11-05 repays in 22 calls');
+  assert.equal(cheapest.pays, true, 'and 22 is inside the floor');
   assert.ok(cheapest.payback > 20, 'where 20 refused it, which is why no cut was made that day');
 
-  // the four cuts of the +38% session that set the floor needed 14, 32, 66 and 82 calls. 25 admits the first
-  // and no other, so raising the floor re-admits none of the ones that lost.
-  for (const [calls, want] of [[14, true], [32, false], [66, false], [82, false]]) {
-    // a candidate whose arithmetic gives exactly that payback: cost = calls x tokens x readRate
-    const tokens = 100000, recache = calls * tokens * 0.1 / 2;
+  // The four cuts of the +38% session that set the floor. Their recache is reconstructed from the paybacks
+  // the old arithmetic gave them (14, 32, 66, 82), so these are the same four candidates; corrected, they
+  // price at 13, 30, 62 and 77. What matters is that the verdicts do not move: 25 admits the first and no
+  // other, so the cheaper pricing re-admits none of the three cuts that lost.
+  for (const [was, now, want] of [[14, 13, true], [32, 30, false], [66, 62, false], [82, 77, false]]) {
+    const tokens = 100000, recache = was * tokens * 0.1 / 2;
     const p = priceCut({ prompt: 400000 }, { tokens, recache }, opus);
-    assert.equal(p.payback, calls, `the ${calls}-call cut prices at ${calls}`);
-    assert.equal(p.pays, want, `a cut repaying in ${calls} is ${want ? 'made' : 'refused'}`);
+    assert.equal(p.payback, now, `the cut the old arithmetic priced at ${was} prices at ${now}`);
+    assert.equal(p.pays, want, `a cut repaying in ${now} is ${want ? 'made' : 'refused'}`);
   }
 });
 

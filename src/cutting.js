@@ -98,7 +98,10 @@ export const PAYBACK = 25;
 // Bump it when one of those moves. The rest is the settings that were in force for that request
 // (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the machine config), so two machines running the same
 // code with different floors are never pooled either.
-export const POLICY_REV = 1;
+// 2 since 2026-11-13: the payback pricing changed. A cut's cost is now what it adds to the call that
+// makes it, against the same call without it, so the read the rewrite displaces is subtracted instead of
+// ignored (`priceCut`). Every saving made under the old arithmetic keeps `r1` and is never folded in.
+export const POLICY_REV = 2;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`;
@@ -136,13 +139,15 @@ export function cutScale({ rates = null } = {}) {
 }
 // The settings as they stood for one request. A value the person pinned is never scaled: they said a
 // number, and moving a guard under them is the one thing a derived rule may not do.
+// Only the trigger scales. `clearAtLeast` did too when it was the economics -- a big batch was the only way
+// a whole-conversation rewrite could pay -- but since the ladder it is a guard against acting on arithmetic
+// noise (`proxy.js:PROXY_DEFAULTS`), and noise is measured in tokens, not in what a provider charges. Scaling
+// it put GLM's floor at 800 tokens, which is not a smaller batch but a smaller measurement.
 export function scaledPolicy(cfg = {}, opts = {}) {
   const scale = cutScale(opts);
   if (scale === 1) return cfg;
   const pinned = cfg.pinned || {};
-  return { ...cfg, scale,
-    trigger: pinned.trigger ? cfg.trigger : Math.round(cfg.trigger * scale),
-    clearAtLeast: pinned.clearAtLeast ? cfg.clearAtLeast : Math.round(cfg.clearAtLeast * scale) };
+  return { ...cfg, scale, trigger: pinned.trigger ? cfg.trigger : Math.round(cfg.trigger * scale) };
 }
 
 export const MIN_CHARS = 200;
@@ -211,9 +216,28 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
   // place in the cache, and not the system prompt, which is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
-  const cost = cold ? 0 : recache * write;
-  // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
-  const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
+  // What the cut adds to THIS call, against the same call made without it (2026-11-13). Without the cut
+  // the whole prompt is read back from the cache -- the tail and the results in it included, which is the
+  // 175k-278k read on this machine's own boundary rows. With the cut, the tail is written instead of read
+  // and what the cut removes is not in the call at all. So the rewrite is not charged in full: the read it
+  // displaces comes off it, and so does the read of what was taken out.
+  //
+  //     cost = recache x (write - read) - read x removed
+  //
+  // `recache * write` was Anthropic-shaped. There a read is a tenth of a write, so the correction is ~5%
+  // and nothing anyone measured would move. Where a read is half the input price -- any implicit cache,
+  // GLM's among them -- the displaced read is most of the cost, and the old form was 2x to 12x too
+  // pessimistic, worst exactly at the margin where the decision is actually made. It refused cuts that
+  // repay on the very next call.
+  //
+  // The cost may now be negative: a cut that takes out more than its rewrite costs is already ahead on the
+  // call that makes it, and `payback` then reads zero or below. That is a real state, not a floor to clamp.
+  const cost = cold ? 0 : recache * (write - read) - read * cand.tokens;
+  // How many later calls until the cut has paid for that cost. No horizon is guessed: see PAYBACK.
+  // Zero means repaid on the call that makes the cut, needing no later call. It cannot go below: the cost
+  // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
+  // that `Math.ceil` returns for a negative fraction out of the log and out of every `=== 0` a reader writes.
+  const payback = cand.tokens > 0 && read > 0 ? Math.max(0, Math.ceil(cost / (cand.tokens * read))) : Infinity;
   return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
@@ -265,9 +289,28 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
   if (m.prompt < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
-  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, rates });
-  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: { ...p, ...(rates ? { rates } : {}) }, reason: 'payback' };
-  return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...(rates ? { rates } : {}), ...p };
+  // Which rung of the ladder (proxy.js:cutCandidates, 2026-11-13). The sets are nested suffixes taken from
+  // the tail backwards, so the saving grows with depth and so does the rewrite; the biggest one that pays is
+  // the most the boundary can take economically. `pays` is the only test applied -- the pricing stays the
+  // whole of the economics and this chooses among priced options, which is why no new constant appears here.
+  // A door that builds no ladder (Chat, Responses) hands one set and this picks it, as before.
+  const rungs = Array.isArray(cand.steps) && cand.steps.length ? cand.steps : [cand];
+  let take = null, takeP = null, best = null, bestP = null;
+  for (const rung of rungs) {
+    if (rung.tokens < cfg.clearAtLeast) continue;
+    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates });
+    if (p.pays && (!take || rung.tokens > take.tokens)) { take = rung; takeP = p; }
+    if (!bestP || p.payback < bestP.payback) { best = rung; bestP = p; }
+  }
+  // Nothing above the floor at any depth is the floor's refusal, not the pricing's; the shallowest rung is
+  // the smallest cut there is, so if even the whole set is under the floor the branch above already said so.
+  if (!best) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
+  if (!take) return { ...same, turn, candidate: best.tokens, held: { ...bestP, ...(rates ? { rates } : {}) }, reason: 'payback' };
+  // `candidate` is what the chosen rung takes, not what the whole ladder could: the log's question is what
+  // this boundary cut and what it cost, and `depth` says how far back it had to reach to find it.
+  return { cut: [...rec.cut, ...take.ids], clear: true, turn, cold, candidate: take.tokens,
+    ...(rungs.length > 1 ? { depth: take.ids.length, rungs: rungs.length } : {}),
+    ...(rates ? { rates } : {}), ...takeP };
 }
 
 // Accounting after an answer. There is no gauge: a cut that does not pay is not made, and the set

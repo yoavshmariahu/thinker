@@ -81,7 +81,14 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // The model reading again what was cleared, which the replay cannot see (proxy-replay.js), is measured per session
 // from the transcript since 2026-11-12 (rereads.js) and taken off the netted saving; the holdout that was kept for it
 // is off (proxy-service.js:SERVICE_HOLDOUT).
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 60000, holdout: 0, clearDeep: true };
+// `clearAtLeast` 8k since 2026-11-13, from 60k. The floor was the economics when a boundary had one candidate
+// to take or leave: a big batch was the only way a rewrite of the whole conversation could pay. With the
+// ladder (`cutCandidates`) the pricing chooses the depth and is exact at every rung, so a 60k floor only does
+// harm -- 60k of results can only be found by reaching back to old ones, which is precisely what makes the
+// rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
+// `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
+// tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 8000, holdout: 0, clearDeep: true };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -294,15 +301,54 @@ function walkResults(messages, keepMin, fn) {
 
 // What a boundary could newly cut, and what replacing it would cost: `recache` is the prompt from
 // the first result we would replace to the end, which is what a changed prefix makes the API write.
+// The ladder a boundary could cut, from the tail backwards (2026-11-13).
+//
+// Until now this took EVERY eligible result and handed back one candidate. That is the most a boundary can
+// remove and also the most it can cost: the rewrite runs from the first result replaced to the end, so a set
+// that reaches the oldest eligible result makes the rewritten span nearly the whole conversation. Measured on
+// this machine's 93 priced warm boundaries, such a set removed 26-34% of the span it rewrote, against the 42%
+// Anthropic's hourly rates need -- which is why 0 of the 12 boundaries under the current policy were cut.
+//
+// A removed token saves the same wherever it sat: its read, on every later call. Only the COST depends on
+// position. So the sets worth considering are the nested suffixes -- the newest eligible result, then the two
+// newest, and so on -- and the decision picks among them (cutting.js:decideCut). Each is priced exactly, as
+// the single set was, because the rewrite is still measured, never guessed.
+//
+// One backward pass builds all of them. Walking from the end, the set only ever grows backwards, so a message
+// already passed never changes which of its results are replaced: its sent length is final, and the running
+// sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
+// messages (two brackets and the commas), which the old single stringify of the slice included.
 export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, firstChanged = -1;
+  const takeAt = new Map();
   walkResults(messages, keepMin, (b, i, prot) => {
     if (prot || have.has(b.tool_use_id)) return;
     const text = resultText(b);
     if (text.length < minChars) return;
     ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
+    if (!takeAt.has(i)) takeAt.set(i, []);
+    takeAt.get(i).push({ id: b.tool_use_id, len: text.length });
   });
+  // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
+  // eligible result sits in one message, in which case this is exactly what the old single candidate was.
+  const steps = [];
+  if (takeAt.size) {
+    const sent = new Set(have);
+    let acc = 0, count = 0, took = 0, sum = 0;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const take = takeAt.get(i) || [];
+      for (const t of take) sent.add(t.id);
+      acc += JSON.stringify(applyCut([messages[i]], sent).messages[0]).length;
+      count++;
+      if (!take.length) continue;
+      for (const t of take) { took++; sum += t.len; }
+      steps.push({
+        ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * TOKENS_PER_CHAR),
+        recache: Math.round((acc + count + 1) * TOKENS_PER_CHAR), firstChanged: i,
+      });
+    }
+  }
   // What the rewrite actually pays for: the messages from the first replaced one onward, AS THEY WILL BE
   // SENT -- the new placeholders and the ones already in the set, not the full results the agent resent.
   // Measured on the original messages instead, this over-stated the cost by 3.1x, 7.9x and 14.9x on the
@@ -310,12 +356,14 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // still counted at full size. The API's own writes on those four calls were 47k, 58k, 56k and 52k --
   // flat, because the band runs up to the protection boundary, so everything between the first replaced
   // result and the live turn is itself replaced and the tail is only the part that survives.
-  let tail = 0;
-  if (firstChanged >= 0) {
-    const sent = applyCut(messages.slice(firstChanged), new Set([...have, ...ids])).messages;
-    tail = JSON.stringify(sent).length * TOKENS_PER_CHAR;
-  }
-  return { ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), recache: Math.round(tail), firstChanged };
+  // The deepest step IS this set, and its `recache` is that same tail summed message by message rather than
+  // stringified in one slice, which `test/cut-ladder.test.js` holds to the old figure. So the whole-set
+  // candidate the other doors and the old tests read is the last rung, and nothing is measured twice.
+  const whole = steps.length ? steps[steps.length - 1] : null;
+  return {
+    ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR),
+    recache: whole ? whole.recache : 0, firstChanged, steps,
+  };
 }
 
 // Apply a known set. Deterministic: the agent re-sends the whole conversation every call, so the
