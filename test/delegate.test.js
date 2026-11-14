@@ -137,12 +137,19 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   const j = JSON.parse(out);
   assert.equal(j.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(j.hookSpecificOutput.permissionDecisionReason, /def f0: the first function/);
-  const log = fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.op === 'delegate');
-  assert.equal(log.length, 1); assert.equal(log[0].cost, 0.02); assert.equal(log[0].subagent, 'sub1'); assert.deepEqual(log[0].files, ['core.py']);
+  const rowsOf = () => fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.op === 'delegate');
+  const log = rowsOf();
+  // The small read passed in silence, but it still left a row saying it was declined: without one,
+  // "the hook never ran" and "the hook ran and the turn never reached the threshold" are the same
+  // silence, and on 2026-11-14 a whole PostHog pair could not be read for exactly that reason.
+  assert.equal(log.length, 2);
+  assert.equal(log[0].fired, false); assert.equal(log[0].declined, 'below-threshold');
+  assert.deepEqual(log[0].files, ['x.py']); assert.equal(typeof log[0].turnTokens, 'number');
+  assert.equal(log[1].cost, 0.02); assert.equal(log[1].subagent, 'sub1'); assert.deepEqual(log[1].files, ['core.py']);
   // the same read again: the cached report, no second log row with a cost
   assert.match(JSON.parse(hook(ev(big))).hookSpecificOutput.permissionDecisionReason, /def f0/);
-  const log2 = fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.op === 'delegate');
-  assert.equal(log2.length, 2); assert.equal(log2[1].cached, true);
+  const log2 = rowsOf();
+  assert.equal(log2.length, 3); assert.equal(log2[2].cached, true);
   // off: silence, and no row
   assert.equal(hook(ev(big), { THINKER_DELEGATE: 'off' }), '');
   // another client's event: nothing

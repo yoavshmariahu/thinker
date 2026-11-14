@@ -317,7 +317,21 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const handoff = exec.mode === 'handoff';
   let d, cached, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
-  if (!d.fire && !d.spent) return null;
+  // A read the rule declined still leaves a row, because without one "the hook never ran" and "the hook
+  // ran and the turn never reached the threshold" are the same silence -- and on 2026-11-14 a whole
+  // PostHog pair could not be read for exactly that reason: 31 reads, no denial, no row, no way to tell
+  // which. Only a sized read is logged (`d.tokens` is a number), so an ordinary shell call stays quiet
+  // and a session's rows number its reads, not its tool calls. `turnTokens` against `threshold` is then
+  // the answer to "how close did this turn come".
+  if (!d.fire && !d.spent) {
+    if (typeof d.tokens === 'number') log({
+      op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name,
+      files: (read ? read.files : []).map(f => path.relative(cwd || '', f) || f),
+      tokens: d.tokens, turnTokens: d.turnTokens, threshold: cfg.threshold, minRead: cfg.minRead,
+      mode: exec.mode, fired: false, declined: 'below-threshold',
+    });
+    return null;
+  }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
   const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, held, mode: exec.mode };
