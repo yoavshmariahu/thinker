@@ -39,6 +39,7 @@ import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
 import { cutTimesFor, rereadsOf } from '../rereads.js';
 import { labelBlock } from '../labels.js';
+import { emitSession } from '../events.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -336,6 +337,12 @@ async function hookCommand(ctx) {
         const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
         store.log(record);
       } catch {}
+      // and out to the sink, where this machine has one (events.js). The same session, priced by the one
+      // door `thinker prs` and the Report read, as an upsert keyed on (install, session): the clearing's
+      // figure settles a few turns after the cut, so a later event carries more than an earlier one and a
+      // collector must take the newest, never add two. Does nothing at all where no sink is configured,
+      // which is every machine that has not asked for one.
+      try { await emitSession(store, { session }); } catch {}
     }
     // A clear the proxy never saw -- a desktop session's, made by the clearing mod -- lives in the card's own
     // state file, which is pruned after two days. Every window that reads a saving is longer than that, so it

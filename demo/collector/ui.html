@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>thinker · fleet</title>
+<!--
+  The fleet page: what thinker did on every machine reporting here, one row a machine.
+
+  Stat tiles and a table, no chart: the data's job here is magnitude and identity across a handful of
+  groups, which a table reads better than any plot, and the headline figures are single numbers, which is
+  what a stat tile is for. Dark mode is chosen, not an automatic flip -- its own steps from the same ramps,
+  against the dark surface.
+
+  Every rate comes from the server as a ratio of sums (server.mjs:rates). Nothing is computed from tokens
+  here: dollars are the ones the machines priced with `prices.js`, and a group with no priced session shows
+  no cost rather than $0.00.
+-->
+<style>
+  /* thinker.sh's own tokens (site/compression.html): neutral greys, white cards, blue for a control arm and
+     green for thinker's. The warm off-white set this started on read as an orange tint beside the site.
+     The site is light and nothing of it is themed, so this is light too. */
+  :root {
+    --fg: #111111; --fg-2: #333333; --muted: #666666; --faint: #9a9a9a;
+    --line: #e5e7eb; --line-2: #f0f0f2; --card: #ffffff; --card-2: #fafafa;
+    --ctl: #2563eb; --thk: #15803d; --flag: #b45309;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* what the rules below call things */
+    --surface: var(--card); --plane: #ffffff;
+    --ink: var(--fg); --ink-2: var(--fg-2);
+    --rule: var(--line); --border: var(--line); --axis: #d1d5db;
+    --good: var(--thk); --bad: #b91c1c; --series: var(--thk);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 56px;
+    background: var(--plane); color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 13px; margin: 0 0 22px; }
+
+  /* filters in one row above the figures */
+  .filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  /* The chevron is drawn, not the platform's: a native arrow sits hard against the right edge and at a
+     different offset per platform, so it reads as misaligned beside a sized control. Drawn at a fixed
+     10px inset with the padding reserved for it, both modes using currentColor at the muted ink. */
+  select {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 32px 6px 10px; min-width: 150px; max-width: 100%;
+    appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 11px 7px;
+    cursor: pointer;
+  }
+  select:hover { border-color: var(--axis); }
+  select:focus-visible { outline: 2px solid var(--series); outline-offset: 1px; }
+  .spacer { flex: 1; }
+  .stamp { color: var(--muted); font-size: 12px; }
+
+  /* KPI row */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 680px) { .tiles { grid-template-columns: 1fr; } }
+  .tile {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .tile .value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .tile .note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .pos { color: var(--good); }
+  .neg { color: var(--bad); }
+
+  /* table */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .card h2 { font-size: 13px; font-weight: 600; margin: 0; padding: 13px 16px; border-bottom: 1px solid var(--rule); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 9px 16px; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
+  th:first-child, td:first-child, th.l, td.l { text-align: left; }
+  td.l { font-variant-numeric: normal; }
+  td { font-variant-numeric: tabular-nums; }
+  td:first-child { font-variant-numeric: normal; }
+  tbody tr:hover { background: var(--line-2); }
+  tbody tr:last-child td { border-bottom: none; }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--rule); border-bottom: none; background: var(--card-2); }
+  .dim { color: var(--muted); }
+  .filternote { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 6px; }
+  tbody tr.click { cursor: pointer; }
+  tbody tr.on { background: #eef4ff; }
+  .back { color: var(--ink-2); text-decoration: none; font-size: 13px; }
+  .back:hover { color: var(--ink); text-decoration: underline; }
+  .kind { display: inline-block; min-width: 74px; font-weight: 600; }
+  .kind.cut { color: var(--good); }
+  .kind.delegate { color: var(--ctl); }
+  .kind.held { color: var(--muted); font-weight: 400; }
+  .pickrow { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--rule); }
+  figure { margin: 0; }
+  .chart { padding: 4px 10px 10px; position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; }
+  .chart .grid line { stroke: var(--rule); stroke-width: 1; }
+  .chart .axis text { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart .axis line { stroke: var(--axis); }
+  .chart .ln { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: var(--series); opacity: 0.08; }
+  .chart .cutline { stroke: var(--ink-2); stroke-width: 2; stroke-dasharray: 3 3; }
+  .chart .dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+  .chart .cross { stroke: var(--axis); stroke-width: 1; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+         border-radius: 7px; padding: 6px 9px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.14);
+         white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 0 16px 14px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 16px; border-top: 2px solid var(--series); }
+  .legend i.cut { width: 0; height: 12px; border-top: 0; border-left: 2px dashed var(--ink-2); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; }
+  .two > div + div { border-left: 1px solid var(--rule); }
+  .colhead { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 11px 16px 7px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } .two > div + div { border-left: none; border-top: 1px solid var(--rule); } }
+  .empty { padding: 40px 16px; text-align: center; color: var(--muted); }
+  details { margin-top: 20px; }
+  summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
+  .foot { margin-top: 22px; color: var(--muted); font-size: 12px; max-width: 70ch; }
+  code { font-family: var(--mono); font-size: 12px; }
+
+  /* The control form: a row a setting, its own value beside what it means. */
+  .say { padding: 0 16px 4px; margin: 0 0 6px; color: var(--muted); font-size: 12.5px; max-width: 78ch; line-height: 1.55; }
+  .set { display: grid; grid-template-columns: 180px 230px 1fr; gap: 16px; align-items: center;
+         padding: 13px 16px; border-bottom: 1px solid var(--line-2); }
+  .set:last-child { border-bottom: none; }
+  .set label { font-size: 13px; color: var(--ink); }
+  .set .help { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .set .unit { font-size: 11px; color: var(--faint); margin-left: 5px; }
+
+  /* A number is a slider: the range it may take is part of what the control says, and a free text box
+     invites a figure the machine would refuse. The readout carries the value and whose it is. */
+  .set .val { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+  .set .num { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .set .num.own { color: var(--muted); }
+  .set .own-note { font-size: 11px; color: var(--faint); }
+  .set .own-note a { color: var(--ctl); text-decoration: none; }
+  .set .own-note a:hover { text-decoration: underline; }
+  .set input[type=range] { appearance: none; -webkit-appearance: none; width: 100%; height: 18px;
+    background: transparent; display: block; cursor: pointer; margin: 0; }
+  .set input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--line); }
+  .set input[type=range]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--line); }
+  .set input[type=range]::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 14px; height: 14px;
+    border-radius: 50%; background: var(--ctl); border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); margin-top: -5px; }
+  .set input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ctl);
+    border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); }
+  .set input[type=range]:focus { outline: none; }
+  .set input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--ctl), 0 0 0 4px #dbeafe; }
+  .set .ends { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--faint);
+               font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .set select { appearance: none; -webkit-appearance: none; width: 100%; box-sizing: border-box; font: inherit;
+    font-size: 13px; padding: 5px 30px 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--plane) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 9px center;
+    color: var(--ink); }
+  .btn { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--ctl);
+         background: var(--ctl); color: #fff; cursor: pointer; }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:disabled { opacity: .55; cursor: default; filter: none; }
+  .btn.ghost { background: var(--plane); color: var(--ink-2); border-color: var(--border); text-decoration: none;
+               display: inline-block; line-height: 1.45; }
+  .btn.ghost:hover { border-color: var(--ctl); color: var(--ctl); filter: none; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill.wait { border-color: var(--flag); color: var(--flag); }
+  .pill.ok { border-color: var(--thk); color: var(--thk); }
+  .btn.ghost[disabled] { color: var(--faint); border-color: var(--line); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>thinker · fleet</h1>
+      <p class="sub">What thinker did on every machine reporting here.</p>
+      <p class="stamp" id="stamp"></p>
+    </div>
+    <a href="#settings" class="btn ghost" id="toSettings">Settings</a>
+  </div>
+
+  <!-- Overview: the fleet, its machines, and their sessions. -->
+  <div id="overview">
+    <div class="tiles" id="tiles"></div>
+
+    <div class="card">
+      <h2>Machines</h2>
+      <div id="machines"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Sessions <span class="filternote" id="filterNote"></span></h2>
+      <div id="sessions"></div>
+    </div>
+  </div>
+
+  <!-- One machine: what it did, what it is running, and what it has been told to run. -->
+  <div id="machine" hidden>
+    <p><a href="#" class="back" id="backM">← all machines</a></p>
+    <div class="card">
+      <h2 id="machineTitle">Machine</h2>
+      <div class="pickrow"><span class="stamp" id="machineNote"></span></div>
+      <div id="machineStats"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Running <span class="filternote" id="runNote"></span></h2>
+      <div id="running"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Sessions <span class="filternote">on this machine</span></h2>
+      <div id="machineSessions"></div>
+    </div>
+  </div>
+
+  <!-- The fleet's settings: one policy, every machine, taken on each one's next session. -->
+  <div id="settingsView" hidden>
+    <p><a href="#" class="back" id="backS">← all machines</a></p>
+    <div class="card">
+      <h2>Settings <span class="filternote" id="fleetNote"></span></h2>
+      <p class="say">One policy for every machine reporting here. What you save is taken by each machine when
+        its next session ends — thinker asks its collector for these each time it reports, so nothing listens
+        on a machine and nothing needs reaching into one. A setting you have never changed is left to each
+        machine's own configuration.</p>
+      <div id="settings"></div>
+      <div class="pickrow" style="margin-top:14px;border-bottom:none">
+        <button id="save" class="btn">Save settings</button>
+        <button id="cancel" class="btn ghost">Cancel</button>
+        <span class="stamp" id="saveNote"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- One session, in depth: the trend, what thinker did in it, and the calls it is made of. -->
+  <div id="detail" hidden>
+    <p><a href="#" class="back" id="back">← all machines</a></p>
+    <div class="card">
+      <h2 id="detailTitle">Session</h2>
+      <div class="pickrow"><span class="stamp" id="sessionNote"></span></div>
+      <div class="two">
+        <figure>
+          <div class="colhead">Context carried, per model call</div>
+          <div class="chart" id="chartCtx"></div>
+        </figure>
+        <figure>
+          <div class="colhead">Cumulative cost, per model call</div>
+          <div class="chart" id="chartCost"></div>
+        </figure>
+      </div>
+      <div class="legend" id="chartLegend"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Actions thinker took</h2>
+      <div id="actions"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Calls <span class="filternote">the session as it ran</span></h2>
+      <div id="calls"></div>
+    </div>
+  </div>
+
+  <p class="foot">
+    A session is an upsert keyed on install and session id, never an addition: its clearing figure settles a
+    few turns after the cut, so the same session arrives again carrying more. Every rate is a ratio of sums.
+    Dollars are the ones each machine priced at list rates; a session whose model has no price is counted as
+    a session and in no dollar figure. <strong>Net</strong> is cleared at the cache-read rate, less the cache
+    writes after a clear, less the re-reads of cleared files.
+  </p>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// auto-compact, the stat-tile contract: 1,284 / 12.9K / $4.2M
+const compact = n => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+  if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+};
+// a loss reads as a loss: -$16.90, never $-16.90
+const usd = (n, { sign = false } = {}) => {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const a = Math.abs(n);
+  const body = a >= 1e6 ? '$' + (a / 1e6).toFixed(2) + 'M'
+    : a >= 1e4 ? '$' + (a / 1e3).toFixed(1) + 'K'
+    : '$' + a.toFixed(2);
+  return (n < 0 ? '-' : sign ? '+' : '') + body;
+};
+const pct = n => (n == null || !Number.isFinite(n) ? '—' : (n * 100).toFixed(n < 0.1 ? 1 : 0) + '%');
+const cls = n => (n == null ? '' : n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+
+// No window control and no group-by: the fleet is small and every machine runs the same build, so a filter
+// here only ever hides a row somebody came to see. The server's cap is the window.
+const WINDOW_DAYS = 365;
+
+function tiles(t) {
+  // Three, and only three. Everything else the page can say, it says in a row of the machines table or in
+  // the session below; a fourth tile only competes with these for the reader's first glance.
+  const items = [
+    { label: 'Net saved', value: usd(t.net), note: `${pct(t.netShareOfSpend)} of what was spent`, cls: cls(t.net) },
+    { label: 'Total spent', value: usd(t.spend), note: `${usd(t.spendPerPrompt)} a prompt · ${compact(t.spendSessions)}/${compact(t.sessions)} sessions priced` },
+    { label: 'Context cuts', value: compact(t.cuts), note: `${compact(t.cleared)} tokens out, over ${compact(t.callsCleared)} calls` },
+  ];
+  $('tiles').innerHTML = items.map(i => `
+    <div class="tile">
+      <div class="label">${i.label}</div>
+      <div class="value ${i.cls || ''}">${i.value}</div>
+      <div class="note">${i.note}</div>
+    </div>`).join('');
+}
+
+// One row a machine. No group-by and no window control: every machine runs the same build and the fleet is
+// small, so a filter here only hides a row somebody came to see.
+const MACHINE_COLS = [
+  ['sessions', r => compact(r.sessions)],
+  ['prompts', r => compact(r.prompts)],
+  ['cuts', r => compact(r.cuts)],
+  ['cleared', r => pct(r.clearedShare)],
+  ['net', r => `<span class="${cls(r.net)}">${usd(r.net)}</span>`],
+  ['spend', r => usd(r.spend)],
+  ['saved vs spend', r => pct(r.netShareOfSpend)],
+  ['per prompt', r => usd(r.spendPerPrompt)],
+  ['last seen', r => `<span class="dim">${since(r.lastAt)}</span>`, 'left'],
+];
+
+const since = iso => {
+  if (!iso) return '—';
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 48 * 60) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+};
+
+function machineTable(rows) {
+  if (!rows.length) {
+    $('machines').innerHTML = `<div class="empty">No machine is reporting yet.<br>
+      Point one here with <code>THINKER_EVENTS=http://host:PORT/v1/sessions</code>.</div>`;
+    return;
+  }
+  const head = `<tr><th>machine</th>${MACHINE_COLS.map(([h, , align]) => `<th${align === 'left' ? ' class="l"' : ''}>${h}</th>`).join('')}</tr>`;
+  const body = rows.map(r => `<tr class="click" data-i="${esc(r.install)}">
+      <td title="${esc(r.install)}"><code>${esc(String(r.install).slice(0, 8))}</code></td>
+      ${MACHINE_COLS.map(([, f, align]) => `<td${align === 'left' ? ' class="l"' : ''}>${f(r)}</td>`).join('')}
+    </tr>`).join('');
+  $('machines').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  // A machine opens its own page: its figures, its sessions, and the settings it is told to run.
+  for (const tr of $('machines').querySelectorAll('tr.click')) {
+    tr.addEventListener('click', () => { location.hash = `#m/${encodeURIComponent(tr.dataset.i)}`; });
+  }
+}
+
+// decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw.
+const WHY = {
+  'nothing-to-cut': 'nothing left to cut — every finished result already out',
+  'below-trigger': 'under the trigger — the prompt was still small',
+  'below-clear-minimum': 'under the size floor — too little to be worth a rewrite',
+  'mid-turn': 'mid-turn — a cut waits for a turn boundary',
+  'one-cut': 'already cut once this session',
+  'payback': 'would not pay back — the rewrite would cost more than the saving',
+  'holdout': 'held out — this session is the comparison arm',
+};
+
+// ---------------------------------------------------------------------------
+// Two charts, never two axes on one: context carried per call, and cost accumulating per call. The cuts are
+// dashed rules across both, because a cut is the event the trend bends at.
+const PAD = { l: 52, r: 12, t: 10, b: 22 }, VW = 560, VH = 190;
+
+const niceTicks = (max, n = 4) => {
+  if (!(max > 0)) return [0];
+  const raw = max / n, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw) || mag * 10;
+  const out = []; for (let v = 0; v <= max * 1.0001; v += step) out.push(v);
+  return out;
+};
+
+function lineChart(el, pts, { value, format, cuts }) {
+  if (!pts.length) { el.innerHTML = '<div class="empty">No calls recorded.</div>'; return; }
+  const vals = pts.map(value);
+  const max = Math.max(...vals, 0) || 1;
+  const lastCall = pts[pts.length - 1].c || pts.length;
+  const X = c => PAD.l + ((c - 1) / Math.max(1, lastCall - 1)) * (VW - PAD.l - PAD.r);
+  const Y = v => VH - PAD.b - (v / max) * (VH - PAD.t - PAD.b);
+  const ticks = niceTicks(max);
+
+  let g = `<svg viewBox="0 0 ${VW} ${VH}" role="img" aria-label="${el.id === 'chartCtx' ? 'Context carried per model call' : 'Cumulative cost per model call'}">`;
+  g += '<g class="grid">' + ticks.map(v => `<line x1="${PAD.l}" x2="${VW - PAD.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join('') + '</g>';
+  g += '<g class="axis">' + ticks.map(v => `<text x="${PAD.l - 6}" y="${Y(v) + 3}" text-anchor="end">${format(v)}</text>`).join('')
+    + `<line x1="${PAD.l}" x2="${VW - PAD.r}" y1="${VH - PAD.b}" y2="${VH - PAD.b}"/>`
+    + `<text x="${PAD.l}" y="${VH - 6}">call 1</text>`
+    + `<text x="${VW - PAD.r}" y="${VH - 6}" text-anchor="end">call ${lastCall}</text></g>`;
+  // the cuts, behind the line
+  for (const c of cuts) g += `<line class="cutline" x1="${X(c.c)}" x2="${X(c.c)}" y1="${PAD.t}" y2="${VH - PAD.b}"/>`;
+  const d = pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.c).toFixed(1)},${Y(value(p)).toFixed(1)}`).join('');
+  g += `<path class="area" d="${d}L${X(lastCall)},${VH - PAD.b}L${X(pts[0].c)},${VH - PAD.b}Z"/><path class="ln" d="${d}"/>`;
+  g += `<g class="hover"></g></svg>`;
+  el.innerHTML = g;
+
+  // hover: a crosshair and a tooltip, the default on a line chart
+  const svg = el.querySelector('svg'), hover = el.querySelector('.hover');
+  let tip = null;
+  const clear = () => { hover.innerHTML = ''; if (tip) { tip.remove(); tip = null; } };
+  svg.addEventListener('mousemove', e => {
+    const box = svg.getBoundingClientRect();
+    const sx = (e.clientX - box.left) / box.width * VW;
+    let best = pts[0], bd = Infinity;
+    for (const p of pts) { const d2 = Math.abs(X(p.c) - sx); if (d2 < bd) { bd = d2; best = p; } }
+    const px = X(best.c), py = Y(value(best));
+    hover.innerHTML = `<line class="cross" x1="${px}" x2="${px}" y1="${PAD.t}" y2="${VH - PAD.b}"/><circle class="dot" cx="${px}" cy="${py}" r="4.5"/>`;
+    if (!tip) { tip = document.createElement('div'); tip.className = 'tip'; el.appendChild(tip); }
+    const why = best.cut ? `cut ${compact(best.cut)} tokens` : best.reason ? (WHY[best.reason] || best.reason) : '';
+    tip.innerHTML = `<strong>call ${best.c}</strong>${best.turn != null ? ` · turn ${best.turn}` : ''}<br>${format(value(best))}${why ? `<br><span class="dim">${esc(why)}</span>` : ''}`;
+    const left = Math.min(Math.max(px / VW * box.width - 60, 4), box.width - 150);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${Math.max(2, py / VH * box.height - 54)}px`;
+  });
+  svg.addEventListener('mouseleave', clear);
+}
+
+function drawSession(d) {
+  const series = d.decisions?.series || [];
+  const cuts = series.filter(p => p.cut);
+  let run = 0;
+  const cumulative = series.map(p => ({ ...p, cum: (run += (p.cost || 0)) }));
+  lineChart($('chartCtx'), series, { value: p => p.carried, format: compact, cuts });
+  lineChart($('chartCost'), cumulative, { value: p => p.cum, format: v => usd(v), cuts });
+  $('chartLegend').innerHTML = `<span><i></i>${esc(d.model || 'the session')}</span><span><i class="cut"></i>cut by thinker</span>`;
+  const peak = Math.max(0, ...series.map(p => p.carried));
+  $('detailTitle').innerHTML = `Session <code>${esc(d.session)}</code> <span class="filternote">on machine ${esc(String(d.install).slice(0, 8))}</span>`;
+  $('sessionNote').innerHTML = `${compact(d.decisions?.calls || series.length)} calls · peak context ${compact(peak)} tokens · `
+    + `${compact(d.cuts || 0)} ${d.cuts === 1 ? 'cut' : 'cuts'} · net <span class="${cls(d.net)}">${usd(d.net)}</span> on ${usd(d.spend)} spent`;
+  actionTable(d);
+  callTable(series, d.decisions || {});
+}
+
+// Everything thinker did in this session, in order. Each row says what it did, to what, and what it cost or
+// saved -- a cut with its policy, a delegation with its model and price, the profile served or held out.
+function actionTable(d) {
+  const acts = d.decisions?.actions || [];
+  if (!acts.length) { $('actions').innerHTML = `<div class="empty">thinker took no action in this session.</div>`; return; }
+  const row = a => {
+    if (a.kind === 'cut') return [`<span class="kind cut">cut</span>`, `turn ${a.turn ?? '—'}`,
+      `${compact(a.tokens)} tokens out`, `${compact(a.results)} results`,
+      `<code class="dim">${esc(a.policy || 'unstamped')}${a.cold ? ' · cold' : ''}</code>`];
+    if (a.kind === 'dropped') return [`<span class="kind">dropped</span>`, `${compact(a.results)} results`,
+      esc(a.tools.map(t => `${t.name} ×${t.calls}`).join(', ')), `${compact(a.tools.reduce((x, t) => x + t.tokens, 0))} tokens`, ''];
+    if (a.kind === 'profile') return [`<span class="kind${a.arm === 'shown' ? '' : ' held'}">profile</span>`,
+      a.arm === 'shown' ? `${compact(a.lines)} lines` : 'held out',
+      a.arm === 'shown' ? `${compact(a.chars)} chars` : '', a.afterCompaction ? 'after a compaction' : '', ''];
+    if (a.kind === 'delegate') return [`<span class="kind${a.held ? ' held' : ' delegate'}">delegate</span>`,
+      esc(a.of || '') + (a.held ? ' (held out)' : a.cached ? ' (cached)' : ''),
+      esc(a.files.join(', ')), `${compact(a.tokens)} tokens`,
+      a.error ? `<span class="neg">${esc(a.error)}</span>` : a.usd != null ? usd(a.usd) : (a.model ? `<code class="dim">${esc(a.model)}</code>` : '')];
+    return [esc(a.kind), '', '', '', ''];
+  };
+  $('actions').innerHTML = `<table><tbody>${acts.map(a => {
+    const [k, b, c, dd, e] = row(a);
+    return `<tr><td class="l">${k}</td><td class="l">${b}</td><td class="l">${c}</td><td>${dd}</td><td class="l">${e}</td>
+      <td class="l"><span class="dim">${since(a.at)}</span></td></tr>`;
+  }).join('')}</tbody></table>`;
+}
+
+// The calls themselves: the structural transcript. No prompt or result text ever leaves a machine, so what
+// a call is here is its size, its cost, the turn it belongs to and what thinker decided on it.
+function callTable(series, dec) {
+  if (!series.length) { $('calls').innerHTML = `<div class="empty">No calls recorded.</div>`; return; }
+  const head = `<tr><th>call</th><th>turn</th><th>context carried</th><th>output</th><th>cost</th><th class="l">thinker</th></tr>`;
+  const body = series.map(p => `<tr${p.cut ? ' class="on"' : ''}>
+      <td>${p.c}</td><td>${p.turn ?? '—'}</td><td>${compact(p.carried)}</td><td>${compact(p.out)}</td>
+      <td>${p.cost == null ? '<span class="dim">unpriced</span>' : usd(p.cost)}</td>
+      <td class="l">${p.cut ? `<strong>cut ${compact(p.cut)} tokens</strong>` : `<span class="dim">${esc(WHY[p.reason] || p.reason || '')}</span>`}</td>
+    </tr>`).join('');
+  const note = dec.calls > series.length
+    ? `<div class="empty">${compact(dec.calls)} calls in all; every cut is kept and the rest sampled to ${series.length}.</div>` : '';
+  $('calls').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>${note}`;
+}
+
+// ---------------------------------------------------------------------------
+// Views. The overview is the fleet; a session is its own page, reachable by its own URL.
+let FLEET = { recent: [], machines: [] };
+
+function sessionTable(into = 'sessions', install = null) {
+  const rows = FLEET.recent.filter(r => !install || r.install === install);
+  if (into === 'sessions') $('filterNote').innerHTML = `every machine`;
+  if (!rows.length) { $(into).innerHTML = `<div class="empty">No session recorded yet.</div>`; return; }
+  const head = `<tr><th class="l">session</th><th class="l">machine</th><th class="l">model</th><th>calls</th><th>prompts</th>`
+    + `<th>cuts</th><th>cleared</th><th>net</th><th>spend</th><th class="l">when</th></tr>`;
+  const body = rows.map(r => `<tr class="click" data-i="${esc(r.install)}" data-s="${esc(r.session)}">
+      <td class="l"><code>${esc(r.session)}</code></td>
+      <td class="l"><code class="dim">${esc(String(r.install).slice(0, 8))}</code></td>
+      <td class="l">${esc(r.model || '—')}</td>
+      <td>${compact(r.calls)}</td><td>${compact(r.prompts)}</td>
+      <td>${compact(r.cuts)}</td><td>${compact(r.cleared)}</td>
+      <td class="${cls(r.net)}">${usd(r.net)}</td>
+      <td>${r.priced ? usd(r.spend) : '<span class="dim">unpriced</span>'}</td>
+      <td class="l"><span class="dim">${since(r.at)}</span></td>
+    </tr>`).join('');
+  $(into).innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  for (const tr of $(into).querySelectorAll('tr.click')) {
+    tr.addEventListener('click', () => { location.hash = `#s/${encodeURIComponent(tr.dataset.i)}/${encodeURIComponent(tr.dataset.s)}`; });
+  }
+}
+
+async function openSession(install, session) {
+  const res = await fetch(`/api/session?install=${encodeURIComponent(install)}&session=${encodeURIComponent(session)}`);
+  if (!res.ok) { location.hash = ''; return; }
+  $('overview').hidden = true;
+  $('detail').hidden = false;
+  drawSession(await res.json());
+}
+
+// ---------------------------------------------------------------------------
+// Settings: one policy, the whole fleet.
+//
+// Two decisions shape this. Settings are **saved on the button**, not as a slider moves: this is a policy for
+// every machine somebody is running, and a figure dragged past on the way to another is not a decision. And
+// **there is no revision**: settings carry the time they were set, newest wins, and whether a machine has
+// them is answered by the machine itself, which reports the value each setting actually has on it. So the
+// page never claims a setting is in force; it shows what is set, and says how many machines have taken it.
+
+let SETTINGS = null; // { settings, control, fleet }
+
+const idOf = s => `set-${s.path.replace(/\./g, '-')}`;
+const atPath = (o, p) => p.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
+// What a control shows: what is set for the fleet, else thinker's own default, which is what an untouched
+// machine runs anyway. Nothing to label -- it is simply the value.
+const valueOf = s => { const v = atPath(SETTINGS.control.config, s.path); return v === undefined || v === null ? s.dflt : v; };
+
+function settingField(s) {
+  const id = idOf(s), v = valueOf(s);
+  if (s.type === 'bool') {
+    return `<select id="${id}" data-path="${esc(s.path)}" data-type="bool">
+      <option value="true"${v === true ? ' selected' : ''}>on</option>
+      <option value="false"${v === false ? ' selected' : ''}>off</option>
+    </select>`;
+  }
+  return `<div class="val">
+      <span class="num" id="${id}-out">${compact(v)}</span>
+    </div>
+    <input type="range" id="${id}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
+      min="${s.min}" max="${s.max}" step="${s.step}" value="${v}">
+    <div class="ends"><span>${compact(s.min)}</span><span>${compact(s.max)}</span></div>`;
+}
+
+function fleetNote() {
+  const f = SETTINGS.fleet || { machines: 0, pending: 0 };
+  $('fleetNote').innerHTML = !SETTINGS.control.at
+    ? `nothing set — every machine runs its own configuration`
+    : f.pending
+      ? `<span class="pill wait">${f.pending} of ${f.machines} machines still to take this</span> each one does when its next session ends`
+      : `<span class="pill ok">every machine has taken this</span> set ${esc(since(SETTINGS.control.at))}`;
+}
+
+function settingsForm() {
+  const { settings } = SETTINGS;
+  $('settings').innerHTML = settings.map(s => `<div class="set">
+      <label for="${idOf(s)}">${esc(s.label)}${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ''}</label>
+      <div>${settingField(s)}</div>
+      <div class="help">${esc(s.help)}</div>
+    </div>`).join('');
+  fleetNote();
+
+  // A slider reads as it is dragged; nothing leaves the page until Save.
+  for (const el of $('settings').querySelectorAll('input[type=range]')) {
+    el.addEventListener('input', () => { $(`${el.id}-out`).textContent = compact(Number(el.value)); });
+  }
+  for (const el of $('settings').querySelectorAll('[data-path]')) {
+    el.addEventListener('input', () => { $('saveNote').textContent = ''; dirty(true); });
+  }
+  dirty(false);
+}
+
+// Nothing to save and nothing to cancel until a control has been touched, so the two buttons say whether
+// the page is showing the fleet's settings or an edit of them.
+function dirty(on) {
+  $('save').disabled = !on;
+  $('cancel').disabled = !on;
+}
+
+async function saveSettings() {
+  $('save').disabled = true;
+  $('cancel').disabled = true;
+  $('saveNote').textContent = 'saving…';
+  // Only what has a control on this page is sent, and it is sent whole: the stored policy is exactly what
+  // the form shows, so there is no third place for a setting to live.
+  const config = {};
+  for (const el of $('settings').querySelectorAll('[data-path]')) {
+    const v = el.dataset.type === 'bool' ? el.value === 'true' : Number(el.value);
+    const ks = el.dataset.path.split('.'), last = ks.pop();
+    let node = config;
+    for (const k of ks) node = node[k] || (node[k] = {});
+    node[last] = v;
+  }
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config }),
+    });
+    if (!res.ok) throw new Error(`the collector refused it (${res.status})`);
+    const out = await res.json();
+    SETTINGS.control = { config: out.config, at: out.at, by: out.by };
+    SETTINGS.fleet = out.fleet;
+    fleetNote();
+    // What this build will not set is said, never swallowed.
+    $('saveNote').textContent = out.changed ? 'saved' : 'no change';
+    if (out.dropped?.length) $('saveNote').textContent += ` · not settable here: ${out.dropped.join(', ')}`;
+    dirty(false);
+  } catch (err) {
+    $('saveNote').textContent = String(err.message || err);
+    dirty(true);
+  }
+}
+
+async function openSettings() {
+  SETTINGS = await (await fetch('/api/settings')).json();
+  $('overview').hidden = true;
+  $('detail').hidden = true;
+  $('machine').hidden = true;
+  $('settingsView').hidden = false;
+  settingsForm();
+}
+
+// ---------------------------------------------------------------------------
+// One machine: its figures, its sessions, and what it says it is running.
+
+let MACHINE = null;
+
+const MACHINE_STATS = [
+  ['sessions', m => compact(m.sessions)],
+  ['prompts', m => compact(m.prompts)],
+  ['context cuts', m => compact(m.cuts)],
+  ['sessions cut', m => pct(m.clearedShare)],
+  ['net saved', m => `<span class="${cls(m.net)}">${usd(m.net)}</span>`],
+  ['spent', m => usd(m.spend)],
+  ['per prompt', m => usd(m.spendPerPrompt)],
+];
+
+// What this machine says each setting is on it, which is the only honest answer to "did it take". A machine
+// on an older build reports nothing, and is said to be so rather than guessed at.
+function runningTable() {
+  const { settings, running, control } = MACHINE;
+  const vals = running.values || {};
+  if (!Object.keys(vals).length) {
+    $('runNote').textContent = '';
+    $('running').innerHTML = `<div class="empty">This machine has not reported its settings.<br>
+      It is on a build from before they were sent, or nothing has been set here yet.</div>`;
+    return;
+  }
+  $('runNote').innerHTML = running.pending.length
+    ? `<span class="pill wait">${running.pending.length} still to take</span> on its next session`
+    : control.at ? `<span class="pill ok">up to date</span> as of ${esc(since(running.at))}` : `as of ${esc(since(running.at))}`;
+  const fmt = (s, v) => v === undefined ? '<span class="dim">—</span>'
+    : s.type === 'bool' ? (v ? 'on' : 'off') : compact(v);
+  $('running').innerHTML = `<table><thead><tr>${settings.map(s => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>`
+    + `<tbody><tr>${settings.map(s => {
+        const pending = running.pending.includes(s.path);
+        return `<td>${fmt(s, vals[s.path])}${pending ? ` <span class="pill wait">set to ${esc(String(fmt(s, atPath(control.config, s.path))))}</span>` : ''}</td>`;
+      }).join('')}</tr></tbody></table>`;
+}
+
+async function openMachine(install) {
+  const res = await fetch(`/api/machine?install=${encodeURIComponent(install)}&days=${WINDOW_DAYS}`);
+  if (!res.ok) { location.hash = ''; return; }
+  MACHINE = await res.json();
+  $('overview').hidden = true;
+  $('detail').hidden = true;
+  $('settingsView').hidden = true;
+  $('machine').hidden = false;
+
+  const m = MACHINE.machine;
+  $('machineTitle').innerHTML = `Machine <code>${esc(String(install).slice(0, 8))}</code>`;
+  $('machineNote').textContent = m
+    ? `thinker ${m.version || 'unknown build'} · last seen ${since(m.lastAt)}`
+    : 'no session from this machine in the window';
+  $('machineStats').innerHTML = m
+    ? `<table><thead><tr>${MACHINE_STATS.map(([h]) => `<th>${h}</th>`).join('')}</tr></thead>`
+      + `<tbody><tr>${MACHINE_STATS.map(([, f]) => `<td>${f(m)}</td>`).join('')}</tr></tbody></table>`
+    : `<div class="empty">Nothing reported in the last ${WINDOW_DAYS} days.</div>`;
+
+  runningTable();
+  sessionTable('machineSessions', install);
+}
+
+function render() {
+  machineTable(FLEET.machines);
+  sessionTable();
+}
+
+function route() {
+  const hash = location.hash || '';
+  const s = /^#s\/([^/]+)\/(.+)$/.exec(hash);
+  if (s) return openSession(decodeURIComponent(s[1]), decodeURIComponent(s[2]));
+  const m = /^#m\/(.+)$/.exec(hash);
+  if (m) return openMachine(decodeURIComponent(m[1]));
+  if (hash === '#settings') return openSettings();
+  $('detail').hidden = true;
+  $('machine').hidden = true;
+  $('settingsView').hidden = true;
+  $('overview').hidden = false;
+  render();
+}
+
+
+async function load() {
+  const res = await fetch(`/api/fleet?by=client&days=${WINDOW_DAYS}`);
+  const data = await res.json();
+  FLEET = data;
+  $('stamp').textContent = `${compact(data.total.installs)} machines · ${compact(data.total.sessions)} sessions`;
+  tiles(data.total);
+  route();
+}
+
+$('back').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('backM').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('backS').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('save').addEventListener('click', saveSettings);
+$('cancel').addEventListener('click', () => { settingsForm(); $('saveNote').textContent = ''; });
+window.addEventListener('hashchange', route);
+load();
+// The overview refreshes itself. A session or a machine being read does not move under its reader -- and a
+// settings form must never be redrawn from under a hand that is typing in it.
+setInterval(() => { if (!location.hash) load(); }, 10_000);
+</script>
+</body>
+</html>
