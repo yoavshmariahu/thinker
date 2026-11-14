@@ -129,6 +129,30 @@
   summary { cursor: pointer; color: var(--ink-2); font-size: 13px; padding: 4px 0; }
   .foot { margin-top: 22px; color: var(--muted); font-size: 12px; max-width: 70ch; }
   code { font-family: var(--mono); font-size: 12px; }
+
+  /* The control form: a row a setting, its own value beside what it means. */
+  .say { padding: 0 16px 4px; margin: 0 0 6px; color: var(--muted); font-size: 12.5px; max-width: 78ch; line-height: 1.55; }
+  .set { display: grid; grid-template-columns: 190px 160px 1fr; gap: 12px; align-items: baseline;
+         padding: 11px 16px; border-bottom: 1px solid var(--line-2); }
+  .set:last-child { border-bottom: none; }
+  .set label { font-size: 13px; color: var(--ink); }
+  .set .help { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .set .unit { font-size: 11px; color: var(--faint); margin-left: 5px; }
+  .set input[type=text], .set input[type=number] {
+    width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
+    padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--plane); color: var(--ink); }
+  .set input:focus { outline: 2px solid var(--ctl); outline-offset: -1px; border-color: var(--ctl); }
+  .set select { appearance: none; -webkit-appearance: none; width: 100%; box-sizing: border-box; font: inherit;
+    font-size: 13px; padding: 5px 30px 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--plane) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2.5 4.5L6 8l3.5-3.5' fill='none' stroke='%23666666' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 9px center;
+    color: var(--ink); }
+  .btn { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--ctl);
+         background: var(--ctl); color: #fff; cursor: pointer; }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:disabled { opacity: .55; cursor: default; filter: none; }
+  .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+  .pill.wait { border-color: var(--flag); color: var(--flag); }
+  .pill.ok { border-color: var(--thk); color: var(--thk); }
 </style>
 </head>
 <body>
@@ -149,6 +173,33 @@
     <div class="card" style="margin-top:20px">
       <h2>Sessions <span class="filternote" id="filterNote"></span></h2>
       <div id="sessions"></div>
+    </div>
+  </div>
+
+  <!-- One machine: what it did, what it is running, and what it has been told to run. -->
+  <div id="machine" hidden>
+    <p><a href="#" class="back" id="backM">← all machines</a></p>
+    <div class="card">
+      <h2 id="machineTitle">Machine</h2>
+      <div class="pickrow"><span class="stamp" id="machineNote"></span></div>
+      <div id="machineStats"></div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Settings <span class="filternote" id="revNote"></span></h2>
+      <p class="say">Set here, taken by the machine on its next session. thinker asks its collector for these
+        each time it reports, so nothing listens on the machine and nothing needs reaching into it. A setting
+        left blank is the machine's own to decide.</p>
+      <div id="settings"></div>
+      <div class="pickrow" style="margin-top:14px">
+        <button id="save" class="btn">Save settings</button>
+        <span class="stamp" id="saveNote"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:20px">
+      <h2>Sessions <span class="filternote">on this machine</span></h2>
+      <div id="machineSessions"></div>
     </div>
   </div>
 
@@ -267,11 +318,15 @@ function machineTable(rows) {
     return;
   }
   const head = `<tr><th>machine</th>${MACHINE_COLS.map(([h, , align]) => `<th${align === 'left' ? ' class="l"' : ''}>${h}</th>`).join('')}</tr>`;
-  const body = rows.map(r => `<tr>
+  const body = rows.map(r => `<tr class="click" data-i="${esc(r.install)}">
       <td title="${esc(r.install)}"><code>${esc(String(r.install).slice(0, 8))}</code></td>
       ${MACHINE_COLS.map(([, f, align]) => `<td${align === 'left' ? ' class="l"' : ''}>${f(r)}</td>`).join('')}
     </tr>`).join('');
   $('machines').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  // A machine opens its own page: its figures, its sessions, and the settings it is told to run.
+  for (const tr of $('machines').querySelectorAll('tr.click')) {
+    tr.addEventListener('click', () => { location.hash = `#m/${encodeURIComponent(tr.dataset.i)}`; });
+  }
 }
 
 // decideCut's branches, in the reader's words. The six are cutting.js's own; anything else prints raw.
@@ -402,16 +457,11 @@ function callTable(series, dec) {
 // ---------------------------------------------------------------------------
 // Views. The overview is the fleet; a session is its own page, reachable by its own URL.
 let FLEET = { recent: [], machines: [] };
-let machineFilter = null;
 
-function sessionTable() {
-  const rows = FLEET.recent.filter(r => !machineFilter || r.install === machineFilter);
-  $('filterNote').innerHTML = machineFilter
-    ? `on machine ${esc(String(machineFilter).slice(0, 8))} · <a href="#" class="back" id="clearFilter">show all</a>`
-    : `every machine`;
-  const clear = $('clearFilter');
-  if (clear) clear.addEventListener('click', e => { e.preventDefault(); machineFilter = null; render(); });
-  if (!rows.length) { $('sessions').innerHTML = `<div class="empty">No session recorded yet.</div>`; return; }
+function sessionTable(into = 'sessions', install = null) {
+  const rows = FLEET.recent.filter(r => !install || r.install === install);
+  if (into === 'sessions') $('filterNote').innerHTML = `every machine`;
+  if (!rows.length) { $(into).innerHTML = `<div class="empty">No session recorded yet.</div>`; return; }
   const head = `<tr><th class="l">session</th><th class="l">machine</th><th class="l">model</th><th>calls</th><th>prompts</th>`
     + `<th>cuts</th><th>cleared</th><th>net</th><th>spend</th><th class="l">when</th></tr>`;
   const body = rows.map(r => `<tr class="click" data-i="${esc(r.install)}" data-s="${esc(r.session)}">
@@ -424,8 +474,8 @@ function sessionTable() {
       <td>${r.priced ? usd(r.spend) : '<span class="dim">unpriced</span>'}</td>
       <td class="l"><span class="dim">${since(r.at)}</span></td>
     </tr>`).join('');
-  $('sessions').innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  for (const tr of $('sessions').querySelectorAll('tr.click')) {
+  $(into).innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  for (const tr of $(into).querySelectorAll('tr.click')) {
     tr.addEventListener('click', () => { location.hash = `#s/${encodeURIComponent(tr.dataset.i)}/${encodeURIComponent(tr.dataset.s)}`; });
   }
 }
@@ -438,15 +488,133 @@ async function openSession(install, session) {
   drawSession(await res.json());
 }
 
+// ---------------------------------------------------------------------------
+// One machine: its figures, its sessions, and the settings it has been told to run.
+//
+// What a reader has to be able to trust here is that a control does something. So the form is drawn from
+// what thinker itself says it will honour (/api/schema, which is src/managed.js), a saved setting is a
+// revision rather than a fact, and the page says *sent* until the machine's own next event says it is
+// running that revision. A dashboard that coloured a setting green on save would be reporting its own wish.
+
+let MACHINE = null; // { machine, control, settings }
+
+const SETTING_HELP_WIDTH = 2;
+const atPath = (o, p) => p.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
+
+function settingField(s, value) {
+  const id = `set-${s.path.replace(/\./g, '-')}`;
+  const v = value === undefined || value === null ? '' : value;
+  if (s.type === 'bool') {
+    return `<select id="${id}" data-path="${esc(s.path)}" data-type="bool">
+      <option value=""${v === '' ? ' selected' : ''}>machine's own</option>
+      <option value="true"${v === true ? ' selected' : ''}>on</option>
+      <option value="false"${v === false ? ' selected' : ''}>off</option>
+    </select>`;
+  }
+  const kind = s.type === 'int' || s.type === 'rate' ? 'number' : 'text';
+  const step = s.type === 'rate' ? ' step="0.05" min="0" max="1"' : s.type === 'int' ? ' step="1"' : '';
+  return `<input type="${kind}"${step} id="${id}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
+    value="${esc(String(v))}" placeholder="machine's own">`;
+}
+
+function settingsForm() {
+  const { settings, control } = MACHINE;
+  $('settings').innerHTML = settings.map(s => `<div class="set">
+      <label for="set-${s.path.replace(/\./g, '-')}">${esc(s.label)}${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ''}</label>
+      <div>${settingField(s, atPath(control.config, s.path))}</div>
+      <div class="help">${esc(s.help)}</div>
+    </div>`).join('');
+
+  // Sent against taken. A machine that has never been set is on its own settings and says so.
+  const { rev, seenRev, at, seenAt } = control;
+  $('revNote').innerHTML = !rev
+    ? `nothing set — this machine runs its own configuration`
+    : seenRev === rev
+      ? `<span class="pill ok">running revision ${rev}</span> confirmed ${esc(since(seenAt))}`
+      : `<span class="pill wait">revision ${rev} sent</span> ${esc(since(at))}; the machine last confirmed `
+        + `${seenRev ? `revision ${seenRev}` : 'none'} — it takes the new one when its next session ends`;
+}
+
+async function saveSettings() {
+  const btn = $('save');
+  btn.disabled = true;
+  $('saveNote').textContent = 'saving…';
+  // A blank field is null: the setting goes back to being the machine's own, which is not the same as zero.
+  const config = {};
+  for (const el of $('settings').querySelectorAll('[data-path]')) {
+    const raw = el.value.trim();
+    const t = el.dataset.type;
+    let v = null;
+    if (raw !== '') v = t === 'bool' ? raw === 'true' : (t === 'int' || t === 'rate') ? Number(raw) : raw;
+    const ks = el.dataset.path.split('.'), last = ks.pop();
+    let node = config;
+    for (const k of ks) node = node[k] || (node[k] = {});
+    node[last] = v;
+  }
+  try {
+    const res = await fetch('/api/config', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ install: MACHINE.control.install, config }),
+    });
+    if (!res.ok) throw new Error(`the collector refused it (${res.status})`);
+    const out = await res.json();
+    MACHINE.control = out;
+    settingsForm();
+    // What this build does not know is said, never swallowed: a key that silently vanished would be worse
+    // than one refused.
+    $('saveNote').innerHTML = out.changed
+      ? `sent as revision ${out.rev}`
+      : `no change — the machine is already set this way`;
+    if (out.dropped?.length) $('saveNote').innerHTML += ` · <span class="dim">not settable here: ${esc(out.dropped.join(', '))}</span>`;
+  } catch (err) {
+    $('saveNote').innerHTML = `<span class="dim">${esc(String(err.message || err))}</span>`;
+  } finally { btn.disabled = false; }
+}
+
+const MACHINE_STATS = [
+  ['sessions', m => compact(m.sessions)],
+  ['prompts', m => compact(m.prompts)],
+  ['context cuts', m => compact(m.cuts)],
+  ['sessions cut', m => pct(m.clearedShare)],
+  ['net saved', m => `<span class="${cls(m.net)}">${usd(m.net)}</span>`],
+  ['spent', m => usd(m.spend)],
+  ['per prompt', m => usd(m.spendPerPrompt)],
+];
+
+async function openMachine(install) {
+  const res = await fetch(`/api/machine?install=${encodeURIComponent(install)}&days=${WINDOW_DAYS}`);
+  if (!res.ok) { location.hash = ''; return; }
+  MACHINE = await res.json();
+  $('overview').hidden = true;
+  $('detail').hidden = true;
+  $('machine').hidden = false;
+
+  const m = MACHINE.machine;
+  $('machineTitle').innerHTML = `Machine <code>${esc(String(install).slice(0, 8))}</code>`;
+  $('machineNote').textContent = m
+    ? `${m.client || 'unknown client'} · thinker ${m.version || 'unknown build'} · last seen ${since(m.lastAt)}`
+    : 'no session from this machine in the window';
+  $('machineStats').innerHTML = m
+    ? `<table><thead><tr>${MACHINE_STATS.map(([h]) => `<th>${h}</th>`).join('')}</tr></thead>`
+      + `<tbody><tr>${MACHINE_STATS.map(([, f]) => `<td>${f(m)}</td>`).join('')}</tr></tbody></table>`
+    : `<div class="empty">Nothing reported in the last ${WINDOW_DAYS} days.</div>`;
+
+  settingsForm();
+  sessionTable('machineSessions', install);
+}
+
 function render() {
   machineTable(FLEET.machines);
   sessionTable();
 }
 
 function route() {
-  const m = /^#s\/([^/]+)\/(.+)$/.exec(location.hash || '');
-  if (m) return openSession(decodeURIComponent(m[1]), decodeURIComponent(m[2]));
+  const s = /^#s\/([^/]+)\/(.+)$/.exec(location.hash || '');
+  if (s) return openSession(decodeURIComponent(s[1]), decodeURIComponent(s[2]));
+  const m = /^#m\/(.+)$/.exec(location.hash || '');
+  if (m) return openMachine(decodeURIComponent(m[1]));
   $('detail').hidden = true;
+  $('machine').hidden = true;
   $('overview').hidden = false;
   render();
 }
@@ -461,17 +629,13 @@ async function load() {
   route();
 }
 
-// a machine's row filters the sessions beneath it, and clicking it again clears the filter. The page does
-// not navigate for that -- only a session does, and it gets a URL of its own so one can be linked to.
-function onMachineClick(install) {
-  machineFilter = machineFilter === install ? null : install;
-  render();
-}
-
 $('back').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('backM').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('save').addEventListener('click', saveSettings);
 window.addEventListener('hashchange', route);
 load();
-// the overview refreshes itself; a session being read does not move under its reader
+// The overview refreshes itself. A session or a machine being read does not move under its reader -- and a
+// settings form must never be redrawn from under a hand that is typing in it.
 setInterval(() => { if (!location.hash) load(); }, 10_000);
 </script>
 </body>

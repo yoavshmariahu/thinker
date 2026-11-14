@@ -35,6 +35,7 @@ import { listPrice, costOf } from './prices.js';
 import { proxyLogFile } from './proxy-service.js';
 import { sessionKey, readLog } from './usage.js';
 import { readLabels } from './labels.js';
+import { applyManaged, managedBlock } from './managed.js';
 import { getInstallId } from './telemetry.js';
 import { appVersion } from './proxy-service.js';
 import { isTestMode } from './test-mode.js';
@@ -224,6 +225,8 @@ export function sessionEvent(store, { session, home = thinkerHome(), env = proce
     // hostname, no instance id, nothing inferred about the machine (labels.js is the only door for that).
     version: appVersion(),
     labels: readLabels({ env, home }),
+    // the settings revision this machine is actually running, so the page shows what was sent against what took
+    ...managedBlock({ home, env }),
     session: sessionKey(session),
     client: x.client || null,
     model: x.model || null,
@@ -267,13 +270,13 @@ const writeSpool = (home, lines) => {
 
 // Ship lines to the target. Returns how many left; a refusal is not an error here, it is a spool.
 async function ship(lines, target, { fetchFn = globalThis.fetch, timeoutMs = EVENTS.timeoutMs } = {}) {
-  if (!lines.length) return 0;
+  if (!lines.length) return { sent: 0 };
   const body = lines.join('\n') + '\n';
-  if (target.kind === 'stdout') { process.stdout.write(body); return lines.length; }
+  if (target.kind === 'stdout') { process.stdout.write(body); return { sent: lines.length }; }
   if (target.kind === 'file') {
     fs.mkdirSync(path.dirname(target.path), { recursive: true });
     fs.appendFileSync(target.path, body);
-    return lines.length;
+    return { sent: lines.length };
   }
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
@@ -285,12 +288,18 @@ async function ship(lines, target, { fetchFn = globalThis.fetch, timeoutMs = EVE
       signal: ctl.signal,
     });
     // 2xx is taken; anything else is the sink's business and the lines wait in the spool
-    return res && res.ok ? lines.length : 0;
+    if (!res || !res.ok) return { sent: 0 };
+    // The answer is where central settings come back (managed.js): the machine asked, so no port is open on
+    // it and a harness behind NAT is reached like any other. A sink with nothing to say answers nothing, and
+    // a body that will not parse is no reason to spool a session that was taken.
+    let answer = null;
+    try { answer = typeof res.json === 'function' ? await res.json() : null; } catch { answer = null; }
+    return { sent: lines.length, answer };
   } catch {
     // A collector that is not listening, a DNS that does not answer, the timeout above: none of them is an
     // error here. They are all "nothing left", and the caller spools what did not go -- which is the whole
     // point of the spool, and was a real bug: a thrown fetch used to reach the outer catch and lose the line.
-    return 0;
+    return { sent: 0 };
   } finally { clearTimeout(timer); }
 }
 
@@ -304,10 +313,11 @@ export async function emitSession(store, { session, home = thinkerHome(), env = 
     const pending = [...readSpool(home), ...(ev ? [JSON.stringify(ev)] : [])];
     if (!pending.length) return { shipped: 0, skipped: 'nothing-to-ship' };
     const batch = pending.slice(0, EVENTS.batchMax);
-    const sent = await ship(batch, target, { fetchFn });
+    const { sent, answer } = await ship(batch, target, { fetchFn });
     const left = sent ? pending.slice(sent) : pending;
     writeSpool(home, left);
-    return { shipped: sent, spooled: left.length };
+    const rev = answer ? applyManaged(answer.managed, { home, env, from: target.url || target.kind }) : null;
+    return { shipped: sent, spooled: left.length, ...(rev == null ? {} : { managedRev: rev }) };
   } catch (err) {
     return { shipped: 0, error: String(err?.message || err).slice(0, 120) };
   }

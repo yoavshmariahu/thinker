@@ -3,11 +3,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-let openDb, putEvent, fleet, labelKeys;
+let openDb, putEvent, fleet, labelKeys, getConfig, setConfig;
 let available = true;
 try {
   await import('node:sqlite');
-  ({ openDb, putEvent, fleet, labelKeys } = await import('../demo/collector/server.mjs'));
+  ({ openDb, putEvent, fleet, labelKeys, getConfig, setConfig } = await import('../demo/collector/server.mjs'));
 } catch { available = false; }
 
 const at = iso => iso;
@@ -79,4 +79,33 @@ test('rubbish is rejected, never stored', { skip: !available && 'node:sqlite una
   assert.equal(putEvent(db, { install: 'i', session: 's' }), 'rejected', 'no timestamp is no event');
   assert.equal(putEvent(db, { install: 'i', session: 's', at: 'not a date' }), 'rejected');
   assert.equal(fleet(db, { by: 'tenant', days: 3650 }).rows.length, 0);
+});
+
+test('a setting is a revision, and the machine\'s own word is what says it took', { skip: !available && 'node:sqlite unavailable' }, () => {
+  const db = openDb(':memory:');
+  assert.deepEqual(getConfig(db, 'i-1'), { install: 'i-1', rev: 0, config: {}, at: null, by: null, seenRev: null, seenAt: null },
+    'a machine nobody has set is on its own settings');
+
+  const first = setConfig(db, 'i-1', { proxy: { trigger: 90_000 }, prices: { x: 1 } });
+  assert.equal(first.rev, 1);
+  assert.equal(first.changed, true);
+  assert.deepEqual(first.config, { proxy: { trigger: 90_000 } });
+  assert.deepEqual(first.dropped, ['prices'], 'what this build will not set is named, never swallowed');
+
+  // the same settings again are not a new revision: a machine must not be told to re-apply what it runs
+  assert.equal(setConfig(db, 'i-1', { proxy: { trigger: 90_000 } }).rev, 1);
+  assert.equal(setConfig(db, 'i-1', { proxy: { trigger: 90_000 } }).changed, false);
+  assert.equal(setConfig(db, 'i-1', { proxy: { trigger: 80_000 } }).rev, 2);
+
+  // sent, and not yet taken: the page reads the difference, and only an event closes it
+  assert.equal(getConfig(db, 'i-1').seenRev, null);
+  putEvent(db, event({ session: 'a', managed: { rev: 1 } }));
+  assert.equal(getConfig(db, 'i-1').seenRev, 1, 'running one revision behind, which is the truth until it reports again');
+  putEvent(db, event({ session: 'b', managed: { rev: 2 } }));
+  assert.equal(getConfig(db, 'i-1').seenRev, 2);
+  assert.equal(getConfig(db, 'i-1').rev, 2, 'and what a machine says it runs never raises what was set');
+
+  // a machine that reports before anyone sets anything is still only a reader of its own settings
+  putEvent(db, event({ install: 'i-2', session: 'c', managed: { rev: 0 } }));
+  assert.equal(getConfig(db, 'i-2').rev, 0);
 });
