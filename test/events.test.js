@@ -59,7 +59,7 @@ test('the event carries the session as the one pricing door measured it, and not
   const { store, home, dir } = fixture(t);
   session(store, home, { id: 's1' });
 
-  const ev = sessionEvent(store, { session: 's1', home, env: { THINKER_LABELS: 'tenant=acme,harness=orbit-1' } });
+  const ev = sessionEvent(store, { session: 's1', home, env: {} });
   assert.ok(ev, 'the session that just ended is there');
   assert.equal(ev.v, EVENTS.schemaVersion);
   assert.equal(ev.session, 's1');
@@ -68,8 +68,8 @@ test('the event carries the session as the one pricing door measured it, and not
   assert.equal(ev.prompts, 12);
   assert.equal(ev.tokens, 300_000);
   assert.equal(ev.cleared, 120_000);
-  assert.deepEqual(ev.labels, { harness: 'orbit-1', tenant: 'acme' }, 'the only part somebody chose');
-  assert.ok(ev.install, 'the machine names itself');
+  assert.equal(ev.labels, undefined, 'nothing on the event names a customer, a harness or a job');
+  assert.ok(ev.install, 'the machine names itself, and that is the whole of the identity on it');
 
   // dollars, and the identity the netted figure is defined by (delivery.js): net = saved - rewrite - reread
   assert.equal(ev.cost.priced, true);
