@@ -30,6 +30,7 @@ import crypto from 'node:crypto';
 import { transformResponses, responsesUsageTap, responsesReport } from './proxy-responses.js';
 import { transformChat, chatUsageTap, chatReport, refusesChatCut } from './proxy-chat.js';
 import { rateTracker as createRateTracker, makeRatesResolver } from './gateway-rates.js';
+import { statedRates } from './prices.js';
 import { CODEX_PROXY_PATH, CODEX_UPSTREAMS } from './proxy-codex.js';
 import { foreignAuth } from './proxy-route.js';
 import { BEDROCK_PATH, bedrockRequest, bedrockBody } from './proxy-bedrock.js';
@@ -185,7 +186,8 @@ export function proxyConfig(flags = {}, env = process.env) {
   for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'],
     ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT']]) {
     const v = pick(flag, name);
-    if (v !== undefined) cfg[key] = v;
+    // a guard the person set by hand is pinned, and the route's prices never move it (cutting.js:scaledPolicy)
+    if (v !== undefined) { cfg[key] = v; if (key === 'trigger' || key === 'clearAtLeast') (cfg.pinned ??= {})[key] = true; }
   }
   if (String(flags.keep ?? env.THINKER_PROXY_KEEP ?? '').trim() === 'turn') cfg.keep = 'turn';
   // on by default: a flag, `--no-<flag>`, the variable (on|off) or the machine config may say otherwise
@@ -448,7 +450,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
   // the policy that decided this, named on the row so no reader has to date it (cutting.js:policyId): on a
   // refusal it says which floor refused, on a clear it says what the saving is worth comparing with
-  if (!applied.cut) return asCame({ policy: policyId(cfg), reason: d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
@@ -456,7 +458,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
   const actions = cutActions(j.messages, d.cut);
   j.messages = applied.messages;
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, policy: policyId(cfg),
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
@@ -593,8 +595,11 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   // Dynamic rates for the gateway door (gateway-rates.js): the gateways' own answers are the
   // price list. Fitted in memory from the `cost` each response carries; a restart refits within
   // a few calls, and config (`proxy: { rates }`) beats the fit until it exists.
-  const rates = Object.keys(cfg.gateways || {}).length ? createRateTracker() : null;
-  const ratesFor = rates ? makeRatesResolver({ tracker: rates, configured: cfg.ratesConfig }) : null;
+  // The fit needs a gateway that reports its own `cost`; the price list does not, which is the only source a
+  // direct provider route (providers.js) ever has. So the resolver is always built: without it a GLM route is
+  // priced at Anthropic's ratios, which is wrong by a factor of ten in the direction that refuses every cut.
+  const rates = createRateTracker();
+  const ratesFor = makeRatesResolver({ tracker: rates, configured: cfg.ratesConfig, prices: statedRates });
   const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();

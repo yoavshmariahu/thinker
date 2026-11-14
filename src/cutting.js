@@ -97,6 +97,48 @@ const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 10
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`;
 
+// --- the two guards scale with what a rewrite costs -------------------------------------------------------
+// The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
+// Both numbers were set against Anthropic's prices, where a one-hour write costs 20 input tokens for every
+// one a read costs -- the most hostile ratio any provider charges, and the reason a cut here needs a tail no
+// larger than 1.25x what it removes (PAYBACK x READ / WRITE_1H). An implicit-cache provider bills the
+// rewrite at the ordinary input price and discounts a read by half: Z.ai's GLM is write 1.0, read 0.5, a
+// ratio of 2 (prices.js). The guards then hold out for ten times more than the arithmetic asks, and a cut
+// that would repay in 3 calls is refused as below-trigger.
+//
+// So: scale both guards by the ratio against Anthropic's 20, and name no provider in the rule. GLM lands at
+// 14k/6k, Anthropic stays at 140k/60k exactly (the desktop mod's mirrored constants still match, and a
+// saving made on an Anthropic route keeps the policy id it already had). PAYBACK stays at 25 and does the
+// real policing on both: a small cut late in a long conversation is still refused, because the tail dwarfs
+// what it takes out. That is what makes the cheap route cut EARLY and in SMALL batches rather than merely
+// more often -- the first boundary where a batch clears the floor is also the one where the tail is
+// smallest, so it is the one that pays.
+//
+// The clamp is the one number here with no measurement behind it. A ratio of 1 -- a route with no caching
+// at all -- would scale the guards to nothing, and there is no evidence for cutting a 14k prompt, so a
+// tenth is the floor until the holdout says otherwise.
+// Only a route whose OWN prices are known moves its guards, which is why nothing is read from `model` or
+// `ttl` here. The five-minute write is 1.25 and would price Anthropic's ratio at 12.5, scaling the guards to
+// 0.63 on the cache TTL alone -- and the desktop mod, which holds this same policy from mirrored constants,
+// cannot know a rate. A route with no resolved rates is Anthropic's, at the ratio the guards were set
+// against, and stays exactly where it was.
+export const BASE_RATIO = WRITE_1H / READ;   // 20
+export const SCALE_MIN = 0.1;
+export function cutScale({ rates = null } = {}) {
+  if (!(rates?.read > 0) || !(rates?.write > 0)) return 1;
+  return Math.min(1, Math.max(SCALE_MIN, Math.round((rates.write / rates.read / BASE_RATIO) * 100) / 100));
+}
+// The settings as they stood for one request. A value the person pinned is never scaled: they said a
+// number, and moving a guard under them is the one thing a derived rule may not do.
+export function scaledPolicy(cfg = {}, opts = {}) {
+  const scale = cutScale(opts);
+  if (scale === 1) return cfg;
+  const pinned = cfg.pinned || {};
+  return { ...cfg, scale,
+    trigger: pinned.trigger ? cfg.trigger : Math.round(cfg.trigger * scale),
+    clearAtLeast: pinned.clearAtLeast ? cfg.clearAtLeast : Math.round(cfg.clearAtLeast * scale) };
+}
+
 export const MIN_CHARS = 200;
 // What these words must carry, found 2026-11-04 by reading what the model did with the old ones
 // ("tool result cleared by thinker to save context"): they were silent on WHEN, and it assumed the
@@ -184,7 +226,15 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
 // shared-policy rule forbids. So the function that decides says why, and both doors print what it says.
 // `candidate` now rides along on a refusal that was not the candidate's fault too, so the same log answers
 // what a lower trigger would have cut.
-export function decideCut(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null } = {}) {
+// The guards are resolved for the route before anything is decided, and the decision carries the policy
+// that made it (`policy`), so a row never has to be dated or re-derived at the door it came through -- and
+// the two cheap doors, which stamped nothing at all, now stamp what the Messages door always did.
+export function decideCut(rec, cfg, m, opts = {}) {
+  const eff = scaledPolicy(cfg, { rates: opts.rates ?? null });
+  const d = decide(rec, eff, m, opts);
+  return { ...d, policy: policyId(eff), ...(eff.scale ? { scale: eff.scale } : {}) };
+}
+function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
   // A branch that refused something names itself; a request with nothing cuttable in it says so whichever branch
