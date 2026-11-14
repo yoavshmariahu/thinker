@@ -74,9 +74,17 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Trigger and `clearAtLeast` × `clamp((write/read) / 20, 0.1, 1)`. 20 is Anthropic's 1h ratio, the harshest any provider charges, and the reason a cut needs a tail ≤1.25× what it removes.
 - Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the mod holds this policy from mirrored constants and cannot know a rate. Anthropic unmoved, keeps its policy id.
 - GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so 14k/6k and `r1-t14k-f6k-p25-deep`. Never pooled with an Anthropic saving; no `POLICY_REV` bump, the guards are already in the stamp.
-- `PAYBACK` 25 unchanged and does the policing: a small cut late in a long conversation is still refused because the tail dwarfs it, so a cheap route cuts **early and in small batches**, not merely more often.
+- `PAYBACK` 25 unchanged and does the policing, but it polices less than this said: with the rewrite charged whole, a 7k cut behind a 180k tail priced at 52 and was refused; corrected (below) it prices at 25 and is made. A cheap route still prefers **early and small**, since the tail is what it is paying for, but "late and small is refused" now needs a tail 40x the cut, not 25x.
 - A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
-- Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged live on the existing holdout, not by replay.
+- Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged on live cost per exchange, not by replay.
+
+**A cut is charged what it adds to the call, not the whole rewrite (2026-11-13, `cutting.js:priceCut`, `POLICY_REV` 2):**
+- `cost = recache x (write - read) - read x removed`. Without the cut this same call reads the whole prompt back from the cache, the tail included, so the rewrite is not charged in full: the read it displaces comes off it, and so does the read of what the cut removes. Identically, payback falls by `tail/cut + 1`.
+- On Anthropic a read is a tenth of a write, so it is a ~6% change -- invisible while only Anthropic was priced. Where a read is half the input price it is most of the cost.
+- Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.
+- `payback` 0 is reachable and means repaid on the call that makes the cut; it cannot go below (clamped, to keep `Math.ceil`'s `-0` out of the log).
+- The mod decides in ratios: `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
+- **The candidate walk is the open problem, not the price.** `proxy.js:cutCandidates` takes every eligible result, so the rewrite starts at the OLDEST one and spans nearly the whole conversation: the set removes 26-34% of what it rewrites against a bar of 42% at Anthropic's hourly rates, which is why 0 of the 12 boundaries under the current stamp pass. A removed token saves the same wherever it sat; only the cost depends on position, so the set should be taken from the tail backwards. Unbuilt. `proxy-replay.js` cannot judge it -- it models the API-side edit this replaced.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.

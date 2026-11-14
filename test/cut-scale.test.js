@@ -19,7 +19,7 @@ test('an Anthropic route keeps the guards and the policy id it already had', () 
   const cfg = { ...PROXY_DEFAULTS };
   const eff = scaledPolicy(cfg, { model: 'claude-opus-5-5', ttl: '1h' });
   assert.equal(eff, cfg, 'the same object: nothing is derived where the ratio is the one the guards were set against');
-  assert.equal(policyId(eff), 'r1-t140k-f60k-p25-deep');
+  assert.equal(policyId(eff), 'r2-t140k-f60k-p25-deep');
   assert.equal(eff.scale, undefined);
   // the cache TTL may not move a guard: the desktop mod holds this policy from mirrored constants and
   // cannot know a rate, so only a route with resolved prices of its own ever scales
@@ -34,7 +34,7 @@ test("GLM's stated prices put the guards ten times lower, and the policy id says
   assert.equal(eff.trigger, 14000);
   assert.equal(eff.clearAtLeast, 6000);
   assert.equal(eff.scale, 0.1);
-  assert.equal(policyId(eff), 'r1-t14k-f6k-p25-deep', 'never pooled with an Anthropic saving');
+  assert.equal(policyId(eff), 'r2-t14k-f6k-p25-deep', 'never pooled with an Anthropic saving');
 });
 
 test('the clamp holds a route with no caching at all off the floor', () => {
@@ -51,22 +51,27 @@ test('a 60k batch that Anthropic refuses as below-trigger is cut on GLM, and pri
   const anth = decideCut(rec(), cfg, m, { cand: c, ttl: '1h', model: 'claude-opus-5-5' });
   assert.equal(anth.clear, false);
   assert.equal(anth.reason, 'below-trigger');
-  assert.equal(anth.policy, 'r1-t140k-f60k-p25-deep');
+  assert.equal(anth.policy, 'r2-t140k-f60k-p25-deep');
 
   const rates = statedRates('glm-5.3');
   const glm = decideCut(rec(), cfg, m, { cand: c, ttl: '1h', model: 'glm-5.3', rates });
   assert.equal(glm.clear, true, 'past a 14k trigger with a 20k batch over a 6k floor');
   assert.equal(glm.scale, 0.1);
-  assert.equal(glm.policy, 'r1-t14k-f6k-p25-deep');
-  // 24k rewritten at 1.0 against 20k read back at 0.5: repaid inside three calls
-  assert.equal(glm.payback, 3);
-  assert.equal(priceCut(m, c, { model: 'glm-5.3', rates }).payback, 3);
+  assert.equal(glm.policy, 'r2-t14k-f6k-p25-deep');
+  // 24k rewritten at 1.0, less the 24k read it displaces and the 20k read of what it removes, against 20k
+  // read back at 0.5 a call: repaid on the first later call. It priced at 3 while the rewrite was charged
+  // whole, which is the correction of 2026-11-13 (cutting.js:priceCut).
+  assert.equal(glm.payback, 1);
+  assert.equal(priceCut(m, c, { model: 'glm-5.3', rates }).payback, 1);
 });
 
 test('payback still refuses a small batch whose tail dwarfs it, so the cheap route cuts early, not late', () => {
   const cfg = { ...PROXY_DEFAULTS };
   const rates = statedRates('glm-5.3');
-  const late = decideCut(rec(), cfg, { prompt: 200000, turn: 1 }, { cand: cand(7000, 180000), ttl: '1h', model: 'glm-5.3', rates });
+  // The tail has to dwarf the cut by more than it used to for this to be refused: at GLM's rates the
+  // corrected cost takes the displaced read off the rewrite, so a 7k cut behind a 180k tail -- refused when
+  // this test was written, at a payback of 52 -- now prices at exactly 25 and is made. 300k still refuses.
+  const late = decideCut(rec(), cfg, { prompt: 320000, turn: 1 }, { cand: cand(7000, 300000), ttl: '1h', model: 'glm-5.3', rates });
   assert.equal(late.clear, false);
   assert.equal(late.reason, 'payback', 'over the scaled floor, and still not worth its rewrite');
   assert.ok(late.held.payback > PAYBACK);
