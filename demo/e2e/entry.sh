@@ -43,6 +43,25 @@ if [ ! -d "$REPO/.git" ]; then
   say "repository ready: $(du -sh "$REPO/src" | cut -f1) over $FILES_N modules"
 fi
 
+# ---------------------------------------------------------------- who this machine is
+# The install id is what the collector keys a machine on, and thinker makes a fresh one the first time
+# it is asked (`telemetry.js:getInstallId`). A container rebuilt is then a new machine, and a demo's
+# history splits in two: six rows where there were three. So each of these three machines has an id of
+# its own, written once and only where thinker has not already made one, which keeps a rebuilt
+# container the same machine as the one whose sessions are already on the page. Made-up ids, in a
+# fixture; nothing is derived from this host.
+case "$MACHINE" in
+  m1) INSTALL_ID=c29edad2-147f-459f-a894-1b56005cf861 ;;
+  m2) INSTALL_ID=8e5ba4f0-860c-44bb-8c3d-f1a6eb91020a ;;
+  m3) INSTALL_ID=c6724cda-a477-41f6-8178-ccdec0227c76 ;;
+  *)  INSTALL_ID="" ;;
+esac
+if [ -n "$INSTALL_ID" ] && [ ! -f "$THINKER_HOME/state/install-id" ]; then
+  mkdir -p "$THINKER_HOME/state"
+  echo "$INSTALL_ID" > "$THINKER_HOME/state/install-id"
+  say "install id $INSTALL_ID"
+fi
+
 # ---------------------------------------------------------------- thinker's machine config
 # Where this machine ships its sessions, and what its proxy routes to. Nothing else is set here:
 # the four settings an operator controls are the fleet's to send, and they arrive on the sink's answer.

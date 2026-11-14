@@ -13,11 +13,25 @@ cd "$(dirname "$0")/../.."
 PORT="${COLLECTOR_PORT:-6896}"
 API="http://127.0.0.1:$PORT"
 COLLECTOR="http://host.docker.internal:$PORT/v1/sessions"
-DB="${FLEET_DB:?point FLEET_DB at the collector database file}"
+# The demo's own database, kept outside any checkout or temporary directory so that bringing the demo
+# back up is one command and not a re-run: a worktree can be removed and a scratch directory swept, and
+# the fleet's own history is neither of those. Override with FLEET_DB.
+DB="${FLEET_DB:-$HOME/.thinker-fleet-demo/fleet.db}"
 MACHINES=(${MACHINES:-1 2 3})
 IMAGE=thinker-e2e
 
 name() { echo "thinker-e2e-$1"; }
+
+# The collector itself, on a port this machine reserved, serving the database above. Idempotent: an
+# instance already answering on that port is left alone, since it is the same demo.
+collector() {
+  if curl -s -m 2 -o /dev/null "$API/api/settings"; then echo "collector already up on $API"; return 0; fi
+  mkdir -p "$(dirname "$DB")"
+  echo "== collector on $API (db: $DB) =="
+  ( PORT="$PORT" DB_PATH="$DB" nohup node demo/collector/server.mjs --port "$PORT" --db "$DB" >"$HOME/.thinker-fleet-demo/collector.log" 2>&1 & )
+  for _ in $(seq 1 40); do curl -s -m 1 -o /dev/null "$API/api/settings" && { echo "  up"; return 0; }; sleep 0.25; done
+  echo "  did not come up; see $HOME/.thinker-fleet-demo/collector.log"; return 1
+}
 
 clear_data() {
   echo "== clearing the collector =="
@@ -32,10 +46,20 @@ for (const t of ['sessions', 'installs', 'settings']) console.log(t, db.prepare(
 build() { echo "== building $IMAGE =="; docker build -t "$IMAGE" -f demo/e2e/Dockerfile .; }
 
 up() {
+  # The image carries the checkout, so an image older than the working tree is an old thinker in every
+  # container -- which is exactly how the first rebuilt machines here ran yesterday's code and shipped
+  # nothing. Build when there is no image; `fleet.sh build` to take a newer one.
+  docker image inspect "$IMAGE" >/dev/null 2>&1 || build
   echo "== three machines =="
   for m in "${MACHINES[@]}"; do
     docker rm -f "$(name "$m")" >/dev/null 2>&1
-    docker run -d --name "$(name "$m")" -e COLLECTOR="$COLLECTOR" -e MACHINE="m$m" "$IMAGE" >/dev/null
+    # THINKER_HOME on a named volume, so a machine keeps what a machine keeps: its install id, the
+    # settings the fleet last sent it, its proxy rows and its spool. Without it a rebuilt container is
+    # amnesiac -- it reappears with the right id (entry.sh pins those) but has to be told the policy
+    # again, which is not what a machine does. `down --volumes` is how to really start over.
+    docker volume create "$(name "$m")-home" >/dev/null
+    docker run -d --name "$(name "$m")" -v "$(name "$m")-home:/root/.thinker" \
+      -e COLLECTOR="$COLLECTOR" -e MACHINE="m$m" "$IMAGE" >/dev/null
   done
   for m in "${MACHINES[@]}"; do
     for _ in $(seq 1 120); do
@@ -105,10 +129,16 @@ push() {
   echo "  pushed to ${#MACHINES[@]} machines"
 }
 
-down() { for m in "${MACHINES[@]}"; do docker rm -f "$(name "$m")" >/dev/null 2>&1 && echo "removed $(name "$m")"; done; }
+down() {
+  for m in "${MACHINES[@]}"; do
+    docker rm -f "$(name "$m")" >/dev/null 2>&1 && echo "removed $(name "$m")"
+    if [ "${2:-}" = "--volumes" ]; then docker volume rm "$(name "$m")-home" >/dev/null 2>&1 && echo "  and what it remembered"; fi
+  done
+}
 
 case "${1:-all}" in
   clear) clear_data ;;
+  collector) collector ;;
   build) build ;;
   up) up ;;
   round) round "${2:-1}" ;;
@@ -116,8 +146,9 @@ case "${1:-all}" in
   state) state ;;
   reset) reset_machines ;;
   push) push ;;
-  down) down ;;
-  all) clear_data && build && up && round 1 && state && policy 50000 && round 2 && state ;;
-  run) clear_data && push && reset_machines && round 1 && state && policy 50000 && round 2 && state ;;
-  *) echo "usage: fleet.sh clear|build|up|push|reset|round N|policy TRIGGER|state|down|all|run" ; exit 2 ;;
+  down) down "$@" ;;
+  demo) collector && up && state ;;
+  all) clear_data && build && collector && up && round 1 && state && policy 50000 && round 2 && state ;;
+  run) collector && clear_data && push && reset_machines && round 1 && state && policy 50000 && round 2 && state ;;
+  *) echo "usage: fleet.sh demo|collector|clear|build|up|push|reset|round N|policy TRIGGER|state|down|all|run" ; exit 2 ;;
 esac
