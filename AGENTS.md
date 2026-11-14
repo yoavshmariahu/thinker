@@ -297,6 +297,43 @@ ignored; its history is in git before 2026-11-08.
 - **Oversized payload:** `fitPayload`, `PAYLOAD_BUDGET` 56 KB. Drops rows first, sets `rowsDropped`.
 - **Session events, the per-session export** (2026-11-13, `src/events.js`): one JSON object a session, newline-delimited, to `off` (default) / `stdout` / a file / an HTTP collector, by `THINKER_EVENTS` or `events` in `THINKER_HOME/config.json`. Figures from `delivery.js:sessionsOf` -- nothing here turns a token into a dollar. The payload cannot be this: a 30-day window sent hourly is for dividing sums, not adding them. **Upsert keyed on (install, session)**, newest wins (the clearing's figure settles turns after the cut), so a sink must never add two events for one session. A sink that is down spools to `state/events-spool.jsonl` (500 lines) and drains oldest-first on the next session; every transport failure is "nothing left", never a lost line. Carries `version`, `labels`, and `decisions` -- the cuts with policy and turn, the refusal reasons (`decideCut`'s branches) and the tools whose results left the prompt, from the proxy log and `state/compression/<session>.json`. Loopback-only under test, the telemetry's rule.
 - **The fleet collector** (`demo/collector/`, demo tooling, in no release; Node 22.5+ for `node:sqlite`): `POST /v1/sessions`, one SQLite table, and a page whose critical view is **one row a machine** with its own stats, a roll-up by label beside it, and the decisions behind the saving. Three rules it is built on: an event is an upsert never an addition; a rate is a ratio of sums; no dollar is made there (a session with no list price is a session and in no dollar figure, `null` not $0.00).
+- **The fleet e2e, and the four things it found** (2026-11-13, `demo/e2e/`): three containers, each OpenCode 2
+  with thinker installed and wired, thinker's proxy in the model path and a **loopback Messages API** in place
+  of a provider, so a real agent loop runs with no credentials (`demo/e2e/model.mjs`: the turns are scripted,
+  the usage is measured from the body that arrived, nothing invents a figure). `fleet.sh clear|build|up|push|
+  reset|round N|policy T|state` drives it against a collector on the host. **Everything below was found by
+  running it and none of it by reading the code**, and all four were invisible on this machine because they
+  are the paths Claude Code does not take:
+  - **OpenCode's route had no `/v1`, so the cut never fired once.** `proxy-service.js:opencodeFile` wrote the
+    proxy's bare origin; the Vercel AI SDK posts `${baseURL}/messages`, and `proxy.js:transformRequest` only
+    matches `/^\/v1\/messages/`. 16 calls reached 193k tokens of context with nothing cleared, while
+    `thinker proxy status` said the route was wired. `isOwnUrl` now strips `/v1`, `/openrouter`, `/bedrock`
+    and `/codex` before comparing, or thinker reads its own route as somebody else's and will not remove it.
+  - **No request was attributed to a session.** `sessionOf` read `x-claude-code-session-id` and nothing else,
+    so every other client's rows logged `session: null` and the cut's record keyed on a body hash. OpenCode
+    2.3.0 sends the id in four headers (`x-opencode-session`, `x-opencode-session-id`, `x-session-affinity`,
+    `x-session-id`), the same `ses_...` id its plugin gives the Stop hook. `SESSION_HEADERS` reads them.
+  - **No session event shipped at all.** The Stop hook's `op: session` branch required the agent's own
+    transcript; the clients that keep none are recorded by thinker's own trace (`traceFile`), which the
+    distillation beside it already read. A fleet of OpenCode machines reported nothing.
+  - **And then the session had no figures.** A trace carries no usage, so the row named a client and not one
+    token. `compression.js:usageBySession` sums the proxy's own rows per session (it is in the path of every
+    call and taps the usage off the answer), and `sessionsOf` prices from that **only where the session's own
+    record has none** -- a transcript always wins, `usageFrom: 'proxy'` and `servedCalls` say where the figure
+    came from and how many answers the proxy saw. Nothing new prices anything: `prices.js:costOf` is still the
+    door, and the row's `input` (the API's fresh count) is converted to the total it takes.
+  - Two things the e2e showed that are **not** bugs. A session of one prompt and forty tool calls has nothing
+    the cut may touch, because the newest turn is kept whole (`walkResults`) -- an autonomous one-prompt job
+    never gets a cut, which is a policy question and not a fault, and it is why the e2e runs three prompts in
+    one session. And `cleared` is cumulative over requests on purpose: a result cut at call 20 is absent from
+    every later prompt, so summing the per-request figure is the tokens actually avoided, which is exactly
+    what `delivery.js` then prices once at the cache-read rate. 92M cleared on a 244M-token session is that,
+    not an over-count.
+  - What the run shows end to end: a slider moved on the dashboard reaches three containers on their next
+    session (`serviceArgs` translates the merged config into the proxy's `--trigger`), and the refusal reason
+    inside them moves from `below-trigger` to `below-clear-minimum`. The plugin's own stop call loses a race
+    with `location.shutdown` under `opencode run`, so the wrapper ends the session itself -- which is the
+    integration point for a harness that owns the job's lifecycle.
 - **`byDay` cumulative per snapshot:** day of session's last request or PR merge. Never add snapshots; explode days, add those.
 - **Desktop clears outlive card record:** `compression.js:mirrorClearing` writes to `state/compression/<session>.json` (max 200 files, pruned after `PRUNE_AGE` 2 days) and once to log (`op: 'clearing'`). `delivery.js:sessionsOf` reads; `clearedBySession` sums cumulative. Take newest row, never add.
 - **Cold cut pricing:** `compression.js:clearingCostBySession` prices at zero (cache expired, rewrite happens anyway). Warm cuts charged their rewrite.

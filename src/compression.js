@@ -385,6 +385,44 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
   return out;
 }
 
+const num = v => (Number.isFinite(v) ? v : 0);
+// What a session's own calls cost, summed from the proxy's rows, for the sessions that have no other
+// record of it (2026-11-13, found by the fleet e2e in demo/e2e). Claude Code keeps a transcript with usage
+// in it and the Stop hook reads the session's totals off that; OpenCode, Pi, Goose and the rest keep no
+// transcript at all, so their `op: session` row carried a client and a branch and not one token -- a fleet
+// of them reported sessions, cuts and cleared tokens with no spend to read them against, which is a saving
+// with no denominator and worth nothing to anybody.
+//
+// The proxy already has every figure: it is in the path of every model call, taps the usage off the
+// response (`proxy.js:usageTap`) and logs a row an answer. What it was missing was whose session the row
+// belonged to -- `sessionOf` read Claude Code's header and no other, and OpenCode's four were right there.
+// With that joined, a session routed through the proxy is priced from its own calls at its own model.
+//
+// Two things this is not. It is not a second pricing rule: the usage is handed to `prices.js:costOf` exactly
+// as a transcript's is, and the shape is converted here once (the row's `input` is the API's fresh
+// `input_tokens`, while `costOf` takes a total and subtracts the cache halves). And it is not a guess at
+// completeness: `calls` is how many answers the proxy saw, so a reader can tell a session it served
+// throughout from one that was routed to it halfway.
+export function usageBySession(file, { since = '' } = {}) {
+  const out = new Map();
+  for (const r of compressionRecords(file)) {
+    if (r.op !== 'proxy' || !r.session || (since && r.at && r.at < since)) continue;
+    if (!(r.status >= 200 && r.status < 300)) continue;
+    const fresh = num(r.input), read = num(r.read), write = num(r.write);
+    if (!(fresh + read + write + num(r.out) > 0)) continue;   // a row with no usage tapped says nothing
+    const x = out.get(r.session) || { calls: 0, model: null, usage: { input: 0, cacheRead: 0, cacheWrite: 0, cacheWrite1h: 0, output: 0 } };
+    x.calls++;
+    if (r.model) x.model = r.model;
+    x.usage.input += fresh + read + write;   // costOf takes the whole input and nets the cache halves off it
+    x.usage.cacheRead += read;
+    x.usage.cacheWrite += write;
+    x.usage.cacheWrite1h += num(r.write1h);
+    x.usage.output += num(r.out);
+    out.set(r.session, x);
+  }
+  return out;
+}
+
 export function clearedBySession(file, { since = '' } = {}) {
   const out = new Map();
   for (const r of compressionRecords(file)) {

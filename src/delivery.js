@@ -13,7 +13,7 @@ import { readLog, sessionKey } from './usage.js';
 import { rereadCost } from './rereads.js';
 import { formatTokens } from './model-usage.js';
 import { listPrice, formatDollars, costOf } from './prices.js';
-import { compressionDir, readCompression, clearedBySession, clearingCostBySession, CLEARING_OP } from './compression.js';
+import { compressionDir, readCompression, clearedBySession, clearingCostBySession, usageBySession, CLEARING_OP } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { appendDelivery, readDelivery, positiveInteger } from './delivery-journal.js';
@@ -76,11 +76,32 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     if (e.op === CLEARING_OP && e.cleared > 0 && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
   }
   const clearing = clearingFor({ home, env, since });
+  // What the proxy itself saw of each session, for the clients that keep no transcript (compression.js:
+  // usageBySession). Read once, like the clearing.
+  let served = new Map();
+  try { for (const [id, x] of usageBySession(proxyLogFile(home, env), { since })) served.set(sessionKey(id), x); } catch { served = new Map(); }
   const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, env, since, config });
   for (const x of sessions.values()) {
     // agent tokens: the person's own conversation and every subagent it ran, since each was a model call made for
     // the same work; the parent's figure stays beside it (`ownTokens`), and a subagent with no counter is left out
+    // A session whose own record carries no usage -- every client without a transcript -- is priced from the
+    // proxy's rows for that session, which are the same model calls. The transcript always wins where there
+    // is one: it is the agent's own account of the session and it covers calls made before the proxy was in
+    // the path. `servedCalls` says how many answers the proxy saw, so a partial route is visible rather than
+    // quietly counted as the whole session.
+    if (!finite(x.ownTokens)) {
+      const p = served.get(x.id);
+      if (p && p.calls > 0) {
+        x.usage = p.usage;
+        x.ownTokens = p.usage.input + p.usage.output;
+        x.prompts = Math.max(x.prompts, p.calls);
+        x.servedCalls = p.calls;
+        x.usageFrom = 'proxy';
+        x.complete = true;
+        if (!x.model && p.model) x.model = p.model;
+      }
+    }
     const subTokens = x.subagents.reduce((a, s) => a + (finite(s.totalTokens) ? s.totalTokens : 0), 0);
     x.subagentTokens = subTokens;
     x.tokens = finite(x.ownTokens) ? x.ownTokens + subTokens : null;

@@ -387,7 +387,23 @@ export function heldOut(session, share) {
 // Claude Code can send a tool clearing of its own; this is the type to recognise it by, not to send.
 const AGENT_CLEAR_TYPE = 'clear_tool_uses_20250919';
 const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map(s => s.trim()).includes(EDIT_BETA);
-const sessionOf = headers => headers['x-claude-code-session-id'] || null;
+// Whose session this request belongs to. Claude Code says so in its own header, and until 2026-11-13
+// that header was the only one read -- so every other client's requests were attributed to no session
+// at all: the cut's record fell back to a hash of the first message, the proxy's rows logged
+// `session: null`, and the cleared figure never reached the session it belonged to. OpenCode 2 sends
+// the id in four headers (checked live on 2.3.0 in demo/e2e: `x-opencode-session`,
+// `x-opencode-session-id`, `x-session-affinity` and `x-session-id`, all four carrying the same
+// `ses_...` id its plugin reports to the stop hook), so the figures can be joined on it. The list is
+// ordered most specific first, and a value is taken only if it looks like an id rather than a path or
+// a URL, because `x-session-id` is a name anything upstream might set.
+const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'x-session-id'];
+const sessionOf = headers => {
+  for (const h of SESSION_HEADERS) {
+    const v = headers[h];
+    if (typeof v === 'string' && v && v.length <= 200 && !/[\s/\\]/.test(v)) return v;
+  }
+  return null;
+};
 // A session is not a conversation, and the cut's record belongs to the conversation.
 //
 // Claude Code sends one `x-claude-code-session-id` for everything a session does: the person's own

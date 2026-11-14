@@ -180,7 +180,9 @@ test('enable writes the URL into every agent file and disable takes only ours ou
     assert.equal(parse(fs.readFileSync(codexFile, 'utf8')).model_providers.thinker_proxy.base_url, `${p.url}/codex`);
     assert.deepEqual(readJson(m.files.claude), { env: { A: '1', [PROXY_ENV]: p.url }, hooks: {} });
     assert.deepEqual(readJson(m.files.pi), { providers: { anthropic: { headers: { 'x-a': 'b' }, baseUrl: p.url } } });
-    assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: p.url } } } });
+    // OpenCode reaches the API through the Vercel AI SDK, which posts `${baseURL}/messages`, so its base
+    // carries the `/v1` the proxy's cut matches on (`test/opencode-fleet.test.js` is why).
+    assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: `${p.url}/v1` } } } });
     // again: nothing changes, the port is kept
     const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.equal(again.port, p.port);
