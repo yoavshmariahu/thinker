@@ -516,7 +516,7 @@ export function transformRequest(method, url, headers, body, cfg) {
     // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
     // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,
     // so this branch had never run, and `Math.round(undefined)` would have logged `"saving":null`.
-    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), payback: d.payback, ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
     ...(d.held ? { held: d.held } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
     ...(d.turn != null ? { turn: d.turn } : {}) };

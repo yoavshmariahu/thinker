@@ -305,7 +305,12 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // Nothing above the floor at any depth is the floor's refusal, not the pricing's; the shallowest rung is
   // the smallest cut there is, so if even the whole set is under the floor the branch above already said so.
   if (!best) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
-  if (!take) return { ...same, turn, candidate: best.tokens, held: { ...bestP, ...(rates ? { rates } : {}) }, reason: 'payback' };
+  // The refusal carries the rung it was refusing: `depth` is how far back the best rung reached and `rungs`
+  // how many there were, so a log row answers whether the ladder had a choice at all. Without it a boundary
+  // that priced one rung reads exactly like one that priced nine (which is how the smoke of 2026-11-14 came
+  // back unreadable: the decision carried the two fields and no row did).
+  if (!take) return { ...same, turn, candidate: best.tokens,
+    held: { ...bestP, depth: best.ids.length, rungs: rungs.length, ...(rates ? { rates } : {}) }, reason: 'payback' };
   // `candidate` is what the chosen rung takes, not what the whole ladder could: the log's question is what
   // this boundary cut and what it cost, and `depth` says how far back it had to reach to find it.
   return { cut: [...rec.cut, ...take.ids], clear: true, turn, cold, candidate: take.tokens,
