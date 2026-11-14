@@ -45,7 +45,7 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   handoff: true,      // the host's own subagent does the work; the denial names it (the only path, 2026-11-12)
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
-  model: 'claude-sonnet-5-5', // the model thinker pins the host's agent definition to where the host lets it
+  model: 'claude-haiku-5-5', // the model thinker pins the host's agent definition to where the host lets it
   threshold: 35000,   // tokens of read results in one turn past which the rest of its exploration is delegated
   minRead: 8000,      // a read under this is never delegated: the lines the main model edits
   holdout: 0.5,       // share of sessions left alone, by hash of the session id (proxy.js:heldOut)
