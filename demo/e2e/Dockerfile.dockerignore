@@ -1,0 +1,13 @@
+# The build context for the e2e image: the tool, its tests and its demo, and nothing else.
+# BuildKit reads <dockerfile>.dockerignore in preference to the repository's .dockerignore.
+node_modules/
+.git/
+.worktrees/
+.thinker/
+bench/
+research/
+site/
+caches/
+dist/
+.tmp/
+.env
