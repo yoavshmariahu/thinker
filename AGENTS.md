@@ -73,7 +73,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 **The two guards scale with what the route charges for a rewrite (2026-11-13, `cutting.js:cutScale`, `scaledPolicy`):**
 - Trigger and `clearAtLeast` × `clamp((write/read) / 20, 0.1, 1)`. 20 is Anthropic's 1h ratio, the harshest any provider charges, and the reason a cut needs a tail ≤1.25× what it removes.
 - Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the mod holds this policy from mirrored constants and cannot know a rate. Anthropic unmoved, keeps its policy id.
-- GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so 14k/6k and `r1-t14k-f6k-p25-deep`. Never pooled with an Anthropic saving; no `POLICY_REV` bump, the guards are already in the stamp.
+- GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so a 14k trigger; the floor stays 8k, since #783 left only the trigger scaling (`cutting.js`: "Only the trigger scales"). Stamp `r3-t14k-f8k-p25-deep`. Never pooled with an Anthropic saving; the scaling itself bumped no `POLICY_REV`, the guards are already in the stamp.
 - `PAYBACK` 25 unchanged and does the policing, but it polices less than this said: with the rewrite charged whole, a 7k cut behind a 180k tail priced at 52 and was refused; corrected (below) it prices at 25 and is made. A cheap route still prefers **early and small**, since the tail is what it is paying for, but "late and small is refused" now needs a tail 40x the cut, not 25x.
 - A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
 - Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged on live cost per exchange, not by replay.
@@ -381,7 +381,7 @@ ignored; its history is in git before 2026-11-08.
 ## What a user's savings are, measured (2026-11-11, the owner's ask)
 
 - **Session clearing tracked per-session, not by denominator:** `sessionsOf` (usage log `op: session` rows) with cleared tokens, cost, prompt count.
-- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r1-t140k-f60k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
+- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r3-t140k-f8k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
 - **Dashboard reads stamped policies only** (`scripts/savings-dashboard.mjs:STAMPED`). Pre-stamp clears in separate row. Unstamped clears left out.
 - **Two rewrites not charged:** cold cut's own call (`r.clear.cold`) and rewrites from expired cache (no read found). Both doors enforce via `cutting.js:chargedRewrite`, `register.tsx:chargedRewrite`.
 - **Factory's two arms:** `telemetry.js:armsMetrics` sends `factory.arms` sums (sessions, exchanges, dollars, rework, cache traffic, merged PRs) per stage/loop, by policy stamp. Schema 1, read by **Diff by feature** dashboard.
