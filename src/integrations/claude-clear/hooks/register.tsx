@@ -44,7 +44,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 1
+export const POLICY_REV = 2
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean }) =>
   `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}`
@@ -113,7 +113,12 @@ export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, m
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false
   if (idle >= COLD_MS) return true
-  return dropped > 0 && writeRatio(model) * recache <= PAYBACK * dropped
+  // The same inequality the proxy prices, in this door's ratio form (cutting.js:priceCut, 2026-11-13). A
+  // rewrite is not charged in full: without the clear this call would have READ the tail back, and would
+  // have read what the clear drops too, so both come off the cost. In ratios that is one subtraction on
+  // each side -- `writeRatio - 1` for the displaced read, `PAYBACK + 1` for the call that makes the clear,
+  // which is now one of the calls that repay it. One policy, two spellings, held together by the test.
+  return dropped > 0 && (writeRatio(model) - 1) * recache <= (PAYBACK + 1) * dropped
 }
 
 // a session is on one side of the holdout for its whole life (proxy.js:heldOut hashes the same id with

@@ -78,13 +78,17 @@ test('the tracker keeps the last observations and refits, and refuses to fit on 
 
 const cand = { ids: ['x'], tokens: 50000, chars: 200000, recache: 300000, firstChanged: 2 };
 test('priceCut honors the rates it is given', () => {
-  // Anthropic ratios: 300k recache at 2.0 against 50k tokens at 0.1 repays in 120 calls -- refused
+  // Anthropic ratios: 300k recache at 2.0 against 50k tokens at 0.1 repays in 113 calls -- refused. (120
+  // until 2026-11-13, when the read the rewrite displaces came off the cost: at a tenth it is a 6% change,
+  // which is why the correction was invisible here for as long as only Anthropic was priced.)
   const anthropic = priceCut({}, cand, { ttl: '1h' });
-  assert.equal(anthropic.payback, 120);
+  assert.equal(anthropic.payback, 113);
   assert.equal(anthropic.pays, false);
-  // the same boundary at an implicit-cache provider's prices: write 1.0, read 0.5 repays in 12
+  // The same boundary at an implicit-cache provider's prices: write 1.0, read 0.5 repays in 5 calls, where
+  // the same arithmetic without the displaced read said 12. Half the input price is what the cut stops
+  // paying on every later call AND what the rewrite is spared, so the correction more than halves it.
   const implicit = priceCut({}, cand, { rates: { read: 0.5, write: 1 } });
-  assert.equal(implicit.payback, 12);
+  assert.equal(implicit.payback, 5);
   assert.equal(implicit.pays, true);
   assert.equal(priceCut({}, cand, { cold: true, rates: { read: 0.5, write: 1 } }).cost, 0);
 });

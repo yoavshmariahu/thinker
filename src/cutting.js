@@ -92,7 +92,10 @@ export const PAYBACK = 25;
 // Bump it when one of those moves. The rest is the settings that were in force for that request
 // (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the machine config), so two machines running the same
 // code with different floors are never pooled either.
-export const POLICY_REV = 1;
+// 2 since 2026-11-13: the payback pricing changed. A cut's cost is now what it adds to the call that
+// makes it, against the same call without it, so the read the rewrite displaces is subtracted instead of
+// ignored (`priceCut`). Every saving made under the old arithmetic keeps `r1` and is never folded in.
+export const POLICY_REV = 2;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`;
@@ -163,9 +166,28 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
   // place in the cache, and not the system prompt, which is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
-  const cost = cold ? 0 : recache * write;
-  // How many later calls until the cut has paid for that write. No horizon is guessed: see PAYBACK.
-  const payback = cand.tokens > 0 && read > 0 ? Math.ceil(cost / (cand.tokens * read)) : Infinity;
+  // What the cut adds to THIS call, against the same call made without it (2026-11-13). Without the cut
+  // the whole prompt is read back from the cache -- the tail and the results in it included, which is the
+  // 175k-278k read on this machine's own boundary rows. With the cut, the tail is written instead of read
+  // and what the cut removes is not in the call at all. So the rewrite is not charged in full: the read it
+  // displaces comes off it, and so does the read of what was taken out.
+  //
+  //     cost = recache x (write - read) - read x removed
+  //
+  // `recache * write` was Anthropic-shaped. There a read is a tenth of a write, so the correction is ~5%
+  // and nothing anyone measured would move. Where a read is half the input price -- any implicit cache,
+  // GLM's among them -- the displaced read is most of the cost, and the old form was 2x to 12x too
+  // pessimistic, worst exactly at the margin where the decision is actually made. It refused cuts that
+  // repay on the very next call.
+  //
+  // The cost may now be negative: a cut that takes out more than its rewrite costs is already ahead on the
+  // call that makes it, and `payback` then reads zero or below. That is a real state, not a floor to clamp.
+  const cost = cold ? 0 : recache * (write - read) - read * cand.tokens;
+  // How many later calls until the cut has paid for that cost. No horizon is guessed: see PAYBACK.
+  // Zero means repaid on the call that makes the cut, needing no later call. It cannot go below: the cost
+  // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
+  // that `Math.ceil` returns for a negative fraction out of the log and out of every `=== 0` a reader writes.
+  const payback = cand.tokens > 0 && read > 0 ? Math.max(0, Math.ceil(cost / (cand.tokens * read))) : Infinity;
   return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, policyId, POLICY_REV } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, policyId, POLICY_REV, priceCut } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -223,4 +223,45 @@ test('the first desktop session on a machine is told once that clearing reaches 
   assert.ok(s.includes("(await $.env.get('CLAUDE_CODE_ENTRYPOINT')) === 'claude-desktop'"), 'the desktop app alone: the terminal had the proxy all along');
   assert.ok(s.includes('await $.store.get(INTRODUCED)') && s.includes('await $.store.set(INTRODUCED, Date.now())'), 'once per machine, kept across sessions');
   assert.match(s, /export const INTRO = 'thinker now clears old tool results[^']*Claude Desktop[^']*'/);
+});
+
+// One policy, two spellings. The proxy prices a cut in tokens (cutting.js:priceCut) and the mod decides it in
+// ratios, so neither reads the other's arithmetic and only this test holds them to the same answer. It matters
+// most for the correction of 2026-11-13: a rewrite is charged less the read it displaces, which in the mod's
+// form is `writeRatio - 1` on one side and `PAYBACK + 1` on the other. A move on either door fails here.
+test('the mod decides a clear exactly where the proxy prices one', () => {
+  const s = src();
+  const m = s.match(/export const clearPays = [\s\S]*?\n  return (dropped > 0 && [^\n]+)\n\}/);
+  assert.ok(m, 'the mod decides on one line');
+  assert.match(m[1], /writeRatio\(model\) - 1/, 'the displaced read comes off the rewrite');
+  assert.match(m[1], /PAYBACK \+ 1/, 'and the call that makes the clear is one of the calls that repay it');
+  const modPays = new Function('dropped', 'recache', 'writeRatio', 'PAYBACK', 'model', `return ${m[1]}`);
+  const writeRatio = model => WRITE_1H / readRate(model);
+  let agreed = 0;
+  for (const model of ['claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-2']) {
+    for (const tokens of [6000, 20000, 60000, 105472, 200000]) {
+      for (const ratio of [0.5, 1, 1.21, 1.5, 1.94, 2.5, 4, 10]) {
+        const recache = Math.round(tokens * ratio);
+        const proxy = priceCut({ prompt: recache + tokens }, { tokens, recache }, { model }).pays;
+        const mod = modPays(tokens, recache, writeRatio, PAYBACK, model);
+        assert.equal(mod, proxy, `${model} tail/cut ${ratio} of ${tokens}: mod ${mod}, proxy ${proxy}`);
+        agreed++;
+      }
+    }
+  }
+  assert.ok(agreed >= 160, 'the grid covers both sides of the floor on every priced model');
+  // A cut can now price at or below zero -- already ahead on the call that makes it -- which the old
+  // arithmetic could not express at all, having charged the whole rewrite. On Anthropic it is unreachable:
+  // it needs a tail under read/(write-read) of what the cut removes, 5% at these rates. It is ordinary
+  // wherever a read is dear, so the state is checked at GLM's rates, which this door never sees (its
+  // writeRatio is Anthropic's by construction, the mod running only in Claude Desktop).
+  // Zero is the floor and it is reachable: payback is recache x (write-read) / (removed x read) - 1, so a
+  // positive tail can never price below -1 and the whole number can never be under 0. Zero means repaid on
+  // the call that makes the cut, needing no later call at all.
+  const glm = { read: 0.5, write: 1.0 };
+  const pay = (tokens, recache, opts) => priceCut({ prompt: recache + tokens }, { tokens, recache }, opts).payback;
+  assert.equal(pay(100000, 100000, { rates: glm }), 0, 'at GLM rates a tail equal to what the cut removes is repaid at once');
+  assert.equal(pay(200000, 100000, { rates: glm }), 0, 'and taking out twice the tail is no later than at once');
+  assert.equal(pay(100000, 300000, { rates: glm }), 2, 'a tail three times the cut takes two later calls');
+  assert.equal(pay(100000, 100000, { model: 'claude-opus-5' }), 18, 'where on Anthropic that same shape needs 18');
 });
