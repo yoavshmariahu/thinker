@@ -153,6 +153,14 @@ test('an automatic clear that would be refused is never started, so the engine p
   assert.ok(/const chosen = pendingDepth; pendingDepth = null/.test(s), 'the chosen depth is taken once');
   assert.ok(/clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity \}\)/.test(s), 'the clear applies it; a hand-run clear takes everything');
   assert.ok(/if \(cleared >= depth\) return r/.test(s), 'clearOld stops at the depth, counting from the newest eligible result');
+  // The latch is NOT the size floor. They were the same 60,000 until the floor fell to 8,000 with the ladder,
+  // which silently cut the hold to 8k -- no hold at all, a working session grows that in a turn -- and put the
+  // skip-line-after-every-answer bug back (reported 2026-11-02 and 2026-11-05). The mod's own suite caught it;
+  // this assertion is here because that suite needs `claude-code/testing`, which `npm test` does not have.
+  assert.match(s, /export const HOLD_GROWTH = (\d+)/, 'the hold window is a constant of its own');
+  assert.equal(modConst(s, 'HOLD_GROWTH'), 60000, 'and it is the 60k the latch had while the floor was 60k');
+  assert.ok(/holdUntil = attemptAt \+ HOLD_GROWTH/.test(s), 'the latch holds on its own window');
+  assert.ok(!/holdUntil = attemptAt \+ policy\.clearAtLeast/.test(s), 'never on the size floor, which the pricing now moves');
   // and the ladder is the proxy's: nested sets from the tail backwards, deepest paying one taken
   assert.ok(/export function clearLadder/.test(s) && /for \(let i = messages\.length - 1; i >= 0; i--\)/.test(s), 'the ladder walks from the tail back');
   assert.ok(/if \(clearPays\(p, \{[^\n]*\)\) take = rung\.depth/.test(s), 'the deepest rung that pays wins, as decideCut picks the largest paying set');

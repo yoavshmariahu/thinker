@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, HOLD_GROWTH, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -113,8 +113,10 @@ test('an automatic attempt that did not clear holds the next until the context g
   // nothing held: due from the trigger on
   expect(autoDue(DEFAULTS.trigger - 1, DEFAULTS, 0)).toBe(false)
   expect(autoDue(DEFAULTS.trigger, DEFAULTS, 0)).toBe(true)
-  // refused at 200k: the next turn ends at the same context, and at 250k, and says nothing; at 300k it may try once more
-  const holdUntil = 200000 + DEFAULTS.clearAtLeast
+  // refused at 200k: the next turn ends at the same context, and at 250k, and says nothing; at 300k it may try once more.
+  // The window is `HOLD_GROWTH`, not `clearAtLeast`: the two were the same 60,000 until the size floor fell to
+  // 8,000 with the ladder, and a hold of 8k is no hold at all -- a working session grows that in a turn.
+  const holdUntil = 200000 + HOLD_GROWTH
   expect(autoDue(200000, DEFAULTS, holdUntil)).toBe(false)
   expect(autoDue(250000, DEFAULTS, holdUntil)).toBe(false)
   expect(autoDue(300000, DEFAULTS, holdUntil)).toBe(true)
@@ -128,17 +130,25 @@ test('a clear is made when it repays its write inside PAYBACK calls, and nothing
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 20000, calls, idle: 0, cleared: true })).toBe(true)
   // three times what it drops: never repays inside the floor
   expect(clearPays(DEFAULTS, { dropped: 100000, recache: 300000, calls, idle: 0, cleared: true })).toBe(false)
-  // the line itself: writeRatio(model) x recache against PAYBACK x dropped. 20 where the model is unknown,
-  // so a token written needs 20 read back; the floor allows PAYBACK calls to do it.
+  // The line itself: (writeRatio(model) - 1) x recache against (PAYBACK + 1) x dropped. 20 where the model is
+  // unknown, so a token written needs 20 read back -- less the read the rewrite displaces, which is the `- 1`,
+  // and the call that makes the clear is one of the calls that repay it, which is the `+ 1` (2026-11-13,
+  // cutting.js:priceCut). Derived from the constants rather than written out, so the edge cannot go stale
+  // again: it was `PAYBACK x dropped / writeRatio` and read 100,000, where the corrected line pays to 109,473.
   expect(writeRatio('')).toBe(20)
   expect(PAYBACK).toBe(25)
-  const edge = Math.floor(PAYBACK * 80000 / writeRatio(''))
+  const edgeAt = (dropped: number, model = '') => Math.floor((PAYBACK + 1) * dropped / (writeRatio(model) - 1))
+  const edge = edgeAt(80000)
+  expect(edge).toBe(109473)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true })).toBe(true)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge + 1, calls, idle: 0, cleared: true })).toBe(false)
   // on Opus 5.5 a read is a twentieth of an input token, so a written token needs 40 reads and the same
   // write no longer repays in time
   expect(writeRatio('claude-opus-5-5')).toBe(40)
   expect(clearPays(DEFAULTS, { dropped: 80000, recache: edge, calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(false)
+  // and its own edge is lower in the same proportion, which is the whole of what the model changes here
+  expect(edgeAt(80000, 'claude-opus-5-5')).toBe(53333)
+  expect(clearPays(DEFAULTS, { dropped: 80000, recache: edgeAt(80000, 'claude-opus-5-5'), calls, idle: 0, cleared: true, model: 'claude-opus-5-5' })).toBe(true)
 })
 
 test('a request that rewrote a long prefix is charged its write tokens; a cache read, a short context and no usage are not', () => {
