@@ -70,6 +70,14 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   a read the model would have made anyway counts too. What it cannot see, an answer gone wrong without a read, is the
   graded Artemis run's question. Sessions logged before this carry no `rereads` and net as before.
 
+**The two guards scale with what the route charges for a rewrite (2026-11-13, `cutting.js:cutScale`, `scaledPolicy`):**
+- Trigger and `clearAtLeast` × `clamp((write/read) / 20, 0.1, 1)`. 20 is Anthropic's 1h ratio, the harshest any provider charges, and the reason a cut needs a tail ≤1.25× what it removes.
+- Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the mod holds this policy from mirrored constants and cannot know a rate. Anthropic unmoved, keeps its policy id.
+- GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so 14k/6k and `r1-t14k-f6k-p25-deep`. Never pooled with an Anthropic saving; no `POLICY_REV` bump, the guards are already in the stamp.
+- `PAYBACK` 25 unchanged and does the policing: a small cut late in a long conversation is still refused because the tail dwarfs it, so a cheap route cuts **early and in small batches**, not merely more often.
+- A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
+- Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged live on the existing holdout, not by replay.
+
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
 - Rate is result's, not prompt's (`RESULT_TOKENS_PER_CHAR`, 0.445).

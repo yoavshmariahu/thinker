@@ -75,9 +75,12 @@ export function transformResponses(method, url, headers, body, cfg) {
   const rec = cfg.cutRecord || cfg.readResponsesCut?.(session) || freshCut(session);
   const prompt = body.length * TOKENS_PER_CHAR;
   const candidate = responsesCandidates(j.input, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
-  const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model });
+  // the decision's rates, per model, as on the Chat door: a Responses upstream is not always Anthropic's
+  const rates = cfg.ratesFor?.(j.model) || null;
+  const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model, rates });
   const applied = applyResponsesCut(j.input, decision.cut);
-  const state = { model: j.model, session, turn, cut: decision.cut,
+  const state = { model: j.model, session, turn, cut: decision.cut, policy: decision.policy,
+    ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
     ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };

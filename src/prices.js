@@ -22,6 +22,15 @@ const OTHER = [
   [/gemini-3\.[78]-flash/, { input: 0.75, output: 3.75, cacheRead: 0.075, cacheWrite: 0.9375 }],
   [/gemini-3\.[01]-pro|gemini-3-pro/, { input: 2, output: 12, cacheRead: 0.2, cacheWrite: 2.5 }],
   [/gemini-3\.5-flash-lite/, { input: 0.3, output: 2.5, cacheRead: 0.03, cacheWrite: 0.375 }],
+  // Z.ai's GLM. The cache is implicit: nothing is declared, nothing is pinned, and establishing an entry is
+  // billed at the ordinary input price -- the doc's three billing lines are new content at standard prices,
+  // cache hits "at discounted prices (usually 50% of standard price)" and output at standard prices, with no
+  // fourth line for a write or for storage (docs.z.ai/guides/capabilities/cache, read 2026-11-13). So
+  // cacheWrite is the input price and there is no 1h rate to be had. The read is the number to watch: the doc
+  // says half, third-party listings imply a fifth (glm-5.3 at $1.40/M against $0.26/M cached), and the two
+  // give different guards (scale 0.1 against 0.27). Half is the provider's own word, so it is what is here.
+  [/glm-5/, { input: 1.4, output: 4.4, cacheRead: 0.7, cacheWrite: 1.4, cacheWrite1h: 1.4 }],
+  [/glm-4\.[67]/, { input: 0.6, output: 2.2, cacheRead: 0.3, cacheWrite: 0.6, cacheWrite1h: 0.6 }],
 ];
 
 const fill = p => ({ input: p.input, output: p.output ?? p.input * 5, cacheRead: p.cacheRead ?? p.input / 10, cacheWrite: p.cacheWrite ?? p.input * 1.25, cacheWrite1h: p.cacheWrite1h ?? p.input * 2 });
@@ -38,6 +47,32 @@ export function listPrice(model, { config, home } = {}) {
   if (other) return other[1];
   const r = relativeRate(m);
   return r ? { input: r.input * OPUS_INPUT, output: r.output * OPUS_INPUT, cacheRead: r.cacheRead * OPUS_INPUT, cacheWrite: r.cacheWrite * OPUS_INPUT, cacheWrite1h: r.cacheWrite1h * OPUS_INPUT } : null;
+}
+
+// What a cache write and a cache read cost relative to an input token, for the cut decision
+// (cutting.js:cutScale, gateway-rates.js). Only where the cache prices are STATED: `fill` invents a tenth
+// and 1.25x for a model that does not say, and a guard moved on an invented ratio is worse than one left
+// where it was. So this reads the records before `fill` and answers null unless both are there. A write is
+// priced at the hour's rate where the provider has one, because that is the rate the policy assumes.
+export function statedRates(model, { config, home } = {}) {
+  const m = String(model || '').toLowerCase().replace(/^(claude|anthropic|cursor|openai|google)\//, '');
+  if (!m) return null;
+  const ratio = p => {
+    const write = p?.cacheWrite1h ?? p?.cacheWrite;
+    if (!(p?.input > 0) || !Number.isFinite(p?.cacheRead) || !Number.isFinite(write)) return null;
+    const r = v => Math.round((v / p.input) * 1000) / 1000;
+    return { read: r(p.cacheRead), write: r(write) };
+  };
+  const own = config?.prices && typeof config.prices === 'object' ? Object.entries(config.prices).find(([k]) => k.toLowerCase() === m || m.startsWith(k.toLowerCase())) : null;
+  if (own) { const v = ratio(own[1]); if (v) return { ...v, source: 'price-config' }; }
+  const reg = registryPrices(home); const rp = reg[m] || reg[String(model || '').toLowerCase()];
+  if (rp) { const v = ratio(rp); if (v) return { ...v, source: 'price-registry' }; }
+  const other = OTHER.find(([re]) => re.test(m));
+  if (other) { const v = ratio(other[1]); if (v) return { ...v, source: 'price-list' }; }
+  // Anthropic's own models are deliberately not here. `cutting.js:readRate`/`writeRate` already price them,
+  // and they price the write by the TTL of the request in hand -- a rate resolved from the list would carry
+  // the hour's 2.0 into a five-minute request and over-refuse its cuts. Nothing on an Anthropic route moves.
+  return null;
 }
 
 // The provider a model name belongs to, for the Report's grouping; the client is the fallback for an alias

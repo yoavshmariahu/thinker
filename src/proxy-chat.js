@@ -109,7 +109,7 @@ export function transformChat(method, url, headers, body, cfg) {
   const candidate = chatCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
   const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model, rates });
   const applied = applyChatCut(j.messages, decision.cut);
-  const state = { model: j.model, session, turn, cut: decision.cut,
+  const state = { model: j.model, session, turn, cut: decision.cut, policy: decision.policy,
     ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
