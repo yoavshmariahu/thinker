@@ -1,0 +1,11 @@
+Turn 5 of 9. Review integration and backwards compatibility using the related source and tests below. Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+frontend/src/initKea.ts
+frontend/src/scenes/onboarding/legacy/onboardingLogic.tsx
+frontend/src/scenes/onboarding/legacy/onboardingLogic.test.ts
+posthog/api/test/test_organization.py
+posthog/models/organization_domain.py
+posthog/api/organization_domain.py
+posthog/api/test/test_organization_domain.py
+
+Keep observations tied to the requested behavior; repair regressions you find without unrelated changes.

@@ -1,0 +1,69 @@
+{
+ "id": "PR106936-hard",
+ "pr": "106936",
+ "title": "fix(invites): flag existing members on the invite row before submit",
+ "criteria": [
+  {
+   "id": "c1",
+   "behavior": "While filling in an invite row, an email that belongs to an existing member of the current organization is flagged on that row itself (visible inline error/error styling on the email field) before any submission happens, in the organization settings invite dialog.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c2",
+   "behavior": "The signed-in user's own email address is treated the same as an existing member's email and is flagged on the row.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c3",
+   "behavior": "When any row contains an existing-member (or own) email, the batch submit control is unavailable and communicates a reason indicating that people who are already members must be removed; this applies both in the onboarding invite step and in the organization settings invite dialog. Per-row send controls are likewise unavailable for such a row.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c4",
+   "behavior": "The match against existing members' emails ignores letter case and surrounding whitespace, so e.g. ' Rose.Dawson@PostHog.com' is flagged when the member's email is rose.dawson@posthog.com.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c5",
+   "behavior": "The organization's member list is fetched when the invite form is opened so the check can work without the user having visited the members list first, and the own-email check still applies before that data has loaded.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c6",
+   "behavior": "A bulk invite request containing an existing member's email in any position is rejected as a bad request without creating or emailing any invite from that batch, including invites listed before the offending row.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c7",
+   "behavior": "The rejection is returned as a field-level validation error attributed to the target email with a stable, distinguishable code identifying the existing-member case (rather than a generic error).",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c8",
+   "behavior": "An existing-member rejection of an invite submission is not sent to error tracking as an application exception, while other unexpected API failures on the same path still are.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c9",
+   "behavior": "If the server rejects a submission for an existing member that the client did not know about, the member data is refreshed so the offending row becomes flagged afterwards.",
+   "essential": false,
+   "calibrated": true
+  }
+ ],
+ "goldFiles": [
+  "frontend/src/initKea.ts",
+  "frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx",
+  "frontend/src/scenes/settings/organization/InviteModal.tsx",
+  "frontend/src/scenes/settings/organization/inviteLogic.ts",
+  "posthog/api/organization_invite.py"
+ ],
+ "mergeCommit": "d964d1e66751be37de1e6330b660abfbf6e1ab92"
+}

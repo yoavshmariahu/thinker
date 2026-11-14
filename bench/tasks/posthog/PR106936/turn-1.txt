@@ -1,0 +1,15 @@
+This is turn 1 of a nine-turn coding and review session. The requested change is below; first map the existing behavior and do not edit until the next turn.
+
+Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.
+
+When I invite a teammate who is already a member of my organization, or I enter my own email, I only find out after submitting, and then I get a generic error toast. This happens both in the onboarding invite step and in the organization settings invite dialog. The form currently checks only that the email looks valid, so nothing warns me while I'm filling in the row. Worse, when I send several invites at once and an existing member is in, say, the third row, the first two invitations have already been created and emailed before the whole batch fails, leaving a partial, confusing result. Each of these rejections is also reported to our error tracking as if it were an unexpected error, even though it's an ordinary validation outcome. I'd like the invite row itself to flag an email that belongs to an existing member (or to myself) before I submit, so I can fix or remove it. Submitting a batch that contains such an email should be rejected up front without creating or emailing any of the other invites, and it should not be logged as an application error.
+
+Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+posthog/api/organization_invite.py
+posthog/models/organization_invite.py
+frontend/src/scenes/settings/organization/inviteLogic.ts
+frontend/src/scenes/settings/organization/InviteModal.tsx
+frontend/src/scenes/onboarding/legacy/OnboardingInviteTeammates.tsx
+
+Summarize the current data flow and likely change boundaries in under 250 words; do not implement yet.

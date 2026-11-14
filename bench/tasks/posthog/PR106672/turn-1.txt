@@ -1,0 +1,13 @@
+This is turn 1 of a nine-turn coding and review session. The requested change is below; first map the existing behavior and do not edit until the next turn.
+
+Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.
+
+When a shared metric is attached to an experiment, it can end up with the same internal identifier as one of the experiment's own inline metrics. Because experiment results are matched to metrics by that identifier, one metric then displays the other's results, which is wrong and confusing. An earlier fix prevented this between two inline metrics, but two scenarios still produce the clash. First, when a user promotes an inline metric to a shared metric, the new shared metric keeps the original's identifier, and if the inline copy remains on the experiment, the two collide. The guidance given to agents for setting up experiment analytics also tells them to promote a metric with the same query and then attach it, which leads straight to this situation. Second, when an experiment is updated with only a new list of attached shared metrics, the experiment's existing inline metrics are never checked against them, so a clash can slip through. Desired behavior: inline and shared metrics on the same experiment should always have distinct identifiers, whether the shared metric is created by promotion or attached through an update that changes only the attached shared metrics. Each metric should always show its own results, and the agent guidance should stop recommending the flow that causes the duplication.
+
+Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+products/experiments/backend/experiment_service.py
+products/experiments/backend/experiment_saved_metric_service.py
+products/experiments/backend/models/experiment.py
+
+Summarize the current data flow and likely change boundaries in under 250 words; do not implement yet.

@@ -1,0 +1,1 @@
+Turn 6 of 9. Revisit the requirements one by one. For each, trace a concrete scenario through the current code and identify the regression assertion that protects it. Inspect files as needed; do not invent test results. Fix gaps you can substantiate.

@@ -1,0 +1,1 @@
+Add a function beta() to mod.py that returns alpha() + 1. Then run: python3 -c "import mod; print(mod.beta())"

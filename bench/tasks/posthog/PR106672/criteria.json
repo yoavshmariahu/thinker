@@ -1,0 +1,61 @@
+{
+ "id": "PR106672-hard",
+ "pr": "106672",
+ "title": "fix(experiments): keep inline and shared metric uuids unique",
+ "criteria": [
+  {
+   "id": "c1",
+   "behavior": "Creating a shared metric always stores a newly generated internal identifier, even when the caller supplies an identifier in the metric definition (the supplied one is discarded rather than reused). The rest of the submitted metric definition is stored unchanged.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c2",
+   "behavior": "Updating/editing an existing shared metric continues to preserve that metric's existing internal identifier rather than generating a new one.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c3",
+   "behavior": "When an experiment is updated with only a new list of attached shared metrics (no inline metric payload in the request), the experiment's already-stored inline metrics are compared against the identifiers of the shared metrics being linked, and any stored inline metric whose identifier matches one of them is rewritten with a new unique identifier. This applies to both the primary and the secondary inline metric collections.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c4",
+   "behavior": "Attaching shared metrics whose identifiers do not clash with any stored inline metric leaves the stored inline metrics completely unchanged, including their identifiers and their ordering entries.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c5",
+   "behavior": "After a stored inline metric's identifier is regenerated because of a clash, the display ordering for that metric type contains both the new inline identifier and the original identifier (which now belongs only to the attached shared metric); the original identifier is not removed from the ordering merely because the inline metric no longer carries it.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c6",
+   "behavior": "Resolving a clash never changes the attached shared metric or its link to the experiment: the shared metric keeps its stored identifier and the set of linked shared metrics is exactly what the update requested.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c7",
+   "behavior": "The agent-facing guidance for promoting an inline metric to a shared metric no longer recommends creating the shared metric with the inline metric's identifier and leaving the inline copy attached; it instead instructs omitting the identifier when creating the shared metric and removing the inline metric as part of the same update that attaches the shared one.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c8",
+   "behavior": "When an update resends an inline metric collection that still contains a metric clashing with an already-linked shared metric, the inline copy likewise receives a fresh identifier while the clashing identifier remains in the ordering for the shared metric.",
+   "essential": false,
+   "calibrated": true
+  }
+ ],
+ "goldFiles": [
+  "products/experiments/backend/experiment_saved_metric_service.py",
+  "products/experiments/backend/experiment_service.py",
+  "products/experiments/skills/configuring-experiment-analytics/references/metric-configuration.md.j2"
+ ],
+ "mergeCommit": "7bed05dd05795990f924d08907e5364ec676d6b1"
+}

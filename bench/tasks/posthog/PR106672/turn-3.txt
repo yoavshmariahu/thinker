@@ -1,0 +1,6 @@
+Turn 3 of 9. Review the behavior against its surrounding contracts and test patterns. Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+products/experiments/backend/test/test_experiment_service.py
+products/experiments/backend/test/test_experiment_saved_metric_service.py
+
+Identify concrete missed cases, update the patch or tests where needed, and summarize the findings.

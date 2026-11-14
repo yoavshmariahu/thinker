@@ -2,9 +2,13 @@ node_modules
 .metrics-work/
 dist/
 *.log
-# benchmarks moved to Artemis and the task runner (their own repositories) on 2026-10-16; what a
-# checkout still holds under bench/ (clones, caches, run output) is local leftovers, never committed
-bench/
+# The bench came back into the repository on 2026-11-14, when Artemis and the task runner were retired
+# (bench/README.md): the runner, the specs, the tasks and the ledger are committed, so a result's
+# provenance is in git history. Only a run's own output and its clones stay local.
+bench/runs/
+bench/worktrees/
+bench/clones/
+bench/caches/
 .worktrees/
 eval-support/
 .venv-perf/
