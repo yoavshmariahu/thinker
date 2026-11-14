@@ -78,7 +78,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
 - Open number: GLM's read rate. Z.ai's doc says half, third-party listings a fifth (→ 0.27, 38k/16k). Judged on live cost per exchange, not by replay.
 
-**A cut is charged what it adds to the call, not the whole rewrite (2026-11-13, `cutting.js:priceCut`, `POLICY_REV` 2):**
+**A cut is charged what it adds to the call, not the whole rewrite (2026-11-13, `cutting.js:priceCut`, `POLICY_REV` 3 (#783 took 2; two pricings may not share one stamp)):**
 - `cost = recache x (write - read) - read x removed`. Without the cut this same call reads the whole prompt back from the cache, the tail included, so the rewrite is not charged in full: the read it displaces comes off it, and so does the read of what the cut removes. Identically, payback falls by `tail/cut + 1`.
 - On Anthropic a read is a tenth of a write, so it is a ~6% change -- invisible while only Anthropic was priced. Where a read is half the input price it is most of the cost.
 - Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.

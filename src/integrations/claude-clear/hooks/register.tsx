@@ -44,7 +44,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 2
+export const POLICY_REV = 3
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean }) =>
   `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}`
