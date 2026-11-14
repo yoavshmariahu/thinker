@@ -18,6 +18,7 @@
 // queues, concurrency beyond a worker count, and every guardrail that refused to start.
 //
 //   node bench/bench.mjs run bench/experiments/<spec>.json [--only t1,t2] [--arms a,b] [--reps n] [--dry]
+//   node bench/bench.mjs grade <tag> [--id <session>] [--judge <model>] [--tasks-dir <dir>]
 //   node bench/bench.mjs report <tag> [--boot]
 //   node bench/bench.mjs ledger [--tag <tag>]
 //
@@ -46,6 +47,8 @@ const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8',
 const readJson = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const rows = f => fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 const hashOf = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
+// where a recorded row's task files live, so `grade` can reread them after the fact
+const taskDirOf = r => path.resolve(ROOT, r.tasksDir || 'bench/tasks');
 
 // ---- the task set, hashed ----
 // A task is a directory of `turn-N.txt` prompts (`{CWD}` becomes the worktree) and an optional
@@ -118,7 +121,59 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
   }
   const outcome = task.check ? lastLine(tryRun('bash', [task.check], cwd)) : null;
   const after = arm.after ? tryRun(arm.after[0], arm.after.slice(1).map(s => s.replaceAll('{CWD}', cwd)), cwd) : null;
-  return record({ spec, task, armName, arm, rep, id, cwd, model, session, turns, outcome, after, maxTurns: Number(maxTurns) });
+  // graded after the arm's own after step, so staging the diff cannot disturb what that step reads
+  const verdict = await grade({ task, cwd, judge: arm.judge || spec.judge });
+  return record({ spec, task, armName, arm, rep, id, cwd, model, session, turns, outcome, after, verdict, maxTurns: Number(maxTurns) });
+}
+
+// ---- grading ----
+// A task's criteria.json is a list of { id, behavior, essential }. The judge is shown those and the
+// session's own diff against the base commit, and answers per criterion. Two figures are recorded, never
+// one: `pass` is every ESSENTIAL criterion met, `passAll` is every criterion -- a run that reports the
+// essential flag alone overstates, which is why the PostHog broadcast set says in its own rule that full
+// success needs all of them. The diff is taken through the worktree's index (`add -A` then `diff
+// --cached`) so a file the agent created counts; the worktree is disposable, so staging in it is free.
+// Cost: one judge call per session, on a diff capped at DIFF_CAP characters (truncation is recorded, so a
+// verdict reached on a partial diff is never read as a verdict on the whole).
+const DIFF_CAP = 120_000;
+async function grade({ task, cwd, judge }) {
+  const f = path.join(task.dir, 'criteria.json');
+  if (!judge || !fs.existsSync(f)) return null;
+  const crit = (readJson(f).criteria || []).filter(c => c && c.behavior);
+  if (!crit.length) return null;
+  // Two separate steps, each with its own catch: `sh` trims its stdout, so an `add` told to ignore
+  // stdout returns null and throws inside the helper -- which silently cost the whole diff the first time
+  // (0 chars graded against a worktree holding 32k of real change). The arm's own plumbing is excluded by
+  // pathspec: `.claude` carries the hooks and the pinned agent this bench writes, `.thinker` the tool's
+  // own state, and a judge shown either is grading the harness.
+  let diff = '';
+  try { sh('git', ['-C', cwd, 'add', '-A']); } catch {}
+  try { diff = sh('git', ['-C', cwd, 'diff', '--cached', '--', '.', ':(exclude).claude', ':(exclude).thinker'], { maxBuffer: 1 << 28 }); } catch { diff = ''; }
+  const truncated = diff.length > DIFF_CAP;
+  const brief = `You are grading one change against criteria written before it was made. Judge ONLY from the diff below: a criterion is met if the diff plainly implements it, and not met if it does not, is partial, or you cannot tell. Do not reward intent, comments or tests that assert nothing.
+
+CRITERIA
+${crit.map(c => `${c.id}${c.essential ? ' (essential)' : ''}: ${c.behavior}`).join('\n\n')}
+
+DIFF${truncated ? ` (TRUNCATED to the first ${DIFF_CAP} characters of ${diff.length})` : ''}
+${diff.slice(0, DIFF_CAP) || '(no change was made)'}
+
+Answer with JSON only, no prose and no code fence:
+{"verdicts":[{"id":"c1","met":true,"why":"<=15 words"}],"note":"<=25 words"}`;
+  const r = await once('claude', ['-p', brief, '--output-format', 'json', '--model', judge, '--max-turns', '2',
+    '--setting-sources', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--disallowedTools', 'Read', 'Edit', 'Write', 'Bash', 'Grep', 'Glob', 'Agent'],
+    { cwd, env: { ...process.env, ANTHROPIC_BASE_URL: 'https://api.anthropic.com' } });
+  let j = null;
+  try { j = JSON.parse(String(r.result || '').replace(/^[^{]*/, '').replace(/[^}]*$/, '')); } catch {}
+  if (!j || !Array.isArray(j.verdicts)) return { judge, error: `unparsed: ${String(r.result || r.subtype).slice(0, 200)}`, costUsd: r.total_cost_usd || 0 };
+  const byId = Object.fromEntries(j.verdicts.map(v => [v.id, Boolean(v.met)]));
+  const ess = crit.filter(c => c.essential);
+  return {
+    judge, truncatedDiff: truncated, diffChars: diff.length, costUsd: r.total_cost_usd || 0,
+    pass: ess.length > 0 && ess.every(c => byId[c.id]), passAll: crit.every(c => byId[c.id]),
+    met: crit.filter(c => byId[c.id]).length, of: crit.length, essentialMet: ess.filter(c => byId[c.id]).length, essentialOf: ess.length,
+    missed: crit.filter(c => !byId[c.id]).map(c => c.id), verdicts: j.verdicts, note: j.note || null,
+  };
 }
 
 const lastLine = s => String(s || '').trim().split('\n').pop() || null;
@@ -144,7 +199,7 @@ function once(cmd, args, opts) {
 // names it. `valid` is the whole point of the structure: a session that errored or hit the cap is
 // recorded in full and excluded from every figure, so a run can never silently average a truncated one.
 function record(o) {
-  const { spec, task, armName, arm, rep, id, cwd, model, session, turns, outcome, after, maxTurns } = o;
+  const { spec, task, armName, arm, rep, id, cwd, model, session, turns, outcome, after, verdict, maxTurns } = o;
   const sum = k => turns.reduce((a, t) => a + (Number(t?.usage?.[k]) || 0), 0);
   const usage = { input: sum('input_tokens'), read: sum('cache_read_input_tokens'), write: sum('cache_creation_input_tokens'), out: sum('output_tokens') };
   const p = priceOf(model);
@@ -161,10 +216,10 @@ function record(o) {
   const rec = {
     at: new Date().toISOString(), tag: spec.tag, task: task.id, taskHash: task.hash, arm: armName,
     armHash: hashOf(JSON.stringify(arm)), rep, id, model, session, rule: spec.rule || null,
-    base: spec.base, ref: spec.ref || null, prompts: turns.length, expectedPrompts: task.turns.length,
+    base: spec.base, ref: spec.ref || null, tasksDir: spec.tasksDir, prompts: turns.length, expectedPrompts: task.turns.length,
     agentTurns: numTurns, maxTurns, usage, costReported: reported, costListed: listed,
     wallMs: turns.reduce((a, t) => a + (Number(t?.duration_ms) || 0), 0),
-    outcome, armReport: after || null,
+    outcome, armReport: after || null, grade: verdict || null,
     valid: !bad && turns.length === task.turns.length,
     invalidReason: bad ? `turn ${turns.length}: ${bad.subtype || 'error'}${/max_turns/.test(bad.subtype || '') ? ` (cap ${maxTurns})` : ''}`
       : (turns.length === task.turns.length ? null : `only ${turns.length} of ${task.turns.length} prompts ran`),
@@ -188,12 +243,16 @@ function report(tag, { boot = false } = {}) {
   const invalid = all.filter(r => !r.valid);
   console.log(`\n${tag}  ${all.length} sessions, ${all.length - invalid.length} valid, ${arms.length} arms`);
   if (all[0].rule) console.log(`rule: ${all[0].rule}`);
-  console.log('\narm              n  valid   $rep    $list   in_tok    out_tok  turns  outcome');
+  console.log('\narm              n  valid   $rep    $list   in_tok    out_tok  turns  pass    outcome');
   for (const a of arms) {
     const v = all.filter(r => r.arm === a && r.valid);
     const s = k => v.reduce((x, r) => x + (r[k] || 0), 0);
     const u = k => v.reduce((x, r) => x + (r.usage?.[k] || 0), 0);
-    console.log(`${a.padEnd(16)} ${String(all.filter(r => r.arm === a).length).padStart(2)}  ${String(v.length).padStart(5)}  ${s('costReported').toFixed(2).padStart(6)}  ${s('costListed').toFixed(2).padStart(6)}  ${String(u('input') + u('read') + u('write')).padStart(9)}  ${String(u('out')).padStart(7)}  ${String(v.reduce((x, r) => x + r.agentTurns, 0)).padStart(5)}  ${v.map(r => r.outcome || '-').join(' ')}`);
+    const g = v.filter(r => r.grade && !r.grade.error);
+    const pass = g.length ? `${g.filter(r => r.grade.pass).length}/${g.length}` : '-';
+    console.log(`${a.padEnd(16)} ${String(all.filter(r => r.arm === a).length).padStart(2)}  ${String(v.length).padStart(5)}  ${s('costReported').toFixed(2).padStart(6)}  ${s('costListed').toFixed(2).padStart(6)}  ${String(u('input') + u('read') + u('write')).padStart(9)}  ${String(u('out')).padStart(7)}  ${String(v.reduce((x, r) => x + r.agentTurns, 0)).padStart(5)}  ${pass.padStart(5)}  ${v.map(r => r.outcome || '-').join(' ')}`);
+    for (const r of g) console.log(`   ${r.task}: ${r.grade.essentialMet}/${r.grade.essentialOf} essential, ${r.grade.met}/${r.grade.of} all${r.grade.missed.length ? `, missed ${r.grade.missed.join(',')}` : ''}${r.grade.truncatedDiff ? ' (diff truncated)' : ''}`);
+    for (const r of v.filter(x => x.grade && x.grade.error)) console.log(`   ${r.task}: JUDGE FAILED (${r.grade.error})`);
   }
   const ref = arms[0];
   for (const a of arms.slice(1)) {
@@ -245,6 +304,23 @@ if (cmd === 'run') {
   }
   if (dry) { console.log(JSON.stringify(done, null, 1)); process.exit(0); }
   report(spec.tag, { boot: has('boot') });
+} else if (cmd === 'grade') {
+  // Grade sessions already recorded, without running them again (Artemis called this a regrade): the
+  // worktree and its diff are still on disk, so a judge added or changed later can be applied to work
+  // already paid for. The row's `grade` is replaced and the ledger rewritten in place.
+  const judge = String(flag('judge') || 'claude-opus-5-5');
+  const all = rows(LEDGER);
+  const pick = all.filter(r => r.tag === arg && (!flag('id') || r.id === flag('id')));
+  if (!pick.length) { console.log(`no sessions recorded for ${arg}`); process.exit(0); }
+  for (const r of pick) {
+    if (!fs.existsSync(r.cwd)) { console.log(`${r.id}: worktree gone, cannot grade`); continue; }
+    const t = taskOf(String(flag('tasks-dir') || taskDirOf(r)), r.task);
+    const v = await grade({ task: t, cwd: r.cwd, judge });
+    r.grade = v;
+    console.log(`${r.id}: ${v ? (v.error ? `JUDGE FAILED ${v.error}` : `${v.essentialMet}/${v.essentialOf} essential, ${v.met}/${v.of} all, pass=${v.pass} ($${(v.costUsd || 0).toFixed(2)})`) : 'no criteria'}`);
+  }
+  fs.writeFileSync(LEDGER, all.map(r => JSON.stringify(r)).join('\n') + '\n');
+  report(arg);
 } else if (cmd === 'report') {
   report(arg, { boot: has('boot') });
 } else if (cmd === 'ledger') {
@@ -256,6 +332,7 @@ if (cmd === 'run') {
   console.log(`bench: run paired agent sessions, record them, compare the arms.
 
   node bench/bench.mjs run <spec.json> [--only t1,t2] [--arms a,b] [--reps n] [--boot] [--dry]
+  node bench/bench.mjs grade <tag> [--id <session>] [--judge <model>] [--tasks-dir <dir>]
   node bench/bench.mjs report <tag> [--boot]
   node bench/bench.mjs ledger [--tag <tag>]
 

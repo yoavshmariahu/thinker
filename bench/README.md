@@ -60,8 +60,21 @@ that is a spread and is labelled as one, not a p-value.
 
 ## What it does not do
 
-No judge (a task's `criteria.json` is kept beside its prompts for one to be added), no concurrency, no
-job queue, no result reuse across experiments, no leak checks. Add them when a question needs them.
+No concurrency, no job queue, no result reuse across experiments, no leak checks. Add them when a
+question needs them.
+
+## Grading
+
+A task's `criteria.json` is a list of `{ id, behavior, essential }` written before the run. The judge is
+shown those and the session's own staged diff against the base commit, and answers per criterion;
+`.claude` and `.thinker` are excluded by pathspec, so it never grades this bench's own plumbing. Two
+figures are recorded, never one: `pass` is every **essential** criterion met, `passAll` is every
+criterion -- reporting the essential flag alone overstates. A diff over 120k characters is truncated and
+the record says so, so a verdict on part of a change is never read as a verdict on all of it.
+
+`bench/bench.mjs grade <tag>` grades sessions already recorded, without running them again, so a judge
+added or changed later applies to work already paid for. One judge call per session, about $0.15 on a 32k
+diff with nine criteria.
 
 ## Cost
 
