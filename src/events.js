@@ -34,7 +34,6 @@ import { clearedOf } from './cutting.js';
 import { listPrice, costOf } from './prices.js';
 import { proxyLogFile } from './proxy-service.js';
 import { sessionKey, readLog } from './usage.js';
-import { readLabels } from './labels.js';
 import { applyManaged, managedBlock } from './managed.js';
 import { getInstallId } from './telemetry.js';
 import { appVersion } from './proxy-service.js';
@@ -206,8 +205,8 @@ export function decisionsOf({ session, home = thinkerHome(), env = process.env, 
 }
 
 // The event: what one session was, cost and saved, as the machine already measured it. Counts and dollars
-// only -- no path, no branch, no prompt, no repository name. `labels` is the one part somebody chose
-// (labels.js), and the only place a customer, a harness build or a job can be named.
+// only -- no path, no branch, no prompt, no repository name, and nothing a person or a company could be
+// named by. The only identity on it is the install id, which is the machine's own and nobody else's.
 export function sessionEvent(store, { session, home = thinkerHome(), env = process.env, log = null, since = defaultSince(), now = new Date() } = {}) {
   if (!session || session === 'unknown') return null;
   // one read of the usage log, shared by the figures and by what thinker did (actionsOf)
@@ -222,9 +221,8 @@ export function sessionEvent(store, { session, home = thinkerHome(), env = proce
     install: getInstallId(home),
     // thinker's own version, because a fleet view's first question about a machine behaving unlike the rest
     // is which build it is on, and the answer is never in the figures. thinker's own, not the host's: no
-    // hostname, no instance id, nothing inferred about the machine (labels.js is the only door for that).
+    // hostname, no instance id, nothing inferred about the machine and nothing named by an operator.
     version: appVersion(),
-    labels: readLabels({ env, home }),
     // the settings revision this machine is actually running, so the page shows what was sent against what took
     ...managedBlock({ home, env }),
     session: sessionKey(session),

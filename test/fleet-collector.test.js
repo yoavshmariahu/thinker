@@ -3,17 +3,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-let openDb, putEvent, fleet, labelKeys, getSettings, setSettings, running, fleetRunning;
+let openDb, putEvent, fleet, getSettings, setSettings, running, fleetRunning;
 let available = true;
 try {
   await import('node:sqlite');
-  ({ openDb, putEvent, fleet, labelKeys, getSettings, setSettings, running, fleetRunning } = await import('../demo/collector/server.mjs'));
+  ({ openDb, putEvent, fleet, getSettings, setSettings, running, fleetRunning } = await import('../demo/collector/server.mjs'));
 } catch { available = false; }
 
 const at = iso => iso;
 const event = (o = {}) => ({
   v: 1, at: at('2026-11-13T08:00:00.000Z'), install: 'i-1', session: 's1',
-  labels: { tenant: 'acme' }, client: 'opencode', model: 'claude-opus-5',
+  client: 'opencode', model: 'claude-opus-5',
   prompts: 10, tokens: 200_000, cleared: 100_000,
   cost: { saved: 0.15, rewrite: 0.02, reread: 0.01, net: 0.12, spend: 4, priced: true },
   ...o,
@@ -54,21 +54,18 @@ test('a rate is a ratio of sums, and an unpriced session is counted as a session
   // a fleet with nothing priced has no cost per session: saying $0.00 would be a lie about the data
   const bare = openDb(':memory:');
   putEvent(bare, event({ session: 'x', cost: { saved: 0, rewrite: 0, reread: 0, net: 0, spend: null, priced: false } }));
-  const bt = fleet(bare, { by: 'tenant', days: 3650, now: Date.parse('2026-11-14T00:00:00.000Z') }).total;
+  const bt = fleet(bare, { by: 'client', days: 3650, now: Date.parse('2026-11-14T00:00:00.000Z') }).total;
   assert.equal(bt.spendPerSession, null);
   assert.equal(bt.spendPerPrompt, null);
 });
 
-test('the page is offered the dimensions the fleet actually sent', { skip: !available && 'node:sqlite unavailable' }, () => {
+test('the fleet groups by what the sessions themselves say, and a machine is counted once', { skip: !available && 'node:sqlite unavailable' }, () => {
   const db = openDb(':memory:');
-  putEvent(db, event({ session: 'a', labels: { tenant: 'acme', harness: 'orbit-1' } }));
-  putEvent(db, event({ session: 'b', install: 'i-2', labels: { tenant: 'globex', job: '17' } }));
-  assert.deepEqual(labelKeys(db), ['harness', 'job', 'tenant']);
-
-  // a session with no labels is grouped as such rather than dropped
-  putEvent(db, event({ session: 'c', install: 'i-3', labels: {} }));
-  const f = fleet(db, { by: 'tenant', days: 3650, now: Date.parse('2026-11-14T00:00:00.000Z') });
-  assert.deepEqual(f.rows.map(r => r.dim).sort(), ['(unlabelled)', 'acme', 'globex']);
+  putEvent(db, event({ session: 'a' }));
+  putEvent(db, event({ session: 'b', install: 'i-2', client: 'claude' }));
+  putEvent(db, event({ session: 'c', install: 'i-3', client: 'claude' }));
+  const f = fleet(db, { by: 'client', days: 3650, now: Date.parse('2026-11-14T00:00:00.000Z') });
+  assert.deepEqual(f.rows.map(r => r.dim).sort(), ['claude', 'opencode']);
   assert.equal(f.total.installs, 3);
 });
 

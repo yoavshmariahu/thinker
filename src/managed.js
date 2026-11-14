@@ -154,8 +154,8 @@ export function applyManaged(payload, { home = thinkerHome(), env = process.env,
 // What goes on the event: the value each managed setting actually has on this machine -- its own file's where
 // nobody set it, ours where somebody did. This is what a page draws its controls from, so what it shows is
 // the machine's state rather than a guess at a default, and a setting just changed reads as pending until the
-// machine's own next event agrees. These four are operational figures, not identifying ones; `labels.js`
-// remains the only door for anything that says whose machine this is.
+// machine's own next event agrees. These four are operational figures, and nothing here says whose machine
+// this is: the only identity on an event is the install id.
 //
 // It reads the merged config the way `readMachineConfig` does, rather than calling it: repo-switch.js imports
 // this file, so the dependency runs one way only.

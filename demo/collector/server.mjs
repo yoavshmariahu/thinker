@@ -2,8 +2,8 @@
 //
 // What it is for. thinker ships one event per session (`src/events.js`), priced on the machine by the one
 // door the Report and `thinker prs` read. This is the smallest honest thing that receives them: an HTTP
-// endpoint, a table, and a page that groups by the labels an operator set -- which is how a company running
-// thinker inside its own coding agent sees per-customer and per-agent figures it could not see before.
+// endpoint, a table, and a page that is one row a machine -- which is how a company running thinker inside
+// its own coding agent sees per-machine figures it could not see before.
 //
 // Three rules it is built on, each one a mistake already made in this project's own dashboards:
 //
@@ -71,7 +71,6 @@ export function openDb(file = DB_PATH) {
       calls_cleared integer not null default 0,
       results       integer not null default 0,
       decisions     text not null default '{}',
-      labels        text not null default '{}',
       raw           text not null,
       primary key (install, session)
     );
@@ -182,8 +181,8 @@ export function putEvent(db, ev) {
   const stmt = db.prepare(`
     insert into sessions (install, session, at, first_at, last_at, client, model, policy, version, prompts, tokens,
       cleared, reread_reads, reread_tokens, saved, rewrite, reread, net, spend, priced,
-      cuts, calls_cleared, results, decisions, labels, raw)
-    values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      cuts, calls_cleared, results, decisions, raw)
+    values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     on conflict(install, session) do update set
       at = excluded.at, first_at = excluded.first_at, last_at = excluded.last_at,
       client = excluded.client, model = excluded.model, policy = excluded.policy, version = excluded.version,
@@ -192,7 +191,7 @@ export function putEvent(db, ev) {
       saved = excluded.saved, rewrite = excluded.rewrite, reread = excluded.reread, net = excluded.net,
       spend = excluded.spend, priced = excluded.priced,
       cuts = excluded.cuts, calls_cleared = excluded.calls_cleared, results = excluded.results,
-      decisions = excluded.decisions, labels = excluded.labels, raw = excluded.raw
+      decisions = excluded.decisions, raw = excluded.raw
     where excluded.at >= sessions.at
   `);
   const before = db.prepare('select at from sessions where install = ? and session = ?').get(ev.install, ev.session);
@@ -201,27 +200,20 @@ export function putEvent(db, ev) {
     int(ev.cleared), int(ev.rereads?.reads), int(ev.rereads?.tokens),
     cost.saved ?? 0, cost.rewrite ?? 0, cost.reread ?? 0, cost.net ?? 0,
     num(cost.spend), cost.priced ? 1 : 0,
-    int(d.cuts), int(d.callsCleared), int(d.results), JSON.stringify(d),
-    JSON.stringify(ev.labels || {}), JSON.stringify(ev));
+    int(d.cuts), int(d.callsCleared), int(d.results), JSON.stringify(d), JSON.stringify(ev));
   if (ev.managed?.values) noteSeen(db, ev.install, ev.managed.values, ev.at);
   if (!before) return 'inserted';
   return ev.at >= before.at ? 'updated' : 'stale';
 }
 
-// Which label keys the fleet has sent, so the page offers the real dimensions and not a guess.
-export function labelKeys(db) {
-  const rows = db.prepare(`select distinct key from sessions, json_each(sessions.labels) order by key`).all();
-  return rows.map(r => r.key);
-}
-
 const GROUPS = { client: 'client', model: 'model', install: 'install', policy: 'policy' };
 
-// The fleet, grouped. `by` is a label key, or one of the session's own columns above. Every rate is taken
-// here from the sums, never from a row's own rate.
+// The fleet, grouped by one of the session's own columns above. Every rate is taken here from the sums,
+// never from a row's own rate.
 export function fleet(db, { by = 'client', days = 30, now = Date.now() } = {}) {
   const since = new Date(now - days * 864e5).toISOString();
-  const dim = GROUPS[by] ? `coalesce(nullif(${GROUPS[by]}, ''), '(none)')` : `coalesce(json_extract(labels, '$.' || ?), '(unlabelled)')`;
-  const params = GROUPS[by] ? [since] : [by, since];
+  const dim = `coalesce(nullif(${GROUPS[by] || GROUPS.client}, ''), '(none)')`;
+  const params = [since];
   const sql = `
     select ${dim} as dim,
       count(*)                                            as sessions,
@@ -271,8 +263,8 @@ function rates(r) {
 // A group-by roll-up answers "which customer costs what"; this answers "which machine is behaving unlike
 // the others", which is the first question anybody asks of a fleet and the one a roll-up hides.
 //
-// What a machine *is* comes from its newest session, not from the window: labels, version, client and model
-// all change under a long-lived install, and the current answer is the one a fleet view owes the reader.
+// What a machine *is* comes from its newest session, not from the window: version, client and model all
+// change under a long-lived install, and the current answer is the one a fleet view owes the reader.
 export function machines(db, { days = 30, now = Date.now() } = {}) {
   const since = new Date(now - days * 864e5).toISOString();
   const rows = db.prepare(`
@@ -297,13 +289,12 @@ export function machines(db, { days = 30, now = Date.now() } = {}) {
       sum(case when spend is not null then 1 else 0 end)       as spendSessions,
       sum(case when spend is not null then prompts else 0 end) as spendPrompts
     from sessions where at >= ? group by install order by spend desc, sessions desc`).all(since);
-  const newest = db.prepare(`select labels, version, client, model, policy from sessions
+  const newest = db.prepare(`select version, client, model, policy from sessions
     where install = ? order by at desc limit 1`);
   return rows.map(r => {
     const n = newest.get(r.install) || {};
     return {
       ...r, ...rates(r),
-      labels: JSON.parse(n.labels || '{}'),
       version: n.version || null,
       client: n.client || null,
       model: n.model || null,
@@ -319,14 +310,13 @@ export function machines(db, { days = 30, now = Date.now() } = {}) {
 // sessions are short, which is the honest reading of a small saving rather than a fault.
 export function decisions(db, { days = 30, now = Date.now(), limit = 40 } = {}) {
   const since = new Date(now - days * 864e5).toISOString();
-  const rows = db.prepare(`select install, session, labels, model, decisions from sessions
+  const rows = db.prepare(`select install, session, model, decisions from sessions
     where at >= ? and decisions != '{}' order by at desc limit 400`).all(since);
   const refusals = {};
   const tools = new Map();
   const cuts = [];
   for (const r of rows) {
     let d; try { d = JSON.parse(r.decisions); } catch { continue; }
-    const labels = JSON.parse(r.labels || '{}');
     for (const [reason, n] of Object.entries(d.refusals || {})) refusals[reason] = (refusals[reason] || 0) + n;
     for (const t of d.tools || []) {
       const cur = tools.get(t.name) || { name: t.name, calls: 0, tokens: 0 };
@@ -334,7 +324,7 @@ export function decisions(db, { days = 30, now = Date.now(), limit = 40 } = {}) 
       tools.set(t.name, cur);
     }
     for (const c of d.rows || []) {
-      cuts.push({ ...c, install: r.install, session: r.session, labels, model: c.model || r.model || null });
+      cuts.push({ ...c, install: r.install, session: r.session, model: c.model || r.model || null });
     }
   }
   cuts.sort((a, b) => String(b.at).localeCompare(String(a.at)));
@@ -349,28 +339,26 @@ export function decisions(db, { days = 30, now = Date.now(), limit = 40 } = {}) 
 // are the ones worth opening, since a cut only reads as anything against the line it changed.
 export function plottable(db, { days = 30, now = Date.now(), limit = 40 } = {}) {
   const since = new Date(now - days * 864e5).toISOString();
-  return db.prepare(`select install, session, at, client, model, labels, cuts, prompts, cleared, net, spend, priced
+  return db.prepare(`select install, session, at, client, model, cuts, prompts, cleared, net, spend, priced
     from sessions where at >= ? and json_array_length(json_extract(decisions, '$.series')) > 1
-    order by cuts > 0 desc, at desc limit ?`).all(since, limit)
-    .map(r => ({ ...r, labels: JSON.parse(r.labels || '{}') }));
+    order by cuts > 0 desc, at desc limit ?`).all(since, limit);
 }
 
 // One session's own trend: the per-call series the machine sent, with the row it belongs to.
 export function sessionTrend(db, { install, session }) {
-  const r = db.prepare(`select install, session, at, client, model, labels, decisions, prompts, tokens, cleared,
+  const r = db.prepare(`select install, session, at, client, model, decisions, prompts, tokens, cleared,
     cuts, calls_cleared as callsCleared, results, net, saved, rewrite, reread, spend, priced
     from sessions where install = ? and session = ?`).get(install, session);
   if (!r) return null;
   let d = {}; try { d = JSON.parse(r.decisions || '{}'); } catch { d = {}; }
-  return { ...r, labels: JSON.parse(r.labels || '{}'), decisions: d };
+  return { ...r, decisions: d };
 }
 
 export function recent(db, { limit = 200 } = {}) {
   return db.prepare(`select install, session, at, first_at as firstAt, client, model, version, prompts, tokens,
-    cleared, cuts, calls_cleared as callsCleared, results, net, saved, rewrite, reread, spend, priced, labels,
+    cleared, cuts, calls_cleared as callsCleared, results, net, saved, rewrite, reread, spend, priced,
     json_array_length(json_extract(decisions, '$.series')) as calls
-    from sessions order by at desc limit ?`).all(limit)
-    .map(r => ({ ...r, labels: JSON.parse(r.labels || '{}') }));
+    from sessions order by at desc limit ?`).all(limit);
 }
 
 // ---------------------------------------------------------------------------
@@ -399,7 +387,7 @@ export function createServer(db) {
         machines: machines(db, { days }),
         decisions: decisions(db, { days }),
         plottable: plottable(db, { days }),
-        dimensions: [...Object.keys(GROUPS), ...labelKeys(db)],
+        dimensions: Object.keys(GROUPS),
         recent: recent(db),
       });
     }
