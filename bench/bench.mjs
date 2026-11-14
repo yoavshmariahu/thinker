@@ -148,9 +148,13 @@ function record(o) {
   const sum = k => turns.reduce((a, t) => a + (Number(t?.usage?.[k]) || 0), 0);
   const usage = { input: sum('input_tokens'), read: sum('cache_read_input_tokens'), write: sum('cache_creation_input_tokens'), out: sum('output_tokens') };
   const p = priceOf(model);
-  // the agent's own reported cost where it gave one, which includes its subagents; the token figure is
-  // the arithmetic at list prices beside it, so the two can be compared rather than conflated
-  const reported = turns.reduce((a, t) => a + (Number(t?.total_cost_usd) || 0), 0);
+  // The agent's own reported cost, which includes its subagents. `total_cost_usd` is CUMULATIVE over a
+  // resumed thread (0.78, 2.35, ... 9.51 across nine turns of one session, measured 2026-11-14), while
+  // `usage` is per turn, so the cost is the largest value seen and the tokens are a sum. Adding the cost
+  // up read $54.06 for a $9.51 session -- the same trap the Codex runner has, where `resume`'s usage is
+  // the thread total. The list-price arithmetic below is kept beside it as the cross-check: on that
+  // session the two agreed to the cent once this was right.
+  const reported = turns.reduce((a, t) => Math.max(a, Number(t?.total_cost_usd) || 0), 0);
   const listed = (usage.input * p.input + usage.read * p.read + usage.write * p.write + usage.out * p.out) / 1e6;
   const bad = turns.find(t => t?.is_error);
   const numTurns = turns.reduce((a, t) => a + (Number(t?.num_turns) || 0), 0);
