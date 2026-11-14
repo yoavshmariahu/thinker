@@ -155,9 +155,6 @@
     border-radius: 50%; background: var(--ctl); border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); margin-top: -5px; }
   .set input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ctl);
     border: 2px solid var(--plane); box-shadow: 0 0 0 1px var(--ctl); }
-  /* unset is the machine's own: the thumb sits on the default, greyed, until somebody moves it */
-  .set input[type=range].own::-webkit-slider-thumb { background: var(--faint); box-shadow: 0 0 0 1px var(--faint); }
-  .set input[type=range].own::-moz-range-thumb { background: var(--faint); box-shadow: 0 0 0 1px var(--faint); }
   .set input[type=range]:focus { outline: none; }
   .set input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--ctl), 0 0 0 4px #dbeafe; }
   .set .ends { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--faint);
@@ -170,16 +167,26 @@
          background: var(--ctl); color: #fff; cursor: pointer; }
   .btn:hover { filter: brightness(1.07); }
   .btn:disabled { opacity: .55; cursor: default; filter: none; }
+  .btn.ghost { background: var(--plane); color: var(--ink-2); border-color: var(--border); text-decoration: none;
+               display: inline-block; line-height: 1.45; }
+  .btn.ghost:hover { border-color: var(--ctl); color: var(--ctl); filter: none; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
   .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
   .pill.wait { border-color: var(--flag); color: var(--flag); }
   .pill.ok { border-color: var(--thk); color: var(--thk); }
+  .btn.ghost[disabled] { color: var(--faint); border-color: var(--line); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>thinker · fleet</h1>
-  <p class="sub">What thinker did on every machine reporting here.</p>
-  <p class="stamp" id="stamp"></p>
+  <div class="head">
+    <div>
+      <h1>thinker · fleet</h1>
+      <p class="sub">What thinker did on every machine reporting here.</p>
+      <p class="stamp" id="stamp"></p>
+    </div>
+    <a href="#settings" class="btn ghost" id="toSettings">Settings</a>
+  </div>
 
   <!-- Overview: the fleet, its machines, and their sessions. -->
   <div id="overview">
@@ -206,20 +213,31 @@
     </div>
 
     <div class="card" style="margin-top:20px">
-      <h2>Settings <span class="filternote" id="revNote"></span></h2>
-      <p class="say">Set here, taken by the machine on its next session. thinker asks its collector for these
-        each time it reports, so nothing listens on the machine and nothing needs reaching into it. A setting
-        showing <em>machine's own</em> is one nobody here has decided, and the machine keeps whatever it has.</p>
-      <div id="settings"></div>
-      <div class="pickrow" style="margin-top:14px">
-        <button id="save" class="btn">Save settings</button>
-        <span class="stamp" id="saveNote"></span>
-      </div>
+      <h2>Running <span class="filternote" id="runNote"></span></h2>
+      <div id="running"></div>
     </div>
 
     <div class="card" style="margin-top:20px">
       <h2>Sessions <span class="filternote">on this machine</span></h2>
       <div id="machineSessions"></div>
+    </div>
+  </div>
+
+  <!-- The fleet's settings: one policy, every machine, taken on each one's next session. -->
+  <div id="settingsView" hidden>
+    <p><a href="#" class="back" id="backS">← all machines</a></p>
+    <div class="card">
+      <h2>Settings <span class="filternote" id="fleetNote"></span></h2>
+      <p class="say">One policy for every machine reporting here. What you save is taken by each machine when
+        its next session ends — thinker asks its collector for these each time it reports, so nothing listens
+        on a machine and nothing needs reaching into one. A setting you have never changed is left to each
+        machine's own configuration.</p>
+      <div id="settings"></div>
+      <div class="pickrow" style="margin-top:14px;border-bottom:none">
+        <button id="save" class="btn">Save settings</button>
+        <button id="cancel" class="btn ghost">Cancel</button>
+        <span class="stamp" id="saveNote"></span>
+      </div>
     </div>
   </div>
 
@@ -310,7 +328,6 @@ function tiles(t) {
 // One row a machine. No group-by and no window control: every machine runs the same build and the fleet is
 // small, so a filter here only hides a row somebody came to see.
 const MACHINE_COLS = [
-  ['client', r => esc(r.client || '—'), 'left'],
   ['sessions', r => compact(r.sessions)],
   ['prompts', r => compact(r.prompts)],
   ['cuts', r => compact(r.cuts)],
@@ -509,114 +526,119 @@ async function openSession(install, session) {
 }
 
 // ---------------------------------------------------------------------------
-// One machine: its figures, its sessions, and the settings it has been told to run.
+// Settings: one policy, the whole fleet.
 //
-// What a reader has to be able to trust here is that a control does something. So the form is drawn from
-// what thinker itself says it will honour (/api/schema, which is src/managed.js), a saved setting is a
-// revision rather than a fact, and the page says *sent* until the machine's own next event says it is
-// running that revision. A dashboard that coloured a setting green on save would be reporting its own wish.
+// Two decisions shape this. Settings are **saved on the button**, not as a slider moves: this is a policy for
+// every machine somebody is running, and a figure dragged past on the way to another is not a decision. And
+// **there is no revision**: settings carry the time they were set, newest wins, and whether a machine has
+// them is answered by the machine itself, which reports the value each setting actually has on it. So the
+// page never claims a setting is in force; it shows what is set, and says how many machines have taken it.
 
-let MACHINE = null; // { machine, control, settings }
+let SETTINGS = null; // { settings, control, fleet }
 
-const atPath = (o, p) => p.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
 const idOf = s => `set-${s.path.replace(/\./g, '-')}`;
+const atPath = (o, p) => p.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
+// What a control shows: what is set for the fleet, else thinker's own default, which is what an untouched
+// machine runs anyway. Nothing to label -- it is simply the value.
+const valueOf = s => { const v = atPath(SETTINGS.control.config, s.path); return v === undefined || v === null ? s.dflt : v; };
 
-// A row's two states: set, or the machine's own. Unset is not zero and not the default-as-a-decision -- it
-// is nobody having decided, which is what a blank must keep meaning once the control is a slider that always
-// has a position. So the thumb rests on the default, greyed, and says so until a hand moves it.
-function settingField(s, value) {
-  const id = idOf(s), set = value !== undefined && value !== null;
+function settingField(s) {
+  const id = idOf(s), v = valueOf(s);
   if (s.type === 'bool') {
     return `<select id="${id}" data-path="${esc(s.path)}" data-type="bool">
-      <option value=""${!set ? ' selected' : ''}>machine's own (${s.dflt ? 'on' : 'off'})</option>
-      <option value="true"${value === true ? ' selected' : ''}>on</option>
-      <option value="false"${value === false ? ' selected' : ''}>off</option>
+      <option value="true"${v === true ? ' selected' : ''}>on</option>
+      <option value="false"${v === false ? ' selected' : ''}>off</option>
     </select>`;
   }
-  const at = set ? value : s.dflt;
   return `<div class="val">
-      <span class="num${set ? '' : ' own'}" id="${id}-out">${compact(at)}</span>
-      <span class="own-note" id="${id}-note">${set ? `<a href="#" data-own="${esc(s.path)}">machine's own</a>` : "machine's own"}</span>
+      <span class="num" id="${id}-out">${compact(v)}</span>
     </div>
-    <input type="range" id="${id}" class="${set ? '' : 'own'}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
-      data-set="${set ? '1' : ''}" min="${s.min}" max="${s.max}" step="${s.step}" value="${at}">
+    <input type="range" id="${id}" data-path="${esc(s.path)}" data-type="${esc(s.type)}"
+      min="${s.min}" max="${s.max}" step="${s.step}" value="${v}">
     <div class="ends"><span>${compact(s.min)}</span><span>${compact(s.max)}</span></div>`;
 }
 
+function fleetNote() {
+  const f = SETTINGS.fleet || { machines: 0, pending: 0 };
+  $('fleetNote').innerHTML = !SETTINGS.control.at
+    ? `nothing set — every machine runs its own configuration`
+    : f.pending
+      ? `<span class="pill wait">${f.pending} of ${f.machines} machines still to take this</span> each one does when its next session ends`
+      : `<span class="pill ok">every machine has taken this</span> set ${esc(since(SETTINGS.control.at))}`;
+}
+
 function settingsForm() {
-  const { settings, control } = MACHINE;
+  const { settings } = SETTINGS;
   $('settings').innerHTML = settings.map(s => `<div class="set">
       <label for="${idOf(s)}">${esc(s.label)}${s.unit ? `<span class="unit">${esc(s.unit)}</span>` : ''}</label>
-      <div>${settingField(s, atPath(control.config, s.path))}</div>
+      <div>${settingField(s)}</div>
       <div class="help">${esc(s.help)}</div>
     </div>`).join('');
+  fleetNote();
 
-  // Moving a slider is deciding; the link beside it hands the setting back to the machine.
+  // A slider reads as it is dragged; nothing leaves the page until Save.
   for (const el of $('settings').querySelectorAll('input[type=range]')) {
-    const s = settings.find(x => x.path === el.dataset.path);
-    const paint = () => {
-      const on = el.dataset.set === '1';
-      el.classList.toggle('own', !on);
-      $(`${el.id}-out`).textContent = compact(Number(el.value));
-      $(`${el.id}-out`).classList.toggle('own', !on);
-      $(`${el.id}-note`).innerHTML = on ? `<a href="#" data-own="${esc(s.path)}">machine's own</a>` : "machine's own";
-      const back = $(`${el.id}-note`).querySelector('a');
-      if (back) back.addEventListener('click', e => {
-        e.preventDefault();
-        el.dataset.set = '';
-        el.value = s.dflt;
-        paint();
-      });
-    };
-    el.addEventListener('input', () => { el.dataset.set = '1'; paint(); });
-    paint();
+    el.addEventListener('input', () => { $(`${el.id}-out`).textContent = compact(Number(el.value)); });
   }
+  for (const el of $('settings').querySelectorAll('[data-path]')) {
+    el.addEventListener('input', () => { $('saveNote').textContent = ''; dirty(true); });
+  }
+  dirty(false);
+}
 
-  // Sent against taken. A machine that has never been set is on its own settings and says so.
-  const { rev, seenRev, at, seenAt } = control;
-  $('revNote').innerHTML = !rev
-    ? `nothing set — this machine runs its own configuration`
-    : seenRev === rev
-      ? `<span class="pill ok">running revision ${rev}</span> confirmed ${esc(since(seenAt))}`
-      : `<span class="pill wait">revision ${rev} sent</span> ${esc(since(at))}; the machine last confirmed `
-        + `${seenRev ? `revision ${seenRev}` : 'none'} — it takes the new one when its next session ends`;
+// Nothing to save and nothing to cancel until a control has been touched, so the two buttons say whether
+// the page is showing the fleet's settings or an edit of them.
+function dirty(on) {
+  $('save').disabled = !on;
+  $('cancel').disabled = !on;
 }
 
 async function saveSettings() {
-  const btn = $('save');
-  btn.disabled = true;
+  $('save').disabled = true;
+  $('cancel').disabled = true;
   $('saveNote').textContent = 'saving…';
-  // Nothing chosen is null: the setting goes back to being the machine's own, which is not the same as zero
-  // and not the same as setting it to what the default happens to be today.
+  // Only what has a control on this page is sent, and it is sent whole: the stored policy is exactly what
+  // the form shows, so there is no third place for a setting to live.
   const config = {};
   for (const el of $('settings').querySelectorAll('[data-path]')) {
-    const t = el.dataset.type;
-    const chosen = t === 'bool' ? el.value !== '' : el.dataset.set === '1';
-    const v = !chosen ? null : t === 'bool' ? el.value === 'true' : Number(el.value);
+    const v = el.dataset.type === 'bool' ? el.value === 'true' : Number(el.value);
     const ks = el.dataset.path.split('.'), last = ks.pop();
     let node = config;
     for (const k of ks) node = node[k] || (node[k] = {});
     node[last] = v;
   }
   try {
-    const res = await fetch('/api/config', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ install: MACHINE.control.install, config }),
+    const res = await fetch('/api/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config }),
     });
     if (!res.ok) throw new Error(`the collector refused it (${res.status})`);
     const out = await res.json();
-    MACHINE.control = out;
-    settingsForm();
-    // What this build does not know is said, never swallowed: a key that silently vanished would be worse
-    // than one refused.
-    $('saveNote').innerHTML = out.changed
-      ? `sent as revision ${out.rev}`
-      : `no change — the machine is already set this way`;
-    if (out.dropped?.length) $('saveNote').innerHTML += ` · <span class="dim">not settable here: ${esc(out.dropped.join(', '))}</span>`;
+    SETTINGS.control = { config: out.config, at: out.at, by: out.by };
+    SETTINGS.fleet = out.fleet;
+    fleetNote();
+    // What this build will not set is said, never swallowed.
+    $('saveNote').textContent = out.changed ? 'saved' : 'no change';
+    if (out.dropped?.length) $('saveNote').textContent += ` · not settable here: ${out.dropped.join(', ')}`;
+    dirty(false);
   } catch (err) {
-    $('saveNote').innerHTML = `<span class="dim">${esc(String(err.message || err))}</span>`;
-  } finally { btn.disabled = false; }
+    $('saveNote').textContent = String(err.message || err);
+    dirty(true);
+  }
 }
+
+async function openSettings() {
+  SETTINGS = await (await fetch('/api/settings')).json();
+  $('overview').hidden = true;
+  $('detail').hidden = true;
+  $('machine').hidden = true;
+  $('settingsView').hidden = false;
+  settingsForm();
+}
+
+// ---------------------------------------------------------------------------
+// One machine: its figures, its sessions, and what it says it is running.
+
+let MACHINE = null;
 
 const MACHINE_STATS = [
   ['sessions', m => compact(m.sessions)],
@@ -628,25 +650,49 @@ const MACHINE_STATS = [
   ['per prompt', m => usd(m.spendPerPrompt)],
 ];
 
+// What this machine says each setting is on it, which is the only honest answer to "did it take". A machine
+// on an older build reports nothing, and is said to be so rather than guessed at.
+function runningTable() {
+  const { settings, running, control } = MACHINE;
+  const vals = running.values || {};
+  if (!Object.keys(vals).length) {
+    $('runNote').textContent = '';
+    $('running').innerHTML = `<div class="empty">This machine has not reported its settings.<br>
+      It is on a build from before they were sent, or nothing has been set here yet.</div>`;
+    return;
+  }
+  $('runNote').innerHTML = running.pending.length
+    ? `<span class="pill wait">${running.pending.length} still to take</span> on its next session`
+    : control.at ? `<span class="pill ok">up to date</span> as of ${esc(since(running.at))}` : `as of ${esc(since(running.at))}`;
+  const fmt = (s, v) => v === undefined ? '<span class="dim">—</span>'
+    : s.type === 'bool' ? (v ? 'on' : 'off') : compact(v);
+  $('running').innerHTML = `<table><thead><tr>${settings.map(s => `<th>${esc(s.label)}</th>`).join('')}</tr></thead>`
+    + `<tbody><tr>${settings.map(s => {
+        const pending = running.pending.includes(s.path);
+        return `<td>${fmt(s, vals[s.path])}${pending ? ` <span class="pill wait">set to ${esc(String(fmt(s, atPath(control.config, s.path))))}</span>` : ''}</td>`;
+      }).join('')}</tr></tbody></table>`;
+}
+
 async function openMachine(install) {
   const res = await fetch(`/api/machine?install=${encodeURIComponent(install)}&days=${WINDOW_DAYS}`);
   if (!res.ok) { location.hash = ''; return; }
   MACHINE = await res.json();
   $('overview').hidden = true;
   $('detail').hidden = true;
+  $('settingsView').hidden = true;
   $('machine').hidden = false;
 
   const m = MACHINE.machine;
   $('machineTitle').innerHTML = `Machine <code>${esc(String(install).slice(0, 8))}</code>`;
   $('machineNote').textContent = m
-    ? `${m.client || 'unknown client'} · thinker ${m.version || 'unknown build'} · last seen ${since(m.lastAt)}`
+    ? `thinker ${m.version || 'unknown build'} · last seen ${since(m.lastAt)}`
     : 'no session from this machine in the window';
   $('machineStats').innerHTML = m
     ? `<table><thead><tr>${MACHINE_STATS.map(([h]) => `<th>${h}</th>`).join('')}</tr></thead>`
       + `<tbody><tr>${MACHINE_STATS.map(([, f]) => `<td>${f(m)}</td>`).join('')}</tr></tbody></table>`
     : `<div class="empty">Nothing reported in the last ${WINDOW_DAYS} days.</div>`;
 
-  settingsForm();
+  runningTable();
   sessionTable('machineSessions', install);
 }
 
@@ -656,12 +702,15 @@ function render() {
 }
 
 function route() {
-  const s = /^#s\/([^/]+)\/(.+)$/.exec(location.hash || '');
+  const hash = location.hash || '';
+  const s = /^#s\/([^/]+)\/(.+)$/.exec(hash);
   if (s) return openSession(decodeURIComponent(s[1]), decodeURIComponent(s[2]));
-  const m = /^#m\/(.+)$/.exec(location.hash || '');
+  const m = /^#m\/(.+)$/.exec(hash);
   if (m) return openMachine(decodeURIComponent(m[1]));
+  if (hash === '#settings') return openSettings();
   $('detail').hidden = true;
   $('machine').hidden = true;
+  $('settingsView').hidden = true;
   $('overview').hidden = false;
   render();
 }
@@ -678,7 +727,9 @@ async function load() {
 
 $('back').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
 $('backM').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
+$('backS').addEventListener('click', e => { e.preventDefault(); location.hash = ''; });
 $('save').addEventListener('click', saveSettings);
+$('cancel').addEventListener('click', () => { settingsForm(); $('saveNote').textContent = ''; });
 window.addEventListener('hashchange', route);
 load();
 // The overview refreshes itself. A session or a machine being read does not move under its reader -- and a

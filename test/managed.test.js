@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { sanitize, mergeManaged, applyManaged, readManaged, managedBlock, MANAGED_FILE } from '../src/managed.js';
+import { sanitize, mergeManaged, applyManaged, readManaged, managedBlock, managedValues, MANAGED_FILE } from '../src/managed.js';
 import { readMachineConfig, updateMachineConfig } from '../src/repo-switch.js';
 
 function home(t, config) {
@@ -36,7 +36,7 @@ test('only the allow-list may be set, and each value is held to its own bounds',
 
 test('a managed setting wins over the machine config, and null hands it back', t => {
   const dir = home(t, { proxy: { trigger: 140_000, keep: 3 }, delegate: { enabled: false } });
-  applyManaged({ rev: 1, config: { proxy: { trigger: 90_000 }, delegate: { enabled: true } } }, { home: dir, env: {} });
+  applyManaged({ at: '2026-11-13T10:00:00.000Z', config: { proxy: { trigger: 90_000 }, delegate: { enabled: true } } }, { home: dir, env: {} });
 
   const cfg = readMachineConfig(dir);
   assert.equal(cfg.proxy.trigger, 90_000, "the fleet's figure, not the file's");
@@ -44,13 +44,13 @@ test('a managed setting wins over the machine config, and null hands it back', t
   assert.equal(cfg.delegate.enabled, true);
   assert.equal(readMachineConfig(dir, { local: true }).proxy.trigger, 140_000, 'the file itself is untouched');
 
-  applyManaged({ rev: 2, config: { proxy: { trigger: null } } }, { home: dir, env: {} });
+  applyManaged({ at: '2026-11-13T11:00:00.000Z', config: { proxy: { trigger: null } } }, { home: dir, env: {} });
   assert.equal(readMachineConfig(dir).proxy.trigger, 140_000, 'unset is back to the machine, never to zero');
 });
 
 test("a write reads the file alone, so a central setting is never baked into the person's file", t => {
   const dir = home(t, { proxy: { trigger: 140_000 } });
-  applyManaged({ rev: 1, config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} });
+  applyManaged({ at: '2026-11-13T10:00:00.000Z', config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} });
 
   updateMachineConfig(dir, cfg => ({ ...cfg, agents: { explore: true } }));
 
@@ -60,20 +60,24 @@ test("a write reads the file alone, so a central setting is never baked into the
   assert.equal(readMachineConfig(dir).proxy.trigger, 90_000, 'still run with the fleet\'s figure');
 });
 
-test('an older revision never walks a setting back, and the same one is not rewritten', t => {
+test('an older answer never walks a setting back, and the same one is not rewritten', t => {
   const dir = home(t, {});
-  assert.equal(applyManaged({ rev: 3, config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} }), 3);
-  assert.equal(applyManaged({ rev: 2, config: { proxy: { trigger: 200_000 } } }, { home: dir, env: {} }), 3, 'an answer from behind is refused');
-  assert.equal(readManaged(dir).rev, 3);
+  const at = '2026-11-13T12:00:00.000Z';
+  assert.equal(applyManaged({ at, config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} }), at);
+  // a spool draining behind a live session: the answer is real, it is just from before
+  assert.equal(applyManaged({ at: '2026-11-13T09:00:00.000Z', config: { proxy: { trigger: 200_000 } } }, { home: dir, env: {} }), at);
+  assert.equal(readManaged(dir).at, at);
   assert.equal(readMachineConfig(dir).proxy.trigger, 90_000);
-  assert.equal(applyManaged({ rev: 3, config: { proxy: { trigger: 1 } } }, { home: dir, env: {} }), 3, 'already running it');
-  assert.equal(applyManaged(null, { home: dir, env: {} }), null, 'rubbish is no revision, and never a throw');
-  assert.equal(applyManaged({ rev: 'soon' }, { home: dir, env: {} }), null);
+  assert.equal(applyManaged({ at, config: { proxy: { trigger: 50_000 } } }, { home: dir, env: {} }), at, 'already running it');
+  assert.equal(readMachineConfig(dir).proxy.trigger, 90_000);
+  assert.equal(applyManaged(null, { home: dir, env: {} }), null, 'rubbish is never a throw');
+  assert.equal(applyManaged({ at: 'soon' }, { home: dir, env: {} }), null);
+  assert.equal(applyManaged({ config: { proxy: { trigger: 50_000 } } }, { home: dir, env: {} }), null, 'no time is no ordering, so no answer');
 });
 
 test('a machine can always take itself out of the fleet\'s hands, and a server cannot put it back', t => {
   const dir = home(t, { managed: false, proxy: { trigger: 140_000 } });
-  assert.equal(applyManaged({ rev: 1, config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} }), null);
+  assert.equal(applyManaged({ at: '2026-11-13T10:00:00.000Z', config: { proxy: { trigger: 90_000 } } }, { home: dir, env: {} }), null);
   assert.equal(fs.existsSync(MANAGED_FILE(dir)), false, 'nothing was even written');
   assert.deepEqual(managedBlock({ home: dir, env: {} }), { managed: { rev: null, off: true } }, 'and the event says so');
 
@@ -82,13 +86,17 @@ test('a machine can always take itself out of the fleet\'s hands, and a server c
 
   // the environment is the container's own switch, over a file that says yes
   const on = home(t, { proxy: { trigger: 140_000 } });
-  applyManaged({ rev: 1, config: { proxy: { trigger: 90_000 } } }, { home: on, env: {} });
+  applyManaged({ at: '2026-11-13T10:00:00.000Z', config: { proxy: { trigger: 90_000 } } }, { home: on, env: {} });
   assert.equal(mergeManaged(readMachineConfig(on, { local: true }), { home: on, env: { THINKER_MANAGED: 'off' } }).proxy.trigger, 140_000);
 });
 
-test('the event carries the revision the machine is running, which is how a page knows it took', t => {
-  const dir = home(t, {});
-  assert.deepEqual(managedBlock({ home: dir, env: {} }), {}, 'a machine nobody has set says nothing');
-  applyManaged({ rev: 4, config: { delegate: { enabled: true } } }, { home: dir, env: {} });
-  assert.equal(managedBlock({ home: dir, env: {} }).managed.rev, 4);
+test('the event carries what each setting actually is on the machine, which is how a page knows it took', t => {
+  const dir = home(t, { proxy: { trigger: 200_000 } });
+  // nothing set here yet: the machine still says what it is running, which is its own file's figure
+  assert.deepEqual(managedValues({ home: dir, env: {} }), { 'proxy.trigger': 200_000 },
+    'a setting nobody has given a value anywhere is absent, never guessed at as the default');
+
+  applyManaged({ at: '2026-11-13T10:00:00.000Z', config: { proxy: { trigger: 90_000 }, delegate: { enabled: true } } }, { home: dir, env: {} });
+  assert.deepEqual(managedValues({ home: dir, env: {} }), { 'proxy.trigger': 90_000, 'delegate.enabled': true });
+  assert.equal(managedBlock({ home: dir, env: {} }).managed.values['proxy.trigger'], 90_000);
 });

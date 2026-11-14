@@ -77,65 +77,95 @@ export function openDb(file = DB_PATH) {
     );
     create index if not exists sessions_at on sessions (at);
 
-    -- What an operator set for a machine, and what that machine last said it was running. rev rises on
-    -- every change; seen_rev is the machine's own word, echoed on its next event. The two differing is
-    -- the whole state a reader needs: sent, and not yet taken.
+    -- One policy for the fleet, not one per machine: id is pinned to 1. What an operator sets here is what
+    -- every machine reporting in is told, and "at" is the only ordering there is -- newest wins, the same
+    -- rule a session event is taken by.
+    create table if not exists settings (
+      id     integer primary key check (id = 1),
+      config text not null default '{}',
+      at     text,
+      by     text
+    );
+
+    -- What each machine says it is actually running, off its own event. Nothing here is set by anybody;
+    -- it is the fleet's answer to "did it take", a machine at a time.
     create table if not exists installs (
-      install   text primary key,
-      rev       integer not null default 0,
-      config    text not null default '{}',
-      at        text,
-      by        text,
-      seen_rev  integer,
-      seen_at   text
+      install text primary key,
+      values_ text not null default '{}',
+      at      text
     );
   `);
-  // a database from before the machine echoed its revision
-  try { db.exec('alter table sessions add column managed_rev integer'); } catch { /* already there */ }
   return db;
 }
 
 // ---------------------------------------------------------------------------
-// Control: the settings an operator sets, per machine.
+// Control: one set of settings, for the whole fleet.
+//
+// Not per machine. A fleet is run to one policy -- when to cut, whether to delegate -- and a page offering
+// that policy once is a page an operator can read; eleven controls a machine, times a fleet, is a surface
+// nobody audits. A machine's own page says what it is running, which is the only per-machine question.
 //
 // The description of what may be set is thinker's own (src/managed.js), not a copy here: the page offers
 // exactly the settings a machine will honour, each coerced by the same function the machine coerces it with,
-// so a control that does nothing cannot be drawn. A collector that knew a key thinker did not would be a
-// dashboard promising what no machine does.
+// so a control that does nothing cannot be drawn.
 
 // The control surface as the page receives it: everything but the coercion function itself, which is the
 // machine's business. Drawn once -- the page's form and thinker's allow-list are one list, not two.
 const SCHEMA = MANAGED.map(({ path: p, type, label, unit, help, min, max, step, dflt }) =>
   ({ path: p, type, label, unit, help, min, max, step, dflt }));
 
-export function getConfig(db, install) {
-  const row = db.prepare('select install, rev, config, at, by, seen_rev, seen_at from installs where install = ?').get(install);
-  if (!row) return { install, rev: 0, config: {}, at: null, by: null, seenRev: null, seenAt: null };
+export function getSettings(db) {
+  const row = db.prepare('select config, at, by from settings where id = 1').get();
+  if (!row) return { config: {}, at: null, by: null };
   let config = {}; try { config = JSON.parse(row.config) || {}; } catch { config = {}; }
-  return { install: row.install, rev: row.rev, config, at: row.at, by: row.by, seenRev: row.seen_rev ?? null, seenAt: row.seen_at ?? null };
+  return { config, at: row.at ?? null, by: row.by ?? null };
 }
 
-// Set a machine's settings. Returns the revision now in force and anything the payload asked for that this
-// build does not know, which the page shows rather than swallowing: an operator who mistypes a key is told.
-export function setConfig(db, install, raw, { by = 'dashboard', now = new Date() } = {}) {
-  if (typeof install !== 'string' || !install) return null;
+// Set the fleet's settings. Only the settings an operator has actually moved are stored, so a page nobody
+// has touched pushes nothing: a machine's own configuration stands until somebody decides otherwise, and
+// opening this page does not quietly adopt four defaults on everyone's behalf.
+export function setSettings(db, raw, { by = 'dashboard', now = new Date() } = {}) {
   const { config, dropped } = sanitize(raw);
-  const current = getConfig(db, install);
-  // Nothing changed is not a new revision: a machine must not be told to re-apply what it is already running.
+  const current = getSettings(db);
+  // Nothing changed is not a new time: a machine must not be told to take again what it is already running.
   if (JSON.stringify(config) === JSON.stringify(current.config)) return { ...current, dropped, changed: false };
-  const rev = current.rev + 1;
-  db.prepare(`insert into installs (install, rev, config, at, by) values (?,?,?,?,?)
-    on conflict(install) do update set rev = excluded.rev, config = excluded.config, at = excluded.at, by = excluded.by`)
-    .run(install, rev, JSON.stringify(config), now.toISOString(), by);
-  return { ...getConfig(db, install), dropped, changed: true };
+  const at = now.toISOString();
+  db.prepare(`insert into settings (id, config, at, by) values (1,?,?,?)
+    on conflict(id) do update set config = excluded.config, at = excluded.at, by = excluded.by`)
+    .run(JSON.stringify(config), at, by);
+  return { ...getSettings(db), dropped, changed: true };
 }
 
-// What a machine said it was running, taken off its own event. Never raises a rev; only records one.
-function noteSeen(db, install, rev, at) {
-  if (!Number.isFinite(rev)) return;
-  db.prepare(`insert into installs (install, rev, config, at, by, seen_rev, seen_at) values (?,0,'{}',null,null,?,?)
-    on conflict(install) do update set seen_rev = excluded.seen_rev, seen_at = excluded.seen_at`)
-    .run(install, Math.round(rev), at || new Date().toISOString());
+// What each machine says it is running. `pending` is the settings set here that this machine's own last word
+// disagrees with -- the honest answer to "did it take", since only the machine can say so.
+export function running(db, install) {
+  const row = db.prepare('select values_, at from installs where install = ?').get(install);
+  let values = {}; try { values = JSON.parse(row?.values_ || '{}') || {}; } catch { values = {}; }
+  const wanted = getSettings(db).config;
+  const pending = MANAGED
+    .map(m => m.path)
+    .filter(p => {
+      const want = p.split('.').reduce((v, k) => (v == null ? v : v[k]), wanted);
+      return want !== undefined && want !== null && values[p] !== want;
+    });
+  return { values, at: row?.at ?? null, pending };
+}
+
+// What every machine is running, for the settings page: how many agree with what is set here, and how many
+// have not reported since. One line, because the question is only ever "has the fleet taken it".
+export function fleetRunning(db) {
+  const rows = db.prepare('select install from installs').all();
+  const out = { machines: rows.length, pending: 0 };
+  for (const r of rows) if (running(db, r.install).pending.length) out.pending++;
+  return out;
+}
+
+// What a machine said it was running, taken off its own event.
+function noteSeen(db, install, values, at) {
+  if (!values || typeof values !== 'object') return;
+  db.prepare(`insert into installs (install, values_, at) values (?,?,?)
+    on conflict(install) do update set values_ = excluded.values_, at = excluded.at`)
+    .run(install, JSON.stringify(values), at || new Date().toISOString());
 }
 
 const num = v => (Number.isFinite(v) ? v : null);
@@ -173,7 +203,7 @@ export function putEvent(db, ev) {
     num(cost.spend), cost.priced ? 1 : 0,
     int(d.cuts), int(d.callsCleared), int(d.results), JSON.stringify(d),
     JSON.stringify(ev.labels || {}), JSON.stringify(ev));
-  if (ev.managed && Number.isFinite(Number(ev.managed.rev))) noteSeen(db, ev.install, Number(ev.managed.rev), ev.at);
+  if (ev.managed?.values) noteSeen(db, ev.install, ev.managed.values, ev.at);
   if (!before) return 'inserted';
   return ev.at >= before.at ? 'updated' : 'stale';
 }
@@ -373,27 +403,28 @@ export function createServer(db) {
         recent: recent(db),
       });
     }
-    // The control surface, as thinker itself describes it: the page draws its form from this and nothing else.
-    if (req.method === 'GET' && url.pathname === '/api/schema') {
-      return json(res, 200, { settings: SCHEMA });
+    // The fleet's settings, with the surface thinker itself describes: the page draws its form from this
+    // and nothing else.
+    if (req.method === 'GET' && url.pathname === '/api/settings') {
+      return json(res, 200, { settings: SCHEMA, control: getSettings(db), fleet: fleetRunning(db) });
+    }
+    if (req.method === 'PUT' && url.pathname === '/api/settings') {
+      let size = 0; const chunks = [];
+      req.on('data', c => { size += c.length; if (size > MAX_BODY) { json(res, 413, { error: 'too large' }); req.destroy(); return; } chunks.push(c); });
+      req.on('end', () => {
+        if (res.writableEnded) return;
+        let body; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return json(res, 400, { error: 'not JSON' }); }
+        const out = setSettings(db, body?.config, { by: 'dashboard' });
+        return json(res, 200, { ...out, fleet: fleetRunning(db) });
+      });
+      return;
     }
     if (req.method === 'GET' && url.pathname === '/api/machine') {
       const install = url.searchParams.get('install');
       if (!install) return json(res, 400, { error: 'install required' });
       const days = Math.max(1, Math.min(365, Number(url.searchParams.get('days')) || 30));
       const row = machines(db, { days }).find(m => m.install === install) || null;
-      return json(res, 200, { machine: row, control: getConfig(db, install), settings: SCHEMA });
-    }
-    if (req.method === 'PUT' && url.pathname === '/api/config') {
-      let size = 0; const chunks = [];
-      req.on('data', c => { size += c.length; if (size > MAX_BODY) { json(res, 413, { error: 'too large' }); req.destroy(); return; } chunks.push(c); });
-      req.on('end', () => {
-        if (res.writableEnded) return;
-        let body; try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { return json(res, 400, { error: 'not JSON' }); }
-        const out = setConfig(db, body?.install, body?.config, { by: 'dashboard' });
-        return out ? json(res, 200, out) : json(res, 400, { error: 'install required' });
-      });
-      return;
+      return json(res, 200, { machine: row, running: running(db, install), settings: SCHEMA, control: getSettings(db) });
     }
     if (req.method === 'GET' && url.pathname === '/api/session') {
       const row = sessionTrend(db, { install: url.searchParams.get('install'), session: url.searchParams.get('session') });
@@ -419,10 +450,10 @@ export function createServer(db) {
           counts[verdict]++;
           if (verdict !== 'rejected') install = ev.install;
         }
-        // The answer carries what this machine should be running (managed.js applies it). A machine with
-        // nothing set is told nothing at all, so a fleet nobody has configured pays no attention cost.
-        const control = install ? getConfig(db, install) : null;
-        json(res, 202, { status: 'accepted', ...counts, ...(control && control.rev ? { managed: { rev: control.rev, config: control.config } } : {}) });
+        // The answer carries what the fleet should be running (managed.js applies it, newest `at` winning).
+        // A fleet nobody has set is told nothing at all, so it pays no attention cost.
+        const control = install ? getSettings(db) : null;
+        json(res, 202, { status: 'accepted', ...counts, ...(control?.at ? { managed: { at: control.at, config: control.config } } : {}) });
       });
       return;
     }

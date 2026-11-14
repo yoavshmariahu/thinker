@@ -26,9 +26,11 @@
 // layer is the fleet's; the file is the machine's. So a central policy beats a machine's own file -- otherwise
 // it is advice, not control -- and a person at the keyboard can still override it for one process.
 //
-// What a reader sees: `rev` rises on every change the operator makes, the machine echoes the rev it is running
-// in the next event (`managed` on the event), and the page shows sent against confirmed. A setting is never
-// "applied" because a server said so; it is applied when a machine says it is.
+// What a reader sees: the value each setting actually has on the machine, which the machine itself reports on
+// every event (`managed.values`). A setting is never "in force" because a server said so -- it is in force
+// when the machine says it is, and until then the page shows what was set beside what is running. There is no
+// revision to follow: settings carry the time they were set, newest wins, which is the rule the session
+// events already use, and an answer that arrives out of order cannot walk a setting back.
 import fs from 'node:fs';
 import path from 'node:path';
 import { thinkerHome } from './update.js';
@@ -125,29 +127,50 @@ export function mergeManaged(local, { home = thinkerHome(), env = process.env, m
   return out;
 }
 
-// Take what the sink answered. Returns the rev now in force, or null if nothing changed or nothing was allowed.
-// Never throws: a collector that answers rubbish must cost a session nothing.
+// Take what the sink answered: `{ at, config }`, where `at` is when the operator set it. Returns the time now
+// in force, or null if nothing was taken. Never throws: a collector that answers rubbish must cost a session
+// nothing.
+//
+// Newest wins, by that time. That is all the ordering there is -- no revision to count and nothing to keep in
+// step between the two sides. An answer from before what this machine already holds is dropped, which is what
+// makes a spool draining behind a live session harmless, and the same settings arriving again are not rewritten.
 export function applyManaged(payload, { home = thinkerHome(), env = process.env, from = '' } = {}) {
   try {
     if (!managedAllowed({ home, env })) return null;
     if (!payload || typeof payload !== 'object') return null;
-    const rev = Number(payload.rev);
-    if (!Number.isFinite(rev) || rev < 0) return null;
+    const at = typeof payload.at === 'string' ? payload.at : '';
+    if (!at || Number.isNaN(Date.parse(at))) return null;
     const current = readManaged(home);
-    if (current && Number(current.rev) === rev) return rev; // already running it
-    if (current && Number(current.rev) > rev) return Number(current.rev); // an older answer never walks a setting back
+    if (current?.at && !(Date.parse(at) > Date.parse(current.at))) return current.at;
     const { config, dropped } = sanitize(payload.config);
-    const record = { rev, at: new Date().toISOString(), from, config, ...(dropped.length ? { dropped } : {}) };
+    const record = { at, took: new Date().toISOString(), from, config, ...(dropped.length ? { dropped } : {}) };
     const f = MANAGED_FILE(home);
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, JSON.stringify(record, null, 2) + '\n');
-    return rev;
+    return at;
   } catch { return null; }
 }
 
-// What goes on the event, so the page can show what a machine is actually running against what was sent to it.
+// What goes on the event: the value each managed setting actually has on this machine -- its own file's where
+// nobody set it, ours where somebody did. This is what a page draws its controls from, so what it shows is
+// the machine's state rather than a guess at a default, and a setting just changed reads as pending until the
+// machine's own next event agrees. These four are operational figures, not identifying ones; `labels.js`
+// remains the only door for anything that says whose machine this is.
+//
+// It reads the merged config the way `readMachineConfig` does, rather than calling it: repo-switch.js imports
+// this file, so the dependency runs one way only.
+export function managedValues({ home = thinkerHome(), env = process.env } = {}) {
+  const cfg = mergeManaged(readLocalConfig(home), { home, env });
+  const out = {};
+  for (const { path: p } of MANAGED) {
+    const v = get(cfg, p);
+    if (v !== undefined) out[p] = v;
+  }
+  return out;
+}
+
 export function managedBlock({ home = thinkerHome(), env = process.env } = {}) {
   if (!managedAllowed({ home, env })) return { managed: { rev: null, off: true } };
   const m = readManaged(home);
-  return m ? { managed: { rev: Number(m.rev), at: m.at } } : {};
+  return { managed: { rev: m ? Number(m.rev) : 0, ...(m ? { at: m.at } : {}), values: managedValues({ home, env }) } };
 }
