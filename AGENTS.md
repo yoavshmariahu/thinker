@@ -94,6 +94,27 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - **First live A/B (2026-11-14, 8-turn read session, two proxies, $12): no difference.** Both arms cut at turns 4 and 6, the same 66,097 and 61,791 tokens, 158,084 cleared, $5.95 against $5.98. The corrected cost priced those cuts at 13 and 11 instead of 15 and 13, and turn 3's refusal moved from the floor to the pricing (payback 65). The ladder only pays in the middle band -- the whole set fails and a shallower rung passes -- and this workload never landed there: either the whole set paid at 13-15, or no rung paid (best 27, 36, 116). The 93 historical boundaries DO land there (tail/cut 1.9-2.9 against a bar of 1.37), so judge it on real traffic, not on a synthetic read session.
 - **Unmeasured, and what to watch.** `proxy-replay.js` cannot judge it (it models the API-side edit this replaced) and the holdout is off since 2026-11-12, so the judges are cost per exchange and `rereads.js` -- which is what this puts most at risk, a cut nearer the tail being a cut of results the model used more recently.
 
+**A turn that runs for a hundred tool calls is cut into (2026-11-14, off by default; `cutting.js:openTurn`):**
+- The cut only ever moved at a turn boundary, and a turn is one prompt of the person's to the next. An
+  autonomous job has no second prompt, so the whole context sat inside the first turn and was protected
+  forever: the cut could not fire however large it grew. Found by the container e2e (demo/e2e) on
+  2026-11-13 -- one prompt, 16 calls, 5k -> 193k tokens against a 140k trigger, all 16 refused
+  `nothing-to-cut`; the same work as three prompts cut 174k at the first boundary.
+- The rule, and it needs no new number: **the turn is kept whole until the turn's own results reach the
+  trigger**, and past that the newest `keepMin` are protected as in any other stretch. A conversation's
+  turn never reaches it and behaves exactly as before. `measurePrompt` reports `inTurn` beside `prompt`
+  (the trigger leaves the turn in progress out, which is what keeps a verdict still within a turn; the
+  long-turn branch adds it back, which is the only way a one-prompt job is reachable at all).
+- Inside such a turn the **floor and `PAYBACK` do the pacing** the boundary used to do: another cut needs
+  another floor's worth of finished results and must repay its own rewrite within 25 calls.
+- Live in a container, same prompt and same work (2026-11-14): **off** 16 calls, peak context 193,193
+  tokens, nothing cleared; **on** 16 calls, peak context **85,787**, 249,164 tokens of results out, 8 cuts.
+  The model answered both times. What a fixture cannot show is whether a real model re-reads what was taken
+  from under it -- that is `rereads.js`'s question and the reason this ships off.
+- On: `THINKER_PROXY_LONG_TURN=on`, `--long-turn`, or `proxy: { longTurn: true }`. The saving names it
+  (`policyId` adds `-lt`), so a figure made with it is never compared with one made without. The desktop
+  mod is exempt with a reason (`test/claude-clear.test.js`): a turn there ends when the person types.
+
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
 - Rate is result's, not prompt's (`RESULT_TOKENS_PER_CHAR`, 0.445).
