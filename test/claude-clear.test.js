@@ -45,6 +45,10 @@ const DESKTOP_POLICY = {
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
   clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(p, {' },   // inside chooseDepth, which prices every rung
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
+  // The long-turn rule (cutting.js:openTurn) is about a turn that runs for a hundred tool calls with no second
+  // prompt, which is an autonomous job and not a person at a desktop: every turn here is somebody typing, and a
+  // turn whose own results reach the trigger does not arise. The mod reads the boundary as it always has.
+  longTurn: { exempt: 'a turn here ends when the person types again, so a turn large enough for this rule to open is not a shape a desktop session has' },
 };
 
 test('the clearing mod ships beside the CLI, with a manifest and one hooks module', () => {
