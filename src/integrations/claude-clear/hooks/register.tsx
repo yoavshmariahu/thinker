@@ -327,12 +327,20 @@ export const worthIt = (c: Clear | null, p: Policy, from: string) =>
   !c ? from !== 'auto' : c.cleared > 0 && (from !== 'auto' || c.tokens >= p.clearAtLeast)
 
 // The latch behind the check: an automatic attempt that did not clear (refused by the hook, or never taken
-// over) holds the next one until the context has grown by another `clearAtLeast`. However the check and the
-// compaction come to disagree again, the most the person sees is one line per 100k of new context, never one
-// per turn. A clear that went through lifts it.
+// over) holds the next one until the context has grown by `HOLD_GROWTH`. However the check and the
+// compaction come to disagree again, the most the person sees is one line per that much new context, never
+// one per turn. A clear that went through lifts it.
+//
+// It was `clearAtLeast` until 2026-11-14, when it broke: the two were the same 60,000 and the size floor then
+// fell to 8,000 with the ladder (`proxy.js:PROXY_DEFAULTS`), taking the latch down with it. A hold of 8k is
+// no hold -- a working session grows that in a turn or two -- so the skip line after every answer that this
+// exists to prevent was back (reported 2026-11-02 and again 2026-11-05). They were only ever equal by
+// coincidence: the floor is what a cut must be WORTH, and this is how much new context must arrive before
+// the person is shown another line. Nothing about the ladder's pricing bears on the second.
+export const HOLD_GROWTH = 60000
 export const autoDue = (tokens: number, p: Policy, holdUntil: number) => tokens >= p.trigger && tokens >= holdUntil
 
-const hold = () => { if (pendingFrom === 'auto') holdUntil = attemptAt + policy.clearAtLeast }
+const hold = () => { if (pendingFrom === 'auto') holdUntil = attemptAt + HOLD_GROWTH }
 
 function schedule($: any, from: string, tokens = 0) {
   pending = true; pendingFrom = from; attemptAt = tokens
