@@ -16,7 +16,7 @@ import type { Register, SessionMessage } from 'claude-code'
 // the proxy's policy (proxy.js:PROXY_DEFAULTS, proxy-service.js:SERVICE_HOLDOUT, 2026-10-28);
 // test/claude-clear.test.js holds the two together
 export const TRIGGER = 140000
-export const CLEAR_AT_LEAST = 60000
+export const CLEAR_AT_LEAST = 8000
 export const KEEP_MIN = 3
 export const HOLDOUT = 0
 export const TOKENS_PER_CHAR = 1.44 / 4
@@ -149,7 +149,51 @@ export type Clear = { messages: SessionMessage[]; cleared: number; chars: number
 // `display: omitted`, so only a signature comes back), and in a 28-turn run the model read its own blanked
 // calls, said it had been "making the tool calls without file paths", and began doing so. 0.6% of the
 // saving for a false history of itself. `chars` and `tokens` are the results; `inputTokens` stays 0.
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): Clear {
+// what a row weighs, for the prefix a clear keeps in the cache
+const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
+
+// The ladder the proxy prices (proxy.js:cutCandidates, 2026-11-13): the newest eligible result, then the two
+// newest, and so on from the tail backwards. Sizes alone -- no rows are rebuilt -- so the check can price
+// every depth and the clear itself happens once, at the depth chosen.
+//
+// Why a ladder here at all: the rewrite runs from the first row a clear changes to the end, so a set reaching
+// the oldest eligible result rewrites nearly the whole session to remove results that are a third of it. A
+// removed token saves the same wherever it sat; only the cost depends on position.
+export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): { depth: number; tokens: number; prefixChars: number }[] {
+  const pre: number[] = [0]
+  for (let i = 0; i < messages.length; i++) pre.push(pre[i] + charsOf(messages[i]))
+  const out: { depth: number; tokens: number; prefixChars: number }[] = []
+  let kept = 0, inLatestTurn = true, chars = 0, depth = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    const rs = m.role === 'user' ? m.toolResults ?? [] : []
+    if (!rs.length) { if (m.role === 'user' && (m.text ?? '').trim()) inLatestTurn = false; continue }
+    let took = false
+    for (const r of [...rs].reverse()) {
+      const text = r.text ?? ''
+      if (inLatestTurn || kept < keepMin) { kept++; continue }
+      if (text.length < MIN_CHARS) continue
+      depth++; chars += text.length; took = true
+    }
+    if (took) out.push({ depth, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR), prefixChars: pre[i] })
+  }
+  return out
+}
+
+// One policy, decided where the proxy decides it: the DEEPEST rung that repays its rewrite. `clearPays` is
+// this door's spelling of the inequality `cutting.js:priceCut` prices, and `decideCut` likewise takes the
+// largest paying set rather than the first. `null` is the refusal the proxy logs as `payback`.
+export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx: { tokens: number; calls: number; idle: number; cleared: boolean; model?: string }): number | null {
+  let take: number | null = null
+  for (const rung of clearLadder(messages, p)) {
+    if (rung.tokens < p.clearAtLeast) continue
+    const recache = Math.max(0, ctx.tokens - Math.round(rung.prefixChars * TOKENS_PER_CHAR) - rung.tokens)
+    if (clearPays(p, { dropped: rung.tokens, recache, calls: ctx.calls, idle: ctx.idle, cleared: ctx.cleared, model: ctx.model ?? '' })) take = rung.depth
+  }
+  return take
+}
+
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; chars: number }>()
@@ -170,6 +214,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; return r }
       if (text.length < MIN_CHARS) return r
+      if (cleared >= depth) return r      // the rung chosen: the newest `depth` results and no more
       cleared++; chars += text.length; touched = true
       const name = nameOf.get(r.tool_use_id) ?? 'tool'
       const t = byTool.get(name) ?? { calls: 0, chars: 0 }
@@ -182,7 +227,6 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   out.reverse()
   // the rows before the first one a clear changes keep their place in the cache; what follows is written again
   const changedAt = firstChanged
-  const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
   const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
   const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * RESULT_TOKENS_PER_CHAR) }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
@@ -206,6 +250,7 @@ let policy: Policy = DEFAULTS
 let auto = false
 let pending = false
 let pendingFrom = ''
+let pendingDepth: number | null = null   // the rung the check chose; null is every eligible result (a hand-run clear)
 // the pause before this turn, the requests the session has made, and whether a turn is under way (for the pause)
 let idle = 0
 let inTurn = false
@@ -262,6 +307,13 @@ export function liveRows(api: readonly any[]): SessionMessage[] {
 // (reported from a desktop session, 2026-11-02). Checking first means the automatic clear says nothing at
 // all until it has something to do. Returns null where the window cannot be read, and then the automatic
 // clear does nothing: a guess here is a line in the person's chat.
+export async function liveMessages($: any): Promise<SessionMessage[] | null> {
+  try {
+    const api = await $.session.messages({ as: 'api' })
+    return Array.isArray(api) ? liveRows(api) : null
+  } catch { return null }
+}
+
 async function wouldClear($: any, p: Policy): Promise<Clear | null> {
   try {
     const api = await $.session.messages({ as: 'api' })
@@ -410,12 +462,14 @@ export const register: Register = (on) => {
         lastTurnAt = Date.now()
         const tokens = (await $.session.usage()).context.tokens ?? 0
         if (autoDue(tokens, policy, holdUntil)) {
-          const c = await wouldClear($, policy)
-          // the write a clear would make: the context after the first row it changes, less what it drops
-          const recache = c ? Math.max(0, tokens - Math.round(c.prefixChars * TOKENS_PER_CHAR) - c.tokens) : 0
-          // nothing worth clearing yet, or a write the session's remaining calls would not repay: say nothing
+          // Which rung, not whether the whole set pays (`chooseDepth`, 2026-11-13). The write a clear makes is
+          // the context after the first row it changes, less what it drops, and that is priced per depth: a
+          // clear reaching only the newest results rewrites almost nothing. `null` means no depth repays its
+          // rewrite -- the refusal the proxy logs as `payback` -- and this door says nothing, as before.
           let model = ''; try { model = await $.session.model() } catch {}
-          if (c && worthIt(c, policy, 'auto') && clearPays(policy, { dropped: c.tokens, recache, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model })) schedule($, 'auto', tokens)
+          const rows = await liveMessages($)
+          const depth = rows ? chooseDepth(rows, policy, { tokens, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model }) : null
+          if (depth != null) { pendingDepth = depth; schedule($, 'auto', tokens) }
         }
       } catch {}
     }
@@ -427,7 +481,8 @@ export const register: Register = (on) => {
     if (!pending || e.trigger === 'precompute') return next(e)
     const from = pendingFrom
     pending = false
-    const c = clearOld(e.messages, policy)
+    const chosen = pendingDepth; pendingDepth = null
+    const c = clearOld(e.messages, { ...policy, depth: chosen ?? Infinity })
     if (!c.cleared || (from === 'auto' && c.tokens < policy.clearAtLeast)) {
       hold()
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }

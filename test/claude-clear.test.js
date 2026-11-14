@@ -43,7 +43,7 @@ const DESKTOP_POLICY = {
   keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
   // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
   holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
-  clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(policy, {' },
+  clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(p, {' },   // inside chooseDepth, which prices every rung
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
 };
 
@@ -147,7 +147,15 @@ test('an automatic clear that would be refused is never started, so the engine p
   // (reported 2026-11-05: a /compact and a skip line after every answer in Claude Desktop)
   assert.ok(s.includes("$.session.messages({ as: 'api' })"), 'the mod reads the live window before scheduling');
   assert.ok(!s.includes('$.session.messages()'), 'never the saved transcript');
-  assert.ok(/if \(c && worthIt\(c, policy, 'auto'\) && clearPays\(policy, \{[^\n]*\)\) schedule/.test(s), 'turn.complete schedules only a clear worth a compaction turn, and one that pays');
+  assert.ok(/const depth = rows \? chooseDepth\(rows, policy, \{[^\n]*\) : null/.test(s), 'turn.complete prices the rungs');
+  assert.ok(/if \(depth != null\) \{ pendingDepth = depth; schedule\(\$, 'auto', tokens\) \}/.test(s), 'and schedules only when some depth repays its rewrite');
+  // the rung the check chose is the rung the compaction applies, never the whole set by accident
+  assert.ok(/const chosen = pendingDepth; pendingDepth = null/.test(s), 'the chosen depth is taken once');
+  assert.ok(/clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity \}\)/.test(s), 'the clear applies it; a hand-run clear takes everything');
+  assert.ok(/if \(cleared >= depth\) return r/.test(s), 'clearOld stops at the depth, counting from the newest eligible result');
+  // and the ladder is the proxy's: nested sets from the tail backwards, deepest paying one taken
+  assert.ok(/export function clearLadder/.test(s) && /for \(let i = messages\.length - 1; i >= 0; i--\)/.test(s), 'the ladder walks from the tail back');
+  assert.ok(/if \(clearPays\(p, \{[^\n]*\)\) take = rung\.depth/.test(s), 'the deepest rung that pays wins, as decideCut picks the largest paying set');
   assert.ok(/if \(autoDue\(tokens, policy, holdUntil\)\)/.test(s), 'an attempt that did not clear holds the next');
   assert.ok(/worthIt\(await wouldClear\(\$, policy\), policy, 'manual'\)/.test(s), 'the command answers by itself instead of spending a turn');
 });
