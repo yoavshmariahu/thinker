@@ -113,7 +113,7 @@ export function transformChat(method, url, headers, body, cfg) {
     ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
-    ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
+    ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.depth != null ? { depth: decision.depth, rungs: decision.rungs } : {}), ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
   // the reason is the decision's own, as on both other doors: deriving it here saw neither mid-turn nor one-cut
   if (!applied.clearedUses) return { body: out, ...meta, ...state, estimatedInputTokens: prompt, usageRequested: meta.usageRequested, reason: decision.reason || 'nothing-to-cut' };
   return { ...meta, ...state, body: Buffer.from(JSON.stringify({ ...j, messages: applied.messages })), injected: true,

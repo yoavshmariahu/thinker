@@ -125,3 +125,43 @@ test('nothing eligible is still no ladder and no cut', () => {
   const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS }, { prompt: 400000, turn: 1 }, { cand: c, model: 'claude-opus-5' });
   assert.equal(d.reason, 'nothing-to-cut');
 });
+
+// The row must say which rung was taken, or a boundary that had one choice reads exactly like one that had
+// nine. The live smoke of 2026-11-14 came back unreadable for want of these two fields: the decision carried
+// `depth` and `rungs`, and no log row did -- `proxy.js` assembles its row from a named list.
+test('the decision puts depth and rungs where every door already logs them', async () => {
+  const { transformRequest } = await import('../src/proxy.js');
+  const ms = conversation(Array(8).fill(30000), { thinkChars: 9000 });
+  const cand = cutCandidates(ms, { keepMin: 0 });
+  assert.ok(cand.steps.length > 1, 'a ladder with a choice in it');
+  const m = { prompt: Math.round(JSON.stringify(ms).length * TOKENS_PER_CHAR), turn: 1 };
+  const rec = () => ({ ...freshCut('s'), turn: 0, at: Date.now() });
+
+  // a cut names the rung it took
+  const took = decideCut(rec(), { ...PROXY_DEFAULTS }, m, { cand, rates: { read: 0.5, write: 1 } });
+  assert.equal(took.clear, true);
+  assert.equal(typeof took.depth, 'number');
+  assert.equal(took.rungs, cand.steps.length);
+
+  // a refusal names the rung it refused, so the log says whether there was a choice at all
+  // A refusal needs the eligible result to be OLD, with protected bulk behind it: the shallowest rung is
+  // otherwise almost free. Measured here with keepMin 0: the newest eligible result takes out 10,800 tokens
+  // for a 111-token rewrite, payback 2. That is the whole mechanism, and the reason a ladder refuses less.
+  // With keepMin 7 only the oldest result is eligible and seven turns of bulk follow it, so it cannot pay.
+  const far = cutCandidates(ms, { keepMin: 7 });
+  assert.equal(far.steps.length, 1, 'one eligible result, so one rung and no choice to make');
+  const held = decideCut(rec(), { ...PROXY_DEFAULTS, trigger: 1 }, m, { cand: far, model: 'claude-opus-5' });
+  assert.equal(held.reason, 'payback');
+  assert.equal(held.held.rungs, 1, 'and the row says so, instead of looking like a boundary that had nine');
+  assert.equal(held.held.depth, 1);
+
+  // and the Messages door's row carries them inside `clear`, which it already logged
+  const body = Buffer.from(JSON.stringify({ model: 'claude-opus-5', messages: ms }));
+  const t = transformRequest('POST', '/v1/messages', { 'x-claude-code-session-id': 'row-test' }, body, {
+    ...PROXY_DEFAULTS, holdout: 0, cutRecord: { ...freshCut('row-test'), turn: 0, at: Date.now() },
+  });
+  if (t?.clear) {
+    assert.equal(typeof t.clear.depth, 'number', 'the row names the rung');
+    assert.ok(t.clear.rungs >= 1);
+  }
+});

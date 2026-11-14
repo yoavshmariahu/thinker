@@ -83,7 +83,7 @@ export function transformResponses(method, url, headers, body, cfg) {
     ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
     ...(decision.held ? { held: decision.held } : {}),
-    ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
+    ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.depth != null ? { depth: decision.depth, rungs: decision.rungs } : {}), ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
   // the reason is the decision's, as on the Messages door: deriving it here saw neither mid-turn nor one-cut
   if (!applied.clearedUses) return { body, ...meta, ...state, estimatedInputTokens: prompt, reason: decision.reason || 'nothing-to-cut' };
   return { ...meta, ...state, body: Buffer.from(JSON.stringify({ ...j, input: applied.input })), injected: true,
