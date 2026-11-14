@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { provision, verify } from '../scripts/metrics-dashboard.mjs';
 import { cacheQuestions } from '../scripts/cache-dashboard.mjs';
 import { spendQuestions } from '../scripts/spend-dashboard.mjs';
+import { armsQuestions } from '../scripts/arms-dashboard.mjs';
 
 test('dashboard provisioning creates Cache health, maps its filters, and refreshes it without duplicates', async t => {
   t.mock.method(console, 'log', () => {});
@@ -102,6 +103,40 @@ const MESSAGES_ONLY = new Map([
   ['Tokens cleared · 30 days', 'what the API itself reported clearing, which only the Messages path is told; the Codex card carries this path\'s own figure'],
   ['Billed input a request · cleared vs held out', 'billedInput is weighted from the Anthropic token classes and the Responses sides carry no such field'],
 ]);
+
+test('dashboard provisioning creates Diff by feature, maps its filters, lays its cards out without overlap and refreshes without duplicates', async t => {
+  t.mock.method(console, 'log', () => {});
+  const config = {}, records = new Map();
+  let nextId = 1;
+  const call = async (route, method = 'GET', body) => {
+    if (route === '/session/properties') return {};
+    if (route === '/session') return { id: 'test-session' };
+    if (route === '/database' && method === 'GET') return { data: [] };
+    if (route === '/dataset') return { status: 'completed', data: { rows: body.native.query.includes('current_user') ? [['reader', true, 0]] : [['linux', 'test', 'device', 'hourly']] } };
+    if (method === 'POST' && ['/database', '/collection', '/card', '/dashboard'].includes(route)) {
+      const id = nextId++; records.set(`${route}/${id}`, { id, ...body }); return { id };
+    }
+    if (method === 'PUT') { assert.ok(records.has(route), route); records.set(route, { ...records.get(route), ...body }); return records.get(route); }
+    if (method === 'GET') { assert.ok(records.has(route), route); return records.get(route); }
+    throw new Error(`Unexpected request: ${method} ${route}`);
+  };
+  const options = { call, config, persist: () => {}, reader: { username: 'reader', dbname: 'test', password: 'fake' } };
+  await provision(options);
+  assert.ok(config.armsId, 'Diff by feature must be provisioned on a fresh installation');
+  const arms = records.get(`/dashboard/${config.armsId}`);
+  assert.equal(arms.name, 'Diff by feature');
+  assert.deepEqual(arms.dashcards.filter(c => c.card_id).map(c => c.card_id).sort((a, b) => a - b), armsQuestions.map(q => config.cards[q.name]).sort((a, b) => a - b));
+  for (const card of arms.dashcards.filter(c => c.card_id)) assert.deepEqual(card.parameter_mappings.map(m => m.parameter_id), arms.parameters.map(p => p.id));
+  for (const a of arms.dashcards) for (const b of arms.dashcards) if (a !== b) {
+    assert.ok(a.col + a.size_x <= b.col || b.col + b.size_x <= a.col || a.row + a.size_y <= b.row || b.row + b.size_y <= a.row, 'cards must not overlap');
+  }
+  // every card is a ratio of sums over the snapshot, and the clearing's cards never pool two cut policies
+  for (const q of armsQuestions) { if (!/By device|Devices reporting/.test(q.name)) assert.match(q.sql, /sum\(/, q.name); if (/clearing/i.test(q.name) && q.display === 'table') assert.match(q.sql, /arms,policy/, `${q.name} groups by the cut policy`); }
+  const armsId = config.armsId;
+  await provision(options);
+  assert.equal(config.armsId, armsId);
+  assert.equal([...records.values()].filter(r => r.name === 'Diff by feature').length, 1);
+});
 
 test('every spend card that counts one door of the clearing counts the other, or says why not', () => {
   for (const q of spendQuestions) {

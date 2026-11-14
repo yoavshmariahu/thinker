@@ -8,13 +8,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { repoId, isGitCheckout } from './store.js';
 import { thinkerHome } from './update.js';
+import { mergeManaged } from './managed.js';
 
 const file = home => path.join(home || thinkerHome(), 'config.json');
-export function readMachineConfig(home) {
-  try { return JSON.parse(fs.readFileSync(file(home), 'utf8')) || {}; } catch { return {}; }
+// The machine's settings as they are in force: its own file, with whatever its fleet operator set over it
+// (managed.js -- an allow-list of paths, never written into the person's file). `{ local: true }` is the file
+// alone, which is what a writer must read: a central setting may never be baked into a file thinker does not own.
+export function readMachineConfig(home, { local = false } = {}) {
+  let cfg;
+  try { cfg = JSON.parse(fs.readFileSync(file(home), 'utf8')) || {}; } catch { cfg = {}; }
+  return local ? cfg : mergeManaged(cfg, { home: home || thinkerHome() });
 }
 // one read-modify-write of the machine config, for a command that sets one key (thinker models assign Explore)
-export function updateMachineConfig(home, fn) { const cfg = fn(readMachineConfig(home)) || readMachineConfig(home); writeMachineConfig(home, cfg); return cfg; }
+export function updateMachineConfig(home, fn) {
+  const read = () => readMachineConfig(home, { local: true });
+  const cfg = fn(read()) || read();
+  writeMachineConfig(home, cfg);
+  return cfg;
+}
 function writeMachineConfig(home, cfg) {
   const f = file(home);
   fs.mkdirSync(path.dirname(f), { recursive: true });

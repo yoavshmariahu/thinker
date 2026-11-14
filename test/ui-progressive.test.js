@@ -291,13 +291,30 @@ test('the real worker answers unchanged when nothing moved since the kept view, 
   assert.equal(delta.at(-1).total, 1); assert.equal(delta.at(-1).completed, 1); assert.equal(delta.at(-1).delta, true);
   const sessions = files.map(file => ({ client: 'claude', file, session: path.basename(file, '.jsonl'), mtime: fs.statSync(file).mtimeMs })).sort((a, b) => b.mtime - a.mtime);
   assert.deepEqual(delta.at(-1).view, contextView(store, { days: 7, sessions }), 'the same view as a full read');
-  // the Report is also read again when the log moved, with no session changed
+  // The Report when a log moved and no session did: the sessions' half of the kept report is kept and only the log's
+  // half read again (report.js:refreshLogParts), in one message, with no session read at all. The logs are shared and
+  // appended to every few seconds of a live session, so before this every repository read every session it had on
+  // every visit for figures that could not have moved.
   const rep = await run('report');
-  const repAt = rep.at(-1).at;
+  const repAt = rep.at(-1).at, before = rep.at(-1).view;
   assert.equal((await run('report', repAt))[0].unchanged, true);
   await new Promise(r => setTimeout(r, 5));
   fs.appendFileSync(path.join(store.dir, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), op: 'request', repo, session: 'x' }) + '\n');
   const logged = await run('report', repAt);
-  assert.deepEqual(logged[0], { id: logged[0].id, completed: 0, total: 0, delta: true });
-  assert.equal(logged.at(-1).done, true); assert.ok(logged.at(-1).view);
+  assert.equal(logged.length, 1, 'one message: no session was read');
+  assert.equal(logged[0].done, true); assert.equal(logged[0].delta, true); assert.ok(logged[0].view);
+  for (const k of ['parts', 'models', 'tokenTypes', 'totals', 'sessionTotals', 'sessionRows', 'factory']) {
+    assert.deepEqual(logged[0].view[k], before[k], `${k} is the kept one`);
+  }
+  assert.ok(logged[0].view.to > before.to, 'the log half is as of now');
+  // but a session dropped from the window has no new mtime to find, so that shortcut must not be taken: the report is
+  // read again, over the sessions that are left
+  await new Promise(r => setTimeout(r, 5));
+  const at2 = logged[0].at;
+  fs.rmSync(files[2]);
+  fs.appendFileSync(path.join(store.dir, 'log.jsonl'), JSON.stringify({ t: new Date().toISOString(), op: 'request', repo, session: 'y' }) + '\n');
+  const dropped = await run('report', at2);
+  assert.ok(dropped.length > 1 || !dropped[0].delta, 'every session read again');
+  assert.equal(dropped.at(-1).done, true);
+  assert.ok(dropped.at(-1).view.columns.some((c, i) => c.sessions !== before.columns[i].sessions), 'the dropped session is gone from the figures');
 });

@@ -1,5 +1,5 @@
 import os from 'node:os';
-import { thinkerHome } from './update.js';
+import { machineDir } from './scoped-state.js';
 import { claudePaths } from './harness.js';
 // The Context tab's report, worked out ahead of time. contextView reads every transcript of the window: a second
 // or four a repository on this machine, about fifteen for All repositories, on every visit to the tab. So the
@@ -36,7 +36,7 @@ const INPUTS = ['.thinker/config.json', '.claude/settings.json', '.claude/settin
 const SETTINGS = new Set(['.claude/settings.json', '.claude/settings.local.json', claudePaths().settings]);
 const settingsKey = p => { const j = JSON.parse(fs.readFileSync(p, 'utf8')); return JSON.stringify({ deny: j.permissions?.deny ?? null, servers: j.disabledMcpjsonServers ?? null, plugins: j.enabledPlugins ?? null, skills: j.skillOverrides ?? null }); };
 const digest = s => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
-const inputs = store => [...INPUTS, claudePaths().settings, path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml'), path.join(thinkerHome(), 'state', 'machine-actions', 'harness.json')].map(f => {
+const inputs = store => [...INPUTS, claudePaths().settings, path.join(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml'), path.join(machineDir(), 'harness.json')].map(f => {
   const p = path.isAbsolute(f) ? f : f.startsWith('.thinker/') ? path.join(store.dir, f.slice('.thinker/'.length)) : path.join(store.repo, f);
   try { const s = fs.statSync(p); return s.isDirectory() ? `${f}\t${s.size}\t${Math.round(s.mtimeMs)}` : `${f}\t${digest(SETTINGS.has(f) ? settingsKey(p) : fs.readFileSync(p))}`; } catch { return `${f}\t-`; }
 }).join('\n');

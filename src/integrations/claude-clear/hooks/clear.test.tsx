@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -150,11 +150,17 @@ test('a request that rewrote a long prefix is charged its write tokens; a cache 
   expect(isRewrite({ read: 0, write: LONG_CONTEXT, input: 10 })).toBe(true)
   expect(isRewrite({ read: LONG_CONTEXT, write: 1000, input: 10 })).toBe(false)
   expect(isRewrite({ read: 0, write: LONG_CONTEXT / 2, input: 0 })).toBe(false)
+  // and charged only when something was read back: a rewrite that read nothing found the cache cold (cutting.js:chargedRewrite)
+  expect(chargedRewrite({ read: 0, write: LONG_CONTEXT, input: 10 })).toBe(false)
+  expect(chargedRewrite({ read: 12_000, write: LONG_CONTEXT, input: 10 })).toBe(true)
   let c = charge(undefined, null)
   expect(c).toEqual({ rewrites: 0, write: 0 })
   c = charge(c, usage({ cache_read_input_tokens: 200_000 }))
   expect(c).toEqual({ rewrites: 0, write: 0 })
+  // a rewrite that read nothing back: the cache had expired, so the write is not the clearing's
   c = charge(c, usage({ cache_creation_input_tokens: 150_000, input_tokens: 10 }))
+  expect(c).toEqual({ rewrites: 0, write: 0 })
+  c = charge(c, usage({ cache_creation_input_tokens: 150_000, cache_read_input_tokens: 12_000, input_tokens: 10 }))
   expect(c).toEqual({ rewrites: 1, write: 150_000 })
   c = charge(c, usage({ cache_creation_input_tokens: 40_000 }))
   expect(c).toEqual({ rewrites: 1, write: 150_000 })

@@ -10,6 +10,7 @@ import { Store } from '../src/store.js';
 import { reportView, mergeReports, renderReport, COST_THRESHOLDS, verdict, formatCostThreshold, weekColumns, weekStart, PARTS, BREAKDOWN, TOKEN_TYPES, OTHERS, REWRITES, CALIBRATION, calibrationOf, outputComparison, formatShare, actionEffect, itemCost, effectSpan, withEffects, promptAverage, mergePromptAverages, prSavings } from '../src/report.js';
 import { REWRITE_CAUSES } from '../src/transcripts.js';
 import * as profileMetricModule from '../src/profile-metric.js';
+import { PROFILE } from '../src/profile.js';
 import { weeklyPrStats } from '../src/report.js';
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-6, `${msg || ''} ${a} ≈ ${b}`);
 import { listPrice, providerOf, costOf, writeCost, formatDollars } from '../src/prices.js';
@@ -534,7 +535,7 @@ test('the Report carries the profile metric, pooled across repositories as count
   assert.match(text, /No lines learned yet\./);
   // the pace: 5 exchanges measured over one day, 198 + 197 more needed
   assert.equal(p.pace.measured, 5); assert.equal(p.pace.need, 395); assert.ok(Math.abs(p.pace.weeksToGo - 395 / 5 / 7) < 0.01);
-  assert.deepEqual(p.lines, { learned: 0, fromSessions: 0, judged: 0, sessions: 0, shown: 0, applied: 0, followed: 0, followRate: null, neverApplied: 0, rarely: 0, sometimes: 0, frequently: 0 });
+  assert.deepEqual(p.lines, { learned: 0, fromSessions: 0, judged: 0, sessions: 0, shown: 0, applied: 0, followed: 0, followRate: null, neverApplied: 0, retired: 0, retireShown: PROFILE.retireShown, rarely: 0, sometimes: 0, frequently: 0 });
   const { lineBands } = profileMetricModule;
   assert.deepEqual(lineBands([{ shown: 10, applied: 0 }, { shown: 10, applied: 2 }, { shown: 10, applied: 3 }, { shown: 10, applied: 7 }, { shown: 10, applied: 8 }, { shown: 1, applied: 1 }]), { rarely: 2, sometimes: 2, frequently: 2 });
   assert.match(renderReport({ ...reportView(store, { now: NOW, sessions: [] }), profile: null }).join('\n'), /No profile observations/);

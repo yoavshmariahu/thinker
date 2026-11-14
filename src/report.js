@@ -216,17 +216,10 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
   // the output rows under each compression setting (tool-outputs.js:aggregateOutputs), kept in the view for
   // `thinker report --json` and outputComparison
   const outRows = (() => { try { return toolOutputs(store, sessions, timeline).tools; } catch { return []; } })();
-  const actions = reportActions(store, from, sessionRows, now);
-  const everyEvent = readLog(store, { all: true });
-  // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
-  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
-  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
-  const prs = includePrs ? prSavings(store, { days, now }) : null;
-  // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
-  const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
   // the Factory (factory.js): the same sessions read as a pipeline, over the same window, kept with the report
   const factory = (() => { try { return factoryView(store, { weeks, now, sessions, onSession }); } catch { return null; } })();
   return {
+    ...logParts(store, { columns, sessionRows, from, days, now, sessions, config, includePrs }),
     weeks, days, from, to: now, pricedOn: PRICED_ON, columns, sessionRows, costThresholds: COST_THRESHOLDS,
     inputRate: pricedInput > 0 && pricedInputCost > 0 ? pricedInputCost / pricedInput : null,
     tokenTypes,
@@ -235,11 +228,39 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
     rewrites: REWRITES.map(([key, name]) => ({ key, name, cells: byCause[key] })), rewriteTotals, estimated,
     calibration: calibrations(config),
     providers, models: modelRows, unpriced: [...unpriced],
-    actions, outputRows: outRows, savings,
-    prs, prWeekly: weeklyPrStats(prs, columns, now),
-    profile,
+    outputRows: outRows,
     factory,
   };
+}
+
+// The half of the Report that is read from the logs rather than from the sessions: the decisions taken
+// (reportActions), the savings series, the pull requests, and the session profile's own measure. All four rest on the
+// machine's log, the proxy's log and the delivery journal; none of them reads a transcript.
+//
+// It is a function of its own because those logs move constantly -- the proxy appends a row every few seconds of a live
+// session -- and the page's refresh treated any append as a reason to read every session of every repository again
+// (ui/scan-worker.js). On this machine that was ~100 ms a repository for the seventeen with no session of their own,
+// every visit, for figures that cannot have changed. Now a visit where only the logs moved reads this half alone
+// (`refreshLogParts`) and keeps the sessions' half as it stands.
+export function logParts(store, { columns, sessionRows, from, days, now = Date.now(), sessions = [], config = {}, includePrs = true }) {
+  const actions = reportActions(store, from, sessionRows, now);
+  const everyEvent = readLog(store, { all: true });
+  // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
+  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
+  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
+  const prs = includePrs ? prSavings(store, { days, now }) : null;
+  // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
+  const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
+  return { actions, savings, prs, prWeekly: weeklyPrStats(prs, columns, now), profile };
+}
+
+// A kept report with its log half read again and its session half left alone: what a refresh writes when the sessions
+// of the window have not moved and a log has. `to` moves with it, since the figures are as of now; everything read
+// from a transcript (the parts, the models, the token types, the Factory) stands as it was made.
+export function refreshLogParts(store, view, { now = Date.now(), sessions = [] } = {}) {
+  const config = (() => { try { return store.config(); } catch { return {}; } })();
+  const { columns, sessionRows, from, days, prs } = view;
+  return { ...view, to: now, ...logParts(store, { columns, sessionRows, from, days, now, sessions, config, includePrs: prs != null }) };
 }
 
 // How much of what was shipped here thinker paid for: the merged pull requests the sessions of this window
@@ -282,7 +303,7 @@ export function prSavings(store, { days, now = Date.now(), delivery } = {}) {
       share: p.tokens.agent ? p.saved.total / p.tokens.agent : null,
       // carried per row so mergePrSavings averages the hours over every pull request, never over the repositories
       hours: p.hoursToMerge ?? null,
-      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null,
+      net: p.cost?.priced ? p.cost.net : null, savedUsd: p.cost?.priced ? p.cost.saved : null, rewriteUsd: p.cost?.rewrite ?? null, rereadUsd: p.cost?.reread ?? null, rereads: p.rereads || 0,
       spend: p.cost?.spendComplete ? p.cost.spend : null,
     })),
   };
@@ -316,7 +337,7 @@ export const BANDS = [['rarely', 'Lines rarely used', 'bore on a fifth or fewer 
 export function profileLinesSentence(p) {
   const l = p.lines;
   if (!l || !l.learned) return 'No lines learned yet.';
-  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}`;
+  const judged = !l.shown ? 'none judged in a session yet' : `judged over ${l.sessions} session${l.sessions === 1 ? '' : 's'} shown the profile: ${l.applied} of the ${l.shown} times a line was shown it bore on the work${l.applied ? `, acted on in ${l.followed} of those` : ''}${l.neverApplied ? `; ${l.neverApplied} line${l.neverApplied === 1 ? ' has' : 's have'} never borne on a session` : ''}${l.retired ? `; ${l.retired} retired after bearing on none of ${l.retireShown} sessions` : ''}`;
   return `${l.learned} line${l.learned === 1 ? '' : 's'} learned from ${l.fromSessions} session${l.fromSessions === 1 ? '' : 's'}, ${judged}.`;
 }
 export function profileLines(p) {
@@ -504,7 +525,7 @@ function mergePrSavings(list) {
     meanHours: mean(rows.map(r => r.hours)),
     // the dollars add like the tokens; the mean is signed, since a net can be a loss (delivery.js:meanSigned)
     cost: {
-      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), net: sum(p => p.cost?.net),
+      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), reread: sum(p => p.cost?.reread), net: sum(p => p.cost?.net),
       costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
     },
     meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),
@@ -597,7 +618,7 @@ export function renderReport(v, { total = false, share = false } = {}) {
     L.push('', 'Pull requests (what merged work cost and what the clearing saved on it, in dollars)',
       `  merged with work here  ${pr.merged} of ${pr.mergedSeen} merged in the repositor${pr.mergedSeen === 1 ? 'y' : 'ies'}${pr.open ? `, ${pr.open} still open` : ''}`,
       `  spent on them          ${pr.spend == null ? '–' : formatDollars(pr.spend)}${pr.spendComplete < pr.merged ? ` over the ${pr.spendComplete} whose every session is priced` : ''}`,
-      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear`,
+      `  saved on them          ${formatDollars(pr.cost?.saved ?? 0)} at the cache-read rate; ${pr.mergedAssisted} of ${pr.merged} saved something. The cost above includes ${formatDollars(pr.cost?.rewrite ?? 0)} of cache writes after a clear${pr.cost?.reread ? ` and ${formatDollars(pr.cost.reread)} of files read again after a clear took them out` : ''}`,
       `  on the average one     ${pr.meanSpend == null ? '–' : formatDollars(pr.meanSpend)} spent, ${pr.meanSavedUsd == null ? '–' : formatDollars(pr.meanSavedUsd)} saved${pr.meanHours == null ? '' : `, ${pr.meanHours < 10 ? pr.meanHours.toFixed(1) : Math.round(pr.meanHours)}h open to merged`}`,
       `  sessions               ${pr.sessions.linked} on a pull request, ${pr.sessions.unlinked} on none`);
     const n = Math.min(pr.rows.length, PR_LINES);

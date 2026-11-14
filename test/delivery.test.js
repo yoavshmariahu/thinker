@@ -63,6 +63,30 @@ test('a session is matched to the pull request of its branch, and carries its sa
   assert.match(text, /Merged with work recorded here: 1 of 1 merged in the repository/);
 });
 
+test('what the model read again after a cut took it out comes off the saving: its write once, its reads after at the cache-read rate', t => {
+  const { store, home } = fixture(t);
+  // the Stop hook's session row carries the re-reads it counted over the transcript (rereads.js); the newest row wins
+  store.log({ op: 'session', t: at(3), session: 'r1', client: 'claude', model: 'claude-opus-5-5', branch: 'agent/reread', head: 'rrr1', turns: 6, totalTokens: 300_000, tokenCoverage: 'complete', rereads: { reads: 1, tokens: 4_000, laterTokens: 20_000 } });
+  store.log({ op: 'session', t: at(1), session: 'r1', client: 'claude', model: 'claude-opus-5-5', branch: 'agent/reread', head: 'rrr1', turns: 9, totalTokens: 400_000, tokenCoverage: 'complete', rereads: { reads: 2, tokens: 10_000, laterTokens: 100_000 } });
+  cleared(home, 'r1', 1_000_000);
+  pullRequest(store, { number: 14, title: 'Reread work', branch: 'agent/reread', commits: ['rrr1'] });
+
+  const r = deliveryReport(store, { now, home }), p = r.prs[0];
+  // Opus 5.5 at list: 1M cleared at the cache-read rate ($0.20/M) is $0.20; the re-reads wrote 10k at $8/M ($0.08) and
+  // were read on 100k token-calls at $0.20/M ($0.02)
+  assert.ok(Math.abs(p.cost.saved - 0.2) < 0.001, `saved ${p.cost.saved}`);
+  assert.ok(Math.abs(p.cost.reread - 0.1) < 0.001, `reread ${p.cost.reread}`);
+  assert.ok(Math.abs(p.cost.net - (0.2 - 0.1)) < 0.001, `net ${p.cost.net}`);
+  assert.equal(p.rereads, 2, 'the count rides along');
+  assert.equal(p.sessions[0].rereads, 2);
+  assert.equal(r.summary.rereads, 2);
+  assert.ok(Math.abs(r.summary.cost.reread - 0.1) < 0.001);
+  assert.match(r.summary.cost.basis, /less the re-reads of cleared files/);
+  const text = renderDelivery(r, { detail: true });
+  assert.match(text, /re-reads\s+−\$0\.10 2 files read again after a clear took them out/);
+  assert.match(text, /less \$0\.10 of re-reads \(2\)/);
+});
+
 test('a desktop session\'s clear is netted against the writes its record counted, never shown gross', t => {
   const { store, home } = fixture(t);
   // a desktop session: no proxy rows, the mod's record alone, with the rewrites it counted and the model that answered

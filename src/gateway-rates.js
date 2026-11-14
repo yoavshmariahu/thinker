@@ -102,7 +102,7 @@ export function rateTracker() {
 // The ratios priceCut prices with, per model: { read, write, source, assumed? }. Scale-free:
 // read and write are in units of one fresh input token, which is 1.0 by definition. null sends
 // the caller to cutting.js's Anthropic defaults, as before this existed.
-export function makeRatesResolver({ tracker = null, configured = null } = {}) {
+export function makeRatesResolver({ tracker = null, configured = null, prices = null } = {}) {
   const valid = r => r && Number.isFinite(r.read) && r.read >= 0 && Number.isFinite(r.write) && r.write >= 0;
   const config = model => {
     if (!configured || typeof configured !== 'object') return null;
@@ -122,6 +122,13 @@ export function makeRatesResolver({ tracker = null, configured = null } = {}) {
       rates.write = identified ? round(fit.write / fit.fresh) : 1;
       if (!identified) rates.assumed = ['write'];
       return rates;
+    }
+    // 4. the price list, where the provider's cache prices are stated (prices.js:statedRates). The fit above
+    //    needs a gateway that reports its own cost; a direct provider route never does, and leaving it on
+    //    Anthropic's ratios prices its cuts wrong by the full ratio between the two providers.
+    if (typeof prices === 'function') {
+      let listed = null; try { listed = prices(model); } catch { listed = null; }
+      if (valid(listed)) return { read: listed.read, write: listed.write, source: listed.source || 'price-list' };
     }
     return null;
   };

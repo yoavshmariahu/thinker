@@ -110,6 +110,65 @@ Other than an explicitly posted comment, the evidence stays local. The counts an
 (`telemetry: false` in `.thinker/config.json`, or `THINKER_TELEMETRY=off`); a pull request's number,
 title, URL, branch and author, the repository, and the session ids never do.
 
+## Labels: naming the machine a figure came from
+
+Everything thinker reports is pseudonymous: an install id, a device id, counts and sums, never a path, a
+repository, a prompt or a symbol. On one person's machine that is the whole story. A company running
+thinker inside its own coding agent needs one thing more — which customer, harness build or job a session
+belonged to — and nothing in a payload can say it, because the only identity there is the machine's own.
+
+Labels are that, and they are set rather than inferred:
+
+```json
+{ "labels": { "tenant": "acme", "harness": "orbit-1" } }
+```
+
+in `~/.thinker/config.json` (bake it into an image), or
+
+```
+THINKER_LABELS='{"tenant":"acme","job":"17"}'     # or: THINKER_LABELS=tenant=acme,job=17
+```
+
+per container, merged over the config a key at a time. They appear in the telemetry payload as `labels`
+and on each session's row in the usage log, so an export can group sessions by them. Eight labels at most,
+keys of up to 40 characters from `[A-Za-z0-9_.-]`, values of up to 64; anything longer or structured is
+dropped rather than cut short, and a malformed value is simply no label.
+
+Nothing is read from the environment for you — not a hostname, a cloud instance id or a git remote. A
+label exists because somebody wrote one, which makes it the one place in a payload where identifying data
+can appear: whether a customer's name leaves a machine is yours to decide, not a default of ours. With
+telemetry off (`THINKER_TELEMETRY=off`) nothing is sent at all and the labels stay on the session rows,
+where `thinker telemetry --json` will show them to you before anything leaves.
+
+## Exporting sessions
+
+thinker can hand each session to a sink of your own as it ends: one JSON object per session,
+newline-delimited, carrying what that session cost, what the clearing saved on it, the labels above, and
+what thinker decided and why.
+
+```
+THINKER_EVENTS=off                                  # the default: nothing leaves
+THINKER_EVENTS=stdout                               # one line a session, for a container's logs
+THINKER_EVENTS=/var/log/thinker/sessions.jsonl      # appended, for a log agent to tail
+THINKER_EVENTS=http://collector.internal/v1/sessions
+```
+
+or `events` in `~/.thinker/config.json`. The figures are the ones `thinker prs` and the Report already
+computed, so an exported dollar can never disagree with a printed one.
+
+Two things a consumer must know. A session is shipped when it ends and **may be shipped again** -- the
+clearing's figure settles a few turns after the cut -- so events are upserts keyed on the install and the
+session id, newest wins, and adding two events for one session double-counts it. And a sink that is down
+costs a session nothing: the line waits in `~/.thinker/state/events-spool.jsonl` and rides out with the
+next session.
+
+Each event carries `decisions`: how many cuts fired and under which policy, the reasons thinker cut nothing
+(the cut policy's own branches, so "why was nothing cut here" has a recorded answer), and which tools'
+results left the prompt. Counts, reasons and tool names -- never a tool's arguments or its output.
+
+`demo/collector/` is a working sink and a page over it: one row a machine with its own figures, a roll-up by
+label, and the decisions behind the saving.
+
 ## The context diet
 
 Off until an experiment shows it helps. With
@@ -264,9 +323,10 @@ process.stdout.write(reply.choices[0].message.content);
 
 In Claude Code and OpenCode 2, a read of about a thousand lines or more, or a whole test-suite run, is handed to a subagent on
 Claude Sonnet 5.5 and the main model gets its report instead of the output. The report names what the request needs
-as `path:line`; the main model still reads the lines it edits itself. It is on by default and half the sessions are
-held out so the saving can be measured; `thinker usage` and the log's `delegate` rows carry each run's cost.
+as `path:line`; the main model still reads the lines it edits itself. It is off by default; when on, half the
+sessions are held out so the saving can be measured, and the log's `delegate` rows carry each run's cost.
 
-- Off: `THINKER_DELEGATE=off`, or `"delegate": false` in `~/.thinker/config.json`.
+- On: `"delegate": { "enabled": true }` in `~/.thinker/config.json` (or `THINKER_DELEGATE=on`), then `thinker rewire`;
+  OpenCode reads it when it starts. Off again: `"delegate": false` and `thinker rewire`.
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
 - The threshold (tokens of reads in one turn before the rest is delegated, 35000): `"delegate": { "threshold": 20000 }`.

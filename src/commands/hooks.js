@@ -15,7 +15,7 @@ import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
-import { compressionBlock, compressionDir, markCompressionTurn } from '../compression.js';
+import { compressionBlock, compressionDir, markCompressionTurn, mirrorClearing } from '../compression.js';
 import { profileTurn, profileArmOf } from '../profile.js';
 import { retireNotes } from '../notes-retired.js';
 import { recordDevinCompactions } from '../devin-compaction.js';
@@ -36,7 +36,10 @@ import { desktopApp, subagentHarness } from '../app-host.js';
 import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../session-work.js';
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
-import { ensureProxy, gatewayHint } from '../proxy-service.js';
+import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
+import { cutTimesFor, rereadsOf } from '../rereads.js';
+import { labelBlock } from '../labels.js';
+import { emitSession } from '../events.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
 // last check, or a day since it. The stamp is written before the check, so a check that fails waits a day too.
@@ -317,9 +320,35 @@ async function hookCommand(ctx) {
     // what the session has cost so far, for the profile's holdout (profile.js:holdoutReport): the turn's cost is the
     // difference from the line of the turn before, so each line carries the turn number the prompt hook opened. A session
     // Claude Code continued in a new one carries the original's history in its file: the row counts from the moment it
-    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince)
+    // was continued, found in the original's tail beside this file (transcripts.js:continuedSince).
+    // This row is also the one event thinker writes per session, so it is what an export reads: a stream of
+    // sessions, each already carrying its client, its model, its arm and (labels.js) whatever an operator
+    // named this machine, summed by whoever consumes it rather than by us. A machine with no label set adds
+    // no key here -- most machines have none, and a log line is written on every session that ends.
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) { try { const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 }); const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : []; const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined }; store.log(record); } catch {} }
+    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) {
+      try {
+        const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 });
+        const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : [];
+        // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
+        // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
+        let rereads = null;
+        try { const cuts = cutTimesFor({ session, proxyLog: proxyLogFile(), dir: compressionDir() }); rereads = cuts.length ? rereadsOf(p, cuts) : null; } catch { rereads = null; }
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...labelBlock(), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
+        store.log(record);
+      } catch {}
+      // and out to the sink, where this machine has one (events.js). The same session, priced by the one
+      // door `thinker prs` and the Report read, as an upsert keyed on (install, session): the clearing's
+      // figure settles a few turns after the cut, so a later event carries more than an earlier one and a
+      // collector must take the newest, never add two. Does nothing at all where no sink is configured,
+      // which is every machine that has not asked for one.
+      try { await emitSession(store, { session }); } catch {}
+    }
+    // A clear the proxy never saw -- a desktop session's, made by the clearing mod -- lives in the card's own
+    // state file, which is pruned after two days. Every window that reads a saving is longer than that, so it
+    // is mirrored into the machine's log once per clear, where it lasts as long as the log
+    // (compression.js:mirrorClearing). Cheap: one small file read, and a row only when the figure has grown.
+    if (session !== 'unknown') { try { mirrorClearing(compressionDir(), session, row => store.log(row)); } catch {} }
     if (noticeOn(store)) {
       // where the card mod runs, the status line carries the money the whole session (claude-card.js)
       const carded = client === 'claude' && claudeCardActive(session);

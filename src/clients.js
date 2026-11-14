@@ -33,6 +33,7 @@
 // the others the hooks record the session themselves (prompt, every tool call
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
+import { delegateConfig } from './delegate.js';
 import fs from 'node:fs';
 import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
@@ -45,7 +46,8 @@ import { gitHookPath } from './store.js';
 import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { installClaudeMods, removeClaudeMods, withCardDir, withoutCardDir, cardDirIn, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
-import { installExploreAgent, removeExploreAgent } from './explore-agent.js';
+import { installExploreAgent, removeExploreAgent, exploreModel } from './explore-agent.js';
+import { installOpencodeAgents, removeOpencodeAgents, delegateExploreModel } from './delegate-agents.js';
 import { installAgents, removeAgents } from './model-agents.js';
 import { readRegistry } from './providers.js';
 
@@ -1320,6 +1322,14 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       for (const [name, text] of Object.entries(files)) { const p = path.join(dir, name); if (readText(p) !== text) fs.writeFileSync(p, text); }
       if (scope === 'repo' && !shared) excludeLocally(repo, [path.relative(repo, idx), path.relative(repo, path.join(dir, 'tui.tsx'))]);
       done.push(`opencode v${opencodeMajor()}: installed ${rel(dir)}/ (hooks, MCP and the savings footer)`);
+      // The delegation trigger hands a big read to one of OpenCode's own subagents, and OpenCode has none
+      // built in, so the two the denial names are written where it scans for them (delegate-agents.js). At
+      // user scope only: they serve every checkout, as the plugin there does.
+      if (hooks && scope === 'user') for (const a of installOpencodeAgents({ configDir: opencodeDir() })) {
+        if (a.action === 'written') done.push(`opencode: subagent ${a.name} for delegated reads (${rel(a.file)}; THINKER_DELEGATE=off removes it)`);
+        else if (a.action === 'removed') done.push(`opencode: removed ${rel(a.file)}; reads are not delegated`);
+        else if (a.action === 'kept') done.push(`opencode: ${rel(a.file)} is your own and was left alone`);
+      }
     } else {
       const text = extensionText(config);
       fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -1381,8 +1391,12 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
       // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read past the turn's threshold, or a whole-suite
       // run, is denied and answered with a subagent's report. The timeout covers the subagent's run; the hook
-      // itself answers in a few milliseconds when the call goes through. THINKER_DELEGATE=off turns it off.
-      entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: 300 }] }]);
+      // itself answers in a few milliseconds when the call goes through. Written only while the trigger is on
+      // (off by default, 2026-11-12): a hook that exits at once is still one node process per tool call, and
+      // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
+      // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
+      // spawns nothing and the hook answers in a quarter of a second (2026-11-12).
+      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
       // everything else it could answer with (the edited-file notes, instruction sections, the diet) is gone or
       // off. It was one node process per tool call for no output. `PostToolUse` stays in the list below so a
@@ -1407,7 +1421,10 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         done.push(`Claude Code: cache-hit card under each served answer, context clearing where the proxy cannot reach (${CARD_LABEL} in ${rel(f.local)})`);
         // exploration subagents on a cheaper model: a user-scope Explore agent overrides the built-in one,
         // which runs on the session's own model (explore-agent.js). A person's own Explore.md is left alone.
-        const ex = installExploreAgent({ claudeDir: claudeDir() });
+        // While the delegation trigger is on, the agent its denial names is this one, so the file is written
+        // on `delegate.model` unless the person has set `agents.explore` themselves (delegate-agents.js).
+        // explore-agent.js stays the only writer of Explore.md.
+        const ex = installExploreAgent({ claudeDir: claudeDir(), model: exploreModel() || delegateExploreModel() });
         if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
         else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
@@ -1649,7 +1666,10 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
     for (const client of ['pi', 'opencode']) {
       const ext = wiringFiles(client, o).ext;
       if (ext && readText(ext).startsWith(GENERATED_MARK)) fs.unlinkSync(ext);
-      if (client === 'opencode') { const dir = opencodeV2Dir(o); if (readText(path.join(dir, 'index.ts')).startsWith(GENERATED_MARK)) fs.rmSync(dir, { recursive: true, force: true }); }
+      if (client === 'opencode') {
+        const dir = opencodeV2Dir(o); if (readText(path.join(dir, 'index.ts')).startsWith(GENERATED_MARK)) fs.rmSync(dir, { recursive: true, force: true });
+        removeOpencodeAgents({ configDir: opencodeDir() });
+      }
     }
     stripThinkerHooks(wiringFiles('copilot', o).hooks, { keepVersion: true }); stripThinkerHooks(wiringFiles('windsurf', o).hooks);
     dropMcpEntry(wiringFiles('copilot', o).mcp);

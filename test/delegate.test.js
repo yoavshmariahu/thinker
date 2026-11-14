@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS } from '../src/delegate.js';
+import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS, lastPromptOf, shellRead } from '../src/delegate.js';
 import { installClient } from '../src/clients.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -23,6 +23,14 @@ test('readOf: a Read is sized from the file, a ranged Read from its lines, a cat
   assert.equal(readOf('Bash', { command: 'cat core.py' }, d).files[0], big);
   assert.equal(readOf('Bash', { command: 'cat core.py | grep def' }, d), null);
   assert.equal(readOf('Bash', { command: 'sed -n 1,50p core.py' }, d).files[0], big);
+  // a shell line that asks for a range is the model reading the lines it edits, and is sized by that range
+  const sedRange = readOf('Bash', { command: "sed -n '273,290p' core.py" }, d);
+  assert.ok(sedRange.tokens < 1000, String(sedRange.tokens));
+  assert.ok(readOf('Bash', { command: "sed -n '42p' core.py" }, d).tokens < 100);
+  assert.deepEqual(shellRead("sed -n '10,+20p' core.py"), { files: ['core.py'], lines: 21 });
+  // an open range or a pattern says nothing about the size: the whole file counts
+  assert.equal(shellRead("sed -n '100,$p' core.py").lines, 0);
+  assert.equal(readOf('Bash', { command: "sed -n '100,$p' core.py" }, d).tokens, readOf('Bash', { command: 'cat core.py' }, d).tokens);
   assert.equal(readOf('Bash', { command: 'ls -la' }, d), null);
   assert.equal(readOf('Grep', { pattern: 'x' }, d), null);
   assert.ok(readOf('Read', { file_path: small }, d).tokens < 100);
@@ -31,8 +39,12 @@ test('readOf: a Read is sized from the file, a ranged Read from its lines, a cat
 test('suiteCommand: whole-suite runs only', () => {
   for (const c of ['.venv/bin/python -m pytest -q', 'pytest', 'python -m pytest -v', 'npm test', 'go test ./...', 'cargo test', 'node --test', 'cd src && npm test'])
     assert.equal(suiteCommand('Bash', { command: c }), c, c);
-  for (const c of ['pytest tests/test_x.py', '.venv/bin/python -m pytest -q tests/test_a.py::test_b', 'npm test -- test/one.test.js', 'pytest -q 2>&1 | tail -3', 'ls', 'python script.py'])
+  for (const c of ['pytest tests/test_x.py', '.venv/bin/python -m pytest -q tests/test_a.py::test_b', 'npm test -- test/one.test.js', 'ls', 'python script.py', 'pytest -q | python summarise.py'])
     assert.equal(suiteCommand('Bash', { command: c }), null, c);
+  // a pipe that only trims the output still runs the whole suite: the verifier gets the bare command
+  assert.equal(suiteCommand('Bash', { command: '.venv/bin/python -m pytest -q 2>&1 | tail -5' }), '.venv/bin/python -m pytest -q');
+  assert.equal(suiteCommand('Bash', { command: 'npm test 2>&1 | grep -E "pass|fail" | head -3' }), 'npm test');
+  assert.equal(suiteCommand('Bash', { command: 'pytest tests/test_x.py 2>&1 | tail -3' }), null, 'one file stays with the model');
   assert.equal(suiteCommand('Read', { file_path: 'pytest' }), null);
 });
 
@@ -56,9 +68,11 @@ test('decide: the turn tally, the thresholds, and the prompt boundary', () => {
   assert.equal(decide(st, { prompt: 'p2', suite: 'pytest', cfg }).kind, 'verify');
 });
 
+// The fallback path: thinker's own `claude -p` subagent, which is off by default since 2026-11-12 (the host's
+// own subagent does the work; test/delegate-handoff.test.js covers that). These tests ask for it by name.
 test('delegateTool: denies with the report, caches per file and turn, holds out by session, and allows on a subagent failure', async t => {
   const d = tmp(t); const big = bigFile(d, 'core.py');
-  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0 };
+  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0, handoff: false, fallback: true };
   let st = {}; const state = { update: fn => fn(st) }; const rows = []; const runs = [];
   const run = async ({ kind, brief }) => { runs.push({ kind, brief }); return { report: 'core.py:10 class Foo: the thing', usage: { output_tokens: 5 }, cost: 0.01, model: 'claude-sonnet-5-5', ms: 5 }; };
   const ev = { tool_name: 'Read', tool_input: { file_path: big }, prompt_id: 'p1' };
@@ -95,9 +109,10 @@ test('delegateTool: denies with the report, caches per file and turn, holds out 
 
 test('delegateConfig: defaults, the machine config, and the environment', t => {
   const home = tmp(t);
-  assert.equal(delegateConfig({ env: {}, home }).enabled, true);
+  assert.equal(delegateConfig({ env: {}, home }).enabled, false, 'off by default');
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'on' }, home }).enabled, true);
   assert.equal(delegateConfig({ env: {}, home }).threshold, 35000);
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { threshold: 20000, model: 'claude-haiku-5-5' } }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, threshold: 20000, model: 'claude-haiku-5-5' } }));
   const c = delegateConfig({ env: {}, home });
   assert.equal(c.threshold, 20000); assert.equal(c.model, 'claude-haiku-5-5'); assert.equal(c.enabled, true);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
@@ -114,7 +129,7 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   // a fake claude binary: answers the JSON shape of `claude -p --output-format json`
   const bin = path.join(home, 'claude');
   fs.writeFileSync(bin, `#!/bin/sh\necho '{"result":"core.py:1 def f0: the first function","session_id":"sub1","total_cost_usd":0.02,"model":"claude-sonnet-5-5","usage":{"output_tokens":9}}'\n`); fs.chmodSync(bin, 0o755);
-  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off' };
+  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_BIN: bin, THINKER_DELEGATE_HOLDOUT: 'off', THINKER_DELEGATE_HANDOFF: 'off', THINKER_DELEGATE_FALLBACK: 'on' };
   const hook = (input, over = {}) => execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'claude', '--user'], { input: JSON.stringify(input), encoding: 'utf8', env: { ...env, ...over } });
   const ev = f => ({ session_id: 'hooksess', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: f } });
   assert.equal(hook(ev(small)), '');
@@ -134,14 +149,32 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   assert.equal(execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'codex', '--user'], { input: JSON.stringify(ev(big)), encoding: 'utf8', env }), '');
 });
 
-test('wiring: Claude Code gets the PreToolUse entry on Read|Bash with a timeout that covers a subagent run', t => {
+test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the trigger is on, with a timeout that covers a subagent run', t => {
   const dir = tmp(t);
+  // the wiring reads the machine config, so the test needs a home of its own: on a machine that has the
+  // trigger switched on, `delete process.env.THINKER_DELEGATE` alone left `delegate.enabled` true and the
+  // "off by default" assertion below failed against the real config.
+  const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
+  t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  delete process.env.THINKER_DELEGATE;
+  process.env.THINKER_HOME = path.join(dir, 'home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off by default: no entry, no node process per tool call');
+  process.env.THINKER_DELEGATE = 'on';
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   const c = JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
   assert.equal(c.hooks.PreToolUse.length, 1);
   assert.equal(c.hooks.PreToolUse[0].matcher, 'Read|Bash');
   assert.match(c.hooks.PreToolUse[0].hooks[0].command, /hook pretool/);
-  assert.ok(c.hooks.PreToolUse[0].hooks[0].timeout >= 240, 'a subagent run takes minutes');
+  // a handoff spawns nothing, so the hook answers at once and does not need the fallback's long timeout
+  assert.ok(c.hooks.PreToolUse[0].hooks[0].timeout <= 60, 'a handoff needs no room for a subagent run');
+  process.env.THINKER_DELEGATE_FALLBACK = 'on';
+  t.after(() => { delete process.env.THINKER_DELEGATE_FALLBACK; });
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  assert.ok(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse[0].hooks[0].timeout >= 240, 'the fallback subagent run takes minutes');
+  delete process.env.THINKER_DELEGATE_FALLBACK;
+  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   // a rewire replaces, never doubles
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse.length, 1);
@@ -169,4 +202,22 @@ test('denial and brief shapes', () => {
   assert.match(j.hookSpecificOutput.permissionDecisionReason, /read a\.py through a m subagent/);
   assert.match(explorerBrief({ files: ['/r/a.py'], prompt: 'P', cwd: '/r' }), /At most 25 lines/);
   assert.ok(TOKENS_PER_CHAR > 0.4 && TOKENS_PER_CHAR < 0.5);
+});
+
+test('lastPromptOf: the request is found past the tail window', t => {
+  const d = tmp(t), f = path.join(d, 'session.jsonl');
+  const rows = [JSON.stringify({ type: 'user', message: { content: 'rewrite the savings footer in dollars' } })];
+  // one prompt and a hundred tool calls: the person's words sit far behind the tail thinker reads first
+  for (let i = 0; i < 200; i++) {
+    rows.push(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: `step ${i} ` + 'x'.repeat(200) }] } }));
+    rows.push(JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', content: 'y'.repeat(2000) }] } }));
+  }
+  fs.writeFileSync(f, rows.join('\n') + '\n');
+  assert.ok(fs.statSync(f).size > 400_000, 'the fixture must outgrow the tail');
+  const r = lastPromptOf(f);
+  assert.equal(r.prompt, 'rewrite the savings footer in dollars');
+  assert.ok(r.lastSay.startsWith('step 199'));
+  // the tail alone is what a short session costs, and it still answers
+  assert.equal(lastPromptOf(f, 600_000).prompt, 'rewrite the savings footer in dollars');
+  assert.deepEqual(lastPromptOf(path.join(d, 'gone.jsonl')), {});
 });

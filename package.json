@@ -1,6 +1,6 @@
 {
   "name": "thinker",
-  "version": "0.3.2",
+  "version": "0.3.5",
   "description": "Think ahead. Save tokens. Clears what your coding agent has finished with out of its context, and learns how you work so every session starts oriented",
   "type": "module",
   "bin": {

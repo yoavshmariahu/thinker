@@ -128,3 +128,27 @@ for (const fault of ['malformed', 'external symlink']) test(`a discovered Codex 
   assert.equal(fs.readFileSync(local, 'utf8'), original, 'earlier project settings stay unchanged too');
   assert.equal(readHarnessState(a).applied?.length || 0, 0);
 });
+
+test('a test run with no THINKER_HOME keeps machine-wide actions in its own temp directory, never in ~/.thinker', t => {
+  // A test's approval of a tool switch once left a machine-scope record in the real home that every later run's
+  // Recent activity, report and telemetry read (2026-11-11). The directory is kept in the environment so the
+  // children a test spawns share it.
+  const before = { THINKER_HOME: process.env.THINKER_HOME, THINKER_TEST_MACHINE: process.env.THINKER_TEST_MACHINE };
+  delete process.env.THINKER_HOME; delete process.env.THINKER_TEST_MACHINE;
+  t.after(() => { for (const [k, v] of Object.entries(before)) if (v === undefined) delete process.env[k]; else process.env[k] = v; });
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-machine-home-'));
+  t.after(() => fs.rmSync(repo, { recursive: true, force: true }));
+  const file = path.join(repo, 'context-suggest.json');
+  writeScopedState(file, 'history', { history: [{ id: 'machine-aa', scope: 'machine', key: 'tool:Artifact' }] });
+  const dir = process.env.THINKER_TEST_MACHINE;
+  assert.ok(dir && dir.startsWith(path.resolve(os.tmpdir())) && !dir.startsWith(path.join(os.homedir(), '.thinker')), JSON.stringify({ dir, tmp: os.tmpdir() }));
+  assert.ok(dir.endsWith(`thinker-machine-${process.pid}`), 'one machine per test process');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'context-suggest.json'), 'utf8')).history.map(x => x.id), ['machine-aa']);
+  assert.deepEqual(readScopedState(file, 'history').history.map(x => x.id), ['machine-aa']);
+  assert.ok(!fs.existsSync(path.join(repo, 'machine-actions')));
+  // With a home of its own the run uses that home, as production does
+  process.env.THINKER_HOME = path.join(repo, 'th');
+  assert.deepEqual(readScopedState(file, 'history').history, []);
+  writeScopedState(file, 'history', { history: [{ id: 'machine-bb', scope: 'machine', key: 'tool:x' }] });
+  assert.ok(fs.existsSync(path.join(repo, 'th', 'state', 'machine-actions', 'context-suggest.json')));
+});
