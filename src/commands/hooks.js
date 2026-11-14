@@ -326,10 +326,20 @@ async function hookCommand(ctx) {
     // named this machine, summed by whoever consumes it rather than by us. A machine with no label set adds
     // no key here -- most machines have none, and a log line is written on every session that ends.
     const t = currentTurn(store, session);
-    if (session !== 'unknown' && ev.transcript_path && fs.existsSync(ev.transcript_path)) {
+    // The agents that keep no transcript of their own are recorded by thinker's own hooks instead
+    // (`transcripts.js:traceFile`, `.thinker/state/trace-<session>.jsonl`), and that trace *is* the session
+    // as it ran -- it is already what the distillation below reads for those clients. Until 2026-11-13 this
+    // branch asked for the agent's own file and nothing else, so a client without one logged no `op: session`
+    // row and therefore shipped no session event: a fleet running OpenCode saw not one session, which is what
+    // the container e2e in demo/e2e found on its first run. The agent's own file still wins where there is
+    // one; only Claude Code has continuations and subagent files to read.
+    const own = ev.transcript_path && fs.existsSync(ev.transcript_path) ? ev.transcript_path : null;
+    const ownTrace = (f => (f && fs.existsSync(f) ? f : null))(traceFile(store.dir, session));
+    const sessionSource = own || ownTrace;
+    if (session !== 'unknown' && sessionSource) {
       try {
-        const p = parseTranscript(ev.transcript_path, { since: client === 'claude' ? continuedSince(ev.transcript_path, session) : 0 });
-        const subs = client === 'claude' ? subagentStats(ev.transcript_path, session) : [];
+        const p = parseTranscript(sessionSource, { since: client === 'claude' ? continuedSince(sessionSource, session) : 0 });
+        const subs = client === 'claude' ? subagentStats(sessionSource, session) : [];
         // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
         // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
         let rereads = null;

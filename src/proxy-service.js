@@ -98,7 +98,22 @@ export const proxyThrough = (home = thinkerHome()) => { const u = readMachineCon
 // the agent at the proxy keeps every request going to the same place, with the same credentials, plus the edit.
 export const isOwnRoute = (value, home = thinkerHome()) => isOwnUrl(value, home) || (!!value && trimUrl(value) === trimUrl(proxyThrough(home)));
 // a URL this machine's service had, trailing slash or not
-export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(String(value).replace(/\/+$/, '').replace(/\/bedrock$/, ''));
+// A client's SDK decides what shape of our URL it needs: Claude Code takes the origin and appends
+// `/v1/messages` itself, the Vercel AI SDK (OpenCode) takes a base that already ends in `/v1` and appends
+// `/messages`, and the gateway doors sit behind a path prefix. All of those are still this machine's own
+// proxy, and thinker has to recognise them as such -- otherwise it reads its own route as somebody else's
+// and refuses to replace or remove it (`setProvider`), which is how the OpenCode route got stuck.
+const OWN_SUFFIXES = [/\/v1$/, /\/bedrock$/, /\/openrouter$/, /\/codex$/];
+const ownBase = value => {
+  let v = String(value).replace(/\/+$/, '');
+  for (let i = 0; i < OWN_SUFFIXES.length; i++) {
+    const before = v;
+    for (const re of OWN_SUFFIXES) v = v.replace(re, '');
+    if (v === before) break;
+  }
+  return v;
+};
+export const isOwnUrl = (value, home = thinkerHome()) => !!value && ownUrls(home).has(ownBase(value));
 export const logFile = (home = thinkerHome()) => path.join(home, 'state', 'proxy-service.log');
 // where the proxy writes a line per request it passes (proxy.js:startProxy); `thinker proxy report` and the
 // telemetry's proxy block read it
@@ -628,9 +643,18 @@ function opencodeFile(url, home) {
   };
   const gateways = readMachineConfig(home).proxy?.gateways || {};
   const openrouterOn = gateways.openrouter === true || (typeof gateways.openrouter === 'string' && gateways.openrouter);
-  const anthropic = setProvider(cur, 'anthropic', url, 'provider.anthropic.options.baseURL');
+  // **With the `/v1`, and that is the whole of it** (2026-11-13, found by the fleet e2e in demo/e2e).
+  // OpenCode reaches Anthropic through the Vercel AI SDK, whose own default base is
+  // `https://api.anthropic.com/v1` and which posts to `${baseURL}/messages`. Given the proxy's bare
+  // origin it posted `/messages`, which `proxy.js:transformRequest` does not match (`/^\/v1\/messages/`),
+  // so every OpenCode request went through untouched: the route looked wired, `thinker proxy status` said
+  // it was wired, and the cut never fired once. A container run of 16 calls reached 193k tokens of context
+  // with nothing cleared. The gateway door takes the same suffix, which is what the comment above it has
+  // said since it was written.
+  const base = String(url || '').replace(/\/+$/, '');
+  const anthropic = setProvider(cur, 'anthropic', url ? `${base}/v1` : null, 'provider.anthropic.options.baseURL');
   if (anthropic.note) return { file: f, skipped: anthropic.note, unchanged: !url };
-  const openrouter = setProvider(anthropic.obj, 'openrouter', openrouterOn && url ? `${String(url).replace(/\/+$/, '')}/openrouter` : null, 'provider.openrouter.options.baseURL');
+  const openrouter = setProvider(anthropic.obj, 'openrouter', openrouterOn && url ? `${base}/openrouter/v1` : null, 'provider.openrouter.options.baseURL');
   if (openrouter.note) return { file: f, skipped: openrouter.note };
   const next = openrouter.obj, changed = !!anthropic.changed || !!openrouter.changed;
   if (!changed) {
