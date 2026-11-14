@@ -139,13 +139,15 @@ export function cutScale({ rates = null } = {}) {
 }
 // The settings as they stood for one request. A value the person pinned is never scaled: they said a
 // number, and moving a guard under them is the one thing a derived rule may not do.
+// Only the trigger scales. `clearAtLeast` did too when it was the economics -- a big batch was the only way
+// a whole-conversation rewrite could pay -- but since the ladder it is a guard against acting on arithmetic
+// noise (`proxy.js:PROXY_DEFAULTS`), and noise is measured in tokens, not in what a provider charges. Scaling
+// it put GLM's floor at 800 tokens, which is not a smaller batch but a smaller measurement.
 export function scaledPolicy(cfg = {}, opts = {}) {
   const scale = cutScale(opts);
   if (scale === 1) return cfg;
   const pinned = cfg.pinned || {};
-  return { ...cfg, scale,
-    trigger: pinned.trigger ? cfg.trigger : Math.round(cfg.trigger * scale),
-    clearAtLeast: pinned.clearAtLeast ? cfg.clearAtLeast : Math.round(cfg.clearAtLeast * scale) };
+  return { ...cfg, scale, trigger: pinned.trigger ? cfg.trigger : Math.round(cfg.trigger * scale) };
 }
 
 export const MIN_CHARS = 200;
@@ -287,9 +289,28 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
   if (m.prompt < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
-  const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, rates });
-  if (!p.pays) return { ...same, turn, candidate: cand.tokens, held: { ...p, ...(rates ? { rates } : {}) }, reason: 'payback' };
-  return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...(rates ? { rates } : {}), ...p };
+  // Which rung of the ladder (proxy.js:cutCandidates, 2026-11-13). The sets are nested suffixes taken from
+  // the tail backwards, so the saving grows with depth and so does the rewrite; the biggest one that pays is
+  // the most the boundary can take economically. `pays` is the only test applied -- the pricing stays the
+  // whole of the economics and this chooses among priced options, which is why no new constant appears here.
+  // A door that builds no ladder (Chat, Responses) hands one set and this picks it, as before.
+  const rungs = Array.isArray(cand.steps) && cand.steps.length ? cand.steps : [cand];
+  let take = null, takeP = null, best = null, bestP = null;
+  for (const rung of rungs) {
+    if (rung.tokens < cfg.clearAtLeast) continue;
+    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates });
+    if (p.pays && (!take || rung.tokens > take.tokens)) { take = rung; takeP = p; }
+    if (!bestP || p.payback < bestP.payback) { best = rung; bestP = p; }
+  }
+  // Nothing above the floor at any depth is the floor's refusal, not the pricing's; the shallowest rung is
+  // the smallest cut there is, so if even the whole set is under the floor the branch above already said so.
+  if (!best) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
+  if (!take) return { ...same, turn, candidate: best.tokens, held: { ...bestP, ...(rates ? { rates } : {}) }, reason: 'payback' };
+  // `candidate` is what the chosen rung takes, not what the whole ladder could: the log's question is what
+  // this boundary cut and what it cost, and `depth` says how far back it had to reach to find it.
+  return { cut: [...rec.cut, ...take.ids], clear: true, turn, cold, candidate: take.tokens,
+    ...(rungs.length > 1 ? { depth: take.ids.length, rungs: rungs.length } : {}),
+    ...(rates ? { rates } : {}), ...takeP };
 }
 
 // Accounting after an answer. There is no gauge: a cut that does not pay is not made, and the set
