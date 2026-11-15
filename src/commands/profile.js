@@ -73,6 +73,8 @@ async function profileCommand(ctx) {
       if (flags.why) for (const e of l.evidence.slice(0, 3)) out(`         ${e.verdict}: "${e.text.slice(0, 90)}"`);
     }
     out('');
+    const unsupported = rep.lines.reduce((n, l) => n + (l.unsupported || 0), 0);
+    if (unsupported) out(`${unsupported} verdicts named no clause of their line or quoted nothing in the session: counted as no bearing.`);
     out('applied is the sessions the line had any bearing on; a rate of – means it has never come up, which is an');
     out(`untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.`);
     out(`A line shown to ${PROFILE.retireShown} sessions that bore on none is retired by the code: kept on the profile, out of the served block.`);

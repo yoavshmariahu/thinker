@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection } from '../src/profile.js';
+import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -315,17 +315,19 @@ test('a session is assessed per profile line it was shown: the ids it saw, the v
   await profileSession(store, session, {
     session: 'sA', client: 'codex', compile: false, have: ['claude'],
     completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [fakeObs()], lines: [
-      { id: 'w1', verdict: 'followed', evidence: 'made a worktree first' },
+      { id: 'w1', verdict: 'followed', clause: 'Work in a worktree', evidence: 'I added --since to report.js' },
       { id: 'h1', verdict: 'na', evidence: '' },
       { id: 'nope', verdict: 'followed', evidence: 'invented' },
       { id: 'w1', verdict: 'ignored', evidence: 'a second verdict on the same line' },
     ] }, model: 'fake-opus' }; },
   });
   assert.match(asked, /THE PROFILE THIS SESSION WAS SHOWN \(2 lines\)/, 'the call carries the lines it must judge');
-  assert.match(asked, /\[w1\] - Work in a worktree/, 'with the id and the text the session saw');
+  assert.match(asked, /\[w1\] \(work in progress\) - Work in a worktree/, 'with the id, the kind of line and the text the session saw');
+  assert.match(asked, /\[h1\] \(way of working\) /);
+  assert.match(asked, /TOOLS: /, 'and what the agent ran, by name');
   const v = readLineVerdicts(store);
   assert.deepEqual(v.map(r => [r.id, r.verdict]), [['w1', 'followed'], ['h1', 'na']], 'a line never shown is dropped, and the first verdict per line stands');
-  assert.equal(v[0].session, 'sA'); assert.equal(v[0].evidence, 'made a worktree first');
+  assert.equal(v[0].session, 'sA'); assert.equal(v[0].evidence, 'I added --since to report.js'); assert.equal(v[0].clause, 'Work in a worktree');
   // the report: applied is the denominator, and 0 of 0 is untested, not failing
   appendLineVerdicts(store, [{ id: 'w1', verdict: 'ignored', evidence: 'did it in the main checkout' }, { id: 'h1', verdict: 'na' }], { session: 'sB', now });
   appendLineVerdicts(store, [{ id: 'w1', verdict: 'contradicted', evidence: 'the person had to say so' }], { session: 'sC', now });
@@ -661,4 +663,81 @@ test('a line shown to retireShown sessions that bore on none is retired by the c
   assert.equal(c.profile.version, 4); assert.deepEqual(c.profile.ids, { w: 1, h: 1, s: 0 });
   assert.ok(!renderProfile(c.profile).includes('--since flag'));
   assert.equal(lineReport(store).lines.find(l => l.id === 'h1').retired, true);
+});
+
+// 2026-11-15: the verdicts are what the compile steers on, and they were not holding. A quote about something else
+// stood as "followed", a line that packed four rules took one verdict, a reworded line kept the old words' tally,
+// and a full compile handed the old `h1`'s verdicts to whatever came first.
+test('a verdict names the clause of the line it judged and quotes the session, or it is no bearing', () => {
+  const shown = { id: 'h1', text: '- Work in a worktree off origin/main; never stack pull requests' };
+  const text = '[1] USER: fix the footer\n    AGENT: **Not merged.** The fix is in `footer.js`.\n    TOOLS: git worktree, Edit x2';
+  const ok = checkedVerdict({ id: 'h1', verdict: 'followed', clause: 'work in a worktree', evidence: 'git worktree' }, shown, text);
+  assert.equal(ok.verdict, 'followed'); assert.equal(ok.unsupported, undefined);
+  assert.equal(checkedVerdict({ id: 'h1', verdict: 'followed', clause: 'Never stack pull requests', evidence: 'Not merged. The fix ... footer.js' }, shown, text).verdict, 'followed', 'markdown, case and an ellipsis in the quote do not fail it');
+  const noClause = checkedVerdict({ id: 'h1', verdict: 'followed', clause: 'keep answers short', evidence: 'Not merged.' }, shown, text);
+  assert.deepEqual([noClause.verdict, noClause.unsupported, noClause.claimed], ['na', 'clause', 'followed'], 'a clause the line does not hold');
+  assert.equal(checkedVerdict({ id: 'h1', verdict: 'ignored', evidence: 'Not merged.' }, shown, text).unsupported, 'clause', 'or none at all');
+  const invented = checkedVerdict({ id: 'h1', verdict: 'contradicted', clause: 'Work in a worktree', evidence: 'the agent edited the main checkout' }, shown, text);
+  assert.deepEqual([invented.verdict, invented.unsupported], ['na', 'evidence'], 'a quote the session does not hold');
+  assert.equal(checkedVerdict({ id: 'h1', verdict: 'contradicted', clause: 'never stack pull requests', evidence: 'fix' }, shown, text).verdict, 'contradicted', 'a one-word reaction is a quote too');
+  assert.deepEqual(checkedVerdict({ id: 'h1', verdict: 'na', evidence: 'x' }, shown, text), { id: 'h1', verdict: 'na', clause: '', evidence: '' });
+});
+
+test('what the agent ran reaches the extraction as names alone: the tool, and a shell command\'s program and subcommand', () => {
+  assert.deepEqual(toolLabels({ name: 'Bash', input: { command: 'cd /Users/me/repo && TOKEN=abc git -C /Users/me/repo worktree add x; npm test -- test/a.test.js | tail -3; /usr/bin/python3 secret.py' } }), ['git worktree', 'npm test', 'python3']);
+  assert.deepEqual(toolLabels({ name: 'exec_command', input: { cmd: ['gh', 'pr', 'create', '--title', 'x'] } }), ['gh pr']);
+  assert.deepEqual(toolLabels({ name: 'mcp__thinker__context' }), ['thinker__context']);
+  const xs = exchanges([
+    { t: 'prompt', text: 'fix it' },
+    { t: 'tool', name: 'Bash', input: { command: 'git worktree add .worktrees/x' } }, { t: 'tool', name: 'Edit', input: { file_path: '/Users/me/repo/src/a.js' } }, { t: 'tool', name: 'Edit', input: {} },
+    { t: 'tool', name: 'Skill', input: { skill: 'dataviz' } },
+    { t: 'say', text: 'Fixed.' },
+  ]);
+  assert.deepEqual(xs[0].tools, { 'git worktree': 1, Edit: 2 }, 'a skill is the SKILLS line\'s, not a tool');
+  const input = extractionInput(xs);
+  assert.match(input, /TOOLS: Edit x2, git worktree/);
+  assert.ok(!/Users\/me|\.worktrees\/x/.test(input), 'never an argument or a path');
+});
+
+test('a reworded line starts its verdicts again, a session judges only the wording it was shown, and a full compile never reuses an id', async t => {
+  const { store } = tmpRepo(t);
+  const now = Date.now();
+  // new words are a new rev; the same words, or new evidence alone, are not
+  const prev = { sections: { workingOn: [], howWeWork: [{ id: 'h1', text: 'Answer short; verify live; never push main', obs: ['a'] }, { id: 'h2', text: 'Open a PR', obs: ['a'], rev: 2 }], skills: [] } };
+  const out = applyPatch(prev, { update: [{ id: 'h1', text: 'Answer in two lines', obs: ['b'] }, { id: 'h2', text: 'Open a PR', obs: ['b'] }] });
+  assert.equal(out.howWeWork[0].rev, 2); assert.equal(out.howWeWork[1].rev, 2, 'the same words keep their rev');
+  appendObservations(store, [fakeObs({ prefs: ['answer short'] })], { session: 's0', now });
+  const obs = readLedger(store).map(r => r.id);
+  const add = text => async () => ({ json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [{ text, obs }], skills: [] } }, model: 'fake-opus' });
+  await compileProfile(store, { now, have: ['claude'], completeFn: add('Answer short; verify live') });
+  const env = process.env.THINKER_HOLDOUT; process.env.THINKER_HOLDOUT = '0';
+  t.after(() => { if (env === undefined) delete process.env.THINKER_HOLDOUT; else process.env.THINKER_HOLDOUT = env; });
+  profileTurn(store, 'old', { client: 'codex' });
+  appendLineVerdicts(store, [{ id: 'h1', verdict: 'contradicted', clause: 'Answer short', evidence: 'what' }], { session: 'old', now });
+  assert.equal(lineReport(store).lines.find(l => l.id === 'h1').contradicted, 1);
+  // the compile rewords it: the tally starts again, and the old session is no longer asked about words it never saw
+  appendObservations(store, [fakeObs({ turn: 2 })], { session: 's1', now: now + 1000 });
+  await compileProfile(store, { now: now + 2 * DAY, have: ['claude'], completeFn: async () => ({ json: { keep: [], update: [{ id: 'h1', text: 'Answer in two lines', obs: [] }], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }) });
+  assert.equal(readProfile(store).sections.howWeWork[0].rev, 2);
+  assert.equal(lineReport(store).lines.find(l => l.id === 'h1'), undefined, 'the old wording\'s verdicts are not the new wording\'s');
+  let asked = '';
+  await profileSession(store, session, { session: 'old', client: 'codex', compile: false, have: ['claude'], completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [] }, model: 'fake-opus' }; } });
+  assert.ok(!/THE PROFILE THIS SESSION WAS SHOWN/.test(asked), 'a session shown the first wording is not judged on the second');
+  profileTurn(store, 'new', { client: 'codex' });
+  assert.deepEqual(shownRevs(store, 'new'), { h1: 2 });
+  await profileSession(store, session, { session: 'new', client: 'codex', compile: false, have: ['claude'], completeFn: async () => ({ json: { observations: [], lines: [{ id: 'h1', verdict: 'followed', clause: 'Answer in two lines', evidence: 'Opened PR #12.' }] }, model: 'fake-opus' }) });
+  const h1 = lineReport(store).lines.find(l => l.id === 'h1');
+  assert.deepEqual([h1.shown, h1.followed, h1.contradicted], [1, 1, 0]);
+  // a full compile starts from no profile, and its first line is not `h1` again
+  appendObservations(store, [fakeObs({ turn: 3 })], { session: 's2', now: now + 3 * DAY });
+  const full = await compileProfile(store, { now: now + 4 * DAY, full: true, have: ['claude'], completeFn: add('Something else entirely') });
+  assert.deepEqual(full.profile.sections.howWeWork.map(e => e.id), ['h2']);
+  assert.equal(lineReport(store).lines.find(l => l.id === 'h2'), undefined, 'so it inherits nobody\'s verdicts');
+});
+
+test('the caps: four workstreams, sixteen ways of working of one rule each, said to the compile', () => {
+  assert.deepEqual(PROFILE.perSection, { workingOn: 4, howWeWork: 16, skills: 6 });
+  assert.match(COMPILE_SYSTEM, /workingOn \(4\)/); assert.match(COMPILE_SYSTEM, /howWeWork \(16\)/);
+  assert.match(COMPILE_SYSTEM, /One rule, under 120 characters/);
+  assert.match(EXTRACT_SYSTEM, /\(work in progress\) line and a \(skill\) line are context, not rules/);
 });
