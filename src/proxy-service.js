@@ -41,6 +41,10 @@ export const PROXY_LABEL = 'com.thinker.proxy';
 export const PROXY_ENV = BASE_URL_VAR;
 // Claude Code on a cloud route speaks that provider's format, which the proxy does not read
 export const OTHER_ROUTES = CLOUD_VARS;
+// How many of thinker's own listening ports are remembered (`serviceState.served`). A loopback port thinker
+// bound stays its own once bound, as the service's own `ports` do; the list is capped so a machine that runs
+// many an ad-hoc `proxy serve` does not grow it without end.
+export const SERVED_KEEP = 20;
 
 const stateFile = home => path.join(home, 'state', 'proxy-service.json');
 const readJson = (f, d = {}) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')) || d; } catch { return d; } };
@@ -57,9 +61,16 @@ function saveNetworkEnv(home, env) {
   writeJson(stateFile(home), { ...serviceState(home), networkEnv: serviceNetworkEnv(home, env) });
   fs.chmodSync(stateFile(home), 0o600); // a proxy URL can carry transport credentials
 }
-// Only a process that successfully bound the service's port may claim to be the running service.
+// A proxy of this thinker's has bound a port. The port goes into `served` whoever started it, so `isOwnUrl`
+// knows thinker's own instances from a route of the person's own (`ownUrls`). Only a process that bound the
+// service's own port may claim to be the running service, so the pid, the flags and the version are its alone.
 export function recordProxyListening(port, { home = thinkerHome(), pid = process.pid } = {}) {
-  const s = serviceState(home);
+  let s = serviceState(home);
+  if (port && !(s.served || []).includes(port)) {
+    const served = [...(s.served || []), port].slice(-SERVED_KEEP);
+    writeJson(stateFile(home), { ...s, served });
+    s = serviceState(home);
+  }
   if (!s.enabled || s.port !== port) return;
   clearRestartWanted(home); // whatever asked for a restart has it now
   // `idleRestart`: this instance watches the marker. An instance from before it (none recorded) is booted out as before,
@@ -78,12 +89,19 @@ const readForWrite = f => {
   catch { return { why: `${path.basename(f)} is not valid JSON, so thinker left it alone` }; }
 };
 
-// { enabled, port, ports (every port the service ever had, so an old URL is still known as ours), since, off, pid }
+// { enabled, port, ports (every port the service ever had, so an old URL is still known as ours),
+//   served (every port a proxy of this thinker's bound, service or not: SERVED_KEEP of them), since, off, pid }
 export const serviceState = (home = thinkerHome()) => readJson(stateFile(home));
 export const proxyOn = (home = thinkerHome()) => serviceState(home).enabled === true;
 export const urlFor = port => `http://127.0.0.1:${port}`;
 export const proxyUrl = (home = thinkerHome()) => { const s = serviceState(home); return s.port ? urlFor(s.port) : null; };
-const ownUrls = (home, s = serviceState(home)) => new Set([...(s.ports || []), s.port].filter(Boolean).map(urlFor));
+// Every port a proxy of this thinker's has bound, the service's and a `thinker proxy serve --port n` of the
+// person's alike (`served`, recorded by `recordProxyListening`). The service's own ports alone were not enough:
+// on 2026-11-14 a `proxy serve --port 6897` was started beside the service on 61056 for an experiment, the
+// prompt hook read 6897 as a gateway of a stranger's, stood the machine's service down -- and the thirteen
+// sessions already holding 61056 in their environment had their route killed under them (ECONNREFUSED). One
+// thinker's proxy is never another's route to step aside for, whichever instance bound the port.
+const ownUrls = (home, s = serviceState(home)) => new Set([...(s.ports || []), ...(s.served || []), s.port].filter(Boolean).map(urlFor));
 const trimUrl = v => String(v || '').replace(/\/+$/, '');
 // Where the proxy sends what it receives. The default is Anthropic's API; a person who routes Claude Code
 // through a model server of their own can have the proxy sit in front of that instead (`thinker proxy on
@@ -550,15 +568,21 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
 // Anthropic's own host is not a route (proxy-route.js:isAnthropicHost): the Claude desktop app puts
 // `ANTHROPIC_BASE_URL=https://api.anthropic.com` in every local session's environment, and on 2026-11-01 that
 // stood this machine's service down from inside a desktop session.
-export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [] } = {}) {
+// `ambient`: whether the process environment is evidence about the machine. It is where the person typed the
+// command themselves (`thinker proxy on`, the wiring) -- their shell is the machine's. It is not in a prompt
+// hook: there the environment belongs to the one session the hook runs in, which may be pointed anywhere
+// deliberately, and standing the machine down for it takes the route out from under every other session
+// (`routeAppeared`). The files are the machine's evidence either way, and the requests themselves are the net
+// for a route no file names (proxy.js:authWatch).
+export function claudeBlocker(settings, { home = thinkerHome(), env = process.env, repos = [], ambient = true } = {}) {
   const bedrock = bedrockState(home);
   if (bedrock?.managed.ANTHROPIC_BASE_URL && settings?.env?.CLAUDE_CODE_USE_BEDROCK !== '0') return 'The native Bedrock selection was changed in Claude settings; the token route has been left.';
   if (bedrock?.managed.ANTHROPIC_BASE_URL && settings?.env?.ANTHROPIC_AUTH_TOKEN !== bedrock.localToken) return 'The local Bedrock proxy credential was changed in Claude settings.';
   const theirs = v => !!v && !isOwnRoute(v, home) && !isAnthropicHost(v);
   const inFile = settings?.env?.[PROXY_ENV];
   if (theirs(inFile)) return `${PROXY_ENV} is already ${inFile} in the settings`;
-  if (theirs(env[PROXY_ENV])) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
-  for (const k of OTHER_ROUTES) if (!(bedrock && k === 'CLAUDE_CODE_USE_BEDROCK') && cloudOn(settings?.env?.[k] || env[k])) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
+  if (ambient && theirs(env[PROXY_ENV])) return `${PROXY_ENV} is ${env[PROXY_ENV]} in your environment`;
+  for (const k of OTHER_ROUTES) if (!(bedrock && k === 'CLAUDE_CODE_USE_BEDROCK') && cloudOn(settings?.env?.[k] || (ambient ? env[k] : undefined))) return `Claude Code runs on ${k.replace('CLAUDE_CODE_USE_', '').toLowerCase()}, which the proxy does not speak`;
   const [found] = routeEvidence({ env, repos, isOwn: u => isOwnRoute(u, home), limit: 1, ignoreShellCloud: bedrock ? ['CLAUDE_CODE_USE_BEDROCK'] : [] });
   return found ? `${found.what} in ${found.where}` : null;
 }
@@ -737,7 +761,12 @@ export function routeAppeared({ home = thinkerHome(), env = process.env } = {}) 
   const s = serviceState(home);
   if (!s.enabled || s.wroteClaude !== true) return null;
   let settings = {}; try { settings = JSON.parse(fs.readFileSync(claudeSettings(), 'utf8')) || {}; } catch { return null; }
-  return claudeBlocker(settings, { home, env });
+  // The files only (`ambient: false`): a gateway set up, an export added to a shell file, a policy file that
+  // arrived -- which is what the comment above has always said this reads. The hook's own environment is the
+  // session's, not the machine's, and it was the machine's undoing twice: the desktop app's own
+  // ANTHROPIC_BASE_URL on 2026-11-01 (met then by excluding Anthropic's host) and an experiment's second
+  // proxy on 2026-11-14 (met by `served` above). Both were one session's variable deciding for all of them.
+  return claudeBlocker(settings, { home, env, ambient: false });
 }
 
 // The proxy steps aside and stays aside: the URL out of every agent's file, the service entry and process gone,

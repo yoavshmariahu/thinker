@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { bedrockState } from '../src/proxy-bedrock.js';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
+  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, SERVED_KEEP, urlFor, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 // Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
@@ -920,4 +920,66 @@ test('ensureProxy answers pending when the restart is left to an idle moment, an
     assert.equal(dead.on, true);
     if (dead.pid) { try { process.kill(dead.pid, 'SIGTERM'); } catch {} }
   } finally { try { srv.close(); } catch {} m.restore(); }
+});
+
+// On 2026-11-14 an experiment's `thinker proxy serve --port 6897` was started beside the machine's service on
+// 61056. The port of an ad-hoc serve was recorded nowhere, so the next prompt hook read it as a gateway of the
+// person's own, stood the service down, and killed the route of thirteen sessions that held 61056 in their
+// environment. A proxy of this thinker's is thinker's own, whichever instance bound the port.
+test('a second proxy of thinker\'s own is not a route to step aside for', () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    const service = { enabled: true, port: 61056, ports: [61056], pid: 4242, args: 'proxy --port 61056', version: '0.3.5' };
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify(service));
+    const adhoc = urlFor(6897);
+    assert.equal(isOwnUrl(adhoc, m.home), false, 'unknown until it says it is listening');
+    recordProxyListening(6897, { home: m.home, pid: 777 });
+    assert.deepEqual(serviceState(m.home).served, [6897]);
+    assert.equal(isOwnUrl(adhoc, m.home), true, 'thinker\'s own, on a port of its own choosing');
+    assert.equal(claudeBlocker({}, { home: m.home, env: { [PROXY_ENV]: adhoc } }), null, 'no blocker');
+    assert.equal(claudeBlocker({ env: { [PROXY_ENV]: adhoc } }, { home: m.home, env: {} }), null, 'nor in the settings');
+    const after = serviceState(m.home);
+    assert.equal(after.pid, 4242, 'the service\'s own record is left to the service\'s own process');
+    assert.equal(after.version, '0.3.5');
+    recordProxyListening(6897, { home: m.home, pid: 778 });
+    assert.deepEqual(serviceState(m.home).served, [6897], 'recorded once');
+    for (let i = 0; i < SERVED_KEEP + 5; i++) recordProxyListening(7000 + i, { home: m.home });
+    assert.equal(serviceState(m.home).served.length, SERVED_KEEP, 'the list is capped');
+    assert.equal(isOwnUrl(urlFor(7000 + SERVED_KEEP + 4), m.home), true, 'the newest is kept');
+    // the service's own port is its own whatever the cap drops
+    assert.equal(isOwnUrl(urlFor(61056), m.home), true);
+  } finally { m.restore(); }
+});
+
+// The prompt hook runs inside one session, and that session's environment may be pointed anywhere on purpose --
+// an experiment's proxy, a desktop app's own value, a gateway the person is trying out in one terminal. Standing
+// the machine's service down for it takes the route out from under every other session at once, which is how
+// both the 2026-11-01 and the 2026-11-14 outages happened. The files are the machine's evidence; the hook's
+// environment is the session's.
+test('a session\'s own environment is not the machine\'s: the hook stands nothing down for it', async () => {
+  const m = fakeMachine();
+  try {
+    const shellHome = path.join(m.root, 'shell');
+    fs.mkdirSync(shellHome, { recursive: true });
+    fs.mkdirSync(path.dirname(m.files.claude), { recursive: true });
+    fs.writeFileSync(m.files.claude, '{}');
+    const env = { ...m.env, THINKER_ROUTE_HOME: shellHome };
+    const p = await enableProxyService({ cli: CLI, home: m.home, env, manage: false });
+    assert.equal(readJson(m.files.claude).env[PROXY_ENV], p.url);
+    const session = { ...env, [PROXY_ENV]: 'http://127.0.0.1:6897' };
+    assert.equal(routeAppeared({ home: m.home, env: session }), null, 'one session\'s route is not the machine\'s');
+    const cloud = { ...env, CLAUDE_CODE_USE_BEDROCK: '1' };
+    assert.equal(routeAppeared({ home: m.home, env: cloud }), null, 'nor is a cloud variable set in one session');
+    assert.equal(proxyOn(m.home), true, 'the service is still serving the other sessions');
+    // the person's own shell file still stands it down, and so does the settings file
+    fs.writeFileSync(path.join(shellHome, '.zshrc'), 'export ANTHROPIC_BASE_URL=https://smartrouter.internal\n');
+    assert.match(routeAppeared({ home: m.home, env: session }), /smartrouter\.internal in ~\/\.zshrc/);
+    fs.rmSync(path.join(shellHome, '.zshrc'));
+    fs.writeFileSync(m.files.claude, JSON.stringify({ env: { [PROXY_ENV]: 'https://gw.corp' } }));
+    assert.match(routeAppeared({ home: m.home, env }), /gw\.corp in the settings/);
+    // and where the person types the command themselves, their shell is the machine's: the wiring still yields
+    assert.match(claudeBlocker({}, { home: m.home, env: { ...env, [PROXY_ENV]: 'https://gw.corp' } }), /gw\.corp in your environment/);
+    assert.match(claudeBlocker({}, { home: m.home, env: { ...env, CLAUDE_CODE_USE_BEDROCK: '1' } }), /bedrock/);
+  } finally { m.restore(); }
 });
