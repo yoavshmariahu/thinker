@@ -49,6 +49,8 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   threshold: 35000,   // tokens of read results in one turn past which the rest of its exploration is delegated
   minRead: 8000,      // a read under this is never delegated: the lines the main model edits
   holdout: 0.5,       // share of sessions left alone, by hash of the session id (proxy.js:heldOut)
+  families: true,     // on a host whose models come from a gateway, the explorer is the lead's own family's cheap
+                      // model (EXPLORER_FAMILIES); `delegate: { families: false }` keeps it on the session's model
   handoffsPerTurn: 5, // reads handed over per turn (the owner's call, 2026-11-15; 1 until then). A file is handed
                       // over once a turn and a suite run once a turn whatever this says (see `decide`)
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
@@ -332,7 +334,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (!read && !suite) return null;
   // inside a subagent nothing is delegated: those reads *are* the delegation
   if (fromSubagent(ev, client)) return null;
-  const exec = executionFor(client, suite ? 'verify' : 'explore', cfg);
+  const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model });
   const handoff = exec.mode === 'handoff';
   let d, cached, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
@@ -373,7 +375,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // `model` where the host's agent is pinned to one (Claude Code's Explore.md, `pins`): the saving nets the
     // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
     // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
-    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? { model: cfg.model } : {}) });
+    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(exec.model ? { model: exec.model, family: exec.family } : HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? { model: cfg.model } : {}) });
     return denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label: handoffLabel(d.kind, files, cwd) } });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
@@ -410,6 +412,64 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
 //   providers, and on a vendor's cloud harness with the vendor's models thinker has no business naming one.
 //   `primary` lists the agents a prompt runs as there, so anything else is a subagent and never delegates.
 export const OPENCODE_EXPLORE = 'thinker-explore', OPENCODE_VERIFY = 'thinker-verify';
+
+// THE EXPLORER IS THE LEAD'S OWN FAMILY'S CHEAP MODEL (2026-11-15, the owner's ask: "keep the pairs within the
+// family e.g. opus/fable to haiku, astra/sol to luna").
+//
+// OpenRouter fronts every provider behind one key, so a session there can run its subagent on a model the lead
+// does not use -- which is the half of the saving an unpinned OpenCode subagent gave up (it ran on the session's
+// own model: the read stayed out of the lead's context, and was paid for at the lead's price). The pair stays in
+// the family because the cheap model of a family is the one a person on that family has already accepted the
+// terms and the behaviour of, and because it is the one comparison that is not a bet on another vendor.
+//
+// Each explorer was run as the pinned subagent of one lead (GLM 5.3 flashx, which follows the handoff) on one
+// 118 KB file, asked for the line a function starts and ends on and the 13 names it compares against. What it
+// cost, how long it took, and what came back right (2026-11-15, OpenRouter list prices):
+//
+//   anthropic  claude-haiku-5.5       $0.018  22 s  all right      leads $2-10 a million in, this $0.10
+//   openai     gpt-6-luna             $0.010  17 s  all right      leads $1-10, this $0.10
+//   zai        glm-5.3-flash          $0.018  20 s  all right      leads $0.37-2.80, this $0.04
+//   deepseek   deepseek-v4.1-flash    $0.016   9 s  all right      lead $0.90, this $0.05 (v4-flash: $0.007, 34 s)
+//   qwen       qwen3.8-flash          $0.016  38 s  all right      leads $1.50-4, this $0.15
+//   mistral    mistral-small-2603     $0.016  24 s  all right      leads $0.70-1.50, this $0.15
+//   google     gemini-3.5-flash-lite  $0.04    9 s  11, 13 and 12 of the 13 names over three runs, one end line wrong
+//
+// Google is the one weak row and it is there on the arithmetic: gemini-3.8-flash got everything right for $0.27,
+// which is more than a Gemini 4 lead pays to read the file itself ($0.057 for the write), so the accurate
+// explorer cannot pay and the cheap one is slightly lossy. Three families have no pair and stay on the session's
+// model: xAI (grok-4.3 is the cheapest with tools, 37% under the lead), Moonshot (Kimi's cheap input comes with
+// $8-16 a million out) and MiniMax (the lead is $0.30 already; m3.1-flash cost more than the lead's own read).
+//
+// `skip` is the lead that is already its family's cheap tier: it keeps the unpinned agent, since handing a
+// Haiku session's read to Haiku under another name changes nothing. The ids are OpenRouter's. A model that
+// leaves the catalogue makes its row's agent fail to resolve, so the table is checked against
+// `https://openrouter.ai/api/v1/models` when it is touched, and `delegate: { families: false }` is the switch.
+export const EXPLORER_FAMILIES = Object.freeze([
+  { family: 'anthropic', lead: /^anthropic\/claude-/, skip: /haiku/, explorer: 'anthropic/claude-haiku-5.5' },
+  { family: 'openai', lead: /^openai\/(gpt-|o\d|codex-)/, skip: /luna|mini|nano/, explorer: 'openai/gpt-6-luna' },
+  { family: 'google', lead: /^google\/gemini-/, skip: /flash|lite/, explorer: 'google/gemini-3.5-flash-lite' },
+  { family: 'zai', lead: /^z-ai\/glm-/, skip: /-flash$/, explorer: 'z-ai/glm-5.3-flash' },
+  { family: 'deepseek', lead: /^deepseek\/deepseek-/, skip: /flash/, explorer: 'deepseek/deepseek-v4.1-flash' },
+  { family: 'qwen', lead: /^qwen\/qwen/, skip: /flash/, explorer: 'qwen/qwen3.8-flash' },
+  { family: 'mistral', lead: /^mistralai\/mistral-/, skip: /small|nemo/, explorer: 'mistralai/mistral-small-2603' },
+]);
+// the gateways whose model ids are `<vendor>/<model>` and whose one key reaches every vendor
+export const FAMILY_PROVIDERS = Object.freeze(['openrouter']);
+export const familyAgent = family => `${OPENCODE_EXPLORE}-${family}`;
+/**
+ * The explorer for a lead, or null: `{ family, agent, model }`, the model in the host's own `provider/model`
+ * form. `lead` is what the host says the session runs on (`{ providerID, id }`, OpenCode's `session.get`).
+ * Null for a provider that is not a gateway, a family with no pair, and a lead that is already the cheap one.
+ */
+export function explorerFor(lead) {
+  const provider = lead?.providerID, raw = typeof lead?.id === 'string' ? lead.id : '';
+  if (!FAMILY_PROVIDERS.includes(provider) || !raw) return null;
+  // OpenRouter's moving aliases are `~vendor/model-latest`, and a variant rides after a colon (`:thinking`)
+  const id = raw.replace(/^~/, '').split(':')[0];
+  const f = EXPLORER_FAMILIES.find(x => x.lead.test(id));
+  if (!f || f.skip.test(id) || id === f.explorer) return null;
+  return { family: f.family, agent: familyAgent(f.family), model: `${provider}/${f.explorer}` };
+}
 export const HOSTS = Object.freeze({
   claude: {
     readCap: 0,
@@ -418,7 +478,7 @@ export const HOSTS = Object.freeze({
   opencode: {
     readCap: 58000,
     tools: { read: 'Read', shell: 'Bash', bash: 'Bash' },
-    subagent: { tool: 'subagent', param: 'agent', explore: OPENCODE_EXPLORE, verify: OPENCODE_VERIFY, pins: false, primary: ['build', 'plan'] },
+    subagent: { tool: 'subagent', param: 'agent', explore: OPENCODE_EXPLORE, verify: OPENCODE_VERIFY, pins: false, families: true, primary: ['build', 'plan'] },
   },
 });
 
@@ -442,10 +502,13 @@ export function fromSubagent(ev = {}, client = 'claude') {
  * subagent, `{ mode: 'report' }` for thinker's own fallback, `{ mode: 'none', reason }` where there is neither
  * and the call goes through untouched.
  */
-export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS) {
+export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS, { lead = null } = {}) {
   const sub = HOSTS[client]?.subagent;
   const agent = sub && (kind === 'verify' ? sub.verify : sub.explore);
-  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, agent };
+  // An exploration on a gateway goes to the lead's family's cheap model (EXPLORER_FAMILIES). A suite run stays
+  // where it was: its cost is the tests' own output, and the model that summarises it was not what was measured.
+  const pair = kind !== 'verify' && sub?.families && cfg.families !== false ? explorerFor(lead) : null;
+  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}) };
   if (cfg.fallback) return { mode: 'report' };
   return { mode: 'none', reason: agent ? 'handoff-off' : 'no-native-subagent' };
 }

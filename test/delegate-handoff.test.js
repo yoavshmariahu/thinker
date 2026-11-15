@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   executionFor, fromSubagent, denial, decide, noteHandoff, delegateTool, handoffLabel, hostEvent,
-  DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY,
+  DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent,
 } from '../src/delegate.js';
 import {
   renderOpencodeAgent, installOpencodeAgents, removeOpencodeAgents, opencodeAgentFile,
@@ -209,12 +209,14 @@ test('the agent definitions: OpenCode gets two files it can resolve, Claude Code
 
   // written, idempotent, removed when off, and a person's own file left alone
   const w = installOpencodeAgents({ configDir: dir, on: true });
-  assert.deepEqual(w.map(x => x.action), ['written', 'written']);
+  // the two plain agents first, then one pinned explorer a family (their own test is below)
+  const n = 2 + EXPLORER_FAMILIES.length, all = a => Array(n).fill(a);
+  assert.deepEqual(w.map(x => x.action), all('written'));
   assert.equal(w[0].name, OPENCODE_EXPLORE); assert.equal(w[1].name, OPENCODE_VERIFY);
   assert.ok(fs.existsSync(opencodeAgentFile(dir, OPENCODE_EXPLORE)));
-  assert.deepEqual(installOpencodeAgents({ configDir: dir, on: true }).map(x => x.action), ['unchanged', 'unchanged']);
-  assert.deepEqual(removeOpencodeAgents({ configDir: dir }).map(x => x.action), ['removed', 'removed']);
-  assert.deepEqual(removeOpencodeAgents({ configDir: dir }).map(x => x.action), ['absent', 'absent']);
+  assert.deepEqual(installOpencodeAgents({ configDir: dir, on: true }).map(x => x.action), all('unchanged'));
+  assert.deepEqual(removeOpencodeAgents({ configDir: dir }).map(x => x.action), all('removed'));
+  assert.deepEqual(removeOpencodeAgents({ configDir: dir }).map(x => x.action), all('absent'));
   fs.writeFileSync(opencodeAgentFile(dir, OPENCODE_EXPLORE), 'my own agent\n');
   assert.equal(installOpencodeAgents({ configDir: dir, on: true })[0].action, 'kept');
   assert.equal(fs.readFileSync(opencodeAgentFile(dir, OPENCODE_EXPLORE), 'utf8'), 'my own agent\n');
@@ -280,4 +282,74 @@ test('decide: five reads a turn are handed over, a file only once, a suite run o
   const v = decide(st2, { prompt: 'p1', suite: 'pytest', cfg, handoff: true });
   assert.equal(v.fire, true); noteHandoff(st2, 'p1', 'verify');
   assert.equal(decide(st2, { prompt: 'p1', suite: 'pytest', cfg, handoff: true }).spent, true);
+});
+
+// The explorer is the lead's own family's cheap model on a gateway (2026-11-15; delegate.js:EXPLORER_FAMILIES).
+test('explorerFor: a lead on OpenRouter gets its family\'s cheap model; everything else gets nothing', () => {
+  const or = id => explorerFor({ providerID: 'openrouter', id });
+  assert.deepEqual(or('anthropic/claude-opus-5.5'), { family: 'anthropic', agent: 'thinker-explore-anthropic', model: 'openrouter/anthropic/claude-haiku-5.5' });
+  assert.equal(or('anthropic/claude-fable-5.2').model, 'openrouter/anthropic/claude-haiku-5.5');
+  assert.equal(or('openai/gpt-6.1-sol').model, 'openrouter/openai/gpt-6-luna');
+  assert.equal(or('openai/gpt-6-astra-pro').model, 'openrouter/openai/gpt-6-luna');
+  assert.equal(or('z-ai/glm-5.3-flashx').model, 'openrouter/z-ai/glm-5.3-flash', 'flashx is a lead; flash is the explorer');
+  assert.equal(or('google/gemini-4-carbon').family, 'google');
+  assert.equal(or('deepseek/deepseek-v4-pro').family, 'deepseek');
+  assert.equal(or('qwen/qwen3.8-max-prime').family, 'qwen');
+  assert.equal(or('mistralai/mistral-large-4-0').family, 'mistral');
+  // a variant after a colon and OpenRouter's moving alias are the same model
+  assert.equal(or('openai/gpt-6.1-sol:thinking').family, 'openai');
+  assert.equal(or('~anthropic/claude-opus-latest').family, 'anthropic');
+  // a lead that is already the cheap tier keeps the plain agent
+  for (const id of ['anthropic/claude-haiku-5.5', '~anthropic/claude-haiku-latest', 'openai/gpt-6-luna', 'z-ai/glm-5.3-flash', 'google/gemini-3.8-flash', 'deepseek/deepseek-v4.1-flash']) assert.equal(or(id), null, id);
+  // a family with no pair, a provider that is not a gateway, and nothing to go on
+  assert.equal(or('x-ai/grok-4.7'), null); assert.equal(or('moonshotai/kimi-k3'), null); assert.equal(or('minimax/minimax-m3'), null);
+  assert.equal(explorerFor({ providerID: 'anthropic', id: 'claude-opus-5' }), null, 'a direct provider reaches one vendor: the id would not resolve');
+  assert.equal(explorerFor(null), null); assert.equal(explorerFor({ providerID: 'openrouter' }), null);
+  // every row's own explorer is a model its own rule would leave alone
+  for (const f of EXPLORER_FAMILIES) assert.equal(or(f.explorer), null, `${f.family}: the explorer is not handed to itself`);
+});
+
+test('delegateTool, OpenCode on a gateway: the denial names the family\'s explorer and the row names its model', async t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  let st = {}; const state = { update: fn => fn(st) }; const rows = [];
+  const call = (ev, cfg = { ...DELEGATE_DEFAULTS, holdout: 0 }) => delegateTool({ ev: hostEvent('opencode', ev), state, session: 's', cwd: d, cfg, log: r => rows.push(r), run: async () => { throw Error('must not run'); }, client: 'opencode', readCap: HOSTS.opencode.readCap });
+  const lead = { providerID: 'openrouter', id: 'anthropic/claude-opus-5.5' };
+  const r = JSON.parse(await call({ tool_name: 'read', tool_input: { path: big }, agent: 'build', model: lead })).hookSpecificOutput.permissionDecisionReason;
+  assert.match(r, /Call the subagent tool now with agent: "thinker-explore-anthropic"/);
+  assert.equal(rows[0].agent, familyAgent('anthropic')); assert.equal(rows[0].model, 'openrouter/anthropic/claude-haiku-5.5'); assert.equal(rows[0].family, 'anthropic');
+  // the family explorer's own reads are the delegation, as the plain agent's are
+  st = {};
+  assert.equal(await call({ tool_name: 'read', tool_input: { path: big }, agent: familyAgent('anthropic'), model: { providerID: 'openrouter', id: 'anthropic/claude-haiku-5.5' } }), null);
+  // a suite run stays with the verify agent, whatever the lead
+  st = {};
+  assert.match(JSON.parse(await call({ tool_name: 'shell', tool_input: { command: 'npm test' }, agent: 'build', model: lead })).hookSpecificOutput.permissionDecisionReason, /agent: "thinker-verify"/);
+  // switched off, an unpaired family, and a host that did not say: the plain agent, and no model on the row
+  for (const [ev, cfg] of [[{ model: lead }, { ...DELEGATE_DEFAULTS, holdout: 0, families: false }], [{ model: { providerID: 'openrouter', id: 'x-ai/grok-4.7' } }], [{}]]) {
+    st = {}; rows.length = 0;
+    assert.match(JSON.parse(await call({ tool_name: 'read', tool_input: { path: big }, agent: 'build', ...ev }, cfg)).hookSpecificOutput.permissionDecisionReason, /agent: "thinker-explore"/);
+    assert.equal(rows[0].agent, OPENCODE_EXPLORE); assert.equal(rows[0].model, undefined);
+  }
+  // Claude Code names its own agents and pins its own model: a lead's model there changes nothing
+  assert.equal(executionFor('claude', 'explore', DELEGATE_DEFAULTS, { lead }).agent, 'Explore');
+});
+
+test('installOpencodeAgents: one pinned explorer a family beside the two plain agents, and all of them go together', t => {
+  const dir = tmp(t);
+  const w = installOpencodeAgents({ configDir: dir, on: true });
+  assert.deepEqual(w.map(x => x.name), [OPENCODE_EXPLORE, OPENCODE_VERIFY, ...EXPLORER_FAMILIES.map(f => familyAgent(f.family))]);
+  assert.ok(w.every(x => x.action === 'written'));
+  for (const f of EXPLORER_FAMILIES) {
+    const text = fs.readFileSync(opencodeAgentFile(dir, familyAgent(f.family)), 'utf8');
+    assert.ok(text.startsWith(`---\nmodel: openrouter/${f.explorer}\ndescription: `), f.family);
+    assert.ok(isThinkerDelegateAgent(text));
+    // the frontmatter is `additionalProperties: false`: the keys OpenCode knows and nothing else
+    const keys = text.split('---')[1].split('\n').filter(l => /^[a-z]+:/.test(l)).map(l => l.split(':')[0]);
+    assert.deepEqual(keys, ['model', 'description', 'mode', 'permissions']);
+  }
+  assert.doesNotMatch(fs.readFileSync(opencodeAgentFile(dir, OPENCODE_EXPLORE), 'utf8').split('---')[1], /^model:/m, 'the plain agent names no model');
+  // a person's own file under a family's name is theirs
+  fs.writeFileSync(opencodeAgentFile(dir, familyAgent('openai')), '---\nmode: subagent\n---\nmine');
+  assert.equal(installOpencodeAgents({ configDir: dir, on: true }).find(x => x.name === familyAgent('openai')).action, 'kept');
+  removeOpencodeAgents({ configDir: dir });
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'agent')), [`${familyAgent('openai')}.md`], 'only thinker\'s own files go');
 });

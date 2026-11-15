@@ -37,7 +37,13 @@ export function opencodeV2(config, run = hookRunner(config)) {
         // Off by default (2026-11-12); read once at setup, so switching it on needs OpenCode started again.
         if (delegateConfig().enabled) await ctx.tool.hook('execute.before', async ev => {
           if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
-          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent });
+          // The lead's model, which neither hook event carries: `session.get({ sessionID })` answers
+          // `model: { id, providerID, variant }` (probed live on 2.2.7, 2026-11-15). The trigger reads it to
+          // hand the read to the lead's own family's cheap model on a gateway (delegate.js:EXPLORER_FAMILIES);
+          // a host that will not say gets the plain agent, as before.
+          let model = null;
+          try { const s = await ctx.session?.get?.({ sessionID: ev.sessionID }); if (s?.model?.id) model = { id: s.model.id, providerID: s.model.providerID }; } catch { /* the read is never held up for it */ }
+          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent, ...(model ? { model } : {}) });
           if (!text) return;
           let reason = '';
           try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; } catch {}

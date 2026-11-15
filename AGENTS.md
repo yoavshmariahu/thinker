@@ -427,6 +427,12 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - Removed on the way (#750): the rules that hooks never run or rewrite test commands and do no side work. What
   stays: the installer is never a hook branch.
 
+**The explorer is the lead's own family's cheap model on OpenRouter (2026-11-15, the owner's ask):**
+- `delegate.js:EXPLORER_FAMILIES`: Anthropic to Haiku 5.5, OpenAI to Luna, Google to Gemini 3.5 Flash-Lite, Z.ai to GLM 5.3 Flash, DeepSeek to v4.1 Flash, Qwen to 3.8 Flash, Mistral to Small. xAI, Moonshot and MiniMax have no pair; a lead already on the cheap tier and any provider that is not a gateway keep the plain agent. `delegate: { families: false }` turns it off.
+- OpenCode's plugin asks `session.get({ sessionID })` for the lead's model (neither hook event carries it) and passes it to `hook pretool`; the denial names `thinker-explore-<family>`, one pinned agent file a family (`delegate-agents.js`).
+- Each explorer run live as the pinned subagent on one 118 KB file: all right for $0.01-0.02 except Google (Flash-Lite 11-13 of 13 names; 3.8 Flash was right but cost more than the lead's own read). The table carries the figures.
+- **Whether the lead obeys the handoff is the open problem, and it is the lead's, not the pair's.** Live through OpenRouter: GLM 5.3 flashx, Gemini 4 Hydrogen and DeepSeek v4 Pro called the subagent; Claude Sonnet 5.5 refused twice and asked the person ("that message came from a tool result"), GPT 6.1 Terra and GPT-5.4 mini did not call it and read the file in chunks, Haiku followed once of two. A denial's words are a nudge on those leads. The deterministic path is the plugin running the subagent itself (`ctx.session.create/prompt/wait`) and returning the report as the call's result; not built.
+
 **A hook may delegate to a subagent (2026-11-11):**
 - Two rules removed: hooks never run test commands; hooks are only for cache, no installs.
 - PreToolUse hook can deny a read/test, run subagent, return report.
