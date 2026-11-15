@@ -74,8 +74,8 @@ test('denial: the handoff names the host\'s tool, agent and brief, and is an ins
   assert.match(rep, /read a\.py through a m subagent/); assert.match(rep, /\nR$/);
 });
 
-test('decide: one handoff of a kind per turn, so a subagent\'s own reads can never be denied in a loop', () => {
-  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000 };
+test('decide: a budget of one hands a turn\'s reads over once, and the suite run has its own', () => {
+  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000, handoffsPerTurn: 1 };
   const st = {};
   const big = { tokens: 40000, files: ['a'] };
   const first = decide(st, { prompt: 'p1', read: big, cfg, handoff: true });
@@ -120,11 +120,13 @@ test('delegateTool, handoff: denies with the handoff, spawns nothing, logs the m
   assert.deepEqual(rows[0].files, ['core.py']);
   assert.equal(rows[0].cost, undefined, 'the host bills its own subagent');
 
-  // the same read again, and a different big read: both go through, both say they are after the handoff
+  // the same read again goes through and says it is after the handoff: a file is never denied twice in a turn
   assert.equal(await call(ev), null);
   assert.equal(rows[1].after, 'handoff'); assert.equal(rows[1].fired, false);
-  assert.equal(await call({ ...ev, tool_input: { file_path: other } }), null);
-  assert.equal(rows[2].after, 'handoff');
+  // a different big read of the same turn is handed over too (five a turn since 2026-11-15)
+  const second = JSON.parse(await call({ ...ev, tool_input: { file_path: other } })).hookSpecificOutput.permissionDecisionReason;
+  assert.match(second, /subagent_type: "Explore"/);
+  assert.deepEqual(rows[2].files, ['more.py']); assert.equal(rows[2].agent, 'Explore');
 
   // the subagent's own read of the same file: nothing at all, not even a row
   const before = rows.length;
@@ -175,7 +177,7 @@ test('delegateTool, OpenCode: the host\'s lower-case tools, its agent names, and
 test('delegateConfig: the handoff is the default, the fallback is asked for by name', t => {
   const home = tmp(t);
   const c = delegateConfig({ env: {}, home });
-  assert.equal(c.handoff, true); assert.equal(c.fallback, false); assert.equal(c.handoffsPerTurn, 1);
+  assert.equal(c.handoff, true); assert.equal(c.fallback, false); assert.equal(c.handoffsPerTurn, 5);
   assert.equal(c.holdout, 0.5, 'the live measure is half the sessions, as before');
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE_HANDOFF: 'off' }, home }).handoff, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE_FALLBACK: 'on' }, home }).fallback, true);
@@ -253,4 +255,29 @@ test('the hook command, handoff: a big read is denied with the handoff and no mo
   assert.equal(hook({ ...ev, agent_type: 'Explore', agent_id: 'a1' }), '');
   // OpenCode's event shape through the same subcommand
   assert.match(JSON.parse(hook({ ...ev, session_id: 'hs2', tool_name: 'read', tool_input: { path: big }, agent: 'build' }, 'opencode')).hookSpecificOutput.permissionDecisionReason, /agent: "thinker-explore"/);
+});
+
+test('decide: five reads a turn are handed over, a file only once, a suite run only once', () => {
+  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000 };
+  const st = {}, big = f => ({ tokens: 40000, files: [f] });
+  for (const f of ['a', 'b', 'c', 'd', 'e']) {
+    const d = decide(st, { prompt: 'p1', read: big(f), cfg, handoff: true });
+    assert.equal(d.fire, true, f);
+    noteHandoff(st, 'p1', 'explore', d.key);
+  }
+  // the sixth goes through, and says it is after a handoff
+  const sixth = decide(st, { prompt: 'p1', read: big('f'), cfg, handoff: true });
+  assert.equal(sixth.fire, false); assert.equal(sixth.spent, true);
+  // a lead that asks again for a file already handed over gets the file: never denied twice in a turn
+  const st2 = {};
+  const first = decide(st2, { prompt: 'p1', read: big('a'), cfg, handoff: true });
+  noteHandoff(st2, 'p1', 'explore', first.key);
+  const again = decide(st2, { prompt: 'p1', read: big('a'), cfg, handoff: true });
+  assert.equal(again.fire, false); assert.equal(again.spent, true);
+  assert.equal(decide(st2, { prompt: 'p1', read: big('b'), cfg, handoff: true }).fire, true, 'another file still is');
+  assert.equal(decide(st2, { prompt: 'p2', read: big('a'), cfg, handoff: true }).fire, true, 'and a new turn starts over');
+  // the suite run stays at one whatever the reads' budget is
+  const v = decide(st2, { prompt: 'p1', suite: 'pytest', cfg, handoff: true });
+  assert.equal(v.fire, true); noteHandoff(st2, 'p1', 'verify');
+  assert.equal(decide(st2, { prompt: 'p1', suite: 'pytest', cfg, handoff: true }).spent, true);
 });

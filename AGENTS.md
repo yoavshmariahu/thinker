@@ -279,13 +279,17 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   why, then the exact call to make (tool, parameter, agent name, label, brief), then that nothing has gone wrong --
   because the live OpenCode check of 2026-11-12 showed a denial read as a fault gets routed around with grep and
   sed. A handoff is an instruction and never a pre-baked report, which is the shape that was distrusted.
-- **One handoff of each kind per turn** (`handoffsPerTurn` 1, `decide`'s `spent`, `noteHandoff`), and this is what
-  makes a handoff impossible to loop. The subagent reads the files itself, in the same turn, and on OpenCode in a
-  child session with an id of its own; those reads must go through. So once a kind is handed over, every later read
-  of that kind is allowed and logged (`after: 'handoff'`, `fired: false`) -- which is also the one free signal of
-  whether the model obeyed. The budget is per kind, so an exploration handoff does not use up the turn's suite run.
-  Beside it, a positive guard: a subagent's own call is never delegated (`fromSubagent` -- Claude Code's
-  `agent_type`/`agent_id`, OpenCode's `agent` on every event, where anything but a primary agent fails closed).
+- **Five reads a turn are handed over, each file once, a suite run once** (`handoffsPerTurn` 5 since 2026-11-15,
+  the owner's call; 1 until then; `decide`'s `spent`, `noteHandoff`). What makes a handoff impossible to loop is the
+  positive guard: a subagent's own call is never delegated (`fromSubagent` -- Claude Code's `agent_type`/`agent_id`,
+  OpenCode's `agent` on every event, where anything but a primary agent fails closed). The budget of one stood
+  beside it and cost reach: replayed over 30 days of this machine's sessions it turned away 42.5M read tokens, 4.5
+  times what the rule delegated (projected 1.9% of spend at one, 4.5% at three). Past the budget every read is
+  allowed and logged (`after: 'handoff'`, `fired: false`), and so is a second read of a file already handed over
+  this turn -- a lead that insists gets the file, and that row is the one free signal of whether the model obeyed.
+  **Not measured live:** two paired mlflow tasks run at five never had a second big read in a turn, so whether a
+  lead working from several reports a turn holds its outcome is still open; `delegated.ignored` on the session
+  row (delegated.js) and the judged bench are where it will show.
 - **What each host has** (read off the installed binaries and schemas on 2026-11-12, not from memory):
   `HOSTS[client].subagent`. Claude Code 2.1.323: the **`Agent`** tool (`Task` before 2.1.63), parameter
   `subagent_type`, and `Explore` and `general-purpose` are **built in**, so a handoff there installs nothing; a

@@ -49,8 +49,8 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   threshold: 35000,   // tokens of read results in one turn past which the rest of its exploration is delegated
   minRead: 8000,      // a read under this is never delegated: the lines the main model edits
   holdout: 0.5,       // share of sessions left alone, by hash of the session id (proxy.js:heldOut)
-  handoffsPerTurn: 1, // one handoff of each kind per turn: the turn's exploration is handed over once, and a
-                      // second denial could land on the subagent's own reads (see `decide`)
+  handoffsPerTurn: 5, // reads handed over per turn (the owner's call, 2026-11-15; 1 until then). A file is handed
+                      // over once a turn and a suite run once a turn whatever this says (see `decide`)
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
   reportLines: 25,
 });
@@ -178,14 +178,19 @@ export function suiteCommand(toolName, input = {}) {
 // `spent` is the handoff guard, and it is what keeps a handoff from ever becoming a loop. Once the turn's
 // exploration has been handed to the host's subagent, that subagent reads the files itself -- in the same
 // turn, and on some hosts in a child session with an id of its own -- and those reads must go through. A
-// kind is handed over at most `handoffsPerTurn` times (1) per turn, after which every read of that kind is
-// allowed and logged as `after: 'handoff'`. The budget is per kind so an exploration handoff does not use
-// up the turn's suite run. Counted only for a real handoff, so a held-out session never spends it.
+// turn hands over at most `handoffsPerTurn` reads (5), after which every read is allowed and logged as
+// `after: 'handoff'`; the suite run has a budget of its own, of one. Counted only for a real handoff, so a
+// held-out session never spends it.
+// Five and not one since 2026-11-15: over 30 days of this machine's sessions the budget of one turned away
+// 42.5M read tokens, 4.5 times what the rule delegated, and the loop it stood guard over is closed by
+// `fromSubagent` before this is ever asked. What one did that five must still do is let the model through when
+// it insists: a file already handed over this turn is never denied twice (`handed`), or a lead that wants the
+// file itself would be refused it five times running.
 export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, handoff = false }) {
   const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : { prompt, readTokens: 0, reports: {}, handoffs: {} };
   if (!d.handoffs) d.handoffs = {};
   st.delegate = d;
-  const spentOn = kind => handoff && (d.handoffs[kind] || 0) >= (cfg.handoffsPerTurn ?? 1);
+  const spentOn = kind => handoff && (d.handoffs[kind] || 0) >= (kind === 'explore' ? cfg.handoffsPerTurn ?? 5 : 1);
   if (suite) {
     const spent = spentOn('verify');
     return { fire: !spent, spent, kind: 'verify', key: 'suite:' + suite, tokens: 0, turnTokens: d.readTokens };
@@ -196,15 +201,16 @@ export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, hando
   d.readTokens += read.tokens;
   // a host that returns a big file in chunks: the first chunk fires when the file asked for is over the threshold
   const over = read.tokens >= cfg.threshold || (read.fileTokens || 0) >= cfg.threshold || (read.tokens >= cfg.minRead && d.readTokens >= cfg.threshold);
-  const spent = over && spentOn('explore');
+  const spent = over && (spentOn('explore') || Boolean(handoff && d.handed && d.handed[key]));
   if (over && !spent) d.readTokens = before; // a delegated read never enters the context
   return { fire: over && !spent, spent, kind: 'explore', key, tokens: read.tokens, turnTokens: d.readTokens };
 }
 /** Record that this turn's `kind` has been handed to the host's subagent. Runs under the session's lock. */
-export function noteHandoff(st, prompt, kind) {
+export function noteHandoff(st, prompt, kind, key) {
   const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : (st.delegate = { prompt, readTokens: 0, reports: {}, handoffs: {} });
   if (!d.handoffs) d.handoffs = {};
   d.handoffs[kind] = (d.handoffs[kind] || 0) + 1;
+  if (key) { if (!d.handed) d.handed = {}; d.handed[key] = true; }
 }
 
 /**
@@ -363,7 +369,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // host's to bill and to show -- which is also how it is measured (the Report prices a subagent
     // conversation at its own model). The budget is spent before the denial goes out, so a second read of the
     // turn cannot be denied even if its hook runs at the same moment as this one.
-    state.update(st => { noteHandoff(st, prompt, d.kind); if (d.kind === 'explore') noteFiring(st, { t: Date.now(), tokens: d.tokens, files, agent: exec.agent }); });
+    state.update(st => { noteHandoff(st, prompt, d.kind, d.key); if (d.kind === 'explore') noteFiring(st, { t: Date.now(), tokens: d.tokens, files, agent: exec.agent }); });
     // `model` where the host's agent is pinned to one (Claude Code's Explore.md, `pins`): the saving nets the
     // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
     // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
