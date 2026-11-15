@@ -180,6 +180,28 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Sits in front of a gateway only on `thinker proxy on --gateway` + user yes; kept in service state, or `proxy: { upstream }` wins.
 - On 400 to context-management edit with non-Anthropic upstream: if refusal names field/beta, drop edit rest of proxy's life (`editRejected`, `proxy-edit-rejected` row, `edit-unsupported` read); any other 400 passed once, edit still added next request.
 
+**The API refusing a conversation thinker rewrote (2026-11-15, the owner's ask):**
+- Two refusals, two scopes. `refusesEdit` is an upstream that cannot take the server-side field at all: stops editing
+  for the proxy's life. **`refusesHistory` is the API rejecting the rewritten history: stops cutting for that session
+  alone** (`rejectedSessions`), because the bound thinking is one conversation's and the proxy serves every agent on
+  the machine. A stood-down session never cuts again; the request goes again as the agent wrote it, so the agent
+  always gets its answer and never sees the 400.
+- **Explicit only.** The body must name the thing checked AND what was wrong with it (`tool_use_rewritten`,
+  `tool_results_rewritten`, `prefix_mismatch` are each enough alone; `thinking block` needs a verdict beside it). A
+  model name, a rate limit, a malformed body may never stop the cutting -- the October lesson (LiteLLM, a 400 over a
+  model name taken for a refusal) is why. `refusesEdit`'s vocabulary could not see a prefix-check refusal at all,
+  so before this it reached the agent as its own 400 and nothing stood down.
+- **Why it exists now:** a pruned tool *result* has a sanctioned client-side form; a rewritten tool_use *input* has
+  none ("echo `tool_use.input` exactly as received"), so cutting a call's own text is the half of a cut the check
+  names. Enforced for accounts created on or after 2026-08-31 and on Fable 5.2 / Mythos 5.2 for every account.
+- **A metric, on the Token spend dashboard** (`telemetry.js:proxyMetrics` → `rejected: {total, history, edit,
+  sessions}`; two cards in `scripts/spend-dashboard.mjs`). Counts only: what the API said quotes the machine's own
+  request back and stays in its log. The scalar is the number that must stay at zero.
+- Measured before it shipped: 22 days, 30,341 proxied requests, 12,537 with a thinker edit, **2** 400s -- both
+  2026-10-24, both the API-side clearing era, none since the cut moved client-side. The valve has never fired.
+- Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed
+  on it and could only ever read 1.
+
 **A request that never reached the API recovers (2026-11-05, `src/proxy-retry.js`):**
 - Address cache (`addressBook`, cached 6 h), ladder (`RETRY_WAITS` 0.25–4s), fresh socket for TLS/EHOSTUNREACH.
 - Cancellations: `op: 'proxy-cancelled'` (also `aborted` flag while old logs in window).

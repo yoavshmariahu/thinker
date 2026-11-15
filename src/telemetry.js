@@ -360,7 +360,22 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   // the one-off repair question (proxy-offer.js): how many machines were asked, and what they said. Counted
   // because the fault it repairs cost people whole sessions, and nothing else says whether the repair landed.
   const offer = { asked: 0, yes: 0, no: 0, never: 0 };
+  // The API refusing a conversation the proxy rewrote (proxy.js:refusesHistory, `proxy-cut-rejected`). This is the
+  // one failure mode the client-side cut has that the server-side clearing did not: thinker rewrites the history
+  // itself now, so a history the API will not take is thinker's own fault and nobody else can see it happen. It had
+  // to become a figure before input cutting shipped on by default, because that is the half of a cut the preserved
+  // thinking check names (#797). `history` is that refusal and stands the session down; `edit` is an upstream that
+  // cannot take the server-side field at all and stops the editing for good. Counts and session counts only -- what
+  // the API said stays in the machine's own log.
+  const rejected = { total: 0, history: 0, edit: 0, sessions: 0 };
+  const rejectedSessions = new Set();
   for (const r of rows) {
+    if (r.op === 'proxy-cut-rejected') {
+      rejected.total++;
+      if (r.kind === 'history') rejected.history++; else if (r.kind === 'edit') rejected.edit++;
+      if (r.session) rejectedSessions.add(r.session);
+      continue;
+    }
     if (r.op === 'proxy-standdown') { standDowns.push({ at: r.at || null, reason: r.reason || null }); continue; }
     if (r.op === 'proxy-offer') { offer.asked++; continue; }
     if (r.op === 'proxy-offer-answer') { if (offer[r.choice] != null) offer[r.choice]++; continue; }
@@ -393,6 +408,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     },
     standDowns,
     offer,
+    rejected: { ...rejected, sessions: rejectedSessions.size },
     // the rewrite rates ride along (`rewrites` per side, `sessionsStopped`); the warning sentence stays on the machine
     sides: (({ warning, ...s }) => s)(proxyReport(rows, { since })),
     byModel, byDay, errors: { ...errors, failed: errors.total - errors.retried, cancelled },

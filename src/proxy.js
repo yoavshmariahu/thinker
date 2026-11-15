@@ -151,6 +151,33 @@ export function refusesEdit(body) {
   return UNKNOWN_WORDS.test(text) || /context[_-]management/i.test(text);
 }
 
+// Whether the API refused the HISTORY the proxy rewrote, which is a different refusal from the one above and was
+// invisible until now: `EDIT_WORDS` knows only the names of the server-side edit (`context_management`,
+// `clear_tool_uses`, the beta header), and a preserved-thinking refusal names none of them, so it reached the agent
+// as its own 400 and nothing stood down (2026-11-15).
+//
+// What the check is. A thinking block is bound to the bytes of the conversation that produced it: `system`, `tools`
+// and every earlier message must arrive byte-identical on the call that replays it. A pruned tool RESULT has a
+// sanctioned client-side form -- at a declared boundary, as a pure function of the growing history, which the
+// ratchet is. A rewritten tool_use INPUT has none: its only listed remedy is to echo `tool_use.input` exactly as
+// received. So cutting a call's own text is the half of the cut that can be refused, on accounts created on or
+// after 2026-08-31 and on Fable 5.2 and Mythos 5.2 for every account.
+//
+// Explicit only, which is the whole point (the owner's rule, 2026-11-15): this must name the check. A 400 about
+// the agent's own request, a rate limit, a model name, a malformed body -- none of them may stop the cutting, and
+// the October lesson was that treating a vague 400 as a refusal stopped the clearing over an unrelated error and
+// sent every failing request twice. So both halves have to be there: a word for the thing checked AND a word for
+// the thing the check found wrong.
+const HISTORY_WORDS = /tool_use_rewritten|tool_results_rewritten|prefix_mismatch|block_binding|preserved[_ -]thinking|thinking[_ -]block/i;
+const MISMATCH_WORDS = /mismatch|rewritten|does not match|do not match|modified|altered|byte|differs|changed since/i;
+export function refusesHistory(body) {
+  const text = String(body || '').slice(0, REFUSAL_BODY);
+  if (!HISTORY_WORDS.test(text)) return false;
+  // a field named on its own is enough where the name IS the verdict (`tool_use_rewritten` is not a field anyone
+  // sets); otherwise the body has to say what was wrong with it, not merely mention thinking
+  return /tool_use_rewritten|tool_results_rewritten|prefix_mismatch/i.test(text) || MISMATCH_WORDS.test(text);
+}
+
 // The API's model calls: the only requests whose credentials the refusal count may judge.
 export const MESSAGES_PATH = /^\/v1\/messages(\/|\?|$)/;
 // Judged only when the proxy forwards to Anthropic's own API: with an upstream of someone's own (`--upstream`,
@@ -694,7 +721,14 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
     log(row);
     try { noteCompression(compressionDir, row, { actions }); } catch { /* a card is never worth a failed request */ }
   };
+  // Two refusals, two scopes. An upstream that cannot take the server-side edit will never take it, so that one
+  // stops the editing for the proxy's whole life (`cutRejected`). A history the API will not accept is one
+  // CONVERSATION's bound thinking, so that one stops the cutting for that session alone (`rejectedSessions`, the
+  // owner's call, 2026-11-15): a proxy serves every agent on the machine at once, and one session's refusal is no
+  // reason to stop saving tokens in the others. A session that has stood down never cuts again -- the binding it
+  // broke does not heal, and trying again would spend another whole request to learn the same thing.
   let cutRejected = false;
+  const rejectedSessions = new Set();
   // Where each upstream host last answered, so a resolver that goes quiet is not the end of a request
   // (proxy-retry.js). Filled from the lookups the requests make anyway; read only once one has failed.
   const addresses = addressBook();
@@ -783,7 +817,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       };
       const t0 = process.hrtime.bigint();
       let t;
-      const noEdit = cutRejected;
+      const noEdit = cutRejected || rejectedSessions.has(sessionOf(req.headers));
       // The record is read inside the transform, which is where the conversation can be told from the
       // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
       let cutRec = null;
@@ -871,10 +905,20 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
               // not about the edit: the agent's own to see. The bytes are in hand and the stream may already be
               // over, so `deliver` is told to finish the response itself rather than wait for an 'end' that has been
               const refused = t.protocol === 'chat' ? refusesChatCut(body) : refusesEdit(body);
-              if (!refused) return deliver(Buffer.from(body), ended);
-              cutRejected = true;
+              // the history the proxy rewrote, refused by name. Checked second so that a body saying both still
+              // reads as the edit, which is the wider stand-down of the two.
+              const history = !refused && t.protocol !== 'chat' && refusesHistory(body);
+              if (!refused && !history) return deliver(Buffer.from(body), ended);
+              const session = t.session || sessionOf(req.headers) || null;
+              if (history) rejectedSessions.add(session); else cutRejected = true;
               ures.resume();
-              log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', upstream: up.origin, status: 400, says: String(body).slice(0, 200) });
+              // `session` is what makes the figure a count of conversations rather than of requests: it was missing
+              // from this row until 2026-11-15, so `proxyReport`'s `sessionsRejected` -- which keys on it -- could
+              // only ever read 1 however many sessions had been refused. `says` stays on the machine; only counts
+              // are ever sent (telemetry.js:proxyMetrics).
+              log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', kind: history ? 'history' : 'edit',
+                session, upstream: up.origin, status: 400, says: String(body).slice(0, 200),
+                ...(t.policy ? { policy: t.policy } : {}), ...(t.clientCut?.cut ? { cut: t.clientCut.cut } : {}) });
               t = { ...t, body: raw, injected: false, addBeta: false, reason: 'cut-rejected' };
               send(attempt);
             };
@@ -1035,9 +1079,18 @@ export function proxyReport(rows, { since } = {}) {
   }
   const responses = responsesReport(rows, { since });
   const chat = chatReport(rows, { since });
-  // a cut rejected by the API is the one way the editing stops now (proxy.js:cutRejected)
-  const rejected = new Set(rows.filter(r => r.op === 'proxy-cut-rejected' && (!since || r.at >= since)).map(r => r.session));
-  if (outSides.clearing) outSides.clearing.sessionsRejected = rejected.size;
+  // A cut refused by the API is the one way the cutting stops now (proxy.js:cutRejected, rejectedSessions). Two
+  // kinds, counted apart because they mean different things and have different scopes: `edit` is an upstream that
+  // cannot take the server-side field at all and stops the editing for the proxy's life; `history` is the API
+  // refusing the rewritten conversation and stops the cutting for that session. A row with no session is from
+  // before the session was written on it (2026-11-15) and counts as a refusal but not as a conversation.
+  const refusals = rows.filter(r => r.op === 'proxy-cut-rejected' && (!since || r.at >= since));
+  const rejected = new Set(refusals.filter(r => r.session).map(r => r.session));
+  if (outSides.clearing) {
+    outSides.clearing.sessionsRejected = rejected.size;
+    outSides.clearing.rejected = refusals.length;
+    outSides.clearing.rejectedHistory = refusals.filter(r => r.kind === 'history').length;
+  }
   const warning = rewriteWarning(outSides);
   return { ...outSides, ...(warning ? { warning } : {}), ...(Object.keys(responses).length ? { responses } : {}), ...(Object.keys(chat).length ? { chat } : {}) };
 }

@@ -190,13 +190,13 @@ export async function provision({ call = api, config = state, persist = save, re
     // marker here never reaches Metabase: the delivery cards sat on SQL from before the CTE fix for a view
     // production does not hold (`v_snapshots`, below), and read "v_snapshots does not exist" for months while
     // the code that fixed it looked right. 4: the schema-3 fields, and that fix finally landing.
-    if (existingId && (question.spend ? state.spendCardVersion === 3 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 1 : state.cardVersion === 8)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 1 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 3; state.savingsCardVersion = 1; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.savingsCardVersion = 1; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -390,7 +390,7 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'The context proxy, the actions people take on Find Savings to cut what a prompt costs, and what those actions measured as saved. 30 days on the latest snapshot per device. Clients before these blocks send nothing here, which is not zero.' })).id;
     save();
   }
-  if (state.spendDashboardVersion !== 4) {
+  if (state.spendDashboardVersion !== 5) {
     const band = (row, text) => ({ id: -(row + 1000), card_id: null, row, col: 0, size_x: 24, size_y: 3,
       visualization_settings: { virtual_card: { display: 'text' }, text } });
     const cards = [band(0, '## Where the tokens go, and what people cut\nThree bands: the proxy (what it clears and what that side costs against the held-out side), the actions taken on Find Savings, and what those decisions measured as saved. Every card reads the latest snapshot per known device (installation fallback) and covers 30 days.\n**Machines, not changes:** the second band opens with how many machines were shown a suggestion and how many took one. Every other card counts changes, so one machine deciding many times reads as uptake there.\n**Read the savings carefully:** a decision is measured by what the changed thing cost a prompt before it against since it, on the same machine, over the repository\'s own kept report. Other changes in that time move it too. Nothing here is a controlled comparison, and a device whose repositories hold no report is counted but not measured.')];
@@ -419,7 +419,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (col) row += 8;
     }
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters, dashcards: cards });
-    state.spendDashboardVersion = 4; save();
+    state.spendDashboardVersion = 5; save();
   } else {
     const dashboard = await api(`/dashboard/${state.spendId}`);
     await api(`/dashboard/${state.spendId}`, 'PUT', { parameters: [...parameters,
