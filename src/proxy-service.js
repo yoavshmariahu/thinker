@@ -61,10 +61,9 @@ function saveNetworkEnv(home, env) {
   writeJson(stateFile(home), { ...serviceState(home), networkEnv: serviceNetworkEnv(home, env) });
   fs.chmodSync(stateFile(home), 0o600); // a proxy URL can carry transport credentials
 }
-// Only a process that successfully bound the service's port may claim to be the running service.
-// A proxy of this thinker's is listening. The port goes into `served` whoever started it, so `isOwnUrl` knows
-// thinker's own instances apart from a route of the person's own (`ownUrls`); the rest of the record -- pid,
-// flags, version -- belongs to the service's own process and is written only for its port.
+// A proxy of this thinker's has bound a port. The port goes into `served` whoever started it, so `isOwnUrl`
+// knows thinker's own instances from a route of the person's own (`ownUrls`). Only a process that bound the
+// service's own port may claim to be the running service, so the pid, the flags and the version are its alone.
 export function recordProxyListening(port, { home = thinkerHome(), pid = process.pid } = {}) {
   let s = serviceState(home);
   if (port && !(s.served || []).includes(port)) {
