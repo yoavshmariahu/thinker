@@ -183,7 +183,7 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const args = ['proxy', '--port', String(state.port), '--holdout', String(holdout), '--codex'];
   if (bedrockState(home)) args.push('--bedrock');
   const upstream = proxyThrough(home);
-  for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
+  for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['keepTurn', '--keep-turn'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
   // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off.
   // `longTurn` is the other way round -- off until measured -- and reads the same way.

@@ -41,7 +41,7 @@ import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js'
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -88,7 +88,11 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
 // `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
 // tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
+// `keepTurn` is `keepMin` for a cut that reaches inside the turn in progress (`longTurn`): the newest results of a
+// turn still running, which the ordinary cut protected wholesale and this one has to name a number for. Three was
+// `keepMin`'s number for a stretch of conversation the model had already moved on from; a turn forty calls deep is
+// a working set, and the model is answering out of it right now, so it keeps more.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -201,7 +205,7 @@ const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined :
 export function proxyConfig(flags = {}, env = process.env) {
   const pick = (flag, name) => num(flags[flag]) ?? num(env[name]);
   const cfg = { ...PROXY_DEFAULTS };
-  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'],
+  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'], ['keepTurn', 'keep-turn', 'THINKER_PROXY_KEEP_TURN'],
     ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT']]) {
     const v = pick(flag, name);
     // a guard the person set by hand is pinned, and the route's prices never move it (cutting.js:scaledPolicy)
@@ -253,7 +257,7 @@ export function proxyConfig(flags = {}, env = process.env) {
       const value = flags[flag] ?? env[variable];
       if (value != null && (typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)))) throw new Error(`--${flag} needs a number`);
     }
-    for (const k of ['trigger', 'clearAtLeast', 'keepMin']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' ? 'non-negative' : 'positive'} integer`);
+    for (const k of ['trigger', 'clearAtLeast', 'keepMin', 'keepTurn']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' || k === 'keepTurn' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' || k === 'keepTurn' ? 'non-negative' : 'positive'} integer`);
     if (!Number.isFinite(cfg.holdout) || cfg.holdout < 0 || cfg.holdout > 1) throw new Error('--holdout must be between 0 and 1');
   }
   return cfg;
@@ -291,11 +295,14 @@ const resultText = b => typeof b.content === 'string' ? b.content
 
 // Walk the conversation newest-first, calling back for each tool result with whether the recency
 // rule protects it. `keepMin` counts only results the rule would otherwise let go.
-function walkResults(messages, keepMin, fn, { openTurn = false } = {}) {
+function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn } = {}) {
   // `openTurn` is the long-turn rule (cutting.js:decide): a turn whose own results have passed the trigger
-  // stops being protected as a whole, and keeps the newest `keepMin` like any other stretch of the
-  // conversation. The model is still answering from the newest results; what it finished with forty calls
-  // ago is no more live here than it would be across a prompt boundary.
+  // stops being protected as a whole, and keeps a newest few like any other stretch of the conversation.
+  // What it keeps is `keepTurn`, not `keepMin`, and the difference is the point: across a prompt boundary
+  // the model has finished with what went before, so three is enough; inside a turn still running those
+  // results ARE its working set, and a cut that leaves three of a hundred is the one way this rule could
+  // make a model answer out of a gap instead of reading again (the owner's call, 2026-11-14).
+  const keep = openTurn ? keepTurn : keepMin;
   let kept = 0, inLatestTurn = !openTurn;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
@@ -307,7 +314,7 @@ function walkResults(messages, keepMin, fn, { openTurn = false } = {}) {
     for (let k = blocks.length - 1; k >= 0; k--) {
       const b = blocks[k];
       if (b?.type !== 'tool_result') continue;
-      const protectedByRule = inLatestTurn || kept < keepMin;
+      const protectedByRule = inLatestTurn || kept < keep;
       if (protectedByRule) kept++;
       fn(b, i, protectedByRule);
     }
@@ -333,7 +340,7 @@ function walkResults(messages, keepMin, fn, { openTurn = false } = {}) {
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, firstChanged = -1;
   const takeAt = new Map();
@@ -344,7 +351,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: text.length });
-  }, { openTurn });
+  }, { openTurn, keepTurn });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
   const steps = [];
@@ -524,7 +531,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
   // the one rule both doors read). Asked before the walk, because it decides what the walk may offer.
   const open = openTurn(cfg, m, { rates: cfg.ratesFor?.(j.model) ?? null });
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open });
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, open });
   const applied = applyCut(j.messages, d.cut);
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only

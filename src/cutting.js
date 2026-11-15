@@ -81,6 +81,11 @@ export const chargedRewrite = u => isRewrite(u) && (u?.read || 0) > 0;
 // nothing here reads how long a session has run, which is what made REMAINING wrong.
 export const PAYBACK = 25;
 
+// How many of a running turn's newest results a long-turn cut leaves alone (`proxy.js:PROXY_DEFAULTS.keepTurn`,
+// `walkResults`). Lives here, with the rest of the policy, because `policyId` has to name it and `cutting.js` may
+// never import `proxy.js` -- the dependency runs the other way.
+export const KEEP_TURN = 10;
+
 // --- which policy made a saving ---------------------------------------------------------------------------
 // A cleared token is worth what the policy that cleared it was worth, and the policies differ by more than
 // rounding: the API-side clearing was measured as a loss, and the 100k floor cut nothing at all on this
@@ -108,7 +113,10 @@ export const POLICY_REV = 4;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`
-  + (cfg.longTurn ? '-lt' : '');
+  // `-lt<n>`: the long-turn rule, and how many of a running turn's newest results it kept. The number is a
+  // setting in force like the trigger and the floor, and the one that decides whether a cut inside a turn left
+  // the model its working set, so a saving made at ten is never pooled with one made at three.
+  + (cfg.longTurn ? `-lt${round(cfg.keepTurn ?? KEEP_TURN)}` : '');
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.

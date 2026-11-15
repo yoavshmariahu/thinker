@@ -195,23 +195,31 @@ test('a cut made inside a long turn is reconstructed, and only with the rule tha
   assert.deepEqual(rereadsOf(p, cuts), { reads: 0, tokens: 0, laterTokens: 0 });
   // with the rule in force: the turn's five finished results are eligible, c, d and e are the newest three, so a and b
   // went -- and a is read again
-  const r = rereadsOf(p, cuts, { longTurn: true, trigger: 2000 });
+  const r = rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepTurn: 3 });
   assert.equal(r.reads, 1);
   assert.equal(r.tokens, Math.round(BIG.length * RESULT_TOKENS_PER_CHAR));
   // and the turn has to have passed the trigger, exactly as the proxy required of it
-  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 10_000_000 }).reads, 0, 'a turn under the trigger is whole');
+  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 10_000_000, keepTurn: 3 }).reads, 0, 'a turn under the trigger is whole');
+  // the tail the cut protected is the tail this keeps: at `keepTurn` 5 nothing of the turn's five results went, so
+  // reading one again is not reading something the cut took (proxy.js:walkResults keeps the same number)
+  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepTurn: 5 }).reads, 0,
+    'a wider tail than the turn had leaves nothing cleared, so nothing counts as read again');
   // a result the turn had not finished when the cut was made is not in the set: a cut at 00:30 had a, b, c and d to
   // take (e is the newest kept), so both later reads are re-reads -- a cut at 00:12 had only a, so d's is not
-  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepMin: 1 }).reads, 2, 'a and d both went');
-  assert.equal(rereadsOf(p, [Date.parse(T('00:12'))], { longTurn: true, trigger: 1000, keepMin: 1 }).reads, 1,
+  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepTurn: 1 }).reads, 2, 'a and d both went');
+  assert.equal(rereadsOf(p, [Date.parse(T('00:12'))], { longTurn: true, trigger: 1000, keepTurn: 1 }).reads, 1,
     'd was not read until after that cut, so that cut cannot have taken it');
 });
 
 test('which policy made a session\'s cuts is read off the stamp the cut left, not off settings', () => {
   const dir = tmp();
   const where = { session: 'ses_lt', dir };
-  fs.writeFileSync(path.join(dir, 'ses_lt.json'), JSON.stringify({ session: 'ses_lt', cleared: 9, policy: 'r3-t50k-f8k-p25-deep-lt' }));
-  assert.deepEqual(cutPolicyFor(where), { longTurn: true, trigger: 50_000 }, 'the trigger that was in force, from the stamp');
+  fs.writeFileSync(path.join(dir, 'ses_lt.json'), JSON.stringify({ session: 'ses_lt', cleared: 9, policy: 'r3-t50k-f8k-p25-deep-lt10' }));
+  assert.deepEqual(cutPolicyFor(where), { longTurn: true, trigger: 50_000, keepTurn: 10 },
+    'the trigger and the kept tail that were in force, both from the stamp');
+  // a stamp from before the count was named reads at the number in force then, which was keepMin
+  fs.writeFileSync(path.join(dir, 'ses_old.json'), JSON.stringify({ session: 'ses_old', cleared: 9, policy: 'r3-t140k-f8k-p25-deep-lt' }));
+  assert.deepEqual(cutPolicyFor({ session: 'ses_old', dir }), { longTurn: true, trigger: 140_000, keepTurn: 3 });
   fs.writeFileSync(path.join(dir, 'ses_plain.json'), JSON.stringify({ session: 'ses_plain', cleared: 9, policy: 'r3-t140k-f8k-p25-deep' }));
   assert.deepEqual(cutPolicyFor({ session: 'ses_plain', dir }), {}, 'no rule named: read as it always was');
   assert.deepEqual(cutPolicyFor({ session: 'ses_none', dir }), {}, 'no record at all');
