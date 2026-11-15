@@ -19,6 +19,30 @@ import { readMachineConfig } from '../repo-switch.js';
 
 export { proxyLogFile };
 
+// What the proxy says about itself when it starts: for anyone who runs it by hand rather than as a service,
+// this sentence is the only description of the policy they get.
+//
+// Extracted from the `onListen` callback on 2026-11-15 because built inline it could not be tested, and it had
+// been printing "keeping the newest undefined" ever since the cut moved client-side: it read `cfg.keep`, the
+// API-side edit's keep ('turn' or a count), which no config has carried since. It now names what the policy
+// actually does -- the tail it keeps, the wider tail a cut inside a long turn leaves, and whether a finished
+// call's own text goes with its result -- so this sentence and `cutting.js:policyId` say the same thing.
+export function proxyBanner(cfg, port) {
+  const at = `http://127.0.0.1:${port}`;
+  if (cfg.protocol === 'responses') {
+    return `Responses proxy on ${at} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.`
+      + `\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}`
+      + `\nIn a separate Codex provider, set base_url = "${at}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.`
+      + `\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`;
+  }
+  const tail = `keeping the newest ${cfg.keepMin}${cfg.longTurn ? ` (${cfg.keepTurn} inside a long turn)` : ''}`;
+  const inputs = cfg.cutInputs ? ", with each finished call's own text" : '';
+  const held = cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : '';
+  return `thinker proxy on ${at} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, ${tail}, at least ${cfg.clearAtLeast} at a time${inputs}${held}.`
+    + `\nPoint the agent at it: ANTHROPIC_BASE_URL=${at}`
+    + (cfg.codex ? `\nCodex: ${at}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '');
+}
+
 async function proxyCommand({ pos, flags, out, repo, HERE }) {
   const sub = pos[0] || 'serve';
   const logFile = proxyLogFile();
@@ -177,11 +201,7 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
     // goes, so nothing starts it again, but the requests in hand are answered rather than cut off, which matters
     // most where the refusals were an expired token and not a gateway after all.
     onStandDown: reason => { try { standDown(reason, { port: cfg.port, manage: false }); } catch { /* the request in hand matters more */ } },
-    onListen: a => out(cfg.protocol === 'responses'
-      ? `Responses proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears old text tool outputs, preserving the current turn and at least ${cfg.keepMin} newest outputs.\nTriggers at ~${cfg.trigger} tokens and removes at least ~${cfg.clearAtLeast} (request bytes / 4; estimates, not measured savings).${cfg.holdout ? ` ${cfg.holdout * 100}% holdout.` : ''}\nIn a separate Codex provider, set base_url = "http://127.0.0.1:${a.port}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`
-      : `thinker proxy on http://127.0.0.1:${a.port} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, keeping the newest ${cfg.keep === 'turn' ? cfg.keepMin : cfg.keep}, at least ${cfg.clearAtLeast} at a time${cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : ''}.` +
-      `\nPoint the agent at it: ANTHROPIC_BASE_URL=http://127.0.0.1:${a.port}` +
-      (cfg.codex ? `\nCodex: http://127.0.0.1:${a.port}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '')),
+    onListen: a => out(proxyBanner(cfg, a.port)),
   });
   server.on('listening', () => recordProxyListening(server.address().port));
   server.on('error', e => { out(`thinker proxy: ${e.message}`); process.exitCode = 1; });
