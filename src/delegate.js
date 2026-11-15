@@ -351,7 +351,10 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // conversation at its own model). The budget is spent before the denial goes out, so a second read of the
     // turn cannot be denied even if its hook runs at the same moment as this one.
     state.update(st => noteHandoff(st, prompt, d.kind));
-    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length });
+    // `model` where the host's agent is pinned to one (Claude Code's Explore.md, `pins`): the saving nets the
+    // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
+    // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
+    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? { model: cfg.model } : {}) });
     return denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label: handoffLabel(d.kind, files, cwd) } });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }

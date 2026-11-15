@@ -1,9 +1,10 @@
 // What thinker has saved in dollars, for the footer surfaces: today, and over the whole log.
 //
 // The figures are the Report page's own savings table (report-savings.js:weeklySavings), asked for two
-// windows instead of six weeks: one column from midnight, one from the beginning of the log. Both rows
-// are counted -- the context clearing at the prompt-cache read rate -- so the footer can never disagree with
-// `thinker report`.
+// windows instead of six weeks: one column from midnight, one from the beginning of the log. Every series
+// there is counted -- the context clearing at the prompt-cache read rate, and since 2026-11-14 the reads the
+// delegation trigger kept out of the lead's context (report-savings.js:delegationSavings) -- so the footer
+// can never disagree with `thinker report`.
 // Nothing is priced here that is not priced there (the owner's call, 2026-11-05: the footer shows money,
 // which the rest of the product deliberately does not, and the one way to keep that honest is to show
 // the Report's own arithmetic rather than invent a second one). prices.js holds why dollars are rare:
@@ -48,7 +49,7 @@ export const dayKey = (now = Date.now()) => {
 };
 export const dayStart = (now = Date.now()) => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 } });
+const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 }, delegated: { cost: 0, tokens: 0 } });
 
 // One window's row: the clearing, with the tokens behind the dollars. A row with observations but no price adds its
 // tokens to `unpricedTokens` rather than nothing, so an unpriced model is a gap the output can name, not a silent zero.
@@ -58,6 +59,7 @@ function cellOf(series) {
     const c = series.find(s => s.key === key)?.cells[0];
     if (!c) continue;
     if (key === 'compression') { out.cleared.cost = c.cost; out.cleared.tokens = c.tokens; }
+    if (key === 'delegation') { out.delegated.cost = c.cost; out.delegated.tokens = c.tokens; }
     out.cost += c.cost; out.tokens += c.tokens; out.unpricedTokens += c.unpricedTokens || 0;
   }
   return out;
@@ -171,5 +173,7 @@ export function savingsStatus(ledger, { now = Date.now() } = {}) {
 export function savingsDetail(cell) {
   if (!cell) return '';
   const row = (name, c) => `${name} ${formatDollars(c.cost)} (${formatTokens(c.tokens)} tokens)`;
-  return row('context cleared', cell.cleared);
+  // the delegated row only where there is one: most machines run without the trigger, and a ledger written
+  // before the series existed has no such cell
+  return [row('context cleared', cell.cleared), ...(cell.delegated?.tokens ? [row('reads delegated', cell.delegated)] : [])].join(' · ');
 }

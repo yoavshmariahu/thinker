@@ -150,6 +150,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Session record + proxy log; desktop clears priced from API counts, by session (`compression.js:desktopClearRows`).
 - Status row on all clients; mod polls ledger file every 5 s (`LEDGER_POLL_MS`).
 - Version on status line (`appVersion()`) alongside savings.
+- **Delegated reads are a second series, and the footer total adds it** (2026-11-14, the owner's ask; `report-savings.js:delegationSavings`, series `delegation`, the ledger's `delegated` cell). One rule: the lead did not write the read into its cache and did not read it back on any later call. The write is netted against the subagent (its own `cost` on a fallback row; the same tokens at the pinned `model`'s write rate on a handoff row; zero where neither is known), the later calls are the proxy's rows for the session on its lead model, stopping where the turn count falls (a compaction). Not a firing: held out, declined, failed, cached, or a handoff the lead ignored (a later `after: 'handoff'` row naming the same file). A delegated read is never in the prompt, so the clearing cannot also count it: same kind of token, never the same token. A ceiling, as the clearing's gross is: the subagent's own overhead on a handoff and the report it sends back are not deducted.
 
 **OpenCode 2 terminal (2026-11-10):**
 - Plugin directory (`plugins/thinker/`) with `index.ts` (server) + `tui.tsx` (terminal); v1 single file for major < 2.
@@ -245,7 +246,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   so a ~35k read pays for its subagent on the write alone. The edits stay with the model: a builder subagent was a
   wash (it re-reads and re-reasons what the lead holds). Replayed over this machine's 30 days the rule projects to
   ~4.6% of spend, 96% of it in sessions that also reach the clearing's trigger -- the two act on the same tokens,
-  so their figures are never added; the write half (~$190 of $291 a month here) is delegation's alone.
+  so the *projections* are never added (the measured figures are: a delegated read is not there to be cleared, see Savings footer); the write half (~$190 of $291 a month here) is delegation's alone.
 - Measured from day one: every firing is a log row (`op: delegate`: kind, files, tokens, `mode`, and for a handoff
   the `agent` and `handoffTool` it named; for the fallback the subagent's usage and `total_cost_usd`, its session
   id, `cached`, `error`). A handoff carries no cost of its own on the row **on purpose** -- the host bills it, and

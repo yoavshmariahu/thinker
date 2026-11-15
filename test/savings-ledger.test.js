@@ -213,3 +213,22 @@ test('through the Stop hook: the line carries the money in Codex, the card mod c
   fs.rmSync(path.join(home, 'state', 'notice.json'), { force: true });
   assert.equal(stop('codex', 'c3', { THINKER_NOTICE: 'off' }), '');
 });
+
+test('a delegated read is in the footer total, beside the clearing and named in the split', t => {
+  const now = Date.now();
+  const { store } = machine(t, { now, cleared: [{ at: now - 60_000, tokens: 100_000 }] });
+  const before = computeSavings(store, { now });
+  assert.equal(before.lifetime.delegated.tokens, 0);
+  assert.ok(!savingsDetail(before.lifetime).includes('delegated'), 'no row where nothing was delegated');
+  // the trigger hands a 40k read to a subagent pinned to a cheaper model, in a session the log knows
+  store.log({ op: 'delegate', t: new Date(now - 30_000).toISOString(), session: 'p', kind: 'explore', files: ['code.js'], tokens: 40_000, held: false, mode: 'handoff', model: 'claude-haiku-5-5' });
+  const l = computeSavings(store, { now });
+  assert.ok(l.today.delegated.cost > 0 && l.today.delegated.tokens === 40_000);
+  assert.equal(l.today.cleared.cost, before.today.cleared.cost, 'the clearing is counted as it was');
+  assert.ok(Math.abs(l.today.cost - (l.today.cleared.cost + l.today.delegated.cost)) < 1e-9, 'the total is the two rows');
+  assert.ok(Math.abs(l.lifetime.cost - (before.lifetime.cost + l.lifetime.delegated.cost)) < 1e-9);
+  assert.match(savingsDetail(l.lifetime), /context cleared .* · reads delegated /);
+  assert.ok(savingsLine(l, { now }).includes(formatDollars(l.today.cost)));
+  // a ledger an older copy wrote has no such cell and still words
+  assert.equal(savingsDetail({ cleared: { cost: 1, tokens: 10 } }), `context cleared ${formatDollars(1)} (10 tokens)`);
+});
