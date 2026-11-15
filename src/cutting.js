@@ -81,6 +81,11 @@ export const chargedRewrite = u => isRewrite(u) && (u?.read || 0) > 0;
 // nothing here reads how long a session has run, which is what made REMAINING wrong.
 export const PAYBACK = 25;
 
+// How many of a running turn's newest results a long-turn cut leaves alone (`proxy.js:PROXY_DEFAULTS.keepTurn`,
+// `walkResults`). Lives here, with the rest of the policy, because `policyId` has to name it and `cutting.js` may
+// never import `proxy.js` -- the dependency runs the other way.
+export const KEEP_TURN = 10;
+
 // --- which policy made a saving ---------------------------------------------------------------------------
 // A cleared token is worth what the policy that cleared it was worth, and the policies differ by more than
 // rounding: the API-side clearing was measured as a loss, and the 100k floor cut nothing at all on this
@@ -107,8 +112,11 @@ export const PAYBACK = 25;
 export const POLICY_REV = 4;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`
-  + (cfg.longTurn ? '-lt' : '');
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}`
+  // `-lt<n>`: the long-turn rule, and how many of a running turn's newest results it kept. The number is a
+  // setting in force like the trigger and the floor, and the one that decides whether a cut inside a turn left
+  // the model its working set, so a saving made at ten is never pooled with one made at three.
+  + (cfg.longTurn ? `-lt${round(cfg.keepTurn ?? KEEP_TURN)}` : '');
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -193,6 +201,31 @@ export const clearedUsesOf = r => r?.clearedUses || r?.clientCut?.cut || 0;
 // count into `cleared`, the field the API used to fill, so asking whether `cleared` is set no longer tells
 // a measurement from an estimate. A row from the API-side era carries no `clientCut` at all.
 export const clearedEstimated = r => cutEstimateProtocol(r) || r?.clientCut?.tokens > 0;
+
+// What a finished call's own text becomes. Not a blank: #611 removed input cutting partly because blanking the
+// call taught the model a false history of itself -- in a 28-turn run it read its own emptied calls, reported it had
+// been "making the tool calls without file paths", and started doing that. So three rules hold here, and the tests
+// hold them: every key the agent sent stays, every short value stays verbatim (a `description`, a `file_path`, a
+// flag -- which is what the model reads to know what it did), and only a long string body is replaced. The text
+// says the call was made in full and tells the model not to copy the shape, because on OpenCode 2 the wording of a
+// substitution is the mechanism and not a detail (delegate.js:denial, AGENTS.md).
+export const inputPlaceholder = chars =>
+  `[thinker removed this finished call's text after use: ${chars} chars. You made the call in full and saw its result at the time, so answers you already gave from it stand. This is not how a call is written: write yours out in full. Make it again if you need the text.]`;
+
+// The fields of one `tool_use.input` a cut may take, and what is left in its place. A value is replaced only where
+// it is a string at least `MIN_CHARS` long -- `Bash.command` and `Write.content` are 84% of the input bytes on this
+// machine, and `Bash.description` and the paths are the small ones that stay. Returns null when there is nothing
+// worth taking, so a call whose input is all short values is never touched at all.
+export function cutInput(input, { minChars = MIN_CHARS } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  let chars = 0;
+  const out = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v === 'string' && v.length >= minChars) { chars += v.length; out[k] = inputPlaceholder(v.length); }
+    else out[k] = v;
+  }
+  return chars > 0 ? { input: out, chars } : null;
+}
 
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,

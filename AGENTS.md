@@ -100,11 +100,23 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   forever: the cut could not fire however large it grew. Found by the container e2e (demo/e2e) on
   2026-11-13 -- one prompt, 16 calls, 5k -> 193k tokens against a 140k trigger, all 16 refused
   `nothing-to-cut`; the same work as three prompts cut 174k at the first boundary.
-- The rule, and it needs no new number: **the turn is kept whole until the turn's own results reach the
-  trigger**, and past that the newest `keepMin` are protected as in any other stretch. A conversation's
-  turn never reaches it and behaves exactly as before. `measurePrompt` reports `inTurn` beside `prompt`
+- The rule: **the turn is kept whole until the turn's own results reach the trigger**, and past that the
+  newest **`keepTurn` (10)** are protected. A conversation's turn never reaches it and behaves as before. `measurePrompt` reports `inTurn` beside `prompt`
   (the trigger leaves the turn in progress out, which is what keeps a verdict still within a turn; the
   long-turn branch adds it back, which is the only way a one-prompt job is reachable at all).
+- **`keepTurn` is 10, not `keepMin`'s 3** (the owner's call, 2026-11-14, `cutting.js:KEEP_TURN`,
+  `proxy.js:walkResults`). An ordinary cut protects the turn in progress whole, so the model never loses a
+  result it is working from; this cut has to name a count instead, and three of a hundred is the one shape
+  in which this rule could make a model answer out of a gap rather than read again -- the single failure
+  `rereads.js` cannot see, because a model that confabulates asks for nothing. A number, so `--keep-turn`,
+  `THINKER_PROXY_KEEP_TURN` and `proxy: { keepTurn }` all reach it, and `policyId` carries it (`-lt10`).
+- **What the wider tail costs:** a cut's rewrite is priced on the tail from the first result it replaces to
+  the end (`priceCut`: `recache x (write - read) - read x removed`), and a protected tail sits inside that
+  tail -- so keeping ten rewrites more while removing less, and can leave too little to repay within
+  `PAYBACK`. On the shape this rule is for -- many results of a module's size -- it never bites (40 reads
+  of 12k chars: 37 removed at 3, 30 at 10). On a turn of a few very large reads it does, and the rule
+  stands down (25 reads of 20k chars: 22 removed at 3, refused `payback` at 10). That is the safe side of
+  the trade: a turn of 25 big reads is exactly where leaving the model 3 of them would have been worst.
 - Inside such a turn the **floor and `PAYBACK` do the pacing** the boundary used to do: another cut needs
   another floor's worth of finished results and must repay its own rewrite within 25 calls.
 - Live in a container, same prompt and same work (2026-11-14): **off** 16 calls, peak context 193,193
@@ -112,8 +124,46 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   The model answered both times. What a fixture cannot show is whether a real model re-reads what was taken
   from under it -- that is `rereads.js`'s question and the reason this ships off.
 - On: `THINKER_PROXY_LONG_TURN=on`, `--long-turn`, or `proxy: { longTurn: true }`. The saving names it
-  (`policyId` adds `-lt`), so a figure made with it is never compared with one made without. The desktop
-  mod is exempt with a reason (`test/claude-clear.test.js`): a turn there ends when the person types.
+  (`policyId` adds `-lt<keepTurn>`), so a figure made with it is never compared with one made without, nor
+  one made at another tail. The desktop mod is exempt with a reason (`test/claude-clear.test.js`): a turn
+  there ends when the person types.
+- **The re-read figure reads this cut, and had to be taught to** (`rereads.js:cutPolicyFor`, 2026-11-14).
+  `rereadsOf` rebuilds the cleared set from the transcript on the shared rule -- a cut takes the results of
+  the turns *before* its own -- so for a `-lt` session it found an empty set and reported **zero** re-reads:
+  the one figure that decides this rule read free by construction. It now reads which policy made the
+  session's cuts off the stamp the cut left (never off today's settings, since a session may predate a
+  change) and reconstructs an in-turn cut with the same trigger and the same `keepTurn` the cut used.
+
+**A cut takes the finished call's own text too, by default (2026-11-14, the owner's call; `cutting.js:cutInput`,
+`proxy.js:applyCut`, `cutInputs`):**
+- #611 removed exactly this on 2026-11-04. One of its two reasons has expired: inputs bought **0.6%** of what
+  results buy -- measured on a session whose `tool_use` inputs were 2,800 chars, a file path each. Measured again
+  on 2026-11-14 over 8 sessions of this machine: **3.1M chars of inputs, 72% `Bash.command` heredocs and 12%
+  `Write.content`, 13.3% of what a cut must rewrite.** The workload changed, so the answer did.
+- The other reason stands and shapes the code: blanking a call taught the model **a false history of itself** -- in
+  a 28-turn run it read its own emptied calls, reported it had been "making the tool calls without file paths", and
+  began doing that. So this is **never a blank**: every key the agent sent stays, every value shorter than
+  `MIN_CHARS` stays verbatim (a `description`, a `file_path`, a flag -- what the model reads to know what it did),
+  and only a long string body is replaced. A call whose input is all short values is not touched. Thinking is never
+  touched -- that was the edit that broke the API in October. The placeholder's words say the call was made in full
+  and tell the model not to copy the shape, because on OpenCode 2 the wording of a substitution is the mechanism.
+- Only ever beside the result: a call keeps its text while its result is still in the prompt, because the pair is
+  what the model reads. The ladder prices both halves (`cand.chars`, `cand.inputChars`) -- counting only the
+  results, a step understated its own saving and was refused for a payback it in fact makes.
+- On by default; `proxy: { cutInputs: false }`, `--no-cut-inputs`, `THINKER_PROXY_CUT_INPUTS=off`. The stamp carries
+  `+in` (`r4-t140k-f8k-p25-deep+in`), so a figure with the calls in it is never pooled with one without. The desktop
+  mod mirrors the naming function and keeps the flag off, with the reason recorded: in the desktop app an input
+  really is a file path, so the 2026-11-04 measurement still holds there.
+- Measured, 8 of this machine's biggest sessions, 4,891 calls, same bodies: the recent policy cut **1** (0.07M),
+  today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with `keepTurn` 3 as well **9**
+  (0.25M). Real, and small in absolute terms: `payback` still refuses ~863 calls either way.
+- **The exposure.** `tool_use_rewritten` is a named break of the preserved-thinking check whose only listed remedy
+  is "echo `tool_use.input` exactly as received" -- unlike a result prune, which the same table allows client-side
+  "at a declared boundary, as a pure function of the growing history". So on accounts created on or after
+  2026-08-31, and on Fable 5.2 / Mythos 5.2 for every account, this can 400 where cutting results alone would not.
+  thinker sets no `prefix_mismatch_behavior`, so on an older account the check does not run at all. The server-side
+  alternative is `clear_tool_uses_20250919` with `clear_tool_inputs: true`, which is exempt from the check -- and is
+  what the pre-2026-11-04 proxy used (`injected: true, inputs: true` on those log rows, no `clientCut`).
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
@@ -129,6 +179,31 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Stands down with reason if credentials fail or API refuses `AUTH_REFUSALS` times.
 - Sits in front of a gateway only on `thinker proxy on --gateway` + user yes; kept in service state, or `proxy: { upstream }` wins.
 - On 400 to context-management edit with non-Anthropic upstream: if refusal names field/beta, drop edit rest of proxy's life (`editRejected`, `proxy-edit-rejected` row, `edit-unsupported` read); any other 400 passed once, edit still added next request.
+
+**The API refusing a conversation thinker rewrote (2026-11-15, the owner's ask):**
+- Two refusals, two scopes. `refusesEdit` is an upstream that cannot take the server-side field at all: stops editing
+  for the proxy's life. **`refusesHistory` is the API rejecting the rewritten history: stops cutting for that session
+  alone** (`rejectedSessions`), because the bound thinking is one conversation's and the proxy serves every agent on
+  the machine. A stood-down session never cuts again; the request goes again as the agent wrote it, so the agent
+  always gets its answer and never sees the 400.
+- **Explicit only.** The body must name the thing checked AND what was wrong with it (`tool_use_rewritten`,
+  `tool_results_rewritten`, `prefix_mismatch` are each enough alone; `thinking block` needs a verdict beside it). A
+  model name, a rate limit, a malformed body may never stop the cutting -- the October lesson (LiteLLM, a 400 over a
+  model name taken for a refusal) is why. `refusesEdit`'s vocabulary could not see a prefix-check refusal at all,
+  so before this it reached the agent as its own 400 and nothing stood down.
+- **Why it exists now:** a pruned tool *result* has a sanctioned client-side form; a rewritten tool_use *input* has
+  none ("echo `tool_use.input` exactly as received"), so cutting a call's own text is the half of a cut the check
+  names. Enforced for accounts created on or after 2026-08-31 and on Fable 5.2 / Mythos 5.2 for every account.
+- **A metric, on the Token spend dashboard** (`telemetry.js:proxyMetrics` → `rejected: {total, history, edit,
+  sessions, messages, responses}`; two cards in `scripts/spend-dashboard.mjs`). Counts only: what the API said quotes
+  the machine's own request back and stays in its log. The scalar is the number that must stay at zero. Split by
+  door, because only the Messages path rewrites a call's own text and only it binds thinking to the conversation's
+  bytes -- the Responses (Codex) door replaces results alone, so a refusal there means something else, and a machine
+  that uses only that door may not read as a blank (`test/metrics-dashboard.test.js` holds every card to both).
+- Measured before it shipped: 22 days, 30,341 proxied requests, 12,537 with a thinker edit, **2** 400s -- both
+  2026-10-24, both the API-side clearing era, none since the cut moved client-side. The valve has never fired.
+- Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed
+  on it and could only ever read 1.
 
 **A request that never reached the API recovers (2026-11-05, `src/proxy-retry.js`):**
 - Address cache (`addressBook`, cached 6 h), ladder (`RETRY_WAITS` 0.25–4s), fresh socket for TLS/EHOSTUNREACH.

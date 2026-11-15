@@ -28,7 +28,7 @@
 import path from 'node:path';
 import { Buffer } from 'node:buffer';
 import { PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from './proxy.js';
-import { MIN_CHARS, clearedOf } from './cutting.js';
+import { MIN_CHARS, KEEP_TURN, clearedOf } from './cutting.js';
 import { shellRead } from './delegate.js';
 import { compressionRecords, readCompression, CLEARING_OP } from './compression.js';
 
@@ -74,7 +74,26 @@ export function cutTimesFor({ session, proxyLog = null, dir = null, events = [] 
   return [...out].sort((a, b) => a - b);
 }
 
-// The cut policy this session's cuts were made under (cutting.js:policyId, e.g. `r4-t140k-f8k-p25-deep-lt`), as the
+// The identity of a tool call, for every tool that is not reading a file: the tool's name and its input, exactly.
+// This is what makes a re-DO visible. The cut takes every tool result over `MIN_CHARS`, whatever made it, and on this
+// machine's own sessions reads are 1.7% of what it takes by tokens -- Bash is 84%, and only 6% of that prints a file
+// (measured 2026-11-14 over 12 cut sessions, 2.1M tokens). A model that runs the same grep again, or the same suite,
+// because the result is gone pays exactly what a re-read pays: the write once more, and a cache read on every later
+// call. Counting only files left 93% of the cut's cost scoring zero.
+//
+// Exact, where the file rule is loose. A read of the same file by any means is the same read (`sameFile` matches an
+// absolute path against a relative one), because the file is the thing recovered. A search is not: `grep -rn foo src`
+// and `grep -rn foo lib` recover different things, and calling the second a re-do would invent a cost. So the key is
+// the input as sent, with object keys ordered so that formatting alone never makes two calls differ. The figure is
+// therefore a ceiling on re-reads and a count of exact repeats for everything else; a near-repeat is new work here.
+const ordered = v => (Array.isArray(v) ? v.map(ordered)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k => [k, ordered(v[k])])) : v);
+export const callKey = (name, input) => {
+  if (!name) return null;
+  try { return `${name}\u0000${JSON.stringify(ordered(input ?? {}))}`; } catch { return null; }
+};
+
+// The cut policy this session's cuts were made under (cutting.js:policyId, e.g. `r3-t140k-f8k-p25-deep-lt`), as the
 // options `rereadsOf` needs: whether the long-turn rule was in force (`-lt`) and the trigger that was (`t140k`). Read
 // off the stamp the cut itself left and never off today's settings, because a session may predate a change -- the same
 // reason the stamp exists (AGENTS.md, "Every saving names the cut policy that made it"). The record's stamp first, the
@@ -85,19 +104,22 @@ export function cutPolicyFor({ session, proxyLog = null, dir = null } = {}) {
   let record = null; try { record = dir ? readCompression(dir, session) : null; } catch { record = null; }
   if (record?.policy) names.push(String(record.policy));
   for (const r of proxyLog ? compressionRecords(proxyLog) : []) if (r.session === session && r.policy) names.push(String(r.policy));
-  const lt = names.find(n => /-lt$/.test(n));
+  const lt = names.find(n => /-lt\d*$/.test(n));
   if (!lt) return {};
   const m = lt.match(/-t(\d+)(k?)-/);
   const trigger = m ? Number(m[1]) * (m[2] ? 1000 : 1) : PROXY_DEFAULTS.trigger;
-  return { longTurn: true, trigger };
+  // `-lt10`: how many of the running turn's newest results that cut left alone. A stamp from before the count was
+  // named (a bare `-lt`) is read at the number in force then, which was `keepMin`.
+  const k = lt.match(/-lt(\d+)$/);
+  return { longTurn: true, trigger, keepTurn: k ? Number(k[1]) : PROXY_DEFAULTS.keepMin };
 }
 
 // The re-reads of a parsed transcript (transcripts.js:parseTranscript: `events` with the prompts and the tool calls,
 // each tool call stamped `at` and indexed `call` into `calls`, the model calls with their own `t`), given the cut times.
 // Returns the count, the tokens read again, and `laterTokens`: each re-read's tokens times the calls it stayed in
 // the prompt for -- what delivery.js prices at the cache-read rate.
-export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS, longTurn = false, trigger = PROXY_DEFAULTS.trigger } = {}) {
-  const none = { reads: 0, tokens: 0, laterTokens: 0 };
+export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS, longTurn = false, trigger = PROXY_DEFAULTS.trigger, keepTurn = KEEP_TURN } = {}) {
+  const none = { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 };
   const times = [...new Set((cuts || []).map(ms).filter(Boolean))].sort((a, b) => a - b);
   if (!times.length) return none;
   // the turns, by the prompt that opened each: a cut at T sits in the last turn opened at or before T
@@ -119,14 +141,18 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
     const k = turnOf(T);
     if (!k) continue;
     let older = results.filter(r => r.turn < k);
+    let keep = keepMin;
     if (longTurn) {
       // the turn's own finished results at T, and whether they had reached the trigger -- the turn's size as the
       // transcript can tell it (its results), where the proxy measured the whole turn, so this opens no earlier
       const inTurn = results.filter(r => r.turn === k && r.at && r.at <= T);
       const tok = inTurn.reduce((n, r) => n + Math.round(r.chars * RESULT_TOKENS_PER_CHAR), 0);
-      if (tok >= trigger) older = older.concat(inTurn);
+      // and such a cut protects `keepTurn`, not `keepMin` (proxy.js:walkResults): the reconstruction has to keep
+      // the same number the cut kept, or it reads results as gone that the model still had
+      if (tok >= trigger) { older = older.concat(inTurn); keep = keepTurn; }
     }
-    const protect = new Set(older.slice(-keepMin));
+    // `slice(-0)` is `slice(0)` -- the whole array -- so a keep of zero would protect everything rather than nothing
+    const protect = new Set(keep > 0 ? older.slice(-keep) : []);
     for (const r of older) if (!r.cleared && !protect.has(r) && r.chars >= minChars) r.cleared = turnAt[k];
   }
   // the model calls, for how long a re-read stays in the prompt
@@ -136,19 +162,31 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
     let n = 0; for (const t of callTimes) if (t > from && t < to) n++;
     return n;
   };
-  // a read whose last earlier read of the same file was out of the prompt when it ran; a shell line naming several
-  // files is one read, and a re-read if any of them was
+  // A call that fetches again what a cut took out. Two ways of being the same fetch, and a call is tried against one
+  // of them, never both: a call that names files is matched on the files (a shell line naming several is one read,
+  // and a re-read if any of them was), and every other call on its own identity (`callKey`).
   const last = [];   // [file, result], newest last
   const lastOf = file => { for (let i = last.length - 1; i >= 0; i--) if (sameFile(last[i][0], file)) return last[i][1]; return null; };
-  const out = { reads: 0, tokens: 0, laterTokens: 0 };
+  const lastCall = new Map();   // callKey -> the newest result under it
+  const out = { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 };
   for (const r of results) {
     const files = filesReadBy(r.e.name, r.e.input);
-    if (!files.length) continue;
-    const again = files.some(f => { const prev = lastOf(f); return prev?.cleared && prev.cleared <= r.at; });
-    for (const f of files) last.push([f, r]);
+    let again = false, kind = null;
+    if (files.length) {
+      kind = 'files';
+      again = files.some(f => { const prev = lastOf(f); return prev?.cleared && prev.cleared <= r.at; });
+      for (const f of files) last.push([f, r]);
+    } else {
+      const key = callKey(r.e.name, r.e.input);
+      if (!key) continue;
+      kind = 'calls';
+      const prev = lastCall.get(key);
+      again = !!(prev?.cleared && prev.cleared <= r.at);
+      lastCall.set(key, r);
+    }
     if (!again) continue;
     const tokens = Math.round(r.chars * RESULT_TOKENS_PER_CHAR) + (r.e.imageTokens || 0);
-    out.reads++; out.tokens += tokens; out.laterTokens += tokens * laterCalls(r);
+    out.reads++; out[kind]++; out.tokens += tokens; out.laterTokens += tokens * laterCalls(r);
   }
   return out;
 }
