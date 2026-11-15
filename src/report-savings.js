@@ -5,8 +5,83 @@ import { sessionKey } from './usage.js';
 import { clearedOf, clearedEstimated } from './cutting.js';
 
 const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedTokens: 0, estimatedTokens: 0 });
-// One series since 2026-11-08: the cache-hits series (reading the notes avoided, an estimate) went with the notes.
-export const SAVINGS_SERIES = [['compression', 'Context compression']];
+// The cache-hits series (reading the notes avoided, an estimate) went with the notes on 2026-11-08.
+// `delegation` since 2026-11-14 (the owner's ask): a read the trigger handed to a subagent never entered the
+// lead's context, so the clearing can never clear it and no figure anywhere said it had saved anything -- the
+// better delegation worked, the lower the footer read. The two series act on the same kind of token but never
+// on the same token (a delegated read is not there to be cleared), which is why the footer may add them.
+export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated']];
+
+// What one delegated read saved, in one rule: the lead did not write it into its cache, and did not read it
+// back on any later call. The write is netted against what the subagent paid for the same read -- its own
+// reported cost where thinker ran it (`cost`, the fallback), the same tokens at the subagent's write rate where
+// the host's agent is pinned to a model (`model`), and where neither is known the subagent is assumed to have
+// paid what the lead would have, so the write half is zero and only the later reads count.
+//
+// Which rows are firings: not held out, not declined, not failed, not a repeat answered from the turn's cache,
+// and not a handoff the model ignored -- a later `after: 'handoff'` row of the session naming the same file is
+// the lead reading it anyway, and then nothing was kept out.
+const fired = e => e?.op === 'delegate' && e.session && e.tokens > 0 && !e.held && e.fired !== false
+  && !e.declined && !e.skipped && !e.error && !e.cached;
+const write1h = price => price.cacheWrite1h ?? price.cacheWrite ?? 2 * price.input;
+const promptOf = r => (r.input || 0) + (r.read || 0) + (r.write || 0);
+// A row the proxy logged for a model call it carried (a desktop clear's row and a mirrored one are sums).
+const isCall = r => r?.op === 'proxy' && !r.recorded && r.session && typeof r.out === 'number' && r.status >= 200 && r.status < 300;
+
+export function delegationSavings({ events = [], compression = [], config } = {}) {
+  const calls = new Map(), models = new Map(), ignored = new Map(), out = [];
+  for (const r of compression) {
+    if (!isCall(r)) continue;
+    const k = sessionKey(r.session);
+    if (!calls.has(k)) calls.set(k, []);
+    calls.get(k).push({ t: Date.parse(r.at), model: r.model, turn: r.turn, prompt: promptOf(r), at: r.at });
+  }
+  // The lead is the model that carried the most prompt: a session's rows hold its subagents' calls and its
+  // title calls under the one id, and those are small. Later calls are the lead's alone.
+  const lead = new Map();
+  for (const [k, rows] of calls) {
+    rows.sort((a, b) => a.t - b.t);
+    const by = new Map();
+    for (const r of rows) by.set(r.model, (by.get(r.model) || 0) + r.prompt);
+    lead.set(k, [...by].sort((a, b) => b[1] - a[1])[0]?.[0] || null);
+  }
+  for (const e of events) {
+    if (e?.op === 'session' && e.session && e.model) models.set(sessionKey(e.session), e.model);
+    if (e?.op === 'delegate' && e.after === 'handoff' && e.session) {
+      const k = sessionKey(e.session);
+      if (!ignored.has(k)) ignored.set(k, []);
+      ignored.get(k).push({ t: Date.parse(e.t), files: new Set(e.files || []) });
+    }
+  }
+  for (const e of events) {
+    if (!fired(e)) continue;
+    const k = sessionKey(e.session), t = Date.parse(e.t), tokens = e.tokens;
+    if (!Number.isFinite(t)) continue;
+    if ((ignored.get(k) || []).some(x => x.t >= t && (e.files || []).some(f => x.files.has(f)))) continue;
+    const model = lead.get(k) || models.get(k) || null, price = listPrice(model, { config });
+    const row = { session: e.session, model, estimated: true };
+    // the write the lead did not make, less what the subagent paid for the same read
+    let cost = null;
+    if (price) {
+      const own = Number.isFinite(e.cost) ? e.cost : Number.isFinite(e.total_cost_usd) ? e.total_cost_usd : null;
+      const sub = own == null && e.model ? listPrice(e.model, { config }) : null;
+      const lead1h = tokens * write1h(price) / 1e6;
+      cost = own != null ? lead1h - own : sub ? lead1h - tokens * write1h(sub) / 1e6 : 0;
+    }
+    out.push({ ...row, at: t, tokens, cost });
+    // and every later call of the lead that would have read it back, until a compaction would have taken it
+    // out anyway (the turn count falls, since the conversation's prompts were summarised away)
+    let prev = null;
+    for (const r of calls.get(k) || []) {
+      if (r.model !== model) continue;
+      if (r.t <= t) { prev = r.turn ?? prev; continue; }
+      if (Number.isFinite(r.turn) && Number.isFinite(prev) && r.turn < prev) break;
+      if (Number.isFinite(r.turn)) prev = r.turn;
+      out.push({ ...row, at: r.t, tokens, cost: costOfInputSavings({ cacheRead: tokens }, price) });
+    }
+  }
+  return out;
+}
 export function weeklySavings({ columns, now, config, events = [], compression = [], sessions = [], origin, ownership = [] }) {
   const series = SAVINGS_SERIES.map(([key, name]) => ({ key, name, cells: columns.map(empty) }));
   const at = t => columns.findIndex((c, i) => t >= c.t && t < (columns[i + 1]?.t ?? Infinity) && t <= now);
@@ -48,6 +123,9 @@ export function weeklySavings({ columns, now, config, events = [], compression =
     if (!Number.isFinite(tokens) || tokens < 0) continue;
     account(0, { ...r, estimated }, tokens, costOfInputSavings({ cacheRead: tokens }, listPrice(r.model, { config })));
   }
+  // `events` is already the repository's own where a repository asked (report.js reads its log), so a firing
+  // needs no owner: it is counted where its hook logged it, with the session's later calls wherever they went.
+  for (const d of delegationSavings({ events, compression, config })) account(1, d, d.tokens, d.cost);
   return series;
 }
 
