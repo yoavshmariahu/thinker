@@ -633,7 +633,7 @@ export function subagentStats(file, session) {
   for (const s of subagentSessions([{ client: 'claude', file, session }])) {
     try {
       const p = parseTranscript(s.file), st = p.stats || {};
-      out.push({ agent: s.agent, type: s.type || undefined, model: p.model || undefined, turns: st.turns, inputTokens: st.inputTokens, outputTokens: st.outputTokens, cacheReadTokens: st.cacheReadTokens, cacheWriteTokens: st.cacheWriteTokens, cacheWrite1hTokens: st.cacheWrite1hTokens, totalTokens: st.totalTokens, tokenCoverage: st.tokenCoverage });
+      out.push({ agent: s.agent, type: s.type || undefined, model: p.model || undefined, at: (p.calls || []).map(c => c.t).filter(Boolean).sort((a, b) => a - b)[0] || undefined, turns: st.turns, inputTokens: st.inputTokens, outputTokens: st.outputTokens, cacheReadTokens: st.cacheReadTokens, cacheWriteTokens: st.cacheWriteTokens, cacheWrite1hTokens: st.cacheWrite1hTokens, totalTokens: st.totalTokens, tokenCoverage: st.tokenCoverage });
     } catch {}
   }
   return out;

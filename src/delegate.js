@@ -207,6 +207,19 @@ export function noteHandoff(st, prompt, kind) {
   d.handoffs[kind] = (d.handoffs[kind] || 0) + 1;
 }
 
+/**
+ * The session's real handoffs, kept in its state for the end of the turn: delegated.js reads them against the
+ * transcript (what the read would have cost in every later call, whether the lead read the file anyway, which
+ * subagent did the reading), as rereads.js does for the clearing's cuts. The log row is the record; this is the
+ * copy the Stop hook can reach without reading the machine's log. Capped, since a state file is read on every hook.
+ */
+export function noteFiring(st, f) {
+  if (!f || !(f.tokens > 0)) return;
+  if (!Array.isArray(st.delegated)) st.delegated = [];
+  st.delegated.push(f);
+  if (st.delegated.length > 200) st.delegated = st.delegated.slice(-200);
+}
+
 // ---- the subagent ----
 export const EXPLORER_PROMPT = `You explore a codebase for a lead engineer who will not read the files. Answer exactly the question in the brief. Report in at most {N} lines: each relevant function, class or section as \`path:line\` with one line on what it does and how it connects, and the exact lines to change if the brief asks. Quote at most 5 lines of code in total. Never paste a file or a long excerpt. Use the shell only for read-only commands. Never edit a file, never run tests.`;
 export const VERIFIER_PROMPT = `You verify work for a lead engineer. Run exactly the command in the brief, once. Report in at most 15 lines: first the final summary line exactly as the test runner printed it, copied verbatim; then for each failing test its name, the assertion message and the file:line it points at, and one line on the likely cause. If nothing ran (a collection or import error), say so in the first line. Never paste full output. Never edit a file.`;
@@ -350,7 +363,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // host's to bill and to show -- which is also how it is measured (the Report prices a subagent
     // conversation at its own model). The budget is spent before the denial goes out, so a second read of the
     // turn cannot be denied even if its hook runs at the same moment as this one.
-    state.update(st => noteHandoff(st, prompt, d.kind));
+    state.update(st => { noteHandoff(st, prompt, d.kind); if (d.kind === 'explore') noteFiring(st, { t: Date.now(), tokens: d.tokens, files, agent: exec.agent }); });
     // `model` where the host's agent is pinned to one (Claude Code's Explore.md, `pins`): the saving nets the
     // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
     // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
@@ -361,6 +374,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const r = await run({ kind: d.kind, brief, cwd, cfg });
   if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
   state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {}, handoffs: {} }; st.delegate.reports[d.key] = r.report; });
+  if (d.kind === 'explore') state.update(st => noteFiring(st, { t: Date.now(), tokens: d.tokens, files }));
   log({ ...row, model: r.model, usage: r.usage, cost: r.cost, ms: r.ms, reportChars: r.report.length, subagent: r.sessionId });
   return denial({ kind: d.kind, report: r.report, files, cwd, model: r.model });
 }
