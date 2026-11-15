@@ -104,7 +104,8 @@ export const PAYBACK = 25;
 export const POLICY_REV = 3;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`;
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`
+  + (cfg.longTurn ? '-lt' : '');
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -241,6 +242,37 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
+// --- the long-turn rule -----------------------------------------------------------------------------------
+// A cut only ever moved at a turn boundary, and a turn is from one prompt of the person's to the next. That
+// is right for a conversation: the results of the turn in progress are the ones the model is reasoning over,
+// and taking them away mid-thought is how a cut costs more than it saves.
+//
+// An autonomous job has no second prompt. One instruction, a hundred tool calls, and every one of them inside
+// the first turn -- so the whole context is protected, forever, and the cut never fires however large it
+// grows. Measured in demo/e2e on 2026-11-13: one prompt, 16 calls, context 5k -> 193k tokens against a 140k
+// trigger, and all 16 refused `nothing-to-cut` because there was nothing the rule allowed to be a candidate.
+// The same work split across three prompts cut 174k on the first boundary it reached. The sessions where
+// context costs most are exactly the ones the rule could not act on.
+//
+// So the turn is kept whole **until the turn itself is the size the trigger is about**, and past that the
+// newest `keepMin` results are protected instead, as in any other stretch of the conversation. No new number:
+// a turn that has put a trigger's worth of results into the prompt on its own is long by the only measure
+// this policy has ever used. A conversation's turn never reaches it and behaves exactly as before.
+//
+// What paces the cuts inside such a turn is what paces them everywhere else -- the size floor and `PAYBACK`.
+// A second cut needs another floor's worth of finished results and has to repay its own rewrite within 25
+// calls, so a long turn cuts in batches as it grows rather than on every call. That is the guard against the
+// thing turn-boundaries were protecting: a verdict that moves every call would move the cut with it.
+//
+// Off until measured (`longTurn`, PROXY_DEFAULTS): a cut policy is judged live on cache writes, never on a
+// replay, and this one has to be judged on the re-reads it causes (`rereads.js`) and not on the tokens it
+// removes.
+export const openTurn = (cfg, m, { rates = null } = {}) => {
+  if (!cfg?.longTurn) return false;
+  const eff = scaledPolicy(cfg, { rates });
+  return Number.isFinite(m?.inTurn) && m.inTurn >= eff.trigger;
+};
+
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes
 // are too. `cand` comes from proxy.js:cutCandidates -- the results outside the newest turn and the
 // newest `keepMin`, big enough to be worth a placeholder, not already cut.
@@ -264,13 +296,15 @@ export function decideCut(rec, cfg, m, opts = {}) {
   const d = decide(rec, eff, m, opts);
   return { ...d, policy: policyId(eff), ...(eff.scale ? { scale: eff.scale } : {}) };
 }
-function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null } = {}) {
+function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, open = false } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
   // A branch that refused something names itself; a request with nothing cuttable in it says so whichever branch
   // it took, because 'mid-turn' on a request that had nothing to cut anyway reads as a refusal that never happened
   // -- and mid-turn is most of the traffic, so that one label would drown the log it is meant to explain.
-  if (turn === rec.turn) return { ...same, reason: size ? 'mid-turn' : 'nothing-to-cut' };   // mid-turn: never move the set
+  // mid-turn: never move the set, unless the turn is long enough to be cut into (the long-turn rule above),
+  // in which case the floor and the payback do the pacing the boundary used to do.
+  if (turn === rec.turn && !open) return { ...same, reason: size ? 'mid-turn' : 'nothing-to-cut' };
   if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn, reason: size ? 'one-cut' : 'nothing-to-cut' };  // one cut a session, as the mod reads it
   const cold = rec.at > 0 && now - rec.at > COLD_MS;
   // A cold boundary cuts everything eligible, whatever the size (2026-11-06). Past the cache's hour this
@@ -287,7 +321,11 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
-  if (m.prompt < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
+  // What the trigger is asked about: everything before the turn in progress, plus the turn itself once the
+  // turn is one of the long ones. Leaving `inTurn` out is what keeps a verdict still within an ordinary
+  // turn; putting it in is the whole of what makes a one-prompt job reachable at all.
+  const carried = open ? m.prompt + (m.inTurn || 0) : m.prompt;
+  if (carried < cfg.trigger) return { ...same, turn, candidate: size, reason: 'below-trigger' };  // nothing is big enough to be worth it
   if (cand.tokens < cfg.clearAtLeast) return { ...same, turn, candidate: cand.tokens, reason: 'below-clear-minimum' };
   // Which rung of the ladder (proxy.js:cutCandidates, 2026-11-13). The sets are nested suffixes taken from
   // the tail backwards, so the saving grows with depth and so does the rewrite; the biggest one that pays is

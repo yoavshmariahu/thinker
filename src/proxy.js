@@ -41,7 +41,7 @@ import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js'
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -88,7 +88,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
 // `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
 // tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 8000, holdout: 0, clearDeep: true };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -108,7 +108,12 @@ export function measurePrompt(cfg, j) {
   // What a cut costs is not here -- it is the tail from the first replaced result, which only the
   // candidate walk can know (cutCandidates). `prefix` and `system` were read by the old cost model and
   // are gone with it.
-  return { prompt, turn: turnId(all) };
+  //
+  // `inTurn` is what the turn in progress has put in the prompt by itself -- the thing `prompt` leaves out,
+  // reported beside it rather than folded in. A conversation's turn is small and this changes nothing; a
+  // one-prompt autonomous job is ALL turn, and without it the trigger can never be reached however large the
+  // request grows (`cutting.js:decide`, the long-turn rule).
+  return { prompt, inTurn: tok(txt(all.slice(turnStart(all)))), turn: turnId(all) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -209,6 +214,7 @@ export function proxyConfig(flags = {}, env = process.env) {
     return dflt;
   };
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
+  cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -280,8 +286,12 @@ const resultText = b => typeof b.content === 'string' ? b.content
 
 // Walk the conversation newest-first, calling back for each tool result with whether the recency
 // rule protects it. `keepMin` counts only results the rule would otherwise let go.
-function walkResults(messages, keepMin, fn) {
-  let kept = 0, inLatestTurn = true;
+function walkResults(messages, keepMin, fn, { openTurn = false } = {}) {
+  // `openTurn` is the long-turn rule (cutting.js:decide): a turn whose own results have passed the trigger
+  // stops being protected as a whole, and keeps the newest `keepMin` like any other stretch of the
+  // conversation. The model is still answering from the newest results; what it finished with forty calls
+  // ago is no more live here than it would be across a prompt boundary.
+  let kept = 0, inLatestTurn = !openTurn;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
     const results = blocks ? blocks.filter(b => b?.type === 'tool_result') : [];
@@ -318,7 +328,7 @@ function walkResults(messages, keepMin, fn) {
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, firstChanged = -1;
   const takeAt = new Map();
@@ -329,7 +339,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: text.length });
-  });
+  }, { openTurn });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
   const steps = [];
@@ -506,8 +516,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // here because this is the first point the body has been parsed
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
-  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
+  // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
+  // the one rule both doors read). Asked before the walk, because it decides what the walk may offer.
+  const open = openTurn(cfg, m, { rates: cfg.ratesFor?.(j.model) ?? null });
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open });
+  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, open });
   const applied = applyCut(j.messages, d.cut);
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
   // 'below-clear-minimum', so the log could not say whether a lower floor would have admitted the boundary,
