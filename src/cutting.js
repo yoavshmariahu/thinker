@@ -101,7 +101,10 @@ export const PAYBACK = 25;
 // 2 since 2026-11-13: the payback pricing changed. A cut's cost is now what it adds to the call that
 // makes it, against the same call without it, so the read the rewrite displaces is subtracted instead of
 // ignored (`priceCut`). Every saving made under the old arithmetic keeps `r1` and is never folded in.
-export const POLICY_REV = 3;
+// 4 since 2026-11-14: what a rung removes is counted at a tool result's own rate (0.445 a character,
+// `proxy.js:RESULT_TOKENS_PER_CHAR`) instead of the whole-prompt 0.36, so the same boundary prices about a
+// fifth more removed against the same tail, and a cut refused under `r3` may be taken under `r4`.
+export const POLICY_REV = 4;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}`

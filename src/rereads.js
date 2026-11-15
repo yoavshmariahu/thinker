@@ -73,7 +73,7 @@ export function cutTimesFor({ session, proxyLog = null, dir = null, events = [] 
   return [...out].sort((a, b) => a - b);
 }
 
-// The cut policy this session's cuts were made under (cutting.js:policyId, e.g. `r3-t140k-f8k-p25-deep-lt`), as the
+// The cut policy this session's cuts were made under (cutting.js:policyId, e.g. `r4-t140k-f8k-p25-deep-lt`), as the
 // options `rereadsOf` needs: whether the long-turn rule was in force (`-lt`) and the trigger that was (`t140k`). Read
 // off the stamp the cut itself left and never off today's settings, because a session may predate a change -- the same
 // reason the stamp exists (AGENTS.md, "Every saving names the cut policy that made it"). The record's stamp first, the
