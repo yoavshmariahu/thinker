@@ -157,6 +157,14 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Measured, 8 of this machine's biggest sessions, 4,891 calls, same bodies: the recent policy cut **1** (0.07M),
   today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with `keepTurn` 3 as well **9**
   (0.25M). Real, and small in absolute terms: `payback` still refuses ~863 calls either way.
+- **Run live, and it was the best arm** (`bench/experiments/cut-inputs-posthog.json`, tag `posthog-cut-inputs`,
+  2026-11-15, $28.98): PostHog PR106936, nine turns, Opus 5.5, three arms, graded by Opus against criteria written
+  before the run. Bare $9.32 / 24.2M input / 167 calls / 6-of-6 essential; results-only $9.81 / 17.4M / **186** /
+  **5 of 6**, a fail; **inputs on $9.00 / 12.3M / 159 / 6 of 6**, a pass. So cutting a call's own text cost no
+  essential criterion and was cheapest on every axis, and the arm that lost one was **results-only** -- which is
+  not what the hypothesis predicted. **One task, one rep: 5-of-6 against 6-of-6 on a single session is inside
+  run-to-run variance and may not be cited as "results-only fails".** What it supports is that input cutting shows
+  no harm, three independent signals agreeing. `c9` was missed by every arm, so it is a hard criterion, not a cut.
 - **The exposure.** `tool_use_rewritten` is a named break of the preserved-thinking check whose only listed remedy
   is "echo `tool_use.input` exactly as received" -- unlike a result prune, which the same table allows client-side
   "at a declared boundary, as a pure function of the growing history". So on accounts created on or after
