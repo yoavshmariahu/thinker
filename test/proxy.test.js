@@ -80,7 +80,7 @@ test('a boundary refused for size says how much was cuttable', () => {
   const h = { 'x-claude-code-session-id': 's-size' };
   const t = transformRequest('POST', '/v1/messages', h, cuttable(), { ...PROXY_DEFAULTS, trigger: 0, clearAtLeast: 10 ** 9 });
   assert.equal(t.reason, 'below-clear-minimum');
-  assert.ok(t.candidate > 95000 && t.candidate < 105000, `the seven droppable 40k-char results at TOKENS_PER_CHAR: ${t.candidate}`);
+  assert.equal(t.candidate, Math.round(7 * 40000 * RESULT_TOKENS_PER_CHAR), 'the seven droppable 40k-char results, at a result\'s own rate');
   assert.equal(transformRequest('POST', '/v1/messages', h, body(), PROXY_DEFAULTS).candidate, undefined, 'nothing to cut carries no size');
 });
 

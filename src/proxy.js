@@ -181,9 +181,14 @@ export const TOKENS_PER_CHAR = 1.44 / 4;
 // denser. Measured 2026-11-08 from Claude Code transcripts, each call's usage delta less the previous
 // answer's output over one result, 265 results of 4k+ chars (2.6M chars): median 0.433, weighted 0.445
 // (Bash 0.446, Read 0.445, Grep 0.578), so the figure at 0.36 ran a fifth short. The one clean live cut
-// the same day claimed 16,966 tokens where the API's context fell by 30,718. The decision's own
-// arithmetic (`cutCandidates`, `priceCut`) keeps the whole-prompt rate: the cut and the tail it prices
-// scale together, and moving the size floor's reach is a policy change with its own measurement.
+// the same day claimed 16,966 tokens where the API's context fell by 30,718.
+// The decision prices what it removes at this rate too (`cutCandidates`, 2026-11-14, the owner's call), as the
+// desktop mod's ladder always did (`register.tsx:ladderOf`). Until then a rung's `tokens` was at the whole-prompt
+// rate, on the reasoning that the cut and the tail scale together -- but they are not the same matter: the tail
+// is priced as it will be sent, with the results already placeholders, so it is thinking, call text and prose,
+// and only the removed side is results. Pricing both at 0.36 ran the removed side a fifth short, which is the
+// wrong direction at a margin where 62 payback refusals sat at a median 23% removed against the 42% needed.
+// The tail keeps TOKENS_PER_CHAR. `POLICY_REV` 4 marks it (cutting.js).
 export const RESULT_TOKENS_PER_CHAR = 0.445;
 // the margin the proxy's count of the clearable results must clear by before it sends the thinking edit, since the
 // server counts exactly and the proxy estimates: a thinking clear on a request whose tool clear does not fire would break
@@ -354,7 +359,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       if (!take.length) continue;
       for (const t of take) { took++; sum += t.len; }
       steps.push({
-        ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * TOKENS_PER_CHAR),
+        ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * RESULT_TOKENS_PER_CHAR),
         recache: Math.round((acc + count + 1) * TOKENS_PER_CHAR), firstChanged: i,
       });
     }
@@ -371,7 +376,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // candidate the other doors and the old tests read is the last rung, and nothing is measured twice.
   const whole = steps.length ? steps[steps.length - 1] : null;
   return {
-    ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR),
+    ids, chars, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }

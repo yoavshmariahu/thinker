@@ -408,7 +408,7 @@ ignored; its history is in git before 2026-11-08.
 ## What a user's savings are, measured (2026-11-11, the owner's ask)
 
 - **Session clearing tracked per-session, not by denominator:** `sessionsOf` (usage log `op: session` rows) with cleared tokens, cost, prompt count.
-- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r3-t140k-f8k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
+- **Every saving names its policy:** `cutting.js:policyId`, format `r<rev>-<settings>` (e.g., `r4-t140k-f8k-p25-deep`). `proxy.js` stamps on log rows; `compression.js:noteCompression` on session record. Unstamped savings never fold into current figures. Policy stamp prevents date-based errors across machines.
 - **Dashboard reads stamped policies only** (`scripts/savings-dashboard.mjs:STAMPED`). Pre-stamp clears in separate row. Unstamped clears left out.
 - **Two rewrites not charged:** cold cut's own call (`r.clear.cold`) and rewrites from expired cache (no read found). Both doors enforce via `cutting.js:chargedRewrite`, `register.tsx:chargedRewrite`.
 - **Factory's two arms:** `telemetry.js:armsMetrics` sends `factory.arms` sums (sessions, exchanges, dollars, rework, cache traffic, merged PRs) per stage/loop, by policy stamp. Schema 1, read by **Diff by feature** dashboard.
