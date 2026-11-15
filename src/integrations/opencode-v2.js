@@ -1,4 +1,4 @@
-import { delegateConfig } from '../delegate.js';
+import { delegateConfig, REPORT_SLOT, DELEGATE_DEFAULTS } from '../delegate.js';
 import { hookRunner } from './runner.js';
 
 // OpenCode 2's server part. OpenCode 1 plugins returned a map of hook handlers; v2 registers everything
@@ -14,6 +14,36 @@ import { hookRunner } from './runner.js';
 // from the Stop hook; the CLI writes it to `THINKER_HOME/state/notice-last.json`
 // (notice-cadence.js:writeNoticeLast) and the terminal part (opencode-tui.js) toasts it there. In a
 // headless `opencode run` there is no terminal part and the notice is dropped, as it was in v1.
+
+// The delegated run, on the host's own subagent machinery (delegate.js:hostRunOrder; probed on 2.2.7, 2026-11-15).
+// `session.create({ parentID, agent, model })` is a child session OpenCode bills, draws and records like any
+// subagent of its own; `prompt` starts it, `wait` returns when it is idle, and `context` is its messages, the last
+// assistant one holding the report as `text` parts. `agent` and `model` belong on `create`: given to `prompt`
+// they are accepted and ignored, and the child answers as `build` on the host's default model.
+// Resolves to the report, or '' -- and '' lets the read through, since a hook may not fail a tool call.
+export const canRun = ctx => ['create', 'prompt', 'wait', 'context'].every(f => typeof ctx?.session?.[f] === 'function');
+export async function hostRun(ctx, parentID, order, { timeoutMs = DELEGATE_DEFAULTS.timeoutMs } = {}) {
+  let child = null, timer = null;
+  try {
+    child = await ctx.session.create({ parentID, title: order.title || 'thinker', agent: order.agent, ...(order.model ? { model: order.model } : {}) });
+    if (!child?.id) return '';
+    await ctx.session.prompt({ sessionID: child.id, text: order.prompt });
+    const late = new Promise(resolve => { timer = setTimeout(() => resolve('late'), timeoutMs); });
+    if (await Promise.race([ctx.session.wait({ sessionID: child.id }), late]) === 'late') {
+      try { await ctx.session.interrupt?.({ sessionID: child.id }); } catch { /* it is abandoned either way */ }
+      return '';
+    }
+    const messages = await ctx.session.context({ sessionID: child.id });
+    const last = (Array.isArray(messages) ? messages : []).filter(m => m?.type === 'assistant').pop();
+    return (Array.isArray(last?.content) ? last.content : []).filter(p => p?.type === 'text' && typeof p.text === 'string').map(p => p.text).join('\n').trim();
+  } catch { return ''; } finally { clearTimeout(timer); }
+}
+// one report a file a turn: a whole read (no range) of a file already reported gets the same report back
+const reports = new Map();
+// the person's last prompt a session, for the brief (delegate.js:preToolHook reads it as `user_prompt`)
+const prompts = new Map();
+const whole = ev => ev.tool === 'read' && ev.input && ev.input.offset == null && ev.input.limit == null;
+const reportKey = ev => `${ev.sessionID}\n${ev.input?.path ?? ev.input?.file_path ?? ''}`;
 
 // The one line the screens draw for what thinker served; the block itself is the model's to read.
 export const SYNTHETIC_NOTE = 'thinker context';
@@ -43,15 +73,32 @@ export function opencodeV2(config, run = hookRunner(config)) {
           // a host that will not say gets the plain agent, as before.
           let model = null;
           try { const s = await ctx.session?.get?.({ sessionID: ev.sessionID }); if (s?.model?.id) model = { id: s.model.id, providerID: s.model.providerID }; } catch { /* the read is never held up for it */ }
-          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent, ...(model ? { model } : {}) });
+          // a whole read of a file this turn already has a report for: the same report, and no second run
+          const again = whole(ev) ? reports.get(reportKey(ev)) : null;
+          if (again) throw new Error(again);
+          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent, ...(model ? { model } : {}), host_runs: canRun(ctx), ...(prompts.has(ev.sessionID) ? { user_prompt: prompts.get(ev.sessionID) } : {}) });
           if (!text) return;
-          let reason = '';
-          try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; } catch {}
-          if (reason) throw new Error(reason);
+          let reason = '', order = null;
+          try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; order = j.thinkerRun || null; } catch {}
+          if (!reason) return;
+          // The plugin runs the subagent and the report is the call's result (delegate.js:hostRunOrder). A run
+          // that fails or runs out of time lets the read through, as a failed subagent always has: the words
+          // alone are what Claude and GPT leads were seen not to follow, so falling back to them is no fallback.
+          if (order) {
+            const report = await hostRun(ctx, ev.sessionID, order);
+            if (!report) return;
+            const result = order.wrap.replace(REPORT_SLOT, report);
+            if (whole(ev)) reports.set(reportKey(ev), result);
+            throw new Error(result);
+          }
+          throw new Error(reason);
         });
         await ctx.session.hook('prompt', async ev => {
+          for (const k of reports.keys()) if (k.startsWith(ev.sessionID + '\n')) reports.delete(k);   // a new turn
           const prompt = ev.prompt?.text;
           if (!prompt) return;
+          // kept for the delegation brief: the hook has no transcript to read the request from here
+          prompts.set(ev.sessionID, prompt.slice(0, 4000)); if (prompts.size > 200) prompts.delete(prompts.keys().next().value);
           const text = await run('prompt', { session_id: ev.sessionID, cwd: cwd(), prompt });
           if (!text) return;
           // Never on the person's own message. v1 pushed a `synthetic: true` text part beside it (#742);

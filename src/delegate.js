@@ -313,6 +313,34 @@ export function denial({ kind, report, files, cwd, model, handoff }) {
   }
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
 }
+// THE HOST RUNS THE SUBAGENT, NOT THE LEAD (2026-11-15).
+//
+// A handoff is words in a denied tool call, and whether they are obeyed is the lead's to decide. Run live through
+// OpenRouter the same day: GLM 5.3, Gemini 4 and DeepSeek v4 called the subagent; Claude Sonnet 5.5 refused twice
+// and asked the person ("that message came from a tool result"), GPT 6.1 Terra and GPT-5.4 mini read the file in
+// chunks instead, Haiku followed one time in two. A trigger that fires when the model feels like it is a nudge,
+// and the rule here is that a trigger is deterministic.
+//
+// OpenCode's plugin can do the whole thing itself (probed on 2.2.7): `session.create({ parentID, agent, model })`
+// makes a child session on the host's own subagent machinery, `prompt` and `wait` run it, and `context` holds its
+// answer. So the hook hands the plugin an order instead of handing the lead an instruction, and the report comes
+// back as the denied call's result, in the sentence a lead is known to accept (`denial`'s report form: an
+// error-shaped result worded as a bare report was distrusted on 2.2.7, the one that says thinker read the file
+// through a subagent was worked from). Still the host's subagent -- billed, shown and recorded by the host as a
+// child session -- so nothing of the 2026-11-12 decision is undone; only the caller changed.
+//
+// `model` is always named: the family's explorer where there is one, else the lead's own, because a child session
+// given none runs on the host's default, which is not the session's (seen: a GLM session's child answered on
+// Gemini 4).
+export const REPORT_SLOT = '{{thinker-report}}';
+export function hostRunOrder({ exec, lead, kind, files, cwd, brief, label }) {
+  const [providerID, ...rest] = exec.model ? exec.model.split('/') : [];
+  const model = exec.model ? { providerID, id: rest.join('/') } : lead?.id ? { providerID: lead.providerID, id: lead.id } : null;
+  const named = model ? model.id.split('/').pop() : exec.agent;
+  const wrap = JSON.parse(denial({ kind, report: REPORT_SLOT, files, cwd, model: named })).hookSpecificOutput.permissionDecisionReason;
+  return { agent: exec.agent, model, title: label, prompt: brief, wrap, kind };
+}
+
 /** The short label the host's subagent tool wants beside the brief ("A short 3-5 word label", OpenCode). */
 export function handoffLabel(kind, files = [], cwd) {
   if (kind === 'verify') return 'Run the test suite';
@@ -376,7 +404,13 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
     // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
     log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(exec.model ? { model: exec.model, family: exec.family } : HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? { model: cfg.model } : {}) });
-    return denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label: handoffLabel(d.kind, files, cwd) } });
+    const label = handoffLabel(d.kind, files, cwd);
+    const words = denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label } });
+    // A host whose plugin can run the subagent itself says so (`host_runs`, OpenCode: opencode-v2.js:hostRun), and
+    // gets what it needs to do it beside the words: the agent, the model, the brief, and the sentence the report
+    // comes back inside. The words stay, for the run that fails -- they are then all there is, as before.
+    if (!ev.host_runs) return words;
+    return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label }) });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });
@@ -528,7 +562,10 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   const ev = hostEvent(client, raw);
   if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   const state = { update: fn => locked(store, session, () => { const { st, save } = sessionState(store, session); fn(st); save(); }) };
-  return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : {} });
+  return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
+    // (`user_prompt`, OpenCode's plugin). Without it the brief asks an explorer to report on a file for a
+    // request it was never shown, and the report is a summary of whatever it read first.
+    lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : typeof ev.user_prompt === 'string' && ev.user_prompt ? { prompt: ev.user_prompt } : {} });
 }
 
 const TRANSCRIPT_TAIL = 400_000;
