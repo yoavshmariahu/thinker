@@ -11,7 +11,8 @@ import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { preToolHook } from '../delegate.js';
-import { beginTurn, currentTurn, isHarnessEvent } from '../session-state.js';
+import { beginTurn, currentTurn, isHarnessEvent, sessionState } from '../session-state.js';
+import { delegatedOf } from '../delegated.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
 import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
@@ -340,15 +341,17 @@ async function hookCommand(ctx) {
         const subs = client === 'claude' ? subagentStats(sessionSource, session) : [];
         // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
         // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
-        let rereads = null;
+        let rereads = null, delegated = null;
         try {
           const where = { session, proxyLog: proxyLogFile(), dir: compressionDir() };
           const cuts = cutTimesFor(where);
+          // what the delegation trigger kept out, from the same transcript and the same cut times (delegated.js)
+          try { const firings = sessionState(store, session).st.delegated; delegated = firings?.length ? delegatedOf(p, firings, { cuts, subagents: subs }) : null; } catch { delegated = null; }
           // under the long-turn rule a cut reaches inside the turn it was made in, so the reconstruction has to as
           // well (`cutPolicyFor` reads which policy made these cuts)
           rereads = cuts.length ? rereadsOf(p, cuts, cutPolicyFor(where)) : null;
         } catch { rereads = null; }
-        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined, delegated: delegated || undefined };
         store.log(record);
       } catch {}
       // and out to the sink, where this machine has one (events.js). The same session, priced by the one

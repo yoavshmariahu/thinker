@@ -228,6 +228,17 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   `Config.AgentEncoded`, `additionalProperties: false`: no `name` (the file is the id), `permissions` a list of
   `{action, resource, effect}` and not a map, and no `": "` inside a plain scalar -- any of those three makes the
   file unreadable and the name unresolvable.
+- **What it saved is read out of the transcript when a turn ends (2026-11-15, `src/delegated.js`), as the re-reads
+  are.** One rule: a delegated read saves its write once and its read on every later call of the lead, until a cut or
+  a compaction would have taken it out anyway, less what the subagent that read it cost. The hook keeps each real
+  handoff in the session's state (`delegate.js:noteFiring`); the Stop hook reads them against the transcript
+  (`delegatedOf`: later calls of the lead, a file the lead read whole anyway counts nothing, the subagent found by
+  type and start and priced at its own model) and puts `delegated` on the `op: session` row, cumulative.
+  `report-savings.js:delegationSavings` counts a session from those rows, each adding what it added; a session from
+  before the rows carried it falls back to the proxy-log rule of #796. Never overstated: the reads start at the
+  second later call, stop at the first cut, and a subagent the lead started unprompted is neither charged nor
+  credited. On two bench sessions of 2026-11-14: $0.53 on a $3.15 mlflow session (one 45k read), $0.13 on a $7.12
+  PostHog session (three firings, one ignored).
 - The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
   (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
   35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file

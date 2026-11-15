@@ -46,8 +46,9 @@ export function filesReadBy(name, input = {}) {
   return r.files.map(clean).map(f => (dir && !path.isAbsolute(f) ? path.join(dir, f) : f));
 }
 // the same file, written absolute by one tool and relative by another: equal, or one the tail of the other
-const sameFile = (a, b) => a === b || (path.isAbsolute(a) && !path.isAbsolute(b) ? a.endsWith('/' + b) : (!path.isAbsolute(a) && path.isAbsolute(b) ? b.endsWith('/' + a) : false));
+export const sameFile = (a, b) => a === b || (path.isAbsolute(a) && !path.isAbsolute(b) ? a.endsWith('/' + b) : (!path.isAbsolute(a) && path.isAbsolute(b) ? b.endsWith('/' + a) : false));
 const chars = v => (typeof v === 'string' ? v.length : v == null ? 0 : Buffer.byteLength(JSON.stringify(v)));
+export const resultChars = chars;
 
 // When a session's cuts were made, in ms, oldest first: the proxy's rows (one cut wherever the set left out of the
 // prompt grew), the mod's record (`recent`, the last few clears, in ms), and the log's own mirror of that record

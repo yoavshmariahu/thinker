@@ -1,6 +1,6 @@
 // Weekly savings use request dates, not PR merge dates or a session's final timestamp.
 // These are estimates, separate from billed usage: never add the series to each other.
-import { costOfInputSavings, listPrice } from './prices.js';
+import { costOf, costOfInputSavings, listPrice } from './prices.js';
 import { sessionKey } from './usage.js';
 import { clearedOf, clearedEstimated } from './cutting.js';
 
@@ -28,8 +28,43 @@ const promptOf = r => (r.input || 0) + (r.read || 0) + (r.write || 0);
 // A row the proxy logged for a model call it carried (a desktop clear's row and a mirrored one are sums).
 const isCall = r => r?.op === 'proxy' && !r.recorded && r.session && typeof r.out === 'number' && r.status >= 200 && r.status < 300;
 
+// A session the Stop hook post-processed carries the answer on its own row (`delegated`, delegated.js: read out of
+// the transcript when each turn ends, as the re-reads are): what was never written, the calls it would have been
+// read back on, and which subagents did the reading, priced here at their own models from the same row. The row is
+// cumulative, so each one accounts what it added to the one before, dated when it was written. Such a session is
+// counted from its rows alone; the rule below it is for sessions from before the rows carried this.
+const subUsage = a => ({ input: a.inputTokens, cacheRead: a.cacheReadTokens, cacheWrite: a.cacheWriteTokens, cacheWrite1h: a.cacheWrite1hTokens, output: a.outputTokens });
+function recordedSavings(events, config) {
+  const by = new Map(), own = new Map(), out = [];
+  for (const e of events) {
+    if (e?.op === 'session' && e.session && e.delegated) { const k = sessionKey(e.session); if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
+    // thinker's own fallback subagent is no subagent of the host's: what it cost is on the firing's row
+    if (fired(e) && Number.isFinite(e.cost)) { const k = sessionKey(e.session); if (!own.has(k)) own.set(k, []); own.get(k).push({ t: Date.parse(e.t), cost: e.cost }); }
+  }
+  for (const [k, rows] of by) {
+    rows.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
+    let tokens = 0, cost = 0;
+    for (const e of rows) {
+      const d = e.delegated, t = Date.parse(e.t), price = listPrice(e.model, { config });
+      if (!Number.isFinite(t)) continue;
+      const nowTokens = (d.tokens || 0) + (d.laterTokens || 0);
+      let nowCost = null;
+      if (price) {
+        const ids = new Set(d.agents || []);
+        const subs = (e.subagents || []).filter(a => ids.has(a.agent)).map(a => costOf(subUsage(a), listPrice(a.model, { config })));
+        const fallback = (own.get(k) || []).filter(x => x.t <= t).reduce((a, x) => a + x.cost, 0);
+        if (subs.every(v => v != null)) nowCost = ((d.tokens || 0) * write1h(price) + (d.laterTokens || 0) * price.cacheRead) / 1e6 - subs.reduce((a, v) => a + v, 0) - fallback;
+      }
+      if (nowTokens !== tokens || (nowCost != null && nowCost !== cost)) out.push({ session: e.session, model: e.model, estimated: true, at: t, tokens: nowTokens - tokens, cost: nowCost == null ? null : nowCost - cost });
+      tokens = nowTokens; if (nowCost != null) cost = nowCost;
+    }
+  }
+  return { out, sessions: new Set(by.keys()) };
+}
+
 export function delegationSavings({ events = [], compression = [], config } = {}) {
-  const calls = new Map(), models = new Map(), ignored = new Map(), out = [];
+  const calls = new Map(), models = new Map(), ignored = new Map();
+  const recorded = recordedSavings(events, config), out = recorded.out;
   for (const r of compression) {
     if (!isCall(r)) continue;
     const k = sessionKey(r.session);
@@ -56,7 +91,7 @@ export function delegationSavings({ events = [], compression = [], config } = {}
   for (const e of events) {
     if (!fired(e)) continue;
     const k = sessionKey(e.session), t = Date.parse(e.t), tokens = e.tokens;
-    if (!Number.isFinite(t)) continue;
+    if (!Number.isFinite(t) || recorded.sessions.has(k)) continue;
     if ((ignored.get(k) || []).some(x => x.t >= t && (e.files || []).some(f => x.files.has(f)))) continue;
     const model = lead.get(k) || models.get(k) || null, price = listPrice(model, { config });
     const row = { session: e.session, model, estimated: true };
