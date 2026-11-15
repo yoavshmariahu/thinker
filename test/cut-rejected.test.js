@@ -121,6 +121,7 @@ test('an explicit refusal stands that session down and leaves the other sessions
     assert.equal(refusals.length, 1, 'one refusal, concluded once');
     assert.equal(refusals[0].kind, 'history');
     assert.equal(refusals[0].session, 'bad', 'the row names the conversation, which is what makes the figure a count of conversations');
+    assert.equal(refusals[0].door, 'messages', 'and which door: only this one rewrites a call\'s own text');
     assert.ok(refusals[0].says.includes('tool_use_rewritten'), 'what the API said is kept on the machine for a person to read');
   } finally { px.server.close(); server.close(); }
 });
@@ -155,14 +156,14 @@ test('the refusal leaves the machine as counts alone, and lands on the Token spe
   const at = new Date().toISOString();
   fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
     { op: 'proxy', at, injected: true, status: 200, model: 'claude-opus-5-5', session: 's1' },
-    { op: 'proxy-cut-rejected', at, kind: 'history', session: 'a', says: 'tool_use_rewritten: /Users/someone/src/secret/x.py' },
-    { op: 'proxy-cut-rejected', at, kind: 'history', session: 'a' },
-    { op: 'proxy-cut-rejected', at, kind: 'history', session: 'b' },
-    { op: 'proxy-cut-rejected', at, kind: 'edit', session: 'c' },
+    { op: 'proxy-cut-rejected', at, kind: 'history', door: 'messages', session: 'a', says: 'tool_use_rewritten: /Users/someone/src/secret/x.py' },
+    { op: 'proxy-cut-rejected', at, kind: 'history', door: 'messages', session: 'a' },
+    { op: 'proxy-cut-rejected', at, kind: 'history', door: 'messages', session: 'b' },
+    { op: 'proxy-cut-rejected', at, kind: 'edit', door: 'responses', session: 'c' },
   ].map(r => JSON.stringify(r)).join('\n') + '\n');
 
   const m = proxyMetrics({ home, env: {} });
-  assert.deepEqual(m.rejected, { total: 4, history: 3, edit: 1, sessions: 3 });
+  assert.deepEqual(m.rejected, { total: 4, history: 3, edit: 1, sessions: 3, messages: 3, responses: 1 });
   // what the API said is never sent: it quotes the machine's own request back, paths and all
   assert.equal(JSON.stringify(m).includes('secret'), false, 'the body stays on the machine');
   assert.equal(JSON.stringify(m).includes('says'), false);
@@ -172,6 +173,8 @@ test('the refusal leaves the machine as counts alone, and lands on the Token spe
   assert.equal(cards.length, 2, 'a scalar to watch and a table naming the devices');
   for (const c of cards) {
     assert.match(c.sql, /rejected,history/, 'reads the figure this test just produced');
+    assert.match(c.sql, /rejected,messages/, 'and says which door was refused');
+    assert.match(c.sql, /rejected,responses/, 'so a machine using only the Codex door is never a blank');
     assert.ok(c.description.length > 80, 'a card nobody can read is not a metric');
   }
   assert.ok(cards.some(c => c.display === 'scalar'));

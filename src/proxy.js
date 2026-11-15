@@ -916,7 +916,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
               // from this row until 2026-11-15, so `proxyReport`'s `sessionsRejected` -- which keys on it -- could
               // only ever read 1 however many sessions had been refused. `says` stays on the machine; only counts
               // are ever sent (telemetry.js:proxyMetrics).
+              // which door was refused. The Messages path is the only one that rewrites a call's own text, and the
+              // only one where a thinking block is bound to the conversation's bytes at all -- but the Responses
+              // (Codex) door replaces results through this same path, so a refusal there must not read as blank on a
+              // machine that uses only that door (test/metrics-dashboard.test.js holds every card to both).
               log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', kind: history ? 'history' : 'edit',
+                door: t.protocol === 'responses' ? 'responses' : 'messages',
                 session, upstream: up.origin, status: 400, says: String(body).slice(0, 200),
                 ...(t.policy ? { policy: t.policy } : {}), ...(t.clientCut?.cut ? { cut: t.clientCut.cut } : {}) });
               t = { ...t, body: raw, injected: false, addBeta: false, reason: 'cut-rejected' };

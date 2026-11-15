@@ -195,8 +195,11 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   none ("echo `tool_use.input` exactly as received"), so cutting a call's own text is the half of a cut the check
   names. Enforced for accounts created on or after 2026-08-31 and on Fable 5.2 / Mythos 5.2 for every account.
 - **A metric, on the Token spend dashboard** (`telemetry.js:proxyMetrics` → `rejected: {total, history, edit,
-  sessions}`; two cards in `scripts/spend-dashboard.mjs`). Counts only: what the API said quotes the machine's own
-  request back and stays in its log. The scalar is the number that must stay at zero.
+  sessions, messages, responses}`; two cards in `scripts/spend-dashboard.mjs`). Counts only: what the API said quotes
+  the machine's own request back and stays in its log. The scalar is the number that must stay at zero. Split by
+  door, because only the Messages path rewrites a call's own text and only it binds thinking to the conversation's
+  bytes -- the Responses (Codex) door replaces results alone, so a refusal there means something else, and a machine
+  that uses only that door may not read as a blank (`test/metrics-dashboard.test.js` holds every card to both).
 - Measured before it shipped: 22 days, 30,341 proxied requests, 12,537 with a thinker edit, **2** 400s -- both
   2026-10-24, both the API-side clearing era, none since the cut moved client-side. The valve has never fired.
 - Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed

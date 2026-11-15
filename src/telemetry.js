@@ -367,12 +367,16 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   // thinking check names (#797). `history` is that refusal and stands the session down; `edit` is an upstream that
   // cannot take the server-side field at all and stops the editing for good. Counts and session counts only -- what
   // the API said stays in the machine's own log.
-  const rejected = { total: 0, history: 0, edit: 0, sessions: 0 };
+  // Split by door as well as by kind: only the Messages path rewrites a call's own text, so a refusal on the
+  // Responses (Codex) door would mean something different, and a machine that uses only that door may not read as
+  // a blank (test/metrics-dashboard.test.js). A row from before the door was written on it counts in neither.
+  const rejected = { total: 0, history: 0, edit: 0, sessions: 0, messages: 0, responses: 0 };
   const rejectedSessions = new Set();
   for (const r of rows) {
     if (r.op === 'proxy-cut-rejected') {
       rejected.total++;
       if (r.kind === 'history') rejected.history++; else if (r.kind === 'edit') rejected.edit++;
+      if (r.door === 'messages') rejected.messages++; else if (r.door === 'responses') rejected.responses++;
       if (r.session) rejectedSessions.add(r.session);
       continue;
     }
