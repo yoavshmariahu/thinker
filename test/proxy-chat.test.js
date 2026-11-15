@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { proxyConfig, startProxy, transformRequest, proxyReport } from '../src/proxy.js';
 import { transformChat, chatCandidates, applyChatCut, chatUsage, chatUsageTap, chatReport, chatSession, refusesChatCut } from '../src/proxy-chat.js';
-import { placeholder, freshCut, clearedOf, clearedEstimated } from '../src/cutting.js';
+import { placeholder, freshCut, clearedOf, clearedEstimated, cutStore } from '../src/cutting.js';
 
 // A gateway config as the service builds it (proxyConfig reads the flags; the door reads the fields).
 const cfg = extra => ({ ...proxyConfig({}, {}), protocol: 'chat', gateway: 'openrouter', trigger: 1, clearAtLeast: 1, keepMin: 1, ...extra });
@@ -17,7 +17,7 @@ const history = () => [user('first task'), call('a'), result('a'), user('second 
 const raw = (messages = history(), extra = {}) => Buffer.from(JSON.stringify({ model: 'test-model', messages, stream: true, ...extra }));
 const transform = (body = raw(), config = cfg(), headers = {}) => transformRequest('POST', '/v1/chat/completions', headers, body, config);
 
-test('gateways are opt-in and validate their URLs', () => {
+test('a proxy serves only the gateways it was started with, and validates their URLs', () => {
   const body = raw();
   // no gateway configured: the request passes through exactly as it came
   assert.equal(transform(body, { ...proxyConfig({}, {}), protocol: 'anthropic' }).reason, 'other');
@@ -176,9 +176,13 @@ test('HTTP transport routes by prefix, preserves auth, and logs the cut', async 
   // what opencode sends with baseURL <proxy>/openrouter: it appends /chat/completions itself
   assert.equal(await send('/openrouter/chat/completions'), 200);
   assert.equal(await send('/openrouter/chat/completions'), 200);
+  // and with the base thinker's own wiring writes, `<proxy>/openrouter/v1` (proxy-service.js): the upstream
+  // names its own version segment, so the agent's is dropped rather than doubled. Joined as they came it was
+  // `/api/v1/v1/chat/completions` and OpenRouter answered every request 404 (found live, 2026-11-15).
+  assert.equal(await send('/openrouter/v1/chat/completions'), 200);
   // nothing configured passes through as it came
   assert.equal(await send('/litellm/v1/chat/completions'), 200);
-  assert.deepEqual(seen.map(x => x.url), ['/api/v1/chat/completions', '/api/v1/chat/completions', '/api/v1/litellm/v1/chat/completions']);
+  assert.deepEqual(seen.map(x => x.url), ['/api/v1/chat/completions', '/api/v1/chat/completions', '/api/v1/chat/completions', '/api/v1/litellm/v1/chat/completions']);
   assert.equal(seen[0].headers.authorization, 'Bearer mock-only');
   const sent = JSON.parse(seen[0].body);
   assert.equal(sent.messages[2].content, placeholder(history()[2].content.length));
@@ -191,8 +195,8 @@ test('HTTP transport routes by prefix, preserves auth, and logs the cut', async 
   assert.equal(rows[0].read, 200);
   assert.equal(rows[0].cost, 0.0125);
   assert.equal(rows[0].cleared > 0, true, 'the row carries the cut its request made');
-  assert.equal(rows.length, 2, 'a gateway nobody configured is not a door and logs no row');
-  assert.equal(seen[2].body, raw().toString(), 'the unconfigured prefix passes through exactly as it came');
+  assert.equal(rows.length, 3, 'a gateway nobody configured is not a door and logs no row');
+  assert.equal(seen[3].body, raw().toString(), 'the unconfigured prefix passes through exactly as it came');
   // the ratchet persisted: a restarted proxy re-applies the same set
   const store = JSON.parse(fs.readFileSync(path.join(dir, 'clearing', 'chat', `${rows[0].session.replace(/[^\w.-]/g, '_')}.json`), 'utf8'));
   assert.ok(store.cut.includes('a'));
@@ -251,4 +255,52 @@ test('the gateways\' own answers become the rates the next decision is priced wi
   // the same rates ride the record, so the savings are read back at the prices they were priced at
   const store = JSON.parse(fs.readFileSync(path.join(dir, 'clearing', 'chat', `${rows[8].session.replace(/[^\w.-]/g, '_')}.json`), 'utf8'));
   assert.deepEqual(store.rates, priced);
+});
+
+// The conversation's name. Until 2026-11-15 it was the first user message alone, and OpenCode's first user
+// message is thinker's own profile block -- the same text in every session of a repository -- so every
+// OpenCode session in a checkout shared one record, and a session behind the stored turn had its set chosen
+// afresh on every request. OpenCode sends its session id in four headers and as `prompt_cache_key`.
+test('a conversation is named by the agent\'s session id, so two sessions with one opening share nothing', () => {
+  const body = { model: 'z-ai/glm', messages: [{ role: 'system', content: 's' }, { role: 'user', content: '<thinker-profile>the same in every session</thinker-profile>' }, { role: 'user', content: 'do the thing' }] };
+  const a = chatSession(body, { 'x-opencode-session-id': 'ses_aaa' }), b = chatSession(body, { 'x-opencode-session-id': 'ses_bbb' });
+  assert.notEqual(a, b, 'the same first message in two sessions is two conversations');
+  assert.ok(a.startsWith('ses_aaa#'), a);
+  assert.equal(chatSession(body, { 'x-opencode-session-id': 'ses_aaa' }), a, 'and the same one every time');
+  // a side call the agent makes under the same session id (a title, a summary) opens with other words
+  assert.notEqual(chatSession({ ...body, messages: [{ role: 'user', content: 'Write a title for this chat' }] }, { 'x-opencode-session-id': 'ses_aaa' }), a);
+  // the body's own key where no header says it; an end-user id or the first message alone where nothing does
+  assert.ok(chatSession({ ...body, prompt_cache_key: 'ses_ccc' }).startsWith('ses_ccc#'));
+  assert.equal(chatSession({ ...body, user: 'end-user-1' }), 'end-user-1');
+  assert.match(chatSession(body), /^chat#[0-9a-f]{16}$/);
+  assert.match(chatSession({ ...body, prompt_cache_key: 'not an id / a path' }), /^chat#/, 'a value that does not look like an id is not taken for one');
+});
+
+test('the row carries the agent\'s session, the record the conversation, and a later session keeps its own cut', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-chat-key-'));
+  try {
+    const store = cutStore(dir);
+    const c = { ...cfg(), trigger: 1, clearAtLeast: 1, keepMin: 1 };
+    const profile = { role: 'user', content: '<thinker-profile>the same in every session</thinker-profile>' };
+    const work = k => [0, 1, 2, 3].flatMap(i => [{ role: 'assistant', content: null, tool_calls: [{ id: `${k}${i}`, type: 'function', function: { name: 'read', arguments: '{}' } }] }, { role: 'tool', tool_call_id: `${k}${i}`, content: 'x'.repeat(2000) }]);
+    // the proxy's own sequence: read the record, reserve the decision, forward
+    const send = (sid, messages) => {
+      let rec = null;
+      const t = transformChat('POST', '/chat/completions', { 'x-opencode-session-id': sid }, Buffer.from(JSON.stringify({ model: 'z-ai/glm', messages })), { ...c, readChatCut: key => (rec = store.read(key)) });
+      if (rec && Array.isArray(t.cut) && t.turn != null) { rec.cut = t.cut; rec.turn = t.turn; store.write(rec); }
+      return t;
+    };
+    // session one runs to its sixth user message
+    const one = [profile, { role: 'user', content: 'p1' }, ...work('a'), ...[2, 3, 4, 5].map(i => ({ role: 'user', content: `p${i}` }))];
+    assert.equal(send('ses_one', one).session, 'ses_one', 'the row names the session the agent reports');
+    // session two opens with the same words and is at its third: behind session one's turn. Under one shared
+    // record `mergeCut` would never keep its set, and the set would be chosen again on every request.
+    const two = [profile, { role: 'user', content: 'q1' }, ...work('b'), { role: 'user', content: 'q2' }];
+    const first = send('ses_two', two);
+    assert.equal(first.injected, true);
+    const again = send('ses_two', [...two, ...work('c')]);
+    assert.equal(again.reason === 'client-clear' && !again.clear, true, 'mid-turn the set is re-applied, not decided again');
+    assert.deepEqual(again.cut, first.cut, 'and it is the same set: nothing moves inside a turn');
+    assert.equal(fs.readdirSync(dir).length, 2, 'one record a conversation');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

@@ -41,7 +41,7 @@ import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js'
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, cutInput } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, sessionOf, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -514,23 +514,6 @@ export function heldOut(session, share) {
 // Claude Code can send a tool clearing of its own; this is the type to recognise it by, not to send.
 const AGENT_CLEAR_TYPE = 'clear_tool_uses_20250919';
 const betaOn = headers => String(headers['anthropic-beta'] || '').split(',').map(s => s.trim()).includes(EDIT_BETA);
-// Whose session this request belongs to. Claude Code says so in its own header, and until 2026-11-13
-// that header was the only one read -- so every other client's requests were attributed to no session
-// at all: the cut's record fell back to a hash of the first message, the proxy's rows logged
-// `session: null`, and the cleared figure never reached the session it belonged to. OpenCode 2 sends
-// the id in four headers (checked live on 2.3.0 in demo/e2e: `x-opencode-session`,
-// `x-opencode-session-id`, `x-session-affinity` and `x-session-id`, all four carrying the same
-// `ses_...` id its plugin reports to the stop hook), so the figures can be joined on it. The list is
-// ordered most specific first, and a value is taken only if it looks like an id rather than a path or
-// a URL, because `x-session-id` is a name anything upstream might set.
-const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'x-session-id'];
-const sessionOf = headers => {
-  for (const h of SESSION_HEADERS) {
-    const v = headers[h];
-    if (typeof v === 'string' && v && v.length <= 200 && !/[\s/\\]/.test(v)) return v;
-  }
-  return null;
-};
 // A session is not a conversation, and the cut's record belongs to the conversation.
 //
 // Claude Code sends one `x-claude-code-session-id` for everything a session does: the person's own
@@ -785,6 +768,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
     if (requestCfg.gateways) for (const [name, g] of Object.entries(requestCfg.gateways)) {
       if (requestUrl !== `/${name}` && !requestUrl.startsWith(`/${name}/`)) continue;
       requestUrl = requestUrl.slice(name.length + 1) || '/';
+      // The agent's base URL ends in `/v1` (proxy-service.js writes `/openrouter/v1`, as an OpenAI client
+      // expects) and so does OpenRouter's own (`https://openrouter.ai/api/v1`), and the two were joined as
+      // they came: every request went to `/api/v1/v1/chat/completions` and came back 404. Found live on
+      // 2026-11-15, the first time the door was pointed at OpenRouter itself rather than a fixture. One
+      // version segment is the upstream's to name, so the agent's is dropped where the upstream has its own.
+      if (/\/v1\/?$/.test(new URL(g.upstream).pathname)) requestUrl = requestUrl.replace(/^\/v1(?=\/|\?|$)/, '') || '/';
       requestCfg = { ...requestCfg, protocol: 'chat', gateway: name, upstream: g.upstream };
       break;
     }

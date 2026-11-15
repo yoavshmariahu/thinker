@@ -5,7 +5,7 @@
 // what differs here is wire format and where the request is answered from, never the policy.
 import crypto from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
-import { decideCut, freshCut, MIN_CHARS, placeholder } from './cutting.js';
+import { decideCut, freshCut, MIN_CHARS, placeholder, sessionOf } from './cutting.js';
 
 // OpenRouter answers every call with the account's own cost and cache split in the usage object
 // (openrouter.ai/docs/use-cases/usage-accounting); LiteLLM normalizes tokens and needs
@@ -19,17 +19,29 @@ const plainContent = content => typeof content === 'string' ? content
   : Array.isArray(content) && content.length > 0 && content.every(p => p?.type === 'text' && typeof p.text === 'string')
     ? content.map(p => p.text).join('') : null;
 
-// A conversation is named by its own first user message, as on the Messages door
-// (proxy.js:conversationKey): a gateway sends no session header of thinker's, and the ratchet
-// needs a key that every later request of the conversation resends unchanged. `j.user` (the
-// OpenAI end-user field) wins where an agent sets one. Two conversations opened with the same
-// first message share a record; that residue is the conversationKey rule's own.
-export function chatSession(j) {
-  if (typeof j?.user === 'string' && j.user) return j.user;
+// Whose conversation this is. **The agent's own session id first** (2026-11-15), then the first user
+// message. Until then the first message was all there was, on the reasoning that "a gateway sends no
+// session header of thinker's" -- but OpenCode sends its session in four headers and as
+// `prompt_cache_key` on every OpenRouter request (recorded live on 2.2.7), and the first user message of
+// an OpenCode conversation is thinker's own profile block, the same text in every session of a
+// repository. So every OpenCode session in a checkout shared ONE record. Seen in the first live run
+// through OpenRouter: a session that opened after another had reached turn 5 was behind the stored turn
+// for its whole life, so its set was never kept (`mergeCut` only goes forward) and was chosen afresh on
+// every request -- 33k, then 43k within one turn, the set moving inside a turn, which is the one thing
+// the ratchet exists to prevent -- and at turn 5 it went out uncut, 116k where 65k had been sent.
+// The key is the session and the first message together, as on the Messages door
+// (`proxy.js:conversationKey`), because one session id also covers the small side calls an agent makes
+// beside its thread. `j.user` (the OpenAI end-user field) is kept for an agent that names nothing else.
+const idLike = v => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\s/\\]/.test(v);
+export const chatAgentSession = (j, headers = {}) => sessionOf(headers) || (idLike(j?.prompt_cache_key) ? j.prompt_cache_key : null);
+export function chatSession(j, headers = {}) {
   const first = (Array.isArray(j?.messages) ? j.messages : []).find(isUserMessage);
   const text = plainContent(first?.content);
-  if (!text) return null;
-  return `chat#${crypto.createHash('sha256').update(text).digest('hex').slice(0, 16)}`;
+  const hash = text ? crypto.createHash('sha256').update(text).digest('hex').slice(0, 16) : null;
+  const agent = chatAgentSession(j, headers);
+  if (agent) return hash ? `${agent}#${hash}` : agent;
+  if (typeof j?.user === 'string' && j.user) return j.user;
+  return hash ? `chat#${hash}` : null;
 }
 
 const heldOut = (session, share) => share >= 1 || (share > 0 && crypto.createHash('sha256').update(session).digest().readUInt32BE(0) / 2 ** 32 < share);
@@ -93,7 +105,10 @@ export function transformChat(method, url, headers, body, cfg) {
   const asked = withUsageAsked(j);
   const usageAsked = asked !== j;
   if (usageAsked) { j = asked; out = Buffer.from(JSON.stringify(j)); }
-  const session = chatSession(j);
+  // two names: the record is the conversation's (`key`), the row and the holdout are the session's, so a
+  // cleared figure reaches the session the agent's own stop hook reports and a session is held out whole
+  const key = chatSession(j, headers);
+  const session = chatAgentSession(j, headers) || key;
   const meta = { protocol: 'chat', gateway: cfg.gateway, session, model: j.model, ...(usageAsked ? { usageRequested: true } : {}) };
   const pass = reason => ({ body: out, ...meta, reason });
   if (j.messages.some(m => m?.role === 'tool' && Array.isArray(m.content) && m.content.some(p => p?.type !== 'text'))) return pass('mixed-content');
@@ -101,7 +116,7 @@ export function transformChat(method, url, headers, body, cfg) {
   if (heldOut(String(session), cfg.holdout)) return pass('holdout');
   const turn = j.messages.filter(isUserMessage).length;
   if (!turn) return pass('no-user-turn');
-  const rec = cfg.cutRecord || cfg.readChatCut?.(session) || freshCut(session);
+  const rec = cfg.cutRecord || cfg.readChatCut?.(key) || freshCut(key);
   // the decision's rates, per model: config first, then the gateway's own measured prices
   // (gateway-rates.js), then the Anthropic defaults the shared policy has always kept.
   const rates = cfg.ratesFor?.(j.model) || null;
