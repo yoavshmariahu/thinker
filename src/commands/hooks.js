@@ -37,7 +37,7 @@ import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../se
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
-import { cutTimesFor, rereadsOf } from '../rereads.js';
+import { cutPolicyFor, cutTimesFor, rereadsOf } from '../rereads.js';
 import { emitSession } from '../events.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
@@ -341,7 +341,13 @@ async function hookCommand(ctx) {
         // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
         // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
         let rereads = null;
-        try { const cuts = cutTimesFor({ session, proxyLog: proxyLogFile(), dir: compressionDir() }); rereads = cuts.length ? rereadsOf(p, cuts) : null; } catch { rereads = null; }
+        try {
+          const where = { session, proxyLog: proxyLogFile(), dir: compressionDir() };
+          const cuts = cutTimesFor(where);
+          // under the long-turn rule a cut reaches inside the turn it was made in, so the reconstruction has to as
+          // well (`cutPolicyFor` reads which policy made these cuts)
+          rereads = cuts.length ? rereadsOf(p, cuts, cutPolicyFor(where)) : null;
+        } catch { rereads = null; }
         const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined };
         store.log(record);
       } catch {}
