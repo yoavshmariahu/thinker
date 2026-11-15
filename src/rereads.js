@@ -73,11 +73,29 @@ export function cutTimesFor({ session, proxyLog = null, dir = null, events = [] 
   return [...out].sort((a, b) => a - b);
 }
 
+// The cut policy this session's cuts were made under (cutting.js:policyId, e.g. `r3-t140k-f8k-p25-deep-lt`), as the
+// options `rereadsOf` needs: whether the long-turn rule was in force (`-lt`) and the trigger that was (`t140k`). Read
+// off the stamp the cut itself left and never off today's settings, because a session may predate a change -- the same
+// reason the stamp exists (AGENTS.md, "Every saving names the cut policy that made it"). The record's stamp first, the
+// proxy's rows after; where a session spans an update, a single `-lt` anywhere in it is enough, since the set
+// `rereadsOf` reconstructs may hold such a cut and the figure must never understate.
+export function cutPolicyFor({ session, proxyLog = null, dir = null } = {}) {
+  const names = [];
+  let record = null; try { record = dir ? readCompression(dir, session) : null; } catch { record = null; }
+  if (record?.policy) names.push(String(record.policy));
+  for (const r of proxyLog ? compressionRecords(proxyLog) : []) if (r.session === session && r.policy) names.push(String(r.policy));
+  const lt = names.find(n => /-lt$/.test(n));
+  if (!lt) return {};
+  const m = lt.match(/-t(\d+)(k?)-/);
+  const trigger = m ? Number(m[1]) * (m[2] ? 1000 : 1) : PROXY_DEFAULTS.trigger;
+  return { longTurn: true, trigger };
+}
+
 // The re-reads of a parsed transcript (transcripts.js:parseTranscript: `events` with the prompts and the tool calls,
 // each tool call stamped `at` and indexed `call` into `calls`, the model calls with their own `t`), given the cut times.
 // Returns the count, the tokens read again, and `laterTokens`: each re-read's tokens times the calls it stayed in
 // the prompt for -- what delivery.js prices at the cache-read rate.
-export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS } = {}) {
+export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS, longTurn = false, trigger = PROXY_DEFAULTS.trigger } = {}) {
   const none = { reads: 0, tokens: 0, laterTokens: 0 };
   const times = [...new Set((cuts || []).map(ms).filter(Boolean))].sort((a, b) => a - b);
   if (!times.length) return none;
@@ -92,11 +110,21 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
   }
   if (!results.length) return none;
   const turnOf = T => { let k = 0; for (let i = 1; i < turnAt.length; i++) if (turnAt[i] <= T) k = i; return k; };
-  // the cleared set: each cut takes the results of the turns before its own, bar the newest keepMin, bar the small
+  // the cleared set: each cut takes the results of the turns before its own, bar the newest keepMin, bar the small.
+  // With the long-turn rule in force (`longTurn`, cutting.js:openTurn) a cut also takes the results its OWN turn has
+  // already finished, once that turn has passed the trigger -- so the set this reconstructs is the set the cut made.
+  // Without this the figure reads 0 for exactly the cuts the rule is on trial for.
   for (const T of times) {
     const k = turnOf(T);
     if (!k) continue;
-    const older = results.filter(r => r.turn < k);
+    let older = results.filter(r => r.turn < k);
+    if (longTurn) {
+      // the turn's own finished results at T, and whether they had reached the trigger -- the turn's size as the
+      // transcript can tell it (its results), where the proxy measured the whole turn, so this opens no earlier
+      const inTurn = results.filter(r => r.turn === k && r.at && r.at <= T);
+      const tok = inTurn.reduce((n, r) => n + Math.round(r.chars * RESULT_TOKENS_PER_CHAR), 0);
+      if (tok >= trigger) older = older.concat(inTurn);
+    }
     const protect = new Set(older.slice(-keepMin));
     for (const r of older) if (!r.cleared && !protect.has(r) && r.chars >= minChars) r.cleared = turnAt[k];
   }

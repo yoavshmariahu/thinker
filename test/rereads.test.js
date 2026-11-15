@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { parseTranscript } from '../src/transcripts.js';
-import { rereadsOf, cutTimesFor, rereadCost } from '../src/rereads.js';
+import { rereadsOf, cutTimesFor, rereadCost, cutPolicyFor } from '../src/rereads.js';
 import { RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { CLEARING_OP } from '../src/compression.js';
 
@@ -166,4 +166,53 @@ test('the Stop hook puts the re-reads on the session row, from the proxy\'s cut 
   const tokens = Math.round(BIG.length * RESULT_TOKENS_PER_CHAR);
   assert.deepEqual(s1.rereads, { reads: 2, tokens: 2 * tokens, laterTokens: 3 * tokens });
   assert.equal(s2.rereads, undefined, 'never cut: nothing to read again');
+});
+
+// A turn that runs long enough to be cut into (cutting.js:openTurn, `longTurn`). One turn, no boundary: the cut is made
+// inside it, so a reconstruction that only takes the turns BEFORE the cut's own sees an empty cleared set and reports
+// no re-reads at all -- the figure the rule is on trial for.
+function oneTurn() {
+  const lines = [];
+  let n = 0;
+  lines.push({ type: 'user', timestamp: T('00:00'), message: { role: 'user', content: 'read the package and fix it' } });
+  const call = (at, input, result) => {
+    const id = `t${++n}`;
+    lines.push({ type: 'assistant', timestamp: T(at), message: { model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id, name: 'Read', input }] } });
+    lines.push({ type: 'user', timestamp: T(at), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: result }] } });
+  };
+  for (const [at, f] of [['00:05', 'a'], ['00:10', 'b'], ['00:15', 'c'], ['00:20', 'd'], ['00:25', 'e']]) call(at, { file_path: `/r/${f}.py` }, BIG);
+  call('00:40', { file_path: '/r/a.py' }, BIG);   // after the cut
+  call('00:45', { file_path: '/r/d.py' }, BIG);   // after it too
+  const f = path.join(tmp(), 'one.jsonl');
+  fs.writeFileSync(f, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+  return parseTranscript(f);
+}
+
+test('a cut made inside a long turn is reconstructed, and only with the rule that made it', () => {
+  const p = oneTurn();
+  const cuts = [Date.parse(T('00:30'))];
+  // today's reading: the cut sits in turn 1 and there is no turn before it, so nothing reads as cleared
+  assert.deepEqual(rereadsOf(p, cuts), { reads: 0, tokens: 0, laterTokens: 0 });
+  // with the rule in force: the turn's five finished results are eligible, c, d and e are the newest three, so a and b
+  // went -- and a is read again
+  const r = rereadsOf(p, cuts, { longTurn: true, trigger: 2000 });
+  assert.equal(r.reads, 1);
+  assert.equal(r.tokens, Math.round(BIG.length * RESULT_TOKENS_PER_CHAR));
+  // and the turn has to have passed the trigger, exactly as the proxy required of it
+  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 10_000_000 }).reads, 0, 'a turn under the trigger is whole');
+  // a result the turn had not finished when the cut was made is not in the set: a cut at 00:30 had a, b, c and d to
+  // take (e is the newest kept), so both later reads are re-reads -- a cut at 00:12 had only a, so d's is not
+  assert.equal(rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepMin: 1 }).reads, 2, 'a and d both went');
+  assert.equal(rereadsOf(p, [Date.parse(T('00:12'))], { longTurn: true, trigger: 1000, keepMin: 1 }).reads, 1,
+    'd was not read until after that cut, so that cut cannot have taken it');
+});
+
+test('which policy made a session\'s cuts is read off the stamp the cut left, not off settings', () => {
+  const dir = tmp();
+  const where = { session: 'ses_lt', dir };
+  fs.writeFileSync(path.join(dir, 'ses_lt.json'), JSON.stringify({ session: 'ses_lt', cleared: 9, policy: 'r3-t50k-f8k-p25-deep-lt' }));
+  assert.deepEqual(cutPolicyFor(where), { longTurn: true, trigger: 50_000 }, 'the trigger that was in force, from the stamp');
+  fs.writeFileSync(path.join(dir, 'ses_plain.json'), JSON.stringify({ session: 'ses_plain', cleared: 9, policy: 'r3-t140k-f8k-p25-deep' }));
+  assert.deepEqual(cutPolicyFor({ session: 'ses_plain', dir }), {}, 'no rule named: read as it always was');
+  assert.deepEqual(cutPolicyFor({ session: 'ses_none', dir }), {}, 'no record at all');
 });
