@@ -41,7 +41,7 @@ import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js'
 import { noteCompression } from './compression.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -92,7 +92,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // turn still running, which the ordinary cut protected wholesale and this one has to name a number for. Three was
 // `keepMin`'s number for a stretch of conversation the model had already moved on from; a turn forty calls deep is
 // a working set, and the model is answering out of it right now, so it keeps more.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -224,6 +224,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   };
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
+  cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -340,17 +341,30 @@ function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn, cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   const have = new Set(cut), ids = [];
-  let chars = 0, firstChanged = -1;
+  let chars = 0, inputChars = 0, firstChanged = -1;
   const takeAt = new Map();
+  // What each call's own text would give up, by its id (`cutting.js:cutInput`). Read once here, because the
+  // ladder prices what it will send and a call's bytes leave the prompt exactly as its result's do -- a step
+  // that counted only the results would understate its own saving and be refused for a payback it in fact makes.
+  const inputOf = new Map();
+  if (cutInputs) for (const m of messages) {
+    if (!Array.isArray(m?.content)) continue;
+    for (const b of m.content) {
+      if (b?.type !== 'tool_use' || !b.id || have.has(b.id)) continue;
+      const red = cutInput(b.input, { minChars });
+      if (red) inputOf.set(b.id, red.chars);
+    }
+  }
   walkResults(messages, keepMin, (b, i, prot) => {
     if (prot || have.has(b.tool_use_id)) return;
     const text = resultText(b);
     if (text.length < minChars) return;
-    ids.push(b.tool_use_id); chars += text.length; firstChanged = i;
+    const own = inputOf.get(b.tool_use_id) || 0;
+    ids.push(b.tool_use_id); chars += text.length; inputChars += own; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
-    takeAt.get(i).push({ id: b.tool_use_id, len: text.length });
+    takeAt.get(i).push({ id: b.tool_use_id, len: text.length + own });
   }, { openTurn, keepTurn });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
@@ -361,7 +375,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     for (let i = messages.length - 1; i >= 0; i--) {
       const take = takeAt.get(i) || [];
       for (const t of take) sent.add(t.id);
-      acc += JSON.stringify(applyCut([messages[i]], sent).messages[0]).length;
+      acc += JSON.stringify(applyCut([messages[i]], sent, { cutInputs }).messages[0]).length;
       count++;
       if (!take.length) continue;
       for (const t of take) { took++; sum += t.len; }
@@ -383,7 +397,9 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // candidate the other doors and the old tests read is the last rung, and nothing is measured twice.
   const whole = steps.length ? steps[steps.length - 1] : null;
   return {
-    ids, chars, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR),
+    // `chars` is the results, `inputChars` the finished calls' own text, and `tokens` the two together, because
+    // both leave the prompt and the saving is what the prompt is shorter by (`applyCut`).
+    ids, chars, inputChars, tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }
@@ -400,15 +416,24 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // own blanked calls, reported that it had been "making the tool calls without file paths", and began
 // doing so -- a false history of itself that it then copied. Dropping thinking bought nothing and was
 // the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
-export function applyCut(messages, cut) {
+export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
-  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, firstChanged: -1 };
-  let n = 0, chars = 0, firstChanged = -1;
+  if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
+  let n = 0, chars = 0, inputChars = 0, firstChanged = -1;
   const out = messages.map((m, i) => {
     const c = m?.content;
     if (!Array.isArray(c)) return m;
     let touched = false;
     const blocks = c.map(b => {
+      // the call's own text, where the result it produced is going too (`cutInput`, 2026-11-14). Only ever
+      // alongside the result: a call whose result the model still has keeps its text, because the pair is what
+      // the model reads to know what it did.
+      if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
+        const red = cutInput(b.input, { minChars: CUT_MIN_CHARS });
+        if (!red) return b;
+        inputChars += red.chars; touched = true;
+        return { ...b, input: red.input };
+      }
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b);
       if (text.length < CUT_MIN_CHARS) return b;
@@ -424,7 +449,10 @@ export function applyCut(messages, cut) {
   // here rather than worked out by a reader, because only this walk knows which results it replaced -- one
   // below `CUT_MIN_CHARS` is left in place, and a cut id whose result the agent no longer sends is not in
   // the prompt to save anything.
-  return { messages: out, cut: n, chars, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR), firstChanged };
+  // `chars` is the results and `inputChars` the calls' own text; both leave the prompt, so both are the saving,
+  // and they are reported apart so a reader can see which half a policy's figure came from.
+  return { messages: out, cut: n, chars, inputChars,
+    tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR), firstChanged };
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
@@ -531,9 +559,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
   // the one rule both doors read). Asked before the walk, because it decides what the walk may offer.
   const open = openTurn(cfg, m, { rates: cfg.ratesFor?.(j.model) ?? null });
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn });
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn, cutInputs: cfg.cutInputs });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, open });
-  const applied = applyCut(j.messages, d.cut);
+  const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs });
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
   // 'below-clear-minimum', so the log could not say whether a lower floor would have admitted the boundary,
   // and that question had to be answered by rebuilding request bodies from transcripts. The reason itself is

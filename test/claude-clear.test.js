@@ -49,6 +49,7 @@ const DESKTOP_POLICY = {
   // prompt, which is an autonomous job and not a person at a desktop: every turn here is somebody typing, and a
   // turn whose own results reach the trigger does not arise. The mod reads the boundary as it always has.
   longTurn: { exempt: 'a turn here ends when the person types again, so a turn large enough for this rule to open is not a shape a desktop session has' },
+  cutInputs: { exempt: 'the mod clears results in the desktop app, where a call\'s own text is a file path and not a heredoc: the 2026-11-04 measurement that took input cutting out (#611) still holds for that shape' },
   keepTurn: { exempt: 'how many of a running turn\'s results a long-turn cut keeps, and `longTurn` never opens here' },
 };
 

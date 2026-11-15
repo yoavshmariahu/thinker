@@ -110,8 +110,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   in which this rule could make a model answer out of a gap rather than read again -- the single failure
   `rereads.js` cannot see, because a model that confabulates asks for nothing. A number, so `--keep-turn`,
   `THINKER_PROXY_KEEP_TURN` and `proxy: { keepTurn }` all reach it, and `policyId` carries it (`-lt10`).
-- **What the wider tail costs:** a cut's rewrite is priced on the whole post-cut prompt (`priceCut`) while
-  its saving is only what it removed, so protecting ten can leave too little to repay the rewrite within
+- **What the wider tail costs:** a cut's rewrite is priced on the tail from the first result it replaces to
+  the end (`priceCut`: `recache x (write - read) - read x removed`), and a protected tail sits inside that
+  tail -- so keeping ten rewrites more while removing less, and can leave too little to repay within
   `PAYBACK`. On the shape this rule is for -- many results of a module's size -- it never bites (40 reads
   of 12k chars: 37 removed at 3, 30 at 10). On a turn of a few very large reads it does, and the rule
   stands down (25 reads of 20k chars: 22 removed at 3, refused `payback` at 10). That is the safe side of
@@ -132,6 +133,37 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   the one figure that decides this rule read free by construction. It now reads which policy made the
   session's cuts off the stamp the cut left (never off today's settings, since a session may predate a
   change) and reconstructs an in-turn cut with the same trigger and the same `keepTurn` the cut used.
+
+**A cut takes the finished call's own text too, by default (2026-11-14, the owner's call; `cutting.js:cutInput`,
+`proxy.js:applyCut`, `cutInputs`):**
+- #611 removed exactly this on 2026-11-04. One of its two reasons has expired: inputs bought **0.6%** of what
+  results buy -- measured on a session whose `tool_use` inputs were 2,800 chars, a file path each. Measured again
+  on 2026-11-14 over 8 sessions of this machine: **3.1M chars of inputs, 72% `Bash.command` heredocs and 12%
+  `Write.content`, 13.3% of what a cut must rewrite.** The workload changed, so the answer did.
+- The other reason stands and shapes the code: blanking a call taught the model **a false history of itself** -- in
+  a 28-turn run it read its own emptied calls, reported it had been "making the tool calls without file paths", and
+  began doing that. So this is **never a blank**: every key the agent sent stays, every value shorter than
+  `MIN_CHARS` stays verbatim (a `description`, a `file_path`, a flag -- what the model reads to know what it did),
+  and only a long string body is replaced. A call whose input is all short values is not touched. Thinking is never
+  touched -- that was the edit that broke the API in October. The placeholder's words say the call was made in full
+  and tell the model not to copy the shape, because on OpenCode 2 the wording of a substitution is the mechanism.
+- Only ever beside the result: a call keeps its text while its result is still in the prompt, because the pair is
+  what the model reads. The ladder prices both halves (`cand.chars`, `cand.inputChars`) -- counting only the
+  results, a step understated its own saving and was refused for a payback it in fact makes.
+- On by default; `proxy: { cutInputs: false }`, `--no-cut-inputs`, `THINKER_PROXY_CUT_INPUTS=off`. The stamp carries
+  `+in` (`r4-t140k-f8k-p25-deep+in`), so a figure with the calls in it is never pooled with one without. The desktop
+  mod mirrors the naming function and keeps the flag off, with the reason recorded: in the desktop app an input
+  really is a file path, so the 2026-11-04 measurement still holds there.
+- Measured, 8 of this machine's biggest sessions, 4,891 calls, same bodies: the recent policy cut **1** (0.07M),
+  today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with `keepTurn` 3 as well **9**
+  (0.25M). Real, and small in absolute terms: `payback` still refuses ~863 calls either way.
+- **The exposure.** `tool_use_rewritten` is a named break of the preserved-thinking check whose only listed remedy
+  is "echo `tool_use.input` exactly as received" -- unlike a result prune, which the same table allows client-side
+  "at a declared boundary, as a pure function of the growing history". So on accounts created on or after
+  2026-08-31, and on Fable 5.2 / Mythos 5.2 for every account, this can 400 where cutting results alone would not.
+  thinker sets no `prefix_mismatch_behavior`, so on an older account the check does not run at all. The server-side
+  alternative is `clear_tool_uses_20250919` with `clear_tool_inputs: true`, which is exempt from the check -- and is
+  what the pre-2026-11-04 proxy used (`injected: true, inputs: true` on those log rows, no `clientCut`).
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.

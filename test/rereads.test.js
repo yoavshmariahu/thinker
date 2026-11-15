@@ -93,8 +93,8 @@ test('a shell read counts too: cat, sed -n and head, behind a cd, by the path\'s
 
 test('no cut, no re-read; a cut before the first turn clears nothing', () => {
   const p = session();
-  assert.deepEqual(rereadsOf(p, []), { reads: 0, tokens: 0, laterTokens: 0 });
-  assert.deepEqual(rereadsOf(p, [Date.parse(T('00:00')) - 1]), { reads: 0, tokens: 0, laterTokens: 0 });
+  assert.deepEqual(rereadsOf(p, []), { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 });
+  assert.deepEqual(rereadsOf(p, [Date.parse(T('00:00')) - 1]), { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 });
 });
 
 test('a cut named by the end of its turn (the log\'s mirror row) is the same cut as one named by its start', () => {
@@ -140,7 +140,7 @@ test('cut times come from the proxy\'s rows, the mod\'s record and the log\'s mi
 test('a re-read costs its write once and its reads after at the cache-read rate', () => {
   const price = { input: 4, cacheRead: 0.2, cacheWrite1h: 8 };
   assert.equal(rereadCost({ reads: 1, tokens: 10_000, laterTokens: 100_000 }, price), (10_000 * 8 + 100_000 * 0.2) / 1e6);
-  assert.equal(rereadCost({ reads: 0, tokens: 0, laterTokens: 0 }, price), 0);
+  assert.equal(rereadCost({ reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 }, price), 0);
   assert.equal(rereadCost(null, price), 0);
   assert.equal(rereadCost({ reads: 1, tokens: 10_000, laterTokens: 0 }, null), 0);
 });
@@ -164,7 +164,8 @@ test('the Stop hook puts the re-reads on the session row, from the proxy\'s cut 
   const rows = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l)).filter(r => r.op === 'session');
   const s1 = rows.find(r => r.session === 'S1'), s2 = rows.find(r => r.session === 'S2');
   const tokens = Math.round(BIG.length * RESULT_TOKENS_PER_CHAR);
-  assert.deepEqual(s1.rereads, { reads: 2, tokens: 2 * tokens, laterTokens: 3 * tokens });
+  assert.deepEqual(s1.rereads, { reads: 2, tokens: 2 * tokens, laterTokens: 3 * tokens, files: 2, calls: 0 },
+    'two re-reads, both matched on the file read again rather than on a repeated call');
   assert.equal(s2.rereads, undefined, 'never cut: nothing to read again');
 });
 
@@ -192,7 +193,7 @@ test('a cut made inside a long turn is reconstructed, and only with the rule tha
   const p = oneTurn();
   const cuts = [Date.parse(T('00:30'))];
   // today's reading: the cut sits in turn 1 and there is no turn before it, so nothing reads as cleared
-  assert.deepEqual(rereadsOf(p, cuts), { reads: 0, tokens: 0, laterTokens: 0 });
+  assert.deepEqual(rereadsOf(p, cuts), { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 });
   // with the rule in force: the turn's five finished results are eligible, c, d and e are the newest three, so a and b
   // went -- and a is read again
   const r = rereadsOf(p, cuts, { longTurn: true, trigger: 2000, keepTurn: 3 });
@@ -223,4 +224,57 @@ test('which policy made a session\'s cuts is read off the stamp the cut left, no
   fs.writeFileSync(path.join(dir, 'ses_plain.json'), JSON.stringify({ session: 'ses_plain', cleared: 9, policy: 'r3-t140k-f8k-p25-deep' }));
   assert.deepEqual(cutPolicyFor({ session: 'ses_plain', dir }), {}, 'no rule named: read as it always was');
   assert.deepEqual(cutPolicyFor({ session: 'ses_none', dir }), {}, 'no record at all');
+});
+
+// A re-DO, not only a re-read (2026-11-14). The cut takes every tool result over MIN_CHARS, whatever made it: on this
+// machine Bash is 84% of what it removes by tokens and reads are 1.7%, and only 6% of that Bash prints a file. So a
+// figure that counted files alone scored zero for 93% of what the cut takes. A call that repeats an earlier call whose
+// result was cleared is the same cost as a read repeated: the write once more, and a cache read on every later call.
+//
+// Exact where the file rule is loose: the same file read by any means is the same read, because the file is the thing
+// recovered; `grep -rn foo src` and `grep -rn foo lib` recover different things, so a near-repeat is new work here.
+test('a repeated call whose result a cut took out counts, keyed on the call rather than on a file', () => {
+  const lines = [];
+  let n = 0;
+  lines.push({ type: 'user', timestamp: T('00:00'), message: { role: 'user', content: 'check it' } });
+  const call = (at, name, input, result) => {
+    const id = `c${++n}`;
+    lines.push({ type: 'assistant', timestamp: T(at), message: { model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id, name, input }] } });
+    lines.push({ type: 'user', timestamp: T(at), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: result }] } });
+  };
+  call('00:05', 'Bash', { command: 'grep -rn foo src' }, BIG);
+  call('00:10', 'Bash', { command: 'npm test' }, BIG);
+  lines.push({ type: 'user', timestamp: T('10:00'), message: { role: 'user', content: 'and again' } });
+  call('10:05', 'Bash', { command: 'grep -rn foo src' }, BIG);   // the same search, after the cut: a re-do
+  call('10:10', 'Bash', { command: 'grep -rn foo lib' }, BIG);   // a different search: new work, not a re-do
+  const f = path.join(tmp(), 'redo.jsonl');
+  fs.writeFileSync(f, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+  const p = parseTranscript(f);
+  const r = rereadsOf(p, [Date.parse(T('10:01'))], { keepMin: 1 });
+  assert.equal(r.reads, 1, 'the repeated grep, and only it');
+  assert.equal(r.calls, 1, 'matched on the call');
+  assert.equal(r.files, 0, 'no file was named by any of these, so the file rule saw nothing');
+  assert.equal(r.tokens, Math.round(BIG.length * RESULT_TOKENS_PER_CHAR));
+});
+
+test('a call is tried against one rule or the other, never both, so nothing is counted twice', () => {
+  const lines = [];
+  let n = 0;
+  lines.push({ type: 'user', timestamp: T('00:00'), message: { role: 'user', content: 'read it' } });
+  const call = (at, name, input) => {
+    const id = `d${++n}`;
+    lines.push({ type: 'assistant', timestamp: T(at), message: { model: 'claude-opus-5-5', usage, content: [{ type: 'tool_use', id, name, input }] } });
+    lines.push({ type: 'user', timestamp: T(at), message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: BIG }] } });
+  };
+  // a shell line that prints a file is matched on the file, never on the command text
+  call('00:05', 'Bash', { command: 'cat /r/a.py' });
+  call('00:10', 'Bash', { command: 'git status' });
+  lines.push({ type: 'user', timestamp: T('10:00'), message: { role: 'user', content: 'again' } });
+  call('10:05', 'Read', { file_path: '/r/a.py' });
+  const f = path.join(tmp(), 'once.jsonl');
+  fs.writeFileSync(f, lines.map(l => JSON.stringify(l)).join('\n') + '\n');
+  const r = rereadsOf(parseTranscript(f), [Date.parse(T('10:01'))], { keepMin: 1 });
+  assert.equal(r.reads, 1, 'one re-read');
+  assert.equal(r.files, 1, 'by the file, since a cat names one');
+  assert.equal(r.calls, 0, 'and not a second time as a repeated call -- the tools differ anyway');
 });

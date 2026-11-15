@@ -129,7 +129,7 @@ test('the wider tail is a setting, not a constant: a flag and the machine config
 // prompt (`priceCut`), while its saving is only what it removed -- so protecting ten of a turn's results instead of
 // three can leave too little to remove for the cut to repay itself within PAYBACK calls. On the turn shape this rule
 // was built for (many results of a module's size) that never bites. On a turn of a few very large reads it does, and
-// the rule stands down there rather than cutting anyway. That is the trade and it is the safe side of it: a turn of 25
+// the rule stands down there rather than cutting anyway. That is the trade and it is the safe side of it: a turn of a dozen
 // big reads is exactly where leaving the model 3 of them would have been worst.
 test('where ten leaves too little to remove, the cut stands down instead of cutting anyway', () => {
   const huge = (n, chars) => {
@@ -140,12 +140,16 @@ test('where ten leaves too little to remove, the cut stands down instead of cutt
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: `t${i}`, content: R }] });
     return { model: 'claude-opus-5-5', messages: ms };
   };
-  const body = huge(25, 20_000);          // 25 reads of ~8.9k tokens: past the trigger, few enough that ten is most of it
+  // 14 reads of ~27k tokens. The shape matters more than the size: ten of fourteen protected leaves four to remove
+  // against the whole prompt rewritten. 25 reads of 20k -- what this test used until #795 counted a rung's removed
+  // tokens at a result's own 0.445 rather than 0.36 -- now repays at ten (payback 21 of 25), which is the rate
+  // correction doing its job: the saving was always that size and had been understated by a fifth.
+  const body = huge(14, 60_000);
   const at3 = run(body, { longTurn: true, keepTurn: 3 });
-  assert.equal(at3.d.clear, true, 'the old number cut 22 of the 25 results the model was working from');
+  assert.equal(at3.d.clear, true, 'the old number cut 11 of the 14 results the model was working from');
   const at10 = run(body, { longTurn: true });
   assert.equal(at10.d.clear, false);
-  assert.equal(at10.d.reason, 'payback', 'ten leaves 15 to remove against the whole prompt rewritten: it does not repay');
+  assert.equal(at10.d.reason, 'payback', 'ten leaves four to remove against the whole prompt rewritten: it does not repay');
   // and the guard that refused is the one that always priced cuts, not a new rule for this case
   assert.ok(at10.cand.ids.length > 0, 'there were candidates; the price is what refused them');
 });

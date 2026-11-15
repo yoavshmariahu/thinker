@@ -187,7 +187,7 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   if (upstream) args.push('--upstream', String(upstream));
   // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off.
   // `longTurn` is the other way round -- off until measured -- and reads the same way.
-  for (const [key, flag] of [['clearDeep', 'clear-deep'], ['longTurn', 'long-turn']]) {
+  for (const [key, flag] of [['clearDeep', 'clear-deep'], ['longTurn', 'long-turn'], ['cutInputs', 'cut-inputs']]) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
