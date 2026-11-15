@@ -227,6 +227,24 @@ export function cutInput(input, { minChars = MIN_CHARS } = {}) {
   return chars > 0 ? { input: out, chars } : null;
 }
 
+// Whose session this request belongs to. Claude Code says so in its own header, and until 2026-11-13
+// that header was the only one read -- so every other client's requests were attributed to no session
+// at all: the cut's record fell back to a hash of the first message, the proxy's rows logged
+// `session: null`, and the cleared figure never reached the session it belonged to. OpenCode 2 sends
+// the id in four headers (checked live on 2.3.0 in demo/e2e: `x-opencode-session`,
+// `x-opencode-session-id`, `x-session-affinity` and `x-session-id`, all four carrying the same
+// `ses_...` id its plugin reports to the stop hook), so the figures can be joined on it. The list is
+// ordered most specific first, and a value is taken only if it looks like an id rather than a path or
+// a URL, because `x-session-id` is a name anything upstream might set.
+export const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'x-session-id'];
+export const sessionOf = headers => {
+  for (const h of SESSION_HEADERS) {
+    const v = headers[h];
+    if (typeof v === 'string' && v && v.length <= 200 && !/[\s/\\]/.test(v)) return v;
+  }
+  return null;
+};
+
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
   saved: 0, written: 0, chars: 0, model: null, at: 0,

@@ -205,6 +205,13 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Fixed on the way: the `proxy-cut-rejected` row carried no `session`, so `proxyReport`'s `sessionsRejected` keyed
   on it and could only ever read 1.
 
+**OpenCode on OpenRouter goes through the proxy by default (2026-11-15, the owner's call):**
+- The service runs `--gateway-openrouter` and `connect` points OpenCode's `provider.openrouter` at `<proxy>/openrouter/v1`, unless `proxy: { gateways: { openrouter: false } }` (`proxy-service.js:openrouterGateway`, the one reader). LiteLLM is the person's own server and stays a setting.
+- Opt-in since #743 meant nobody had it: seven GLM sessions on the owner's machine re-read 120M cached tokens uncut.
+- The door drops the agent's `/v1` where the upstream has its own (it was `/api/v1/v1/…`, a 404 on every request against OpenRouter itself; the fleet e2e used a fixture).
+- A Chat conversation is keyed on the agent's session id (`x-opencode-session-id` and its three siblings, else `prompt_cache_key`) plus the first user message (`proxy-chat.js:chatSession`). The first message alone is thinker's own profile block on OpenCode, so every session in a checkout shared one record and the set moved inside a turn.
+- Checked live through OpenRouter on GLM 5.3, Gemini 3.6 Flash, Claude Haiku 5.5 and GPT-5.4 mini (trigger lowered to 30k): the cut fired at the boundary, the same set on every call of a turn, 75-82% read from cache on the cut's own call and 92-100% on the next (GLM stayed at 67-82%).
+
 **A request that never reached the API recovers (2026-11-05, `src/proxy-retry.js`):**
 - Address cache (`addressBook`, cached 6 h), ladder (`RETRY_WAITS` 0.25–4s), fresh socket for TLS/EHOSTUNREACH.
 - Cancellations: `op: 'proxy-cancelled'` (also `aborted` flag while old logs in window).

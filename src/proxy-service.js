@@ -177,6 +177,19 @@ export function isListening(port, { timeout = 400 } = {}) {
 }
 
 // the service's flags: the port, the holdout, and what THINKER_HOME/config.json's `proxy` block sets
+// Whether the OpenRouter door is served, and where it forwards: on by default (the owner's call,
+// 2026-11-15), `false` in the machine config's `proxy.gateways` turns it off, a string is another upstream.
+// It was opt-in from the day it shipped (#743), and the effect was that nobody had it: an OpenCode session
+// on OpenRouter went straight to the gateway and nothing was cleared -- on the owner's own machine seven GLM
+// sessions re-read 120M tokens from the cache with the proxy running beside them. OpenRouter needs no URL
+// of the person's, which is what makes it possible to default; LiteLLM is somebody's own server and stays
+// a setting. One reader, so the service's flag and OpenCode's wiring can never disagree.
+export const openrouterGateway = (gateways = {}) => {
+  const v = gateways && typeof gateways === 'object' ? gateways.openrouter : undefined;
+  if (v === false) return false;
+  return typeof v === 'string' && v ? v : true;
+};
+
 export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   const cfg = readMachineConfig(home).proxy || {};
   const holdout = cfg.holdout == null ? SERVICE_HOLDOUT : Number(cfg.holdout) || 0;
@@ -191,12 +204,13 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
-  // the model gateways (proxy.js): `gateways: { openrouter: true | '<upstream>', litellm: 'https://…' }`
-  // in the `proxy` block. OpenRouter needs no URL; a string moves the same door to another
-  // upstream (a self-hosted mirror, a test fixture); any other gateway is its base URL, and a
-  // new one is an entry here, read by the same door.
+  // the model gateways (proxy.js): `gateways: { openrouter: false | '<upstream>', litellm: 'https://…' }`
+  // in the `proxy` block. OpenRouter is on unless the config says false (`openrouterGateway`); a string
+  // moves the same door to another upstream (a self-hosted mirror, a test fixture); any other gateway is
+  // its base URL, and a new one is an entry here, read by the same door.
   const gateways = cfg.gateways && typeof cfg.gateways === 'object' ? cfg.gateways : {};
-  if (gateways.openrouter === true || (typeof gateways.openrouter === 'string' && gateways.openrouter)) args.push('--gateway-openrouter', ...(typeof gateways.openrouter === 'string' ? [gateways.openrouter] : []));
+  const openrouter = openrouterGateway(gateways);
+  if (openrouter) args.push('--gateway-openrouter', ...(typeof openrouter === 'string' ? [openrouter] : []));
   if (typeof gateways.litellm === 'string' && gateways.litellm) args.push('--gateway-litellm', gateways.litellm);
   return args;
 }
@@ -639,8 +653,8 @@ function piFile(url, home) {
   return { file: f, changed: true };
 }
 // OpenCode: opencode.json `provider.anthropic.options.baseURL`; a config kept as opencode.jsonc (comments) is not rewritten.
-// Where the openrouter gateway is on in the machine config, the openrouter provider is pointed at the same
-// proxy behind its path prefix (`/openrouter/v1`), so the chat door serves it too.
+// The openrouter provider is pointed at the same proxy behind its path prefix (`/openrouter/v1`), so the chat
+// door serves it too, unless the machine config turns that gateway off (`openrouterGateway`).
 function opencodeFile(url, home) {
   const dir = opencodeDir();
   const f = path.join(dir, 'opencode.json'), fc = path.join(dir, 'opencode.jsonc');
@@ -666,8 +680,7 @@ function opencodeFile(url, home) {
     const next = { ...obj }; if (Object.keys(provider).length) next.provider = provider; else delete next.provider;
     return { obj: next, changed: true };
   };
-  const gateways = readMachineConfig(home).proxy?.gateways || {};
-  const openrouterOn = gateways.openrouter === true || (typeof gateways.openrouter === 'string' && gateways.openrouter);
+  const openrouterOn = !!openrouterGateway(readMachineConfig(home).proxy?.gateways);
   // **With the `/v1`, and that is the whole of it** (2026-11-13, found by the fleet e2e in demo/e2e).
   // OpenCode reaches Anthropic through the Vercel AI SDK, whose own default base is
   // `https://api.anthropic.com/v1` and which posts to `${baseURL}/messages`. Given the proxy's bare

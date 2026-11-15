@@ -128,18 +128,23 @@ test('the state: off until enabled, the port kept, every port the service had is
     assert.equal(isOwnUrl('http://127.0.0.1:6899/', home), true, 'an earlier port, trailing slash');
     assert.equal(isOwnUrl('http://127.0.0.1:7000', home), false);
     assert.equal(isOwnUrl('https://gateway.example.com', home), false);
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', String(SERVICE_HOLDOUT), '--codex']);
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', String(SERVICE_HOLDOUT), '--codex', '--gateway-openrouter']);
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, keep: 3, trigger: 60000 } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--trigger', '60000', '--keep', '3'], 'the machine config sets the flags');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--trigger', '60000', '--keep', '3', '--gateway-openrouter'], 'the machine config sets the flags');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0 } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex'], 'a config that names them keeps passing them, as the machines set up before the default did');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--gateway-openrouter'], 'a config that names them keeps passing them, as the machines set up before the default did');
     // both are on by default now, so the config is only needed to turn one off, and then it is passed as such
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, clearDeep: true } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--clear-deep'], 'a config that names it keeps passing it');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--clear-deep', '--gateway-openrouter'], 'a config that names it keeps passing it');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, clearDeep: false } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--no-clear-deep'], 'the deep clear is on by default; false is the off switch');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--no-clear-deep', '--gateway-openrouter'], 'the deep clear is on by default; false is the off switch');
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0 } }));
-    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex'], 'a value that is neither true nor false leaves the default');
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--gateway-openrouter'], 'a value that is neither true nor false leaves the default');
+    // the OpenRouter door is on unless the config says false; a string is the same door at another upstream
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, gateways: { openrouter: false } } }));
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex'], 'false is the off switch');
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { holdout: 0, gateways: { openrouter: 'http://127.0.0.1:9/v1', litellm: 'http://127.0.0.1:4000' } } }));
+    assert.deepEqual(serviceArgs(home), ['proxy', '--port', '6901', '--holdout', '0', '--codex', '--gateway-openrouter', 'http://127.0.0.1:9/v1', '--gateway-litellm', 'http://127.0.0.1:4000']);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -182,7 +187,8 @@ test('enable writes the URL into every agent file and disable takes only ours ou
     assert.deepEqual(readJson(m.files.pi), { providers: { anthropic: { headers: { 'x-a': 'b' }, baseUrl: p.url } } });
     // OpenCode reaches the API through the Vercel AI SDK, which posts `${baseURL}/messages`, so its base
     // carries the `/v1` the proxy's cut matches on (`test/opencode-fleet.test.js` is why).
-    assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: `${p.url}/v1` } } } });
+    // and its openrouter provider goes through the same proxy's gateway door, on by default (2026-11-15)
+    assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: `${p.url}/v1` } }, openrouter: { options: { baseURL: `${p.url}/openrouter/v1` } } } });
     // again: nothing changes, the port is kept
     const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.equal(again.port, p.port);
@@ -232,6 +238,29 @@ test('no OpenCode on the machine: no file is made for it', () => {
     const w = wireAgents('http://127.0.0.1:6901', { home: m.home, env: {}, agents: ['opencode'] });
     assert.deepEqual(w.changed, []);
     assert.equal(fs.existsSync(m.files.opencode), false);
+  } finally { m.restore(); }
+});
+
+// OpenCode's openrouter provider goes through the gateway door by default (2026-11-15): opt-in meant nobody
+// had it. `gateways: { openrouter: false }` is the off switch, and a route of the person's own is left alone.
+test('OpenCode on OpenRouter is wired by default, off by the config, and never over the person\'s own route', () => {
+  const m = fakeMachine();
+  try {
+    const url = 'http://127.0.0.1:6901';
+    fs.mkdirSync(path.join(m.home, 'state'), { recursive: true });
+    fs.writeFileSync(path.join(m.home, 'state', 'proxy-service.json'), JSON.stringify({ enabled: true, port: 6901, ports: [6901] }));
+    wireAgents(url, { home: m.home, env: {}, agents: ['opencode'] });
+    assert.equal(readJson(m.files.opencode).provider.openrouter.options.baseURL, `${url}/openrouter/v1`);
+    // switched off in the machine config: ours comes out, the anthropic route stays
+    fs.writeFileSync(path.join(m.home, 'config.json'), JSON.stringify({ proxy: { gateways: { openrouter: false } } }));
+    wireAgents(url, { home: m.home, env: {}, agents: ['opencode'] });
+    assert.deepEqual(readJson(m.files.opencode), { provider: { anthropic: { options: { baseURL: `${url}/v1` } } } });
+    // the person's own gateway for that provider is theirs
+    fs.rmSync(path.join(m.home, 'config.json'));
+    fs.writeFileSync(m.files.opencode, JSON.stringify({ provider: { openrouter: { options: { baseURL: 'https://or.corp/api/v1' } } } }));
+    const w = wireAgents(url, { home: m.home, env: {}, agents: ['opencode'] });
+    assert.equal(readJson(m.files.opencode).provider.openrouter.options.baseURL, 'https://or.corp/api/v1');
+    assert.match(w.skipped.find(x => x.agent === 'opencode').reason, /provider\.openrouter\.options\.baseURL is already/);
   } finally { m.restore(); }
 });
 
