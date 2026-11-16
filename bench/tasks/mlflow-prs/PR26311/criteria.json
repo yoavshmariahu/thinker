@@ -1,0 +1,29 @@
+{
+ "source": "mlflow-b2-fair-turns acceptance criteria (Artemis archive, written 2026-10, before these runs); a criterion that is a test command is left to check.sh, which runs the pull request's own tests",
+ "exclude": [
+  "tests/data/test_evaluation_dataset.py",
+  "tests/data/test_huggingface_dataset_and_source.py"
+ ],
+ "criteria": [
+  {
+   "id": "a1",
+   "behavior": "Converting a dataset whose rows contain nested lists/arrays of dictionaries with varying lengths (e.g. a Hugging Face dataset where each row's list-of-dicts column differs in length across rows) into an evaluation dataset succeeds and produces a hash/digest, instead of raising a ValueError about an inhomogeneous or non-rectangular array shape.",
+   "essential": true
+  },
+  {
+   "id": "a2",
+   "behavior": "When the irregular nested data contains dictionaries and cannot be converted into a uniform rectangular array, hashing falls back to walking through the nested contents item by item rather than failing, and this fallback path is actually exercised (not just caught and silently ignored) for such inputs.",
+   "essential": true
+  },
+  {
+   "id": "a3",
+   "behavior": "Hashing the same irregular (varying-length, dict-containing) data twice yields an identical hash each time, i.e. the fallback hashing is deterministic.",
+   "essential": true
+  },
+  {
+   "id": "a5",
+   "behavior": "Converting a dataset with mismatched row lengths that do not contain dictionaries (plain irregular numeric/scalar data) still raises the existing validation error rather than being silently absorbed by the new dict-specific fallback.",
+   "essential": false
+  }
+ ]
+}

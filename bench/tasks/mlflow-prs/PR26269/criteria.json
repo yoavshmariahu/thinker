@@ -1,0 +1,33 @@
+{
+ "source": "mlflow-b2-fair-turns acceptance criteria (Artemis archive, written 2026-10, before these runs); a criterion that is a test command is left to check.sh, which runs the pull request's own tests",
+ "exclude": [
+  "tests/gateway/providers/test_anthropic.py"
+ ],
+ "criteria": [
+  {
+   "id": "a1",
+   "behavior": "Streaming a response containing two (or more) parallel tool calls numbers the tool-call deltas sequentially starting at 0 in the order the calls appear (first call's delta chunks use index 0, second call's chunks use index 1, etc.), rather than every chunk reporting index 0.",
+   "essential": true
+  },
+  {
+   "id": "a2",
+   "behavior": "When a text content block precedes a parallel tool call in the model's output, the tool call's delta index still starts counting from 0 among tool calls and is unaffected by the position/index of the preceding text block.",
+   "essential": true
+  },
+  {
+   "id": "a3",
+   "behavior": "Every chunk emitted while streaming a chat completion contains exactly one choice (the first choice), regardless of how many content blocks (text and/or tool calls) the underlying model streamed, so a second tool call is never placed into a second choice.",
+   "essential": true
+  },
+  {
+   "id": "a4",
+   "behavior": "For a given streamed chat completion response, a finish event (a chunk with a non-null finish_reason) is emitted exactly once, at the end of the stream, rather than once per content block.",
+   "essential": true
+  },
+  {
+   "id": "a5",
+   "behavior": "Non-streaming chat completion responses (including ones with one or more tool calls) are unaffected by this change and keep returning a single choice with the tool calls as before.",
+   "essential": true
+  }
+ ]
+}
