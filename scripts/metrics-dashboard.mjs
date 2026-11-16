@@ -344,20 +344,20 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What thinker saved, the devices it ran on, the context cuts, the delegations to a subagent and the known devices, each by UTC day (scripts/daily-dashboard.mjs). A day is its own figure from the newest snapshot that carries it, so days add up.' })).id;
     save();
   }
-  if (state.dailyDashboardVersion !== 1) {
+  if (state.dailyDashboardVersion !== 2) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 3,
-      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are counted from ${SAVINGS_SINCE}, the day thinker began cutting the context itself. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0.` } }];
-    // the total beside the bars it is the sum of, then the graphs two to a row
+      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are counted from ${SAVINGS_SINCE}, the day thinker began cutting the context itself. No data means not measured, not zero: dollars, cuts and delegations are read from clients released after 0.4.0.` } }];
+    // the two totals beside the bars they are the sum of, then the graphs two to a row
     let row = 3, col = 0;
     dailyQuestions.forEach((q, i) => {
       const id = state.cards[q.name], base = { id: -(i + 2), card_id: id, parameter_mappings: mappings(id) };
-      if (i === 0) return cards.push({ ...base, row, col: 0, size_x: 6, size_y: 8 });
-      if (i === 1) { cards.push({ ...base, row, col: 6, size_x: 18, size_y: 8 }); row += 8; return; }
+      if (i < 2) return cards.push({ ...base, row: row + i * 4, col: 0, size_x: 6, size_y: 4 });
+      if (i === 2) { cards.push({ ...base, row, col: 6, size_x: 18, size_y: 8 }); row += 8; return; }
       cards.push({ ...base, row, col, size_x: 12, size_y: 8 });
       if (col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters, dashcards: cards });
-    state.dailyDashboardVersion = 1; save();
+    state.dailyDashboardVersion = 2; save();
   } else {
     const dashboard = await api(`/dashboard/${state.dailyId}`);
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters: [...parameters,

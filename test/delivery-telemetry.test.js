@@ -148,6 +148,9 @@ test('savings per session are counted once each, split by what actually happened
   assert.equal(s.byClient.claude.sessions, 2);
   assert.equal(s.byPolicy.unstamped.sessions, 1, 'the cleared one, under no recorded policy');
   assert.equal(s.byPolicy.none.sessions, 1, 'and the one nothing cleared');
+  // a clear under no recorded policy is in the day's figures and never in the stamped ones, which are the current mechanism's alone
+  for (const d of Object.values(s.byDay)) { assert.equal(d.stampedSessions, 0); assert.equal(d.stampedNetUsd, 0); assert.equal(d.stampedSavedUsd, 0); }
+  assert.equal(Object.values(s.byDay).reduce((n, d) => n + d.clearedSessions, 0), 1);
   assert.equal(s.netBuckets.reduce((n, b) => n + b.count, 0), s.cleared.pricedSessions);
   // a session is counted here whether or not it reached a pull request, which is the point of the block
   assert.ok(s.all.sessions >= prs.linkedSessions);
@@ -187,6 +190,11 @@ test('a desktop clear still counts after its record is pruned, with its cost and
   assert.ok(s.cleared.savedUsd > 0, 'priced from the model the record named');
   assert.ok(s.cleared.rewriteUsd > 0, 'and what the clear cost is charged too');
   assert.equal(s.cleared.netUsd, Math.round((s.cleared.savedUsd - s.cleared.rewriteUsd) * 100) / 100);
+  // a stamped clear is in its day's stamped figures, so a dashboard can add the days of the current mechanism up
+  const days = Object.values(s.byDay);
+  assert.equal(days.reduce((n, d) => n + d.stampedSessions, 0), 1);
+  assert.equal(Math.round(days.reduce((n, d) => n + d.stampedNetUsd, 0) * 100) / 100, s.cleared.netUsd);
+  assert.equal(Math.round(days.reduce((n, d) => n + d.stampedSavedUsd, 0) * 100) / 100, s.cleared.savedUsd);
 });
 
 // Two faults that made every windowed dollar figure wrong, found by asking what the last five days saved.

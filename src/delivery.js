@@ -44,6 +44,7 @@ const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.pars
 
 // One pass over the usage log: each session's client, model, branches and heads, and what it cost by its last
 // `session` row.
+const READ_LATER = new Set(['profile', 'model', 'distill-skipped']);
 export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env } = {}) {
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
   const sessions = new Map();
@@ -55,7 +56,10 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     const key = e.session && e.session !== 'unknown' ? sessionKey(e.session) : null;
     if (!key) continue;
     const x = of(key);
-    x.firstAt = x.firstAt || e.t; x.lastAt = e.t;
+    // A session is dated by its own turns. The profile reads a session after it ended and logs rows naming it at
+    // the time of the read (`profile`, the `model` call behind it, `distill-skipped`), so one rebuild moved ~170
+    // sessions of three weeks onto 2026-11-08 on the machine this was found on, and their savings with them.
+    if (!READ_LATER.has(e.op)) { x.firstAt = x.firstAt || e.t; x.lastAt = e.t; }
     if (e.client) x.client = e.client;
     if (e.branch) x.branches.add(e.branch);
     if (e.head) x.heads.add(e.head);

@@ -33,12 +33,12 @@ const PR_ROWS = 50;
 // the two apart -- which is why the proxy block grew its own `byDay` (telemetry.js:proxyMetrics). A day here
 // belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days
 // from different devices and different days add up.
-const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, savedUsd: 0, netUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
+const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, savedUsd: 0, netUsd: 0, stampedSessions: 0, stampedSavedUsd: 0, stampedNetUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
 const dayOf = at => (typeof at === 'string' && at.length >= 10 && Number.isFinite(Date.parse(at)) ? at.slice(0, 10) : null);
 const roundDays = byDay => {
   for (const d of Object.values(byDay)) {
     d.clearedTokens = Math.round(d.clearedTokens);
-    for (const k of ['savedUsd', 'netUsd', 'spendUsd']) if (k in d) d[k] = Math.round(d[k] * 100) / 100;
+    for (const k of ['savedUsd', 'netUsd', 'stampedSavedUsd', 'stampedNetUsd', 'spendUsd']) if (k in d) d[k] = Math.round(d[k] * 100) / 100;
   }
   return byDay;
 };
@@ -70,6 +70,7 @@ const roundGroup = g => {
   return g;
 };
 // a saving whose policy was never recorded is its own key, never folded into today's
+const STAMPED = /^r\d/;
 const policyKey = x => (x.cleared > 0 ? (x.policyChanged ? 'mixed' : x.policy || 'unstamped') : 'none');
 
 export function deliveryMetrics(store, { all = true, now = Date.now(), home } = {}) {
@@ -133,7 +134,10 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     all: group(), cleared: group(), uncleared: group(),
     byPolicy: {}, byClient: {},
     netBuckets: NET_BUCKETS.map(upper => ({ upper, count: 0 })),
-    // by the UTC day of the session's last request, as the Report places a session in a week; days add up
+    // by the UTC day of the session's last request, as the Report places a session in a week; days add up.
+    // `byDaySchema` 2: a session is dated by its own turns (delivery.js:READ_LATER). Before it a background read
+    // of an old session re-dated it to the day of the read, so a dashboard adding days up reads schema 2 alone.
+    byDaySchema: 2,
     byDay: {},
   };
   const rows = [];
@@ -146,6 +150,11 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       if (x.cleared > 0) { d.clearedSessions++; d.clearedTokens += x.cleared; }
       // gross beside net: what the clearing saved before the cache writes after it are charged (the Report's figure)
       if (x.cost?.priced) { d.pricedSessions++; d.savedUsd += x.cost.saved || 0; d.netUsd += x.cost.net || 0; }
+      // The same dollars over the sessions cleared under a policy the client stamped on the clear (`r<rev>-...`,
+      // cutting.js:policyId), which is the only way a day's saving can be known to be the current mechanism's: a
+      // date cannot say it, since an old session is dated by its last request and nothing knows when a machine
+      // updated. Unstamped and mixed sessions are in the figures above and not in these.
+      if (x.cost?.priced && STAMPED.test(key)) { d.stampedSessions++; d.stampedSavedUsd += x.cost.saved || 0; d.stampedNetUsd += x.cost.net || 0; }
       if (x.spend != null) { d.spendUsd += x.spend; d.spendSessions++; }
     }
     bumpGroup(sessions.all, x);

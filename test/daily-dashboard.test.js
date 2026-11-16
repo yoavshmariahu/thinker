@@ -7,6 +7,8 @@ import { provision } from '../scripts/metrics-dashboard.mjs';
 import { dailyQuestions, SAVINGS_SINCE } from '../scripts/daily-dashboard.mjs';
 import { Store } from '../src/store.js';
 import { delegateMetrics, proxyMetrics } from '../src/telemetry.js';
+import { sessionsOf } from '../src/delivery.js';
+import { repoId } from '../src/store.js';
 
 test('dashboard provisioning creates Thinker by day, maps its filters, lays its cards out without overlap and refreshes without duplicates', async t => {
   t.mock.method(console, 'log', () => {});
@@ -43,17 +45,23 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
 
 test('every daily card reads a day\'s own figure, and the savings count from the day the cut shipped', () => {
   const by = name => dailyQuestions.find(q => q.name.startsWith(name));
-  assert.equal(dailyQuestions.length, 6);
+  assert.equal(dailyQuestions.length, 7);
   // a day from the newest snapshot that carries it, never a 30-day sum by snapshot
-  for (const [name, block] of [['Total saved', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate']]) {
+  for (const [name, block] of [['Total saved', 'sessions'], ['Saved since', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate']]) {
     const q = by(name);
     assert.ok(q, name);
     assert.match(q.sql, new RegExp(`\\{${block},byDay\\}`), `"${name}" reads ${block}.byDay`);
     assert.match(q.sql, /DISTINCT ON \(s\.device, dd\.day\)/, `"${name}" takes each device's day once`);
   }
   assert.equal(SAVINGS_SINCE, '2026-11-04');
-  for (const name of ['Total saved', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-04'/, name);
-  assert.match(by('Total saved').sql, /netUsd/);
+  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-04'/, name);
+  // dollars are read from the clients that date a session by its own turns, and from no other
+  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2'/, name);
+  assert.doesNotMatch(by('Devices with a thinker session').sql, /byDaySchema/);
+  assert.match(by('Total saved').sql, /figures->>'netUsd'/);
+  assert.match(by('Saved since').sql, /figures->>'stampedNetUsd'/);
+  assert.doesNotMatch(by('Saved since').sql, /'netUsd'/);
+  assert.deepEqual(by('Saved per day').settings['graph.metrics'], ['net_saved_usd']);
   assert.match(by('Context cuts').sql, /'cuts'/);
   assert.match(by('Known devices').sql, /sum\(count\(\*\)\) OVER \(ORDER BY day_utc\)/, 'known devices is a running total');
   for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
@@ -97,4 +105,24 @@ test('a cut is counted on the day it was decided, apart from the requests sent s
     assert.equal(day.requestsCleared, 4);
     assert.equal(day.cleared, 170000);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+// Found on the owner's machine: one profile rebuild on 2026-11-08 logged a row for every session it read, and each
+// was then dated that day, so three weeks of the older clearing's sessions landed after the day savings count from.
+test('a session is dated by its own turns, never by a background read of it afterwards', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-daily-dated-'));
+  try {
+    const store = new Store(repo).init(), origin = repoId(repo);
+    const row = (t, op, extra = {}) => ({ t, origin, repo, session: 'old-session', client: 'claude', op, ...extra });
+    const log = [
+      row('2026-10-20T10:00:00.000Z', 'request'),
+      row('2026-10-20T11:00:00.000Z', 'session', { model: 'claude-opus-5-5', turns: 4, totalTokens: 1000 }),
+      row('2026-11-08T03:48:00.000Z', 'model', { purpose: 'profile' }),
+      row('2026-11-08T03:48:01.000Z', 'profile', { exchanges: 4, observations: 2 }),
+      row('2026-11-08T03:48:02.000Z', 'distill-skipped'),
+    ];
+    const x = [...sessionsOf(store, { log, home: path.join(repo, 'home'), env: {} }).values()][0];
+    assert.equal(x.firstAt, '2026-10-20T10:00:00.000Z');
+    assert.equal(x.lastAt, '2026-10-20T11:00:00.000Z', 'the day it ran, not the day the profile read it');
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
