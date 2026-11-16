@@ -504,7 +504,7 @@ reachable in a one-prompt job, but neither uses the one fact that sets a page ap
 call, and on that call nothing has been cached behind it yet.
 
 - **The rule.** A result of a browser tool that carries a page (`EPHEMERAL_TOOLS`: Playwright, Chrome DevTools,
-  claude-in-chrome, `computer`; 2,000+ characters, or an image where it can be saved to a file first) is replaced once `keep` (1) newer ones exist,
+  claude-in-chrome, `computer`, but never a script's value, the network log or the console (`EPHEMERAL_EXCEPT`); 2,000+ characters, or an image where it can be saved to a file first) is replaced once `keep` (1) newer ones exist,
   if what lies between it and the one that superseded it is no larger than what leaves and at most 15 blocks
   (`gapOk`). The first 400 characters stay (what ran, the URL, the title) and the words say the page was seen,
   that refs from it no longer work, and to take a new snapshot (`pagePlaceholder`). Decided from the request

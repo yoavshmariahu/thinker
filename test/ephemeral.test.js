@@ -151,6 +151,23 @@ test('a page read from the file a browser server wrote it to is a page state too
   assert.equal(applyEphemeral(j, { files: [] }), null, 'with no file patterns, a read is a read');
 });
 
+test('what the model asked the page for is not a page: a script\'s value, the network log, the console', () => {
+  for (const name of ['mcp__playwright__browser_evaluate', 'browser_evaluate', 'mcp__playwright__browser_network_requests', 'mcp__claude-in-chrome__javascript_tool', 'browser_run_code_unsafe']) {
+    const j = { messages: [{ role: 'user', content: 'go' }, use('a', name), result('a', SNAP(1)), use('b', name), result('b', SNAP(2))] };
+    assert.equal(applyEphemeral(j, true), null, `${name}: extracted data is never superseded`);
+  }
+  // beside real pages they are left whole, and a page is still superseded by the next page
+  const j = { messages: [{ role: 'user', content: 'go' },
+    use('s1', 'mcp__playwright__browser_snapshot'), result('s1', SNAP(1)),
+    use('e1', 'mcp__playwright__browser_evaluate'), result('e1', 'x'.repeat(1500)),
+    use('s2', 'mcp__playwright__browser_snapshot'), result('s2', SNAP(2))] };
+  const r = applyEphemeral(j, true);
+  assert.equal(r.results, 1);
+  assert.equal(r.messages[4].content[0].content[0].text, 'x'.repeat(1500));
+  // the list is a setting like the others
+  assert.equal(applyEphemeral({ messages: [{ role: 'user', content: 'go' }, use('a', 'browser_evaluate'), result('a', SNAP(1)), use('b', 'browser_evaluate'), result('b', SNAP(2))] }, { except: [] }).results, 1);
+});
+
 test('four markers already: an older one of the agent gives way, never its last, and never a fifth', () => {
   const j = conversation(3);
   j.system.push({ type: 'text', text: 'More.', cache_control: { type: 'ephemeral', ttl: '1h' } });

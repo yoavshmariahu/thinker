@@ -50,10 +50,18 @@ export const EPHEMERAL_TOOLS = ['mcp__playwright__*', 'mcp__chrome-devtools__*',
 // 13,705-character file; only `browser_snapshot` still answers inline). So a read of such a file is a page
 // state by another road, and matching the tool's name alone would see none of them.
 export const EPHEMERAL_FILES = ['/.playwright-mcp/page-'];
+// Browser tools whose result is not a view of the page but something the model asked the page for: the
+// value of a script, the network log, the console. Nothing supersedes those -- the next page does not make
+// the last page's extracted prices stale. Found on the first live session (2026-11-15, Sonnet 5.5 on
+// Claude Code): the model never took a snapshot, it read each page with `browser_evaluate`, and the rule
+// replaced page one's extracted text when page two's arrived. It passed only because its last call
+// fetched every page at once. A suffix after the server's prefix, so one list covers every naming.
+export const EPHEMERAL_EXCEPT = ['evaluate', 'run_code', 'run_code_unsafe', 'network_requests', 'network_request', 'console_messages', 'javascript_tool', 'read_console_messages', 'read_network_requests'];
 const READ_TOOLS = new Set(['Read', 'read', 'read_file', 'view']);
 export const EPHEMERAL_DEFAULTS = {
   tools: EPHEMERAL_TOOLS,
   files: EPHEMERAL_FILES,
+  except: EPHEMERAL_EXCEPT,
   keep: 1,            // live page states left whole; each one past the first is written again on every step
   minChars: 2000,     // under this a result is an acknowledgement, not a page
   head: 400,          // of a replaced result's own first lines, kept: what ran, the URL, the title
@@ -71,6 +79,7 @@ export function ephemeralConfig(v) {
   const out = { ...EPHEMERAL_DEFAULTS };
   if (Array.isArray(v.tools) && v.tools.length) out.tools = v.tools.map(String);
   if (Array.isArray(v.files)) out.files = v.files.map(String);
+  if (Array.isArray(v.except)) out.except = v.except.map(String);
   for (const k of ['keep', 'minChars', 'head', 'maxGapBlocks']) if (Number.isFinite(Number(v[k])) && v[k] !== null && v[k] !== '') out[k] = Number(v[k]);
   out.keep = Math.max(1, Math.round(out.keep));
   if (v.tail === 'bare' || v.tail === 'cache') out.tail = v.tail;
@@ -81,7 +90,9 @@ export const ephemeralId = v => { const c = ephemeralConfig(v); return c ? `+eph
 
 const matches = (patterns, name) => typeof name === 'string' && patterns.some(p => (p.endsWith('*') ? name.startsWith(p.slice(0, -1)) : name === p));
 // a call whose result is a page: a browser tool, or a read of a file a browser server wrote the page to
-const isPageCall = (cfg, call) => !!call && (matches(cfg.tools, call.name)
+// the tool's own name, whatever a host or a server put in front of it (`mcp__playwright__browser_evaluate`, `browser_evaluate`)
+const bareName = name => String(name || '').replace(/^mcp__[^_]+(?:_[^_]+)*__/, '').replace(/^browser_/, '');
+const isPageCall = (cfg, call) => !!call && ((matches(cfg.tools, call.name) && !(cfg.except || []).includes(bareName(call.name)))
   || (READ_TOOLS.has(call.name) && (cfg.files || []).some(f => String(call.input?.file_path ?? call.input?.path ?? '').replaceAll('\\', '/').includes(f))));
 const textOf = b => (typeof b?.content === 'string' ? b.content
   : Array.isArray(b?.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('\n') : '');
