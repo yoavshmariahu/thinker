@@ -64,7 +64,7 @@ export function opencodeV2(config, run = hookRunner(config)) {
         // to a subagent, and its report is thrown here, which v2 makes the call's result (checked live on 2.2.7:
         // the model read the report and answered from it). The CLI answers the same JSON as Claude Code's
         // PreToolUse deny; a call that goes through gets no answer and the hook returns in silence.
-        // Off by default (2026-11-12); read once at setup, so switching it on needs OpenCode started again.
+        // On by default (2026-11-16); read once at setup, so switching it needs OpenCode started again.
         if (delegateConfig().enabled) await ctx.tool.hook('execute.before', async ev => {
           if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
           // The lead's model, which neither hook event carries: `session.get({ sessionID })` answers

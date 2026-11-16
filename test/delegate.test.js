@@ -109,7 +109,9 @@ test('delegateTool: denies with the report, caches per file and turn, holds out 
 
 test('delegateConfig: defaults, the machine config, and the environment', t => {
   const home = tmp(t);
-  assert.equal(delegateConfig({ env: {}, home }).enabled, false, 'off by default');
+  assert.equal(delegateConfig({ env: {}, home }).enabled, true, 'on by default');
+  assert.equal(delegateConfig({ env: {}, home }).holdout, 0.25);
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'on' }, home }).enabled, true);
   assert.equal(delegateConfig({ env: {}, home }).threshold, 35000);
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, threshold: 20000, model: 'claude-haiku-5-5' } }));
@@ -156,19 +158,19 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   assert.equal(execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'codex', '--user'], { input: JSON.stringify(ev(big)), encoding: 'utf8', env }), '');
 });
 
-test('wiring: Claude Code gets the PreToolUse entry on Read|Bash only while the trigger is on, with a timeout that covers a subagent run', t => {
+test('wiring: Claude Code gets the PreToolUse entry on Read|Bash unless the trigger is off, with a timeout that covers a subagent run', t => {
   const dir = tmp(t);
   // the wiring reads the machine config, so the test needs a home of its own: on a machine that has the
   // trigger switched on, `delete process.env.THINKER_DELEGATE` alone left `delegate.enabled` true and the
   // "off by default" assertion below failed against the real config.
   const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
   t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
-  delete process.env.THINKER_DELEGATE;
+  process.env.THINKER_DELEGATE = 'off';
   process.env.THINKER_HOME = path.join(dir, 'home');
   fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off by default: no entry, no node process per tool call');
-  process.env.THINKER_DELEGATE = 'on';
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse, undefined, 'off: no entry, no node process per tool call');
+  delete process.env.THINKER_DELEGATE;   // the default: on
   installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
   const c = JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
   assert.equal(c.hooks.PreToolUse.length, 1);
@@ -250,7 +252,7 @@ test('agent hook: Claude Code\'s own subagent on a matched call is written only 
   const dir = tmp(t);
   const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
   t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
-  delete process.env.THINKER_DELEGATE;
+  process.env.THINKER_DELEGATE = 'off';   // the trigger's own entry is not this test's
   const home = process.env.THINKER_HOME = path.join(dir, 'home');
   fs.mkdirSync(home, { recursive: true });
   const settings = () => JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));

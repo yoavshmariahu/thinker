@@ -28,8 +28,9 @@
 //
 // What it is not. It never intercepts a small read (the main model reads the lines it edits), never runs
 // anything on a held-out session (the live measure is those sessions against the others), and never spends
-// more than one subagent run per file per turn (a repeat read gets the cached report). It is off by default:
-// THINKER_DELEGATE=on or `delegate: { enabled: true }` in the machine config turns it on, and the hook's entry is
+// more than one subagent run per file per turn (a repeat read gets the cached report). It is on by default
+// (2026-11-16, a quarter of the sessions held out): THINKER_DELEGATE=off or `delegate: false` in the machine config
+// turns it off, and the hook's entry is
 // only written into the agent's settings while it is on (connect/rewire read the same switch), since a hook that
 // exits at once is still one node process per tool call.
 import fs from 'node:fs';
@@ -45,14 +46,14 @@ import { claudeCardActive } from './claude-card.js';
 export const DELEGATE_SESSION_MARK = 'claude-delegate';
 
 export const DELEGATE_DEFAULTS = Object.freeze({
-  enabled: false,     // off until switched on (the owner's call, 2026-11-12): THINKER_DELEGATE=on or `delegate: { enabled: true }`
+  enabled: true,      // on (the owner's call, 2026-11-16; off from 2026-11-12 until then): THINKER_DELEGATE=off or `delegate: false` switches it off
   handoff: true,      // the host's own subagent does the work; the denial names it (the only path, 2026-11-12)
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
   model: 'claude-haiku-5-5', // the model thinker pins the host's agent definition to where the host lets it
   threshold: 35000,   // tokens of read results in one turn past which the rest of its exploration is delegated
   minRead: 8000,      // a read under this is never delegated: the lines the main model edits
-  holdout: 0.5,       // share of sessions left alone, by hash of the session id (proxy.js:heldOut)
+  holdout: 0.25,      // share of sessions left alone, by hash of the session id (proxy.js:heldOut); 0.5 until 2026-11-16
   families: true,     // on a host whose models come from a gateway, the explorer is the lead's own family's cheap
                       // model (EXPLORER_FAMILIES); `delegate: { families: false }` keeps it on the session's model
   handoffsPerTurn: 5, // reads handed over per turn (the owner's call, 2026-11-15; 1 until then). A file is handed
