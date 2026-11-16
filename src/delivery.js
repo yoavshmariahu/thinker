@@ -88,12 +88,12 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     // row is the session's figure and rows are never added.
     if (e.op === CLEARING_OP && e.cleared > 0 && e.t >= from && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
   }
-  const clearing = clearingFor({ home, env, since: from });
+  const config = (() => { try { return store.config(); } catch { return {}; } })();
+  const clearing = clearingFor({ home, env, since: from, config });
   // What the proxy itself saw of each session, for the clients that keep no transcript (compression.js:
   // usageBySession). Read once, like the clearing.
   let served = new Map();
   try { for (const [id, x] of usageBySession(proxyLogFile(home, env), { since })) served.set(sessionKey(id), x); } catch { served = new Map(); }
-  const config = (() => { try { return store.config(); } catch { return {}; } })();
   const rewriteCost = rewriteCostFor({ home, env, since: from, config });
   for (const x of sessions.values()) {
     // agent tokens: the person's own conversation and every subagent it ran, since each was a model call made for
@@ -133,8 +133,13 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     // and what the model read again after a cut took it out are what it cost (prices.js, rereads.js). One rule: net is
     // cleared at the cache-read rate, less the cache writes after a clear, less the re-reads of cleared files.
     const price = listPrice(x.model, { config });
-    x.cost = price
-      ? { saved: ((x.cleared || 0) * price.cacheRead) / 1e6, rewrite: x.rewrite?.usd || 0, reread: rereadCost(x.rereads, price), priced: true }
+    // Saved is priced row by row where the proxy's log has the rows (`c.usd` over `c.pricedTokens`, each row at the
+    // model that answered it), as the ledger and the Report price it and as the rewrites below are charged. What
+    // the rows do not cover -- a desktop clear known from its record alone, a row whose model has no price -- is
+    // priced at the session's own model, and a session with such a remainder and no priced model stays unpriced.
+    const byRow = Math.min(c.pricedTokens || 0, x.cleared || 0), rest = (x.cleared || 0) - byRow;
+    x.cost = price || (byRow > 0 && rest === 0)
+      ? { saved: (byRow > 0 ? c.usd * (byRow / c.pricedTokens) : 0) + (price ? rest * price.cacheRead / 1e6 : 0), rewrite: x.rewrite?.usd || 0, reread: price ? rereadCost(x.rereads, price) : 0, priced: true }
       : { saved: 0, rewrite: 0, reread: 0, priced: false };
     x.cost.net = x.cost.saved - x.cost.rewrite - x.cost.reread;
     // What the session's own calls cost, in dollars at list prices by token type (fresh input, cache reads, cache
@@ -152,9 +157,9 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
 
 // What the context proxy's clearing saved in a session: the proxy's own log first, since it is the durable
 // record, and the card's state file only where the log's tail no longer reaches (compression.js).
-export function clearingFor({ home = thinkerHome(), env = process.env, since = '' } = {}) {
+export function clearingFor({ home = thinkerHome(), env = process.env, since = '', config } = {}) {
   let logged = new Map();
-  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since })) logged.set(sessionKey(id), row); } catch { logged = new Map(); }
+  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since, config })) logged.set(sessionKey(id), row); } catch { logged = new Map(); }
   const dir = compressionDir(home);
   return id => {
     let state = null;
@@ -174,6 +179,8 @@ export function clearingFor({ home = thinkerHome(), env = process.env, since = '
     // as a clear under today's policy: a reader comparing savings leaves those out rather than pooling them.
     const named = a?.policy ? a : state?.policy ? state : null;
     return { cleared, model: a?.model || state?.model || null,
+      // what the log's own rows saved, each at its own model, and how many of the cleared tokens that covers
+      usd: a?.usd || 0, pricedTokens: a?.pricedTokens || 0,
       policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
   };
 }
