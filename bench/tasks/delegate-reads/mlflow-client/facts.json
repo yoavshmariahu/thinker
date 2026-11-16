@@ -1,0 +1,18 @@
+{"source": "truth-mlflow.md, verified by grep on 2026-11-13 against mlflow @ c63fb454c; written before the run of 2026-11-15",
+ "facts": [
+  {"id": "t2-params-limit", "turn": 2, "re": "MAX_PARAMS_TAGS_PER_BATCH"},
+  {"id": "t2-metrics-limit", "turn": 2, "re": "MAX_METRICS_PER_BATCH"},
+  {"id": "t2-entities-limit", "turn": 2, "re": "MAX_ENTITIES_PER_BATCH"},
+  {"id": "t2-enforcer", "turn": 2, "re": "_validate_batch_limit"},
+  {"id": "t2-where", "turn": 2, "re": "validation\\.py"},
+  {"id": "t4-get_trace", "turn": 4, "re": "\\bget_trace\\b"},
+  {"id": "t4-end_trace", "turn": 4, "re": "\\bend_trace\\b"},
+  {"id": "t4-start_span", "turn": 4, "re": "\\bstart_span\\b"},
+  {"id": "t4-end_span", "turn": 4, "re": "\\bend_span\\b"},
+  {"id": "t4-set_trace_tag", "turn": 4, "re": "\\bset_trace_tag\\b"},
+  {"id": "t4-delete_trace_tag", "turn": 4, "re": "\\bdelete_trace_tag\\b"},
+  {"id": "t4-search_traces", "turn": 4, "re": "\\bsearch_traces\\b"},
+  {"id": "t4-get_latest_versions", "turn": 4, "re": "\\bget_latest_versions\\b"},
+  {"id": "t4-transition_model_version_stage", "turn": 4, "re": "\\btransition_model_version_stage\\b"},
+  {"id": "t4-get_model_version_stages", "turn": 4, "re": "\\bget_model_version_stages\\b"}
+ ]}

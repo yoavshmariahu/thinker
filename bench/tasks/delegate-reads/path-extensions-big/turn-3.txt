@@ -1,0 +1,5 @@
+I want to add this feature:
+
+`click.Path` gets a new keyword-only parameter `extensions: Sequence[str] | None = None`, a list of allowed suffixes such as `[".txt", ".md"]`. When given, a value whose suffix (as `os.path.splitext` gives it) is not in the list, compared case-insensitively, fails with a `BadParameter` whose message names the allowed extensions. The check happens before any filesystem check, so it works with `exists=False`. `to_info_dict()` includes `extensions`. Default behaviour is unchanged.
+
+Implement it now in src/click, keeping existing behaviour unchanged when the new parameter is not used. Add tests for the new behaviour in the matching file under tests/. Keep the change small and in Click's own style (type hints, a docstring line, a versionchanged note).

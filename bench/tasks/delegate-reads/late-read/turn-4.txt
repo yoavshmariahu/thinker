@@ -1,0 +1,1 @@
+Now read src/click/core.py end to end, in full, and tell me whether anything else there calls make_default_short_help or builds a short help string, with a map of the help-formatting path from Command.get_help down.

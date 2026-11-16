@@ -1,0 +1,5 @@
+I'm picking up Click's codebase at {CWD} (tests run with .venv/bin/python -m pytest -q from there). I want to add this feature:
+
+`click.utils.make_default_short_help` gets a new parameter `suffix: str = "..."`, the text appended when the help is truncated. The truncated result, suffix included, still fits in `max_length`. The default call is unchanged.
+
+Don't change anything yet. Find where this lives in the source and in the tests, read the relevant code, and tell me which files, functions and classes the change will touch and how you would do it.

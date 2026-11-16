@@ -1,0 +1,1 @@
+Read the module docstrings and any documentation under docs/ that mentions the functions you changed (grep for their names, then read the files in full) and update the documentation where its description of the behaviour is now wrong.

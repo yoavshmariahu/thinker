@@ -1,0 +1,1 @@
+How does log_batch validate and split a large batch? Name the limits and the file:line where each is enforced.

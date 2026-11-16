@@ -1,0 +1,1 @@
+From what you read: walk me through what happens between Command.main and the callback being invoked, naming the methods in order.

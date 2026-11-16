@@ -1,0 +1,5 @@
+I want to add this feature:
+
+`click.format_filename` gets a new keyword-only parameter `max_length: int | None = None`. When the result (after `shorten`, if set) is longer than it, the middle is replaced by a single `…` (U+2026) so that the result is exactly `max_length` characters, keeping the start and the end. Default behaviour is unchanged.
+
+Implement it now in src/click, keeping existing behaviour unchanged when the new parameter is not used. Add tests for the new behaviour in the matching file under tests/. Keep the change small and in Click's own style (type hints, a docstring line, a versionchanged note).

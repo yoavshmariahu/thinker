@@ -1,0 +1,9 @@
+Implement the following change in this repository. Do not install dependencies or run the full test suite; run the tests relevant to your change if you want to. Make the code change (and adjust or add a test if it is natural), then summarize what you changed and why. A Python environment with this project installed is at bench-venv: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.
+
+Before changing anything, read each of the following files in full with the Read tool: the whole file, in as many Read calls as its length takes, no line ranges that skip any part. Then write a summary of under 200 words of how this area is organised and where a change like the one coming next would go. Do not edit any file in this turn.
+
+mlflow/entities/span.py
+mlflow/tracing/fluent.py
+mlflow/tracing/provider.py
+mlflow/tracing/client.py
+mlflow/tracking/client.py

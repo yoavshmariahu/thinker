@@ -1,0 +1,1 @@
+Run the same tests once more: `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/gateway/providers/test_gemini.py tests/gateway/providers/test_vertex_ai.py -x -q`. Then answer with one paragraph summarizing what you changed and why.

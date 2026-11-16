@@ -1,0 +1,1 @@
+What happens to an active run when the process exits? Trace the registration and the exit path, file:line each.

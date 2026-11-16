@@ -1,0 +1,1 @@
+I'm picking up Click's codebase at {CWD} (tests run with .venv/bin/python -m pytest -q from there). Read src/click/types.py end to end, in full, and give me a map of it: every ParamType subclass, what each converts and validates, and how Path's convert and to_info_dict work.

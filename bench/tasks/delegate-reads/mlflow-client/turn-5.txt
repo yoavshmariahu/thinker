@@ -1,0 +1,1 @@
+Write me a short design note, no code, for adding `MlflowClient.copy_run(run_id, target_experiment_id)`: which existing client methods it would compose, in what order, what it cannot copy and why, and where its tests would go.

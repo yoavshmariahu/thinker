@@ -1,0 +1,1 @@
+I'm picking up Click's codebase at {CWD} (tests run with .venv/bin/python -m pytest -q from there). Read src/click/termui.py and src/click/_termui_impl.py end to end, in full, and give me a map of them: the public functions in termui.py, what each delegates to in _termui_impl.py, and the ProgressBar class's methods and how its position moves.

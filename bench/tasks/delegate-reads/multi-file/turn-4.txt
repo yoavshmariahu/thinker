@@ -1,0 +1,1 @@
+Run the whole test suite verbosely with .venv/bin/python -m pytest -v, fix anything that fails, and tell me the final counts.

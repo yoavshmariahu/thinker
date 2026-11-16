@@ -1,0 +1,1 @@
+I'm picking up Click's codebase at {CWD} (tests run with .venv/bin/python -m pytest -q from there). Read src/click/core.py end to end, in full, and give me a map of it: the classes, what each is responsible for, and the key methods of Command, Group and Context.
