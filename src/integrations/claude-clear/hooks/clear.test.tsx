@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, HOLD_GROWTH, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS } from './register'
+import { clearOld, policyOf, HOLD_GROWTH, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, RESULT_TOKENS_PER_CHAR, COLD_MS, DEFAULTS , delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -176,4 +176,24 @@ test('a request that rewrote a long prefix is charged its write tokens; a cache 
   expect(c).toEqual({ rewrites: 1, write: 150_000 })
   c = charge(c, usage({ cache_creation_input_tokens: 120_000, cache_read_input_tokens: 1000 }))
   expect(c).toEqual({ rewrites: 2, write: 270_000 })
+})
+
+test('delegation: on by the environment or the machine config, off by default', () => {
+  expect(delegateOn(undefined, null)).toBe(false)
+  expect(delegateOn(undefined, { delegate: { enabled: true } })).toBe(true)
+  expect(delegateOn('off', { delegate: { enabled: true } })).toBe(false)
+  expect(delegateOn('on', null)).toBe(true)
+  expect(delegateOn('', { delegate: false })).toBe(false)
+  // thinker's CLI is the one the prompt hook in Claude Code's settings runs
+  expect(cliOf({ hooks: { UserPromptSubmit: [{ hooks: [{ command: 'other' }] }, { hooks: [{ command: 'node "/h/.thinker/app/src/cli.js" hook prompt --client claude --user' }] }] } })).toBe('/h/.thinker/app/src/cli.js')
+  expect(cliOf({})).toBe(null)
+  // the call as PreToolUse spells it, with what the engine reserves left out of the tool's input
+  const ev = pretoolEvent({ tool: 'Read', tool_use_id: 't1', file_path: '/r/core.py', offset: 3 }, { session: 's', cwd: '/r', turn: 'turn-1', prompt: 'where?' })
+  expect(ev).toEqual({ session_id: 's', cwd: '/r', prompt_id: 'turn-1', user_prompt: 'where?', tool_name: 'Read', tool_input: { file_path: '/r/core.py', offset: 3 }, tool_use_id: 't1', host_runs: true })
+  // an order is only one the host can run: an agent, a brief, and a slot for the report
+  const order = { agent: 'Explore', prompt: 'brief', wrap: `thinker read core.py.\n\n${REPORT_SLOT}` }
+  expect(orderOf(JSON.stringify({ hookSpecificOutput: {}, thinkerRun: order }))).toEqual(order)
+  expect(orderOf(JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny' } }))).toBe(null)
+  expect(orderOf('')).toBe(null)
+  expect(orderOf(JSON.stringify({ thinkerRun: { agent: 'Explore', prompt: 'b', wrap: 'no slot' } }))).toBe(null)
 })

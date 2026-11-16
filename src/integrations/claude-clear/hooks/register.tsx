@@ -386,7 +386,86 @@ const stubsOf = async ($: any) => {
 const toolsDir = async ($: any) => `${(await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`}/tools`
 export const isToolFile = (file: unknown, dir: string) => typeof file === 'string' && file.startsWith(`${dir}/`) && file.endsWith('.json') && !file.slice(dir.length + 1).includes('/') && !file.includes('..')
 
+// THE DELEGATION TRIGGER, FROM INSIDE THE HARNESS (2026-11-15, the owner's call; src/delegate.js).
+// A settings hook can deny a read but cannot start a subagent, and words asking the lead to start one are a
+// nudge (Sonnet refused them). This hook can do both: it sees the call before it runs, asks thinker's own rule
+// on the fly (`hook pretool` with `host_runs`: the file's size, the turn's tally, the holdout, the log row --
+// one copy of the rule, the CLI's), and when the rule fires it spawns the harness's own subagent
+// (`$.agent.spawn`) and answers the call with its report inside the sentence a lead works from. What
+// `opencode-v2.js:hostRun` is for OpenCode. A run that fails or runs out of time lets the call through.
+export const REPORT_SLOT = '{{thinker-report}}'
+export const DELEGATE_TIMEOUT_MS = 240_000
+export const DELEGATE_SESSION_MARK = 'claude-delegate'
+const OFF = /^(off|false|0|no)$/i
+// on: THINKER_DELEGATE (anything but an off word), else `delegate: { enabled: true }` in <THINKER_HOME>/config.json
+export function delegateOn(env: string | undefined, config: any): boolean {
+  if (env !== undefined && env !== '') return !OFF.test(env)
+  const d = config?.delegate
+  return Boolean(d && typeof d === 'object' && d.enabled === true)
+}
+// thinker's CLI, read off the prompt hook thinker wrote into Claude Code's settings: the copy the hooks run
+export const cliOf = (settings: any): string | null => {
+  for (const g of settings?.hooks?.UserPromptSubmit || []) for (const h of g?.hooks || []) {
+    const hit = /^node "([^"]+[\\/]cli\.js)" hook prompt\b/.exec(String(h?.command || ''))
+    if (hit) return hit[1]
+  }
+  return null
+}
+// the call as Claude Code's PreToolUse spells it: the tool's arguments apart from what the engine reserves
+export function pretoolEvent(e: any, ctx: { session: string; cwd: string; turn: string; prompt: string }) {
+  const { tool, tool_use_id, agentId, requestMeta, consent, ...input } = e
+  return { session_id: ctx.session, cwd: ctx.cwd, prompt_id: ctx.turn, user_prompt: ctx.prompt, tool_name: tool, tool_input: input, tool_use_id, host_runs: true }
+}
+// the order out of the CLI's answer, or null: nothing fired, or it fired with nothing for the host to run
+export function orderOf(stdout: string): any | null {
+  try { const j = JSON.parse(stdout); const o = j?.thinkerRun; return o && o.agent && o.prompt && String(o.wrap || '').includes(REPORT_SLOT) ? o : null } catch { return null }
+}
+const waiting = new Map<string, (answer: string | null) => void>()
+let delegating = false, cli: string | null = null, turn = { id: '', prompt: '' }
+async function delegateSetup($: any) {
+  delegating = false
+  try {
+    const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+    let config: any = null
+    try { config = JSON.parse(String(await $.fs.read(`${home}/config.json`))) } catch {}
+    if (!delegateOn(await $.env.get('THINKER_DELEGATE'), config)) return
+    cli = (await $.env.get('THINKER_CLI')) || null
+    if (!cli) {
+      const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${await $.env.get('HOME')}/.claude`
+      try { cli = cliOf(JSON.parse(String(await $.fs.read(`${dir}/settings.json`)))) } catch {}
+    }
+    if (!cli) return
+    const id = String(await $.session.id()).replace(/[^\w.-]/g, '_')
+    if (id) await $.fs.write(`${home}/state/${DELEGATE_SESSION_MARK}/${id}`, '')   // the settings hook stands down here
+    delegating = true
+  } catch {}
+}
+async function delegateCall($: any, e: any): Promise<string | null> {
+  if (!delegating || !cli || e.agentId) return null   // a subagent's own reads are its work
+  const ev = pretoolEvent(e, { session: String(await $.session.id()), cwd: String(await $.session.cwd()), turn: turn.id, prompt: turn.prompt.slice(0, 4000) })
+  const r = await $.process.run(['node', cli, 'hook', 'pretool', '--client', 'claude', '--user'], { stdin: JSON.stringify(ev), timeoutMs: 30_000 })
+  const order = r.exitCode === 0 ? orderOf(String(r.stdout || '')) : null
+  if (!order) return null
+  // no model named: the agent's own definition picks it (thinker pins Explore.md), and the Agent tool refuses a full id
+  const s = await $.agent.spawn({ subagentType: order.agent, prompt: order.prompt, description: order.title })
+  if (!s?.agentId) return null
+  const answer = new Promise<string | null>(done => waiting.set(s.agentId, done))
+  // the wait is spent inside `$` calls, which a hook's own time budget does not count
+  const until = Date.now() + DELEGATE_TIMEOUT_MS
+  let report: string | null | undefined
+  answer.then(a => { report = a })
+  while (report === undefined && Date.now() < until) await $.process.run(['sleep', '0.5'])
+  waiting.delete(s.agentId)
+  return report ? String(order.wrap).replace(REPORT_SLOT, report) : null
+}
+
 export const register: Register = (on) => {
+  for (const tool of ['Read', 'Bash']) on('tool.call', { tool }, async ($, e, next) => {
+    let words: string | null = null
+    try { words = await delegateCall($, e) } catch {}
+    return words ? { deny: words } : next(e)
+  })
+  on('turn.start', async ($, e, next) => { if (!e.agentId) turn = { id: e.turnId, prompt: String(e.text || '') }; return next(e) })
   // The pointer sends the model to read a file outside every working directory, which Claude Code would put to the
   // person as a question. The grant is this mod's, not a rule in their settings (the owner's call, 2026-11-06): a Read
   // of a file right inside <THINKER_HOME>/tools is allowed here, only where the engine would have asked -- a deny rule
@@ -416,6 +495,7 @@ export const register: Register = (on) => {
   })
 
   on('session.start', async ($, e, next) => {
+    await delegateSetup($)
     const r = await next(e)
     try {
       const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
@@ -466,6 +546,8 @@ export const register: Register = (on) => {
   })
 
   on('turn.complete', async ($, e, next) => {
+    // a delegated read's subagent has answered: its report is the denied call's result (delegateCall)
+    if (e.agentId) waiting.get(e.agentId)?.(e.isAborted ? null : e.answer || null)
     const r = await next(e)
     if (!e.agentId && auto && !pending) {
       try {

@@ -11,6 +11,7 @@ import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedR
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
+import { REPORT_SLOT, DELEGATE_SESSION_MARK, DELEGATE_DEFAULTS } from '../src/delegate.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -294,4 +295,15 @@ test('the mod decides a clear exactly where the proxy prices one', () => {
   assert.equal(pay(200000, 100000, { rates: glm }), 0, 'and taking out twice the tail is no later than at once');
   assert.equal(pay(100000, 300000, { rates: glm }), 2, 'a tail three times the cut takes two later calls');
   assert.equal(pay(100000, 100000, { model: 'claude-opus-5' }), 18, 'where on Anthropic that same shape needs 18');
+});
+
+// The mod runs delegated reads (register.tsx:delegateCall) on the CLI's rule, so what the two share by name must match.
+test('the mod\'s delegation hook shares the report slot, the session mark and the timeout with delegate.js, and asks the CLI', () => {
+  const s = src();
+  assert.equal(modConst(s, 'REPORT_SLOT'), REPORT_SLOT);
+  assert.equal(modConst(s, 'DELEGATE_SESSION_MARK'), DELEGATE_SESSION_MARK);
+  assert.equal(modConst(s, 'DELEGATE_TIMEOUT_MS'), DELEGATE_DEFAULTS.timeoutMs);
+  assert.match(s, /'hook', 'pretool', '--client', 'claude', '--user'/, 'one copy of the rule: the CLI\'s');
+  assert.match(s, /host_runs: true/);
+  assert.match(s, /for \(const tool of \['Read', 'Bash'\]\) on\('tool\.call'/);
 });

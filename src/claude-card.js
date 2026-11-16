@@ -140,9 +140,9 @@ const markDir = (home = thinkerHome()) => path.join(home, 'state', 'claude-card'
 
 // Whether the card mod runs in this Claude Code session (it wrote the mark at the session's start).
 // Marks older than two days are cleared on the way, once there are more than a hundred.
-export function claudeCardActive(session, { home } = {}) {
+export function claudeCardActive(session, { home, name } = {}) {
   if (!session || session === 'unknown') return false;
-  const dir = markDir(home);
+  const dir = name ? path.join(path.dirname(markDir(home)), name) : markDir(home);
   try {
     const marks = fs.readdirSync(dir);
     if (marks.length > 100) {
