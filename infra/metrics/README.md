@@ -447,6 +447,27 @@ repository with none counts in `reposWithoutReport` and sends nothing) and sends
 The **Diff by feature** dashboard (`scripts/arms-dashboard.mjs`, nine cards) reads it from `reports.raw_json`, every
 rate a ratio of sums over the latest snapshot per device, the clearing's tables grouped by cut policy. No database change.
 
+## Thinker by day (`sessions.byDay`, `proxy.byDay`, `delegate` schema 1)
+
+The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, six cards) is the one place every figure is a day's
+own: the total saved since 2026-11-04 (the day thinker began cutting the context itself) and the saving per day, the
+devices with at least one thinker session per day, the context cuts per day, the delegations to a subagent per day,
+and the known devices as a running total.
+
+- A day's figure comes from the newest snapshot that carries that day for that device (`DISTINCT ON (device, day)`
+  over one snapshot per device per UTC day), so days add up and a day survives rolling out of a machine's 30-day
+  window. The 30-day sums of the other dashboards can never be added across snapshots.
+- Savings and sessions read `sessions.byDay` (`src/delivery-telemetry.js`, client 0.3.3+): a session on the UTC day
+  of its last request, `netUsd` the netted figure, `savedUsd` (clients after 0.4.0) the gross one beside it.
+- Cuts read `proxy.byDay[day].cuts` (`src/telemetry.js:proxyMetrics`, clients after 0.4.0): a proxy row carrying
+  `clear`, by any door. `requestsCleared` beside it is every request sent shorter, which is not a count of cuts.
+- Delegations read `delegate.byDay` (`src/telemetry.js:delegateMetrics`, clients after 0.4.0): `delegated`,
+  `cached`, `held`, `failed`, `costUsd` (what the subagent runs reported). Rows the trigger logs with
+  `fired: false` are in no count. Nothing names a file, a command or a session.
+- Known devices reads `reports` alone: each `device_id` from the UTC day of its first report.
+
+No database change and no Lambda deploy: every block is read out of `reports.raw_json`.
+
 ## Holdout: what the notes save (holdout schema 2)
 
 Every client withholds notes from a share of prompts (15% by default) and records

@@ -33,12 +33,12 @@ const PR_ROWS = 50;
 // the two apart -- which is why the proxy block grew its own `byDay` (telemetry.js:proxyMetrics). A day here
 // belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days
 // from different devices and different days add up.
-const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, netUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
+const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, savedUsd: 0, netUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
 const dayOf = at => (typeof at === 'string' && at.length >= 10 && Number.isFinite(Date.parse(at)) ? at.slice(0, 10) : null);
 const roundDays = byDay => {
   for (const d of Object.values(byDay)) {
     d.clearedTokens = Math.round(d.clearedTokens);
-    for (const k of ['netUsd', 'spendUsd']) d[k] = Math.round(d[k] * 100) / 100;
+    for (const k of ['savedUsd', 'netUsd', 'spendUsd']) if (k in d) d[k] = Math.round(d[k] * 100) / 100;
   }
   return byDay;
 };
@@ -144,7 +144,8 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       const d = sessions.byDay[day] ||= dayGroup();
       d.sessions++; d.prompts += x.prompts || 0;
       if (x.cleared > 0) { d.clearedSessions++; d.clearedTokens += x.cleared; }
-      if (x.cost?.priced) { d.pricedSessions++; d.netUsd += x.cost.net || 0; }
+      // gross beside net: what the clearing saved before the cache writes after it are charged (the Report's figure)
+      if (x.cost?.priced) { d.pricedSessions++; d.savedUsd += x.cost.saved || 0; d.netUsd += x.cost.net || 0; }
       if (x.spend != null) { d.spendUsd += x.spend; d.spendSessions++; }
     }
     bumpGroup(sessions.all, x);
