@@ -1378,7 +1378,7 @@ the suite, MLflow question tasks by named facts (`bench/facts.mjs`, fact lists w
 | MLflow facts named | 38 of 41 | 38 of 41 |
 | cost, the 12 pairs where the hook fired | $19.54 | $16.21 (-17%) |
 
-In 7 of these 13 delegate sessions the lead read a handed-over file itself at least once; the checks held
+In 8 of these 13 delegate sessions the lead read a handed-over file itself at least once; the checks held
 anyway. One delegate session never fired (`progressbar-big` rep 1) and is in no figure.
 
 **What it shows.** No loss of correctness where delegation fires, on either set, and no slowdown.
