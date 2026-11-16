@@ -112,7 +112,7 @@ export const KEEP_TURN = 10;
 export const POLICY_REV = 4;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}`
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}`
   // `-lt<n>`: the long-turn rule, and how many of a running turn's newest results it kept. The number is a
   // setting in force like the trigger and the floor, and the one that decides whether a cut inside a turn left
   // the model its working set, so a saving made at ten is never pooled with one made at three.
@@ -173,6 +173,11 @@ export const MIN_CHARS = 200;
 // result was there when it was used, and went afterwards.
 export const placeholder = chars =>
   `[tool result removed by thinker after use: ${chars} chars. You saw it in full at the time, so answers you already gave from it stand. Read it again if you need it now.]`;
+
+// A screenshot the cut took out, and where it is now (proxy.js:saveCutImages). The same temporal fact as above --
+// seen at the time, gone afterwards -- and the one thing a text placeholder cannot say: where to look again.
+export const imagePlaceholder = paths =>
+  `[thinker removed ${paths.length === 1 ? 'this screenshot' : `these ${paths.length} images`} after use and saved ${paths.length === 1 ? 'it' : 'them'} at ${paths.join(', ')}. You saw ${paths.length === 1 ? 'it' : 'them'} at the time, so what you already said from ${paths.length === 1 ? 'it' : 'them'} stands. Read the file if you need to look again.]`;
 
 // What a logged request says was taken out of *that* prompt, whichever door did it. Until 0.2.22 the API
 // cleared and reported it (`cleared`, measured); since the cut, thinker does it itself and the row carries

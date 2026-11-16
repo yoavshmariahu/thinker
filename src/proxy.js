@@ -39,9 +39,10 @@ import { routeOf, routedHeaders, routedBody, routeRow } from './proxy-routing.js
 import { registryReader } from './providers.js';
 import { chatStreamToMessages, fromChat, errorToMessages } from './wire-chat.js';
 import { noteCompression } from './compression.js';
+import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, sessionOf, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, cutInput } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, sessionOf, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -92,7 +93,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // turn still running, which the ordinary cut protected wholesale and this one has to name a number for. Three was
 // `keepMin`'s number for a stretch of conversation the model had already moved on from; a turn forty calls deep is
 // a working set, and the model is answering out of it right now, so it keeps more.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -101,7 +102,7 @@ export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 
 // with every call, and a verdict that moved from one call of a turn to the next would move the cut with it, which
 // is the rewrite this exists to avoid.
 export function measurePrompt(cfg, j) {
-  const txt = v => { try { return v == null ? 0 : JSON.stringify(v).length; } catch { return 0; } };
+  const txt = v => (v == null ? 0 : wireChars(v));
   const tok = chars => Math.floor(chars * TOKENS_PER_CHAR);
   const all = Array.isArray(j?.messages) ? j.messages : [];
   const messages = all.slice(0, turnStart(all));
@@ -252,6 +253,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
+  cfg.cutImages = onOff('cut-images', undefined, PROXY_DEFAULTS.cutImages);   // a flag or the machine config; no variable
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -321,6 +323,67 @@ export function turnStart(messages) {
 const resultText = b => typeof b.content === 'string' ? b.content
   : Array.isArray(b.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('') : '';
 
+// A screenshot in a tool result (2026-11-15, the owner's call: "remove screenshots from direct context but leave
+// the filepaths where they can be reached if needed"). Until then a result was eligible by its text alone, so a
+// browser session's screenshots -- an image and a line of text -- were never cut and stayed in the prompt for the
+// whole session, and a result with text and an image lost the image with no way back to it. Now the image is
+// saved to a file (`saveCutImages`), the placeholder names the file (`cutting.js:imagePlaceholder`), and the model
+// reads it again with its own Read tool if it needs the picture. Only where there is somewhere to save
+// (`imagePath`): a cut that cannot leave a path leaves the image where it is.
+// An image is counted at what the API charges for it (its pixels, transcripts.js:imageTokens), never at its
+// base64: one screenshot is ~1,500 tokens and ~1.3M characters, so read as text it put the prompt past the
+// trigger on its own and made every rewrite look 400 times dearer than it was (`wireChars`).
+const resultImages = b => (Array.isArray(b?.content) ? b.content.filter(x => x?.type === 'image' && x.source?.type === 'base64' && typeof x.source.data === 'string' && x.source.data) : []);
+const imageCharsOf = (imgs, rate) => Math.round(imgs.reduce((n, x) => n + imageTokens(x), 0) / rate);
+/** The characters `v` is worth on the wire: its JSON, with every base64 image counted at its tokens and not its bytes. */
+export function wireChars(v) {
+  let extra = 0, s = '';
+  try {
+    s = JSON.stringify(v, function (k, val) {
+      if (k === 'data' && typeof val === 'string' && val.length > 400 && this?.type === 'base64') { extra += Math.round(imageTokens({ source: { data: val } }) / TOKENS_PER_CHAR); return ''; }
+      return val;
+    }) || '';
+  } catch { return 0; }
+  return s.length + extra;
+}
+const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+/** Where a cut result's nth image is kept: one file per image, named by the call that made it. */
+export const imagePathIn = dir => (id, k, media) => path.join(dir, `${String(id).replace(/[^\w.-]/g, '_')}-${k}.${IMAGE_EXT[media] || 'png'}`);
+let imageWrites = 0;
+/**
+ * Write the images of the results about to be cut, each once (the agent resends the conversation on every call,
+ * so the same image arrives again and its file is already there). False if any could not be written: then the
+ * images stay in the prompt, since a placeholder naming a file that is not there is worse than no cut.
+ */
+export function saveCutImages(messages, cut, imagePath) {
+  const ids = cut instanceof Set ? cut : new Set(cut || []);
+  let ok = true, dir = null;
+  for (const m of messages || []) {
+    if (!Array.isArray(m?.content)) continue;
+    for (const b of m.content) {
+      if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
+      resultImages(b).forEach((x, k) => {
+        const f = imagePath(b.tool_use_id, k, x.source.media_type);
+        try {
+          if (fs.existsSync(f)) return;
+          dir = path.dirname(f); fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(f, Buffer.from(x.source.data, 'base64'));
+          imageWrites++;
+        } catch { ok = false; }
+      });
+    }
+  }
+  // the files of sessions long over: kept as long as a cut's own record is (cutting.js:KEEP_DAYS)
+  if (dir && imageWrites % 50 === 1) {
+    try {
+      const old = Date.now() - IMAGE_KEEP_DAYS * 86400000;
+      for (const f of fs.readdirSync(dir)) { const p = path.join(dir, f); try { if (fs.statSync(p).mtimeMs < old) fs.unlinkSync(p); } catch { /* gone */ } }
+    } catch { /* nothing to prune */ }
+  }
+  return ok;
+}
+const IMAGE_KEEP_DAYS = 2;
+
 // Walk the conversation newest-first, calling back for each tool result with whether the recency
 // rule protects it. `keepMin` counts only results the rule would otherwise let go.
 function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn } = {}) {
@@ -368,7 +431,7 @@ function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn, cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, inputChars = 0, firstChanged = -1;
   const takeAt = new Map();
@@ -386,12 +449,14 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   }
   walkResults(messages, keepMin, (b, i, prot) => {
     if (prot || have.has(b.tool_use_id)) return;
-    const text = resultText(b);
-    if (text.length < minChars) return;
+    const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
+    if (text.length < minChars && !imgs.length) return;
+    // what leaves: the text where it is long enough to be replaced, and the images at what they cost
+    const gone = (text.length >= minChars ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR);
     const own = inputOf.get(b.tool_use_id) || 0;
-    ids.push(b.tool_use_id); chars += text.length; inputChars += own; firstChanged = i;
+    ids.push(b.tool_use_id); chars += gone; inputChars += own; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
-    takeAt.get(i).push({ id: b.tool_use_id, len: text.length + own });
+    takeAt.get(i).push({ id: b.tool_use_id, len: gone + own });
   }, { openTurn, keepTurn });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
@@ -402,7 +467,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     for (let i = messages.length - 1; i >= 0; i--) {
       const take = takeAt.get(i) || [];
       for (const t of take) sent.add(t.id);
-      acc += JSON.stringify(applyCut([messages[i]], sent, { cutInputs }).messages[0]).length;
+      acc += wireChars(applyCut([messages[i]], sent, { cutInputs, imagePath }).messages[0]);
       count++;
       if (!take.length) continue;
       for (const t of take) { took++; sum += t.len; }
@@ -443,7 +508,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // own blanked calls, reported that it had been "making the tool calls without file paths", and began
 // doing so -- a false history of itself that it then copied. Dropping thinking bought nothing and was
 // the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
-export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
+export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
   if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
   let n = 0, chars = 0, inputChars = 0, firstChanged = -1;
@@ -462,10 +527,14 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs }
         return { ...b, input: red.input };
       }
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
-      const text = resultText(b);
-      if (text.length < CUT_MIN_CHARS) return b;
-      n++; chars += text.length; touched = true;
-      return { ...b, content: [{ type: 'text', text: cutPlaceholder(text.length) }] };
+      const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
+      if (text.length < CUT_MIN_CHARS && !imgs.length) return b;
+      const long = text.length >= CUT_MIN_CHARS;
+      n++; chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
+      // a short line beside a screenshot ("Screenshot captured") stays as it is: it is what the model reads to
+      // know what the call did, and it is under the size worth a placeholder
+      const words = [long ? cutPlaceholder(text.length) : text, imgs.length ? imagePlaceholder(imgs.map((x, k) => imagePath(b.tool_use_id, k, x.source.media_type))) : ''].filter(Boolean).join('\n');
+      return { ...b, content: [{ type: 'text', text: words }] };
     });
     if (!touched) return m;
     if (firstChanged < 0) firstChanged = i;
@@ -569,9 +638,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
   // the one rule both doors read). Asked before the walk, because it decides what the walk may offer.
   const open = openTurn(cfg, m, { rates: cfg.ratesFor?.(j.model) ?? null });
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn, cutInputs: cfg.cutInputs });
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null });
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, open });
-  const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs });
+  // the images are on disk before the prompt loses them, or they stay in the prompt
+  const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
+  const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath });
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
   // 'below-clear-minimum', so the log could not say whether a lower floor would have admitted the boundary,
   // and that question had to be answered by rebuilding request bodies from transcripts. The reason itself is
@@ -721,6 +792,8 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   });
   // the cut's record, one per session, on disk: a restarted proxy re-applies the same set (cutting.js)
   const cutting = cutStore(clearingDir);
+  // where a cut result's screenshots are kept, beside the cut's own records
+  const imagePath = cfg.cutImages !== false && clearingDir ? imagePathIn(path.join(clearingDir, 'images')) : null;
   // the switched-off tools whose definitions live on disk (tool-stubs.js): the registry is the machine's, read when it changes
   if (!cfg.stubs) cfg = { ...cfg, stubs: stubsHome ? stubReader(stubsHome) : null };
   const responseCutting = cutStore(clearingDir ? path.join(clearingDir, 'responses') : null);
@@ -810,7 +883,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       // The record is read inside the transform, which is where the conversation can be told from the
       // session it shares with the others (`conversationKey`). Both protocols hand the key back the same way.
       let cutRec = null;
-      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, ratesFor, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)), readChatCut: session => (cutRec = chatCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
+      try { t = noEdit ? { body: raw, reason: 'cut-rejected' } : transformRequest(req.method, requestUrl, req.headers, raw, { ...requestCfg, ratesFor, imagePath, readCut: key => (cutRec = key ? cutting.read(key) : null), readResponsesCut: session => (cutRec = responseCutting.read(session)), readChatCut: session => (cutRec = chatCutting.read(session)) }); } catch { t = { body: raw, reason: 'error' }; }
       // Reserve the boundary's decision before forwarding, including a decision not to cut.
       // Retries and concurrent requests in this turn must reuse the same set, even when a
       // later tool result would make a previously refused candidate profitable.
