@@ -10,8 +10,8 @@ import { dietConfig, dietResult, rememberTerms } from '../diet.js';
 import { Store, findRepoRoot, repoId } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
-import { preToolHook } from '../delegate.js';
-import { beginTurn, currentTurn, isHarnessEvent, sessionState } from '../session-state.js';
+import { preToolHook, windowTool, noteSubagent } from '../delegate.js';
+import { beginTurn, currentTurn, isHarnessEvent, sessionState, locked } from '../session-state.js';
 import { delegatedOf } from '../delegated.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
@@ -251,6 +251,10 @@ async function hookCommand(ctx) {
     // are not recorded. They used to delete the session's trace, on the assumption that a worker is its own
     // session: in Devin (and Claude Code) a background subagent's hooks carry the parent's session id, so the
     // person's own prompt and tool calls were wiped and the session distilled as nothing (seen live 2026-11-01).
+    // The host's own subagent has answered: on a host that does not mark its subagent's calls (Devin), that
+    // closes the window the PreToolUse of the same call opened (delegate.js:noteSubagent). The learning worker
+    // is launched by the same tool, so this stands ahead of the line that leaves the worker's calls out.
+    if (windowTool(client, ev.tool_name)) { try { locked(store, session, () => { const { st, save } = sessionState(store, session); noteSubagent(st, false); save(); }); } catch {} }
     if (isWorkerTool(ev.tool_name) || isWorkerLaunch(ev.tool_input)) { if (ev.hook_event_name === 'afterShellExecution') out('{}'); return; }
     // Cursor reports a shell command's output in afterShellExecution, not in postToolUse
     if (ev.hook_event_name === 'afterShellExecution') { if (flags.record) recordEvent(store.dir, session, { t: 'tool', name: 'Bash', input: { command: ev.command }, result: ev.output }); out('{}'); return; }
