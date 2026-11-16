@@ -23,15 +23,10 @@ OUT=$CWD/.thinker-bench/proxy.out
 PID=$CWD/.thinker-bench/proxy.pid
 mkdir -p "$CWD/.thinker-bench"
 
-# The policy under test: the shipped defaults (trigger 140k, floor 8k, payback 25, keepMin 3) with the
-# long-turn rule on. longTurn is not optional here: a bench task is nine prompts but the work inside one
-# prompt is where the results pile up, and without it a cut can only act at a turn boundary -- which is
-# what refuses 69% of this machine's own requests (measured 2026-11-15).
+# The policy under test: the shipped defaults (trigger 140k, floor 8k, payback 25, keepMin 3).
 export THINKER_TEST=1
 export THINKER_PROXY_LOG=$LOG
 export THINKER_PROXY_PORT=$PORT
-export THINKER_PROXY_LONG_TURN=on
-export THINKER_PROXY_KEEP_TURN=10
 export THINKER_PROXY_CUT_INPUTS=$INPUTS
 export THINKER_PROXY_HOLDOUT=0      # every session is cut: the bench pairs arms itself
 

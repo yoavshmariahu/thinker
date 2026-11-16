@@ -93,12 +93,12 @@ test('the saving names the policy that made it, so a figure with the calls in it
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
   assert.equal(policyId({ ...base, cutInputs: true }), 'r4-t140k-f8k-p25-deep+in');
   assert.equal(policyId({ ...base }), 'r4-t140k-f8k-p25-deep');
-  assert.equal(policyId({ ...base, cutInputs: true, longTurn: true }), 'r4-t140k-f8k-p25-deep+in-lt10');
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {
-  const messages = job(14);
-  const ids = { cut: [], keepMin: 3, openTurn: true, keepTurn: 3 };
+  // a second prompt closes the turn: only a finished turn's results are ever offered
+  const messages = [...job(14), { role: 'user', content: [{ type: 'text', text: 'and the next one' }] }];
+  const ids = { cut: [], keepMin: 3 };
   const withIn = cutCandidates(messages, { ...ids, cutInputs: true });
   const without = cutCandidates(messages, { ...ids, cutInputs: false });
   assert.deepEqual(withIn.ids, without.ids, 'the same results are eligible either way');

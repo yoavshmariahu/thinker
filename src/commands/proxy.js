@@ -25,7 +25,7 @@ export { proxyLogFile };
 // Extracted from the `onListen` callback on 2026-11-15 because built inline it could not be tested, and it had
 // been printing "keeping the newest undefined" ever since the cut moved client-side: it read `cfg.keep`, the
 // API-side edit's keep ('turn' or a count), which no config has carried since. It now names what the policy
-// actually does -- the tail it keeps, the wider tail a cut inside a long turn leaves, and whether a finished
+// actually does -- the tail it keeps and whether a finished
 // call's own text goes with its result -- so this sentence and `cutting.js:policyId` say the same thing.
 export function proxyBanner(cfg, port) {
   const at = `http://127.0.0.1:${port}`;
@@ -35,7 +35,7 @@ export function proxyBanner(cfg, port) {
       + `\nIn a separate Codex provider, set base_url = "${at}" and supports_websockets = false. Keep the existing authentication and model. See docs/codex-proxy.md.`
       + `\nNo Codex settings were changed. Restart the client after selecting the provider. Native compaction and linked histories pass through unchanged.`;
   }
-  const tail = `keeping the newest ${cfg.keepMin}${cfg.longTurn ? ` (${cfg.keepTurn} inside a long turn)` : ''}`;
+  const tail = `keeping the newest ${cfg.keepMin}`;
   const inputs = cfg.cutInputs ? ", with each finished call's own text" : '';
   const held = cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : '';
   return `thinker proxy on ${at} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, ${tail}, at least ${cfg.clearAtLeast} at a time${inputs}${held}.`

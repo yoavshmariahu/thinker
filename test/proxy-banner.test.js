@@ -15,7 +15,7 @@ import { policyId } from '../src/cutting.js';
 test('no part of the sentence is undefined, on the defaults or with every switch on', () => {
   for (const [what, cfg] of [
     ['the shipped defaults', proxyConfig({}, {})],
-    ['every switch on', proxyConfig({}, { THINKER_PROXY_LONG_TURN: 'on', THINKER_PROXY_CUT_INPUTS: 'on', THINKER_PROXY_HOLDOUT: '0.15' })],
+    ['every switch on', proxyConfig({}, { THINKER_PROXY_CUT_INPUTS: 'on', THINKER_PROXY_HOLDOUT: '0.15' })],
     ['inputs off', proxyConfig({}, { THINKER_PROXY_CUT_INPUTS: 'off' })],
     ['the Codex door', { ...PROXY_DEFAULTS, codex: true }],
     ['the Responses door', { ...PROXY_DEFAULTS, protocol: 'responses' }],
@@ -27,15 +27,13 @@ test('no part of the sentence is undefined, on the defaults or with every switch
 });
 
 test('the sentence names the policy the stamp names, so a person and a log row agree', () => {
-  const cfg = proxyConfig({}, { THINKER_PROXY_LONG_TURN: 'on', THINKER_PROXY_CUT_INPUTS: 'on' });
+  const cfg = proxyConfig({}, { THINKER_PROXY_CUT_INPUTS: 'on' });
   const text = proxyBanner(cfg, 1234);
   const stamp = policyId(cfg);
   assert.match(text, new RegExp(`past ${cfg.trigger} input tokens`), 'the trigger the stamp calls t140k');
   assert.match(text, new RegExp(`at least ${cfg.clearAtLeast} at a time`), 'the floor the stamp calls f8k');
   assert.match(text, new RegExp(`newest ${cfg.keepMin}\\b`), 'the tail it keeps');
-  // the two switches the stamp carries are the two the sentence has to mention
-  assert.ok(stamp.includes('-lt'), stamp);
-  assert.match(text, new RegExp(`\\(${cfg.keepTurn} inside a long turn\\)`), 'and the wider tail, with its number');
+  // the switch the stamp carries is the one the sentence has to mention
   assert.ok(stamp.includes('+in'), stamp);
   assert.match(text, /with each finished call's own text/, 'and that a call goes with its result');
 });
@@ -43,16 +41,15 @@ test('the sentence names the policy the stamp names, so a person and a log row a
 test('a switch that is off is not mentioned at all, so the sentence is never a lie by omission', () => {
   const off = proxyBanner(proxyConfig({}, { THINKER_PROXY_CUT_INPUTS: 'off' }), 1234);
   assert.doesNotMatch(off, /own text/, 'inputs off says nothing about call text');
-  assert.doesNotMatch(off, /inside a long turn/, 'and the long-turn rule is off by default');
   assert.doesNotMatch(off, /held out/, 'and the default holdout is none');
   const held = proxyBanner(proxyConfig({}, { THINKER_PROXY_HOLDOUT: '0.15' }), 1234);
   assert.match(held, /15% of sessions held out/, 'a holdout a person set is said in whole percent');
 });
 
 test('the Responses door describes itself, and never the Messages policy', () => {
-  const text = proxyBanner({ ...PROXY_DEFAULTS, protocol: 'responses', cutInputs: true, longTurn: true }, 6896);
+  const text = proxyBanner({ ...PROXY_DEFAULTS, protocol: 'responses', cutInputs: true }, 6896);
   assert.match(text, /^Responses proxy on/);
   assert.match(text, /supports_websockets = false/, 'the one setting a person has to change themselves');
   // that door replaces results alone (proxy-responses.js), so the Messages switches may not appear on it
-  assert.doesNotMatch(text, /own text|inside a long turn/, 'it cuts results alone, whatever the Messages flags say');
+  assert.doesNotMatch(text, /own text/, 'it cuts results alone, whatever the Messages flags say');
 });
