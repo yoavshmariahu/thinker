@@ -125,7 +125,11 @@ export function applyEphemeral(j, setting) {
 
   // 1. the replacement. A state is superseded by the one `keep` places after it; `gap` is what lies between
   // them, which is fixed from the moment the later one arrives, so the verdict never changes afterwards.
-  const span = (from, to) => { let chars = 0; for (let x = from + 1; x < to; x++) chars += flat[x].chars; return { blocks: Math.max(0, to - from - 1), chars }; };
+  // Other page states are left out of the gap: with `keep` above one they sit between a page and the one
+  // that supersedes it by construction, and writing them again on every step is the price that setting
+  // names, not a reason to refuse.
+  const stateAt = new Set(states.map(s => s.at));
+  const span = (from, to) => { let chars = 0, blocks = 0; for (let x = from + 1; x < to; x++) if (!stateAt.has(x)) { chars += flat[x].chars; blocks++; } return { blocks, chars }; };
   const gapOk = (s, g) => g.blocks <= cfg.maxGapBlocks && g.chars <= Math.max(s.gone, cfg.minChars);
   const dead = new Map();
   let chars = 0, images = 0, skipped = 0;
