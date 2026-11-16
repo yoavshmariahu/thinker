@@ -460,7 +460,8 @@ and the known devices as a running total.
 - Savings and sessions read `sessions.byDay` (`src/delivery-telemetry.js`, client 0.3.3+): a session on the UTC day
   of its last request, `netUsd` the netted figure, `savedUsd` the gross one beside it, and `stampedNetUsd`,
   `stampedSavedUsd`, `stampedSessions` the same over the sessions cleared under a recorded cut policy alone.
-- The dollar cards read snapshots with `sessions.byDaySchema` 2 alone (clients after 0.4.0). Before it a session was
+- The dollar cards read a day from a snapshot with `sessions.byDaySchema` 2 (clients after 0.4.0) wherever a device
+  has sent one, and as reported where it has not; the per-day card counts the devices of each kind. Before it a session was
   dated by the newest log row naming it, and the profile's background read of an old session is such a row
   (`profile`, `model`, `distill-skipped`; `delivery.js:READ_LATER`): one rebuild moved ~170 sessions of three weeks
   onto 2026-11-08 on one machine, and the total since 2026-11-04 read -$376 where that machine's own was +$149.

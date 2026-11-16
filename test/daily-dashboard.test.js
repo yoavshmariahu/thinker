@@ -55,9 +55,9 @@ test('every daily card reads a day\'s own figure, and the savings count from the
   }
   assert.equal(SAVINGS_SINCE, '2026-11-04');
   for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-04'/, name);
-  // dollars are read from the clients that date a session by its own turns, and from no other
-  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2'/, name);
-  assert.doesNotMatch(by('Devices with a thinker session').sql, /byDaySchema/);
+  // a day both kinds of snapshot carry is read from the correctly dated one; an older client is still read
+  for (const name of ['Total saved', 'Saved since', 'Saved per day']) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
+  assert.match(by('Saved per day').sql, /devices_with_corrected_dating/);
   assert.match(by('Total saved').sql, /figures->>'netUsd'/);
   assert.match(by('Saved since').sql, /figures->>'stampedNetUsd'/);
   assert.doesNotMatch(by('Saved since').sql, /'netUsd'/);

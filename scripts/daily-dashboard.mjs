@@ -11,12 +11,13 @@
 const device = "coalesce('device:' || device_id, 'install:' || install_id)";
 const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE 'UTC'), ${device}) *
   FROM reports ORDER BY date_trunc('day', received_at AT TIME ZONE 'UTC'), ${device}, received_at DESC, file_key DESC) daily_snapshots`;
-// one row per device and day of a block's byDay, from the newest snapshot holding that day
-const days = (block, where = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures
-  FROM (SELECT ${device} AS device, received_at, file_key, raw_json FROM ${daily} WHERE ${where}) s
+// one row per device and day of a block's byDay, from the newest snapshot holding that day; `prefer` puts the
+// snapshots it holds for first, so a day both kinds carry is read from the preferred one however old it is
+const days = (block, prefer = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures, s.preferred
+  FROM (SELECT ${device} AS device, received_at, file_key, raw_json, coalesce(${prefer}, FALSE) AS preferred FROM ${daily}) s
   CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(s.raw_json #> '{${block},byDay}') = 'object' THEN s.raw_json #> '{${block},byDay}' ELSE '{}'::jsonb END) AS dd(day, figures)
   WHERE dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$'
-  ORDER BY s.device, dd.day, s.received_at DESC, s.file_key DESC) days`;
+  ORDER BY s.device, dd.day, s.preferred DESC, s.received_at DESC, s.file_key DESC) days`;
 const fig = name => `(CASE WHEN jsonb_typeof(figures->'${name}') = 'number' THEN (figures->>'${name}')::numeric END)`;
 
 // Savings are counted from the day thinker began cutting the context itself. Before it the clearing was the
@@ -27,11 +28,12 @@ const netNote = 'Netted, at list prices: the tokens the clearing left out of lat
 // What the first reading got wrong (-$376, nearly all of it one machine's 8 November): a session was dated by the
 // newest log row naming it, and the profile's background read of an old session is such a row, so one rebuild
 // moved three weeks of the older clearing's sessions past the line. Clients now date a session by its own turns
-// and say so (`byDaySchema` 2, src/delivery-telemetry.js); the dollar cards read those snapshots alone, so a device
-// on an older client is in no dollar figure here rather than in a wrong one.
+// and say so (`byDaySchema` 2, src/delivery-telemetry.js). A day is read from such a snapshot wherever a device
+// has sent one; a device still on an older client is read as it reported, and the cards count how many are which.
+// Reading the corrected snapshots alone left the dashboard empty until the fleet updated (the owner, 2026-11-16).
 const dated = "raw_json #>> '{sessions,byDaySchema}' = '2'";
 const dollars = days('sessions', dated);
-const datedNote = 'Read from clients released after 0.4.0, which date a session by its own turns; a device on an older client is in no dollar figure here, which is not zero.';
+const datedNote = 'A device on a client released after 0.4.0 dates a session by its own turns. An older client can place an old session on the day the profile read it, which moved losses of the older clearing past the line on one machine; its days are counted as it reported them until it updates, and "devices with corrected dating" says how many of the devices in a figure have.';
 const stampedNote = 'Under a recorded policy counts only the sessions whose clear carries the cut policy that made it (src/cutting.js:policyId), which no date can get wrong: a machine still on an older client, or a session begun under the older clearing, is never in it.';
 
 export const dailyQuestions = [
@@ -46,7 +48,8 @@ export const dailyQuestions = [
   { name: 'Saved per day', display: 'bar',
     sql: `SELECT day_utc, round(sum(${fig('netUsd')}), 2) AS net_saved_usd, round(sum(${fig('savedUsd')}), 2) AS saved_before_rewrites_usd,
       round(sum(${fig('stampedNetUsd')}), 2) AS net_under_a_recorded_policy_usd, sum(${fig('stampedSessions')}) AS sessions_under_a_recorded_policy,
-      sum(${fig('clearedSessions')}) AS sessions_cleared, sum(${fig('clearedTokens')}) AS tokens_cleared
+      sum(${fig('clearedSessions')}) AS sessions_cleared, sum(${fig('clearedTokens')}) AS tokens_cleared,
+      count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
       FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['net_saved_usd'] },
     description: `The bars add up to the total beside them. ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
