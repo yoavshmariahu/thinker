@@ -427,6 +427,14 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - Removed on the way (#750): the rules that hooks never run or rewrite test commands and do no side work. What
   stays: the installer is never a hook branch.
 
+**The explorer is the lead's own family's cheap model on OpenRouter (2026-11-15, the owner's ask):**
+- `delegate.js:EXPLORER_FAMILIES`: Anthropic to Haiku 5.5, OpenAI to Luna, Google to Gemini 3.5 Flash-Lite, Z.ai to GLM 5.3 Flash, DeepSeek to v4.1 Flash, Qwen to 3.8 Flash, Mistral to Small. xAI, Moonshot and MiniMax have no pair; a lead already on the cheap tier and any provider that is not a gateway keep the plain agent. `delegate: { families: false }` turns it off.
+- OpenCode's plugin asks `session.get({ sessionID })` for the lead's model (neither hook event carries it) and passes it to `hook pretool`; the denial names `thinker-explore-<family>`, one pinned agent file a family (`delegate-agents.js`).
+- Each explorer run live as the pinned subagent on one 118 KB file: all right for $0.01-0.02 except Google (Flash-Lite 11-13 of 13 names; 3.8 Flash was right but cost more than the lead's own read). The table carries the figures.
+- **On OpenCode the plugin runs the subagent itself, so nothing depends on the lead obeying** (`opencode-v2.js:hostRun`, `delegate.js:hostRunOrder`). A handoff is words in a denied call, and live through OpenRouter Claude Sonnet 5.5 refused them twice and asked the person, GPT 6.1 Terra and GPT-5.4 mini read the file in chunks instead, Haiku followed one time in two. Now the hook hands the plugin an order (agent, model, brief) and the plugin runs a child session on the host's own machinery (`session.create({ parentID, agent, model })`, `prompt`, `wait`, `context`; probed on 2.2.7) and throws the report as the call's result, in `denial()`'s report sentence. `agent` and `model` go on `create` (on `prompt` they are ignored), and a model is always named, since a child given none runs on the host's default, not the session's.
+- The brief carries the person's request (`user_prompt`, kept by the plugin's prompt hook): OpenCode gives the hook no transcript, and an explorer not told the question summarised the first chunk it read. A repeat whole read in the turn gets the same report; a failed or late run lets the read through.
+- Live after the change, five leads through OpenRouter (GLM 5.3 flashx, Sonnet 5.5, GPT 6.1 Terra, Gemini 4 Hydrogen, Haiku 5.5): the subagent ran every time and every answer was fully right. Sonnet's read cost $0.017 (lead and child together) against $0.38 when it read the file itself.
+
 **A hook may delegate to a subagent (2026-11-11):**
 - Two rules removed: hooks never run test commands; hooks are only for cache, no installs.
 - PreToolUse hook can deny a read/test, run subagent, return report.

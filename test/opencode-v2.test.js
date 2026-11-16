@@ -151,7 +151,9 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   // that goes through gets silence; a tool that is neither a read nor a shell line never reaches the CLI
   const before = hooks['tool:execute.before'];
   await assert.rejects(before({ tool: 'read', sessionID: 'ses1', agent: 'build', input: { path: '/r/core.py' } }), /REPORT/);
-  assert.deepEqual(runs.at(-1), ['pretool', { session_id: 'ses1', cwd: '/tmp/session-cwd', tool_name: 'read', tool_input: { path: '/r/core.py' }, agent: 'build' }]);
+  // with it go whether this host can run the subagent itself (this fake has no session API to run one on) and
+  // the person's last prompt, which the hook has no transcript to read here (test/delegate-handoff.test.js)
+  assert.deepEqual(runs.at(-1), ['pretool', { session_id: 'ses1', cwd: '/tmp/session-cwd', tool_name: 'read', tool_input: { path: '/r/core.py' }, agent: 'build', host_runs: false, user_prompt: 'hello' }]);
   const shell = { tool: 'shell', sessionID: 'ses1', agent: 'build', input: { command: 'ls' } };
   assert.equal(await before(shell), undefined); assert.deepEqual(shell.input, { command: 'ls' }, 'the args are left as they came');
   const n = runs.length;

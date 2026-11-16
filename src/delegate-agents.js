@@ -16,18 +16,24 @@
 //   agents the denial names are written here, as markdown with frontmatter, in the config directory OpenCode
 //   scans (`{agent,agents}/**/*.md`).
 //
-// **No model is pinned on OpenCode**, and that is the point of the whole change. OpenCode names a model
+// **No model is pinned on the two plain agents**, and that is the point of the whole change. OpenCode names a model
 // `providerID/modelID` from the person's own providers; on a vendor's cloud harness running the vendor's
 // models thinker has no business choosing one, and `claude-sonnet-5-5` would not resolve. Omitting `model`
 // makes a subagent run on the session's model, which still keeps the read out of the lead's context for the
 // rest of the session -- the larger half of the saving, and the only half that does not depend on which
 // models the person has.
 //
+// **One more explorer per model family, pinned** (2026-11-15; `delegate.js:EXPLORER_FAMILIES`). A session on a
+// gateway (OpenRouter) reaches every vendor with one key, so there the read can go to the lead's own family's
+// cheap model -- `thinker-explore-anthropic` on Haiku for a Fable or Opus lead, `thinker-explore-openai` on Luna
+// for Sol. The denial names one of these only for a lead on that gateway and in that family, so a file whose
+// model the person cannot call is never the one asked for; everything else still gets the plain agent.
+//
 // Every file carries a marker, so thinker only ever rewrites or removes its own; a person's own file of the
 // same name is left alone and named once, as everywhere else.
 import fs from 'node:fs';
 import path from 'node:path';
-import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS } from './delegate.js';
+import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS, EXPLORER_FAMILIES, FAMILY_PROVIDERS, familyAgent } from './delegate.js';
 
 export const DELEGATE_MARK = 'thinker-delegate';
 const VERSION = 1;
@@ -54,7 +60,7 @@ export function delegateExploreModel({ env = process.env, home, client = 'claude
 // `{action, resource, effect}` with all three required, not a map. A key outside that set fails the whole
 // file, which would leave the denial naming an agent that does not resolve.
 /** The two OpenCode agents, as the markdown OpenCode reads. No `model`: the host's own is right there. */
-export function renderOpencodeAgent(kind, { lines = DELEGATE_DEFAULTS.reportLines } = {}) {
+export function renderOpencodeAgent(kind, { lines = DELEGATE_DEFAULTS.reportLines, model = null } = {}) {
   const explore = kind === 'explore';
   const name = explore ? OPENCODE_EXPLORE : OPENCODE_VERIFY;
   // No ": " anywhere in a description. It is a plain YAML scalar, and a colon followed by a space inside one
@@ -67,12 +73,12 @@ export function renderOpencodeAgent(kind, { lines = DELEGATE_DEFAULTS.reportLine
   // The same policy as Claude Code's Explore.md, which denies the writing tools and Agent and keeps the shell.
   const permissions = ['  - { action: edit, resource: "*", effect: deny }', '  - { action: task, resource: "*", effect: deny }'];
   return `---
-description: ${description}
+${model ? `model: ${model}\n` : ''}description: ${description}
 mode: subagent
 permissions:
 ${permissions.map(l => l + '\n').join('')}---
 
-<!-- ${DELEGATE_MARK} v${VERSION} kind=${kind}: written by thinker so its delegation trigger can hand work to one of OpenCode's own subagents instead of running a model process of its own. No model is set on purpose: this runs on your session's model. Your own ${name}.md here is never overwritten; THINKER_DELEGATE=off removes this one. -->
+<!-- ${DELEGATE_MARK} v${VERSION} kind=${kind}: written by thinker so its delegation trigger can hand work to one of OpenCode's own subagents instead of running a model process of its own. ${model ? `Pinned to ${model}, the cheap model of the lead's own family (delegate.js:EXPLORER_FAMILIES).` : 'No model is set on purpose: this runs on the model your session uses.'} thinker rewrites this file; delete it or set delegate: false in thinker's config to stop. -->
 
 ${(explore ? EXPLORER_PROMPT.replace('{N}', String(lines)) : VERIFIER_PROMPT)}
 `;
@@ -85,8 +91,13 @@ ${(explore ? EXPLORER_PROMPT.replace('{N}', String(lines)) : VERIFIER_PROMPT)}
  */
 export function installOpencodeAgents({ configDir, on = delegateConfig().enabled && delegateConfig().handoff } = {}) {
   const out = [];
-  for (const kind of ['explore', 'verify']) {
-    const name = kind === 'explore' ? OPENCODE_EXPLORE : OPENCODE_VERIFY;
+  // the two plain agents, then one pinned explorer a family (delegate.js:EXPLORER_FAMILIES) while pairing is on
+  const families = on && delegateConfig().families !== false;
+  const wanted = [
+    { kind: 'explore', name: OPENCODE_EXPLORE, on }, { kind: 'verify', name: OPENCODE_VERIFY, on },
+    ...EXPLORER_FAMILIES.map(f => ({ kind: 'explore', name: familyAgent(f.family), model: `${FAMILY_PROVIDERS[0]}/${f.explorer}`, on: families })),
+  ];
+  for (const { kind, name, model, on } of wanted) {
     const file = opencodeAgentFile(configDir, name);
     let cur = null; try { cur = fs.readFileSync(file, 'utf8'); } catch {}
     if (cur !== null && !isThinkerDelegateAgent(cur)) { out.push({ name, action: 'kept', file }); continue; }
@@ -96,7 +107,7 @@ export function installOpencodeAgents({ configDir, on = delegateConfig().enabled
       out.push({ name, action: 'removed', file });
       continue;
     }
-    const text = renderOpencodeAgent(kind);
+    const text = renderOpencodeAgent(kind, { model });
     if (cur === text) { out.push({ name, action: 'unchanged', file }); continue; }
     fs.mkdirSync(path.dirname(file), { recursive: true });
     const tmp = `${file}.${process.pid}.tmp`;
