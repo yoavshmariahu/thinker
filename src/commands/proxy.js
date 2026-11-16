@@ -38,7 +38,9 @@ export function proxyBanner(cfg, port) {
   const tail = `keeping the newest ${cfg.keepMin}${cfg.longTurn ? ` (${cfg.keepTurn} inside a long turn)` : ''}`;
   const inputs = cfg.cutInputs ? ", with each finished call's own text" : '';
   const held = cfg.holdout ? `, ${cfg.holdout * 100}% of sessions held out` : '';
-  return `thinker proxy on ${at} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, ${tail}, at least ${cfg.clearAtLeast} at a time${inputs}${held}.`
+  // superseded page states (ephemeral.js), said only when on: a different rule from the trigger's
+  const pages = cfg.ephemeral ? ` Replaces a browser page state once ${cfg.ephemeral.keep === 1 ? 'a newer one' : `${cfg.ephemeral.keep} newer ones`} follow${cfg.ephemeral.keep === 1 ? 's' : ''}${cfg.ephemeral.tail === 'bare' ? ', the live one sent uncached' : ''}.` : '';
+  return `thinker proxy on ${at} -> ${cfg.upstream}: clears tool results past ${cfg.trigger} input tokens, ${tail}, at least ${cfg.clearAtLeast} at a time${inputs}${held}.${pages}`
     + `\nPoint the agent at it: ANTHROPIC_BASE_URL=${at}`
     + (cfg.codex ? `\nCodex: ${at}/codex (existing OpenAI auth; HTTP/SSE; current turn preserved).` : '');
 }

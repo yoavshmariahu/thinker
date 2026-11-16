@@ -1,0 +1,33 @@
+{
+ "tag": "browser-pages",
+ "question": "On a browser agent's tasks, does replacing a page state as soon as a newer one arrives (ephemeral.js) cost less than carrying every page, and less than the cut with the long-turn rule, without losing passes or adding browser steps?",
+ "rule": "All six tasks in bench/tasks/browser, written 2026-11-15 before any session ran, on a site generated from a fixed seed (bench/browser/site.mjs) that grades each task itself. Chosen to cover the two shapes the rule could treat differently: tasks that act on the page in front of them (basket-order, refund-audit, cheapest-kettles, restock-report) and tasks that have to carry facts from one page to a later answer (mixer-ratio, noisy-grinders). Not chosen by any outcome.",
+ "tasksDir": "bench/tasks/browser",
+ "tasks": ["cheapest-kettles", "restock-report", "mixer-ratio", "noisy-grinders", "refund-audit", "basket-order"],
+ "model": "claude-sonnet-5-5",
+ "maxTurns": 150,
+ "reps": 1,
+ "vars": { "SITE": "$BENCH_SITE" },
+ "mcp": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.85", "--headless", "--isolated"] } },
+ "args": ["--disallowedTools", "Bash", "WebFetch", "WebSearch", "Agent", "Task", "Write", "Edit", "NotebookEdit"],
+ "arms": {
+  "bare": {
+   "env": { "ANTHROPIC_BASE_URL": "https://api.anthropic.com", "THINKER_TEST": "1" }
+  },
+  "cut": {
+   "env": { "THINKER_TEST": "1" },
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--long-turn"]],
+   "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
+  },
+  "pages": {
+   "env": { "THINKER_TEST": "1" },
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--ephemeral"]],
+   "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
+  },
+  "pages-bare": {
+   "env": { "THINKER_TEST": "1" },
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--ephemeral", "--ephemeral-tail", "bare"]],
+   "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
+  }
+ }
+}

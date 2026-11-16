@@ -1,0 +1,6 @@
+You are operating a web browser through the browser tools you have been given. The store is at {SITE}/s/{ID}/ and everything you need is on that site. Work only through the browser.
+
+Place an order for these items:
+- two of the cheapest air fryer that is in stock and whose specifications say it is dishwasher safe;
+- one of the most expensive kitchen scale that is in stock.
+Apply the promo code the site is advertising. Check out with express shipping, to: Dana Hollis, dana.hollis@example.com, 12 Tanner Row, Leeds LS1 4AB. Reply with the order number.

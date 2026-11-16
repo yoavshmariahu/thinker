@@ -42,6 +42,7 @@ import { noteCompression } from './compression.js';
 import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
+import { applyEphemeral, ephemeralConfig } from './ephemeral.js';
 import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, sessionOf, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
@@ -93,7 +94,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // turn still running, which the ordinary cut protected wholesale and this one has to name a number for. Three was
 // `keepMin`'s number for a stretch of conversation the model had already moved on from; a turn forty calls deep is
 // a working set, and the model is answering out of it right now, so it keeps more.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false, ephemeral: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -254,6 +255,15 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
   cfg.cutImages = onOff('cut-images', undefined, PROXY_DEFAULTS.cutImages);   // a flag or the machine config; no variable
+  // Superseded page states (ephemeral.js): off, on, or the tool patterns it applies to. Flags and the machine
+  // config only (proxy-service.js:serviceArgs) -- no environment variable, by the owner's rule on new knobs.
+  {
+    const raw = flags.ephemeral ?? (flags['no-ephemeral'] ? 'off' : undefined);
+    const base = raw === undefined || raw === '' ? PROXY_DEFAULTS.ephemeral : /^(1|on|true|yes)$/i.test(String(raw).trim()) || raw === true ? true : /^(0|off|false|no)$/i.test(String(raw).trim()) ? false : String(raw);
+    const eph = ephemeralConfig(base);
+    const keep = num(flags['ephemeral-keep']), tail = flags['ephemeral-tail'];
+    cfg.ephemeral = eph ? ephemeralConfig({ ...eph, ...(keep !== undefined ? { keep } : {}), ...(tail ? { tail } : {}) }) : false;
+  }
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -623,7 +633,12 @@ export function transformRequest(method, url, headers, body, cfg) {
   const stubbed = st?.replaced.length ? { tools: st.replaced.map(r => r.name), chars: st.chars } : null;
   if (stubbed) j.tools = st.tools;
   // what goes upstream when the cut leaves the messages alone: the agent's bytes, unless a stub changed them
-  const asCame = reason => stubbed ? { body: Buffer.from(JSON.stringify(j)), stubbed, ...reason } : { body, ...reason };
+  // `eph` is set further down, once the request is known to be one the proxy may edit (ephemeral.js)
+  let eph = null;
+  const ephRow = () => (eph ? { ephemeral: { results: eph.results, tokens: eph.tokens, live: eph.live, ...(eph.images ? { images: eph.images } : {}), ...(eph.anchor ? { anchor: eph.anchor } : {}), ...(eph.skipped ? { skipped: eph.skipped } : {}), ...(eph.reason ? { reason: eph.reason } : {}) } } : {});
+  // `injected` on a request the page rule changed, so a 400 about the history it rewrote stands the proxy
+  // down for the session exactly as a refused cut does (the 400 branch below reads that flag)
+  const asCame = reason => stubbed || eph?.changed ? { body: Buffer.from(JSON.stringify(j)), ...(stubbed ? { stubbed } : {}), ...(eph?.changed ? { injected: true } : {}), ...ephRow(), ...reason } : { body, ...ephRow(), ...reason };
   if (heldOut(sessionOf(headers), cfg.holdout)) return asCame({ reason: 'holdout' });
   const cm = j.context_management && typeof j.context_management === 'object' ? j.context_management : {};
   const edits = Array.isArray(cm.edits) ? cm.edits : [];
@@ -633,6 +648,14 @@ export function transformRequest(method, url, headers, body, cfg) {
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
   // the record is the conversation's, not the session's (`conversationKey`), and the store is asked for it
   // here because this is the first point the body has been parsed
+  // Superseded page states go first, and the cut then reads the conversation as it will be sent: a snapshot
+  // already replaced is not offered to it again at full size.
+  // a replaced page's screenshots are saved where the cut saves its own, and stay in the prompt if they cannot be
+  const savePage = cfg.imagePath && cfg.cutImages !== false
+    ? b => (saveCutImages([{ content: [b] }], [b.tool_use_id], cfg.imagePath) ? resultImages(b).map((x, k) => cfg.imagePath(b.tool_use_id, k, x.source.media_type)) : null)
+    : null;
+  eph = cfg.ephemeral ? applyEphemeral(j, cfg.ephemeral, { saveImages: savePage }) : null;
+  if (eph?.changed) j.messages = eph.messages;
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
@@ -658,7 +681,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const actions = cutActions(j.messages, d.cut);
   j.messages = applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
-    cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
+    cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}), ...ephRow(),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
@@ -1014,7 +1037,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             if (rates && t.protocol === 'chat' && ures.statusCode === 200 && Number.isFinite(usage?.cost)) { try { rates.observe(t.model, usage); } catch { /* a rate is never worth a failed request */ } }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), ...(t.rates ? { rates: t.rates } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.ephemeral ? { ephemeral: t.ephemeral } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
