@@ -86,10 +86,11 @@ test('connect at user scope writes the Explore agent under the Claude config dir
   }
 });
 
-test('by default connect writes nothing and removes a file thinker wrote while it was on', () => {
+test('with delegation off connect writes nothing and removes a file thinker wrote while it was on', () => {
   const home = tmp('thinker-explore-off-');
-  const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, THINKER_EXPLORE_MODEL: process.env.THINKER_EXPLORE_MODEL };
-  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; delete process.env.THINKER_EXPLORE_MODEL;
+  // the delegation trigger is on by default and pins Explore.md itself (delegate-agents.js), so it is off here
+  const saved = { HOME: process.env.HOME, CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR, THINKER_EXPLORE_MODEL: process.env.THINKER_EXPLORE_MODEL, THINKER_DELEGATE: process.env.THINKER_DELEGATE };
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; delete process.env.THINKER_EXPLORE_MODEL; process.env.THINKER_DELEGATE = 'off';
   try {
     const file = path.join(home, '.claude', 'agents', 'Explore.md');
     fs.mkdirSync(path.dirname(file), { recursive: true });

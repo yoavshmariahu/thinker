@@ -368,7 +368,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   the `agent` and `handoffTool` it named; for the fallback the subagent's usage and `total_cost_usd`, its session
   id, `cached`, `error`). A handoff carries no cost of its own on the row **on purpose** -- the host bills it, and
   the Report reads it as a subagent conversation priced at its own model, so a cost here would be counted twice.
-  **Half the sessions are held out** (`holdout` 0.5 by hash
+  **A quarter of the sessions are held out** (`holdout` 0.25 since 2026-11-16, 0.5 until then; by hash
   of the session id, `proxy.js:heldOut`, the same rule as the clearing's); a held-out session logs the row with
   `held: true` and reads as it would have. Judge it by cost per exchange, cleared and held-out, over a window, and
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
@@ -466,7 +466,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - The mod marks the session (`state/claude-delegate/<session>`) and the settings hook's copy of the call stands down there (`preToolHook`); the settings hook stays for a Claude Code too old for mods, with the handoff's words.
 - No model is named to the spawn (the Agent tool refuses a full id); Explore.md's pin picks it. A spawn that fails or passes 240 s lets the call through. The wait is spent in `$` calls, which a hook's time budget does not count.
 - Live on 2.1.325, Sonnet lead, three runs: fired every time, the subagent 10 s for $0.005 on Haiku 5.5, a small read untouched (0.7 s for the rule). The lead went straight on in one and checked the report with a grep or a short range first in two; none re-read the file.
-- On with `delegate.enabled`, as the rest; read at the session's start.
+- **On by default, a quarter of the sessions held out (2026-11-16, the owner's call; `DELEGATE_DEFAULTS.enabled`, `holdout` 0.25).** `delegate: false` or `THINKER_DELEGATE=off` switches it off; read at the session's start.
 
 **Claude Code's agent hook: the harness runs the subagent, no rule fires it yet (2026-11-15, the owner's call):**
 - A PreToolUse handler of `type: "agent"` makes Claude Code spawn its own subagent on a matched call; its `ok: false` reason is the denied call's result. The lead has no say and thinker spawns nothing.

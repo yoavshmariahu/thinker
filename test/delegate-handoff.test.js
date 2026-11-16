@@ -179,7 +179,7 @@ test('delegateConfig: the handoff is the default, the fallback is asked for by n
   const home = tmp(t);
   const c = delegateConfig({ env: {}, home });
   assert.equal(c.handoff, true); assert.equal(c.fallback, false); assert.equal(c.handoffsPerTurn, 5);
-  assert.equal(c.holdout, 0.5, 'the live measure is half the sessions, as before');
+  assert.equal(c.holdout, 0.25, 'a quarter of the sessions are held out for the live measure');
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE_HANDOFF: 'off' }, home }).handoff, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE_FALLBACK: 'on' }, home }).fallback, true);
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, fallback: true, handoff: false } }));
@@ -224,7 +224,8 @@ test('the agent definitions: OpenCode gets two files it can resolve, Claude Code
 
   // Claude Code lets a user file pin the model of the built-in Explore, so that is where the Sonnet half lives
   const home = tmp(t);
-  assert.equal(delegateExploreModel({ env: {}, home }), null, 'off by default');
+  assert.equal(delegateExploreModel({ env: {}, home }), DELEGATE_DEFAULTS.model, 'on by default');
+  assert.equal(delegateExploreModel({ env: { THINKER_DELEGATE: 'off' }, home }), null);
   assert.equal(delegateExploreModel({ env: { THINKER_DELEGATE: 'on' }, home }), DELEGATE_DEFAULTS.model);
   assert.equal(delegateExploreModel({ env: { THINKER_DELEGATE: 'claude-haiku-5-5' }, home }), 'claude-haiku-5-5');
   assert.equal(delegateExploreModel({ env: { THINKER_DELEGATE: 'on', THINKER_DELEGATE_HANDOFF: 'off' }, home }), null);

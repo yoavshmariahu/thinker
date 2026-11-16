@@ -178,11 +178,12 @@ test('a request that rewrote a long prefix is charged its write tokens; a cache 
   expect(c).toEqual({ rewrites: 2, write: 270_000 })
 })
 
-test('delegation: on by the environment or the machine config, off by default', () => {
-  expect(delegateOn(undefined, null)).toBe(false)
-  expect(delegateOn(undefined, { delegate: { enabled: true } })).toBe(true)
+test('delegation: on by default, off by the environment or the machine config', () => {
+  expect(delegateOn(undefined, null)).toBe(true)
+  expect(delegateOn(undefined, { delegate: { holdout: 0.1 } })).toBe(true)
+  expect(delegateOn(undefined, { delegate: { enabled: false } })).toBe(false)
   expect(delegateOn('off', { delegate: { enabled: true } })).toBe(false)
-  expect(delegateOn('on', null)).toBe(true)
+  expect(delegateOn('on', { delegate: false })).toBe(true)
   expect(delegateOn('', { delegate: false })).toBe(false)
   // thinker's CLI is the one the prompt hook in Claude Code's settings runs
   expect(cliOf({ hooks: { UserPromptSubmit: [{ hooks: [{ command: 'other' }] }, { hooks: [{ command: 'node "/h/.thinker/app/src/cli.js" hook prompt --client claude --user' }] }] } })).toBe('/h/.thinker/app/src/cli.js')

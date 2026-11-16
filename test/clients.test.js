@@ -923,10 +923,11 @@ test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late not
 test('wiring removes old test hooks, preserves other hooks, and never installs new pre hooks', t => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-removed-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  // the wiring reads the machine config for the delegation switch, so this needs a home of its own: on a
-  // machine with the trigger on, the PreToolUse entry is written and the assertion below is about its absence
-  const was = process.env.THINKER_HOME;
-  t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  // the delegation trigger is on by default and writes a PreToolUse entry of its own (test/delegate.test.js);
+  // this test is about the old `pre` hook's absence, so the trigger is off here, and the home is its own
+  const was = process.env.THINKER_HOME, wasD = process.env.THINKER_DELEGATE;
+  t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; if (wasD === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = wasD; });
+  process.env.THINKER_DELEGATE = 'off';
   process.env.THINKER_HOME = path.join(dir, 'thinker-home');
   fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
   const o = { repo: dir, cli: CLI, hooks: true, learn: true, late: true, shared: true, mcp: false };
@@ -938,7 +939,7 @@ test('wiring removes old test hooks, preserves other hooks, and never installs n
     const f = path.join(dir, file);
     installClient(client, o);
     let c = JSON.parse(fs.readFileSync(f, 'utf8'));
-    // the delegation hook (delegate.js) is off by default and writes nothing here; test/delegate.test.js covers it on
+    // the delegation hook (delegate.js) is switched off above and writes nothing here
     assert.equal(c.hooks[event], undefined, client);
     const ours = { type: 'command', command: `node "${CLI}" hook pre --client ${client} --repo "${dir}"`, timeout: 10 };
     const other = { type: 'command', command: 'my-security-check', timeout: 10 };

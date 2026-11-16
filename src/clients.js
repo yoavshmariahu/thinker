@@ -1392,7 +1392,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read past the turn's threshold, or a whole-suite
       // run, is denied and answered with a subagent's report. The timeout covers the subagent's run; the hook
       // itself answers in a few milliseconds when the call goes through. Written only while the trigger is on
-      // (off by default, 2026-11-12): a hook that exits at once is still one node process per tool call, and
+      // (on by default since 2026-11-16): a hook that exits at once is still one node process per tool call, and
       // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
       // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
       // spawns nothing and the hook answers in a quarter of a second (2026-11-12).

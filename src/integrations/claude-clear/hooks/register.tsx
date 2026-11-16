@@ -397,11 +397,12 @@ export const REPORT_SLOT = '{{thinker-report}}'
 export const DELEGATE_TIMEOUT_MS = 240_000
 export const DELEGATE_SESSION_MARK = 'claude-delegate'
 const OFF = /^(off|false|0|no)$/i
-// on: THINKER_DELEGATE (anything but an off word), else `delegate: { enabled: true }` in <THINKER_HOME>/config.json
+// on unless switched off, as delegate.js:delegateConfig reads it: THINKER_DELEGATE (an off word), else `delegate: false`
+// or `delegate: { enabled: false }` in <THINKER_HOME>/config.json
 export function delegateOn(env: string | undefined, config: any): boolean {
   if (env !== undefined && env !== '') return !OFF.test(env)
   const d = config?.delegate
-  return Boolean(d && typeof d === 'object' && d.enabled === true)
+  return !(d === false || (d && typeof d === 'object' && d.enabled === false))
 }
 // thinker's CLI, read off the prompt hook thinker wrote into Claude Code's settings: the copy the hooks run
 export const cliOf = (settings: any): string | null => {
