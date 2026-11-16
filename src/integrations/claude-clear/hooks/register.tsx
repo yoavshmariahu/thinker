@@ -50,8 +50,8 @@ const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
 // measurement that removed input cutting still holds there (test/claude-clear.test.js exempts the key) -- but the
 // term is mirrored here, because the rule is that one policy has one spelling, not that both doors run one config.
-export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean; cutInputs?: boolean }) =>
-  `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}${p?.cutInputs ? '+in' : ''}`
+export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean; cutInputs?: boolean; cutImages?: boolean }) =>
+  `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}${p?.cutInputs ? '+in' : ''}${p?.cutImages ? '+img' : ''}`
 // What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
 // holds the two together): from the first clear onward, a request that wrote more than half of a long context
 // into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,

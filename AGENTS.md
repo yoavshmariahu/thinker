@@ -55,6 +55,15 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
+- **A cut takes a finished call's screenshot too, and leaves its path (2026-11-15, the owner's call; `cutImages`,
+  `proxy.js:saveCutImages`, `cutting.js:imagePlaceholder`).** A result was eligible by its text alone, so a browser
+  session's screenshots were never cut. Now a base64 image in a result that is going is saved under the clearing's
+  `images/` directory (kept 2 days) and the placeholder names the file, so the model reads it again if it needs to;
+  an image that cannot be saved stays in the prompt. An image is counted at its tokens, never its base64
+  (`wireChars`): read as text one screenshot put the prompt past the trigger by itself and made every rewrite look
+  hundreds of times dearer. The policy id says `+img`. Proxy only: the host hands the mod a result as text
+  (`DESKTOP_POLICY` exempts it), and the Responses and Chat doors are unchanged. `proxy: { cutImages: false }` or
+  `--no-cut-images` turns it off; there is no variable.
 - **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
   is a long session, so "cleared against held out" never compared like with like, and at 50% it cost every install half
   the saving. `proxy: { holdout }` in config puts an arm back for an experiment; the Factory's compression diff then reads it.

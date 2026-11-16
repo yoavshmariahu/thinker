@@ -50,6 +50,7 @@ const DESKTOP_POLICY = {
   // turn whose own results reach the trigger does not arise. The mod reads the boundary as it always has.
   longTurn: { exempt: 'a turn here ends when the person types again, so a turn large enough for this rule to open is not a shape a desktop session has' },
   cutInputs: { exempt: 'the mod clears results in the desktop app, where a call\'s own text is a file path and not a heredoc: the 2026-11-04 measurement that took input cutting out (#611) still holds for that shape' },
+  cutImages: { exempt: 'the host hands a mod each tool result as its text alone, so a screenshot is not there for it to save or to take out; the proxy does both' },
   keepTurn: { exempt: 'how many of a running turn\'s results a long-turn cut keeps, and `longTurn` never opens here' },
 };
 
