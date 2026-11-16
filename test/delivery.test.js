@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
 import * as await_prices from '../src/prices.js';
 import { appendDelivery, readDelivery, deliveryFile } from '../src/delivery-journal.js';
-import { deliveryReport, renderDelivery, linkSession, syncPrs, sessionsOf, SAVED_BUCKETS, githubOrigin, ghAvailable } from '../src/delivery.js';
+import { deliveryReport, renderDelivery, linkSession, syncPrs, sessionsOf, SAVED_BUCKETS, githubOrigin, ghAvailable, COST_SINCE } from '../src/delivery.js';
 
 const now = Date.parse('2026-10-29T12:00:00.000Z');
 const at = hoursAgo => new Date(now - hoursAgo * 3600_000).toISOString();
@@ -309,4 +309,25 @@ test('a session\'s saving is priced row by row at the model that answered each r
   assert.equal(x.cost.priced, true);
   assert.ok(Math.abs(x.cost.saved - (2_000_000 * opus.cacheRead + 500_000 * luna.cacheRead) / 1e6) < 1e-9, 'each row at its own model');
   assert.ok(x.cost.saved > 10 * (2_500_000 * luna.cacheRead / 1e6), 'not the whole session at the last model named');
+});
+
+// The owner's call, 2026-11-16: the older clearing's rows sat inside every 30-day figure and read as today's.
+test('no saving and no clearing cost on or before 2026-11-04 is counted', t => {
+  const { store, home } = fixture(t);
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const row = (at, extra) => ({ op: 'proxy', at, session: 'sOld', model: 'claude-opus-5-5', status: 200, injected: true, ...extra });
+  fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
+    row('2026-11-03T10:00:00.000Z', { cleared: 5_000_000 }),
+    row('2026-11-04T23:00:00.000Z', { cleared: 1_000_000, read: 1000, write: 400_000 }),   // a rewrite after a clear, still before the line
+    row('2026-11-05T09:00:00.000Z', { cleared: 200_000 }),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  store.log({ op: 'session', t: '2026-11-05T09:30:00.000Z', session: 'sOld', client: 'claude', model: 'claude-opus-5-5', turns: 6, totalTokens: 900_000, tokenCoverage: 'complete' });
+  const all = sessionsOf(store, { home, env: {} }).get('sOld');
+  assert.equal(all.cleared, 6_200_000, 'the tests\' own fixtures are dated before the line, so it is off unless asked for');
+  assert.ok(all.cost.rewrite > 0);
+  const x = sessionsOf(store, { home, env: {}, costSince: COST_SINCE }).get('sOld');
+  assert.equal(COST_SINCE, '2026-11-05T00:00:00.000Z');
+  assert.equal(x.cleared, 200_000, 'only what was cleared from 5 November on');
+  assert.equal(x.cost.rewrite, 0, 'and a rewrite before the line is not charged');
+  assert.ok(Math.abs(x.cost.saved - 200_000 * await_prices.listPrice('claude-opus-5-5').cacheRead / 1e6) < 1e-9);
 });

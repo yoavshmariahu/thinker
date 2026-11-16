@@ -16,6 +16,7 @@ import { listPrice, formatDollars, costOf } from './prices.js';
 import { compressionDir, readCompression, clearedBySession, clearingCostBySession, usageBySession, CLEARING_OP } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
+import { isTestMode } from './test-mode.js';
 import { appendDelivery, readDelivery, positiveInteger } from './delivery-journal.js';
 
 export const WINDOW_DAYS = 30;
@@ -44,8 +45,16 @@ const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.pars
 
 // One pass over the usage log: each session's client, model, branches and heads, and what it cost by its last
 // `session` row.
+// No saving and no clearing cost is counted on or before 2026-11-04 (the owner's call, 2026-11-16). Thinker began
+// cutting the context itself on that day; before it the clearing was the API's, measured as a loss, and its rows
+// sat inside every 30-day figure for a month, read as today's: -$620 of one machine's -$622 was that. A clear, a
+// rewrite after one, and a desktop record last touched before this instant are in no figure. The tests' fixtures
+// are dated before it, so under test the line is off unless a test passes one.
+export const COST_SINCE = '2026-11-05T00:00:00.000Z';
+const costFrom = (since, costSince = isTestMode() ? '' : COST_SINCE) => (costSince > (since || '') ? costSince : since || '');
 const READ_LATER = new Set(['profile', 'model', 'distill-skipped']);
-export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env } = {}) {
+export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env, costSince } = {}) {
+  const from = costFrom(since, costSince);
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
   const sessions = new Map();
   const of = key => {
@@ -77,15 +86,15 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     // A desktop clear mirrored into the log at the end of a turn (compression.js:mirrorClearing), for the
     // sessions the proxy never served and whose card record has since been pruned. Cumulative, so the newest
     // row is the session's figure and rows are never added.
-    if (e.op === CLEARING_OP && e.cleared > 0 && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
+    if (e.op === CLEARING_OP && e.cleared > 0 && e.t >= from && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
   }
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const clearing = clearingFor({ home, env, since, config });
+  const clearing = clearingFor({ home, env, since: from, config });
   // What the proxy itself saw of each session, for the clients that keep no transcript (compression.js:
   // usageBySession). Read once, like the clearing.
   let served = new Map();
   try { for (const [id, x] of usageBySession(proxyLogFile(home, env), { since })) served.set(sessionKey(id), x); } catch { served = new Map(); }
-  const rewriteCost = rewriteCostFor({ home, env, since, config });
+  const rewriteCost = rewriteCostFor({ home, env, since: from, config });
   for (const x of sessions.values()) {
     // agent tokens: the person's own conversation and every subagent it ran, since each was a model call made for
     // the same work; the parent's figure stays beside it (`ownTokens`), and a subagent with no counter is left out
@@ -232,7 +241,7 @@ export function linkFor(session, prs, links) {
 // ---------------------------------------------------------------------------
 // The report.
 
-export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now(), home = thinkerHome(), log = null } = {}) {
+export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now(), home = thinkerHome(), log = null, costSince } = {}) {
   days = positiveInteger(days, 'days');
   if (pr !== undefined) pr = positiveInteger(pr, 'PR');
   const since = new Date(now - days * 86400_000).toISOString();
@@ -243,10 +252,10 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     else if (e.op === 'link') links.set(sessionKey(e.session), e.allocations);
   }
   // An observation is the only record of a session that served nothing and was never assessed.
-  const sessions = sessionsOf(store, { since, log, home });
-  const clearing = clearingFor({ home, since });
+  const sessions = sessionsOf(store, { since, log, home, costSince });
+  const clearing = clearingFor({ home, since: costFrom(since, costSince) });
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const rewriteCost = rewriteCostFor({ home, since, config });
+  const rewriteCost = rewriteCostFor({ home, since: costFrom(since, costSince), config });
   // An observation carries no model, so a session known only this way can be priced for what the clearing
   // cost it but not for what the clearing saved it: the rates are the model's. `costed` counts the ones that
   // are priced, and a report whose sessions are all of this kind says so rather than showing a loss.

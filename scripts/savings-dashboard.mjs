@@ -41,6 +41,8 @@ const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE '
 const dayRows = block => `CROSS JOIN LATERAL jsonb_each(CASE WHEN ${valid} THEN coalesce(raw_json #> '{${block},byDay}', '{}'::jsonb) ELSE '{}'::jsonb END) AS dd(day, figures)`;
 const dayDate = "(CASE WHEN dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN dd.day::date END)";
 const fig = name => `sum((dd.figures->>'${name}')::numeric)`;
+// no saving on or before 2026-11-04 is counted (src/delivery.js:COST_SINCE; the owner's call, 2026-11-16)
+const counted = `${dayDate} >= DATE '2026-11-05'`;
 const prValid = "raw_json #>> '{prs,schemaVersion}' = '3'";
 const prDays = `CROSS JOIN LATERAL jsonb_each(CASE WHEN ${prValid} THEN coalesce(raw_json #> '{prs,byDay}', '{}'::jsonb) ELSE '{}'::jsonb END) AS dd(day, figures)`;
 
@@ -77,7 +79,7 @@ export const savingsQuestions = [
     description: 'Every model call of the session at list prices by token type, subagents each at their own model (src/delivery.js cost.spend). The denominator is the sessions whose counters were complete and whose every model had a price; the rest are in neither column, never at zero. A subscription bills none of it.' },
 
   { name: 'Total saved, netted · every day reported', display: 'scalar',
-    sql: `SELECT round(${fig('netUsd')}, 2) AS total_net_usd FROM ${savingsSource} ${dayRows('sessions')} WHERE ${dayDate} IS NOT NULL`,
+    sql: `SELECT round(${fig('netUsd')}, 2) AS total_net_usd FROM ${savingsSource} ${dayRows('sessions')} WHERE ${counted}`,
     description: `Every policy pooled: a day's figures carry no policy, so the clears from before the stamp are in this total and the headline above does not. A real total, not a window: each day is summed once, from the latest snapshot per device that carries it, so days from different devices and different days add up. This is the figure the 30-day cards above cannot give. It reaches back as far as the reporting devices' own windows do, so it grows as installs keep reporting rather than being a lifetime figure from the start. ${netNote}` },
 
   { name: 'What a session saves, and what it costs', display: 'table', fullWidth: true,
@@ -138,7 +140,7 @@ export const savingsQuestions = [
     sql: `SELECT date_trunc('week', ${dayDate}) AS week, round(${fig('netUsd')}, 2) AS net_saved_usd, round(${fig('spendUsd')}, 2) AS spent_usd,
       ${fig('sessions')} AS sessions, ${fig('clearedSessions')} AS sessions_cleared,
       round(${fig('spendUsd')} / nullif(${fig('prompts')}, 0), 2) AS cost_per_prompt_usd
-      FROM ${savingsSource} ${dayRows('sessions')} WHERE ${dayDate} IS NOT NULL GROUP BY 1 ORDER BY 1`,
+      FROM ${savingsSource} ${dayRows('sessions')} WHERE ${counted} GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['week'], 'graph.metrics': ['net_saved_usd', 'spent_usd'] },
     description: `Every policy pooled, since a day's figures carry no policy. What the clearing netted each week against what those sessions cost, by the week of each session's last request. Cost per prompt is the length-independent figure beside it. ${netNote}` },
 

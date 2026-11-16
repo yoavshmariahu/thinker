@@ -54,7 +54,7 @@
         <div class="install-instruction">Run anywhere to install</div>
         <div class="cmd-box">
           <code id="cmd">npx thinkersh</code>
-          <button class="btn-copy" onclick="copyInstall(this)">Copy</button>
+          <button class="btn-copy">Copy</button>
         </div>
       </div>
     </div>
@@ -151,8 +151,8 @@
         }, 2000);
       });
     }
-
-
+    // A listener, not onclick=: the Content-Security-Policy allows no inline handler.
+    document.querySelector('.btn-copy').addEventListener('click', event => copyInstall(event.currentTarget));
   </script>
   <script>
     (() => {

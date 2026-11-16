@@ -177,6 +177,24 @@ test('the site carries what crawlers and web-filter vendors read before categori
   assert.equal(policy.SecurityHeadersConfig.StrictTransportSecurity.IncludeSubdomains, false, 'zerotime.dev has other subdomains');
   assert.ok(policy.SecurityHeadersConfig.ContentTypeOptions.Override);
   assert.equal(policy.SecurityHeadersConfig.FrameOptions.FrameOption, 'DENY');
+  // The Content-Security-Policy: every inline script of every page by its hash, and no page with a handler no hash covers.
+  const { inlineScriptHashes } = await import('../infra/access/public-headers.mjs');
+  const csp = RESPONSE_POLICY('x', ["'sha256-other'"]).SecurityHeadersConfig.ContentSecurityPolicy;
+  assert.ok(csp.Override);
+  const scripts = csp.ContentSecurityPolicy.match(/script-src ([^;]*)/)[1];
+  assert.doesNotMatch(scripts, /unsafe-inline|unsafe-eval|\*/);
+  assert.ok(scripts.includes("'sha256-other'"), 'pages outside the repository keep their scripts');
+  const site = new URL('../site/', import.meta.url);
+  let inline = 0;
+  for (const name of fs.readdirSync(site).filter(name => name.endsWith('.html'))) {
+    const html = fs.readFileSync(new URL(name, site), 'utf8');
+    for (const allowed of inlineScriptHashes(html)) { inline++; assert.ok(scripts.includes(allowed), name); }
+    assert.doesNotMatch(html, /<[^>]+\son[a-z]+\s*=/i, name + ' has an inline event handler, which the policy blocks');
+    assert.doesNotMatch(html, /(?:href|src)="javascript:/i, name);
+  }
+  assert.ok(inline >= 5, 'the inline scripts were found');
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'", 'frame-src https://calendar.google.com'])
+    assert.ok(csp.ContentSecurityPolicy.split('; ').includes(directive), directive);
   const cache = policy.CustomHeadersConfig.Items.find(h => h.Header === 'Cache-Control');
   assert.doesNotMatch(cache.Value, /no-store|private/, 'the public site is cacheable');
   assert.equal(cache.Override, false, 'the function\'s no-store on /access/session and each upload\'s value stand');
