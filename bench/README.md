@@ -63,6 +63,28 @@ that is a spread and is labelled as one, not a p-value.
 No concurrency, no job queue, no result reuse across experiments, no leak checks. Add them when a
 question needs them.
 
+## Tasks with no repository: a browser agent (`bench/browser/`)
+
+A spec with no `base` gives each session an empty directory instead of a worktree. Four things were added for
+it, and any spec may use them:
+
+- `mcp`: the MCP servers every arm gets (the same for all of them; none unless named).
+- `args`: extra `claude` arguments, e.g. `--disallowedTools Bash ...` so a browser task is done in the browser.
+- `vars`: placeholders beside `{CWD}`, `{ID}` and `{BENCH}`, usable in prompts, arm commands, `mcp` and `args`.
+  A value written `$NAME` is read from the environment when the run starts.
+- A `before` step may write `KEY=VALUE` lines to `{CWD}/.bench-env`; they join the session's environment. An arm
+  that starts its own proxy reserves a port then and hands back `ANTHROPIC_BASE_URL` that way
+  (`bench/browser/proxy-arm.sh start {CWD} NAME=value ...`), so no spec holds a port number.
+
+The check gets the agent's answer: `BENCH_ANSWER` is a file with the last turn's text, `BENCH_ID` the session,
+and every var as `BENCH_<NAME>`.
+
+`bench/browser/site.mjs` is the site the browser tasks run on: a store and an order back office generated from
+a fixed seed, each session with its own state under `/s/<session>/`, and the site grades each task itself
+(`/__check/<task>`), so there is no judge. `node bench/browser/site.mjs --answers` prints what it expects and
+warns about a tie or a repeated name that would make a task ambiguous. `bench/browser/run.sh <spec> [--dry]`
+brings the site up on a reserved port, runs the spec and takes it down.
+
 ## Grading
 
 A task's `criteria.json` is a list of `{ id, behavior, essential }` written before the run. The judge is

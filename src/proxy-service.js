@@ -204,6 +204,13 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
+  // superseded page states (ephemeral.js), off until measured: `ephemeral: true`, or `{ tools, keep, tail }`
+  if (cfg.ephemeral === true || (cfg.ephemeral && typeof cfg.ephemeral === 'object' && cfg.ephemeral.enabled !== false)) {
+    const e = cfg.ephemeral === true ? {} : cfg.ephemeral;
+    args.push('--ephemeral', ...(Array.isArray(e.tools) && e.tools.length ? [e.tools.join(',')] : []));
+    if (e.keep != null) args.push('--ephemeral-keep', String(e.keep));
+    if (e.tail) args.push('--ephemeral-tail', String(e.tail));
+  }
   // the model gateways (proxy.js): `gateways: { openrouter: false | '<upstream>', litellm: 'https://…' }`
   // in the `proxy` block. OpenRouter is on unless the config says false (`openrouterGateway`); a string
   // moves the same door to another upstream (a self-hosted mirror, a test fixture); any other gateway is

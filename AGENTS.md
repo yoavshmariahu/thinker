@@ -475,6 +475,48 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - `npm` publishes at same version. `--hold` for pre-release/`next` tag. `--promote` to stable.
 - `scripts/release.sh`, `scripts/pack.sh` (self-host: `pack.sh <base url>`).
 
+## Browser agents: superseded page states (2026-11-15, the owner's ask; `src/ephemeral.js`, off)
+
+The ask was where thinker is useful outside coding, starting with a browser agent. What a browser agent's
+context is made of is page states: every action answers with the page as it now is, each several thousand
+tokens, each describing a page that is gone the moment the next one arrives. The cut treats them as it treats
+a file read (wait for a boundary, take a batch that repays its rewrite), and the long-turn rule makes them
+reachable in a one-prompt job, but neither uses the one fact that sets a page apart: it is dead on a known
+call, and on that call nothing has been cached behind it yet.
+
+- **The rule.** A result of a browser tool that carries a page (`EPHEMERAL_TOOLS`: Playwright, Chrome DevTools,
+  claude-in-chrome, `computer`; 2,000+ characters or an image) is replaced once `keep` (1) newer ones exist,
+  if what lies between it and the one that superseded it is no larger than what leaves and at most 15 blocks
+  (`gapOk`). The first 400 characters stay (what ran, the URL, the title) and the words say the page was seen,
+  that refs from it no longer work, and to take a new snapshot (`pagePlaceholder`). Decided from the request
+  alone: no record, no ratchet, the same bytes on every call and across a restart.
+- **A page read from a file is a page.** Playwright MCP 0.0.85 answers an action with a link and writes the
+  snapshot to `.playwright-mcp/page-<time>.yml`, which the model reads with its own Read tool (checked by
+  driving the server with no model: `browser_navigate` 384 characters, the file 13,705). `EPHEMERAL_FILES`
+  matches the Read's path, or the rule would see no pages at all on that server.
+- **The anchor is what makes it free.** The API writes cache entries only at markers and the agent's marker is
+  at the end of the request, after the live page -- an entry the replacement invalidates. So the proxy puts a
+  marker on the block just before the oldest live page, at the agent's own TTL, on every request while that
+  page can still be superseded for free. The next request reads up to there and writes the placeholder, the
+  model's action and the new page. Four markers at most: an older message marker of the agent's gives way,
+  never its last; with no room the anchor is refused and the row says `no-marker-room`. Held by
+  `test/ephemeral.test.js`: the anchored prefix is byte-identical from one step to the next.
+- **A mixed session is left alone.** Forty file reads between two pages would be written again by the
+  replacement, so `gapOk` refuses and the page is the cut's to judge. `tail: 'bare'` also takes the agent's
+  marker off the live page while it is the newest message (input once, instead of a cache write nobody reads).
+- **Edits history, as the cut does.** On an account where the API binds thinking blocks to the history that
+  produced them the request is refused and the proxy stands down for the session (`injected` on the row,
+  `proxy-cut-rejected`). The Chat and Responses doors do not have the rule yet; the desktop mod is exempt
+  with a reason (`test/claude-clear.test.js`).
+- **On:** `--ephemeral [tool patterns]`, `--ephemeral-keep n`, `--ephemeral-tail bare`, `THINKER_PROXY_EPHEMERAL`
+  (`_KEEP`, `_TAIL`), or `proxy: { ephemeral: true | { tools, files, keep, tail } }`. The row carries
+  `ephemeral: { results, tokens, live, anchor }` and `policyId` adds `+eph<keep>`. **Not yet in the savings
+  ledger**: `cleared` on the row is the cut's alone, so the Report and the footer do not count it.
+- **Unmeasured.** No session has run through it. The bench for it is `bench/experiments/browser-pages.json`
+  (`bench/browser/`: a store generated from a seed that grades its own six tasks, Playwright MCP given to
+  every arm, each proxy arm on a port reserved at start); the judges are cost per session, passes, and the
+  number of browser calls, since a model that lost a page it needed takes it again.
+
 ## What `setup` does
 
 The installer (`install.sh`) installs the tool wherever it is run and wires it into the agents on this machine
