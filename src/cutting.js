@@ -29,6 +29,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { relativeRate } from './model-usage.js';
+import { ephemeralId } from './ephemeral.js';
 
 // list-price ratios to an input token: what a cache write costs by its TTL (the same on every Anthropic model), what a
 // cache read costs by the model (READ where the model is not priced: Anthropic's usual tenth)
@@ -116,7 +117,10 @@ export const policyId = (cfg = {}) =>
   // `-lt<n>`: the long-turn rule, and how many of a running turn's newest results it kept. The number is a
   // setting in force like the trigger and the floor, and the one that decides whether a cut inside a turn left
   // the model its working set, so a saving made at ten is never pooled with one made at three.
-  + (cfg.longTurn ? `-lt${round(cfg.keepTurn ?? KEEP_TURN)}` : '');
+  + (cfg.longTurn ? `-lt${round(cfg.keepTurn ?? KEEP_TURN)}` : '')
+  // `+eph<keep>`: superseded page states were being replaced as well (ephemeral.js), which changes what the
+  // cut is left to find, so a saving made beside it is never pooled with one made without.
+  + ephemeralId(cfg.ephemeral);
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
