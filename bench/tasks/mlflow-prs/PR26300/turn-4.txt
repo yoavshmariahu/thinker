@@ -1,0 +1,1 @@
+Read the complete output of `git diff` for your work, then re-read every file you changed in full with the Read tool (no line ranges). Compare what you implemented against the request word by word, and complete anything the request asks for that is missing or only partly done.

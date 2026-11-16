@@ -1,0 +1,1 @@
+Run the same tests once more: `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/server/auth/test_authorization_coverage.py tests/server/test_fastapi_app.py -x -q`. Then answer with one paragraph summarizing what you changed and why.

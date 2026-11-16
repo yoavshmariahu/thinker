@@ -1,0 +1,65 @@
+{
+ "tag": "delegate-quality-mlflow-prs",
+ "question": "On real merged pull requests, does the lead solve the problem as often when its whole-file reads are handed to a subagent? Pass or fail by each pull request's own tests, with cost and wall time beside it.",
+ "rule": "The six tasks of mlflow-b2-fair-turns (eleven real merged MLflow pull requests, each a nine-prompt session graded by the pull request's own tests) with the largest merged change by lines: PR26267 (274), PR26307 (207), PR26270 (165), PR26269 (140), PR26300 (108), PR26311 (106). Chosen 2026-11-15 by size alone, after a free replay of archived unmodified sessions showed the trigger fires on this set (7 of 7 sessions) and never on the PostHog nine-turn tasks (0 of 6; their reads are ranged). The reading prompts are scripted, so the firing is prompted; the problem and the grading are real. A delegate session in which the hook never fired is named and enters no figure. Canary first: one delegate session of PR26311, kept as rep 0 if the design is unchanged after it.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/mlflow-b2",
+ "ref": "1bb65f1c6",
+ "tasksDir": "bench/tasks/mlflow-prs",
+ "tasks": [
+  "PR26267",
+  "PR26307",
+  "PR26270",
+  "PR26269",
+  "PR26300",
+  "PR26311"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  },
+  "delegate": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1",
+    "THINKER_HOOKS": "on",
+    "THINKER_DELEGATE": "on",
+    "THINKER_DELEGATE_HOLDOUT": "off",
+    "THINKER_LOG": "local",
+    "THINKER_NO_LEARN": "1"
+   },
+   "hooks": {
+    "PreToolUse": [
+     {
+      "matcher": "Read|Bash",
+      "hooks": [
+       {
+        "type": "command",
+        "command": "node '/Users/yoavshmariahu/src/thinker/.worktrees/delegate-quality-bench/src/cli.js' hook pretool --client claude",
+        "timeout": 300
+       }
+      ]
+     }
+    ]
+   },
+   "before": [
+    [
+     "node",
+     "--input-type=module",
+     "-e",
+     "import fs from 'node:fs';import {renderExploreAgent} from '/Users/yoavshmariahu/src/thinker/.worktrees/delegate-quality-bench/src/explore-agent.js';import {DELEGATE_DEFAULTS} from '/Users/yoavshmariahu/src/thinker/.worktrees/delegate-quality-bench/src/delegate.js';fs.mkdirSync('.claude/agents',{recursive:true});fs.writeFileSync('.claude/agents/Explore.md',renderExploreAgent(DELEGATE_DEFAULTS.model));"
+    ]
+   ],
+   "after": [
+    "node",
+    "-e",
+    "const fs=require('fs');let r=[];try{r=fs.readFileSync('{CWD}/.thinker/log.jsonl','utf8').split('\\n').filter(Boolean).map(l=>{try{return JSON.parse(l)}catch{return null}}).filter(x=>x&&x.op==='delegate')}catch{};const f=r.filter(x=>x.fired!==false&&!x.after);process.stdout.write(JSON.stringify({rows:r.length,fired:f.length,kinds:f.map(x=>x.kind),files:f.map(x=>(x.files||[]).join('+')),ignored:r.filter(x=>x.after).length,declined:r.filter(x=>x.fired===false).map(x=>x.declined),firedTokens:f.reduce((a,x)=>a+(Number(x.tokens)||0),0)}))"
+   ]
+  }
+ }
+}

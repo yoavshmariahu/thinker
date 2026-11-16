@@ -1,0 +1,1 @@
+Run `git diff --stat` and then `git diff` in full, then run the tests once more: `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest tests/entities/test_span.py -x -q`. Answer with one paragraph summarizing everything you changed across this session.
