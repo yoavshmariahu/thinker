@@ -486,3 +486,66 @@ test('Claude Code, the mod runs the subagent: the order names the host\'s Explor
   await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big }, host_runs: true }, store, session: 'sess-1', cwd: d, cfg, client: 'claude' }));
   await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big } }, store, session: 'sess-2', cwd: d, cfg, client: 'claude' }));
 });
+
+// Devin, from the payloads its CLI 3000.11.234 sent on 2026-11-16 (two live probes, swe-2-high and swe-2-medium).
+// Its PreToolUse is Claude Code's shape with lower-case tools and no `cwd`; a subagent's calls carry the lead's
+// session id and prompt id and nothing that marks them, so they are known by the window between `run_subagent`'s
+// PreToolUse and its PostToolUse.
+test('Devin: a big read is handed to its own explore subagent in its own words, and the subagent\'s reads go through until it answers', t => {
+  const repo = tmp(t); const home = tmp(t);
+  execFileSync('git', ['init', '-q', repo]);
+  const big = bigFile(repo, 'core.py'), other = bigFile(repo, 'other.py');
+  const env = { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_HOLDOUT: 'off', DEVIN_PROJECT_DIR: repo };
+  const hook = (what, input) => execFileSync('node', [CLI, 'hook', what, '--client', 'devin', '--user', ...(what === 'pretool' ? [] : ['--record'])], { input: JSON.stringify(input), encoding: 'utf8', env, cwd: repo });
+  const base = { session_id: 'aback-ferry', prompt_id: 'b88ff14b', hook_event_name: 'PreToolUse' };
+  const read = (file, extra = {}) => ({ ...base, tool_name: 'read', tool_use_id: 'read:0#99f0', tool_input: { file_path: file, ...extra } });
+  // the person's prompt reaches the brief from thinker's own trace: Devin's hook payload names no transcript
+  hook('prompt', { session_id: 'aback-ferry', hook_event_name: 'UserPromptSubmit', prompt: 'where is the retry ladder decided?' });
+
+  assert.deepEqual(executionFor('devin', 'explore', DELEGATE_DEFAULTS), { mode: 'handoff', tool: 'run_subagent', alias: undefined, param: 'profile', fields: { label: 'title', brief: 'task' }, agent: 'subagent_explore' });
+  assert.equal(executionFor('devin', 'verify', DELEGATE_DEFAULTS).agent, 'subagent_general');
+
+  const j = JSON.parse(hook('pretool', read(big)));
+  assert.equal(j.hookSpecificOutput.hookEventName, 'PreToolUse');
+  assert.equal(j.hookSpecificOutput.permissionDecision, 'deny');
+  const words = j.hookSpecificOutput.permissionDecisionReason;
+  assert.match(words, /Call the run_subagent tool now with profile: "subagent_explore", title: "[^"]+", and task: the brief below/);
+  assert.doesNotMatch(words, /subagent_type|description:|prompt: the brief/, 'Devin\'s field names, not Claude Code\'s');
+  assert.match(words, /where is the retry ladder decided\?/, 'the request is in the brief');
+  const rows = () => fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.op === 'delegate');
+  assert.equal(rows().length, 1);
+  assert.deepEqual([rows()[0].client, rows()[0].mode, rows()[0].agent, rows()[0].handoffTool], ['devin', 'handoff', 'subagent_explore', 'run_subagent']);
+
+  // a short range is the lead's own, before and after
+  assert.equal(hook('pretool', read(big, { offset: 1140, limit: 60 })), '');
+  // the subagent starts: its reads carry the lead's ids and nothing else, so the window is what lets them through
+  const launch = { ...base, tool_name: 'run_subagent', tool_use_id: 'run_subagent:1#9282', tool_input: { title: 'Inspect core.py', task: 'Read core.py in full and report.', profile: 'subagent_explore' } };
+  assert.equal(hook('pretool', launch), '');
+  assert.equal(hook('pretool', read(big)), '', 'the file it was sent to read');
+  assert.equal(hook('pretool', read(other)), '', 'and any other file it explores: a second denial would ask a subagent for a subagent');
+  assert.equal(rows().length, 2, 'inside the window nothing is decided or logged: the second row is the lead\'s own short range');
+  assert.equal(rows()[1].fired, false);
+  // the subagent answers (PostToolUse of the same call): the window closes and the lead's next big read is decided again
+  hook('tool', { ...launch, hook_event_name: 'PostToolUse', tool_response: { success: true, output: 'Subagent agent_id=7d997de2 completed successfully' } });
+  assert.equal(JSON.parse(hook('pretool', read(other))).hookSpecificOutput.permissionDecision, 'deny');
+  assert.equal(rows().at(-1).mode, 'handoff');
+  // a whole-suite run goes to the general subagent, through Devin's `exec`
+  const suite = JSON.parse(hook('pretool', { ...base, prompt_id: 'p2', tool_name: 'exec', tool_use_id: 'exec:0#1', tool_input: { command: 'pytest' } }));
+  assert.match(suite.hookSpecificOutput.permissionDecisionReason, /profile: "subagent_general"/);
+});
+
+test('Devin: a subagent that never answers does not hold the window open for good', async () => {
+  const { subagentRunning, noteSubagent, SUBAGENT_WINDOW_MS, windowTool } = await import('../src/delegate.js');
+  const st = {}, t0 = 1_000_000;
+  assert.equal(subagentRunning(st, t0), false);
+  noteSubagent(st, true, t0);
+  assert.equal(subagentRunning(st, t0 + 60_000), true);
+  assert.equal(subagentRunning(st, t0 + SUBAGENT_WINDOW_MS + 1), false, 'past the window the next read is the lead\'s again');
+  noteSubagent(st, true, t0); noteSubagent(st, true, t0 + 1000);
+  noteSubagent(st, false, t0 + 2000);
+  assert.equal(subagentRunning(st, t0 + 3000), true, 'two running, one answered');
+  noteSubagent(st, false, t0 + 4000); noteSubagent(st, false, t0 + 5000);
+  assert.equal(subagentRunning(st, t0 + 6000), false, 'and an answer with nothing open stays at none');
+  assert.equal(windowTool('devin', 'run_subagent'), true);
+  assert.equal(windowTool('claude', 'Agent'), false, 'Claude Code marks its subagent\'s calls and needs no window');
+});

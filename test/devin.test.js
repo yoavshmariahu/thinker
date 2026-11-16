@@ -60,7 +60,11 @@ test('Devin connects, detects, refreshes idempotently and uninstalls without tou
     // Devin denies a background subagent every tool not approved already: the worker needs learn_next allowed
     assert.deepEqual(cfg.permissions, { deny: ['Write(secret)'], allow: ['mcp__thinker__learn_next'] });
     assert.equal(cfg.hooks.Stop.length, 2);
-    assert.equal(cfg.hooks.PreToolUse, undefined);
+    // the delegation trigger's door: reads, shell commands, and the subagent's launch (delegate.js:HOSTS.devin)
+    assert.equal(cfg.hooks.PreToolUse.length, 1);
+    assert.equal(cfg.hooks.PreToolUse[0].matcher, 'read|exec|run_subagent');
+    assert.match(cfg.hooks.PreToolUse[0].hooks[0].command, /hook pretool --client devin --user$/);
+    assert.equal(cfg.hooks.PreToolUse[0].hooks[0].timeout, 30);
     // the context skill's own hook has 'thinker' in its path and is not connect's to remove
     assert.deepEqual(cfg.hooks.PostToolUse[0], skillHook);
     assert.equal(cfg.hooks.PostToolUse.length, 2);
@@ -85,7 +89,9 @@ test('Devin respects no-learn/no-late and preserves malformed or commented confi
   atHome(home, () => {
     const f = wiringFiles('devin', { scope: 'user' });
     installClient('devin', { ...opts, learn: false, late: false });
-    assert.deepEqual(Object.keys(json(f.hooks).hooks), ['UserPromptSubmit', 'Stop']);
+    assert.deepEqual(Object.keys(json(f.hooks).hooks), ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']);
+    // with nothing to record, the tool hook runs for the subagent's answer alone
+    assert.equal(json(f.hooks).hooks.PostToolUse[0].matcher, 'run_subagent');
     assert.match(json(f.hooks).hooks.Stop[0].hooks[0].command, /--no-distill$/);
     const commented = '{ // managed by me\n "proxy": {"mode":"off"}\n}';
     fs.writeFileSync(f.hooks, commented);

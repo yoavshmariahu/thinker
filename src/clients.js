@@ -1553,7 +1553,9 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // sees the subagent start; its PostToolUse below sees it answer, which is the only way its own reads are known.
       const delegates = client === 'devin' && delegateConfig().enabled;
       if (delegates) entries.push(['PreToolUse', { matcher: 'read|exec|run_subagent', hooks: [{ type: 'command', command: command('pretool', ''), timeout: 30 * shaped.unit }] }]);
-      if (late || learn || delegates) entries.push(['PostToolUse', group('tool', (late && !shaped.recordOnly ? ' --late' : '') + rec, 10, true)]);
+      if (late || learn) entries.push(['PostToolUse', group('tool', (late && !shaped.recordOnly ? ' --late' : '') + rec, 10, true)]);
+      // with neither, the hook is there for the subagent's answer alone and runs on no other tool
+      else if (delegates) entries.push(['PostToolUse', { ...group('tool', rec, 10), matcher: 'run_subagent' }]);
       // Auggie hands a Stop hook the turn's prompt and answer when asked (includeConversationData): its trace's prompt
       entries.push(['Stop', { ...group('stop', stopFlags, 10), ...(client === 'augment' ? { metadata: { includeConversationData: true } } : {}) }]);
       if (learn) entries.push(['SessionEnd', group('stop', shaped.scripts ? ' --end' : stopFlags, 10)]);
