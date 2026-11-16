@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS, lastPromptOf, shellRead } from '../src/delegate.js';
+import { readOf, suiteCommand, decide, delegateTool, delegateConfig, denial, DELEGATE_DEFAULTS, TOKENS_PER_CHAR, explorerBrief, hostEvent, HOSTS, lastPromptOf, shellRead, agentHookEntries } from '../src/delegate.js';
 import { installClient } from '../src/clients.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
@@ -227,4 +227,41 @@ test('lastPromptOf: the request is found past the tail window', t => {
   // the tail alone is what a short session costs, and it still answers
   assert.equal(lastPromptOf(f, 600_000).prompt, 'rewrite the savings footer in dollars');
   assert.deepEqual(lastPromptOf(path.join(d, 'gone.jsonl')), {});
+});
+
+test('agent hook: Claude Code\'s own subagent on a matched call is written only for a configured rule, and none is configured', t => {
+  assert.deepEqual(DELEGATE_DEFAULTS.agentHooks, [], 'the mechanism ships with no rule to fire it');
+  assert.deepEqual(agentHookEntries(), []);
+  const cfg = { ...DELEGATE_DEFAULTS, agentHooks: [{ matcher: 'Read', if: 'Read(*.py)' }, { if: 'Read(*.js)' }, null] };
+  const entries = agentHookEntries(cfg);
+  assert.equal(entries.length, 1, 'a rule with no matcher would fire on every tool and is dropped');
+  const [event, group] = entries[0], h = group.hooks[0];
+  assert.equal(event, 'PreToolUse');
+  assert.equal(group.matcher, 'Read');
+  assert.deepEqual([h.type, h.if, h.model, h.timeout], ['agent', 'Read(*.py)', DELEGATE_DEFAULTS.model, 240]);
+  assert.equal(agentHookEntries({ ...DELEGATE_DEFAULTS, agentHooks: [{ matcher: 'Read' }] })[0][1].hooks[0].if, undefined);
+  // the harness hands the call over in $ARGUMENTS, and the reason opens with the report sentence a lead works from
+  assert.match(h.prompt, /\$ARGUMENTS/);
+  assert.match(h.prompt, /offset or a limit\), answer ok true/, 'a ranged read is the lead\'s own');
+  const sentence = JSON.parse(denial({ kind: 'explore', report: '', files: ['{file}'], cwd: '', model: DELEGATE_DEFAULTS.model })).hookSpecificOutput.permissionDecisionReason.trim();
+  assert.ok(h.prompt.endsWith(sentence), 'one copy of the words: denial\'s');
+
+  // the wiring: nothing by default, the entry beside thinker's other hooks for a rule, gone again on a rewire without it
+  const dir = tmp(t);
+  const was = { d: process.env.THINKER_DELEGATE, h: process.env.THINKER_HOME };
+  t.after(() => { for (const [k, v] of [['THINKER_DELEGATE', was.d], ['THINKER_HOME', was.h]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  delete process.env.THINKER_DELEGATE;
+  const home = process.env.THINKER_HOME = path.join(dir, 'home');
+  fs.mkdirSync(home, { recursive: true });
+  const settings = () => JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
+  const install = () => installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  install();
+  assert.equal(settings().hooks.PreToolUse, undefined);
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { agentHooks: [{ matcher: 'Read', if: 'Read(*.py)' }] } }));
+  install(); install();
+  assert.equal(settings().hooks.PreToolUse.length, 1, 'a rewire replaces, never doubles');
+  assert.equal(settings().hooks.PreToolUse[0].hooks[0].type, 'agent');
+  fs.writeFileSync(path.join(home, 'config.json'), '{}');
+  install();
+  assert.equal(settings().hooks.PreToolUse, undefined, 'the entry is thinker\'s to take out');
 });

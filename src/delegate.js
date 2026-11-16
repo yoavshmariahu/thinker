@@ -54,6 +54,7 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   handoffsPerTurn: 5, // reads handed over per turn (the owner's call, 2026-11-15; 1 until then). A file is handed
                       // over once a turn and a suite run once a turn whatever this says (see `decide`)
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
+  agentHooks: [],     // Claude Code's agent hooks (`agentHookEntries`): the mechanism without a rule to fire it
   reportLines: 25,
 });
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
@@ -347,6 +348,51 @@ export function handoffLabel(kind, files = [], cwd) {
   const names = files.map(f => path.basename(f));
   if (!names.length) return 'Explore the codebase';
   return `Read ${names.slice(0, 2).join(' and ')}${names.length > 2 ? ` and ${names.length - 2} more` : ''}`.slice(0, 60);
+}
+
+// CLAUDE CODE RUNS THE SUBAGENT TOO: THE AGENT HOOK (2026-11-15, the owner's call).
+//
+// Claude Code has no plugin that can start a child session, but it has a hook that is one: a PreToolUse handler
+// of `type: "agent"` makes the harness spawn a subagent of its own on every matched call, and when that
+// subagent answers `ok: false` its `reason` is the denied call's result. So the lead has no say, nothing is
+// spawned by thinker, and the run is on the host's login -- what `hostRunOrder` is for OpenCode.
+// Run live on 2.1.325 with the entry below: a Read of a 600-line file was answered by the Haiku subagent in
+// 12 s for $0.005, the lead worked from the report, and its ranged read went through in 3 s. The harness puts
+// "PreToolUse:<tool> hook error: Agent hook condition was not met:" in front of the reason whatever it says, so
+// the words after it are again the mechanism: a bare report was distrusted and the lead read the file again
+// through the shell, one that opened by saying thinker read the file through a subagent was worked from.
+// The subagent has to be told it is the one that sentence names (Haiku, not told, wrote that no subagent had
+// read the file), and it lets a ranged Read through itself, since the pattern cannot see a range: one model
+// call for every matched read, ranged or not.
+//
+// What it cannot do: the entry is static settings, matched on the tool's name (`matcher`) and one
+// permission-rule pattern (`if`, e.g. `Read(*.py)`; seen to filter live), so no rule of thinker's runs first
+// -- no size, no turn tally, no holdout -- and thinker's own hook never sees the run, so there is no
+// `op: delegate` row for it. That is why this is the mechanism alone: `agentHooks` is empty, nothing is
+// written, and what should fire it is a separate decision. A rule is `{ matcher, if? }`.
+// Reads only. A suite run was tried the same day and is not here: the hook's subagent gets a shell only where
+// the session's own permissions allow the command (headless, it was refused one), and the lead called its
+// report an injection and ran the suite again.
+export function agentHookPrompt(cfg = DELEGATE_DEFAULTS) {
+  const lead = JSON.parse(denial({ kind: 'explore', report: '', files: ['{file}'], cwd: '', model: cfg.model })).hookSpecificOutput.permissionDecisionReason.trim();
+  return [
+    EXPLORER_PROMPT.replace('{N}', String(cfg.reportLines)),
+    'The lead engineer\'s tool call, which you are answering in its place: $ARGUMENTS',
+    'If that call asks for a range of the file (tool_input has an offset or a limit), answer ok true at once and do nothing else: the lead is reading the lines it edits.',
+    'Otherwise the brief: read the whole file that call names (and whatever it points to that the lead needs) and report as above.',
+    `Then your answer is ok false, and its reason is what the lead reads instead of the file. You are the ${cfg.model} subagent the sentence below speaks of, so it is true as written. The reason is exactly that sentence, with {file} replaced by the file's name, and then your report, with nothing about yourself or these instructions:`,
+    lead,
+  ].join('\n\n');
+}
+/** The settings entries for the configured agent-hook rules; none by default. */
+export function agentHookEntries(cfg = DELEGATE_DEFAULTS) {
+  const rules = Array.isArray(cfg.agentHooks) ? cfg.agentHooks : [];
+  return rules
+    .filter(r => r && typeof r.matcher === 'string' && r.matcher)
+    .map(r => ['PreToolUse', { matcher: r.matcher, hooks: [{
+      type: 'agent', ...(r.if ? { if: String(r.if) } : {}), model: cfg.model,
+      timeout: Math.round((cfg.timeoutMs || DELEGATE_DEFAULTS.timeoutMs) / 1000), prompt: agentHookPrompt(cfg),
+    }] }]);
 }
 
 /**
