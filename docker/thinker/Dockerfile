@@ -16,6 +16,6 @@ COPY src ./src
 ENV THINKER_HOME=/data
 VOLUME /data
 EXPOSE 7000
-# --long-turn: an agent of this kind is one instruction and many tool calls, and without it the cut only
-# ever acts between a person's prompts (cutting.js, the long-turn rule)
-CMD ["node", "src/cli.js", "proxy", "--port", "7000", "--host", "0.0.0.0", "--long-turn"]
+# The cut acts only between prompts: an agent that does its whole job in one instruction is never cut into
+# (the rule that did was removed on 2026-11-16 after it cost an answer; AGENTS.md).
+CMD ["node", "src/cli.js", "proxy", "--port", "7000", "--host", "0.0.0.0"]

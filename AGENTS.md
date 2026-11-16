@@ -499,8 +499,8 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 The ask was where thinker is useful outside coding, starting with a browser agent. What a browser agent's
 context is made of is page states: every action answers with the page as it now is, each several thousand
 tokens, each describing a page that is gone the moment the next one arrives. The cut treats them as it treats
-a file read (wait for a boundary, take a batch that repays its rewrite), and the long-turn rule makes them
-reachable in a one-prompt job, but neither uses the one fact that sets a page apart: it is dead on a known
+a file read (wait for a boundary, take a batch that repays its rewrite), which never comes in a one-prompt
+job, and it does not use the one fact that sets a page apart: it is dead on a known
 call, and on that call nothing has been cached behind it yet.
 
 - **The rule.** A result of a browser tool that carries a page (`EPHEMERAL_TOOLS`: Playwright, Chrome DevTools,
@@ -555,10 +555,11 @@ record of the run, and the owner wants these agents wired as the coding agents a
 - **An agent's checkout is a workspace thinker makes**: `<THINKER_HOME>/agents/<name>`, an empty git
   repository, because a hook does nothing outside a checkout and a container has none. Its profile, traces and
   log key live there; two names never share one.
-- **The container** (`docker/thinker/Dockerfile`): `thinker proxy --port 7000 --host 0.0.0.0 --long-turn`,
-  `THINKER_HOME=/data` as a volume. `--host` is new (loopback unless given). **`--long-turn` is on in the
-  image**, though it ships off elsewhere: an agent of this kind is one instruction and many tool calls, and
-  without it the cut never acts. That is a default set without a measurement and is the owner's to veto.
+- **The container** (`docker/thinker/Dockerfile`): `thinker proxy --port 7000 --host 0.0.0.0`,
+  `THINKER_HOME=/data` as a volume. `--host` is new (loopback unless given). The image ran `--long-turn`
+  until 2026-11-16, when the owner removed that rule: on `browser-big` (one prompt, 200 pages) it cut eight
+  pages the agent had not yet tallied and the answer came out 3% short. So in a one-prompt agent the cut does
+  not act, and what the container gives such an agent today is the hooks and the record.
 - **What is wired and does nothing yet.** `pretool` reaches `delegate.js`, which has rules for Claude Code's
   and OpenCode's tools only, so a framework agent's call always passes. A trace carries no token counters, so
   the `op: session` row has none; the proxy's log has them by session. Only `ChatAnthropic` is rerouted.
