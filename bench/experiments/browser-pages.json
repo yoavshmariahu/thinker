@@ -16,17 +16,17 @@
   },
   "cut": {
    "env": { "THINKER_TEST": "1" },
-   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "THINKER_PROXY_LONG_TURN=on"]],
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--long-turn"]],
    "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
   },
   "pages": {
    "env": { "THINKER_TEST": "1" },
-   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "THINKER_PROXY_EPHEMERAL=on"]],
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--ephemeral"]],
    "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
   },
   "pages-bare": {
    "env": { "THINKER_TEST": "1" },
-   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "THINKER_PROXY_EPHEMERAL=on", "THINKER_PROXY_EPHEMERAL_TAIL=bare"]],
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--ephemeral", "--ephemeral-tail", "bare"]],
    "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
   }
  }

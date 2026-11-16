@@ -253,13 +253,13 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
-  // Superseded page states (ephemeral.js): off, `on`, or the tool patterns it applies to; `keep` and `tail`
-  // ride beside it so an experiment arm can set them without a config file.
+  // Superseded page states (ephemeral.js): off, on, or the tool patterns it applies to. Flags and the machine
+  // config only (proxy-service.js:serviceArgs) -- no environment variable, by the owner's rule on new knobs.
   {
-    const raw = flags.ephemeral ?? (flags['no-ephemeral'] ? 'off' : undefined) ?? env.THINKER_PROXY_EPHEMERAL;
+    const raw = flags.ephemeral ?? (flags['no-ephemeral'] ? 'off' : undefined);
     const base = raw === undefined || raw === '' ? PROXY_DEFAULTS.ephemeral : /^(1|on|true|yes)$/i.test(String(raw).trim()) || raw === true ? true : /^(0|off|false|no)$/i.test(String(raw).trim()) ? false : String(raw);
     const eph = ephemeralConfig(base);
-    const keep = pick('ephemeral-keep', 'THINKER_PROXY_EPHEMERAL_KEEP'), tail = flags['ephemeral-tail'] || env.THINKER_PROXY_EPHEMERAL_TAIL;
+    const keep = num(flags['ephemeral-keep']), tail = flags['ephemeral-tail'];
     cfg.ephemeral = eph ? ephemeralConfig({ ...eph, ...(keep !== undefined ? { keep } : {}), ...(tail ? { tail } : {}) }) : false;
   }
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;

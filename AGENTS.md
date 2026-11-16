@@ -508,8 +508,8 @@ call, and on that call nothing has been cached behind it yet.
   produced them the request is refused and the proxy stands down for the session (`injected` on the row,
   `proxy-cut-rejected`). The Chat and Responses doors do not have the rule yet; the desktop mod is exempt
   with a reason (`test/claude-clear.test.js`).
-- **On:** `--ephemeral [tool patterns]`, `--ephemeral-keep n`, `--ephemeral-tail bare`, `THINKER_PROXY_EPHEMERAL`
-  (`_KEEP`, `_TAIL`), or `proxy: { ephemeral: true | { tools, files, keep, tail } }`. The row carries
+- **On:** `--ephemeral [tool patterns]`, `--ephemeral-keep n`, `--ephemeral-tail bare`, or
+  `proxy: { ephemeral: true | { tools, keep, tail } }`; no environment variable. The row carries
   `ephemeral: { results, tokens, live, anchor }` and `policyId` adds `+eph<keep>`. **Not yet in the savings
   ledger**: `cleared` on the row is the cut's alone, so the Report and the footer do not count it.
 - **Unmeasured.** No session has run through it. The bench for it is `bench/experiments/browser-pages.json`

@@ -35,9 +35,12 @@ test('off by default, and the setting is read whole', () => {
   assert.deepEqual(ephemeralConfig('mcp__x__*, shot').tools, ['mcp__x__*', 'shot']);
   assert.equal(ephemeralConfig({ keep: 0 }).keep, 1, 'the live page is never taken');
   assert.equal(proxyConfig({}, {}).ephemeral, false);
-  assert.equal(proxyConfig({}, { THINKER_PROXY_EPHEMERAL: 'on', THINKER_PROXY_EPHEMERAL_KEEP: '2', THINKER_PROXY_EPHEMERAL_TAIL: 'bare' }).ephemeral.keep, 2);
+  assert.equal(proxyConfig({ ephemeral: true, 'ephemeral-keep': '2' }, {}).ephemeral.keep, 2);
   assert.equal(proxyConfig({ ephemeral: true, 'ephemeral-tail': 'bare' }, {}).ephemeral.tail, 'bare');
-  assert.equal(proxyConfig({ 'no-ephemeral': true }, { THINKER_PROXY_EPHEMERAL: 'on' }).ephemeral, false);
+  assert.deepEqual(proxyConfig({ ephemeral: 'browser_*,shot' }, {}).ephemeral.tools, ['browser_*', 'shot']);
+  assert.equal(proxyConfig({ 'no-ephemeral': true, ephemeral: undefined }, {}).ephemeral, false);
+  // no environment variable turns it on: a knob nobody asked for ships in the product
+  assert.equal(proxyConfig({}, { THINKER_PROXY_EPHEMERAL: 'on' }).ephemeral, false);
 });
 
 test('a saving made beside the rule names it', () => {

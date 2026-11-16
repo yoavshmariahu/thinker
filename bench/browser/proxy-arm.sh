@@ -6,12 +6,12 @@
 # its own that is reserved when it starts and released when it stops (never a number written in a spec).
 # The proxy is this checkout's (`src/cli.js` beside this script), so the arm measures the code it sits in.
 #
-#   proxy-arm.sh start <cwd> [NAME=value ...]   start it with that policy; hand the agent its address
+#   proxy-arm.sh start <cwd> [proxy flags ...]   start it with that policy; hand the agent its address
 #   proxy-arm.sh stop  <cwd>                    print the session's figures as JSON, stop it, release the port
 #
-# The policy arrives as NAME=value arguments (THINKER_PROXY_LONG_TURN=on, THINKER_PROXY_EPHEMERAL=on ...)
-# because the bench runs `before` with the parent environment, not the arm's. The agent's address goes back
-# through `.bench-env`, which the bench merges into the session's environment (bench.mjs).
+# The policy arrives as the proxy's own flags (--long-turn, --ephemeral ...), passed straight to
+# `thinker proxy`: no variable is invented for an arm. The agent's address goes back through `.bench-env`,
+# which the bench merges into the session's environment (bench.mjs).
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 CLI=${THINKER_CLI:-$HERE/../../src/cli.js}
@@ -27,10 +27,9 @@ case "$ACT" in
     [ -f "$DIR/proxy.pid" ] && { kill "$(cat "$DIR/proxy.pid")" 2>/dev/null; sleep 0.3; }
     if [ -x "$PORTS" ]; then PORT=$("$PORTS" reserve thinker "$LABEL"); else PORT=$("$NODE" -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'); fi
     echo "$PORT" > "$DIR/proxy.port"
-    for kv in "$@"; do export "$kv"; done
-    export THINKER_TEST=1 THINKER_PROXY_LOG=$DIR/proxy.jsonl THINKER_PROXY_PORT=$PORT THINKER_PROXY_HOLDOUT=0
-    printf '%s\n' "$@" > "$DIR/policy.env"
-    "$NODE" "$CLI" proxy >> "$DIR/proxy.out" 2>&1 </dev/null &
+    export THINKER_TEST=1 THINKER_PROXY_LOG=$DIR/proxy.jsonl
+    printf '%s\n' "$@" > "$DIR/policy.flags"
+    "$NODE" "$CLI" proxy --port "$PORT" --holdout 0 "$@" >> "$DIR/proxy.out" 2>&1 </dev/null &
     echo $! > "$DIR/proxy.pid"
     i=0
     while [ $i -lt 30 ]; do

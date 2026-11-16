@@ -74,7 +74,7 @@ it, and any spec may use them:
   A value written `$NAME` is read from the environment when the run starts.
 - A `before` step may write `KEY=VALUE` lines to `{CWD}/.bench-env`; they join the session's environment. An arm
   that starts its own proxy reserves a port then and hands back `ANTHROPIC_BASE_URL` that way
-  (`bench/browser/proxy-arm.sh start {CWD} NAME=value ...`), so no spec holds a port number.
+  (`bench/browser/proxy-arm.sh start {CWD} <proxy flags>`), so no spec holds a port number.
 
 The check gets the agent's answer: `BENCH_ANSWER` is a file with the last turn's text, `BENCH_ID` the session,
 and every var as `BENCH_<NAME>`.

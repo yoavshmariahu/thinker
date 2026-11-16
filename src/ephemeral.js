@@ -30,7 +30,7 @@
 // What it costs the model: the old page. It keeps what it wrote about the page at the time and the first
 // lines of the result (the action that ran, the URL and title), and is told to take a new snapshot if it
 // needs the page again. Whether that loses answers is the bench's question (bench/experiments/browser-*),
-// and the rule is off until it has been asked: `--ephemeral`, `THINKER_PROXY_EPHEMERAL`, `proxy: { ephemeral }`.
+// and the rule is off until it has been asked: `--ephemeral`, or `proxy: { ephemeral }` in the machine config.
 //
 // Like the cut, this edits history, so on an account where the API holds thinking blocks to the history
 // that produced them the request is refused and the proxy stands down for the session (proxy.js, 'cut-rejected').
