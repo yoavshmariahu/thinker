@@ -104,6 +104,12 @@ copy you want.
   model settings, permissions, routes and other MCP servers remain intact.
 - `UserPromptSubmit` delivers the profile; `PostToolUse` records tool inputs, output and errors. `Stop` checks the learning
   backlog, and `SessionEnd` queues the remaining trace. Hooks do not rewrite commands.
+- `PreToolUse` (on `read`, `exec` and `run_subagent`) is the delegation trigger: a read past the turn's
+  threshold, or a whole-suite test run, is refused with an instruction to hand it to Devin's own
+  `subagent_explore` (or `subagent_general` for a suite run) through `run_subagent`, and only the report comes
+  back to the conversation. Devin does not mark a subagent's own calls, so everything between the subagent's
+  start and its answer goes through. `THINKER_DELEGATE=off` or `delegate: false` takes the hook out on the next
+  `thinker rewire`. Checked live on CLI 3000.11.234 in print mode with the free SWE-2 models.
 - Learning uses Devin's background `run_subagent` (`subagent_general`) and Thinker's `learn_next` MCP
   queue. No separate Claude/Codex login or API key is needed. Work queued when a
   session closes is picked up on a later prompt. A background subagent is denied every

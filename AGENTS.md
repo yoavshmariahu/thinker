@@ -429,6 +429,20 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   $0.20, the model worked from the report, took two ranged reads of 25 and 18 lines, and answered right; the
   same run an hour earlier had fired through the installed plugin and been held out (`held: true` rows in the
   machine log), which is the holdout doing its job.
+- **Devin is the third door (2026-11-16; `delegate.js:HOSTS.devin`, `clients.js` writes `PreToolUse` on
+  `read|exec|run_subagent`).** Probed live on CLI 3000.11.234 with swe-2-high and swe-2-medium: its PreToolUse hook
+  sends Claude Code's payload (`tool_name` `read`/`exec`, `tool_input` `{ file_path, offset, limit }`/`{ command }`,
+  `prompt_id`; no `cwd`, no transcript) and takes Claude Code's deny JSON, which the model is shown ("Hook block").
+  Both models then called **`run_subagent`** with `profile: "subagent_explore"`, `title` and `task` -- so the
+  handoff names those fields (`subagent.fields`) -- and answered right from the report. Through thinker's own hook
+  the same day: a 62k-token read denied, one `op: delegate` row (`client: devin`, `mode: handoff`), the right
+  answer. **Devin does not mark a subagent's calls**: they carry the lead's session id and prompt id and nothing
+  else, and no `SubagentStop` fired. So they are known by the **window** between `run_subagent`'s PreToolUse and
+  its PostToolUse, which Devin sends when the subagent has answered (`noteSubagent`, `subagentRunning`; the tool
+  hook closes it, so `PostToolUse` is written on `run_subagent` alone where learning and late serving are off);
+  inside it nothing is decided, and a subagent that never answers stops holding it after `SUBAGENT_WINDOW_MS`
+  (15 min). The brief's request comes from thinker's own trace (`lastPromptOfTrace`). Not checked: a background
+  subagent (its PostToolUse may come at launch, closing the window early), a paid lead model, and Devin Desktop.
 - **Three more hosts have a door, and none of them is wired yet** (surveyed 2026-11-12; the old line here said
   "no other agent has such a door: Cursor can deny a shell command but not answer for it; Codex's hooks cannot
   deny", and both halves are now false). **Codex 0.166.0** registers `PreToolUse` and `PermissionRequest` as live
