@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { inlineScriptHashes } from './public-headers.mjs';
 import tls from 'node:tls';
 const base = 'https://thinker.sh';
 const request = (path, method = 'GET') => fetch(new URL(path, base), { method, redirect: 'manual', signal: AbortSignal.timeout(20000) });
@@ -59,6 +60,14 @@ for (const path of ['/', '/docs.html', '/dist/install.sh']) {
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff', path);
   assert.equal(response.headers.get('x-frame-options'), 'DENY', path);
   assert.match(response.headers.get('cache-control') || '', /^public, max-age=\d+$/, path);
+}
+// The Content-Security-Policy, and that it allows every inline script of the pages actually served.
+for (const path of ['/', '/how-it-works', '/see-the-data', '/docs', '/gokce-bday/', '/gokce-bday/movie/']) {
+  const response = await request(path);
+  const policy = response.headers.get('content-security-policy') || '';
+  assert.match(policy, /default-src 'self'; script-src 'self' 'sha256-/, path);
+  assert.doesNotMatch(policy.match(/script-src [^;]*/)[0], /unsafe-inline/, path);
+  for (const allowed of inlineScriptHashes(await response.text())) assert.ok(policy.includes(allowed), path + ' has an inline script the policy blocks');
 }
 assert.equal((await request('/access/session')).headers.get('cache-control'), 'no-store', 'the install-command answer is still not cached');
 // /dist serves the current GitHub release, which clients from before 0.1.35 still read (they refuse redirects).
