@@ -106,45 +106,21 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - **First live A/B (2026-11-14, 8-turn read session, two proxies, $12): no difference.** Both arms cut at turns 4 and 6, the same 66,097 and 61,791 tokens, 158,084 cleared, $5.95 against $5.98. The corrected cost priced those cuts at 13 and 11 instead of 15 and 13, and turn 3's refusal moved from the floor to the pricing (payback 65). The ladder only pays in the middle band -- the whole set fails and a shallower rung passes -- and this workload never landed there: either the whole set paid at 13-15, or no rung paid (best 27, 36, 116). The 93 historical boundaries DO land there (tail/cut 1.9-2.9 against a bar of 1.37), so judge it on real traffic, not on a synthetic read session.
 - **Unmeasured, and what to watch.** `proxy-replay.js` cannot judge it (it models the API-side edit this replaced) and the holdout is off since 2026-11-12, so the judges are cost per exchange and `rereads.js` -- which is what this puts most at risk, a cut nearer the tail being a cut of results the model used more recently.
 
-**A turn that runs for a hundred tool calls is cut into (2026-11-14, off by default; `cutting.js:openTurn`):**
-- The cut only ever moved at a turn boundary, and a turn is one prompt of the person's to the next. An
-  autonomous job has no second prompt, so the whole context sat inside the first turn and was protected
-  forever: the cut could not fire however large it grew. Found by the container e2e (demo/e2e) on
-  2026-11-13 -- one prompt, 16 calls, 5k -> 193k tokens against a 140k trigger, all 16 refused
-  `nothing-to-cut`; the same work as three prompts cut 174k at the first boundary.
-- The rule: **the turn is kept whole until the turn's own results reach the trigger**, and past that the
-  newest **`keepTurn` (10)** are protected. A conversation's turn never reaches it and behaves as before. `measurePrompt` reports `inTurn` beside `prompt`
-  (the trigger leaves the turn in progress out, which is what keeps a verdict still within a turn; the
-  long-turn branch adds it back, which is the only way a one-prompt job is reachable at all).
-- **`keepTurn` is 10, not `keepMin`'s 3** (the owner's call, 2026-11-14, `cutting.js:KEEP_TURN`,
-  `proxy.js:walkResults`). An ordinary cut protects the turn in progress whole, so the model never loses a
-  result it is working from; this cut has to name a count instead, and three of a hundred is the one shape
-  in which this rule could make a model answer out of a gap rather than read again -- the single failure
-  `rereads.js` cannot see, because a model that confabulates asks for nothing. A number, so `--keep-turn`,
-  `THINKER_PROXY_KEEP_TURN` and `proxy: { keepTurn }` all reach it, and `policyId` carries it (`-lt10`).
-- **What the wider tail costs:** a cut's rewrite is priced on the tail from the first result it replaces to
-  the end (`priceCut`: `recache x (write - read) - read x removed`), and a protected tail sits inside that
-  tail -- so keeping ten rewrites more while removing less, and can leave too little to repay within
-  `PAYBACK`. On the shape this rule is for -- many results of a module's size -- it never bites (40 reads
-  of 12k chars: 37 removed at 3, 30 at 10). On a turn of a few very large reads it does, and the rule
-  stands down (25 reads of 20k chars: 22 removed at 3, refused `payback` at 10). That is the safe side of
-  the trade: a turn of 25 big reads is exactly where leaving the model 3 of them would have been worst.
-- Inside such a turn the **floor and `PAYBACK` do the pacing** the boundary used to do: another cut needs
-  another floor's worth of finished results and must repay its own rewrite within 25 calls.
-- Live in a container, same prompt and same work (2026-11-14): **off** 16 calls, peak context 193,193
-  tokens, nothing cleared; **on** 16 calls, peak context **85,787**, 249,164 tokens of results out, 8 cuts.
-  The model answered both times. What a fixture cannot show is whether a real model re-reads what was taken
-  from under it -- that is `rereads.js`'s question and the reason this ships off.
-- On: `THINKER_PROXY_LONG_TURN=on`, `--long-turn`, or `proxy: { longTurn: true }`. The saving names it
-  (`policyId` adds `-lt<keepTurn>`), so a figure made with it is never compared with one made without, nor
-  one made at another tail. The desktop mod is exempt with a reason (`test/claude-clear.test.js`): a turn
-  there ends when the person types.
-- **The re-read figure reads this cut, and had to be taught to** (`rereads.js:cutPolicyFor`, 2026-11-14).
-  `rereadsOf` rebuilds the cleared set from the transcript on the shared rule -- a cut takes the results of
-  the turns *before* its own -- so for a `-lt` session it found an empty set and reported **zero** re-reads:
-  the one figure that decides this rule read free by construction. It now reads which policy made the
-  session's cuts off the stamp the cut left (never off today's settings, since a session may predate a
-  change) and reconstructs an in-turn cut with the same trigger and the same `keepTurn` the cut used.
+**The turn in progress is never cut into (the long-turn rule, removed 2026-11-16, the owner's call):**
+- A cut moves only at a turn boundary, and a turn is one prompt of the person's to the next. A one-prompt
+  autonomous job is all one turn, so the cut never fires in it however large it grows (container e2e,
+  2026-11-13: one prompt, 16 calls, 5k -> 193k tokens, all refused `nothing-to-cut`). That is known and
+  accepted.
+- The rule that cut into such a turn once its own results passed the trigger (`--long-turn`, `longTurn`,
+  `keepTurn` 10, the `-lt10` stamp; 2026-11-14, never on by default) is gone, with its flags, its
+  environment variables and the re-read reconstruction it needed.
+- Why: its one live run on the shape it was for (`bench/experiments/browser-big.json` on the
+  `agent/langchain-hooks` branch, 2026-11-16; one prompt, 200 product pages, Sonnet 5.5). The cut fired 18
+  times, held the context at 158k against 326k, and removed eight pages the agent had read and not yet
+  tallied. The agent did not notice, read nothing again, and answered 508 where the uncut session answered
+  the right 525. That is the failure `rereads.js` cannot see: a model working out of a gap asks for nothing.
+  Nothing in a request says which results of a running turn the model has finished with.
+- Do not bring a mid-turn cut back without a signal for "finished with" that comes from the model.
 
 **A cut takes the finished call's own text too, by default (2026-11-14, the owner's call; `cutting.js:cutInput`,
 `proxy.js:applyCut`, `cutInputs`):**
@@ -167,7 +143,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   mod mirrors the naming function and keeps the flag off, with the reason recorded: in the desktop app an input
   really is a file path, so the 2026-11-04 measurement still holds there.
 - Measured, 8 of this machine's biggest sessions, 4,891 calls, same bodies: the recent policy cut **1** (0.07M),
-  today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with `keepTurn` 3 as well **9**
+  today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with the since-removed long-turn rule as well **9**
   (0.25M). Real, and small in absolute terms: `payback` still refuses ~863 calls either way.
 - **Run live, and it was the best arm** (`bench/experiments/cut-inputs-posthog.json`, tag `posthog-cut-inputs`,
   2026-11-15, $28.98): PostHog PR106936, nine turns, Opus 5.5, three arms, graded by Opus against criteria written

@@ -38,7 +38,7 @@ import { enqueueJob, markAppSession, pendingJobs, startSessionWork } from '../se
 import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js';
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
-import { cutPolicyFor, cutTimesFor, rereadsOf } from '../rereads.js';
+import { cutTimesFor, rereadsOf } from '../rereads.js';
 import { emitSession } from '../events.js';
 
 // Whether the wiring checks are due where `file` keeps their stamp: a different copy or version of thinker than the
@@ -351,9 +351,7 @@ async function hookCommand(ctx) {
           const cuts = cutTimesFor(where);
           // what the delegation trigger kept out, from the same transcript and the same cut times (delegated.js)
           try { const firings = sessionState(store, session).st.delegated; delegated = firings?.length ? delegatedOf(p, firings, { cuts, subagents: subs }) : null; } catch { delegated = null; }
-          // under the long-turn rule a cut reaches inside the turn it was made in, so the reconstruction has to as
-          // well (`cutPolicyFor` reads which policy made these cuts)
-          rereads = cuts.length ? rereadsOf(p, cuts, cutPolicyFor(where)) : null;
+          rereads = cuts.length ? rereadsOf(p, cuts) : null;
         } catch { rereads = null; }
         const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined, delegated: delegated || undefined };
         store.log(record);

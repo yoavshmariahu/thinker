@@ -42,7 +42,7 @@ import { noteCompression } from './compression.js';
 import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, openTurn, sessionOf, KEEP_TURN, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -89,11 +89,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
 // `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
 // tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
-// `keepTurn` is `keepMin` for a cut that reaches inside the turn in progress (`longTurn`): the newest results of a
-// turn still running, which the ordinary cut protected wholesale and this one has to name a number for. Three was
-// `keepMin`'s number for a stretch of conversation the model had already moved on from; a turn forty calls deep is
-// a working set, and the model is answering out of it right now, so it keeps more.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, keepTurn: KEEP_TURN, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, longTurn: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -113,12 +109,7 @@ export function measurePrompt(cfg, j) {
   // What a cut costs is not here -- it is the tail from the first replaced result, which only the
   // candidate walk can know (cutCandidates). `prefix` and `system` were read by the old cost model and
   // are gone with it.
-  //
-  // `inTurn` is what the turn in progress has put in the prompt by itself -- the thing `prompt` leaves out,
-  // reported beside it rather than folded in. A conversation's turn is small and this changes nothing; a
-  // one-prompt autonomous job is ALL turn, and without it the trigger can never be reached however large the
-  // request grows (`cutting.js:decide`, the long-turn rule).
-  return { prompt, inTurn: tok(txt(all.slice(turnStart(all)))), turn: turnId(all) };
+  return { prompt, turn: turnId(all) };
 }
 // the boundary's id: how many prompts of the person's the conversation holds, by turnStart's rule for one
 export function turnId(messages) {
@@ -233,7 +224,7 @@ const num = v => (v == null || v === '' || Number.isNaN(Number(v)) ? undefined :
 export function proxyConfig(flags = {}, env = process.env) {
   const pick = (flag, name) => num(flags[flag]) ?? num(env[name]);
   const cfg = { ...PROXY_DEFAULTS };
-  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'], ['keepTurn', 'keep-turn', 'THINKER_PROXY_KEEP_TURN'],
+  for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'],
     ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT']]) {
     const v = pick(flag, name);
     // a guard the person set by hand is pinned, and the route's prices never move it (cutting.js:scaledPolicy)
@@ -251,7 +242,6 @@ export function proxyConfig(flags = {}, env = process.env) {
     return dflt;
   };
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
-  cfg.longTurn = onOff('long-turn', 'THINKER_PROXY_LONG_TURN', PROXY_DEFAULTS.longTurn);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
   cfg.cutImages = onOff('cut-images', undefined, PROXY_DEFAULTS.cutImages);   // a flag or the machine config; no variable
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
@@ -287,7 +277,7 @@ export function proxyConfig(flags = {}, env = process.env) {
       const value = flags[flag] ?? env[variable];
       if (value != null && (typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)))) throw new Error(`--${flag} needs a number`);
     }
-    for (const k of ['trigger', 'clearAtLeast', 'keepMin', 'keepTurn']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' || k === 'keepTurn' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' || k === 'keepTurn' ? 'non-negative' : 'positive'} integer`);
+    for (const k of ['trigger', 'clearAtLeast', 'keepMin']) if (!Number.isSafeInteger(cfg[k]) || cfg[k] < (k === 'keepMin' ? 0 : 1)) throw new Error(`responses ${k} must be a ${k === 'keepMin' ? 'non-negative' : 'positive'} integer`);
     if (!Number.isFinite(cfg.holdout) || cfg.holdout < 0 || cfg.holdout > 1) throw new Error('--holdout must be between 0 and 1');
   }
   return cfg;
@@ -386,15 +376,9 @@ const IMAGE_KEEP_DAYS = 2;
 
 // Walk the conversation newest-first, calling back for each tool result with whether the recency
 // rule protects it. `keepMin` counts only results the rule would otherwise let go.
-function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn } = {}) {
-  // `openTurn` is the long-turn rule (cutting.js:decide): a turn whose own results have passed the trigger
-  // stops being protected as a whole, and keeps a newest few like any other stretch of the conversation.
-  // What it keeps is `keepTurn`, not `keepMin`, and the difference is the point: across a prompt boundary
-  // the model has finished with what went before, so three is enough; inside a turn still running those
-  // results ARE its working set, and a cut that leaves three of a hundred is the one way this rule could
-  // make a model answer out of a gap instead of reading again (the owner's call, 2026-11-14).
-  const keep = openTurn ? keepTurn : keepMin;
-  let kept = 0, inLatestTurn = !openTurn;
+function walkResults(messages, keepMin, fn) {
+  const keep = keepMin;
+  let kept = 0, inLatestTurn = true;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i], blocks = Array.isArray(m?.content) ? m.content : null;
     const results = blocks ? blocks.filter(b => b?.type === 'tool_result') : [];
@@ -431,7 +415,7 @@ function walkResults(messages, keepMin, fn, { openTurn = false, keepTurn = PROXY
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, openTurn = false, keepTurn = PROXY_DEFAULTS.keepTurn, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, inputChars = 0, firstChanged = -1;
   const takeAt = new Map();
@@ -457,7 +441,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     ids.push(b.tool_use_id); chars += gone; inputChars += own; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: gone + own });
-  }, { openTurn, keepTurn });
+  });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
   const steps = [];
@@ -635,11 +619,8 @@ export function transformRequest(method, url, headers, body, cfg) {
   // here because this is the first point the body has been parsed
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
-  // Whether the turn in progress is itself past the point where it should be cut into (cutting.js:openTurn,
-  // the one rule both doors read). Asked before the walk, because it decides what the walk may offer.
-  const open = openTurn(cfg, m, { rates: cfg.ratesFor?.(j.model) ?? null });
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, openTurn: open, keepTurn: cfg.keepTurn ?? PROXY_DEFAULTS.keepTurn, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null });
-  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, open });
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null });
+  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
   // the images are on disk before the prompt loses them, or they stay in the prompt
   const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath });
