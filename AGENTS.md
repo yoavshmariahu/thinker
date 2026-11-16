@@ -499,12 +499,12 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 The ask was where thinker is useful outside coding, starting with a browser agent. What a browser agent's
 context is made of is page states: every action answers with the page as it now is, each several thousand
 tokens, each describing a page that is gone the moment the next one arrives. The cut treats them as it treats
-a file read (wait for a boundary, take a batch that repays its rewrite), and the long-turn rule makes them
-reachable in a one-prompt job, but neither uses the one fact that sets a page apart: it is dead on a known
+a file read (wait for a boundary, take a batch that repays its rewrite), which never comes in a one-prompt
+job, and it does not use the one fact that sets a page apart: it is dead on a known
 call, and on that call nothing has been cached behind it yet.
 
 - **The rule.** A result of a browser tool that carries a page (`EPHEMERAL_TOOLS`: Playwright, Chrome DevTools,
-  claude-in-chrome, `computer`; 2,000+ characters, or an image where it can be saved to a file first) is replaced once `keep` (1) newer ones exist,
+  claude-in-chrome, `computer`, but never a script's value, the network log or the console (`EPHEMERAL_EXCEPT`); 2,000+ characters, or an image where it can be saved to a file first) is replaced once `keep` (1) newer ones exist,
   if what lies between it and the one that superseded it is no larger than what leaves and at most 15 blocks
   (`gapOk`). The first 400 characters stay (what ran, the URL, the title) and the words say the page was seen,
   that refs from it no longer work, and to take a new snapshot (`pagePlaceholder`). Decided from the request
@@ -535,6 +535,42 @@ call, and on that call nothing has been cached behind it yet.
   (`bench/browser/`: a store generated from a seed that grades its own six tasks, Playwright MCP given to
   every arm, each proxy arm on a port reserved at start); the judges are cost per session, passes, and the
   number of browser calls, since a model that lost a page it needed takes it again.
+
+## Agents built on a framework: one line wires the proxy and the hooks (2026-11-15, the owner's call)
+
+The owner's rule: **an agent that is not a coding agent is wired with hooks, never with the proxy alone**, and
+LangChain is the standard way for now. A base URL would be enough to run the cut, but the hooks are what keep a
+record of the run, and the owner wants these agents wired as the coding agents are.
+
+- **The agent's side is one line** (`python/thinker-langchain`, `Thinker(url, name=...)` in `create_agent`'s
+  `middleware`). It reroutes the model through the proxy with `x-session-id` set to the run (the LangGraph
+  `thread_id` where there is one), and calls the hooks at LangChain's own points: `before_agent` (prompt),
+  `wrap_tool_call` (before and after a tool), `after_agent` (stop). The two cannot be had apart. Unreachable
+  thinker: the agent runs as written, the model is not rerouted, no hook fails a call.
+- **The hooks are served over HTTP on the proxy's port** (`src/hook-service.js`: `GET /thinker/health`,
+  `POST /thinker/hook/{prompt,pretool,tool,stop}`). A route translates the adapter's JSON into the event
+  `thinker hook <event>` already reads and runs that command through `integrations/runner.js`, as the OpenCode
+  and Pi plugins do: `--client langchain --repo <workspace> --record`, so the hooks keep the trace themselves
+  (no transcript) and the Stop hook writes the `op: session` row from it. Nothing is reimplemented.
+- **An agent's checkout is a workspace thinker makes**: `<THINKER_HOME>/agents/<name>`, an empty git
+  repository, because a hook does nothing outside a checkout and a container has none. Its profile, traces and
+  log key live there; two names never share one.
+- **The container** (`docker/thinker/Dockerfile`): `thinker proxy --port 7000 --host 0.0.0.0`,
+  `THINKER_HOME=/data` as a volume. `--host` is new (loopback unless given). The image ran `--long-turn`
+  until 2026-11-16, when the owner removed that rule: on `browser-big` (one prompt, 200 pages) it cut eight
+  pages the agent had not yet tallied and the answer came out 3% short. So in a one-prompt agent the cut does
+  not act, and what the container gives such an agent today is the hooks and the record.
+- **What is wired and does nothing yet.** `pretool` reaches `delegate.js`, which has rules for Claude Code's
+  and OpenCode's tools only, so a framework agent's call always passes. A trace carries no token counters, so
+  the `op: session` row has none; the proxy's log has them by session. Only `ChatAnthropic` is rerouted.
+- **Checked without a model call** (2026-11-15): a real LangChain agent, the real proxy and hooks (in-process,
+  as a CLI process, and from the built image) against a scripted model endpoint; and one whole bench session
+  where that endpoint drove the real browser -- pages of 15k characters replaced on the next snapshot, the
+  site graded the answer `pass`. `python/thinker-langchain/tests` (6) and `test/hook-service.test.js` (7).
+- **The bench runs it**: a spec's `agent` names an agent other than Claude Code (`bench/browser/langchain_agent.py`,
+  which keeps one MCP session for the run -- the adapter's default opens a new browser per call), and
+  `bench/experiments/browser-langchain.json` compares the agent as written, wired to thinker, and wired with
+  the page rule. Every arm uses LangChain's own prompt caching. **No session has run on a real model.**
 
 ## What `setup` does
 

@@ -1,0 +1,5 @@
+You are operating a web browser through the browser tools you have been given. The store is at {SITE}/s/{ID}/ and everything you need is on that site. Work only through the browser.
+
+We are auditing the cheap end of the catalogue. For each of the eight categories, sort by price, low to high, and take the five cheapest products: forty products in all. Open each one's product page and read its warranty in years and its weight in kilograms from the specifications.
+
+Reply with two things: the full name of the heaviest of the forty products (name no other product in your reply), and how many of the forty have a warranty of three years or more. End your reply with a line of the form ANSWER: <number>.

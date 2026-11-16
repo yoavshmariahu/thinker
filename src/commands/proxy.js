@@ -15,6 +15,7 @@ import { bedrockState } from '../proxy-bedrock.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
 import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
 import { readMachineConfig } from '../repo-switch.js';
+import { hookService } from '../hook-service.js';
 
 
 export { proxyLogFile };
@@ -194,8 +195,13 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
   // the person's own rate overrides for the cut decision (gateway-rates.js): read once at start,
   // like the rest of the machine config the service's flags carry
   try { cfg.ratesConfig = readMachineConfig(thinkerHome()).proxy?.rates || null; } catch { /* no config is no rates */ }
+  // `--host`: the address to listen on. Loopback unless told otherwise; a container serving the agent in the one
+  // beside it listens on 0.0.0.0 (the thinker container).
+  const host = typeof flags.host === 'string' && flags.host ? flags.host : '127.0.0.1';
   const server = startProxy(cfg, {
-    logFile,
+    logFile, host,
+    // the hooks over HTTP, for an agent built on a framework (hook-service.js)
+    hooks: hookService({ cli: path.join(HERE, 'cli.js'), home: thinkerHome(), version: appVersion() || '', log: row => { try { fs.appendFileSync(logFile, JSON.stringify({ at: new Date().toISOString(), ...row }) + '\n'); } catch { /* a log line is never worth a failed hook */ } } }),
     bedrock: flags.bedrock && serviceState().enabled && serviceState().port === cfg.port ? () => bedrockState(thinkerHome()) : null,
     // the service's own process: a routed harness that reaches it by mistake takes the proxy out of the agents'
     // settings, so the harness is whole again at the next session (proxy-service.js:standDown; no-op for a proxy

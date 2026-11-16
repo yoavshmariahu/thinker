@@ -150,7 +150,7 @@ async function hookCommand(ctx) {
       return money ? `\n\nEnd your reply to the user with this exact line at the very bottom: ${money}` : '';
     };
     // Do not combine unrelated sessions from unsupported/older hook payloads.
-    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy', 'devin'].includes(client) && session === 'unknown') return;
+    if (['pi', 'windsurf', 'copilot', 'opencode', 'vscode', 'droid', 'qwen', 'kiro', 'cline', 'kilo', 'augment', 'goose', 'agy', 'devin', 'langchain'].includes(client) && session === 'unknown') return;
     // Copilot CLI, VS Code's Copilot and the Cline CLI take no context from a prompt hook: the bundle waits
     // for the turn's first tool hook (parkPending)
     const parks = client === 'copilot' || client === 'vscode' || (client === 'cline' && ev.cline_cli);

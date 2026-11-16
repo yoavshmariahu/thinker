@@ -269,7 +269,8 @@ export function stopOutput(client, notice) {
   if (!notice) return '';
   if (['claude', 'codex', 'gemini', 'qwen', 'augment', 'vscode'].includes(client)) return JSON.stringify({ systemMessage: notice });
   // Droid shows a stop hook's plain stdout in the transcript
-  if (['pi', 'opencode', 'kilo', 'windsurf', 'droid'].includes(client)) return notice;
+  // an agent on a framework reads it as text too: the adapter decides where a notice is shown (hook-service.js)
+  if (['pi', 'opencode', 'kilo', 'windsurf', 'droid', 'langchain'].includes(client)) return notice;
   return '';
 }
 // `updated` (Claude Code only): the tool's result replaced before the model reads it (diet.js); for an MCP tool
@@ -278,7 +279,7 @@ export function toolOutput(client, text, { updated, mcp = false } = {}) {
   // Kiro ignores what a PostToolUse hook prints, Goose reads it as a decision
   if (client === 'windsurf' || client === 'kiro' || client === 'goose') return '';
   if (client === 'agy') return '{}';
-  if (client === 'pi' || client === 'opencode' || client === 'kilo') return text;
+  if (client === 'pi' || client === 'opencode' || client === 'kilo' || client === 'langchain') return text;
   if (client === 'cline') return JSON.stringify({ cancel: false, contextModification: text });
   if (client === 'copilot') return JSON.stringify({ additionalContext: text });
   if (client === 'cursor') return JSON.stringify({ additional_context: text });

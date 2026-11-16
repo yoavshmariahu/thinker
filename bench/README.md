@@ -76,6 +76,11 @@ it, and any spec may use them:
   that starts its own proxy reserves a port then and hands back `ANTHROPIC_BASE_URL` that way
   (`bench/browser/proxy-arm.sh start {CWD} <proxy flags>`), so no spec holds a port number.
 
+- `agent`: an argv for an agent other than Claude Code (one built on a framework). It gets the turn in its
+  environment (`BENCH_PROMPT`, `BENCH_MODEL`, `BENCH_MAX_TURNS`, `BENCH_SESSION`, `BENCH_NAME`, `BENCH_MCP`) and
+  prints one JSON object in the shape `claude --output-format json` has. Its cost on the record is its usage
+  at list prices. `bench/browser/langchain_agent.py` is one; `run.sh` makes its Python environment (`bench/.venv`).
+
 The check gets the agent's answer: `BENCH_ANSWER` is a file with the last turn's text, `BENCH_ID` the session,
 and every var as `BENCH_<NAME>`.
 

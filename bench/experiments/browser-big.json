@@ -1,0 +1,71 @@
+{
+ "tag": "browser-big",
+ "question": "On a browser task long enough for the context to pass the cut's trigger (two hundred product pages, about five hundred tool calls), what does a session cost with no proxy and with the cut and its long-turn rule, and does each still pass?",
+ "rule": "One task, review-audit-200: browser-read's task at five times the length, written 2026-11-16 after its sessions ended at 100k of context, under the 140k trigger. Same disallowed tools. The page rule's arm is left out: it added 27% on browser-read. Chosen before any session of it ran.",
+ "tasksDir": "bench/tasks/browser",
+ "tasks": [
+  "review-audit-200"
+ ],
+ "model": "claude-sonnet-5-5",
+ "maxTurns": 700,
+ "reps": 1,
+ "vars": {
+  "SITE": "$BENCH_SITE"
+ },
+ "mcp": {
+  "playwright": {
+   "command": "npx",
+   "args": [
+    "-y",
+    "@playwright/mcp@0.0.85",
+    "--headless",
+    "--isolated"
+   ]
+  }
+ },
+ "args": [
+  "--disallowedTools",
+  "Bash",
+  "WebFetch",
+  "WebSearch",
+  "Agent",
+  "Task",
+  "Write",
+  "Edit",
+  "NotebookEdit",
+  "mcp__playwright__browser_evaluate",
+  "mcp__playwright__browser_run_code",
+  "mcp__playwright__browser_run_code_unsafe",
+  "mcp__playwright__browser_find",
+  "Grep",
+  "Glob"
+ ],
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  },
+  "cut": {
+   "env": {
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "{BENCH}/browser/proxy-arm.sh",
+     "start",
+     "{CWD}",
+     "--long-turn"
+    ]
+   ],
+   "after": [
+    "sh",
+    "{BENCH}/browser/proxy-arm.sh",
+    "stop",
+    "{CWD}"
+   ]
+  }
+ }
+}

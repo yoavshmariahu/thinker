@@ -17,3 +17,7 @@ eval-support/
 # private gateway deployment snapshots and credentials
 .access-work/
 
+# the bench's own Python environment, for an agent built on a framework (bench/browser/run.sh makes it)
+bench/.venv/
+__pycache__/
+.pytest_cache/

@@ -106,6 +106,23 @@ const TRUTH = {
     const scale = inCategory('scales', 'price-desc').find(p => p.stock > 0);
     return { fryer, scale };
   },
+  // the long one: the five cheapest of every category (forty product pages), their warranty and weight
+  'catalogue-audit': () => {
+    const spec = (p, k) => Number(p.specs.find(s => s[0] === k)[1]);
+    const forty = CATEGORIES.flatMap(c => inCategory(c.slug, 'price-asc').slice(0, 5));
+    const byWeight = [...forty].sort((a, b) => spec(b, 'Weight (kg)') - spec(a, 'Weight (kg)'));
+    return { forty, long: forty.filter(p => spec(p, 'Warranty (years)') >= 3).length, heaviest: byWeight[0], tie: spec(byWeight[0], 'Weight (kg)') === spec(byWeight[1], 'Weight (kg)') };
+  },
+  // the one that cannot be searched for: every review of the same forty products, the low-starred ones counted
+  'review-audit': () => {
+    const forty = CATEGORIES.flatMap(c => inCategory(c.slug, 'price-asc').slice(0, 5));
+    return { forty, reviews: forty.reduce((n, p) => n + p.reviews.length, 0), low: forty.reduce((n, p) => n + p.reviews.filter(r => r.stars <= 2).length, 0) };
+  },
+  // the same audit five times the length: the 25 cheapest of every category, two hundred product pages
+  'review-audit-200': () => {
+    const all = CATEGORIES.flatMap(c => inCategory(c.slug, 'price-asc').slice(0, 25));
+    return { all, reviews: all.reduce((n, p) => n + p.reviews.length, 0), low: all.reduce((n, p) => n + p.reviews.filter(r => r.stars <= 2).length, 0) };
+  },
 };
 const CHECKS = {
   'cheapest-kettles': answer => { const want = TRUTH['cheapest-kettles'](); const miss = want.filter(p => !answer.includes(p.name)); return miss.length ? `fail: missing ${miss.map(p => p.name).join('; ')}` : 'pass'; },
@@ -123,6 +140,15 @@ const CHECKS = {
     const stray = changed.length - right.length;
     return right.length === want.size && !stray ? 'pass' : `fail: ${right.length} of ${want.size} refunded with the note, ${stray} other orders changed`;
   },
+  'catalogue-audit': answer => {
+    const { forty, long, heaviest } = TRUTH['catalogue-audit'](), said = (answer.match(/ANSWER:\s*(\d+)/i) || [])[1];
+    const others = forty.filter(p => p !== heaviest && answer.includes(p.name)), faults = [];
+    if (Number(said) !== long) faults.push(`said ${said ?? 'nothing'} with a long warranty, expected ${long}`);
+    if (!answer.includes(heaviest.name) || others.length) faults.push(`expected only ${heaviest.name} as the heaviest`);
+    return faults.length ? `fail: ${faults.join('; ')}` : 'pass';
+  },
+  'review-audit': answer => { const { low } = TRUTH['review-audit'](); const said = (answer.match(/ANSWER:\s*(\d+)/i) || [])[1]; return Number(said) === low ? 'pass' : `fail: said ${said ?? 'nothing'}, expected ${low}`; },
+  'review-audit-200': answer => { const { low } = TRUTH['review-audit-200'](); const said = (answer.match(/ANSWER:\s*(\d+)/i) || [])[1]; return Number(said) === low ? 'pass' : `fail: said ${said ?? 'nothing'}, expected ${low}`; },
   'basket-order': (answer, st) => {
     const { fryer, scale } = TRUTH['basket-order'](), o = st.placed[st.placed.length - 1];
     if (!o) return 'fail: no order placed';
@@ -292,12 +318,18 @@ if (process.argv[2] === '--answers') {
     'noisy-grinders': t['noisy-grinders']().count,
     'refund-audit': t['refund-audit']().map(o => `${o.number} ${money(o.total)}`),
     'basket-order': { fryer: t['basket-order']().fryer.name, scale: t['basket-order']().scale.name },
+    'catalogue-audit': { products: t['catalogue-audit']().forty.length, longWarranty: t['catalogue-audit']().long, heaviest: t['catalogue-audit']().heaviest.name },
+    'review-audit': { reviews: t['review-audit']().reviews, low: t['review-audit']().low },
+    'review-audit-200': { products: t['review-audit-200']().all.length, reviews: t['review-audit-200']().reviews, low: t['review-audit-200']().low },
     // what would make a task ambiguous: a repeated product name, or a tie where a task asks for "the" one
     warnings: [
       new Set(products.map(p => p.name)).size !== products.length ? 'product names repeat' : null,
       (() => { const l = inCategory('scales', 'price-desc').filter(p => p.stock > 0); return l[0].price === l[1].price ? 'dearest scale is a tie' : null; })(),
       (() => { const ratio = p => Number(p.specs.find(s => s[0] === 'Motor (W)')[1]) / Number(p.specs.find(s => s[0] === 'Bowl capacity (l)')[1]); const l = t['mixer-ratio']().pros.map(ratio).sort((a, b) => b - a); return l[0] - l[1] < 1 ? 'mixer ratio is close to a tie' : null; })(),
       (() => { const l = inCategory('kettles', 'price-asc').filter(p => p.stock > 0 && p.rating >= 4); return l[2].price === l[3].price ? 'third cheapest kettle is a tie' : null; })(),
+      t['catalogue-audit']().tie ? 'heaviest of the forty is a tie' : null,
+      CATEGORIES.some(c => { const l = inCategory(c.slug, 'price-asc'); return l[4].price === l[5].price; }) ? 'a fifth cheapest product is a tie' : null,
+      CATEGORIES.some(c => { const l = inCategory(c.slug, 'price-asc'); return l[24].price === l[25].price; }) ? 'a 25th cheapest product is a tie' : null,
     ].filter(Boolean),
   }, null, 1));
 } else {

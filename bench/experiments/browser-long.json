@@ -1,0 +1,89 @@
+{
+ "tag": "browser-long",
+ "question": "On one long browser task (forty product pages, facts carried to the end), what does a session cost with no proxy, with the cut and its long-turn rule, and with the page rule, and does each still pass?",
+ "rule": "One task, catalogue-audit, written 2026-11-16 after the first smoke showed the six short tasks end in under ten model calls. Chosen for length alone, before any session of it ran. Page scripting (browser_evaluate, browser_run_code) is disallowed in every arm, because the smoke's agent scraped with it and never viewed a page.",
+ "tasksDir": "bench/tasks/browser",
+ "tasks": [
+  "catalogue-audit"
+ ],
+ "model": "claude-sonnet-5-5",
+ "maxTurns": 150,
+ "reps": 1,
+ "vars": {
+  "SITE": "$BENCH_SITE"
+ },
+ "mcp": {
+  "playwright": {
+   "command": "npx",
+   "args": [
+    "-y",
+    "@playwright/mcp@0.0.85",
+    "--headless",
+    "--isolated"
+   ]
+  }
+ },
+ "args": [
+  "--disallowedTools",
+  "Bash",
+  "WebFetch",
+  "WebSearch",
+  "Agent",
+  "Task",
+  "Write",
+  "Edit",
+  "NotebookEdit",
+  "mcp__playwright__browser_evaluate",
+  "mcp__playwright__browser_run_code",
+  "mcp__playwright__browser_run_code_unsafe"
+ ],
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  },
+  "cut": {
+   "env": {
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "{BENCH}/browser/proxy-arm.sh",
+     "start",
+     "{CWD}",
+     "--long-turn"
+    ]
+   ],
+   "after": [
+    "sh",
+    "{BENCH}/browser/proxy-arm.sh",
+    "stop",
+    "{CWD}"
+   ]
+  },
+  "pages": {
+   "env": {
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "{BENCH}/browser/proxy-arm.sh",
+     "start",
+     "{CWD}",
+     "--long-turn",
+     "--ephemeral"
+    ]
+   ],
+   "after": [
+    "sh",
+    "{BENCH}/browser/proxy-arm.sh",
+    "stop",
+    "{CWD}"
+   ]
+  }
+ }
+}
