@@ -27,14 +27,18 @@ case "$ACT" in
     [ -f "$DIR/proxy.pid" ] && { kill "$(cat "$DIR/proxy.pid")" 2>/dev/null; sleep 0.3; }
     if [ -x "$PORTS" ]; then PORT=$("$PORTS" reserve thinker "$LABEL"); else PORT=$("$NODE" -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})'); fi
     echo "$PORT" > "$DIR/proxy.port"
-    export THINKER_TEST=1 THINKER_PROXY_LOG=$DIR/proxy.jsonl
+    # a home of the session's own: the machine's config never reaches the arm, and an agent's checkout
+    # (hook-service.js) is made here and not under the person's own ~/.thinker
+    export THINKER_TEST=1 THINKER_HOME=$DIR/home THINKER_LOG=local THINKER_PROXY_LOG=$DIR/proxy.jsonl
     printf '%s\n' "$@" > "$DIR/policy.flags"
     "$NODE" "$CLI" proxy --port "$PORT" --holdout 0 "$@" >> "$DIR/proxy.out" 2>&1 </dev/null &
     echo $! > "$DIR/proxy.pid"
     i=0
     while [ $i -lt 30 ]; do
       if grep -q "thinker proxy on" "$DIR/proxy.out" 2>/dev/null; then
-        echo "ANTHROPIC_BASE_URL=http://127.0.0.1:$PORT" > "$CWD/.bench-env"
+        # Claude Code is pointed at the proxy by its base URL; an agent on a framework is given thinker's
+        # address and wires itself with its adapter (BENCH_THINKER_URL, read by bench/browser/langchain_agent.py)
+        printf 'ANTHROPIC_BASE_URL=http://127.0.0.1:%s\nBENCH_THINKER_URL=http://127.0.0.1:%s\n' "$PORT" "$PORT" > "$CWD/.bench-env"
         head -1 "$DIR/proxy.out"; exit 0
       fi
       i=$((i+1)); sleep 0.5

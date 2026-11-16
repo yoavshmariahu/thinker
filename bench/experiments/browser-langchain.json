@@ -1,0 +1,28 @@
+{
+ "tag": "browser-langchain",
+ "question": "For a browser agent built on LangChain and wired to thinker the standard way (the one middleware line: proxy and hooks together), what does thinker cost or save against the same agent without it, and does the page rule add to the cut?",
+ "rule": "All six tasks in bench/tasks/browser, written 2026-11-15 before any session ran, on a site generated from a fixed seed (bench/browser/site.mjs) that grades each task itself. Four act on the page in front of them, two (mixer-ratio, noisy-grinders) have to carry facts from one page to a later answer. Not chosen by any outcome. Every arm caches its prompt with LangChain's own middleware, so thinker is measured against an agent that already caches.",
+ "tasksDir": "bench/tasks/browser",
+ "tasks": ["cheapest-kettles", "restock-report", "mixer-ratio", "noisy-grinders", "refund-audit", "basket-order"],
+ "model": "claude-sonnet-5-5",
+ "maxTurns": 150,
+ "reps": 1,
+ "vars": { "SITE": "$BENCH_SITE" },
+ "agent": ["{BENCH}/.venv/bin/python", "{BENCH}/browser/langchain_agent.py"],
+ "mcp": { "playwright": { "command": "npx", "args": ["-y", "@playwright/mcp@0.0.85", "--headless", "--isolated"] } },
+ "arms": {
+  "bare": {
+   "env": { "THINKER_TEST": "1" }
+  },
+  "thinker": {
+   "env": { "THINKER_TEST": "1" },
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--long-turn"]],
+   "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
+  },
+  "thinker-pages": {
+   "env": { "THINKER_TEST": "1" },
+   "before": [["sh", "{BENCH}/browser/proxy-arm.sh", "start", "{CWD}", "--long-turn", "--ephemeral"]],
+   "after": ["sh", "{BENCH}/browser/proxy-arm.sh", "stop", "{CWD}"]
+  }
+ }
+}

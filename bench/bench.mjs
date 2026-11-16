@@ -114,7 +114,7 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
   const cwd = path.join(RUNS, spec.tag, id);
   const model = arm.model || spec.model || 'claude-opus-5-5';
   const maxTurns = String(arm.maxTurns || spec.maxTurns || 180);
-  if (dry) return { id, dry: true, cwd, model, turns: task.turns.length, ...(spec.mcp ? { mcp: Object.keys(spec.mcp) } : {}), ...(spec.base ? {} : { repository: 'none' }) };
+  if (dry) return { id, dry: true, cwd, model, turns: task.turns.length, ...(spec.agent ? { agent: spec.agent.join(' ') } : {}), ...(spec.mcp ? { mcp: Object.keys(spec.mcp) } : {}), ...(spec.base ? {} : { repository: 'none' }) };
 
   fs.rmSync(cwd, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(cwd), { recursive: true });
@@ -150,7 +150,20 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
     const args = ['-p', prompt, '--output-format', 'json', '--model', model, '--max-turns', maxTurns,
       '--permission-mode', 'bypassPermissions', '--setting-sources', 'project', '--strict-mcp-config',
       '--mcp-config', mcp, ...(spec.args || []).map(a => fill(a, vars)), ...(i === 0 ? ['--session-id', session] : ['--resume', session])];
-    const r = await once('claude', args, { cwd, env });
+    // `agent`: a spec may name its own agent instead of Claude Code (an argv, placeholders filled) -- an agent
+    // built on a framework, say. It is given the turn in its environment and prints one JSON object in the
+    // shape Claude Code's `--output-format json` has (`result`, `is_error`, `subtype`, `usage`, `num_turns`,
+    // `duration_ms`), so everything after this line is the same for both. Such an agent reports no cost of
+    // its own, so the turn's cost is its usage at list prices and the two cost figures on the record agree.
+    let r;
+    if (spec.agent) {
+      r = await once(fill(spec.agent[0], vars), spec.agent.slice(1).map(a => fill(a, vars)), { cwd, env: { ...env,
+        BENCH_PROMPT: prompt, BENCH_MODEL: model, BENCH_MAX_TURNS: maxTurns, BENCH_SESSION: session, BENCH_NAME: id, BENCH_MCP: mcp, BENCH_TURN: String(i) } });
+      if (r && !r.is_error && r.total_cost_usd == null && r.usage) {
+        const p = priceOf(model), u = r.usage;
+        r.total_cost_usd = ((u.input_tokens || 0) * p.input + (u.cache_read_input_tokens || 0) * p.read + (u.cache_creation_input_tokens || 0) * p.write + (u.output_tokens || 0) * p.out) / 1e6;
+      }
+    } else r = await once('claude', args, { cwd, env });
     turns.push(r);
     process.stderr.write(`  [${id}] turn ${i + 1}/${task.turns.length} ${r.is_error ? `ERROR ${r.subtype || ''}` : 'ok'} $${(r.total_cost_usd || 0).toFixed(2)}\n`);
     if (r.is_error) break;  // a broken turn makes the rest meaningless: stop and record it

@@ -15,4 +15,10 @@ if [ -x "$PORTS" ]; then PORT=$("$PORTS" reserve thinker browser-bench-site); el
 SITE_PID=$!
 trap 'kill $SITE_PID 2>/dev/null; [ -x "$PORTS" ] && "$PORTS" release thinker browser-bench-site >/dev/null 2>&1' EXIT INT TERM
 i=0; until curl -s "http://127.0.0.1:$PORT/__health" >/dev/null 2>&1; do i=$((i+1)); [ $i -gt 40 ] && { echo "the site did not start"; exit 1; }; sleep 0.25; done
+# A spec whose agent is built on a framework runs in the bench's own Python environment, made here on first
+# use (bench/.venv, from requirements.txt) so a spec names no path on this machine.
+if grep -q '{BENCH}/.venv' "$1" 2>/dev/null && [ ! -x "$HERE/../.venv/bin/python" ]; then
+  if command -v uv >/dev/null 2>&1; then uv venv -q --python 3.12 "$HERE/../.venv" && uv pip install -q --python "$HERE/../.venv/bin/python" -r "$HERE/requirements.txt"
+  else python3 -m venv "$HERE/../.venv" && "$HERE/../.venv/bin/pip" install -q -r "$HERE/requirements.txt"; fi || { echo "could not make the bench's Python environment"; exit 1; }
+fi
 BENCH_SITE="http://127.0.0.1:$PORT" "$NODE" "$HERE/../bench.mjs" run "$@"

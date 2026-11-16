@@ -1,0 +1,19 @@
+# thinker beside your agent. Copy the `thinker` service into your own compose file; the agent's code gets
+# one line: create_agent(model, tools, middleware=[Thinker("http://thinker:7000")]).
+services:
+  thinker:
+    build:
+      context: ../..
+      dockerfile: docker/thinker/Dockerfile
+    volumes:
+      - thinker-data:/data
+    # reachable by the other services of this file as http://thinker:7000; publish a port only to look at it
+    # from the host
+  agent:
+    build: ./example-agent
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    depends_on:
+      - thinker
+volumes:
+  thinker-data:

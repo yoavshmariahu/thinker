@@ -20,5 +20,7 @@ console.log(JSON.stringify({
   anchored: calls.filter(r => r.ephemeral?.anchor).length,
   anchorRefused: calls.filter(r => r.ephemeral?.reason).length,
   rejected: rows.filter(r => r.op === 'proxy-cut-rejected').length,
+  // the sessions the proxy saw: one for a run wired through an adapter, which tags each run
+  sessions: new Set(calls.map(r => r.session).filter(Boolean)).size,
   reasons,
 }));

@@ -41,7 +41,9 @@ const RESULT_TOKENS_PER_CHAR = 0.445;
 
 // The tools whose results are a view of something that moves: every action of a browser MCP server answers
 // with the page as it now is. A trailing `*` matches a prefix.
-export const EPHEMERAL_TOOLS = ['mcp__playwright__*', 'mcp__chrome-devtools__*', 'mcp__claude-in-chrome__*', 'mcp__browsermcp__*', 'mcp__puppeteer__*', 'computer'];
+// `browser_*` is the same servers' tools as an agent on a framework sees them: LangChain's MCP adapter gives
+// a tool its bare name (`browser_snapshot`), with no `mcp__<server>__` in front (checked 2026-11-15).
+export const EPHEMERAL_TOOLS = ['mcp__playwright__*', 'mcp__chrome-devtools__*', 'mcp__claude-in-chrome__*', 'mcp__browsermcp__*', 'mcp__puppeteer__*', 'browser_*', 'computer'];
 // Where a browser server keeps the page instead of sending it. Playwright MCP 0.0.85 answers an action with
 // a link (`.playwright-mcp/page-<time>.yml`) and the model reads the file with its own Read tool (checked
 // 2026-11-15 by driving the server with no model: `browser_navigate` returned 384 characters and wrote a

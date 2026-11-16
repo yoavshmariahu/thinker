@@ -536,6 +536,41 @@ call, and on that call nothing has been cached behind it yet.
   every arm, each proxy arm on a port reserved at start); the judges are cost per session, passes, and the
   number of browser calls, since a model that lost a page it needed takes it again.
 
+## Agents built on a framework: one line wires the proxy and the hooks (2026-11-15, the owner's call)
+
+The owner's rule: **an agent that is not a coding agent is wired with hooks, never with the proxy alone**, and
+LangChain is the standard way for now. A base URL would be enough to run the cut, but the hooks are what keep a
+record of the run, and the owner wants these agents wired as the coding agents are.
+
+- **The agent's side is one line** (`python/thinker-langchain`, `Thinker(url, name=...)` in `create_agent`'s
+  `middleware`). It reroutes the model through the proxy with `x-session-id` set to the run (the LangGraph
+  `thread_id` where there is one), and calls the hooks at LangChain's own points: `before_agent` (prompt),
+  `wrap_tool_call` (before and after a tool), `after_agent` (stop). The two cannot be had apart. Unreachable
+  thinker: the agent runs as written, the model is not rerouted, no hook fails a call.
+- **The hooks are served over HTTP on the proxy's port** (`src/hook-service.js`: `GET /thinker/health`,
+  `POST /thinker/hook/{prompt,pretool,tool,stop}`). A route translates the adapter's JSON into the event
+  `thinker hook <event>` already reads and runs that command through `integrations/runner.js`, as the OpenCode
+  and Pi plugins do: `--client langchain --repo <workspace> --record`, so the hooks keep the trace themselves
+  (no transcript) and the Stop hook writes the `op: session` row from it. Nothing is reimplemented.
+- **An agent's checkout is a workspace thinker makes**: `<THINKER_HOME>/agents/<name>`, an empty git
+  repository, because a hook does nothing outside a checkout and a container has none. Its profile, traces and
+  log key live there; two names never share one.
+- **The container** (`docker/thinker/Dockerfile`): `thinker proxy --port 7000 --host 0.0.0.0 --long-turn`,
+  `THINKER_HOME=/data` as a volume. `--host` is new (loopback unless given). **`--long-turn` is on in the
+  image**, though it ships off elsewhere: an agent of this kind is one instruction and many tool calls, and
+  without it the cut never acts. That is a default set without a measurement and is the owner's to veto.
+- **What is wired and does nothing yet.** `pretool` reaches `delegate.js`, which has rules for Claude Code's
+  and OpenCode's tools only, so a framework agent's call always passes. A trace carries no token counters, so
+  the `op: session` row has none; the proxy's log has them by session. Only `ChatAnthropic` is rerouted.
+- **Checked without a model call** (2026-11-15): a real LangChain agent, the real proxy and hooks (in-process,
+  as a CLI process, and from the built image) against a scripted model endpoint; and one whole bench session
+  where that endpoint drove the real browser -- pages of 15k characters replaced on the next snapshot, the
+  site graded the answer `pass`. `python/thinker-langchain/tests` (6) and `test/hook-service.test.js` (7).
+- **The bench runs it**: a spec's `agent` names an agent other than Claude Code (`bench/browser/langchain_agent.py`,
+  which keeps one MCP session for the run -- the adapter's default opens a new browser per call), and
+  `bench/experiments/browser-langchain.json` compares the agent as written, wired to thinker, and wired with
+  the page rule. Every arm uses LangChain's own prompt caching. **No session has run on a real model.**
+
 ## What `setup` does
 
 The installer (`install.sh`) installs the tool wherever it is run and wires it into the agents on this machine
