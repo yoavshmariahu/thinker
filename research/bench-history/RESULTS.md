@@ -1344,3 +1344,54 @@ requests with a prompt written for the future caller (a "Path:" line first; PR #
 to 7 of 32 with serving untouched, four served notes on the task's own mechanism instead of one,
 fewer unrelated notes, and 480 notes instead of 611. Rewording alone did not do it, and did not
 stack on the new mining. The agent-level test of the new cache is the next paid run.
+
+## Delegation: does the lead's work get worse where the trigger fires? (2026-11-15/16, Opus 5.5, 40 sessions)
+
+The question before turning the delegation trigger on by default: where it fires, does quality hold? Two
+runs on `bench/bench.mjs`, `bare` (no thinker) against `delegate` (the PreToolUse hook as shipped in 0.3.6:
+handoff to Claude Code's own `Explore` pinned to Haiku 5.5, up to five handoffs a turn, holdout off, no
+cutting). Opus 5.5 lead in both arms. Every session was valid. Rows are in `bench/ledger.jsonl` under the
+tags below; specs in `bench/experiments/delegate-quality-*.json`. Total spend $118.23.
+
+**1. Six real merged MLflow pull requests** (`delegate-quality-mlflow-prs`, 12 sessions, $76.70). The six
+largest changes of `mlflow-b2-fair-turns` (106 to 274 lines), each a nine-prompt session, graded pass or
+fail by the pull request's own tests, installed after the session. Each check was verified beforehand to
+fail at the base and pass with the merged change.
+
+| PR | bare | delegate | handoffs fired / ignored |
+|---|---|---|---|
+| PR26267 | fail (1 of 27 tests), $10.07 | pass, $3.99 | 2 / 0 |
+| PR26307 | pass, $10.19 | pass, $4.42 | 5 / 0 |
+| PR26270 | pass, $8.85 | pass, $2.32 | 4 / 0 |
+| PR26269 | pass, $8.08 | pass, $2.91 | 3 / 0 |
+| PR26300 | pass, $9.69 | pass, $2.25 | 6 / 0 |
+| PR26311 | pass, $9.49 | pass, $4.43 | 2 / 0 |
+| total | 5 of 6, $56.38, 70 min | 6 of 6, $20.32, 61 min | 22 / 0 |
+
+**2. Eight read-heavy Click and MLflow tasks** (`delegate-quality-click`, `delegate-quality-mlflow`, 28
+sessions, $41.53; stopped at 28 of 32 at the owner's call as sufficient). Click tasks graded by a probe and
+the suite, MLflow question tasks by named facts (`bench/facts.mjs`, fact lists written before the run).
+
+| check | bare | delegate |
+|---|---|---|
+| Click probe and suite | 12 of 12 | 10 of 10 |
+| MLflow facts named | 38 of 41 | 38 of 41 |
+| cost, the 12 pairs where the hook fired | $19.54 | $16.21 (-17%) |
+
+In 7 of these 13 delegate sessions the lead read a handed-over file itself at least once; the checks held
+anyway. One delegate session never fired (`progressbar-big` rep 1) and is in no figure.
+
+**What it shows.** No loss of correctness where delegation fires, on either set, and no slowdown.
+
+**What it does not show.**
+- One rep on six pull requests: "no regression seen", not "delegation solves more". The one failure was in
+  the bare arm.
+- Both sets prompt the whole-file reads, so neither says how often the trigger fires unprompted. A replay
+  of archived unmodified Opus sessions the same day: it fires on this MLflow set in 7 of 7 sessions and on
+  the PostHog nine-turn tasks in 0 of 6 (1,128 of 1,133 reads there are ranged).
+- The cost figures are not what a user would save: the scripted reads make the bare arm carry far more
+  context than ordinary work does (the -64% on the pull requests most of all).
+- The path tested is the settings hook's handoff. The mod's path, where the harness runs the subagent
+  itself (#810, merged after the tested build), was not in these runs.
+
+**Decision (the owner, 2026-11-16):** qualified as safe to turn on, with a 25% holdout.
