@@ -25,7 +25,9 @@ uncategorized domain by default for 30 to 90 days; a thin landing page, a shell 
 carries for the categorizers: `robots.txt`, `sitemap.xml` and `/.well-known/security.txt` (also at
 `/security.txt`; `Expires` is a year out and `test/public-website.test.js` fails once it has passed),
 the response headers policy in `public-headers.mjs` (HSTS, `nosniff`, `X-Frame-Options: DENY`,
-`strict-origin-when-cross-origin`, and `public, max-age=…` on every upload in place of the gated
+`strict-origin-when-cross-origin`, a `Content-Security-Policy` that allows each inline script by the
+hash of its text, so a page changes only through the deploy and takes no `onclick=`, and
+`public, max-age=…` on every upload in place of the gated
 site's `private, no-store`; the function's own `no-store` on `/access/session` stands), and a
 certificate whose first name is `thinker.sh` (`production.json:certificateArn`; `prepare` checks it
 is issued and covers every alias, `apply` swaps it onto the distribution when it differs). The

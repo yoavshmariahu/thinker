@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { aws } from '../../scripts/metrics-postgres.js';
-import { RESPONSE_POLICY, cacheControlFor } from './public-headers.mjs';
+import { RESPONSE_POLICY, cacheControlFor, inlineScriptHashes } from './public-headers.mjs';
 const root = path.resolve(import.meta.dirname, '../..');
 const config = JSON.parse(fs.readFileSync(new URL('./production.json', import.meta.url)));
 const work = path.join(root, '.access-work');
@@ -43,6 +43,15 @@ const assets = [
   ['dist/version.json', DIST + '/version.json', 'application/json'],
   ['dist/thinker.tgz', DIST + '/thinker.tgz', 'application/gzip'],
 ];
+// Pages the bucket serves that this repository does not hold. The Content-Security-Policy allows an
+// inline script by its hash, so theirs are read from the bucket at prepare and kept in the plan.
+const OTHER_PAGES = ['gokce-bday/'];
+const otherScripts = () => OTHER_PAGES.flatMap(prefix => (call(['s3api', 'list-objects-v2', '--bucket', config.bucket, '--prefix', prefix], config.bucketRegion).Contents || [])
+  .filter(object => object.Key.endsWith('.html')).flatMap(object => {
+    const file = save('public-other-' + object.Key.replaceAll('/', '-'), '');
+    call(['s3api', 'get-object', '--bucket', config.bucket, '--key', object.Key, file], config.bucketRegion);
+    return inlineScriptHashes(fs.readFileSync(file, 'utf8'));
+  }));
 // AWS moves a distribution's ETag when a function it uses is published, so a step is guarded by what
 // the distribution holds, never by the ETag `prepare` saw; each update takes the ETag of the moment.
 const canonical = value => Array.isArray(value) ? value.map(canonical)
@@ -105,7 +114,7 @@ if (mode === 'prepare') {
   if (!aliases.every(alias => certificate.SubjectAlternativeNames.includes(alias))) throw new Error('Certificate does not cover every alias: ' + aliases.join(', '));
   const swapCertificate = certificate.Status === 'ISSUED' && distribution.ViewerCertificate.ACMCertificateArn !== config.certificateArn;
   if (certificate.Status !== 'ISSUED') console.log(`Certificate ${certificate.Status}; the distribution keeps its current one this time.`);
-  save('public-plan.json', { swapCertificate,
+  save('public-plan.json', { swapCertificate, otherScripts: otherScripts(),
     release: manifest.version,
     hashes: Object.fromEntries([...assets.map(([, file]) => file), 'infra/access/public-gateway.js', 'infra/access/public-headers.mjs'].map(file => [file, hash(file)])) });
   console.log(`Prepared public docs, installer/downloads (release ${manifest.version}), crawler files, response headers${swapCertificate ? ', certificate swap' : ''}. Origin/WAF configuration unchanged.`);
@@ -131,7 +140,7 @@ if (mode === 'prepare') {
   else call(['cloudfront', 'publish-function', '--name', config.functionName, '--if-match', call(['cloudfront', 'describe-function', '--name', config.functionName]).ETag]);
   const policy = policyFor();
   call(['cloudfront', 'update-response-headers-policy', '--id', policy.ResponseHeadersPolicy.Id, '--if-match', policy.ETag,
-    '--response-headers-policy-config', 'file://' + save('public-response-policy.json', RESPONSE_POLICY(config.responsePolicyName))]);
+    '--response-headers-policy-config', 'file://' + save('public-response-policy.json', RESPONSE_POLICY(config.responsePolicyName, plan.otherScripts))]);
   if (plan.swapCertificate) {
     const snapshot = call(['cloudfront', 'get-distribution-config', '--id', config.distributionId]);
     if (snapshot.DistributionConfig.ViewerCertificate.ACMCertificateArn === config.certificateArn) console.log('Certificate already on the distribution.');
