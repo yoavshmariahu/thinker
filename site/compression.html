@@ -266,7 +266,7 @@
     .session-saving { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
     .session-saving b { font-size: 1.05rem; }
     .good { color: var(--thk); } .bad { color: var(--flag); }
-    .session-menu { position: absolute; top: calc(100% + .4rem); width: 100%; padding: .3rem; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px #0002; z-index: 6; }
+    .session-menu { position: absolute; top: calc(100% + .4rem); width: 100%; padding: .3rem; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px #0002; z-index: 6; max-height: min(21.5rem, 60vh); overflow-y: auto; overscroll-behavior: contain; }
     .session-menu button { display: flex; align-items: center; gap: .8rem; width: 100%; padding: .8rem; border: 0; border-radius: 6px; background: #fff; font: inherit; cursor: pointer; }
     .session-menu button:hover, .session-menu button[aria-pressed=true] { background: var(--thk-soft); }
     button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--thk); outline-offset: 3px; }
@@ -765,6 +765,8 @@
     }
     $('#sessions').addEventListener('click', ev => { const b = ev.target.closest('button[data-run]'); if (b) selectRun(b.dataset.run); });
     document.addEventListener('click', ev => { if (!ev.target.closest('#session-picker')) $('#session-picker').open = false; });
+    // the menu scrolls: open it on the run being shown
+    $('#session-picker').addEventListener('toggle', () => { if (!$('#session-picker').open) return; const on = $('#sessions [aria-pressed="true"]'); if (on) $('#sessions').scrollTop = Math.max(0, on.offsetTop - $('#sessions').clientHeight / 2 + on.offsetHeight / 2); });
     document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && $('#session-picker').open) { $('#session-picker').open = false; $('#session-label').focus(); } });
     window.addEventListener('resize', () => ['#c1', '#c2'].forEach(s => $(s).place && $(s).place(state.pos, false)));
 
