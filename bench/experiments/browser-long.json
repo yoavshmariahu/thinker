@@ -74,6 +74,7 @@
      "{BENCH}/browser/proxy-arm.sh",
      "start",
      "{CWD}",
+     "--long-turn",
      "--ephemeral"
     ]
    ],
