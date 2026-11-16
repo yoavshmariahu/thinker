@@ -36,7 +36,10 @@ export const PROFILE = {
   priorMax: 200,        // earlier statements the extractor is shown for recurrence, newest first
   holdoutMinSessions: 20, // sessions a side needs before the holdout says anything       // a full compile from nothing, this often, so wording patches have carried a long way is re-derived
   renderChars: 6000,    // about 1500 tokens at chars/4 (the owner's call, 2026-11-08; 800 then 1000 before)
-  perSection: { workingOn: 6, howWeWork: 12, skills: 6 },
+  // workingOn 4 (was 6) and howWeWork 16 (was 12), 2026-11-15: a workstream bore on 1-3 of the 29 sessions it was
+  // shown to while the six were a third of the block, and a how-we-work line is now one rule (so more, shorter lines)
+  perSection: { workingOn: 4, howWeWork: 16, skills: 6 },
+  ruleChars: 120,       // a how-we-work line is one rule this long at most: the line that packed four was followed in 10 of 20 sessions
   textChars: 240,
   retireShown: 15,      // a line judged in this many sessions and found to bear on none leaves the served block (the owner's call, 2026-11-12)
 };
@@ -127,6 +130,28 @@ const addSkill = (x, k) => { if (!x.skills.some(s => s.name === k.name && s.by =
 // session records -- 216 of them in this checkout's transcripts -- and until 2026-11-08 it arrived as a USER line
 // the extractor was told to treat as nobody speaking. It marks the exchange it cut short, never starts one.
 const INTERRUPT = /^\[Request interrupted by user( for tool use)?\]$/;
+// What the agent ran in an exchange, as names alone (2026-11-15): the tool, and for a shell command the program with
+// its subcommand (`git worktree`, `gh pr`, `npm test`). Never an argument, a path or any output. The extractor read
+// prompts and answers only until then, so a line about an action ("work in a worktree", "verify in the live app")
+// was judged on what the agent said of itself; the verdicts' quotes showed it ("followed: Not merged.").
+const SHELL_TOOL = /^(bash|shell|exec_command|local_shell|run_terminal_cmd|run_shell_command|execute_command)$/i;
+const SUBCOMMANDS = new Set(['git', 'gh', 'npm', 'npx', 'pnpm', 'yarn', 'docker', 'cargo', 'go', 'thinker', 'kubectl', 'aws', 'uv', 'pip']);
+const word = w => /^[\w.@:-]{1,24}$/.test(w || '') ? w : '';
+export function toolLabels(e) {
+  const name = String(e?.name || '').trim(); if (!name) return [];
+  if (!SHELL_TOOL.test(name)) return [name.replace(/^mcp__/, '').slice(0, 40)];
+  const c = e.input?.command ?? e.input?.cmd ?? '';
+  const out = [];
+  for (const seg of (Array.isArray(c) ? c.join(' ') : String(c)).split(/&&|\|\||[;\n]/)) {
+    const ws = seg.split('|')[0].trim().split(/\s+/).filter(w => !/^[A-Za-z_]\w*=/.test(w)); // a pipeline is its first program
+    const prog = word((ws[0] || '').split('/').pop()); if (!prog || prog === 'cd') continue;
+    const sub = SUBCOMMANDS.has(prog) ? ws.slice(1).find(w => /^[a-z][a-z-]{1,20}$/.test(w)) || '' : ''; // past flags and their values (`git -C <path> worktree`)
+    out.push(sub ? `${prog} ${sub}` : prog);
+  }
+  return [...new Set(out)].slice(0, 6);
+}
+const TOOLS_SHOWN = 14;
+const toolsLine = t => Object.entries(t || {}).sort((a, b) => b[1] - a[1]).slice(0, TOOLS_SHOWN).map(([k, n]) => n > 1 ? `${k} x${n}` : k).join(', ');
 export function exchanges(events) {
   const out = [];
   for (const e of events) {
@@ -136,10 +161,11 @@ export function exchanges(events) {
       const typed = typedSkill(e.text);
       let text = clean(e.text); if (!text && typed) text = `/${typed.name}${typed.args ? ' ' + typed.args : ''}`;
       if (!text || ASSESSOR_PROMPT.test(text)) continue;
-      out.push({ turn: out.length + 1, prompt: text, answers: [], next: null, at, skills: typed ? [{ name: typed.name, by: 'person' }] : [] });
+      out.push({ turn: out.length + 1, prompt: text, answers: [], next: null, at, skills: typed ? [{ name: typed.name, by: 'person' }] : [], tools: {} });
     }
     else if (e.t === 'say' && out.length) { const text = clean(e.text); if (text && !ASSESSOR_SAY.test(text)) out.at(-1).answers.push(text); }
     else if (e.t === 'tool' && /^skill$/i.test(e.name || '') && out.length) { const name = skillName(e.input?.skill ?? e.input?.name); if (name) addSkill(out.at(-1), { name, by: 'agent' }); }
+    else if (e.t === 'tool' && out.length) for (const k of toolLabels(e)) out.at(-1).tools[k] = (out.at(-1).tools[k] || 0) + 1;
     if (at && out.length && !out.at(-1).at) out.at(-1).at = at;
   }
   for (let i = 0; i < out.length; i++) { if (i) out[i - 1].next = out[i].prompt; if (!out[i].at && i) out[i].at = out[i - 1].at; }
@@ -153,7 +179,9 @@ export function extractionInput(xs, { maxChars = 120_000 } = {}) {
     const answers = x.answers.join('\n---\n');
     const skills = x.skills?.length ? `\n    SKILLS: ${x.skills.map(s => `/${s.name} (${s.by === 'person' ? 'typed by the person' : 'called by the agent'})`).join(', ')}` : '';
     const stopped = x.interrupted ? '\n    INTERRUPTED: the person stopped the agent here, before it finished' : '';
-    return `[${x.turn}] USER: ${cut(x.prompt, Math.min(2500, per / 3))}\n    AGENT: ${cut(answers, per - Math.min(2500, per / 3) - 100) || '(no answer recorded)'}${stopped}${skills}`;
+    const ran = toolsLine(x.tools);
+    const tools = ran ? `\n    TOOLS: ${ran}` : '';
+    return `[${x.turn}] USER: ${cut(x.prompt, Math.min(2500, per / 3))}\n    AGENT: ${cut(answers, per - Math.min(2500, per / 3) - 100) || '(no answer recorded)'}${stopped}${skills}${tools}`;
   });
   return parts.join('\n\n');
 }
@@ -210,7 +238,7 @@ export function sessionDirs(events, repo = '') {
 }
 
 // --- extraction -----------------------------------------------------------
-export const EXTRACT_SYSTEM = `You read one session between a person and a coding agent, as the person's prompts and the agent's answers only: no tool calls, no code, no command output. You record what was asked, what the agent says it did, and how the person reacted, as evidence for a profile of this person's work that future sessions read at their start. The profile is only as good as your honesty about outcomes.
+export const EXTRACT_SYSTEM = `You read one session between a person and a coding agent, as the person's prompts and the agent's answers, with the names of the tools the agent ran: no tool input, no code, no command output. You record what was asked, what the agent says it did, and how the person reacted, as evidence for a profile of this person's work that future sessions read at their start. The profile is only as good as your honesty about outcomes.
 
 Reading an exchange:
 - The outcome of exchange [n] is the person's reaction in [n+1]. The agent's own words ("done", "tests pass") never decide it.
@@ -220,6 +248,7 @@ Reading an exchange:
   - unknown: no reaction yet (the last exchange), a next prompt about something else, or a reaction you cannot read. When in doubt, unknown.
 - A USER line that is not the person speaking (a tool's report, a system or harness notice, a pasted log or document with no request) is neither a request nor a reaction.
 - A SKILLS line names the skills run in the exchange and by whom (typed by the person, or called by the agent). The reaction to that exchange is a reaction to the skill's result too. Where the person speaks of a skill (asks for one by name, says to stop using one), put it in prefs naming the skill.
+- A TOOLS line names what the agent ran in the exchange: tools, and for a shell command the program and its subcommand, each with a count. Names only. It is the record of what the agent did, where AGENT is what it said.
 - An INTERRUPTED line means the person stopped the agent before it finished. That is a reaction in itself: the outcome is never accepted. Read the next prompt for which it is: corrected when it objects, undoes or redoes; redirected when it changes course or supplies what the agent lacked; unknown only when there is no next prompt. An interruption followed by a correction is the clearest lesson a session records: always write the lesson.
 - One observation per exchange that did work or made a decision. A question answered, a greeting or a bare command produces none. Exchanges on one task may become one observation: its turn is the first, its outcome the last reaction.
 
@@ -235,9 +264,12 @@ An empty list is the right answer for a session that decided nothing.
 Judging the profile the session was shown:
 - You may be given the lines of a profile this session was shown at its start, each with an id. For each one, say what the session did with it. This is the measure of whether the profile is worth showing at all, so it is judged on evidence in the text, never on whether the line sounds useful.
   - followed: the agent's work or words show it acted on the line. Quote the shortest thing that shows it.
+  - Where a line is about something the agent does (where it works, what it runs, what it checks before saying done), judge it on the TOOLS lines first and the agent's words second: an agent that says it verified and ran nothing did not.
   - ignored: the line plainly applied to what was being done and the agent did not act on it. Not "the agent did not mention it" -- a line can be followed silently; the evidence must be that the agent did the thing the line told it not to do, or failed to do the thing the line asked for, in work the line clearly covered.
   - contradicted: the agent did the opposite and the person had to correct it. This is the strongest evidence a line is not working.
   - na: the line had no bearing on this session. **This is the default.** Most lines have nothing to do with most sessions, and marking those ignored would make every line look dead. Prefer na whenever you are unsure whether the line applied.
+- clause: the words of the line that the verdict is about, copied from the line exactly. A line may hold more than one rule; judge the one this session bore on, and where it bore on several, the one that went worst. evidence: words copied exactly from a USER, AGENT or TOOLS line, and about that clause: an agent's report of a pull request's state, a status footer or a sentence on another subject is not evidence for a line about something else, and a line with no such evidence is na. The code checks both: a verdict whose clause is not in the line, or whose evidence is not in the session, is recorded as na.
+- Each line is marked with its kind. A (way of working) line is a rule, judged as above. A (work in progress) line and a (skill) line are context, not rules: na unless the session was on that work or ran that skill; followed when it was and the agent worked from what the line says without being told; ignored when the person had to say again what the line holds; contradicted when the agent went against a decision the line records and the person corrected it.
 - A line the person restated in their own prompt was not followed from the profile; that is the person doing the profile's job, which is worth knowing. Mark it ignored and quote their prompt.
 Recurrence -- the person saying again what they have said before:
 - You may be given SAID BEFORE: things this person stated or corrected in earlier sessions, each with an id. Some are lines of the profile; most are single earlier statements. For each observation, repeats lists the ids it says again: a pref that restates one, a lesson or a correction that corrects the same thing, a request that re-asks for the same way of working. The same thing in other words is a repeat; a different thing on the same topic is not.
@@ -257,7 +289,8 @@ export const OBSERVATION_SCHEMA = {
         properties: {
           id: { type: 'string', description: 'the line id exactly as given' },
           verdict: { type: 'string', enum: LINE_VERDICTS },
-          evidence: { type: 'string', description: 'for followed, ignored or contradicted: the shortest quote from a prompt or an answer that shows it; empty for na' },
+          clause: { type: 'string', description: 'for followed, ignored or contradicted: the words of the line the verdict is about, copied exactly; empty for na' },
+          evidence: { type: 'string', description: 'for followed, ignored or contradicted: the shortest exact quote from a USER, AGENT or TOOLS line that shows it, about the clause; empty for na' },
         },
         required: ['id', 'verdict'],
         additionalProperties: false,
@@ -323,6 +356,26 @@ export function observationSkills(observations, xs) {
 }
 
 // One session's observations. `completeFn` is for tests; `have` and `config` pick the model ladder.
+// A verdict is held to its evidence by code (2026-11-15). Of this repository's first 597 verdicts, "followed" was
+// often a true quote about something else (the worktree line on "must not write into a managed account home", a
+// workstream on the status footer), and the compile steers on these counts. So a verdict other than `na` names the
+// clause of the line it judged, which must be in the line, and quotes the session, which must hold the quote; one
+// that fails either is `na` with `unsupported` set, so the count of them says how often the extractor reaches.
+// Compared on letters and digits alone: markdown, quotes and spacing differ between the answer and the quote, and a
+// quote the extractor shortened with an ellipsis is checked piece by piece. Checked on six of this repository's
+// judged sessions before it shipped: the off-subject "followed" verdicts came back `na`, and the clause named the
+// rule that went wrong in a line that held four.
+const KIND = { workingOn: 'work in progress', howWeWork: 'way of working', skills: 'skill' };
+const bare = t => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+const pieces = t => String(t || '').split(/\.{3,}|…|\[\.\.\.\]/).map(bare).filter(Boolean); // any length: the person's whole reaction can be "what"
+export function checkedVerdict(l, shown, sessionText) {
+  const v = { id: l.id, verdict: l.verdict, clause: String(l.clause || '').slice(0, 200), evidence: String(l.evidence || '').slice(0, 300), ...(shown?.rev ? { rev: shown.rev } : {}) };
+  if (v.verdict === 'na') return { ...v, clause: '', evidence: '' };
+  const clause = bare(v.clause), ev = pieces(v.evidence), text = bare(sessionText);
+  const why = clause.length < 6 || !bare(shown?.text).includes(clause) ? 'clause' : !ev.length || !ev.every(x => text.includes(x)) ? 'evidence' : '';
+  return why ? { ...v, verdict: 'na', unsupported: why, claimed: l.verdict } : v;
+}
+
 export async function extractObservations(events, { repoHint = '', ended = true, shown = [], prior = [], accounting, completeFn, have, config } = {}) {
   const xs = exchanges(events);
   if (!xs.length) return { observations: [], lines: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
@@ -334,7 +387,7 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   // The lines this session was shown, so the same call that reads the session can say what was done with each.
   // One call, not two: the extractor already has the whole session in front of it, and a second call would
   // double what a session costs to read for a signal that rides along for a few hundred tokens.
-  const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] ${l.text}`).join('\n')}\n` : '';
+  const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] (${KIND[l.section] || KIND.howWeWork}) ${l.text}`).join('\n')}\n` : '';
   const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${said}${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}${prior.length ? ', each observation\'s `repeats` naming the SAID BEFORE ids it says again' : ''}.`;
   const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   // a repeat names only an id that was offered, and the row keeps which kind it was: a profile line (the serving
@@ -342,11 +395,11 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   const known = new Map(prior.map(p => [p.id, p]));
   const tag = o => { const ids = (o.repeats || []).filter(id => known.has(id)); return { ...o, repeats: { profile: ids.filter(id => known.get(id).inProfile), ledger: ids.filter(id => !known.get(id).inProfile) } }; };
   const observations = observationSkills(observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean).map(tag), xs), xs);
-  const ok = new Set(shown.map(l => l.id));
+  const ok = new Map(shown.map(l => [l.id, l]));
   const seen = new Set();
   // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
   const lines = (res.json?.lines || []).filter(l => l && ok.has(l.id) && LINE_VERDICTS.includes(l.verdict) && !seen.has(l.id) && seen.add(l.id))
-    .map(l => ({ id: l.id, verdict: l.verdict, evidence: String(l.evidence || '').slice(0, 300) }));
+    .map(l => checkedVerdict(l, ok.get(l.id), input));
   return { observations, lines, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
 }
 
@@ -427,7 +480,7 @@ export function readLineVerdicts(store, { days = PROFILE.ledgerDays, now = Date.
 export function appendLineVerdicts(store, verdicts, { session, client, model, at, now = Date.now() } = {}) {
   if (!verdicts?.length || !session) return [];
   const when = at || new Date(now).toISOString();
-  const rows = verdicts.map(v => ({ id: v.id, session, client: client || null, model: model || null, at: when, verdict: v.verdict, evidence: v.evidence || '' }));
+  const rows = verdicts.map(v => ({ id: v.id, session, client: client || null, model: model || null, at: when, verdict: v.verdict, evidence: v.evidence || '', ...(v.clause ? { clause: v.clause } : {}), ...(v.rev > 1 ? { rev: v.rev } : {}), ...(v.unsupported ? { unsupported: v.unsupported, claimed: v.claimed } : {}) }));
   const kept = readLineVerdicts(store, { now }).filter(r => r.session !== session);
   writeAtomic(linesFile(store), [...kept, ...rows].map(r => JSON.stringify(r)).join('\n') + '\n');
   return rows;
@@ -437,17 +490,20 @@ export function appendLineVerdicts(store, verdicts, { session, client, model, at
 // only comes up in a session its subject arises in. `followRate` is followed over applied, null where nothing
 // applied, because 0 of 0 is not a failing line, it is an untested one.
 export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(), profile = null } = {}) {
-  const rows = readLineVerdicts(store, { days, now });
+  const all = readLineVerdicts(store, { days, now });
+  const prof = profile || readProfile(store);
+  const text = new Map();
+  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e), retired: e.retired || null, rev: e.rev || 1 });
+  // a verdict is about the wording the session was shown (`rev`): a reworded line starts its tally again, so a
+  // rewrite is judged on its own sessions and never carries what the old words came to
+  const rows = all.filter(r => !text.has(r.id) || (r.rev || 1) === text.get(r.id).rev);
   const by = new Map();
   for (const r of rows) {
-    if (!by.has(r.id)) by.set(r.id, { id: r.id, shown: 0, followed: 0, ignored: 0, contradicted: 0, na: 0, evidence: [] });
+    if (!by.has(r.id)) by.set(r.id, { id: r.id, shown: 0, followed: 0, ignored: 0, contradicted: 0, na: 0, unsupported: 0, evidence: [] });
     const e = by.get(r.id);
-    e.shown++; e[r.verdict] = (e[r.verdict] || 0) + 1;
+    e.shown++; e[r.verdict] = (e[r.verdict] || 0) + 1; if (r.unsupported) e.unsupported++;
     if (r.verdict !== 'na' && r.evidence) e.evidence.push({ verdict: r.verdict, text: r.evidence, session: r.session });
   }
-  const text = new Map();
-  const prof = profile || readProfile(store);
-  for (const sec of SECTIONS) for (const e of (prof?.sections?.[sec] || [])) if (e.id) text.set(e.id, { section: sec, text: line(sec, e), retired: e.retired || null });
   const out = [...by.values()].map(e => {
     const applied = e.followed + e.ignored + e.contradicted;
     const meta = text.get(e.id) || {};
@@ -498,17 +554,17 @@ You are given the profile as it stands, each entry with an id; the observations 
 - add: new entries, by section. One entry over several observations beats several entries.
 
 Sections, and the most lines each may have:
-- workingOn (6): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what the work is and what the person has decided about it, in words that stay true for weeks. Never a pull request number, a merged or unmerged state, a deployed or released state, a setting's on or off, or "done": those change within days, a future session trusts them, and the person has asked for none of them. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
-- howWeWork (12): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). A line must be a way of working that bears on most sessions here whatever the task: a lesson about one flag, one file or one feature is not one, and goes nowhere unless a second session shows the general rule it was a case of; a decision about the product's design is a workingOn line. Corrections weigh most: an exchange the person corrected, redirected or interrupted is the evidence a line rests on first, then a stated preference (prefs). The code ranks the section by the corrections cited behind each line and the render trims from the bottom, so cite every correction a line answers. The code keeps a line only when two sessions support it, unless one observation states the preference in so many words (prefs). A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
+- workingOn (${PROFILE.perSection.workingOn}): the lines of work the person is in the middle of: seen in more than one exchange or session, or said to be ongoing. One line each: what the work is and what the person has decided about it, in words that stay true for weeks. Never a pull request number, a merged or unmerged state, a deployed or released state, a setting's on or off, or "done": those change within days, a future session trusts them, and the person has asked for none of them. A decision the person took about the product's design belongs here while the work is current, not in howWeWork.
+- howWeWork (${PROFILE.perSection.howWeWork}): how this person wants work done and answers given: process, communication, the bar for evidence, and what to do where agents went wrong here before. Each line is one rule in the imperative, saying what to do, not what failed ("Verify in the live app before calling it done", never "avoid shipping with mock tests"). One rule, under ${PROFILE.ruleChars} characters: a line that joins rules with a semicolon, a second sentence or a list is that many lines, each citing the observations that are about it. Each line is judged on its own in the sessions it is shown to, and a line that holds four rules cannot be. A line must be a way of working that bears on most sessions here whatever the task: a lesson about one flag, one file or one feature is not one, and goes nowhere unless a second session shows the general rule it was a case of; a decision about the product's design is a workingOn line. Corrections weigh most: an exchange the person corrected, redirected or interrupted is the evidence a line rests on first, then a stated preference (prefs). The code ranks the section by the corrections cited behind each line and the render trims from the bottom, so cite every correction a line answers. The code keeps a line only when two sessions support it, unless one observation states the preference in so many words (prefs). A stated preference and a correction of the same thing are one line. Preferences that say one thing in different words become one line, near their words; where the person's own words are short and sharp, keep them. Where the instruction files already say it (their headings are listed) and agents still got it wrong, keep the line and say so ("in AGENTS.md; still missed"); where the files say it and nobody had to enforce it, leave it out. Specific to this person: a line that could be written about any repository is not a profile line.
 - skills (6): one line per skill run in this repository (a skills line on an observation, or a pref naming it): what it is used for here, how it has gone by the person's reactions, and what the person has said about it. skill = the name as given, without the slash. The use counts below are computed and shown beside the line; write what they do not say. Never a skill no observation ran or named.
 
 Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
 - approach is the agent's own account. An observation with outcome unknown can support workingOn and skills, and howWeWork through its prefs alone. An interrupted observation (the person stopped the agent) is a correction whatever its outcome says.
 - Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
-- Each entry of the profile so far carries use, measured in the sessions it was shown to: shown, applied (the sessions it had any bearing on), followed, ignored, contradicted. This is what the lines you write come to. An entry shown to five or more sessions and applied in a fifth of them or fewer is too narrow: reword it as the general rule it was a case of, move it to workingOn if it is a product decision, or drop it. An entry contradicted more than followed is worded so the agent misreads it: reword it. The code retires an entry that bore on none of ${PROFILE.retireShown} sessions; do not leave one to that.
+- Each entry of the profile so far carries use, measured in the sessions it was shown to: shown, applied (the sessions it had any bearing on), followed, ignored, contradicted. This is what the lines you write come to. An entry shown to five or more sessions and applied in a fifth of them or fewer is too narrow: reword it as the general rule it was a case of, move it to workingOn if it is a product decision, or drop it. An entry contradicted more than followed is worded so the agent misreads it: reword it. An entry of the profile so far that holds more than one rule is split: update it to the rule most of its observations are about, and add the others as their own lines with the observations that are about each. A reworded entry's use starts again from nothing, so reword only where the words are the fault. The code retires an entry that bore on none of ${PROFILE.retireShown} sessions; do not leave one to that.
 - A RETIRED list names lines that were shown to many sessions and bore on none: the code took them out of the served block. Never add a line that says what a retired one says, in any words; an update rewords a retired line but leaves it retired; a drop removes it for good.
-- Lines are plain and under 200 characters. No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
+- Lines are plain and under 200 characters (a howWeWork line under ${PROFILE.ruleChars}). No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
 const entry = (props, required) => ({ type: 'array', items: { type: 'object', properties: { ...props, obs: { type: 'array', items: { type: 'string' } } }, required: [...required, 'obs'] } });
 const FIELDS = { workingOn: ['text'], howWeWork: ['text'], skills: ['text'] };
@@ -581,6 +637,7 @@ export function applyPatch(previous, patch) {
       if (!u) { out[s].push(e); continue; }
       const next = { ...e, obs: [...new Set([...(e.obs || []), ...(Array.isArray(u.obs) ? u.obs : []).map(String)])] };
       for (const f of FIELDS[s]) if (typeof u[f] === 'string' && u[f].trim()) next[f] = u[f];
+      if (str(next.text) !== str(e.text)) next.rev = (e.rev || 1) + 1; // new words: the verdicts start again (`lineReport`)
       out[s].push(next);
     }
     for (const a of Array.isArray(patch?.add?.[s]) ? patch.add[s] : []) out[s].push(a);
@@ -630,6 +687,7 @@ export function settle(sections, rows, { now = Date.now(), ids = null } = {}) {
       const ats = obs.map(o => Date.parse(o.at)).sort((a, b) => a - b);
       const e = { obs: cited, count: new Set(obs.map(o => o.session || o.id)).size, firstSeen: new Date(ats[0]).toISOString().slice(0, 10), lastSeen: new Date(ats.at(-1)).toISOString().slice(0, 10), corrections: obs.filter(isCorrection).length };
       if (raw.retired) e.retired = String(raw.retired).slice(0, 10);
+      if (raw.rev > 1 && typeof raw.id === 'string') e.rev = Math.floor(raw.rev);
       if (s === 'skills') {
         // the line rests on the observations that ran the skill or named it (a pref, the request, the reaction); its
         // counts are measured from those, never written by the model
@@ -707,13 +765,15 @@ export function relatedCited(previous, batch, rows, { max = 40 } = {}) {
 
 // One compile step: the profile so far, a batch of new observations and the related evidence in; a patch out,
 // merged and settled.
-async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config }) {
+async function compileStep(store, previous, batch, rows, { now, accounting, completeFn, have, config, idFloor = null }) {
   // a profile written before entries carried ids (version 2) gets them here, so a patch can name its entries
   if (previous) previous = { ...previous, sections: Object.fromEntries(SECTIONS.map(s => [s, (previous.sections?.[s] || []).map((e, i) => e.id ? e : { id: `${PREFIX[s]}${i + 1}`, ...e })])) };
   // what the sessions since have said of each line: a line due for retirement is marked before the model sees it
   const lr = previous ? lineReport(store, { now, profile: previous }) : null;
   if (previous) previous = retire(previous, lr, { now });
-  const ids = { ...(previous?.ids || idCounters(previous)) };
+  // a full compile starts from no profile but never from id 1: the verdicts on disk are keyed on the ids the old
+  // profile used, and a new `h1` would inherit the old one's
+  const ids = { ...(previous?.ids || idFloor || idCounters(previous)) };
   // what the sessions did with each line: the compile's own feedback, so a narrow line is reworded or dropped at
   // the next patch, not left to the retire rule fifteen sessions on
   const use = new Map((lr?.lines || []).filter(l => l.shown).map(l => [l.id, { shown: l.shown, applied: l.applied, followed: l.followed, ignored: l.ignored, contradicted: l.contradicted }]));
@@ -770,7 +830,7 @@ export async function compileProfile(store, { now = Date.now(), accounting, comp
   const changes = { kept: 0, updated: 0, dropped: 0, added: 0 };
   const rebasedAt = full || !previous?.rebasedAt ? new Date(now).toISOString() : previous.rebasedAt;
   for (const batch of batches) {
-    const r = await compileStep(store, current, batch, rows, { now, accounting, completeFn, have, config });
+    const r = await compileStep(store, current, batch, rows, { now, accounting, completeFn, have, config, idFloor: onDisk ? { ...idCounters(onDisk), ...(onDisk.ids || {}) } : null });
     current = { ...r.profile, rebasedAt }; tokens += r.tokens; cost += r.cost || 0;
     for (const k of Object.keys(changes)) changes[k] += r.changes[k];
     if (onDisk && !landed++) { try { fs.appendFileSync(historyFile(store), JSON.stringify(onDisk) + '\n'); } catch {} } // the one replaced, once something replaces it
@@ -809,14 +869,14 @@ export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
     kept[s].pop();
   }
   if (!SECTIONS.some(s => kept[s].length)) return { text: '', ids: [] };
-  return { text: text(), ids: SECTIONS.flatMap(s => kept[s].map(e => e.id).filter(Boolean)) };
+  return { text: text(), ids: SECTIONS.flatMap(s => kept[s].map(e => e.id).filter(Boolean)), revs: Object.fromEntries(SECTIONS.flatMap(s => kept[s].filter(e => e.id && e.rev > 1).map(e => [e.id, e.rev]))) };
 }
 export function renderProfile(profile, opts = {}) { return fitProfile(profile, opts).text; }
 export function profileBlock(store) {
   // the retire rule applied live: a line whose fifteenth `na` landed since the last compile is out today
   const profile = readProfile(store);
-  const { text, ids } = fitProfile(profile ? retire(profile, lineReport(store, { profile })) : null);
-  return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids };
+  const { text, ids, revs = {} } = fitProfile(profile ? retire(profile, lineReport(store, { profile })) : null);
+  return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids, revs };
 }
 
 // --- serving, and the holdout ---------------------------------------------
@@ -870,7 +930,7 @@ export function compactionsSince(file, offset = 0) {
 // session is logged once, on its first prompt, so the arms can be counted from the log too.
 export function profileTurn(store, session, { transcript = null, client = null, now = Date.now() } = {}) {
   if (!session || session === 'unknown' || !profileConfig(store).enabled) return '';
-  const { text, ids } = profileBlock(store);
+  const { text, ids, revs } = profileBlock(store);
   if (!text) return '';
   return locked(store, session, () => {
     const { st, save } = sessionState(store, session);
@@ -878,7 +938,7 @@ export function profileTurn(store, session, { transcript = null, client = null, 
     let since = { count: 0, offset: p.offset || 0 };
     if (transcript && client === 'claude') { since = compactionsSince(transcript, p.offset || 0); p.compactions = (p.compactions || 0) + since.count; p.offset = since.offset; }
     const due = !p.told || p.compactions > p.toldAt;
-    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; p.shown = [...new Set([...(p.shown || []), ...ids])]; }
+    if (due && p.arm === 'shown') { p.told = (p.told || 0) + 1; p.toldAt = p.compactions; p.shown = [...new Set([...(p.shown || []), ...ids])]; if (Object.keys(revs).length) p.revs = { ...(p.revs || {}), ...revs }; }
     const log = due && (p.arm === 'shown' || !p.told) && !p.loggedHoldout;
     if (due && p.arm === 'holdout') p.loggedHoldout = true;
     st.profile = p; save();
@@ -894,6 +954,11 @@ export function profileTurn(store, session, { transcript = null, client = null, 
 export function shownLines(store, session) {
   if (!session || session === 'unknown') return [];
   return sessionState(store, session).st.profile?.shown || [];
+}
+// The wording of each line the session was shown (`rev`; absent is the first wording).
+export function shownRevs(store, session) {
+  if (!session || session === 'unknown') return {};
+  return sessionState(store, session).st.profile?.revs || {};
 }
 export function profileArmOf(store, session) {
   if (!session || session === 'unknown') return null;
@@ -1009,8 +1074,10 @@ export async function profileSession(store, events, { session, client, repoHint,
   // the lines this session was shown, with the text it saw, so the same call can say what was done with each
   const prof = readProfile(store);
   const seen = new Set(shownLines(store, session));
+  // a line reworded since the session was shown it is not judged: the session never saw these words
+  const revs = shownRevs(store, session);
   const shown = seen.size && prof?.sections
-    ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id)).map(e => ({ id: e.id, text: line(sec, e) })))
+    ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id) && (e.rev || 1) === (revs[e.id] || 1)).map(e => ({ id: e.id, section: sec, rev: e.rev || 1, text: line(sec, e) })))
     : [];
   const prior = priorStatements(store, { session, profile: prof, now });
   const r = await extractObservations(events, { repoHint, ended, shown, prior, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
