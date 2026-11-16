@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
   executionFor, fromSubagent, denial, decide, noteHandoff, delegateTool, handoffLabel, hostEvent,
-  DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent, hostRunOrder, REPORT_SLOT,
+  DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent, hostRunOrder, REPORT_SLOT, DELEGATE_SESSION_MARK, preToolHook,
 } from '../src/delegate.js';
 import { opencodeV2, hostRun, canRun } from '../src/integrations/opencode-v2.js';
 import {
@@ -457,4 +457,31 @@ test('the OpenCode plugin: the report is the denied call\'s result, a repeat rea
   assert.equal(await quiet.before(read('s4')), undefined);
   assert.equal(await quiet.before({ tool: 'edit', sessionID: 's4', input: {} }), undefined);
   assert.equal(quiet.events.filter(e => e[0] === 'pretool').length, 1);
+});
+
+// Claude Code's mod is the same door (2026-11-15): it asks from inside the harness with `host_runs`, gets the
+// order and spawns the subagent itself (claude-clear:delegateCall). The settings hook's copy of the call stands down.
+test('Claude Code, the mod runs the subagent: the order names the host\'s Explore, and the settings hook stands down in a session the mod marked', async t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  let st = {}; const rows = [];
+  const out = JSON.parse(await delegateTool({ ev: { tool_name: 'Read', tool_input: { file_path: big }, host_runs: true, user_prompt: 'where is sort_commands defined?' }, state: { update: fn => fn(st) }, session: 's', cwd: d,
+    cfg: { ...DELEGATE_DEFAULTS, holdout: 0 }, log: r => rows.push(r), run: async () => { throw Error('must not run'); }, client: 'claude', lastPrompt: () => ({ prompt: 'where is sort_commands defined?' }) }));
+  const o = out.thinkerRun;
+  assert.equal(o.agent, 'Explore');
+  assert.equal(o.model, null, 'no model named: the agent\'s own definition picks it');
+  assert.match(o.prompt, /where is sort_commands defined\?/);
+  assert.equal(o.wrap.split(REPORT_SLOT).length, 2);
+  assert.match(o.wrap, /^thinker read core\.py through a claude-haiku-5-5 subagent/, 'the model Explore.md is pinned to');
+
+  // the stand-down: the same call through the settings hook, in a session the mod marked
+  const was = process.env.THINKER_HOME; t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  const home = process.env.THINKER_HOME = path.join(d, 'home');
+  const cfg = { ...DELEGATE_DEFAULTS, enabled: true, holdout: 0 };
+  const store = { log: () => { throw Error('a call the mod decides is not decided twice'); } };
+  fs.mkdirSync(path.join(home, 'state', DELEGATE_SESSION_MARK), { recursive: true });
+  fs.writeFileSync(path.join(home, 'state', DELEGATE_SESSION_MARK, 'sess-1'), '');
+  assert.equal(await preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big } }, store, session: 'sess-1', cwd: d, cfg, client: 'claude' }), null);
+  // the mod's own asking carries `host_runs` and is decided; so is a session no mod marked (an older Claude Code)
+  await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big }, host_runs: true }, store, session: 'sess-1', cwd: d, cfg, client: 'claude' }));
+  await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big } }, store, session: 'sess-2', cwd: d, cfg, client: 'claude' }));
 });

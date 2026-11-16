@@ -460,6 +460,14 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - PreToolUse hook can deny a read/test, run subagent, return report.
 - Logged, costed per session, judged live on holdout.
 
+**On Claude Code the mod runs the delegated subagent, on thinker's rule, on the fly (2026-11-15, the owner's call):**
+- `claude-clear/hooks/register.tsx:delegateCall`: a `tool.call` hook on Read and Bash, inside the harness. It asks `hook pretool` with `host_runs` (the size, the turn's tally, the holdout, the log row: one copy of the rule, the CLI's), and when it fires spawns the harness's own subagent (`$.agent.spawn`, the order's `Explore`) and answers the call with the report in `denial`'s sentence. What `opencode-v2.js:hostRun` is for OpenCode. Works in the terminal and the desktop app.
+- A settings hook cannot do this: it can deny, never spawn, and nothing fires after its denial; a redirect to a stub with an agent hook after the read was called an injection 3 times in 3.
+- The mod marks the session (`state/claude-delegate/<session>`) and the settings hook's copy of the call stands down there (`preToolHook`); the settings hook stays for a Claude Code too old for mods, with the handoff's words.
+- No model is named to the spawn (the Agent tool refuses a full id); Explore.md's pin picks it. A spawn that fails or passes 240 s lets the call through. The wait is spent in `$` calls, which a hook's time budget does not count.
+- Live on 2.1.325, Sonnet lead, three runs: fired every time, the subagent 10 s for $0.005 on Haiku 5.5, a small read untouched (0.7 s for the rule). The lead went straight on in one and checked the report with a grep or a short range first in two; none re-read the file.
+- On with `delegate.enabled`, as the rest; read at the session's start.
+
 **Claude Code's agent hook: the harness runs the subagent, no rule fires it yet (2026-11-15, the owner's call):**
 - A PreToolUse handler of `type: "agent"` makes Claude Code spawn its own subagent on a matched call; its `ok: false` reason is the denied call's result. The lead has no say and thinker spawns nothing.
 - `delegate.js:agentHookEntries`, `agentHookPrompt`; reads only. Rules are `delegate: { agentHooks: [{ matcher, if? }] }`, **empty by default, so nothing is written**. When to fire is a separate decision.

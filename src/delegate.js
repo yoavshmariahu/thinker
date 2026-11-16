@@ -39,6 +39,10 @@ import { readMachineConfig } from './repo-switch.js';
 import { heldOut } from './proxy.js';
 import { findBin, BINS } from './llm.js';
 import { sessionState, locked } from './session-state.js';
+import { claudeCardActive } from './claude-card.js';
+
+// the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
+export const DELEGATE_SESSION_MARK = 'claude-delegate';
 
 export const DELEGATE_DEFAULTS = Object.freeze({
   enabled: false,     // off until switched on (the owner's call, 2026-11-12): THINKER_DELEGATE=on or `delegate: { enabled: true }`
@@ -334,10 +338,12 @@ export function denial({ kind, report, files, cwd, model, handoff }) {
 // given none runs on the host's default, which is not the session's (seen: a GLM session's child answered on
 // Gemini 4).
 export const REPORT_SLOT = '{{thinker-report}}';
-export function hostRunOrder({ exec, lead, kind, files, cwd, brief, label }) {
+export function hostRunOrder({ exec, lead, kind, files, cwd, brief, label, pinned = null }) {
   const [providerID, ...rest] = exec.model ? exec.model.split('/') : [];
   const model = exec.model ? { providerID, id: rest.join('/') } : lead?.id ? { providerID: lead.providerID, id: lead.id } : null;
-  const named = model ? model.id.split('/').pop() : exec.agent;
+  // `pinned`: the model the host's agent definition is held to (Claude Code's Explore.md), named in the sentence
+  // though the host is not told it -- its Agent tool takes a family alias and refuses a full id
+  const named = model ? model.id.split('/').pop() : pinned || exec.agent;
   const wrap = JSON.parse(denial({ kind, report: REPORT_SLOT, files, cwd, model: named })).hookSpecificOutput.permissionDecisionReason;
   return { agent: exec.agent, model, title: label, prompt: brief, wrap, kind };
 }
@@ -456,7 +462,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // gets what it needs to do it beside the words: the agent, the model, the brief, and the sentence the report
     // comes back inside. The words stay, for the run that fails -- they are then all there is, as before.
     if (!ev.host_runs) return words;
-    return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label }) });
+    return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label, pinned: HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? cfg.model : null }) });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });
@@ -605,6 +611,10 @@ export function hostEvent(client, ev) {
 /** The PreToolUse hook's body, over the repository's store and the session's state file. */
 export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude' }) {
   if (!cfg.enabled || !HOSTS[client]) return null;
+  // Claude Code's mod asks for itself, from inside the harness, and runs the subagent (`host_runs`,
+  // claude-clear:delegateCall). In a session it marked, the settings hook's copy of the same call stands down,
+  // or one read would be decided twice.
+  if (client === 'claude' && !raw.host_runs && claudeCardActive(session, { name: DELEGATE_SESSION_MARK })) return null;
   const ev = hostEvent(client, raw);
   if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   const state = { update: fn => locked(store, session, () => { const { st, save } = sessionState(store, session); fn(st); save(); }) };
