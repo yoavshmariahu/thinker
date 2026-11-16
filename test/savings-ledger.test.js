@@ -249,10 +249,8 @@ test('a decision is in the footer total: a merged section change, on the calls o
   store.log({ op: 'session', t: at(3600_000), session: 'has', model: 'claude-opus-5-5', client: 'claude', turns: 20, head: merge });
   store.log({ op: 'session', t: at(3600_000), session: 'lacks', model: 'claude-opus-5-5', client: 'claude', turns: 500, head: old });
   const l = computeSavings(store, { now });
-  // twenty calls, each what the section is smaller by as git sizes it (the edit said 990); the 500 calls of the
-  // worktree that never got the merge add nothing
-  const each = l.today.decided.tokens / 20;
-  assert.ok(Number.isInteger(each) && each > 950 && each <= 990, String(each));
+  // twenty calls at what the edit took out; the 500 calls of the worktree that never got the merge add nothing
+  assert.equal(l.today.decided.tokens, 20 * 990);
   assert.ok(l.today.decided.cost > 0);
   assert.equal(l.today.cleared.cost, before.today.cleared.cost, 'the clearing is counted as it was');
   assert.ok(Math.abs(l.today.cost - (l.today.cleared.cost + l.today.decided.cost)) < 1e-9, 'the total is the rows');

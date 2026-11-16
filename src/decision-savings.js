@@ -12,7 +12,7 @@
 //   decided (`saving`), in the sessions of its own agent. A switch kept in one checkout's settings is not counted.
 // - **Never a tool's output.** Those are the tokens the clearing removes, and its series may already hold them.
 // Each from when it took effect (report.js's own effectSpan) until it was reverted, the same thing was decided again,
-// or DECISION_DAYS passed -- and a section only for what it is still smaller by (sectionSteps).
+// its text was edited (sectionEnds), or DECISION_DAYS passed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -110,64 +110,71 @@ export function ancestry(dir, decisions = []) {
   return has;
 }
 
-// A section is credited for what it is still smaller by than before the decision, not for what the edit took out on
-// the day. The edit's own figure assumes the section then stood as the edit left it, and here it never did: one
-// compressed from 22k tokens to 2k had a paragraph added by the next pull request thirteen minutes later, and two
-// compressed in October were rewritten whole inside a fortnight. So the section is sized at every later commit on the
-// default branch that touches its file, and each stretch counts `before - size`, never more than the edit took out
-// and never less than nothing: a section that has grown back past its old size counts nothing, a compressed one
-// that was since deleted counts nothing (the long one would have gone with it), and a removed one counts in full
-// until something by its name is written again. Sized once a commit and kept (`decision-sections.json`), read on
-// from the last tip looked at, and not at all once the decision's time is up.
-const sizeOf = text => Math.ceil(String(text).length / 4); // instruction-edit.js's own count, which `tokens` was recorded in
-export function sectionSteps(decisions, dir, { now = Date.now() } = {}) {
+// An edited saving is no saving (the owner, 2026-11-15): once somebody changes what the decision wrote, what is in the
+// file is their text, and the figure the edit recorded describes something that is no longer there. So a section's
+// credit ends at the first later commit on the default branch that changes it -- and "it" is the lines, not the
+// heading, which is what makes a rename or a move no question at all:
+// - a compression is watched by **the lines it left** (the section's, as the merge left it -- the ones it kept as much
+//   as the ones it wrote, since a compression may only have cut): the
+//   first commit where one of them is gone from the file ends it. A paragraph added beside them, a new heading over
+//   them, the whole section moved under another -- the lines are still there, and so is the saving.
+// - a removal is watched by **the lines it took out** (in the section before the merge, nowhere in the file after):
+//   the first commit where one of them is back anywhere in the file ends it, under whatever heading it came back.
+// Lines under MIN_LINE characters are not watched: `- yes` matches anything. An edit git cannot show, or one that
+// left no line to watch, is not counted. Found once and kept (`decision-sections.json`), read on from the last tip.
+const MIN_LINE = 24;
+const linesOf = text => new Set(String(text).split('\n').map(l => l.trim()).filter(l => l.length >= MIN_LINE && !l.startsWith('#')));
+export function sectionEnds(decisions, dir, { now = Date.now() } = {}) {
   const mine = decisions.filter(d => d.kind === 'section' && d.commit && SHA.test(d.commit));
   if (!mine.length) return decisions;
-  const file = path.join(dir, 'decision-sections.json'), kept = readJson(file), tips = new Map(), sizes = new Map();
+  const file = path.join(dir, 'decision-sections.json'), kept = readJson(file), tips = new Map(), shown = new Map();
   let dirty = false;
   const tipOf = repo => {
     if (!tips.has(repo)) tips.set(repo, (() => { for (const ref of ['refs/remotes/origin/HEAD', 'HEAD']) { try { return git(repo, ['rev-parse', '--verify', '-q', ref]).trim(); } catch {} } return null; })());
     return tips.get(repo);
   };
-  // the section's size at a commit: null where the file or the section is not there
-  const sizeAt = (d, commit) => {
+  // the file at a commit: its lines, and each section's by id; null where git cannot show it
+  const at = (d, commit) => {
     const k = `${d.repo}\0${commit}\0${d.file}`;
-    if (!sizes.has(k)) sizes.set(k, (() => { try { const f = { file: d.file, kind: 'root' }; return new Map(sections(git(d.repo, ['show', `${commit}:${d.file}`])).map(x => [sectionId(f, x).toLowerCase(), sizeOf(x.text)])); } catch { return new Map(); } })());
-    return sizes.get(k).get(d.section) ?? null;
+    if (!shown.has(k)) shown.set(k, (() => { try { const text = git(d.repo, ['show', `${commit}:${d.file}`]), f = { file: d.file, kind: 'root' }; return { lines: linesOf(text), sections: new Map(sections(text).map(x => [sectionId(f, x).toLowerCase(), linesOf(x.text)])) }; } catch { return null; } })());
+    return shown.get(k);
   };
   for (const d of mine) {
     const tip = tipOf(d.repo), was = kept[d.id];
-    if (!tip || was?.done || was?.tip === tip) continue;
+    if (!tip || was?.done || was?.end != null || was?.tip === tip) continue;
     try {
-      let from = d.commit, steps = [];
-      if (was?.tip) { try { git(d.repo, ['merge-base', '--is-ancestor', was.tip, tip]); from = was.tip; steps = was.steps || []; } catch {} }
-      let last = steps.length ? steps[steps.length - 1][1] : sizeAt(d, d.commit);
-      // --first-parent: the commits as they landed on the branch, each dated when it did (a merged branch's own
-      // commits are older than the merge that brought them)
+      const after = at(d, d.commit), before = at(d, `${d.commit}^`);
+      if (!after || !before) continue;
+      // what to watch: the lines the edit left must stay, the lines it took out must stay out
+      const wrote = d.removed ? [] : [...(after.sections.get(d.section) || [])];
+      const took = d.removed ? [...(before.sections.get(d.section) || [])].filter(l => !after.lines.has(l)) : [];
+      if (!wrote.length && !took.length) { kept[d.id] = { tip, end: d.from, done: true }; dirty = true; continue; }
+      let from = d.commit, end = null;
+      if (was?.tip) { try { git(d.repo, ['merge-base', '--is-ancestor', was.tip, tip]); from = was.tip; } catch {} }
+      // --first-parent: the commits as they landed on the branch, each dated when it did
       for (const line of git(d.repo, ['log', '--first-parent', '--reverse', '--format=%H %ct', `${from}..${tip}`, '--', d.file]).split('\n').filter(Boolean)) {
         const [commit, ct] = line.split(' '), t = Number(ct) * 1000;
         if (t >= d.to) break;
-        const size = sizeAt(d, commit);
-        if (size !== last) { steps.push([t, size]); last = size; }
+        const here = at(d, commit);
+        if (!here || wrote.some(l => !here.lines.has(l)) || took.some(l => here.lines.has(l))) { end = Math.max(d.from, t); break; }
       }
-      kept[d.id] = { tip, start: sizeAt(d, d.commit), steps, ...(now >= d.to ? { done: true } : {}) }; dirty = true;
+      kept[d.id] = { tip, end, ...(now >= d.to ? { done: true } : {}) }; dirty = true;
     } catch {}
   }
   if (dirty) writeJson(file, kept);
-  const credit = (d, size) => size == null ? (d.removed ? d.tokens : 0) : Math.max(0, Math.min(d.tokens, d.before - size));
   return decisions.flatMap(d => {
-    const k = kept[d.id];
     if (!mine.includes(d)) return [d];
-    if (!k) return []; // git could not size it: not counted
-    const marks = [[d.from, k.start], ...k.steps.filter(([t]) => t < d.to).map(([t, size]) => [Math.max(d.from, t), size])];
-    return marks.map(([t, size], i) => ({ ...d, since: d.from, from: t, to: marks[i + 1]?.[0] ?? d.to, tokens: credit(d, size) })).filter(x => x.tokens > 0 && x.to > x.from);
+    const k = kept[d.id];
+    if (!k) return []; // git could not show the edit: not counted
+    const to = k.end != null ? Math.min(d.to, k.end) : d.to;
+    return to > d.from ? [{ ...d, to }] : [];
   });
 }
 
-// What decisionSavings is given: the decisions, a section's cut into the stretches it was each size, and the question a
+// What decisionSavings is given: the decisions, a section's ended where its text was next edited, and the question a
 // session's head is asked.
 export function decisionInputs(decisions, dir, { now = Date.now() } = {}) {
   let settled = decisions.filter(d => d.kind !== 'section');
-  try { settled = sectionSteps(decisions, dir, { now }); } catch {}
+  try { settled = sectionEnds(decisions, dir, { now }); } catch {}
   return { decisions: settled, has: ancestry(dir, settled) };
 }

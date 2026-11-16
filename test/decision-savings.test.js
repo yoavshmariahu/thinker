@@ -1,4 +1,4 @@
-// Which decisions count toward the savings, and what a section is credited as it changes afterwards
+// Which decisions count toward the savings, and where a section's stops once its text is edited
 // (src/decision-savings.js): the half of the `decisions` series that reads the history and git.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { decisionsOf, sectionSteps, ancestry, decisionInputs, machineDecisions } from '../src/decision-savings.js';
+import { decisionsOf, sectionEnds, ancestry, decisionInputs, machineDecisions } from '../src/decision-savings.js';
 import { DECISION_DAYS } from '../src/report-savings.js';
 import { Store, repoId } from '../src/store.js';
 import { sections } from '../src/instruction-value.js';
@@ -62,41 +62,39 @@ test('what counts: a merged change of the root file and a machine-wide switch of
   assert.deepEqual(of([merged(c, { tokens })])[0].notClients, ['claude']);
 });
 
-test('a section is credited for what it is still smaller by: regrowth shrinks it, a deletion ends it', t => {
+test('an edited saving is no saving: watched by the lines, so a rename or an addition changes nothing', t => {
+  const kept = body(10), extra = '- a paragraph somebody added beside the compressed lines.';
   const { repo, commits } = repoOf(t, [
-    { Build: body(40), Test: body(5) },   // before
-    { Build: body(10), Test: body(5) },   // the decision merges: 40 -> 10
-    { Build: body(10), Test: body(9) },   // another section changes: nothing moves
-    { Build: body(25), Test: body(9) },   // grown back part of the way
-    { Build: body(60), Test: body(9) },   // past its old size
-    { Test: body(9) },                    // gone
-    { Build: body(4), Test: body(9) },    // written again, short
+    { Build: body(40), Test: body(5) },                       // before
+    { Build: kept, Test: body(5) },                           // the decision merges: 40 -> 10
+    { Build: kept, Test: body(9) },                           // another section changes
+    { Build: `${kept}\n${extra}`, Test: body(9) },            // a paragraph added beside them
+    { 'Building it': `${kept}\n${extra}`, Test: body(9) },    // renamed
+    { Test: body(9), 'Building it': `${extra}\n${kept}` },    // moved
+    { Test: body(9), 'Building it': `${extra}\n${kept.replace('rule 9 that', 'rule 9, which')}` }, // one line edited (rule 9: the other section has no such line)
+    { Test: body(9), 'Building it': kept },
   ]);
-  const store = new Store(repo).init(), c = commits[1], now = commits[6].t + DAY, dir = tmp(t);
-  const tokens = { before: size(40), after: size(10) };
-  const [d] = decisionsOf(store, { now, history: [merged(c, { tokens })] });
-  const steps = sectionSteps([d], dir, { now });
-  assert.deepEqual(steps.map(x => [x.from, x.to, x.tokens]), [
-    [commits[1].t, commits[3].t, size(40) - size(10)],
-    [commits[3].t, commits[4].t, size(40) - size(25)],
-    // commits[4]..commits[6]: bigger than before, then deleted -- nothing
-    [commits[6].t, now, size(40) - size(10)],            // never more than the edit took out
-  ]);
-  assert.ok(steps.every(x => x.since === c.t), 'a session is held to the decision, not to the stretch');
-  // kept: read again without git
-  const kept = JSON.parse(fs.readFileSync(path.join(dir, 'decision-sections.json'), 'utf8'));
-  assert.equal(kept.e1.steps.length, 4);
-  assert.deepEqual(sectionSteps([{ ...d, repo: '/nowhere' }], dir, { now }).map(x => x.tokens), steps.map(x => x.tokens));
-  // a removal counts in full while the section stays out, and less once something by its name is back
-  const gone = repoOf(t, [{ Build: body(40), Test: body(5) }, { Test: body(5) }, { Test: body(6) }, { Build: body(30), Test: body(6) }]);
+  const store = new Store(repo).init(), c = commits[1], now = commits[7].t + DAY, dir = tmp(t);
+  const [d] = decisionsOf(store, { now, history: [merged(c, { tokens: { before: size(40), after: size(10) } })] });
+  const [x] = sectionEnds([d], dir, { now });
+  assert.equal(x.from, c.t); assert.equal(x.to, commits[6].t, 'through the addition, the rename and the move, to the edit');
+  assert.equal(x.tokens, d.tokens, 'the edit\'s own figure while it stands');
+  // kept: answered again without git, and an ended decision is never looked at again
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'decision-sections.json'), 'utf8')).e1.end, commits[6].t);
+  assert.equal(sectionEnds([{ ...d, repo: '/nowhere' }], dir, { now })[0].to, commits[6].t);
+  // untouched: it runs to the decision's own end
+  assert.equal(sectionEnds([d], tmp(t), { now: commits[5].t })[0].to, d.to);
+  // a removal ends when a line it took out is back, under whatever heading
+  const gone = repoOf(t, [{ Build: body(40), Test: body(5) }, { Test: body(5) }, { Test: body(6) }, { Test: body(6), Notes: '- rule 7 that says a thing worth forty characters.' }]);
   const gs = new Store(gone.repo).init(), gc = gone.commits[1];
   const [r] = decisionsOf(gs, { now, history: [merged(gc, { act: 'remove', tokens: { before: size(40), after: 0 } })] });
-  assert.deepEqual(sectionSteps([r], tmp(t), { now }).map(x => [x.from, x.tokens]), [[gc.t, size(40)], [gone.commits[3].t, size(40) - size(30)]]);
-  // a merge commit git does not know: not counted, rather than counted whole
-  assert.deepEqual(sectionSteps([{ ...d, id: 'e9', repo: '/nowhere' }], tmp(t), { now }), []);
+  assert.deepEqual(sectionEnds([r], tmp(t), { now }).map(y => [y.from, y.to, y.tokens]), [[gc.t, gone.commits[3].t, size(40)]]);
+  // an edit git cannot show, and one that left nothing to watch: not counted
+  assert.deepEqual(sectionEnds([{ ...d, id: 'e9', repo: '/nowhere' }], tmp(t), { now }), []);
+  assert.deepEqual(sectionEnds([{ ...d, id: 'e8', section: 'no-such-section' }], tmp(t), { now }), []);
   // a switch passes through untouched
   const sw = { id: 's', kind: 'tool', origin: null, from: 1, to: 2, tokens: 5 };
-  assert.deepEqual(sectionSteps([sw], tmp(t), { now }), [sw]);
+  assert.deepEqual(sectionEnds([sw], tmp(t), { now }), [sw]);
 });
 
 test('a checkout holds a change when its head contains the merge: asked of git once a head, and kept', t => {

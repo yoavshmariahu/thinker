@@ -36,9 +36,6 @@ test('a decision saves its tokens on every call of the sessions started after it
   assert.equal(of([row('s', 12, 5, { client: 'claude' })], [{ ...d, notClients: ['claude'] }]).events, 0);
   // past the decision's end nothing is added, though the session goes on
   assert.equal(of([row('s', 12, 5), row('s', 41, 50)]).tokens, 5 * 1000);
-  // a section's stretches: the session is held to the decision's own start, each row to the stretch it fell in
-  const stretches = [{ ...d, since: ms(10), from: ms(10), to: ms(20), tokens: 1000 }, { ...d, since: ms(10), from: ms(20), to: ms(40), tokens: 400 }];
-  assert.equal(of([row('s', 12, 5), row('s', 25, 7)], stretches).tokens, 5 * 1000 + 2 * 400);
   // a machine-wide switch: no commit to hold, every repository, its own agent's sessions
   const off = { id: 'm', origin: null, from: ms(10), to: ms(40), tokens: 200, onlyClients: ['claude'] };
   assert.equal(of([row('s', 12, 5, { origin: 'github.com/x/y', head: undefined }), row('c', 12, 9, { client: 'codex' })], [off]).tokens, 5 * 200);

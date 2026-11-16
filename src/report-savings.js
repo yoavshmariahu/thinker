@@ -14,9 +14,8 @@ const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedT
 // (decisionSavings, below). An instruction section or a tool definition sits in the cached prefix, which the clearing
 // never touches and no read is delegated from, so the third series shares no token with the other two.
 export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated'], ['decisions', 'Context decisions']];
-// How long a decision is credited. The saving is against a file or a tool list that would have stood unchanged, and
-// that counterfactual wears out: here a section compressed in October was deleted outright two weeks later, and one
-// compressed from 22k tokens had been written past its old size within days. A month, then nothing.
+// How long a decision is credited at most. The saving is against a file or a tool list that would have stood
+// unchanged, and that counterfactual wears out however untouched the text is. A month, then nothing.
 export const DECISION_DAYS = 30;
 
 // What one delegated read saved, in one rule: the lead did not write it into its cache, and did not read it
@@ -141,9 +140,9 @@ export function delegationSavings({ events = [], compression = [], config } = {}
 // - **Until** it was reverted, the same thing was decided again, or the horizon ran out (`to`, decision-savings.js,
 //   which also says what is a decision at all: a merged section change of the root instruction file, a machine-wide
 //   switch turned off -- never a tool's output, whose tokens the clearing may already have counted).
-// - **What the section is still smaller by**, not what the edit took out on the day (decision-savings.js:sectionSteps):
-//   a decision arrives here as one row a stretch, `since` the decision and `from`..`to` the stretch.
-// `decisions`: { id, origin (null: every repository), since?, from, to, tokens, commit?, repo?, onlyClients?, notClients? }.
+// - **Until it is edited** (decision-savings.js:sectionEnds): a section's saving ends at the first later commit that
+//   changes a line the edit left, or brings back a line it took out.
+// `decisions`: { id, origin (null: every repository), from, to, tokens, commit?, repo?, onlyClients?, notClients? }.
 export function decisionSavings({ decisions = [], events = [], config, has = () => null } = {}) {
   if (!decisions.length) return [];
   const sessions = new Map(), out = [];
@@ -165,7 +164,7 @@ export function decisionSavings({ decisions = [], events = [], config, has = () 
       prev = e.turns;
       if (calls <= 0) continue;
       for (const d of decisions) {
-        if (!(d.tokens > 0) || s.start < (d.since ?? d.from) || t < d.from || t >= d.to) continue;
+        if (!(d.tokens > 0) || s.start < d.from || t >= d.to) continue;
         if (d.origin && e.origin !== d.origin) continue;
         if (!reads(d, e.client || 'claude')) continue;
         if (d.commit && (!e.head || has(d, e.head) !== true)) continue;
