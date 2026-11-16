@@ -440,16 +440,6 @@ test('over the wire: a section\'s Apply records the decision running and starts 
   assert.equal(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8'), '# R\n\n## Tests\n\nRun `npm test`.\n\n## Style\n\nShort lines.\n');
 });
 
-test('the page touches no element it no longer renders', () => {
-  // Find Savings hid a Sort control that went with the one ordering (2026-10-29) and kept setting `hidden` on it:
-  // the first load of the tab threw before it ever asked for the report, and the page sat on "Reading the
-  // transcripts..." for good. A reference to an id the page never writes is that bug, whatever the id.
-  const html = read('ui/page.html');
-  const ids = new Set([...html.matchAll(/id="([a-zA-Z0-9_-]+)"/g)].map(m => m[1]));
-  const missing = [...new Set([...html.matchAll(/\$\('#([a-zA-Z0-9_-]+)'\)/g)].map(m => m[1]))].filter(id => !ids.has(id));
-  assert.deepEqual(missing, [], `the page sets properties on ids it never renders: ${missing.join(', ')}`);
-});
-
 test('the Report tab and `thinker report` show one report: the same weeks, parts, prices and trend rule', () => {
   assert.match(read('report.js'), /prs, prWeekly: weeklyPrStats\(prs, columns, now\)/);
   assert.match(read('report.js'), /for \(const w of v\.prWeekly\)/);

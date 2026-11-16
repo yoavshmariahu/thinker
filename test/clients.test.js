@@ -915,3 +915,41 @@ test('Antigravity (agy) hooks orient on PreInvocation, park PostToolUse late not
   assert.deepEqual(stopRes, { decision: 'allow' });
   assert.ok(fs.existsSync(path.join(dir, '.thinker/state', `trace-${conversationId}.jsonl`)));
 });
+
+// Folded in from test/test-command-removed.test.js (2026-11-15). That file spent 13 s of the suite spawning
+// the CLI to prove a command removed long ago stays removed -- an absence cli-ui-sync.test.js already greps
+// for. This test is the part worth keeping: wiring takes out the pre hook an older copy wrote without
+// touching a hook that is not ours, and writes no new one.
+test('wiring removes old test hooks, preserves other hooks, and never installs new pre hooks', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-test-removed-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // the wiring reads the machine config for the delegation switch, so this needs a home of its own: on a
+  // machine with the trigger on, the PreToolUse entry is written and the assertion below is about its absence
+  const was = process.env.THINKER_HOME;
+  t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  process.env.THINKER_HOME = path.join(dir, 'thinker-home');
+  fs.mkdirSync(process.env.THINKER_HOME, { recursive: true });
+  const o = { repo: dir, cli: CLI, hooks: true, learn: true, late: true, shared: true, mcp: false };
+  for (const [client, file, event] of [
+    ['claude', '.claude/settings.json', 'PreToolUse'],
+    ['codex', '.codex/hooks.json', 'PreToolUse'],
+    ['cursor', '.cursor/hooks.json', 'beforeShellExecution'],
+  ]) {
+    const f = path.join(dir, file);
+    installClient(client, o);
+    let c = JSON.parse(fs.readFileSync(f, 'utf8'));
+    // the delegation hook (delegate.js) is off by default and writes nothing here; test/delegate.test.js covers it on
+    assert.equal(c.hooks[event], undefined, client);
+    const ours = { type: 'command', command: `node "${CLI}" hook pre --client ${client} --repo "${dir}"`, timeout: 10 };
+    const other = { type: 'command', command: 'my-security-check', timeout: 10 };
+    const group = h => client === 'cursor' ? h : { hooks: [h] };
+    c.hooks[event] = [group(ours), group(other)];
+    fs.writeFileSync(f, JSON.stringify(c));
+    installClient(client, o);
+    c = JSON.parse(fs.readFileSync(f, 'utf8'));
+    assert.deepEqual(c.hooks[event], [group(other)], client);
+    assert.ok(c.hooks[client === 'cursor' ? 'beforeSubmitPrompt' : 'UserPromptSubmit'], 'note injection remains wired');
+    if (client === 'claude') assert.equal(c.hooks.PostToolUse, undefined, 'Claude Code gets no tool hook');
+    else assert.ok(c.hooks[client === 'cursor' ? 'postToolUse' : 'PostToolUse'], 'context hooks remain wired');
+  }
+});
