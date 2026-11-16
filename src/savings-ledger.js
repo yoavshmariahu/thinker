@@ -2,9 +2,10 @@
 //
 // The figures are the Report page's own savings table (report-savings.js:weeklySavings), asked for two
 // windows instead of six weeks: one column from midnight, one from the beginning of the log. Every series
-// there is counted -- the context clearing at the prompt-cache read rate, and since 2026-11-14 the reads the
-// delegation trigger kept out of the lead's context (report-savings.js:delegationSavings) -- so the footer
-// can never disagree with `thinker report`.
+// there is counted -- the context clearing at the prompt-cache read rate, since 2026-11-14 the reads the
+// delegation trigger kept out of the lead's context (report-savings.js:delegationSavings), and since 2026-11-15
+// what the Find Savings decisions took out of every prompt (decisionSavings) -- so the footer can never disagree
+// with `thinker report`.
 // Nothing is priced here that is not priced there (the owner's call, 2026-11-05: the footer shows money,
 // which the rest of the product deliberately does not, and the one way to keep that honest is to show
 // the Report's own arithmetic rather than invent a second one). prices.js holds why dollars are rare:
@@ -30,6 +31,7 @@ import { readLog, sessionKey } from './usage.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { appVersion, proxyLogFile } from './proxy-service.js';
 import { weeklySavings, SAVINGS_SERIES } from './report-savings.js';
+import { machineDecisions, decisionInputs } from './decision-savings.js';
 import { formatDollars } from './prices.js';
 import { formatTokens } from './model-usage.js';
 
@@ -49,7 +51,7 @@ export const dayKey = (now = Date.now()) => {
 };
 export const dayStart = (now = Date.now()) => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 }, delegated: { cost: 0, tokens: 0 } });
+const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 }, delegated: { cost: 0, tokens: 0 }, decided: { cost: 0, tokens: 0 } });
 
 // One window's row: the clearing, with the tokens behind the dollars. A row with observations but no price adds its
 // tokens to `unpricedTokens` rather than nothing, so an unpriced model is a gap the output can name, not a silent zero.
@@ -60,6 +62,7 @@ function cellOf(series) {
     if (!c) continue;
     if (key === 'compression') { out.cleared.cost = c.cost; out.cleared.tokens = c.tokens; }
     if (key === 'delegation') { out.delegated.cost = c.cost; out.delegated.tokens = c.tokens; }
+    if (key === 'decisions') { out.decided.cost = c.cost; out.decided.tokens = c.tokens; }
     out.cost += c.cost; out.tokens += c.tokens; out.unpricedTokens += c.unpricedTokens || 0;
   }
   return out;
@@ -78,7 +81,10 @@ export function computeSavings(store, { now = Date.now() } = {}) {
     ? [] : clearingRows(proxyLogFile(), compressionDir(), { events, key: sessionKey });
   // `origin: null` counts every repository's clearing: this is the machine's ledger, and a clear is not
   // attributed to a checkout here as it is in a repository's report.
-  const windowOf = from => cellOf(weeklySavings({ columns: [{ t: from }], now, config, events, compression, sessions: [], origin: null, ownership: events }));
+  // The decisions of every checkout the log names, each once; a repository's own are held to its sessions by their
+  // `origin`, so the machine's total is the repositories' reports added up.
+  const { decisions, has } = decisionInputs((() => { try { return machineDecisions(events, { now }); } catch { return []; } })(), path.dirname(savingsFile(store)), { now });
+  const windowOf = from => cellOf(weeklySavings({ columns: [{ t: from }], now, config, events, compression, sessions: [], origin: null, ownership: events, decisions, has }));
   return {
     at: now, day: dayKey(now),
     // The version that wrote the ledger, so the surfaces that pin a line can name it without reading
@@ -175,5 +181,5 @@ export function savingsDetail(cell) {
   const row = (name, c) => `${name} ${formatDollars(c.cost)} (${formatTokens(c.tokens)} tokens)`;
   // the delegated row only where there is one: most machines run without the trigger, and a ledger written
   // before the series existed has no such cell
-  return [row('context cleared', cell.cleared), ...(cell.delegated?.tokens ? [row('reads delegated', cell.delegated)] : [])].join(' · ');
+  return [row('context cleared', cell.cleared), ...(cell.delegated?.tokens ? [row('reads delegated', cell.delegated)] : []), ...(cell.decided?.tokens ? [row('context decisions', cell.decided)] : [])].join(' · ');
 }

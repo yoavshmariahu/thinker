@@ -232,3 +232,33 @@ test('a delegated read is in the footer total, beside the clearing and named in 
   // a ledger an older copy wrote has no such cell and still words
   assert.equal(savingsDetail({ cleared: { cost: 1, tokens: 10 } }), `context cleared ${formatDollars(1)} (10 tokens)`);
 });
+
+test('a decision is in the footer total: a merged section change, on the calls of the sessions that hold it', t => {
+  const now = Date.now();
+  const { store, repo } = machine(t, { now, cleared: [{ at: now - 60_000, tokens: 100_000 }] });
+  const git = (args, date) => execFileSync('git', args, { cwd: repo, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t', ...(date ? { GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } : {}) } }).trim();
+  const commit = (lines, ago) => { fs.writeFileSync(path.join(repo, 'AGENTS.md'), `## Build\n\n${'- a rule worth some forty characters, here.\n'.repeat(lines)}`); git(['add', '-A']); git(['commit', '-q', '-m', 'x'], new Date(now - ago).toISOString()); return git(['rev-parse', 'HEAD']); };
+  const old = commit(100, 3 * 3600_000), merge = commit(10, 2 * 3600_000);
+  const before = computeSavings(store, { now });
+  assert.equal(before.lifetime.decided.tokens, 0);
+  assert.ok(!savingsDetail(before.lifetime).includes('decisions'), 'no row where nothing was decided');
+  fs.mkdirSync(path.join(store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [{ id: 'e1', at: new Date(now - 2.5 * 3600_000).toISOString(), key: 'section:AGENTS.md:build', kind: 'section', file: 'AGENTS.md', act: 'compress', decision: 'pull request', job: { state: 'done' }, tokens: { before: 1100, after: 110 }, pr: { state: 'merged', at: new Date(now - 2 * 3600_000).toISOString(), mergeCommit: merge } }] }));
+  // one session in a checkout that has the merge, one in a worktree branched before it
+  const at = ago => new Date(now - ago).toISOString();
+  store.log({ op: 'session', t: at(3600_000), session: 'has', model: 'claude-opus-5-5', client: 'claude', turns: 20, head: merge });
+  store.log({ op: 'session', t: at(3600_000), session: 'lacks', model: 'claude-opus-5-5', client: 'claude', turns: 500, head: old });
+  const l = computeSavings(store, { now });
+  // twenty calls at what the edit took out; the 500 calls of the worktree that never got the merge add nothing
+  assert.equal(l.today.decided.tokens, 20 * 990);
+  assert.ok(l.today.decided.cost > 0);
+  assert.equal(l.today.cleared.cost, before.today.cleared.cost, 'the clearing is counted as it was');
+  assert.ok(Math.abs(l.today.cost - (l.today.cleared.cost + l.today.decided.cost)) < 1e-9, 'the total is the rows');
+  assert.match(savingsDetail(l.lifetime), /context cleared .* · context decisions /);
+  assert.ok(savingsLine(l, { now }).includes(formatDollars(l.today.cost)));
+  // the Report's own table says the same, which is the point of the ledger
+  const view = reportView(store, { now, sessions: [] });
+  const cell = view.savings.find(s => s.key === 'decisions').cells.at(-1);
+  assert.equal(cell.tokens, l.lifetime.decided.tokens);
+  assert.ok(Math.abs(cell.cost - l.lifetime.decided.cost) < 1e-9);
+});
