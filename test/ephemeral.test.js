@@ -152,7 +152,7 @@ test('a page read from the file a browser server wrote it to is a page state too
 });
 
 test('what the model asked the page for is not a page: a script\'s value, the network log, the console', () => {
-  for (const name of ['mcp__playwright__browser_evaluate', 'browser_evaluate', 'mcp__playwright__browser_network_requests', 'mcp__claude-in-chrome__javascript_tool', 'browser_run_code_unsafe']) {
+  for (const name of ['mcp__playwright__browser_evaluate', 'browser_evaluate', 'mcp__playwright__browser_find', 'mcp__playwright__browser_network_requests', 'mcp__claude-in-chrome__javascript_tool', 'browser_run_code_unsafe']) {
     const j = { messages: [{ role: 'user', content: 'go' }, use('a', name), result('a', SNAP(1)), use('b', name), result('b', SNAP(2))] };
     assert.equal(applyEphemeral(j, true), null, `${name}: extracted data is never superseded`);
   }

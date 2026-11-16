@@ -56,7 +56,7 @@ export const EPHEMERAL_FILES = ['/.playwright-mcp/page-'];
 // Claude Code): the model never took a snapshot, it read each page with `browser_evaluate`, and the rule
 // replaced page one's extracted text when page two's arrived. It passed only because its last call
 // fetched every page at once. A suffix after the server's prefix, so one list covers every naming.
-export const EPHEMERAL_EXCEPT = ['evaluate', 'run_code', 'run_code_unsafe', 'network_requests', 'network_request', 'console_messages', 'javascript_tool', 'read_console_messages', 'read_network_requests'];
+export const EPHEMERAL_EXCEPT = ['evaluate', 'find', 'run_code', 'run_code_unsafe', 'network_requests', 'network_request', 'console_messages', 'javascript_tool', 'read_console_messages', 'read_network_requests'];
 const READ_TOOLS = new Set(['Read', 'read', 'read_file', 'view']);
 export const EPHEMERAL_DEFAULTS = {
   tools: EPHEMERAL_TOOLS,
