@@ -423,13 +423,20 @@ export function usageBySession(file, { since = '' } = {}) {
   return out;
 }
 
-export function clearedBySession(file, { since = '' } = {}) {
+export function clearedBySession(file, { since = '', config } = {}) {
   const out = new Map();
   for (const r of compressionRecords(file)) {
     const cleared = clearedOf(r);
     if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
-    const prev = out.get(r.session) || { cleared: 0, requests: 0 };
+    const prev = out.get(r.session) || { cleared: 0, requests: 0, usd: 0, pricedTokens: 0 };
+    // What the row saved, at the model that answered that row -- the ledger's and the Report's rule
+    // (report-savings.js:weeklySavings). A session is not one model: its subagents and its routes to another
+    // provider run on their own, and the rewrites after a clear are already priced row by row. Pricing the
+    // whole session's cleared tokens at the one model its last `session` row named put a machine's 339M
+    // cleared tokens at $0.01 a million against rewrites charged at the model that made them (2026-11-16).
+    const price = listPrice(r.model, { config });
     out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
+      usd: prev.usd + (price ? cleared * price.cacheRead / 1e6 : 0), pricedTokens: prev.pricedTokens + (price ? cleared : 0),
       // The model the API answered with, from the rows themselves. Without it a session is priced only when
       // the usage log's own `session` row names one, and on this machine that left 96% of the cleared tokens
       // in a five-day window unpriced -- so the netted dollars were computed from a handful of sessions and

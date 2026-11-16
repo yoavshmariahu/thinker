@@ -291,3 +291,22 @@ test('a session\'s spend is its calls at list prices by token type, the subagent
   assert.equal(all.get('sE').cost.spend, null, 'a subagent on a model with no list price leaves the session unpriced');
   assert.equal(all.get('sF').cost.spend, null, 'partial counters are never priced as whole');
 });
+
+// Found on the dashboard, 2026-11-16: one machine's 339M cleared tokens read $3.42 saved -- a cent a million,
+// the cheapest model's cache-read rate -- against $67.71 of rewrites charged at the model that made them.
+test('a session\'s saving is priced row by row at the model that answered each row, as its rewrites are', t => {
+  const { store, home } = fixture(t);
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const row = (h, model, cleared) => ({ op: 'proxy', at: at(h), session: 'sMix', model, status: 200, injected: true, cleared });
+  fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
+    row(4, 'claude-opus-5-5', 1_000_000), row(3, 'claude-opus-5-5', 1_000_000), row(2, 'gpt-6-luna', 500_000),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  // the session's last `session` row names the small model its final call ran on
+  store.log({ op: 'session', t: at(1), session: 'sMix', client: 'claude', model: 'gpt-6-luna', turns: 6, totalTokens: 900_000, tokenCoverage: 'complete' });
+  const x = sessionsOf(store, { home, env: {} }).get('sMix');
+  const opus = await_prices.listPrice('claude-opus-5-5'), luna = await_prices.listPrice('gpt-6-luna');
+  assert.equal(x.cleared, 2_500_000);
+  assert.equal(x.cost.priced, true);
+  assert.ok(Math.abs(x.cost.saved - (2_000_000 * opus.cacheRead + 500_000 * luna.cacheRead) / 1e6) < 1e-9, 'each row at its own model');
+  assert.ok(x.cost.saved > 20 * (2_500_000 * luna.cacheRead / 1e6), 'not the whole session at the last model named');
+});
