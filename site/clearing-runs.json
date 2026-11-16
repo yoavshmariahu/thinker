@@ -56,5 +56,53 @@
     "label": "PostHog \u00b7 Metric UUIDs",
     "description": "Opus medium \u00b7 additional attempt completed",
     "when": "2026-11-05"
+  },
+  {
+    "id": "delegate-server-info",
+    "group": "delegate-server-info",
+    "label": "MLflow \u00b7 Server-info under load",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
+  },
+  {
+    "id": "delegate-span",
+    "group": "delegate-span",
+    "label": "MLflow \u00b7 Span copy and pickle",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
+  },
+  {
+    "id": "delegate-gemini-streaming",
+    "group": "delegate-gemini-streaming",
+    "label": "MLflow \u00b7 Gemini streaming tool calls",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
+  },
+  {
+    "id": "delegate-anthropic-streaming",
+    "group": "delegate-anthropic-streaming",
+    "label": "MLflow \u00b7 Anthropic streaming tool calls",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
+  },
+  {
+    "id": "delegate-gemini-tools",
+    "group": "delegate-gemini-tools",
+    "label": "MLflow \u00b7 Gemini tool choice",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
+  },
+  {
+    "id": "delegate-dataset-hashing",
+    "group": "delegate-dataset-hashing",
+    "label": "MLflow \u00b7 Dataset hashing",
+    "description": "Opus 5.5 \u00b7 reads delegated to a Haiku subagent",
+    "origin": "thinker bench \u00b7 nine prompts \u00b7 one pair",
+    "when": "2026-11-15"
   }
 ]
