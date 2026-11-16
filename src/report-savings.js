@@ -10,7 +10,14 @@ const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedT
 // lead's context, so the clearing can never clear it and no figure anywhere said it had saved anything -- the
 // better delegation worked, the lower the footer read. The two series act on the same kind of token but never
 // on the same token (a delegated read is not there to be cleared), which is why the footer may add them.
-export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated']];
+// `decisions` since 2026-11-15 (the owner's ask): what the Find Savings decisions took out of every prompt
+// (decisionSavings, below). An instruction section or a tool definition sits in the cached prefix, which the clearing
+// never touches and no read is delegated from, so the third series shares no token with the other two.
+export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated'], ['decisions', 'Context decisions']];
+// How long a decision is credited. The saving is against a file or a tool list that would have stood unchanged, and
+// that counterfactual wears out: here a section compressed in October was deleted outright two weeks later, and one
+// compressed from 22k tokens had been written past its old size within days. A month, then nothing.
+export const DECISION_DAYS = 30;
 
 // What one delegated read saved, in one rule: the lead did not write it into its cache, and did not read it
 // back on any later call. The write is netted against what the subagent paid for the same read -- its own
@@ -117,7 +124,60 @@ export function delegationSavings({ events = [], compression = [], config } = {}
   }
   return out;
 }
-export function weeklySavings({ columns, now, config, events = [], compression = [], sessions = [], origin, ownership = [] }) {
+// What the decisions saved, in one rule: the tokens a decision took out, on every model call of the sessions that
+// started after it, at the cache-read rate, for DECISION_DAYS.
+//
+// It errs low everywhere a choice had to be made (the owner, 2026-11-15: "we may overcount decisions in the
+// instruction file changes"), because nothing here is measured against a held-out side:
+// - **The cache-read rate**, the clearing's own. An instruction file is written to the prompt cache once and read
+//   from it on every call after; the input rate would count it ten times over.
+// - **A session that started after the decision**, since an agent loads its instructions and its tools when it
+//   starts and a running one keeps what it had.
+// - **A checkout that holds the change** (`has`: the session's recorded `head` contains the merge commit). A
+//   worktree branched before the merge still reads the old section -- half of this machine's sessions on any day.
+//   Where git cannot say, or the row names no head, the session is not counted.
+// - **The session's own calls** (`turns` on the Stop hook's rows, cumulative, so each row accounts what it added and
+//   a row past the decision's end adds nothing). Subagents' calls are left out.
+// - **Until** it was reverted, the same thing was decided again, or the horizon ran out (`to`, decision-savings.js,
+//   which also says what is a decision at all: a merged section change of the root instruction file, a machine-wide
+//   switch turned off -- never a tool's output, whose tokens the clearing may already have counted).
+// - **What the section is still smaller by**, not what the edit took out on the day (decision-savings.js:sectionSteps):
+//   a decision arrives here as one row a stretch, `since` the decision and `from`..`to` the stretch.
+// `decisions`: { id, origin (null: every repository), since?, from, to, tokens, commit?, repo?, onlyClients?, notClients? }.
+export function decisionSavings({ decisions = [], events = [], config, has = () => null } = {}) {
+  if (!decisions.length) return [];
+  const sessions = new Map(), out = [];
+  for (const e of events) {
+    const t = e?.session ? Date.parse(e.t) : NaN;
+    if (!Number.isFinite(t)) continue;
+    const k = sessionKey(e.session);
+    if (!sessions.has(k)) sessions.set(k, { start: t, rows: [] });
+    const s = sessions.get(k);
+    if (t < s.start) s.start = t;
+    if (e.op === 'session' && Number.isFinite(e.turns)) s.rows.push({ e, t });
+  }
+  const reads = (d, client) => d.onlyClients ? d.onlyClients.includes(client) : !(d.notClients || []).includes(client);
+  for (const s of sessions.values()) {
+    s.rows.sort((a, b) => a.t - b.t);
+    let prev = 0;
+    for (const { e, t } of s.rows) {
+      const calls = e.turns >= prev ? e.turns - prev : e.turns; // a count that fell is a session started over
+      prev = e.turns;
+      if (calls <= 0) continue;
+      for (const d of decisions) {
+        if (!(d.tokens > 0) || s.start < (d.since ?? d.from) || t < d.from || t >= d.to) continue;
+        if (d.origin && e.origin !== d.origin) continue;
+        if (!reads(d, e.client || 'claude')) continue;
+        if (d.commit && (!e.head || has(d, e.head) !== true)) continue;
+        const tokens = d.tokens * calls;
+        out.push({ session: e.session, model: e.model, estimated: true, at: t, tokens, cost: costOfInputSavings({ cacheRead: tokens }, listPrice(e.model, { config })) });
+      }
+    }
+  }
+  return out;
+}
+
+export function weeklySavings({ columns, now, config, events = [], compression = [], sessions = [], origin, ownership = [], decisions = [], has }) {
   const series = SAVINGS_SERIES.map(([key, name]) => ({ key, name, cells: columns.map(empty) }));
   const at = t => columns.findIndex((c, i) => t >= c.t && t < (columns[i + 1]?.t ?? Infinity) && t <= now);
   const account = (kind, r, tokens, cost) => {
@@ -161,6 +221,8 @@ export function weeklySavings({ columns, now, config, events = [], compression =
   // `events` is already the repository's own where a repository asked (report.js reads its log), so a firing
   // needs no owner: it is counted where its hook logged it, with the session's later calls wherever they went.
   for (const d of delegationSavings({ events, compression, config })) account(1, d, d.tokens, d.cost);
+  for (const d of decisionSavings({ decisions, events, config, has })) account(2, d, d.tokens, d.cost);
+  has?.save?.();
   return series;
 }
 

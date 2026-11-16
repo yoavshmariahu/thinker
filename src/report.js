@@ -27,6 +27,8 @@ import { repoId } from './store.js';
 import { clearingRows, compressionDir } from './compression.js';
 import { proxyLogFile } from './proxy-service.js';
 import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
+import path from 'node:path';
+import { effectSpan, decisionsOf, decisionInputs } from './decision-savings.js';
 import { profileMetric, mergeProfileMetrics } from './profile-metric.js';
 
 export const REPORT_WEEKS = 6;
@@ -247,7 +249,7 @@ export function logParts(store, { columns, sessionRows, from, days, now = Date.n
   const everyEvent = readLog(store, { all: true });
   // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
   const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
-  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
+  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent, ...decisionInputs(decisionsOf(store, { now }), path.join(store.dir, 'state'), { now }) });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
   const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
@@ -398,9 +400,7 @@ export function outputComparison(rows, name) {
 // From when an action is in effect, and until when: a dismissal and a pull request not merged never were, nor a section's
 // change still running in the background or failed (context-suggest.js:startSectionJob); a merged one from its merge; a
 // change written when its job was done from then; anything else from the decision, until it was reverted.
-export const effectSpan = (e, now) => e.decision === 'dismissed' || (e.job && e.job.state !== 'done') ? null
-  : e.pr ? (e.pr.state === 'merged' && e.pr.at ? { from: Date.parse(e.pr.at), to: now } : null)
-  : { from: Date.parse(e.job?.finishedAt || e.at), to: e.revertedAt ? Date.parse(e.revertedAt) : now };
+export { effectSpan };
 // What the one thing an action changed costs in a session (sessionRows, reportView), on one side of it: a section its
 // tokens on that side times the session's model calls where the session read its file (the entry's `tokens`, recorded
 // from the edit: 0 after a removal); a skill, MCP server, plugin or built-in tool its tokens a call times the calls where

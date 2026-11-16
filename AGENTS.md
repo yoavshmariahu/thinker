@@ -157,14 +157,6 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Measured, 8 of this machine's biggest sessions, 4,891 calls, same bodies: the recent policy cut **1** (0.07M),
   today's policy with inputs off **2** (0.07M), **with inputs on 7 (0.14M)**, and with `keepTurn` 3 as well **9**
   (0.25M). Real, and small in absolute terms: `payback` still refuses ~863 calls either way.
-- **Run live, and it was the best arm** (`bench/experiments/cut-inputs-posthog.json`, tag `posthog-cut-inputs`,
-  2026-11-15, $28.98): PostHog PR106936, nine turns, Opus 5.5, three arms, graded by Opus against criteria written
-  before the run. Bare $9.32 / 24.2M input / 167 calls / 6-of-6 essential; results-only $9.81 / 17.4M / **186** /
-  **5 of 6**, a fail; **inputs on $9.00 / 12.3M / 159 / 6 of 6**, a pass. So cutting a call's own text cost no
-  essential criterion and was cheapest on every axis, and the arm that lost one was **results-only** -- which is
-  not what the hypothesis predicted. **One task, one rep: 5-of-6 against 6-of-6 on a single session is inside
-  run-to-run variance and may not be cited as "results-only fails".** What it supports is that input cutting shows
-  no harm, three independent signals agreeing. `c9` was missed by every arm, so it is a hard criterion, not a cut.
 - **The exposure.** `tool_use_rewritten` is a named break of the preserved-thinking check whose only listed remedy
   is "echo `tool_use.input` exactly as received" -- unlike a result prune, which the same table allows client-side
   "at a declared boundary, as a pure function of the growing history". So on accounts created on or after
@@ -241,6 +233,12 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Status row on all clients; mod polls ledger file every 5 s (`LEDGER_POLL_MS`).
 - Version on status line (`appVersion()`) alongside savings.
 - **Delegated reads are a second series, and the footer total adds it** (2026-11-14, the owner's ask; `report-savings.js:delegationSavings`, series `delegation`, the ledger's `delegated` cell). One rule: the lead did not write the read into its cache and did not read it back on any later call. The write is netted against the subagent (its own `cost` on a fallback row; the same tokens at the pinned `model`'s write rate on a handoff row; zero where neither is known), the later calls are the proxy's rows for the session on its lead model, stopping where the turn count falls (a compaction). Not a firing: held out, declined, failed, cached, or a handoff the lead ignored (a later `after: 'handoff'` row naming the same file). A delegated read is never in the prompt, so the clearing cannot also count it: same kind of token, never the same token. A ceiling, as the clearing's gross is: the subagent's own overhead on a handoff and the report it sends back are not deducted.
+- **Decisions are a third series, and the footer total adds it** (2026-11-15, the owner's ask; `report-savings.js:decisionSavings`, `decision-savings.js`, series `decisions`, the ledger's `decided` cell). One rule: the tokens a decision took out, on every model call of the sessions started after it, at the cache-read rate, for `DECISION_DAYS` (30). Built to err low (the owner: "we may overcount decisions in the instruction file changes"):
+  - Counted: a section change that **merged**, in the root instruction file, and a **machine-wide** switch turned off. Not counted: a working-tree write, a nested file, a checkout's own switch, a tool's output (the clearing's tokens).
+  - Only sessions whose recorded `head` contains the merge commit (`ancestry`): a worktree branched before the merge still reads the old section.
+  - A section counts what it is **still smaller by** than before the decision, sized at every later commit on the default branch (`sectionSteps`): regrowth shrinks it, past its old size or deleted is nothing. Never the edit's figure for good: here a 22k section had a paragraph added 13 minutes after its compression merged.
+  - Ends at a revert or a later decision on the same thing. Subagents' calls left out. Unpriced model is a gap, not $0.
+  - Shares no token with the other two series (the cached prefix is never cleared, never delegated). The Decisions table's Saved is a different measure (before and after over transcripts, six weeks) and stays as it is.
 
 **OpenCode 2 terminal (2026-11-10):**
 - Plugin directory (`plugins/thinker/`) with `index.ts` (server) + `tui.tsx` (terminal); v1 single file for major < 2.
