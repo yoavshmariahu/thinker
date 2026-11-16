@@ -17,7 +17,7 @@
 // What it drops: a database, a server, bootstrap intervals (`report --boot` does a plain one), job
 // queues, concurrency beyond a worker count, and every guardrail that refused to start.
 //
-//   node bench/bench.mjs run bench/experiments/<spec>.json [--only t1,t2] [--arms a,b] [--reps n] [--dry]
+//   node bench/bench.mjs run bench/experiments/<spec>.json [--only t1,t2] [--arms a,b] [--reps n] [--rep n] [--dry]
 //   node bench/bench.mjs grade <tag> [--id <session>] [--judge <model>] [--tasks-dir <dir>]
 //   node bench/bench.mjs report <tag> [--boot]
 //   node bench/bench.mjs ledger [--tag <tag>]
@@ -299,7 +299,10 @@ if (cmd === 'run') {
   for (const t of tasks) console.error(`  task ${t.id} ${t.turns.length} prompts, hash ${t.hash}${t.check ? ', check.sh' : ', no check'}`);
   for (const a of armNames) if (!spec.arms[a]) throw new Error(`no such arm: ${a}`);
   const done = [];
+  // --rep n runs that one rep alone, so a canary already recorded as rep 0 is not run twice
+  const oneRep = flag('rep') === null ? null : Number(flag('rep'));
   for (let rep = 0; rep < reps; rep++) for (const t of tasks) for (const a of armNames) {
+    if (oneRep !== null && rep !== oneRep) continue;
     done.push(await runSession({ spec, task: t, armName: a, arm: spec.arms[a], rep, dry }));
   }
   if (dry) { console.log(JSON.stringify(done, null, 1)); process.exit(0); }
