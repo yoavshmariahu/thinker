@@ -41,6 +41,7 @@ import { heldOut } from './proxy.js';
 import { findBin, BINS } from './llm.js';
 import { sessionState, locked } from './session-state.js';
 import { claudeCardActive } from './claude-card.js';
+import { traceFile } from './transcripts.js';
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
 export const DELEGATE_SESSION_MARK = 'claude-delegate';
@@ -309,7 +310,7 @@ export function denial({ kind, report, files, cwd, model, handoff }) {
     reason = `thinker stopped this call: ${kind === 'verify' ? 'the whole suite\'s output' : `all of ${named}`} would sit in your context for the rest of the session, `
       + `so this work goes to your own ${handoff.agent} subagent and only its report comes back to you. `
       + `Call the ${handoff.tool} tool${handoff.alias ? ` (named ${handoff.alias} in older versions)` : ''} now with ${handoff.param}: "${handoff.agent}", `
-      + `description: "${handoff.label}", and prompt: the brief below. Then work from what it reports. ${ranged} `
+      + `${handoff.fields?.label || 'description'}: "${handoff.label}", and ${handoff.fields?.brief || 'prompt'}: the brief below. Then work from what it reports. ${ranged} `
       + `Nothing has gone wrong and there is nothing here to report to the user.\n\nBrief for ${handoff.agent}:\n${handoff.brief}`;
   } else {
     reason = `thinker ${kind === 'verify' ? 'ran this test command' : `read ${named}`} through a ${model} subagent so the full output stays out of your context. Its report is below; work from it. `
@@ -567,7 +568,39 @@ export const HOSTS = Object.freeze({
     tools: { read: 'Read', shell: 'Bash', bash: 'Bash' },
     subagent: { tool: 'subagent', param: 'agent', explore: OPENCODE_EXPLORE, verify: OPENCODE_VERIFY, pins: false, families: true, primary: ['build', 'plan'] },
   },
+  // Devin (CLI 3000.11.234, probed live 2026-11-16 on swe-2-high and swe-2-medium). Its PreToolUse hook takes
+  // Claude Code's own payload and answer: `tool_name` is `read` / `exec` (clients.js:normalizeHookEvent renames
+  // them), `tool_input` is `{ file_path, offset, limit }` / `{ command }`, `prompt_id` names the turn, and a
+  // `permissionDecision: "deny"` is shown to the model with its reason ("Hook block"). Both models then called
+  // `run_subagent` with `profile: "subagent_explore"`, its `title` and its `task` -- the handoff, in Devin's
+  // words -- and answered right from the report, with ranged reads of the lines they needed.
+  // What Devin does NOT give: any mark of a subagent's own call. The subagent's reads arrive under the lead's
+  // session id and prompt id, with the same fields and the same environment, and no SubagentStop fired. So the
+  // subagent's calls are known by when they happen (`window`): from the PreToolUse of `run_subagent` to its
+  // PostToolUse, which Devin sends when the subagent has answered, every call goes through.
+  devin: {
+    readCap: 0,
+    subagent: { tool: 'run_subagent', param: 'profile', explore: 'subagent_explore', verify: 'subagent_general', pins: false, fields: { label: 'title', brief: 'task' }, window: true },
+  },
 });
+
+// A subagent that never reported back (a crash, a background run whose PostToolUse never came) may not hold the
+// window open for the rest of the session: past this the next read is the lead's again.
+export const SUBAGENT_WINDOW_MS = 15 * 60_000;
+/** The host's subagent is running: between its launch and its answer, on a host that does not mark its calls. */
+export function subagentRunning(st, now = Date.now()) {
+  const w = st?.delegateWindow;
+  return Boolean(w && w.open > 0 && now - (w.at || 0) < SUBAGENT_WINDOW_MS);
+}
+/** PreToolUse (`open`) and PostToolUse (close) of the host's subagent tool. Runs under the session's lock. */
+export function noteSubagent(st, open, now = Date.now()) {
+  const w = st.delegateWindow && now - (st.delegateWindow.at || 0) < SUBAGENT_WINDOW_MS ? st.delegateWindow : { open: 0, at: now };
+  w.open = Math.max(0, (w.open || 0) + (open ? 1 : -1));
+  if (open) w.at = now;
+  st.delegateWindow = w;
+}
+/** Is this the subagent tool of a host whose subagent calls are told apart by the window alone? */
+export const windowTool = (client, toolName) => Boolean(HOSTS[client]?.subagent?.window && toolName === HOSTS[client].subagent.tool);
 
 /**
  * Is this tool call a subagent's own? Then nothing is delegated: the subagent is the delegation, its reads are
@@ -595,7 +628,7 @@ export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS, { lead = nul
   // An exploration on a gateway goes to the lead's family's cheap model (EXPLORER_FAMILIES). A suite run stays
   // where it was: its cost is the tests' own output, and the model that summarises it was not what was measured.
   const pair = kind !== 'verify' && sub?.families && cfg.families !== false ? explorerFor(lead) : null;
-  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}) };
+  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, ...(sub.fields ? { fields: sub.fields } : {}), agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}) };
   if (cfg.fallback) return { mode: 'report' };
   return { mode: 'none', reason: agent ? 'handoff-off' : 'no-native-subagent' };
 }
@@ -617,12 +650,30 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   // or one read would be decided twice.
   if (client === 'claude' && !raw.host_runs && claudeCardActive(session, { name: DELEGATE_SESSION_MARK })) return null;
   const ev = hostEvent(client, raw);
-  if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   const state = { update: fn => locked(store, session, () => { const { st, save } = sessionState(store, session); fn(st); save(); }) };
+  // a host that does not mark its subagent's calls: the launch opens the window, and inside it nothing is decided
+  if (windowTool(client, ev.tool_name)) { state.update(st => noteSubagent(st, true)); return null; }
+  if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
+  if (HOSTS[client].subagent?.window) { let running = false; state.update(st => { running = subagentRunning(st); }); if (running) return null; }
   return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
     // (`user_prompt`, OpenCode's plugin). Without it the brief asks an explorer to report on a file for a
     // request it was never shown, and the report is a summary of whatever it read first.
-    lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : typeof ev.user_prompt === 'string' && ev.user_prompt ? { prompt: ev.user_prompt } : {} });
+    // A host with neither keeps a trace of its own through thinker's hooks (transcripts.js:recordEvent): the
+    // newest prompt and the model's last words are read from there.
+    lastPrompt: () => ev.transcript_path ? lastPromptOf(ev.transcript_path) : typeof ev.user_prompt === 'string' && ev.user_prompt ? { prompt: ev.user_prompt } : lastPromptOfTrace(traceFile(store.dir, session)) });
+}
+
+/** The newest prompt and the model's last words after it, from the trace thinker's own hooks record. */
+export function lastPromptOfTrace(file) {
+  let prompt, lastSay;
+  try {
+    for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+      if (!line) continue;
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.t === 'prompt' && e.text) { prompt = e.text; lastSay = undefined; } else if (e.t === 'say' && e.text) lastSay = e.text;
+    }
+  } catch { return {}; }
+  return prompt ? { prompt, ...(lastSay ? { lastSay } : {}) } : {};
 }
 
 const TRANSCRIPT_TAIL = 400_000;
