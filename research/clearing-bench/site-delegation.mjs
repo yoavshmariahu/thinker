@@ -75,7 +75,7 @@ function conversation(file, { sub = null } = {}) {
         if (p.type === 'thinking') turn().steps.push({ kind: 'thinking', chars: (p.thinking || '').length });
         else if (p.type === 'text') turn().steps.push({ kind: 'say', text: scrub(p.text || '') });
         else if (p.type === 'tool_use') {
-          const step = { kind: 'tool', id: p.id, name: p.name, input: JSON.parse(scrub(JSON.stringify(p.input || {}))) };
+          const step = { kind: 'tool', id: p.id, name: p.name, input: JSON.parse(scrub(JSON.stringify(p.input || {}))), call };
           toolById[p.id] = step; turn().steps.push(step); turn().tools[p.name] = (turn().tools[p.name] || 0) + 1;
         }
       }
@@ -106,7 +106,7 @@ function arm(row) {
   for (const sub of subs) sub.turn.calls.push(...sub.conv.calls);
   for (const conv of [main, ...subs.map(s => s.conv)]) for (const t of conv.turns) {
     t.calls = t.calls.map(c => c.k).sort((a, b) => a - b);
-    for (const s of t.steps) if (s.kind === 'call') { s.k = s.call.k; delete s.call; }
+    for (const s of t.steps) if (s.kind === 'call') { s.k = s.call.k; delete s.call; } else if (s.kind === 'tool') { s.k = s.call.k; delete s.call; }
   }
   for (const sub of subs) {
     const payload = { type: sub.type, model: sub.model, calls: sub.conv.calls.length, turns: sub.conv.turns };
@@ -118,7 +118,7 @@ function arm(row) {
   const plain = String(row.outcome || '').replace(/\x1b\[[0-9;]*m/g, '');
   const passed = /^PASS/.test(plain);
   const counts = (plain.match(/\d+ (?:failed|passed)/g) || []).join(', ');
-  const handoffs = main.turns.flatMap(t => t.steps.filter(s => s.kind === 'tool' && s.handoff).map(s => ({ t: t.n, tool: s.name, file: s.input.file_path || s.input.command || null })));
+  const handoffs = main.turns.flatMap(t => t.steps.filter(s => s.kind === 'tool' && s.handoff).map(s => ({ k: s.k, t: t.n, tool: s.name, file: s.input.file_path || s.input.command || null })));
   const agents = subs.map(s => ({ type: s.type, model: s.model, t: s.turn.n, calls: s.conv.calls.length }));
   return {
     small: { sid, outcome: counts || null, passed, elapsedMs: row.wallMs, calls, results, notes: [], turns: main.turns.map(t => ({ n: t.n, tools: t.tools, calls: t.calls })), agents, handoffs },

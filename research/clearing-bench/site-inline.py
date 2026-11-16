@@ -18,6 +18,11 @@ def summary(d):
         if d.get('recordedTTL'):
             assert all(x['write'] == x['write1h'] + x['write5m'] for x in c)
             out[arm]['cost1h'] = out[arm]['cost5m'] = (base + tot('write1h')*P['w1h'] + tot('write5m')*P['w5m'])/1e6
+        if d.get('prices'):
+            # a subagent's call is priced at its own model, each write at its recorded lifetime
+            pm = lambda x: d['prices'].get(x.get('model'), P)
+            out[arm]['cost1h'] = out[arm]['cost5m'] = sum(x['input']*pm(x)['input'] + x['out']*pm(x)['out'] + x['read']*pm(x)['read'] + x['write1h']*pm(x)['w1h'] + x['write5m']*pm(x)['w5m'] for x in c)/1e6
+        if d[arm].get('outcome') and 'outcome' not in out[arm]: out[arm]['outcome'] = d[arm]['outcome']
     cuts = [x['cut'] for x in d['cut']['calls'] if x.get('cut')]
     out['coldCost'] = {'1h': d['cold'] * P['w1h'] / 1e6, '5m': d['cold'] * P['w5m'] / 1e6}
     out['cuts'] = len(cuts); out['cutTokens'] = sum(x['tokens'] for x in cuts)
