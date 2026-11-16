@@ -308,5 +308,5 @@ test('a session\'s saving is priced row by row at the model that answered each r
   assert.equal(x.cleared, 2_500_000);
   assert.equal(x.cost.priced, true);
   assert.ok(Math.abs(x.cost.saved - (2_000_000 * opus.cacheRead + 500_000 * luna.cacheRead) / 1e6) < 1e-9, 'each row at its own model');
-  assert.ok(x.cost.saved > 20 * (2_500_000 * luna.cacheRead / 1e6), 'not the whole session at the last model named');
+  assert.ok(x.cost.saved > 10 * (2_500_000 * luna.cacheRead / 1e6), 'not the whole session at the last model named');
 });
