@@ -92,8 +92,10 @@ const size = v => {
 
 // The words are the mechanism (delegate.js:denial, cutting.js:placeholder): they say when the page was seen,
 // that it is gone because it changed and not because something failed, and what to do to see it again.
-export const pagePlaceholder = (head, chars, images = 0) =>
-  `${head ? `${head}\n` : ''}[thinker removed the rest of this page state after use: ${chars} chars${images ? ` and ${images} image${images === 1 ? '' : 's'}` : ''}. `
+// `paths` is where a replaced result's screenshots were saved: an image leaves the prompt only with the path
+// it can be read back from (the owner's rule for the cut too, proxy.js:saveCutImages).
+export const pagePlaceholder = (head, chars, paths = []) =>
+  `${head ? `${head}\n` : ''}[thinker removed the rest of this page state after use: ${chars} chars${paths.length ? ` and ${paths.length} image${paths.length === 1 ? '' : 's'}, saved at ${paths.join(', ')}` : ''}. `
   + 'It showed the page as it was then; a newer page state follows, and element refs from this one no longer work. '
   + 'You saw it in full at the time, so what you already said from it stands. Take a new snapshot if you need the page again.]';
 
@@ -111,7 +113,7 @@ const markable = b => b && MARKABLE.has(b.type) && !(b.type === 'text' && !Strin
  * else `{ messages, changed, results, chars, tokens, live, anchor, skipped }` -- `messages` is a new array
  * where anything changed and `j` is never mutated.
  */
-export function applyEphemeral(j, setting) {
+export function applyEphemeral(j, setting, { saveImages = null } = {}) {
   const cfg = ephemeralConfig(setting);
   const all = Array.isArray(j?.messages) ? j.messages : null;
   if (!cfg || !all) return null;
@@ -150,6 +152,9 @@ export function applyEphemeral(j, setting) {
     // a state only as long as its head would be replaced by more than it removes
     if (s.gone <= 0) continue;
     if (!gapOk(s, span(s.at, states[n + cfg.keep].at))) { skipped++; continue; }
+    // A result with a screenshot is replaced only where the picture can be saved first (`saveImages` returns
+    // the paths, or null): with nowhere to save, the result stays whole and is the cut's to judge.
+    if (s.images) { s.paths = saveImages ? saveImages(flat[s.at].b) : null; if (!s.paths) { skipped++; continue; } }
     dead.set(s.at, s); chars += s.gone; images += s.images;
   }
   const live = states.slice(Math.max(0, states.length - cfg.keep));
@@ -159,7 +164,7 @@ export function applyEphemeral(j, setting) {
   for (const [, s] of dead) {
     const m = own(s.i), b = m.content[s.k];
     // `cache_control` stays where the agent put it: a marker is the agent's, and the anchor below counts it
-    m.content[s.k] = { ...b, content: [{ type: 'text', text: pagePlaceholder(headOf(s.text, cfg.head), Math.max(0, s.text.length - headOf(s.text, cfg.head).length), s.images) }] };
+    m.content[s.k] = { ...b, content: [{ type: 'text', text: pagePlaceholder(headOf(s.text, cfg.head), Math.max(0, s.text.length - headOf(s.text, cfg.head).length), s.paths || []) }] };
   }
 
   // 2. the anchor: only while the oldest live state can still be superseded for free, which is the same

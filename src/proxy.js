@@ -650,7 +650,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // here because this is the first point the body has been parsed
   // Superseded page states go first, and the cut then reads the conversation as it will be sent: a snapshot
   // already replaced is not offered to it again at full size.
-  eph = cfg.ephemeral ? applyEphemeral(j, cfg.ephemeral) : null;
+  // a replaced page's screenshots are saved where the cut saves its own, and stay in the prompt if they cannot be
+  const savePage = cfg.imagePath && cfg.cutImages !== false
+    ? b => (saveCutImages([{ content: [b] }], [b.tool_use_id], cfg.imagePath) ? resultImages(b).map((x, k) => cfg.imagePath(b.tool_use_id, k, x.source.media_type)) : null)
+    : null;
+  eph = cfg.ephemeral ? applyEphemeral(j, cfg.ephemeral, { saveImages: savePage }) : null;
   if (eph?.changed) j.messages = eph.messages;
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);

@@ -182,16 +182,24 @@ test('a screenshot is a page state too, and leaves as one', () => {
   const j = conversation(1);
   const shot = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 's1', content: [{ type: 'text', text: 'Took the screenshot' }, { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'A'.repeat(5000) } }] }] };
   j.messages.splice(1, 0, use('s1', 'mcp__playwright__browser_take_screenshot'), shot);
-  const r = applyEphemeral(j, true);
+  // nowhere to save the picture: the result stays whole
+  const kept = applyEphemeral(j, true);
+  assert.equal(kept.results, 0);
+  assert.equal(kept.skipped, 1);
+  assert.equal(kept.messages[2].content[0].content.length, 2);
+  // saved first, then replaced, and the words say where it is
+  const saved = [];
+  const r = applyEphemeral(j, true, { saveImages: b => { saved.push(b.tool_use_id); return ['/state/images/s1-0.png']; } });
+  assert.deepEqual(saved, ['s1']);
   assert.equal(r.results, 1);
   assert.equal(r.images, 1);
   const text = r.messages[2].content[0].content;
   assert.equal(text.length, 1);
-  assert.match(text[0].text, /and 1 image/);
+  assert.match(text[0].text, /and 1 image, saved at \/state\/images\/s1-0\.png/);
 });
 
 test('the words say when it was seen and what to do now', () => {
-  const w = pagePlaceholder('head', 1234);
+  const w = pagePlaceholder('head', 1234, []);
   assert.match(w, /^head\n\[thinker removed/);
   assert.match(w, /You saw it in full at the time/);
   assert.match(w, /Take a new snapshot/);
