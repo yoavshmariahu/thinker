@@ -19,6 +19,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - `src/ui/` mirrors CLI commands, never duplicates.
 - Page defaults and output must match CLI: `thinker context` ↔ Context tab, `thinker report` ↔ Report tab.
 - New default or flag: add test to `test/cli-ui-sync.test.js`.
+- That file is for the **pair**: an assertion names both doors (page and CLI, page and the terminal's own
+  renderer). One file's internals pinned by a regex over its source belongs in that file's own test, not here --
+  26 such assertions were taken out on 2026-11-15, and they were most of why the file was edited twice a day.
 
 **The proxy and desktop clearing hold one policy (MANDATORY):**
 - `src/proxy.js` and `src/integrations/claude-clear` implement the same clearing policy, never two.
