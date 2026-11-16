@@ -45,9 +45,9 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
 
 test('every daily card reads a day\'s own figure, and the savings count from the day the cut shipped', () => {
   const by = name => dailyQuestions.find(q => q.name.startsWith(name));
-  assert.equal(dailyQuestions.length, 7);
+  assert.equal(dailyQuestions.length, 8);
   // a day from the newest snapshot that carries it, never a 30-day sum by snapshot
-  for (const [name, block] of [['Total saved', 'sessions'], ['Saved since', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate']]) {
+  for (const [name, block] of [['Total saved', 'sessions'], ['Saved since', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
     const q = by(name);
     assert.ok(q, name);
     assert.match(q.sql, new RegExp(`\\{${block},byDay\\}`), `"${name}" reads ${block}.byDay`);
@@ -62,6 +62,12 @@ test('every daily card reads a day\'s own figure, and the savings count from the
   assert.match(by('Saved since').sql, /figures->>'stampedNetUsd'/);
   assert.doesNotMatch(by('Saved since').sql, /'netUsd'/);
   assert.deepEqual(by('Saved per day').settings['graph.metrics'], ['net_saved_usd']);
+  // the total is the clearing's net plus what delegation saved, each from its own block's days
+  assert.match(by('Total saved').sql, /\{delegate,byDay\}/);
+  assert.match(by('Total saved').sql, /figures->>'savedUsd'/);
+  assert.match(by('Saved by delegation').sql, /figures->>'savedUsd'/);
+  assert.match(by('Saved by delegation').sql, /day_utc >= DATE '2026-11-05'/);
+  assert.deepEqual(by('Saved by delegation').settings['graph.metrics'], ['saved_by_delegation_usd']);
   assert.match(by('Context cuts').sql, /'cuts'/);
   assert.match(by('Known devices').sql, /sum\(count\(\*\)\) OVER \(ORDER BY day_utc\)/, 'known devices is a running total');
   for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
@@ -80,11 +86,31 @@ test('delegations leave the machine as counts by day: fired, held out and failed
     store.log({ ...row, fired: false, declined: 'below-threshold' });
     store.log({ ...row, held: false, fired: false, after: 'handoff' });
     const m = delegateMetrics(store, { all: false });
-    assert.equal(m.schemaVersion, 1);
-    assert.deepEqual(m.byDay, { [new Date().toISOString().slice(0, 10)]: { delegated: 3, cached: 1, held: 1, failed: 1, costUsd: 0.21 } });
+    assert.equal(m.schemaVersion, 2);
+    // the lead read the file itself after the handoff (the last row), so the firings kept nothing out and saved nothing
+    assert.deepEqual(m.byDay, { [new Date().toISOString().slice(0, 10)]: { delegated: 3, cached: 1, held: 1, failed: 1, costUsd: 0.21, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 } });
     assert.equal(JSON.stringify(m).includes('secret'), false, 'no file leaves the machine');
     // a firing older than the window is in no day
     assert.deepEqual(delegateMetrics(store, { all: false, now: Date.now() + 40 * 86400000 }).byDay, {});
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('what delegation saved leaves the machine by day, as the savings ledger counts it: priced at the lead\'s model, unpriced where there is none', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-daily-'));
+  try {
+    const store = new Store(repo).init();
+    const row = { op: 'delegate', client: 'claude', kind: 'explore', files: ['src/secret-file.py'], tokens: 40000, held: false };
+    store.log({ op: 'session', session: 'priced', client: 'claude', model: 'claude-opus-5-5' });
+    store.log({ ...row, session: 'priced', model: 'claude-sonnet-5-5', cost: 0.21 });
+    store.log({ ...row, session: 'no-model' });
+    store.log({ ...row, session: 'held-out', held: true });
+    const day = delegateMetrics(store, { all: false }).byDay[new Date().toISOString().slice(0, 10)];
+    // the write Opus 5.5 never made (40k at $8 a million) less the subagent's $0.21; the held-out firing saved nothing
+    assert.equal(day.savedUsd, 0.11);
+    assert.equal(day.savedTokens, 80000);
+    assert.equal(day.unpricedTokens, 40000);
+    assert.equal(day.delegated, 2);
+    assert.equal(day.held, 1);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 

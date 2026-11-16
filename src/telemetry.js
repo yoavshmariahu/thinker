@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize, readLog, knownRepos } from './usage.js';
+import { summarize, readLog, knownRepos, sessionKey } from './usage.js';
 import { readLedger, holdoutReport } from './profile.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
@@ -19,6 +19,8 @@ import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
 import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
+import { clearingRows, compressionDir } from './compression.js';
+import { delegationSavings } from './report-savings.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
 import { historyEffects, promptAverageHere, readReport } from './report-snapshot.js';
@@ -662,7 +664,7 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     arms: armsMetrics(store, { all }),
 
     // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
-    delegate: delegateMetrics(store, { all }),
+    delegate: delegateMetrics(store, { all, home }),
 
     // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
@@ -710,19 +712,45 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 // A row marked `fired: false` (a sized read under the rule, a call after the turn's handoff, a host with no
 // subagent) is the trigger's own bookkeeping and is in no count. `costUsd` is what the subagent runs reported (`total_cost_usd`), data the provider gave, never priced here.
 // Days add up, as the proxy's and the sessions' do. Never a file, a command or a session.
-export function delegateMetrics(store, { all = true, now = Date.now() } = {}) {
+//
+// And what it saved (schema 2): `savedTokens`, `savedUsd` and `unpricedTokens` are the savings ledger's own rows
+// (report-savings.js:delegationSavings, the computation behind the footer, `thinker savings` and the Report's
+// "Reads delegated"), each on the UTC day it was saved -- the write the lead never made on the day of the handoff,
+// and the read of it avoided on each later call on the day of that call, less what the subagent cost. So a day may
+// carry a saving and no handoff. A saving in a session whose model has no list price is in `unpricedTokens` and in
+// no dollar figure, never counted at zero.
+export function delegateMetrics(store, { all = true, now = Date.now(), home = thinkerHome(), env = process.env } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const byDay = {};
+  const dayOf = day => byDay[day] ||= { delegated: 0, cached: 0, held: 0, failed: 0, costUsd: 0, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 };
   let events = []; try { events = readLog(store, { all }); } catch { events = []; }
   for (const e of events) {
     if (e.op !== 'delegate' || e.fired === false || typeof e.t !== 'string' || e.t < since || !Number.isFinite(Date.parse(e.t))) continue;
-    const d = byDay[e.t.slice(0, 10)] ||= { delegated: 0, cached: 0, held: 0, failed: 0, costUsd: 0 };
+    const d = dayOf(e.t.slice(0, 10));
     if (e.held) d.held++;
     else if (e.error) d.failed++;
     else { d.delegated++; if (e.cached) d.cached++; if (Number.isFinite(e.cost)) d.costUsd += e.cost; }
   }
-  for (const d of Object.values(byDay)) d.costUsd = Math.round(d.costUsd * 100) / 100;
-  return { schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS, byDay };
+  try {
+    let config = {}; try { config = store.config(); } catch { config = {}; }
+    // the proxy's rows and the recorded clears, as the ledger reads them (savings-ledger.js:computeSavings); a
+    // test with no home and no log of its own has none
+    const compression = env.THINKER_TEST === '1' && !env.THINKER_HOME && !env.THINKER_PROXY_LOG
+      ? [] : clearingRows(proxyLogFile(home, env), compressionDir(home), { events, key: sessionKey });
+    for (const r of delegationSavings({ events, compression, config })) {
+      if (!Number.isFinite(r.at) || r.at > now) continue;
+      const at = new Date(r.at).toISOString();
+      if (at < since) continue;
+      const d = dayOf(at.slice(0, 10));
+      d.savedTokens += r.tokens || 0;
+      if (r.cost == null) d.unpricedTokens += r.tokens || 0; else d.savedUsd += r.cost;
+    }
+  } catch { /* the counts above still leave */ }
+  for (const d of Object.values(byDay)) {
+    for (const k of ['costUsd', 'savedUsd']) d[k] = Math.round(d[k] * 100) / 100;
+    for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
+  }
+  return { schemaVersion: 2, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
 // The metrics API refuses a payload over 64 KB (infra/metrics/handler.mjs), and a refusal loses the whole

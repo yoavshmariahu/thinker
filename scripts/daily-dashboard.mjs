@@ -1,4 +1,4 @@
-// Thinker by day: what was saved, who used it, how often it cut and delegated, and how many machines there are.
+// Thinker by day: what was saved (by the clearing and by delegation), who used it, how often it cut and delegated, and how many machines there are.
 //
 // Every card but the last is a day's own figure, exploded from a block's `byDay` map: `sessions.byDay`
 // (src/delivery-telemetry.js: a session on the UTC day of its last request, with what its clearing netted),
@@ -35,12 +35,16 @@ const netNote = 'Netted, at list prices: the tokens the clearing left out of lat
 const dated = "raw_json #>> '{sessions,byDaySchema}' = '2'";
 const dollars = days('sessions', dated);
 const datedNote = 'A device on a client released after 0.4.0 dates a session by its own turns. An older client can place an old session on the day the profile read it, which moved losses of the older clearing past the line on one machine; its days are counted as it reported them until it updates, and "devices with corrected dating" says how many of the devices in a figure have.';
+const delegationNote = 'Delegation: a read or a suite run handed to a subagent never enters the lead\'s context, so the lead does not write it to its cache (counted once, on the day of the handoff) and does not read it back on each later call (counted on the day of that call, until a cut or a compaction would have taken it out anyway), less what the subagent cost. The machine\'s own savings ledger, the figure its footer and Report show (src/report-savings.js:delegationSavings; src/telemetry.js:delegateMetrics). Sent by clients released after 0.4.0.';
 const stampedNote = 'Under a recorded policy counts only the sessions whose clear carries the cut policy that made it (src/cutting.js:policyId), which no date can get wrong: a machine still on an older client, or a session begun under the older clearing, is never in it.';
 
 export const dailyQuestions = [
   { name: `Total saved since ${SAVINGS_SINCE}`, display: 'scalar',
-    sql: `SELECT round(sum(${fig('netUsd')}), 2) AS net_saved_usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' HAVING count(${fig('netUsd')}) > 0`,
-    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up. ${netNote} ${datedNote}` },
+    sql: `SELECT round(coalesce(c.usd, 0) + coalesce(g.usd, 0), 2) AS net_saved_usd, round(c.usd, 2) AS by_clearing_usd, round(g.usd, 2) AS by_delegation_usd
+      FROM (SELECT sum(${fig('netUsd')}) AS usd, count(${fig('netUsd')}) AS n FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}') c
+      CROSS JOIN (SELECT sum(${fig('savedUsd')}) AS usd, count(${fig('savedUsd')}) AS n FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}') g
+      WHERE c.n + g.n > 0`,
+    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up: what the clearing netted plus what delegation saved, the two series of "Saved per day" and "Saved by delegation, per day". ${netNote} ${delegationNote} ${datedNote}` },
 
   { name: `Saved since ${SAVINGS_SINCE} under a recorded cut policy`, display: 'scalar',
     sql: `SELECT round(sum(${fig('stampedNetUsd')}), 2) AS net_saved_usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' HAVING count(${fig('stampedNetUsd')}) > 0`,
@@ -53,7 +57,15 @@ export const dailyQuestions = [
       count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
       FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['net_saved_usd'] },
-    description: `The bars add up to the total beside them. ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
+    description: `What the clearing netted; the total beside it adds what delegation saved (the next card). ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
+
+  { name: 'Saved by delegation, per day', display: 'bar',
+    sql: `SELECT day_utc, round(sum(${fig('savedUsd')}), 2) AS saved_by_delegation_usd, sum(${fig('savedTokens')}) AS tokens_kept_out_of_the_lead,
+      sum(${fig('unpricedTokens')}) AS tokens_with_no_list_price, sum(${fig('delegated')}) AS delegated,
+      count(DISTINCT device) FILTER (WHERE ${fig('savedTokens')} > 0) AS devices
+      FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('savedTokens')} IS NOT NULL GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['saved_by_delegation_usd'] },
+    description: `${delegationNote} Tokens kept out of the lead counts a delegated read once for the write and once for every later call that would have read it back. Tokens in a session whose model has no list price are in the token column and in no dollar figure.` },
 
   { name: 'Devices with a thinker session, per day', display: 'line',
     sql: `SELECT day_utc, count(DISTINCT device) FILTER (WHERE ${fig('sessions')} > 0) AS devices_with_a_session, sum(${fig('sessions')}) AS sessions
