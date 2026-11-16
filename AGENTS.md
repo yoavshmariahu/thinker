@@ -19,6 +19,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - `src/ui/` mirrors CLI commands, never duplicates.
 - Page defaults and output must match CLI: `thinker context` ↔ Context tab, `thinker report` ↔ Report tab.
 - New default or flag: add test to `test/cli-ui-sync.test.js`.
+- That file is for the **pair**: an assertion names both doors (page and CLI, page and the terminal's own
+  renderer). One file's internals pinned by a regex over its source belongs in that file's own test, not here --
+  26 such assertions were taken out on 2026-11-15, and they were most of why the file was edited twice a day.
 
 **The proxy and desktop clearing hold one policy (MANDATORY):**
 - `src/proxy.js` and `src/integrations/claude-clear` implement the same clearing policy, never two.
@@ -55,6 +58,15 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
+- **A cut takes a finished call's screenshot too, and leaves its path (2026-11-15, the owner's call; `cutImages`,
+  `proxy.js:saveCutImages`, `cutting.js:imagePlaceholder`).** A result was eligible by its text alone, so a browser
+  session's screenshots were never cut. Now a base64 image in a result that is going is saved under the clearing's
+  `images/` directory (kept 2 days) and the placeholder names the file, so the model reads it again if it needs to;
+  an image that cannot be saved stays in the prompt. An image is counted at its tokens, never its base64
+  (`wireChars`): read as text one screenshot put the prompt past the trigger by itself and made every rewrite look
+  hundreds of times dearer. The policy id says `+img`. Proxy only: the host hands the mod a result as text
+  (`DESKTOP_POLICY` exempts it), and the Responses and Chat doors are unchanged. `proxy: { cutImages: false }` or
+  `--no-cut-images` turns it off; there is no variable.
 - **No holdout (2026-11-12, the owner's call)**: `SERVICE_HOLDOUT` 0, the mod's `HOLDOUT` with it. A session that got a cut
   is a long session, so "cleared against held out" never compared like with like, and at 50% it cost every install half
   the saving. `proxy: { holdout }` in config puts an arm back for an experiment; the Factory's compression diff then reads it.
@@ -447,6 +459,13 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - Two rules removed: hooks never run test commands; hooks are only for cache, no installs.
 - PreToolUse hook can deny a read/test, run subagent, return report.
 - Logged, costed per session, judged live on holdout.
+
+**Claude Code's agent hook: the harness runs the subagent, no rule fires it yet (2026-11-15, the owner's call):**
+- A PreToolUse handler of `type: "agent"` makes Claude Code spawn its own subagent on a matched call; its `ok: false` reason is the denied call's result. The lead has no say and thinker spawns nothing.
+- `delegate.js:agentHookEntries`, `agentHookPrompt`; reads only. Rules are `delegate: { agentHooks: [{ matcher, if? }] }`, **empty by default, so nothing is written**. When to fire is a separate decision.
+- Live on 2.1.325: whole read of 600 lines answered in 12 s for $0.005 on Haiku, worked from; a ranged read let through by the subagent in 3 s; `if` (`Read(*.js)`) filters.
+- The reason must open with `denial`'s report sentence and the subagent must be told it is the one named: a bare report, or one hedging about who read the file, was called an injection and re-read.
+- Limits: static match only (no size, tally or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
 
 **Telemetry and tests (MANDATORY):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.
