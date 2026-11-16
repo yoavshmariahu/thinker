@@ -763,7 +763,7 @@ const clearedBy = t => (t?.clientCut?.tokens > 0 ? { cleared: Math.round(t.clien
 
 const HOP = ['connection', 'keep-alive', 'proxy-connection', 'transfer-encoding', 'upgrade', 'host', 'content-length', 'accept-encoding'];
 
-export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), routes = undefined } = {}) {
+export function startProxy(cfg, { logFile, host = '127.0.0.1', hooks = null, onListen, onStandDown = null, bedrock = null, agentOptions = {}, retryWaits = undefined, resolver = undefined, compressionDir = logFile ? path.join(path.dirname(logFile), 'compression') : null, clearingDir = logFile ? path.join(path.dirname(logFile), 'clearing') : null, dumpDir = process.env.THINKER_PROXY_DUMP || null, stubsHome = process.env.THINKER_HOME || path.join(os.homedir(), '.thinker'), routes = undefined } = {}) {
   // the model routes (providers.js): a request naming `thinker/…` goes to its provider (proxy-routing.js). The
   // registry is the machine's, re-read when its file moves; `routes: false` leaves every request on the upstream.
   const readRoutes = routes === false ? null : typeof routes === 'function' ? routes : stubsHome ? registryReader(stubsHome) : null;
@@ -835,6 +835,9 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();
   const server = http.createServer((req, res) => {
+    // thinker's own routes (hook-service.js): the hooks an agent built on a framework calls, on the port its
+    // model calls already come to. Never forwarded, and not counted as a request in flight.
+    if (hooks && typeof req.url === 'string' && req.url.startsWith('/thinker/')) { hooks(req, res).catch(() => { try { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}'); } catch { /* already answered */ } }); return; }
     inFlight++; res.once('close', () => { inFlight--; lastDone = Date.now(); });
     let requestUrl = req.url, requestCfg = cfg, onBedrock = false;
     if (requestUrl === BEDROCK_PATH || requestUrl.startsWith(BEDROCK_PATH + '/')) {

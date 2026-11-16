@@ -1,0 +1,18 @@
+[project]
+name = "thinker-langchain"
+version = "0.1.0"
+description = "thinker for LangChain agents: one middleware that wires thinker's proxy and hooks into an agent"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = ["langchain>=1.0", "langchain-core>=1.0"]
+
+[project.optional-dependencies]
+test = ["pytest", "langchain-anthropic>=1.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["thinker_langchain"]
