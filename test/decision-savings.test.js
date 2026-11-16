@@ -82,10 +82,10 @@ test('an edited saving is no saving: watched by the lines, so a rename or an add
   // kept: answered again without git, and an ended decision is never looked at again
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'decision-sections.json'), 'utf8')).e1.end, commits[6].t);
   assert.equal(sectionEnds([{ ...d, repo: '/nowhere' }], dir, { now })[0].to, commits[6].t);
-  // untouched: it runs to the decision's own end
-  assert.equal(sectionEnds([d], tmp(t), { now: commits[5].t })[0].to, d.to);
+  // an edit after the decision's own end is not its business
+  assert.equal(sectionEnds([{ ...d, id: 'e7', to: commits[5].t }], tmp(t), { now })[0].to, commits[5].t);
   // a removal ends when a line it took out is back, under whatever heading
-  const gone = repoOf(t, [{ Build: body(40), Test: body(5) }, { Test: body(5) }, { Test: body(6) }, { Test: body(6), Notes: '- rule 7 that says a thing worth forty characters.' }]);
+  const gone = repoOf(t, [{ Build: body(40), Test: body(5) }, { Test: body(5) }, { Test: body(5), Notes: '- a note of its own, nothing the section ever said.' }, { Test: body(5), Notes: '- rule 7 that says a thing worth forty characters.' }]);
   const gs = new Store(gone.repo).init(), gc = gone.commits[1];
   const [r] = decisionsOf(gs, { now, history: [merged(gc, { act: 'remove', tokens: { before: size(40), after: 0 } })] });
   assert.deepEqual(sectionEnds([r], tmp(t), { now }).map(y => [y.from, y.to, y.tokens]), [[gc.t, gone.commits[3].t, size(40)]]);
