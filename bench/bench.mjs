@@ -69,7 +69,7 @@ function taskOf(dir, id) {
 // become .claude/agents/<Name>.md. Project scope is what matters: the runner passes
 // --setting-sources project, so a user-scope file on this machine is never read and one session can
 // never inherit another's wiring. `before` is a list of argv arrays run in the worktree.
-function writeArm(cwd, arm) {
+function writeArm(cwd, arm, vars = { CWD: cwd }) {
   if (arm.hooks) {
     const f = path.join(cwd, '.claude', 'settings.json');
     fs.mkdirSync(path.dirname(f), { recursive: true });
@@ -82,8 +82,13 @@ function writeArm(cwd, arm) {
     const front = Object.entries(a).filter(([k]) => k !== 'body').map(([k, v]) => `${k}: ${v}`).join('\n');
     fs.writeFileSync(f, `---\nname: ${name}\n${front}\n---\n\n${a.body || ''}\n`);
   }
-  for (const cmd of arm.before || []) sh(cmd[0], cmd.slice(1).map(s => s.replaceAll('{CWD}', cwd)), { cwd });
+  for (const cmd of arm.before || []) sh(cmd[0], cmd.slice(1).map(s => fill(s, vars)), { cwd });
 }
+
+// The placeholders a prompt, an arm's commands and the MCP config may use: `{CWD}` (the session's directory),
+// `{ID}` (task-arm-rep, unique in a run), `{BENCH}` (this directory, so a spec names no checkout), and
+// whatever the spec's own `vars` add (`{SITE}` for a browser spec). One function, so the three places agree.
+const fill = (s, vars) => Object.entries(vars).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), String(s));
 
 // ---- one session: the turns of one task, resumed ----
 // Claude Code is given each turn in order on one session id, which is the only shape that has a turn
@@ -99,9 +104,20 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
 
   fs.rmSync(cwd, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(cwd), { recursive: true });
-  try { sh('git', ['-C', spec.base, 'worktree', 'remove', '--force', cwd], { stdio: ['ignore', 'ignore', 'ignore'] }); } catch {}
-  sh('git', ['-C', spec.base, 'worktree', 'add', '-q', '--detach', cwd, spec.ref || 'HEAD']);
-  writeArm(cwd, arm);
+  // A spec with no `base` is not about a repository (a browser agent's tasks are on a site): the session gets
+  // an empty directory of its own, made a git repository so Claude Code finds a project root there and not
+  // in whatever checkout the runs directory happens to sit inside.
+  if (spec.base) {
+    try { sh('git', ['-C', spec.base, 'worktree', 'remove', '--force', cwd], { stdio: ['ignore', 'ignore', 'ignore'] }); } catch {}
+    sh('git', ['-C', spec.base, 'worktree', 'add', '-q', '--detach', cwd, spec.ref || 'HEAD']);
+  } else {
+    fs.mkdirSync(cwd, { recursive: true });
+    sh('git', ['-C', cwd, 'init', '-q']);
+  }
+  const vars = { ...(spec.vars || {}), CWD: cwd, ID: id, BENCH: path.join(ROOT, 'bench') };
+  writeArm(cwd, arm, vars);
+  // The MCP servers every arm of the spec gets, the same for all of them: none unless the spec names some.
+  const mcp = fill(JSON.stringify({ mcpServers: spec.mcp || {} }), vars);
 
   const session = crypto.randomUUID();
   const env = { ...process.env, ...(arm.env || {}) };
@@ -110,17 +126,22 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
   if (!env.ANTHROPIC_BASE_URL || !arm.env?.ANTHROPIC_BASE_URL) env.ANTHROPIC_BASE_URL = arm.env?.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
   const turns = [];
   for (const [i, file] of task.turns.entries()) {
-    const prompt = fs.readFileSync(file, 'utf8').replaceAll('{CWD}', cwd);
+    const prompt = fill(fs.readFileSync(file, 'utf8'), vars);
     const args = ['-p', prompt, '--output-format', 'json', '--model', model, '--max-turns', maxTurns,
       '--permission-mode', 'bypassPermissions', '--setting-sources', 'project', '--strict-mcp-config',
-      '--mcp-config', '{"mcpServers":{}}', ...(i === 0 ? ['--session-id', session] : ['--resume', session])];
+      '--mcp-config', mcp, ...(i === 0 ? ['--session-id', session] : ['--resume', session])];
     const r = await once('claude', args, { cwd, env });
     turns.push(r);
     process.stderr.write(`  [${id}] turn ${i + 1}/${task.turns.length} ${r.is_error ? `ERROR ${r.subtype || ''}` : 'ok'} $${(r.total_cost_usd || 0).toFixed(2)}\n`);
     if (r.is_error) break;  // a broken turn makes the rest meaningless: stop and record it
   }
-  const outcome = task.check ? lastLine(tryRun('bash', [task.check], cwd)) : null;
-  const after = arm.after ? tryRun(arm.after[0], arm.after.slice(1).map(s => s.replaceAll('{CWD}', cwd)), cwd) : null;
+  // The check is told what the agent answered and where it ran: a task with no repository has nothing in the
+  // directory to inspect, so the answer is the work. `BENCH_ANSWER` is a file holding the last turn's text.
+  const answerFile = path.join(cwd, '.bench-answer.txt');
+  fs.writeFileSync(answerFile, String(turns[turns.length - 1]?.result ?? ''));
+  const checkEnv = { ...process.env, BENCH_ANSWER: answerFile, BENCH_ID: id, ...Object.fromEntries(Object.entries(vars).map(([k, v]) => [`BENCH_${k}`, String(v)])) };
+  const outcome = task.check ? lastLine(tryRun('bash', [task.check], cwd, checkEnv)) : null;
+  const after = arm.after ? tryRun(arm.after[0], arm.after.slice(1).map(s => fill(s, vars)), cwd) : null;
   // graded after the arm's own after step, so staging the diff cannot disturb what that step reads
   const verdict = await grade({ task, cwd, judge: arm.judge || spec.judge });
   return record({ spec, task, armName, arm, rep, id, cwd, model, session, turns, outcome, after, verdict, maxTurns: Number(maxTurns) });
@@ -177,7 +198,7 @@ Answer with JSON only, no prose and no code fence:
 }
 
 const lastLine = s => String(s || '').trim().split('\n').pop() || null;
-const tryRun = (cmd, args, cwd) => { try { return sh(cmd, args, { cwd }); } catch (e) { return String(e.stdout || e.message || '').trim(); } };
+const tryRun = (cmd, args, cwd, env) => { try { return sh(cmd, args, { cwd, ...(env ? { env } : {}) }); } catch (e) { return String(e.stdout || e.message || '').trim(); } };
 
 function once(cmd, args, opts) {
   return new Promise(resolve => {
