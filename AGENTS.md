@@ -448,6 +448,13 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - PreToolUse hook can deny a read/test, run subagent, return report.
 - Logged, costed per session, judged live on holdout.
 
+**Claude Code's agent hook: the harness runs the subagent, no rule fires it yet (2026-11-15, the owner's call):**
+- A PreToolUse handler of `type: "agent"` makes Claude Code spawn its own subagent on a matched call; its `ok: false` reason is the denied call's result. The lead has no say and thinker spawns nothing.
+- `delegate.js:agentHookEntries`, `agentHookPrompt`; reads only. Rules are `delegate: { agentHooks: [{ matcher, if? }] }`, **empty by default, so nothing is written**. When to fire is a separate decision.
+- Live on 2.1.325: whole read of 600 lines answered in 12 s for $0.005 on Haiku, worked from; a ranged read let through by the subagent in 3 s; `if` (`Read(*.js)`) filters.
+- The reason must open with `denial`'s report sentence and the subagent must be told it is the one named: a bare report, or one hedging about who read the file, was called an injection and re-read.
+- Limits: static match only (no size, tally or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
+
 **Telemetry and tests (MANDATORY):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.
 - `THINKER_OFFERS=on`: restore offers (offer tests only).

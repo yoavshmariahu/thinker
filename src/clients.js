@@ -33,7 +33,7 @@
 // the others the hooks record the session themselves (prompt, every tool call
 // with its result, the closing message) and that trace is distilled, so
 // learning does not depend on the agent's transcript format.
-import { delegateConfig } from './delegate.js';
+import { delegateConfig, agentHookEntries } from './delegate.js';
 import fs from 'node:fs';
 import { setDevinCompaction } from './devin-compaction.js';
 import os from 'node:os';
@@ -1397,6 +1397,8 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
       // spawns nothing and the hook answers in a quarter of a second (2026-11-12).
       if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
+      // The harness's own subagent on a matched call (delegate.js:agentHookEntries); no rule is configured, so none is written
+      entries.push(...agentHookEntries(delegateConfig()));
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
       // everything else it could answer with (the edited-file notes, instruction sections, the diet) is gone or
       // off. It was one node process per tool call for no output. `PostToolUse` stays in the list below so a
