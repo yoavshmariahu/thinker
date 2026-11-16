@@ -449,7 +449,7 @@ rate a ratio of sums over the latest snapshot per device, the clearing's tables 
 
 ## Thinker by day (`sessions.byDay`, `proxy.byDay`, `delegate` schema 1)
 
-The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, six cards) is the one place every figure is a day's
+The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, seven cards) is the one place every figure is a day's
 own: the total saved since 2026-11-04 (the day thinker began cutting the context itself) and the saving per day, the
 devices with at least one thinker session per day, the context cuts per day, the delegations to a subagent per day,
 and the known devices as a running total.
@@ -458,7 +458,13 @@ and the known devices as a running total.
   over one snapshot per device per UTC day), so days add up and a day survives rolling out of a machine's 30-day
   window. The 30-day sums of the other dashboards can never be added across snapshots.
 - Savings and sessions read `sessions.byDay` (`src/delivery-telemetry.js`, client 0.3.3+): a session on the UTC day
-  of its last request, `netUsd` the netted figure, `savedUsd` (clients after 0.4.0) the gross one beside it.
+  of its last request, `netUsd` the netted figure, `savedUsd` the gross one beside it, and `stampedNetUsd`,
+  `stampedSavedUsd`, `stampedSessions` the same over the sessions cleared under a recorded cut policy alone.
+- The dollar cards read a day from a snapshot with `sessions.byDaySchema` 2 (clients after 0.4.0) wherever a device
+  has sent one, and as reported where it has not; the per-day card counts the devices of each kind. Before it a session was
+  dated by the newest log row naming it, and the profile's background read of an old session is such a row
+  (`profile`, `model`, `distill-skipped`; `delivery.js:READ_LATER`): one rebuild moved ~170 sessions of three weeks
+  onto 2026-11-08 on one machine, and the total since 2026-11-04 read -$376 where that machine's own was +$149.
 - Cuts read `proxy.byDay[day].cuts` (`src/telemetry.js:proxyMetrics`, clients after 0.4.0): a proxy row carrying
   `clear`, by any door. `requestsCleared` beside it is every request sent shorter, which is not a count of cuts.
 - Delegations read `delegate.byDay` (`src/telemetry.js:delegateMetrics`, clients after 0.4.0): `delegated`,
