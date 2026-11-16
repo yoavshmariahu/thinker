@@ -476,6 +476,7 @@ export async function provision({ call = api, config = state, persist = save, re
   console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
   console.log(`Cache health: http://localhost:3030/dashboard/${state.cacheId}`);
   console.log(`Token spend: http://localhost:3030/dashboard/${state.spendId}`);
+  console.log(`Thinker by day: http://localhost:3030/dashboard/${state.dailyId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
