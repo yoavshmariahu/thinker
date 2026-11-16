@@ -1,0 +1,92 @@
+{
+ "tag": "browser-read",
+ "question": "On a long browser task where the agent has to take whole pages into its context (forty product pages, no page search), what does a session cost with no proxy, with the cut and its long-turn rule, and with the page rule as well, and does each still pass?",
+ "rule": "One task, review-audit, written 2026-11-16 after browser-long showed the agent searching each page (browser_find) and never holding one: its context peaked at 70k. Here page search is disallowed too (browser_find, Grep, Glob) beside page scripting, in every arm, so a page is read as a snapshot. Chosen before any session of it ran.",
+ "tasksDir": "bench/tasks/browser",
+ "tasks": [
+  "review-audit"
+ ],
+ "model": "claude-sonnet-5-5",
+ "maxTurns": 150,
+ "reps": 1,
+ "vars": {
+  "SITE": "$BENCH_SITE"
+ },
+ "mcp": {
+  "playwright": {
+   "command": "npx",
+   "args": [
+    "-y",
+    "@playwright/mcp@0.0.85",
+    "--headless",
+    "--isolated"
+   ]
+  }
+ },
+ "args": [
+  "--disallowedTools",
+  "Bash",
+  "WebFetch",
+  "WebSearch",
+  "Agent",
+  "Task",
+  "Write",
+  "Edit",
+  "NotebookEdit",
+  "mcp__playwright__browser_evaluate",
+  "mcp__playwright__browser_run_code",
+  "mcp__playwright__browser_run_code_unsafe",
+  "mcp__playwright__browser_find",
+  "Grep",
+  "Glob"
+ ],
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  },
+  "cut": {
+   "env": {
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "{BENCH}/browser/proxy-arm.sh",
+     "start",
+     "{CWD}",
+     "--long-turn"
+    ]
+   ],
+   "after": [
+    "sh",
+    "{BENCH}/browser/proxy-arm.sh",
+    "stop",
+    "{CWD}"
+   ]
+  },
+  "pages": {
+   "env": {
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "{BENCH}/browser/proxy-arm.sh",
+     "start",
+     "{CWD}",
+     "--long-turn",
+     "--ephemeral"
+    ]
+   ],
+   "after": [
+    "sh",
+    "{BENCH}/browser/proxy-arm.sh",
+    "stop",
+    "{CWD}"
+   ]
+  }
+ }
+}

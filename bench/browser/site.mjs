@@ -113,6 +113,11 @@ const TRUTH = {
     const byWeight = [...forty].sort((a, b) => spec(b, 'Weight (kg)') - spec(a, 'Weight (kg)'));
     return { forty, long: forty.filter(p => spec(p, 'Warranty (years)') >= 3).length, heaviest: byWeight[0], tie: spec(byWeight[0], 'Weight (kg)') === spec(byWeight[1], 'Weight (kg)') };
   },
+  // the one that cannot be searched for: every review of the same forty products, the low-starred ones counted
+  'review-audit': () => {
+    const forty = CATEGORIES.flatMap(c => inCategory(c.slug, 'price-asc').slice(0, 5));
+    return { forty, reviews: forty.reduce((n, p) => n + p.reviews.length, 0), low: forty.reduce((n, p) => n + p.reviews.filter(r => r.stars <= 2).length, 0) };
+  },
 };
 const CHECKS = {
   'cheapest-kettles': answer => { const want = TRUTH['cheapest-kettles'](); const miss = want.filter(p => !answer.includes(p.name)); return miss.length ? `fail: missing ${miss.map(p => p.name).join('; ')}` : 'pass'; },
@@ -137,6 +142,7 @@ const CHECKS = {
     if (!answer.includes(heaviest.name) || others.length) faults.push(`expected only ${heaviest.name} as the heaviest`);
     return faults.length ? `fail: ${faults.join('; ')}` : 'pass';
   },
+  'review-audit': answer => { const { low } = TRUTH['review-audit'](); const said = (answer.match(/ANSWER:\s*(\d+)/i) || [])[1]; return Number(said) === low ? 'pass' : `fail: said ${said ?? 'nothing'}, expected ${low}`; },
   'basket-order': (answer, st) => {
     const { fryer, scale } = TRUTH['basket-order'](), o = st.placed[st.placed.length - 1];
     if (!o) return 'fail: no order placed';
@@ -307,6 +313,7 @@ if (process.argv[2] === '--answers') {
     'refund-audit': t['refund-audit']().map(o => `${o.number} ${money(o.total)}`),
     'basket-order': { fryer: t['basket-order']().fryer.name, scale: t['basket-order']().scale.name },
     'catalogue-audit': { products: t['catalogue-audit']().forty.length, longWarranty: t['catalogue-audit']().long, heaviest: t['catalogue-audit']().heaviest.name },
+    'review-audit': { reviews: t['review-audit']().reviews, low: t['review-audit']().low },
     // what would make a task ambiguous: a repeated product name, or a tie where a task asks for "the" one
     warnings: [
       new Set(products.map(p => p.name)).size !== products.length ? 'product names repeat' : null,

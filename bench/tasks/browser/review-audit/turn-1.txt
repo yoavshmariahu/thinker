@@ -1,0 +1,5 @@
+You are operating a web browser through the browser tools you have been given. The store is at {SITE}/s/{ID}/ and everything you need is on that site. Work only through the browser.
+
+We are auditing reviews at the cheap end of the catalogue. For each of the eight categories, sort by price, low to high, and take the five cheapest products: forty products in all. Open each one's product page and read every review on it.
+
+Across the forty products, how many reviews gave one or two stars? End your reply with a line of the form ANSWER: <number>.
