@@ -90,6 +90,20 @@ function writeArm(cwd, arm, vars = { CWD: cwd }) {
 // whatever the spec's own `vars` add (`{SITE}` for a browser spec). One function, so the three places agree.
 const fill = (s, vars) => Object.entries(vars).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), String(s));
 
+// A spec's own placeholders. A value written `$NAME` is read from the environment, so a spec can name
+// something that only exists once a run starts (the address of a site the run's wrapper brought up).
+function specVars(spec, { strict = true } = {}) {
+  const out = {};
+  for (const [k, v] of Object.entries(spec.vars || {})) {
+    if (typeof v === 'string' && v.startsWith('$')) {
+      const got = process.env[v.slice(1)];
+      if (got == null && strict) throw new Error(`spec var ${k} reads ${v} from the environment and it is not set`);
+      out[k] = got ?? v;
+    } else out[k] = v;
+  }
+  return out;
+}
+
 // ---- one session: the turns of one task, resumed ----
 // Claude Code is given each turn in order on one session id, which is the only shape that has a turn
 // boundary at all. Every turn's JSON is kept: a turn that errored or hit the turn cap makes the whole
@@ -100,7 +114,7 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
   const cwd = path.join(RUNS, spec.tag, id);
   const model = arm.model || spec.model || 'claude-opus-5-5';
   const maxTurns = String(arm.maxTurns || spec.maxTurns || 180);
-  if (dry) return { id, dry: true, cwd, model, turns: task.turns.length };
+  if (dry) return { id, dry: true, cwd, model, turns: task.turns.length, ...(spec.mcp ? { mcp: Object.keys(spec.mcp) } : {}), ...(spec.base ? {} : { repository: 'none' }) };
 
   fs.rmSync(cwd, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(cwd), { recursive: true });
@@ -114,7 +128,7 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
     fs.mkdirSync(cwd, { recursive: true });
     sh('git', ['-C', cwd, 'init', '-q']);
   }
-  const vars = { ...(spec.vars || {}), CWD: cwd, ID: id, BENCH: path.join(ROOT, 'bench') };
+  const vars = { ...specVars(spec), CWD: cwd, ID: id, BENCH: path.join(ROOT, 'bench') };
   writeArm(cwd, arm, vars);
   // The MCP servers every arm of the spec gets, the same for all of them: none unless the spec names some.
   const mcp = fill(JSON.stringify({ mcpServers: spec.mcp || {} }), vars);
@@ -124,12 +138,18 @@ async function runSession({ spec, task, armName, arm, rep, dry }) {
   // Nothing inherits this machine's proxy: an arm that did would be measured against thinker's own
   // clearing rather than against the other arm. The old runner refused to start over exactly this.
   if (!env.ANTHROPIC_BASE_URL || !arm.env?.ANTHROPIC_BASE_URL) env.ANTHROPIC_BASE_URL = arm.env?.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
+  // A `before` step may hand the session part of its environment: KEY=VALUE lines in `.bench-env`. That is
+  // how an arm that starts a proxy of its own on a port reserved at that moment tells the agent where it is,
+  // which a spec cannot say in advance without hardcoding a port.
+  try {
+    for (const line of fs.readFileSync(path.join(cwd, '.bench-env'), 'utf8').split('\n')) { const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/); if (m) env[m[1]] = m[2]; }
+  } catch { /* the arm handed over nothing */ }
   const turns = [];
   for (const [i, file] of task.turns.entries()) {
     const prompt = fill(fs.readFileSync(file, 'utf8'), vars);
     const args = ['-p', prompt, '--output-format', 'json', '--model', model, '--max-turns', maxTurns,
       '--permission-mode', 'bypassPermissions', '--setting-sources', 'project', '--strict-mcp-config',
-      '--mcp-config', mcp, ...(i === 0 ? ['--session-id', session] : ['--resume', session])];
+      '--mcp-config', mcp, ...(spec.args || []).map(a => fill(a, vars)), ...(i === 0 ? ['--session-id', session] : ['--resume', session])];
     const r = await once('claude', args, { cwd, env });
     turns.push(r);
     process.stderr.write(`  [${id}] turn ${i + 1}/${task.turns.length} ${r.is_error ? `ERROR ${r.subtype || ''}` : 'ok'} $${(r.total_cost_usd || 0).toFixed(2)}\n`);

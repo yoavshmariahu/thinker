@@ -42,8 +42,16 @@ const RESULT_TOKENS_PER_CHAR = 0.445;
 // The tools whose results are a view of something that moves: every action of a browser MCP server answers
 // with the page as it now is. A trailing `*` matches a prefix.
 export const EPHEMERAL_TOOLS = ['mcp__playwright__*', 'mcp__chrome-devtools__*', 'mcp__claude-in-chrome__*', 'mcp__browsermcp__*', 'mcp__puppeteer__*', 'computer'];
+// Where a browser server keeps the page instead of sending it. Playwright MCP 0.0.85 answers an action with
+// a link (`.playwright-mcp/page-<time>.yml`) and the model reads the file with its own Read tool (checked
+// 2026-11-15 by driving the server with no model: `browser_navigate` returned 384 characters and wrote a
+// 13,705-character file; only `browser_snapshot` still answers inline). So a read of such a file is a page
+// state by another road, and matching the tool's name alone would see none of them.
+export const EPHEMERAL_FILES = ['/.playwright-mcp/page-'];
+const READ_TOOLS = new Set(['Read', 'read', 'read_file', 'view']);
 export const EPHEMERAL_DEFAULTS = {
   tools: EPHEMERAL_TOOLS,
+  files: EPHEMERAL_FILES,
   keep: 1,            // live page states left whole; each one past the first is written again on every step
   minChars: 2000,     // under this a result is an acknowledgement, not a page
   head: 400,          // of a replaced result's own first lines, kept: what ran, the URL, the title
@@ -60,6 +68,7 @@ export function ephemeralConfig(v) {
   if (typeof v !== 'object' || v.enabled === false) return null;
   const out = { ...EPHEMERAL_DEFAULTS };
   if (Array.isArray(v.tools) && v.tools.length) out.tools = v.tools.map(String);
+  if (Array.isArray(v.files)) out.files = v.files.map(String);
   for (const k of ['keep', 'minChars', 'head', 'maxGapBlocks']) if (Number.isFinite(Number(v[k])) && v[k] !== null && v[k] !== '') out[k] = Number(v[k]);
   out.keep = Math.max(1, Math.round(out.keep));
   if (v.tail === 'bare' || v.tail === 'cache') out.tail = v.tail;
@@ -69,6 +78,9 @@ export function ephemeralConfig(v) {
 export const ephemeralId = v => { const c = ephemeralConfig(v); return c ? `+eph${c.keep}${c.tail === 'bare' ? 'b' : ''}` : ''; };
 
 const matches = (patterns, name) => typeof name === 'string' && patterns.some(p => (p.endsWith('*') ? name.startsWith(p.slice(0, -1)) : name === p));
+// a call whose result is a page: a browser tool, or a read of a file a browser server wrote the page to
+const isPageCall = (cfg, call) => !!call && (matches(cfg.tools, call.name)
+  || (READ_TOOLS.has(call.name) && (cfg.files || []).some(f => String(call.input?.file_path ?? call.input?.path ?? '').replaceAll('\\', '/').includes(f))));
 const textOf = b => (typeof b?.content === 'string' ? b.content
   : Array.isArray(b?.content) ? b.content.filter(x => x?.type === 'text').map(x => x.text || '').join('\n') : '');
 const imagesOf = b => (Array.isArray(b?.content) ? b.content.filter(x => x?.type === 'image').length : 0);
@@ -109,14 +121,14 @@ export function applyEphemeral(j, setting) {
   all.forEach((m, i) => {
     if (!Array.isArray(m?.content)) { flat.push({ i, k: -1, b: null, chars: size(m?.content) }); return; }
     m.content.forEach((b, k) => {
-      if (b?.type === 'tool_use' && b.id) nameOf.set(b.id, b.name);
+      if (b?.type === 'tool_use' && b.id) nameOf.set(b.id, b);
       flat.push({ i, k, b, chars: size(b) });
     });
   });
   const states = [];
   flat.forEach((f, at) => {
     const b = f.b;
-    if (b?.type !== 'tool_result' || !matches(cfg.tools, nameOf.get(b.tool_use_id))) return;
+    if (b?.type !== 'tool_result' || !isPageCall(cfg, nameOf.get(b.tool_use_id))) return;
     const text = textOf(b), images = imagesOf(b);
     if (text.length < cfg.minChars && !images) return;
     states.push({ at, i: f.i, k: f.k, text, images, gone: Math.max(0, text.length - cfg.head) + images * IMAGE_CHARS });

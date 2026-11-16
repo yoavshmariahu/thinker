@@ -132,6 +132,22 @@ test('small results and other tools are neither pages nor replaced', () => {
   assert.equal(r.messages[6].content[0].content[0].text, 'x'.repeat(5000), "another tool's result is the cut's to judge");
 });
 
+test('a page read from the file a browser server wrote it to is a page state too', () => {
+  const read = (id, file) => use(id, 'Read', { file_path: file });
+  const j = { messages: [{ role: 'user', content: 'go' },
+    use('n1', 'mcp__playwright__browser_navigate', { url: 'http://x/1' }), result('n1', '### Snapshot\n- [Snapshot](.playwright-mcp/page-1.yml)'),
+    read('r1', '/work/s1/.playwright-mcp/page-1.yml'), result('r1', SNAP(1)),
+    use('n2', 'mcp__playwright__browser_click'), result('n2', '### Snapshot\n- [Snapshot](.playwright-mcp/page-2.yml)'),
+    read('r2', '/work/s1/.playwright-mcp/page-2.yml'), result('r2', SNAP(2)),
+    read('r3', '/work/s1/notes.md'), result('r3', 'x'.repeat(3000))] };
+  const r = applyEphemeral(j, true);
+  assert.equal(r.results, 1);
+  assert.match(r.messages[4].content[0].content[0].text, /thinker removed the rest of this page state/);
+  assert.equal(r.messages[8].content[0].content[0].text, SNAP(2), 'the newest page file is whole');
+  assert.equal(r.messages[10].content[0].content[0].text, 'x'.repeat(3000), 'any other file is not a page');
+  assert.equal(applyEphemeral(j, { files: [] }), null, 'with no file patterns, a read is a read');
+});
+
 test('four markers already: an older one of the agent gives way, never its last, and never a fifth', () => {
   const j = conversation(3);
   j.system.push({ type: 'text', text: 'More.', cache_control: { type: 'ephemeral', ttl: '1h' } });
