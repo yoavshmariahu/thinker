@@ -447,10 +447,10 @@ repository with none counts in `reposWithoutReport` and sends nothing) and sends
 The **Diff by feature** dashboard (`scripts/arms-dashboard.mjs`, nine cards) reads it from `reports.raw_json`, every
 rate a ratio of sums over the latest snapshot per device, the clearing's tables grouped by cut policy. No database change.
 
-## Thinker by day (`sessions.byDay`, `proxy.byDay`, `delegate` schema 1)
+## Thinker by day (`sessions.byDay`, `proxy.byDay`, `delegate` schema 2)
 
-The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, seven cards) is the one place every figure is a day's
-own: the total saved since 2026-11-05 (nothing on or before 2026-11-04 is counted, here or on the client: `src/delivery.js:COST_SINCE`) and the saving per day, the
+The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, eight cards) is the one place every figure is a day's
+own: the total saved since 2026-11-05, by the clearing and by delegation together (nothing on or before 2026-11-04 is counted, here or on the client: `src/delivery.js:COST_SINCE`) and the saving per day, the
 devices with at least one thinker session per day, the context cuts per day, the delegations to a subagent per day,
 and the known devices as a running total.
 
@@ -470,6 +470,11 @@ and the known devices as a running total.
 - Delegations read `delegate.byDay` (`src/telemetry.js:delegateMetrics`, clients after 0.4.0): `delegated`,
   `cached`, `held`, `failed`, `costUsd` (what the subagent runs reported). Rows the trigger logs with
   `fired: false` are in no count. Nothing names a file, a command or a session.
+- What delegation saved reads the same block at schema 2 (clients after 0.4.0): `savedUsd`, `savedTokens` and
+  `unpricedTokens`, the machine's own savings ledger by day (`src/report-savings.js:delegationSavings`, the figure
+  the footer, `thinker savings` and the Report show). The write the lead never made is on the day of the handoff,
+  the read avoided on each later call on the day of that call, less what the subagent cost. It has a card of its
+  own and is added into the total; a device on an older client sends counts alone and is in neither.
 - Known devices reads `reports` alone: each `device_id` from the UTC day of its first report.
 
 No database change and no Lambda deploy: every block is read out of `reports.raw_json`.
