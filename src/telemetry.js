@@ -397,9 +397,12 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
     const s = m[side] ||= { requests: 0, billedInput: 0, cleared: 0 };
     s.requests++; s.billedInput += billed(r); s.cleared += clearedOf(r);
     if (r.injected && typeof r.at === 'string' && r.at.length >= 10) {
-      const d = byDay[r.at.slice(0, 10)] ||= { requests: 0, requestsCleared: 0, cleared: 0 };
+      const d = byDay[r.at.slice(0, 10)] ||= { requests: 0, requestsCleared: 0, cleared: 0, cuts: 0 };
       const cleared = clearedOf(r);
       d.requests++; if (cleared > 0) { d.requestsCleared++; d.cleared += cleared; }
+      // a cut is the request a new boundary was decided on (`clear`, all three doors); the requests after it
+      // resend the same cut and are `requestsCleared`, so cuts are the events and those are their reach
+      if (r.clear) d.cuts++;
     }
   }
   return {
@@ -658,6 +661,9 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // kept report, with the cut policy the on side was cleared under (armsMetrics). The Diff by feature dashboard reads it.
     arms: armsMetrics(store, { all }),
 
+    // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
+    delegate: delegateMetrics(store, { all }),
+
     // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
     actions: tokenSpend.actions,
@@ -695,6 +701,28 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // their assessments that stood here until 2026-11-08 went with the knowledge notes
     activity: { schemaVersion: 1, requestsTotal: u.requests, sessions: u.sessions },
   });
+}
+
+// The delegation trigger by UTC day (delegate.js, the usage log's `op: delegate` rows): how often a read or a
+// suite run was handed to a subagent. `delegated` is a call the model got a report for instead of the file or the
+// run -- the subagent's, or the turn's cached one (`cached`, counted in both); `held` is a firing in a held-out
+// session, where the call went through; `failed` a subagent that errored or timed out, where it went through too.
+// A row marked `fired: false` (a sized read under the rule, a call after the turn's handoff, a host with no
+// subagent) is the trigger's own bookkeeping and is in no count. `costUsd` is what the subagent runs reported (`total_cost_usd`), data the provider gave, never priced here.
+// Days add up, as the proxy's and the sessions' do. Never a file, a command or a session.
+export function delegateMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
+  const byDay = {};
+  let events = []; try { events = readLog(store, { all }); } catch { events = []; }
+  for (const e of events) {
+    if (e.op !== 'delegate' || e.fired === false || typeof e.t !== 'string' || e.t < since || !Number.isFinite(Date.parse(e.t))) continue;
+    const d = byDay[e.t.slice(0, 10)] ||= { delegated: 0, cached: 0, held: 0, failed: 0, costUsd: 0 };
+    if (e.held) d.held++;
+    else if (e.error) d.failed++;
+    else { d.delegated++; if (e.cached) d.cached++; if (Number.isFinite(e.cost)) d.costUsd += e.cost; }
+  }
+  for (const d of Object.values(byDay)) d.costUsd = Math.round(d.costUsd * 100) / 100;
+  return { schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
 // The metrics API refuses a payload over 64 KB (infra/metrics/handler.mjs), and a refusal loses the whole

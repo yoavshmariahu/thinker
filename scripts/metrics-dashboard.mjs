@@ -6,6 +6,7 @@ import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { savingsQuestions } from './savings-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
 import { armsQuestions } from './arms-dashboard.mjs';
+import { dailyQuestions, SAVINGS_SINCE } from './daily-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
 import { spendQuestions } from './spend-dashboard.mjs';
 import path from 'node:path';
@@ -128,7 +129,7 @@ const costQuestions = [
   { name: 'Distillation measurement coverage', display: 'table', sql: `SELECT count(*) FILTER (WHERE raw_json #>> '{distillation,schemaVersion}' = '1') AS installations_with_instrumentation, ${distillSum('attempts')} AS measured_runs, ${distillSum('legacySuccessfulRuns')} AS older_completions_without_outcomes, ${distillSum('durationSamples')} AS timed_runs, ${distillSum('costKnownCalls')} AS model_calls_with_cost, ${distillSum('costUnknownCalls')} AS model_calls_without_cost, ${distillSum('modelFailedCalls')} AS failed_model_attempts FROM v_latest_installs` }
 ];
 performanceQuestions.push(...costQuestions);
-const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...savingsQuestions, ...holdoutQuestions, ...armsQuestions, ...cacheQuestions, ...spendQuestions];
+const questions = [...diagnosticQuestions, ...performanceQuestions, ...deliveryQuestions, ...savingsQuestions, ...holdoutQuestions, ...armsQuestions, ...dailyQuestions, ...cacheQuestions, ...spendQuestions];
 const performanceCardNames = [...performanceQuestions.map(q => q.name), 'Note assessments · latest snapshots', 'Savings estimates · latest snapshots'];
 
 const filterDefs = [
@@ -338,6 +339,30 @@ export async function provision({ call = api, config = state, persist = save, re
     await api(`/dashboard/${state.armsId}`, 'PUT', { parameters: [...parameters,
       ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
   }
+  if (!state.dailyId) {
+    state.dailyId = (await api('/dashboard', 'POST', { name: 'Thinker by day', collection_id: state.collectionId,
+      description: 'What thinker saved, the devices it ran on, the context cuts, the delegations to a subagent and the known devices, each by UTC day (scripts/daily-dashboard.mjs). A day is its own figure from the newest snapshot that carries it, so days add up.' })).id;
+    save();
+  }
+  if (state.dailyDashboardVersion !== 1) {
+    const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 3,
+      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are counted from ${SAVINGS_SINCE}, the day thinker began cutting the context itself. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0.` } }];
+    // the total beside the bars it is the sum of, then the graphs two to a row
+    let row = 3, col = 0;
+    dailyQuestions.forEach((q, i) => {
+      const id = state.cards[q.name], base = { id: -(i + 2), card_id: id, parameter_mappings: mappings(id) };
+      if (i === 0) return cards.push({ ...base, row, col: 0, size_x: 6, size_y: 8 });
+      if (i === 1) { cards.push({ ...base, row, col: 6, size_x: 18, size_y: 8 }); row += 8; return; }
+      cards.push({ ...base, row, col, size_x: 12, size_y: 8 });
+      if (col) { row += 8; col = 0; } else col = 12;
+    });
+    await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters, dashcards: cards });
+    state.dailyDashboardVersion = 1; save();
+  } else {
+    const dashboard = await api(`/dashboard/${state.dailyId}`);
+    await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters: [...parameters,
+      ...dashboard.parameters.filter(p => !filterDefs.some(([key]) => key === p.id))] });
+  }
   if (!state.holdoutId) {
     state.holdoutId = (await api('/dashboard', 'POST', { name: 'Holdout: what the notes save', collection_id: state.collectionId,
       description: 'Prompts served notes against prompts with notes withheld, pooled over the latest 30-day snapshot per device. Per-prompt averages, with prompt counts.' })).id;
@@ -451,6 +476,7 @@ export async function provision({ call = api, config = state, persist = save, re
   console.log(`Holdout: http://localhost:3030/dashboard/${state.holdoutId}`);
   console.log(`Cache health: http://localhost:3030/dashboard/${state.cacheId}`);
   console.log(`Token spend: http://localhost:3030/dashboard/${state.spendId}`);
+  console.log(`Thinker by day: http://localhost:3030/dashboard/${state.dailyId}`);
   console.log(`Dashboard: http://localhost:3030/dashboard/${state.dashboardId}`);
   console.log(`Waitlist: http://localhost:3030/dashboard/${state.waitlistId}`);
   console.log(`SQL editor: http://localhost:3030/question#?db=${db.id}&type=native`);
@@ -497,6 +523,12 @@ export async function verify({ call = api, config = state } = {}) {
     if (armsQuestions.some(q => !arms.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Diff by feature dashboard is missing cards');
     if (filterDefs.some(([id]) => !arms.parameters.some(p => p.id === id) || arms.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped diff-by-feature filter');
     console.log('PASS: diff by feature layout and filters.');
+  }
+  if (state.dailyId) {
+    const daily = await api(`/dashboard/${state.dailyId}`);
+    if (dailyQuestions.some(q => !daily.dashcards.some(c => c.card_id === state.cards[q.name]))) throw new Error('Thinker by day dashboard is missing cards');
+    if (filterDefs.some(([id]) => !daily.parameters.some(p => p.id === id) || daily.dashcards.some(c => c.card_id && !c.parameter_mappings.some(p => p.parameter_id === id)))) throw new Error('Unmapped thinker-by-day filter');
+    console.log('PASS: thinker by day layout and filters.');
   }
   if (state.holdoutId) {
     const holdout = await api(`/dashboard/${state.holdoutId}`);
