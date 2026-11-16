@@ -193,13 +193,13 @@ export async function provision({ call = api, config = state, persist = save, re
     // the code that fixed it looked right. 4: the schema-3 fields, and that fix finally landing.
     // daily 3: a day is read from a `sessions.byDaySchema` 2 snapshot (a session dated by its own turns) where a
     // device has one, and as reported where it has not.
-    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 1 : question.daily ? state.dailyCardVersion === 3 : state.cardVersion === 8)) continue;
+    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 2 : question.daily ? state.dailyCardVersion === 4 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 3; state.savingsCardVersion = 1; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 4; state.savingsCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -346,9 +346,9 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What thinker saved, the devices it ran on, the context cuts, the delegations to a subagent and the known devices, each by UTC day (scripts/daily-dashboard.mjs). A day is its own figure from the newest snapshot that carries it, so days add up.' })).id;
     save();
   }
-  if (state.dailyDashboardVersion !== 2) {
+  if (state.dailyDashboardVersion !== 3) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 3,
-      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are counted from ${SAVINGS_SINCE}, the day thinker began cutting the context itself. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0, and a device on an older client can date an old session late (see the savings cards).` } }];
+      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are counted from ${SAVINGS_SINCE}, the first whole day of thinker cutting the context itself; nothing on or before 2026-11-04 is counted. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0, and a device on an older client can date an old session late (see the savings cards).` } }];
     // the two totals beside the bars they are the sum of, then the graphs two to a row
     let row = 3, col = 0;
     dailyQuestions.forEach((q, i) => {
@@ -359,7 +359,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters, dashcards: cards });
-    state.dailyDashboardVersion = 2; save();
+    state.dailyDashboardVersion = 3; save();
   } else {
     const dashboard = await api(`/dashboard/${state.dailyId}`);
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters: [...parameters,

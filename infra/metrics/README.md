@@ -450,7 +450,7 @@ rate a ratio of sums over the latest snapshot per device, the clearing's tables 
 ## Thinker by day (`sessions.byDay`, `proxy.byDay`, `delegate` schema 1)
 
 The **Thinker by day** dashboard (`scripts/daily-dashboard.mjs`, seven cards) is the one place every figure is a day's
-own: the total saved since 2026-11-04 (the day thinker began cutting the context itself) and the saving per day, the
+own: the total saved since 2026-11-05 (nothing on or before 2026-11-04 is counted, here or on the client: `src/delivery.js:COST_SINCE`) and the saving per day, the
 devices with at least one thinker session per day, the context cuts per day, the delegations to a subagent per day,
 and the known devices as a running total.
 
