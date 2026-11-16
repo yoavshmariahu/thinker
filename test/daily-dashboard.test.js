@@ -53,8 +53,8 @@ test('every daily card reads a day\'s own figure, and the savings count from the
     assert.match(q.sql, new RegExp(`\\{${block},byDay\\}`), `"${name}" reads ${block}.byDay`);
     assert.match(q.sql, /DISTINCT ON \(s\.device, dd\.day\)/, `"${name}" takes each device's day once`);
   }
-  assert.equal(SAVINGS_SINCE, '2026-11-04');
-  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-04'/, name);
+  assert.equal(SAVINGS_SINCE, '2026-11-05', 'nothing on or before 2026-11-04 is counted');
+  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-05'/, name);
   // a day both kinds of snapshot carry is read from the correctly dated one; an older client is still read
   for (const name of ['Total saved', 'Saved since', 'Saved per day']) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
   assert.match(by('Saved per day').sql, /devices_with_corrected_dating/);

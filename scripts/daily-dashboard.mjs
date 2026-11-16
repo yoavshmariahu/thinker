@@ -20,9 +20,10 @@ const days = (block, prefer = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day)
   ORDER BY s.device, dd.day, s.preferred DESC, s.received_at DESC, s.file_key DESC) days`;
 const fig = name => `(CASE WHEN jsonb_typeof(figures->'${name}') = 'number' THEN (figures->>'${name}')::numeric END)`;
 
-// Savings are counted from the day thinker began cutting the context itself. Before it the clearing was the
-// API's, which was measured as a loss; that is another mechanism, and its days are in neither savings card.
-export const SAVINGS_SINCE = '2026-11-04';
+// No saving is counted on or before 2026-11-04 (the owner's call, 2026-11-16; src/delivery.js:COST_SINCE holds the
+// same line on the client). Thinker began cutting the context itself that day; before it the clearing was the
+// API's, measured as a loss, and its days are in no savings card.
+export const SAVINGS_SINCE = '2026-11-05';
 const netNote = 'Netted, at list prices: the tokens the clearing left out of later prompts at the cache-read rate, less the cache writes the calls after a clear paid for, summed over the sessions whose last request was that UTC day (src/delivery-telemetry.js sessions.byDay). A loss reads as a loss. Sessions whose model has no list price are in no dollar figure.';
 
 // What the first reading got wrong (-$376, nearly all of it one machine's 8 November): a session was dated by the
