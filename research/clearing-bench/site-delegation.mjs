@@ -119,9 +119,20 @@ function arm(row) {
   const passed = /^PASS/.test(plain);
   const counts = (plain.match(/\d+ (?:failed|passed)/g) || []).join(', ');
   const handoffs = main.turns.flatMap(t => t.steps.filter(s => s.kind === 'tool' && s.handoff).map(s => ({ k: s.k, t: t.n, tool: s.name, file: s.input.file_path || s.input.command || null })));
-  const agents = subs.map(s => ({ type: s.type, model: s.model, t: s.turn.n, calls: s.conv.calls.length }));
+  // what each handed-over read would have put in the context, from the hook's own log row for the firing
+  let fired = [];
+  try { fired = rows(path.join(row.cwd, '.thinker', 'log.jsonl')).filter(r => r.op === 'delegate' && r.fired !== false && !r.after && !r.held && r.tokens > 0); } catch {}
+  for (const h of handoffs) { const i = fired.findIndex(r => (r.files || []).some(f => h.file && (h.file === f || h.file.endsWith('/' + f) || f.endsWith('/' + h.file)))); if (i >= 0) { h.tokens = fired[i].tokens; fired.splice(i, 1); } }
+  const costOf = c => { const p = prices[c.model] || priceOf(row.model); return (c.input * p.input + c.out * p.out + c.read * p.read + c.write1h * p.w1h + (c.write - c.write1h) * p.w5m) / 1e6; };
+  const agents = subs.map(s => ({ type: s.type, model: s.model, t: s.turn.n, k: toolStep[s.toolUseId]?.k ?? s.conv.calls[0].k, calls: s.conv.calls.length, cost: s.conv.calls.reduce((a, c) => a + costOf(c), 0), reportChars: (s.conv.turns.flatMap(t => t.steps).filter(x => x.kind === 'say').at(-1)?.text || '').length || null }));
+  // the judge's verdict where the task had criteria written before the run (bench.mjs grade)
+  let judgment = null;
+  if (row.grade && !row.grade.error) {
+    const crit = JSON.parse(fs.readFileSync(path.join(ROOT, row.tasksDir, row.task, 'criteria.json'), 'utf8')).criteria;
+    judgment = { judge: row.grade.judge, pass: row.grade.pass, met: row.grade.met, total: row.grade.of, essentialMet: row.grade.essentialMet, essentialOf: row.grade.essentialOf, criteria: crit.map(c => ({ id: c.id, behavior: c.behavior, essential: Boolean(c.essential) })), verdicts: row.grade.verdicts.map(v => ({ id: v.id, met: Boolean(v.met), why: v.why || '' })) };
+  }
   return {
-    small: { sid, outcome: counts || null, passed, elapsedMs: row.wallMs, calls, results, notes: [], turns: main.turns.map(t => ({ n: t.n, tools: t.tools, calls: t.calls })), agents, handoffs },
+    small: { sid, outcome: counts || null, passed, ...(judgment ? { judgment } : {}), elapsedMs: row.wallMs, calls, results, notes: [], turns: main.turns.map(t => ({ n: t.n, tools: t.tools, calls: t.calls })), agents, handoffs },
     session: { sid, turns: main.turns, calls },
   };
 }

@@ -284,6 +284,13 @@
     .lab.sub-lab .arm { font-weight: 500; color: var(--muted); padding-left: 1.1rem; font-size: 0.78rem; }
     details.sub { margin: 0.4rem 0 0; padding: 0.3rem 0.6rem; border-left: 3px solid var(--thk); background: var(--thk-soft); border-radius: 0 6px 6px 0; }
     details.sub > summary { cursor: pointer; font-weight: 600; font-size: 0.82rem; }
+    .step.brief .bd.clip { max-height: 4.2em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent); }
+    table.crit td, table.crit th { vertical-align: top; }
+    table.crit td:not(:first-child), table.crit th:not(:first-child) { text-align: center; width: 8.5rem; white-space: normal; }
+    table.crit td:first-child { line-height: 1.45; }
+    table.crit .ok { color: var(--thk); font-weight: 600; } table.crit .no { color: var(--flag); font-weight: 600; }
+    table.crit td small { display: block; color: var(--muted); font-size: 0.76rem; font-weight: 400; }
+    table.crit small.why { margin-top: 0.3rem; }
   </style>
   <script src="/message.js" defer></script>
   <link rel="stylesheet" href="/nav.css">
@@ -413,6 +420,8 @@
     const wrateC = c => state.ttl === '1h' ? PM(c).w1h : PM(c).w5m;
     const hasSubs = arm => D()[arm].calls.some(c => c.agent);
     const handoffsOf = () => D().cut.handoffs || [];
+    const modelName = m => String(m || 'an unrecorded model').replace(/^claude-(\w)(\w*)-(\d+)-(\d+)$/, (_, a, b, x, y) => `Claude ${a.toUpperCase()}${b} ${x}.${y}`);
+    const smallUsd = v => v < 0.01 ? 'under $0.01' : usd(v);
     const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
     const fmtN = n => Math.round(n).toLocaleString('en-US');
     const usd = n => '$' + n.toFixed(2);
@@ -501,7 +510,7 @@
       const judged = !!D().cut.judgment;
       const dl = !!D().delegation;
       const passed = dl ? D().cut.passed : judged ? D().cut.judgment.pass && D().control.judgment.pass : !!(RUN().summary.cut.outcome && RUN().summary.control.outcome);
-      const outcome = dl ? `The pull request’s own tests · without thinker: ${esc(D().control.outcome || '?')}` : D().judged ? 'Opus judge · both patches' : judged ? `LLM judge · ${D().cut.judgment.met}/${D().cut.judgment.total} criteria` : 'Tests · both sessions';
+      const outcome = dl ? `The pull request’s own tests: ${esc(D().control.outcome || '?')} without, ${esc(D().cut.outcome || '?')} with${judged && D().control.judgment ? ` · Opus judge: ${D().control.judgment.met}/${D().control.judgment.total} criteria without, ${D().cut.judgment.met}/${D().cut.judgment.total} with` : ''}` : D().judged ? 'Opus judge · both patches' : judged ? `LLM judge · ${D().cut.judgment.met}/${D().cut.judgment.total} criteria` : 'Tests · both sessions';
       $('#tiles').innerHTML = `
         <div class="tile"><div class="k">Cost savings</div><div class="v ${D().comparisonIncomplete ? 'unavailable' : gain ? 'good' : 'bad'} savings-headline"><span>${D().comparisonIncomplete ? 'Unverified' : D().costBounds ? `${D().savings.minPercent.toFixed(1)}–${D().savings.maxPercent.toFixed(1)}%` : `${Math.abs(savedPercent).toFixed(1)}% ${gain ? 'saved' : 'more'}`}</span></div><div class="sub">${D().comparisonIncomplete ? 'Recorded costs below' : D().costBounds ? `${usd(D().savings.minDollars)}–${usd(D().savings.maxDollars)} estimated` : `${usd(Math.abs(saved))} ${gain ? 'saved' : 'more'}`}</div></div>
         ${codex ? inputTile('Uncached input', 'input', 'cache-writes') : `<div class="tile cache-writes"><div class="k">Cache writes</div><div class="v ${writesKnown ? writes <= baselineWrites ? 'good' : 'bad' : 'unavailable'}">${writesKnown ? fmt(writes) : 'Not recorded'}</div><div class="sub">${writesKnown ? `tokens · ${fmt(baselineWrites)} without` : 'Counts missing in this run'}</div></div>`}
@@ -535,7 +544,7 @@
       handoffsOf().forEach(x => { g += `<line x1="${X(x.k)}" x2="${X(x.k)}" y1="${M.t}" y2="${H - M.b}"/>`; if (kind === 'carried' && X(x.k) - lastHandLabel > 78) { lastHandLabel = X(x.k); g += `<g transform="translate(${X(x.k)},${M.t - 14})"><rect x="-34" y="-10" width="68" height="16" rx="4"/><text y="2" text-anchor="middle">handed over</text></g>`; } });
       g += '</g>';
       g += `<path class="ln ctl" d="${path(leadOf(b))}"/><path class="ln thk" d="${path(leadOf(a))}"/>`;
-      [['ctl', b], ['thk', a]].forEach(([cls, s]) => s.filter(x => x.agent).forEach(x => { g += `<circle class="subdot ${cls}" cx="${X(x.k).toFixed(1)}" cy="${Y(val(x)).toFixed(1)}" r="3.4"><title>call ${x.k}: ${esc(x.agent)} subagent on ${esc(x.model || '?')}</title></circle>`; }));
+      [['ctl', b], ['thk', a]].forEach(([cls, s]) => s.filter(x => x.agent).forEach(x => { g += `<circle class="subdot ${cls}" cx="${X(x.k).toFixed(1)}" cy="${Y(val(x)).toFixed(1)}" r="3.4"><title>call ${x.k}: ${esc(x.agent)} subagent on ${esc(modelName(x.model))}</title></circle>`; }));
       if (kind === 'carried') rereads().forEach(r => { const x = a[r.k - 1]; if (!x) return; const px = X(r.k), py = Y(val(x)) - 9; g += `<g class="flag"><path d="M${px},${py - 6} L${px + 6},${py + 4} L${px - 6},${py + 4} Z"/></g>`; });
       const lb = b[b.length - 1], la = a[a.length - 1];
       g += `<text class="dl ctl" x="${Math.min(X(lb.k) + 4, W - 2)}" y="${Y(val(lb)) + 4}">${kind === 'carried' ? fmt(val(lb)) : usd(val(lb))}</text><text class="dl thk" x="${Math.min(X(la.k) + 4, W - 2)}" y="${Y(val(la)) + 4 + (Math.abs(Y(val(la)) - Y(val(lb))) < 12 ? 12 : 0)}">${kind === 'carried' ? fmt(val(la)) : usd(val(la))}</text>`;
@@ -617,8 +626,12 @@
       rereads().forEach(r => { items.push({ k: r.k, html: `<span class="tag flag">re-read</span>Turn ${r.turn}, call ${r.k}: the model read <code>${esc(r.file)}</code> again${r.n > 1 ? `, ${r.n} ranged reads` : ''}; its earlier result had been cleared at call ${r.cutAt}.` }); });
       D().cut.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>${D().protocol === 'responses' ? 'Codex' : 'Claude Code'} compacted the thinker run’s conversation at call ${c.k}; its cost is included.` }));
       D().control.calls.filter(c => c.compacted).forEach(c => items.push({ k: c.k, html: `<span class="tag held">compacted</span>${D().protocol === 'responses' ? 'Codex' : 'Claude Code'} compacted the control’s conversation at call ${c.k}. This is the agent’s own behavior; its cost is included in the baseline.` }));
+      if (D().delegation) {
+        handoffsOf().forEach(x => items.push({ k: x.k, html: `<span class="tag cut">handed over</span>Call ${x.k} (turn ${x.t}): thinker stopped the main agent’s read of <code>${esc(x.file || 'a file')}</code>${x.tokens ? `, about <b>${fmt(x.tokens)}</b> tokens,` : ''} and told it to give the read to a subagent.` }));
+        for (const [arm, label] of [['cut', ''], ['control', ' In the run without thinker; the main agent did this of its own accord.']]) (D()[arm].agents || []).forEach(g => items.push({ k: g.k, html: `<span class="tag held">subagent</span>Call ${g.k} (turn ${g.t}): the main agent started an ${esc(g.type)} subagent on ${esc(modelName(g.model))}. It made <b>${g.calls} call${g.calls === 1 ? '' : 's'}</b> for ${smallUsd(g.cost)}${g.reportChars ? ` and reported back in ${fmtN(g.reportChars)} characters` : ''}.${label}` }));
+      }
       items.sort((p, q) => p.k - q.k);
-      $('#events').innerHTML = items.length ? items.map(it => `<li class="ev" data-k="${it.k}"><span class="k">call ${it.k}</span><div>${it.html}</div></li>`).join('') : '<li class="ev"><div>thinker made no cut in this run: the context never crossed its trigger.</div></li>';
+      $('#events').innerHTML = items.length ? items.map(it => `<li class="ev" data-k="${it.k}"><span class="k">call ${it.k}</span><div>${it.html}</div></li>`).join('') : `<li class="ev"><div>${D().delegation ? 'thinker handed nothing over in this run.' : 'thinker made no cut in this run: the context never crossed its trigger.'}</div></li>`;
       document.querySelectorAll('.ev[data-k]').forEach(li => li.addEventListener('click', () => setPos(+li.dataset.k)));
     }
 
@@ -686,6 +699,15 @@
       }
       $('#calls').innerHTML = h;
       $('#judge-evidence').innerHTML = (D().costBounds || D().codexBilling) ? `<h2>Task outcome</h2><p class="sub">Astra judged both final patches against the same five essential criteria. Every criterion was met in both arms. Tests are supporting evidence.</p><div class="tbl-wrap"><table class="ptab"><tr><th>Criterion</th><th>Without thinker</th><th>With thinker</th></tr>${D().cut.judgment.criteria.map(c => `<tr><td>${esc(c.behavior)}</td>${['control','cut'].map(arm => { const v = D()[arm].judgment.verdicts.find(v => v.id === c.id); return `<td><details><summary>Met</summary>${esc(v.evidence)}</details></td>`; }).join('')}</tr>`).join('')}</table></div>` : `<h2>Task outcome</h2><p class="sub">Recorded test evidence for both sessions. No LLM-judge verdict was recorded for this run.</p><div class="tbl-wrap"><table class="ptab"><tr><th>Evidence</th><th>Without thinker</th><th>With thinker</th></tr><tr><td>Test suite</td><td>${esc(RUN().summary.control.outcome || 'Not recorded')}</td><td>${esc(RUN().summary.cut.outcome || 'Not recorded')}</td></tr></table></div>`;
+      if (D().delegation) {
+        // one plain table, nothing to open: a mark per arm, the judge's reason for each under the criterion
+        const jc = D().control.judgment, jt = D().cut.judgment, both = jc && jt;
+        const mark = ok => `<span class="${ok ? 'ok' : 'no'}">${ok ? 'Met' : 'Not met'}</span>`;
+        const of = (j, c) => j.verdicts.find(v => v.id === c.id);
+        const test = arm => `<span class="${D()[arm].passed ? 'ok' : 'no'}">${D()[arm].passed ? 'Passed' : 'Failed'}</span><small>${esc(D()[arm].outcome || 'not recorded')}</small>`;
+        const row = c => { const a = of(jc, c), b = of(jt, c); return `<tr><td>${esc(c.behavior)}${c.essential ? '' : ' <small class="why">Not essential.</small>'}<small class="why">Judge, without thinker: ${esc(a ? a.why : 'not judged')}</small><small class="why">Judge, with thinker: ${esc(b ? b.why : 'not judged')}</small></td><td>${a ? mark(a.met) : '—'}</td><td>${b ? mark(b.met) : '—'}</td></tr>`; };
+        $('#judge-evidence').innerHTML = `<h2>Task outcome</h2><p class="sub">${both ? 'Two checks. The pull request’s own tests were installed after each session ended, so neither agent saw them. Claude Opus 5.5 then judged each final patch against success criteria written before the runs.' : 'The pull request’s own tests were installed after each session ended, so neither agent saw them. No success criteria had been written for this task before the runs, so no judge verdict is shown.'}</p><div class="tbl-wrap"><table class="ptab crit"><tr><th>Check</th><th>Without thinker</th><th>With thinker</th></tr><tr><td>The pull request’s own tests</td><td>${test('control')}</td><td>${test('cut')}</td></tr>${both ? jt.criteria.map(row).join('') + `<tr><td><b>Success criteria met</b></td><td><b>${jc.met} of ${jc.total}</b></td><td><b>${jt.met} of ${jt.total}</b></td></tr>` : ''}</table></div>`;
+      }
       if (D().judged) {
         $('#judge-evidence').innerHTML = `<h2>Task outcome</h2><p class="sub">The same Opus model judged each patch against the merged reference patch. These scores are distinct from executed tests and per-criterion verification.</p><div class="tbl-wrap"><table class="ptab"><tr><th>Evidence</th><th>Without thinker</th><th>With thinker</th></tr><tr><td>Patch judgment</td>${['control','cut'].map(arm => `<td><details><summary>${esc(D()[arm].outcome)}</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(D()[arm].judgment, null, 2))}</pre></details></td>`).join('')}</tr></table></div>`;
         if (D().control.functionalValidation) $('#judge-evidence').innerHTML += `<p>Independent frontend tests: ${D().control.functionalValidation.tests} passed without Thinker; ${D().cut.functionalValidation.tests} passed with Thinker. Backend integration tests were not provisioned.</p>`;
@@ -815,7 +837,7 @@
           if (s.kind === 'knowledge') { const e = knowledgeOf(isCut ? 'cut' : 'control').find(e => e.k === s.k); return `<div class="step"><span class="ic">cache hit</span><div class="bd"><details><summary>Knowledge note served</summary><pre style="white-space:pre-wrap">${esc(s.text)}</pre></details>${e ? knowledgeDetail(e) : ''}</div></div>`; }
           if (s.kind === 'thinking') return `<div class="step"><span class="ic">thought</span><div class="bd"><span class="m" style="margin:0">${s.chars ? s.chars.toLocaleString() + ' chars, ' : ''}a thinking block; neither run clears it</span></div></div>`;
           if (s.kind === 'say') { const long = s.text.length > 320; return `<div class="step say"><span class="ic">${t.steps.indexOf(s) === t.steps.length - 1 ? 'answer' : 'says'}</span><div class="bd${long ? ' clip' : ''}">${esc(s.text)}</div>${long ? '<button type="button" class="x" data-x="say">more</button>' : ''}</div>`; }
-          if (s.kind === 'tool') { const subHtml = s.sub ? `<details class="sub"><summary>${esc(s.sub.type)} subagent on ${esc(s.sub.model || '?')} · ${s.sub.calls} call${s.sub.calls === 1 ? '' : 's'}</summary>${s.sub.turns.map(st => `<div class="step"><span class="ic">brief</span><div class="bd clip">${esc(st.prompt)}</div><button type="button" class="x" data-x="say">more</button></div>${steps(st, isCut)}`).join('')}</details>` : ''; const rr = isCut && s.name === 'Read' && d.cut.notes.some(r => r.kind === 'reread' && r.file === s.input.file_path && r.turn === t.n); return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}${D().combined ? `<details><summary>Full tool call</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(s.input, null, 2))}</pre></details>` : ''}${rr ? '<span class="tag flag">re-read: this file had been cleared</span>' : ''}${s.handoff ? '<span class="tag cut">thinker handed this to a subagent</span>' : ''}${subHtml}</div></div>`; }
+          if (s.kind === 'tool') { const subHtml = s.sub ? `<details class="sub"><summary>${esc(s.sub.type)} subagent on ${esc(modelName(s.sub.model))} · ${s.sub.calls} call${s.sub.calls === 1 ? '' : 's'}</summary>${s.sub.turns.map(st => `<div class="step brief"><span class="ic">brief</span><div class="bd clip">${esc(st.prompt)}</div><button type="button" class="x" data-x="say">more</button></div>${steps(st, isCut)}`).join('')}</details>` : ''; const rr = isCut && s.name === 'Read' && d.cut.notes.some(r => r.kind === 'reread' && r.file === s.input.file_path && r.turn === t.n); return `<div class="step"><span class="ic">${esc(s.name.toLowerCase())}</span><div class="bd">${toolLine(s)}${D().combined ? `<details><summary>Full tool call</summary><pre style="white-space:pre-wrap">${esc(JSON.stringify(s.input, null, 2))}</pre></details>` : ''}${rr ? '<span class="tag flag">re-read: this file had been cleared</span>' : ''}${s.handoff ? '<span class="tag cut">thinker handed this to a subagent</span>' : ''}${subHtml}</div></div>`; }
           if (s.kind === 'result') {
             const cutTurn = s.cutAt ? turnOfCall(cut, s.cutAt) : null;
             return `<div class="step res${s.cutAt ? ' cut' : ''}"><span class="ic">result</span><div class="bd"><span class="t">${s.lines.toLocaleString()} lines, ${s.chars.toLocaleString()} chars</span>${s.error ? '<span class="tag err">error</span>' : ''}${s.handoff ? '<span class="tag cut">thinker’s handoff, in place of the file</span>' : ''}${s.cutAt ? `<span class="tag cut">cleared by thinker before turn ${cutTurn}</span>` : ''}<div class="blob" hidden data-blob="${s.blob}"></div></div><button type="button" class="x" data-x="blob">show</button></div>`;

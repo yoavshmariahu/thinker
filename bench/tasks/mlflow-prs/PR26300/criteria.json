@@ -1,0 +1,34 @@
+{
+ "source": "mlflow-b2-fair-turns acceptance criteria (Artemis archive, written 2026-10, before these runs); a criterion that is a test command is left to check.sh, which runs the pull request's own tests",
+ "exclude": [
+  "tests/gateway/providers/test_gemini.py",
+  "tests/gateway/providers/test_vertex_ai.py"
+ ],
+ "criteria": [
+  {
+   "id": "a1",
+   "behavior": "A chat request (non-streaming) to a Gemini or Vertex AI gateway endpoint that declares tools and sets tool_choice to \"required\" results in the outbound request to the provider carrying a tool-calling configuration that forces a function call (Gemini's ANY mode), rather than leaving tool selection to the model's default automatic behavior.",
+   "essential": true
+  },
+  {
+   "id": "a2",
+   "behavior": "A chat request that declares tools and sets tool_choice to \"none\" results in the outbound request carrying a tool-calling configuration that disables function calling (Gemini's NONE mode), so the provider is instructed not to call any tool.",
+   "essential": true
+  },
+  {
+   "id": "a3",
+   "behavior": "A chat request that declares multiple tools and sets tool_choice to a specific named function results in the outbound request restricting tool calling to only that named function, even though other tools were declared.",
+   "essential": true
+  },
+  {
+   "id": "a4",
+   "behavior": "This tool_choice handling applies identically to streaming chat requests, not just non-streaming ones.",
+   "essential": true
+  },
+  {
+   "id": "a5",
+   "behavior": "When tool_choice is omitted or set to \"auto\", the outbound request is unchanged from current behavior (no forced/none/restricted tool-calling configuration is added), and when no tools are declared in the request at all, no tool-calling configuration is sent regardless of any tool_choice value.",
+   "essential": true
+  }
+ ]
+}

@@ -1,0 +1,29 @@
+{
+ "source": "mlflow-b2-fair-turns acceptance criteria (Artemis archive, written 2026-10, before these runs); a criterion that is a test command is left to check.sh, which runs the pull request's own tests",
+ "exclude": [
+  "tests/gateway/providers/test_gemini.py",
+  "tests/gateway/providers/test_litellm.py"
+ ],
+ "criteria": [
+  {
+   "id": "a1",
+   "behavior": "When the Gemini chat provider streams a response chunk containing two or more parallel tool calls together, the resulting streamed tool call deltas are assigned distinct, consecutive indices (0, 1, 2, ...) within that chunk instead of all being reported as index 0.",
+   "essential": true
+  },
+  {
+   "id": "a2",
+   "behavior": "When a Gemini streamed response delivers tool calls across multiple separate chunks, the indices assigned to tool calls in later chunks continue numbering from where the previous chunks left off, rather than restarting at 0.",
+   "essential": true
+  },
+  {
+   "id": "a3",
+   "behavior": "When the LiteLLM chat provider streams a response chunk whose tool-call deltas carry an index from the underlying library, that provided index is preserved on the corresponding output tool call delta instead of being overwritten by the call's position within the chunk.",
+   "essential": true
+  },
+  {
+   "id": "a4",
+   "behavior": "When a LiteLLM streamed tool-call delta does not carry an index from the underlying library, the output tool call delta falls back to using the call's position within that chunk as its index.",
+   "essential": true
+  }
+ ]
+}
