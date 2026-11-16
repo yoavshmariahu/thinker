@@ -1,0 +1,1 @@
+Now read tests/test_termui.py in full and tell me how progressbar is tested today: which tests cover iteration, update(), the rendering, and the file/hidden handling, with the test names.

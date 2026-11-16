@@ -1,0 +1,1 @@
+Now read tests/test_types.py and tests/test_options.py in full and tell me how Path and the other file-ish types are tested today, and how type-level BadParameter errors are asserted in the option tests, with the test names.

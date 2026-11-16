@@ -1,0 +1,5 @@
+I want to add this feature:
+
+`click.progressbar` gets a new keyword-only parameter `on_update: Callable[[int], None] | None = None`. Each time the bar's position actually advances (in the step that moves `pos`, whether from iteration or from `update()`), it is called once with the new position, after the position has changed and whether or not anything is drawn. Default behaviour is unchanged.
+
+Implement it now in src/click, keeping existing behaviour unchanged when the new parameter is not used. Add tests for the new behaviour in the matching file under tests/. Keep the change small and in Click's own style (type hints, a docstring line, a versionchanged note).

@@ -1,0 +1,5 @@
+I want to add this feature:
+
+`click.Group` gets a new keyword-only parameter `sort_commands: bool = True`. When it is False, `list_commands` returns the commands in the order they were added, which is the order the help's Commands section then shows. The default keeps today's sorted order. The `click.group` decorator passes it through.
+
+Implement it now in src/click, keeping existing behaviour unchanged when the new parameter is not used. Add tests for the new behaviour in the matching file under tests/. Keep the change small and in Click's own style (type hints, a docstring line, a versionchanged note).

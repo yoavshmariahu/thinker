@@ -1,0 +1,1 @@
+{CWD} is a checkout of MLflow. Read mlflow/tracking/client.py end to end, in full, and give me a map of MlflowClient: its methods grouped by area (experiments, runs, metrics/params/tags, artifacts, model registry, traces, anything else), with the line number of each group's first method.

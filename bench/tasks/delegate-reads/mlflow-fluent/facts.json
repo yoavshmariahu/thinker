@@ -1,0 +1,14 @@
+{"source": "truth-mlflow.md, verified by grep on 2026-11-13 against mlflow @ c63fb454c; written before the run of 2026-11-15",
+ "facts": [
+  {"id": "t2-start_run-line", "turn": 2, "re": "\\b449\\b"},
+  {"id": "t2-run-stack", "turn": 2, "re": "_active_run_stack"},
+  {"id": "t3-register", "turn": 3, "re": "atexit\\.register"},
+  {"id": "t3-safe-end", "turn": 3, "re": "_safe_end_run"},
+  {"id": "t3-line", "turn": 3, "re": "\\b76[38]\\b"},
+  {"id": "t4-uc-upsell", "turn": 4, "re": "_MLFLOW_ENABLE_UC_TRACE_UPSELL"},
+  {"id": "t4-experiment-id", "turn": 4, "re": "MLFLOW_EXPERIMENT_ID"},
+  {"id": "t4-warehouse", "turn": 4, "re": "MLFLOW_TRACING_SQL_WAREHOUSE_ID"},
+  {"id": "t4-sgc", "turn": 4, "re": "_MLFLOW_ENABLE_SGC_RUN_RESUMPTION_FOR_DATABRICKS_JOBS"},
+  {"id": "t4-run-id", "turn": 4, "re": "MLFLOW_RUN_ID"},
+  {"id": "t4-run-note", "turn": 4, "re": "MLFLOW_RUN_NOTE"}
+ ]}

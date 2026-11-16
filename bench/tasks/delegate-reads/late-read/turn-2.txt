@@ -1,0 +1,1 @@
+Go ahead and implement it as you described, with tests in the matching file under tests/. Keep the change small and in Click's own style (type hints, a docstring line, a versionchanged note).

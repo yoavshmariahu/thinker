@@ -1,0 +1,1 @@
+I'm picking up Click's codebase at {CWD} (tests run with .venv/bin/python -m pytest -q from there). Read src/click/utils.py, src/click/_compat.py, src/click/decorators.py and src/click/termui.py end to end, in full, and give me a map of them: the public functions in each, what they do, and which of them touch filenames or paths.

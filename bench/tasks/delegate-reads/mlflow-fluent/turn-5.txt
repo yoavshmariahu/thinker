@@ -1,0 +1,1 @@
+Write me a short design note, no code, for adding `mlflow.log_dict_batch(d: dict, step: int | None = None)` that logs numeric values as metrics and the rest as params in one call: which existing functions it composes, how it validates keys, what the edge cases are, and where its tests would go.

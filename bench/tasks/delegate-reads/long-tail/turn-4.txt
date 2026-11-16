@@ -1,0 +1,1 @@
+Where are usage errors and bad parameters turned into messages, and which class owns the exit codes?

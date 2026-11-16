@@ -1,0 +1,1 @@
+How does a Group resolve a subcommand name, and what hooks does a subclass have to change that?

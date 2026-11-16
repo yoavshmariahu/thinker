@@ -1,0 +1,1 @@
+Now read tests/test_commands.py and tests/test_basic.py in full and tell me how command registration, listing and the help's Commands section are tested today, with the test names.
