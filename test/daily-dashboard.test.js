@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { provision } from '../scripts/metrics-dashboard.mjs';
-import { dailyQuestions, SAVINGS_SINCE, WINDOW_DAYS } from '../scripts/daily-dashboard.mjs';
+import { dailyQuestions, ACTIVE_DAYS, SAVINGS_SINCE, WINDOW_DAYS } from '../scripts/daily-dashboard.mjs';
 import { Store } from '../src/store.js';
 import { delegateMetrics, proxyMetrics } from '../src/telemetry.js';
 import { sessionsOf } from '../src/delivery.js';
@@ -37,6 +37,10 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
     assert.ok(a.col + a.size_x <= b.col || b.col + b.size_x <= a.col || a.row + a.size_y <= b.row || b.row + b.size_y <= a.row, 'cards must not overlap');
     assert.ok(a.col + a.size_x <= 24, 'a card stays on the grid');
   }
+  const last = daily.dashcards.at(-1);
+  assert.equal(last.card_id, config.cards[dailyQuestions.at(-1).name]);
+  assert.deepEqual([last.col, last.size_x], [0, 24], 'the table of devices takes the whole width');
+  assert.ok(daily.dashcards.every(c => c === last || c.row + c.size_y <= last.row), 'and sits at the bottom');
   const dailyId = config.dailyId;
   await provision(options);
   assert.equal(config.dailyId, dailyId);
@@ -45,7 +49,7 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
 
 test('every daily card reads a day\'s own figure, and the savings count from the day the cut shipped', () => {
   const by = name => dailyQuestions.find(q => q.name.startsWith(name));
-  assert.equal(dailyQuestions.length, 8);
+  assert.equal(dailyQuestions.length, 9);
   // a day from the newest snapshot that carries it, never a 30-day sum by snapshot
   for (const [name, block] of [['Total saved', 'sessions'], ['Total saved', 'delegate'], ['Saved per day', 'sessions'], ['Saved per day', 'delegate'], ['Saved by context cuts', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
     const q = by(name);
@@ -78,14 +82,36 @@ test('every daily card reads a day\'s own figure, and the savings count from the
   assert.match(by('Context cuts').sql, /'cuts'/);
   // one window on every card, and no date in a name: the line savings count from is in the query alone
   assert.equal(WINDOW_DAYS, 30);
-  for (const q of dailyQuestions) { assert.match(q.sql, /\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\)/, q.name); assert.doesNotMatch(q.name, /\d{4}-\d{2}-\d{2}/, q.name); }
+  for (const q of dailyQuestions) { if (q.display !== 'table') assert.match(q.sql, /\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\)/, q.name); assert.doesNotMatch(q.name, /\d{4}-\d{2}-\d{2}/, q.name); }
   assert.equal(by('Total saved').name, 'Total saved · last 30 days');
   // the context cuts' two cards share a row, and delegation's two the next
-  assert.deepEqual(dailyQuestions.map(q => q.name), ['Total saved · last 30 days', 'Saved per day', 'Saved by context cuts, per day', 'Context cuts per day', 'Saved by delegation, per day', 'Delegations to a subagent, per day', 'Devices with a thinker session, per day', 'Known devices, per day']);
+  assert.deepEqual(dailyQuestions.map(q => q.name), ['Total saved · last 30 days', 'Saved per day', 'Saved by context cuts, per day', 'Context cuts per day', 'Saved by delegation, per day', 'Delegations to a subagent, per day', 'Devices with a thinker session, per day', 'Known devices, per day', 'Active devices: cuts, delegations and savings']);
   assert.match(by('Known devices').sql, /count\(\*\) FILTER \(WHERE first_seen\.day_utc <= calendar\.day_utc\) AS known_devices/, 'known devices is a running total');
   // every chart draws the same axis: a row for each day of the window, whether or not the card has a figure for it
-  for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.match(q.sql, /FROM \(SELECT d::date AS day_utc FROM generate_series\(\(\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\), \(now\(\) AT TIME ZONE 'UTC'\)::date, interval '1 day'\) d\) calendar (LEFT|CROSS) JOIN/, q.name);
-  for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
+  for (const q of dailyQuestions.filter(q => !['scalar', 'table'].includes(q.display))) assert.match(q.sql, /FROM \(SELECT d::date AS day_utc FROM generate_series\(\(\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\), \(now\(\) AT TIME ZONE 'UTC'\)::date, interval '1 day'\) d\) calendar (LEFT|CROSS) JOIN/, q.name);
+  for (const q of dailyQuestions.filter(q => !['scalar', 'table'].includes(q.display))) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
+});
+
+test('the table of active devices is a row a device: counts and savings from the first counted day, the same figures the total reads', () => {
+  const q = dailyQuestions.at(-1);
+  assert.equal(q.display, 'table');
+  assert.equal(q.fullWidth, true);
+  assert.equal(ACTIVE_DAYS, 14);
+  assert.match(q.sql, /^SELECT left\(regexp_replace\(c\.device, '\^device:', ''\), 11\) AS device, l\.version, x\.context_cuts, g\.delegations,\s+round\(c\.usd, 2\) AS saved_by_context_cuts_usd, round\(g\.usd, 2\) AS saved_by_delegation_usd,\s+round\(.*\) AS saved_today_usd,\s+round\(.*\) AS saved_last_14_days_usd,\s+round\(.*\) AS saved_lifetime_usd, l\.tokens AS tokens_processed_last_30_days/);
+  // active is a session in the last 14 days; nothing is cut off at the charts' window, only at the first counted day
+  assert.match(q.sql, /WHERE c\.recent_sessions > 0/);
+  assert.match(q.sql, /sum\(.*'sessions'.*\) FILTER \(WHERE day_utc >= \(now\(\) AT TIME ZONE 'UTC'\)::date - 13\) AS recent_sessions/);
+  assert.doesNotMatch(q.sql, /::date - 29\)/);
+  assert.equal(q.sql.match(/dd\.day >= to_char\(DATE '2026-11-05', 'YYYY-MM-DD'\)/g).length, 3);
+  // the total's own figures, so the lifetime column adds up to it: stamped clears, correctly dated snapshots first, delegation's ledger
+  assert.match(q.sql, /figures->>'stampedNetUsd'/);
+  assert.doesNotMatch(q.sql, /'netUsd'|'clearedSessions'|'clearedTokens'/);
+  assert.match(q.sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/);
+  assert.match(q.sql, /figures->>'savedUsd'/);
+  assert.match(q.sql, /figures->>'cuts'/);
+  assert.match(q.sql, /figures->>'delegated'/);
+  assert.match(q.sql, /\{sessions,all,agentTokens\}/);
+  assert.doesNotMatch(q.sql, /calendar/);
 });
 
 test('delegations leave the machine as counts by day: fired, held out and failed, and never the bookkeeping rows', () => {

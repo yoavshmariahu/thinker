@@ -16,12 +16,12 @@ const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE '
 export const WINDOW_DAYS = 30;
 const windowStart = `((now() AT TIME ZONE 'UTC')::date - ${WINDOW_DAYS - 1})`;
 const calendar = `(SELECT d::date AS day_utc FROM generate_series(${windowStart}, (now() AT TIME ZONE 'UTC')::date, interval '1 day') d) calendar`;
-// one row per device and day of a block's byDay, from the newest snapshot holding that day; `prefer` puts the
+// one row per device and day of a block's byDay (the window's days, or every day from `since`), from the newest snapshot holding that day; `prefer` puts the
 // snapshots it holds for first, so a day both kinds carry is read from the preferred one however old it is
-const days = (block, prefer = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures, s.preferred
+const days = (block, prefer = 'TRUE', since = windowStart) => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures, s.preferred
   FROM (SELECT ${device} AS device, received_at, file_key, raw_json, coalesce(${prefer}, FALSE) AS preferred FROM ${daily}) s
   CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(s.raw_json #> '{${block},byDay}') = 'object' THEN s.raw_json #> '{${block},byDay}' ELSE '{}'::jsonb END) AS dd(day, figures)
-  WHERE dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$' AND dd.day >= to_char(${windowStart}, 'YYYY-MM-DD')
+  WHERE dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$' AND dd.day >= to_char(${since}, 'YYYY-MM-DD')
   ORDER BY s.device, dd.day, s.preferred DESC, s.received_at DESC, s.file_key DESC) days`;
 const fig = name => `(CASE WHEN jsonb_typeof(figures->'${name}') = 'number' THEN (figures->>'${name}')::numeric END)`;
 
@@ -54,6 +54,12 @@ const savedDays = `(SELECT day_utc, c.usd AS cuts_usd, g.usd AS delegation_usd, 
   FROM (SELECT day_utc, sum(${fig('stampedNetUsd')}) AS usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1) c
   FULL JOIN (SELECT day_utc, sum(${fig('savedUsd')}) AS usd FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('savedUsd')} IS NOT NULL GROUP BY 1) g USING (day_utc)) saved_days`;
 const lossNote = 'A day below zero is a measured loss, not a counting error: a cut pays for its cache rewrite on the call that makes it and earns it back over the calls after, so a session that ended (or has not yet run) long enough after its cut is behind. The cut policies before r5 priced that rewrite as the tail after the cut where the API wrote the whole conversation again, and made cuts that never repaid (src/cutting.js:POLICY_REV). Today\'s figure moves as its sessions go on.';
+
+// The table of devices: a device is active with a session in the last 14 UTC days, today included.
+export const ACTIVE_DAYS = 14;
+const since = `DATE '${SAVINGS_SINCE}'`;
+const today = "day_utc = (now() AT TIME ZONE 'UTC')::date";
+const recent = `day_utc >= (now() AT TIME ZONE 'UTC')::date - ${ACTIVE_DAYS - 1}`;
 
 export const dailyQuestions = [
   { name: `Total saved · last ${WINDOW_DAYS} days`, display: 'scalar',
@@ -109,7 +115,28 @@ export const dailyQuestions = [
       GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['known_devices'] },
     description: 'Every device that has ever sent a report, counted from the UTC day of its first one: the running total, with the day\'s new devices beside it. A device that uninstalled stays known.' },
+  // The people behind the bars, a row a device (the owner, 2026-11-17). The one card that is not a day's figure:
+  // its counts and savings run from the first day savings are counted, not the window, so "lifetime" stays a
+  // lifetime when that day leaves the charts. Tokens have no figure by day, so that column is the newest
+  // snapshot's own 30 days (`sessions.all.agentTokens`, prompts and answers together).
+  { name: 'Active devices: cuts, delegations and savings', display: 'table', fullWidth: true,
+    sql: `SELECT left(regexp_replace(c.device, '^device:', ''), 11) AS device, l.version, x.context_cuts, g.delegations,
+      round(c.usd, 2) AS saved_by_context_cuts_usd, round(g.usd, 2) AS saved_by_delegation_usd,
+      round(coalesce(c.today_usd, 0) + coalesce(g.today_usd, 0), 2) AS saved_today_usd,
+      round(coalesce(c.recent_usd, 0) + coalesce(g.recent_usd, 0), 2) AS saved_last_${ACTIVE_DAYS}_days_usd,
+      round(coalesce(c.usd, 0) + coalesce(g.usd, 0), 2) AS saved_lifetime_usd, l.tokens AS tokens_processed_last_30_days
+      FROM (SELECT device, sum(${fig('sessions')}) FILTER (WHERE ${recent}) AS recent_sessions, sum(${fig('stampedNetUsd')}) AS usd,
+          sum(${fig('stampedNetUsd')}) FILTER (WHERE ${today}) AS today_usd, sum(${fig('stampedNetUsd')}) FILTER (WHERE ${recent}) AS recent_usd
+        FROM ${days('sessions', dated, since)} GROUP BY 1) c
+      LEFT JOIN (SELECT device, sum(${fig('delegated')}) AS delegations, sum(${fig('savedUsd')}) AS usd,
+          sum(${fig('savedUsd')}) FILTER (WHERE ${today}) AS today_usd, sum(${fig('savedUsd')}) FILTER (WHERE ${recent}) AS recent_usd
+        FROM ${days('delegate', 'TRUE', since)} GROUP BY 1) g USING (device)
+      LEFT JOIN (SELECT device, sum(${fig('cuts')}) AS context_cuts FROM ${days('proxy', 'TRUE', since)} GROUP BY 1) x USING (device)
+      LEFT JOIN (SELECT DISTINCT ON (${device}) ${device} AS device, version, (raw_json #>> '{sessions,all,agentTokens}')::numeric AS tokens
+        FROM reports WHERE jsonb_typeof(raw_json #> '{sessions,all,agentTokens}') = 'number' ORDER BY ${device}, received_at DESC, file_key DESC) l USING (device)
+      WHERE c.recent_sessions > 0 ORDER BY saved_lifetime_usd DESC, device`,
+    description: `One row for every device with a thinker session in the last ${ACTIVE_DAYS} UTC days; a device is a machine, so one person with two machines is two rows. Cuts, delegations and the two savings are everything since ${SAVINGS_SINCE}, the first day savings are counted, and add up to the lifetime column; saved today is the UTC day so far. Tokens processed is the prompts and answers of every agent session in the 30 days of the device's newest snapshot, the one column that is a window and not a lifetime. Empty means not measured (an older client), not zero. ${netNote} ${stampedNote} ${delegationNote}` },
 ].map(q => ({ ...q, daily: true,
   // every chart has a row for each of the window's days, so they all draw the same 30-day axis; a day a card has
   // no figure for is an empty row (not measured), never a zero
-  sql: q.display === 'scalar' || q.sql.includes(calendar) ? q.sql : `SELECT * FROM ${calendar} LEFT JOIN (${q.sql.replace(/\s+ORDER BY 1$/, '')}) charted USING (day_utc) ORDER BY 1` }));
+  sql: q.display === 'scalar' || q.display === 'table' || q.sql.includes(calendar) ? q.sql : `SELECT * FROM ${calendar} LEFT JOIN (${q.sql.replace(/\s+ORDER BY 1$/, '')}) charted USING (day_utc) ORDER BY 1` }));
