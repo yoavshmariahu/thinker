@@ -691,6 +691,23 @@ export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutI
   }
   copy ||= j?.cache_control || null;
   if (!copy) return null;
+  // No slot free: Claude Code sends four on every request after its first -- two on the system prompt and one
+  // on the last block of each of the last two messages (read from its request bodies, 2026-11-17). The older
+  // of those two is the one given up: the newest is what stores this request for the next one to read, and
+  // the next request finds that entry from its own newest breakpoint without the older one's help.
+  // Without this the breakpoint was never placed on a Claude Code request at all. Measured live the same day,
+  // one nine-turn Haiku session each way, the cut's first replaced result some 30 positions from the end:
+  // with the breakpoint the seeding request read 142,791 and wrote 43, and the cut read 78,931 and wrote
+  // 2,100 (the tail was priced at 5,130); without it the cut read 18,588 -- the system prompt and tools --
+  // and wrote 62,338 (priced whole at 70,201). The cut turn cost $0.027 against $0.136 by Claude Code's own
+  // figure, and the turn after cost the same either way.
+  let give = null;
+  if (bp.n >= MAX_BREAKPOINTS) {
+    const later = [];
+    for (let i = k; i < messages.length; i++) (Array.isArray(messages[i]?.content) ? messages[i].content : []).forEach((b, n) => { if (b?.cache_control) later.push([i, n]); });
+    if (later.length < 2) return null;
+    give = later[0];
+  }
   for (let i = k - 1; i >= 0; i--) {
     const c = messages[i]?.content;
     if (!Array.isArray(c)) continue;
@@ -699,10 +716,10 @@ export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutI
       if (!MARKABLE.has(b?.type) || (b.type === 'text' && !b.text)) continue;
       const ttl = copy.ttl || '5m';
       if (b.cache_control) return { messages, at: i, ttl, n: bp.n, had: true };   // one is already there
-      if (bp.n >= MAX_BREAKPOINTS) return null;
       const out = messages.slice();
       out[i] = { ...messages[i], content: c.map((x, q) => (q === n ? { ...x, cache_control: { ...copy } } : x)) };
-      return { messages: out, at: i, ttl, n: bp.n + 1 };
+      if (give) out[give[0]] = { ...out[give[0]], content: out[give[0]].content.map((x, q) => { if (q !== give[1]) return x; const { cache_control: _gone, ...rest } = x; return rest; }) };
+      return { messages: out, at: i, ttl, n: give ? bp.n : bp.n + 1, ...(give ? { moved: give[0] } : {}) };
     }
   }
   return null;
@@ -712,10 +729,11 @@ export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutI
 export function canMark(j, cand, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   if (!cand?.ids?.length) return null;
   const bp = breakpointsOf(j);
-  if (bp.n >= MAX_BREAKPOINTS) return null;
   // the newest eligible result is the shallowest cut there is, so a breakpoint after it is after every rung
   const k = firstTouched(j.messages, new Set([cand.ids[0]]), cutInputs);
   if (k <= 0) return null;
+  // full already: there is room only where two of the agent's own sit after the cut, one of which can move
+  if (bp.n >= MAX_BREAKPOINTS && bp.at.filter(i => i >= k).length < 2) return null;
   if (bp.at.length && bp.at[bp.at.length - 1] >= k) return { ttl: bp.ttls[bp.ttls.length - 1] };
   return j.cache_control ? { ttl: j.cache_control.ttl || '5m' } : null;
 }
@@ -832,7 +850,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath, thinking: think });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
   const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
-  const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}) } } : {};
+  const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}), ...(marked.moved != null ? { moved: marked.moved } : {}) } } : {};
   // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
   // next boundary decides again.
   const seed = 'seed' in d ? { seed: d.seed && !marked ? null : d.seed } : {};
