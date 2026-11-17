@@ -1,0 +1,42 @@
+{
+ "tag": "posthog-cut-thinking",
+ "question": "With cutThinking on (a cut also leaves out the earlier turns' thinking below it, #837), does a long PostHog session run without an API refusal, and what does it cost, how much does it cut and what does it pass, read beside the same task's earlier sessions?",
+ "rule": "PR106936 ('Member invitations'), the nine-turn task published on the website and the one already run under three cutting arms (tag posthog-cut-inputs, 2026-11-15), so there are sessions to read it beside. Chosen 2026-11-17 before the run, at the owner's ask for a single run with cutThinking on; one task, one arm, one rep. It is not a paired comparison: the earlier arms ran before #832 (whole-conversation pricing) and #838 (the proxy's breakpoint on by default), so they differ from this arm in more than the switch.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
+ "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasksDir": "bench/tasks/posthog",
+ "tasks": [
+  "PR106936"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "cut-thinking": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6899",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+     "start",
+     "6899",
+     "on",
+     "{CWD}",
+     "on"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+    "stop",
+    "6899",
+    "on",
+    "{CWD}",
+    "on"
+   ]
+  }
+ }
+}
