@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
-import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
 import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, POLICY_REV, priceCut } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
@@ -91,6 +91,14 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
   assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
   assert.equal(modConst(s, 'RESULT_TOKENS_PER_CHAR'), RESULT_TOKENS_PER_CHAR, 'a result\'s own rate matches proxy.js');
+  // a result's tokens are counted from its text, by one rule on both doors: the same weights, and the same answer
+  assert.deepEqual(modConst(s, 'RESULT_WEIGHTS'), RESULT_WEIGHTS, 'the weights of the count match proxy.js');
+  const body = s.match(/export function resultTokens\(text: string\): number \{\n([\s\S]*?)\n\}\n/);
+  assert.ok(body, 'the mod counts a result\'s tokens in one function');
+  const modCount = new Function('RESULT_WEIGHTS', 'text', body[1]);
+  for (const text of ['', 'plain words here', '  12\tconst x = foo(bar, 42);\n'.repeat(50), '{"a":[1,2,3],"é":"ü"}\r\n'.repeat(40)]) {
+    assert.equal(modCount(RESULT_WEIGHTS, text), resultTokens(text), 'the mod counts a result as the proxy does');
+  }
   assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
   // the floor itself: one policy, so a move on either door fails here until the other follows. Nothing pinned it
   // until 2026-11-06, the day the proxy's went from 20 to 25, which is exactly the divergence #588 cost a release.

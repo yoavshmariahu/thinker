@@ -167,7 +167,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
-- Rate is result's, not prompt's (`RESULT_TOKENS_PER_CHAR`, 0.445).
+- A cut result's tokens are counted from its text (2026-11-17, `proxy.js:resultTokens`, mirrored by the mod and held to it in `test/claude-clear.test.js`): letters 0.34, digits 0.78, symbols 1.05, newlines 1.6, other 0.7, spaces nothing. Fitted to the API's own counts on 1,082 results (median error 4.0% against 10.6% for a flat 0.445). `POLICY_REV` 8. Images and a call's own text keep `RESULT_TOKENS_PER_CHAR` (0.445), as do delegation and the re-read figures.
 - Session record: `state/compression/<session>.json`; `compressionHeader` on four doors.
 - Desktop clears measure cost from API's `cache_creation_input_tokens` and `cache_read_input_tokens`.
 
