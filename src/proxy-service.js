@@ -199,7 +199,7 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
   // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off.
-  for (const [key, flag] of [['clearDeep', 'clear-deep'], ['cutInputs', 'cut-inputs'], ['cutImages', 'cut-images'], ['cutBreakpoint', 'cut-breakpoint']]) {
+  for (const [key, flag] of [['clearDeep', 'clear-deep'], ['cutInputs', 'cut-inputs'], ['cutImages', 'cut-images'], ['cutBreakpoint', 'cut-breakpoint'], ['cutThinking', 'cut-thinking']]) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }
