@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { provision } from '../scripts/metrics-dashboard.mjs';
-import { dailyQuestions, SAVINGS_SINCE } from '../scripts/daily-dashboard.mjs';
+import { dailyQuestions, SAVINGS_SINCE, WINDOW_DAYS } from '../scripts/daily-dashboard.mjs';
 import { Store } from '../src/store.js';
 import { delegateMetrics, proxyMetrics } from '../src/telemetry.js';
 import { sessionsOf } from '../src/delivery.js';
@@ -76,6 +76,12 @@ test('every daily card reads a day\'s own figure, and the savings count from the
   assert.match(by('Saved by delegation').sql, /day_utc >= DATE '2026-11-05'/);
   assert.deepEqual(by('Saved by delegation').settings['graph.metrics'], ['saved_by_delegation_usd']);
   assert.match(by('Context cuts').sql, /'cuts'/);
+  // one window on every card, and no date in a name: the line savings count from is in the query alone
+  assert.equal(WINDOW_DAYS, 30);
+  for (const q of dailyQuestions) { assert.match(q.sql, /\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\)/, q.name); assert.doesNotMatch(q.name, /\d{4}-\d{2}-\d{2}/, q.name); }
+  assert.equal(by('Total saved').name, 'Total saved · last 30 days');
+  // the context cuts' two cards share a row, and delegation's two the next
+  assert.deepEqual(dailyQuestions.map(q => q.name), ['Total saved · last 30 days', 'Saved per day', 'Saved by context cuts, per day', 'Context cuts per day', 'Saved by delegation, per day', 'Delegations to a subagent, per day', 'Devices with a thinker session, per day', 'Known devices, per day']);
   assert.match(by('Known devices').sql, /sum\(count\(\*\)\) OVER \(ORDER BY day_utc\)/, 'known devices is a running total');
   for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
 });
