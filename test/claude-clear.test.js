@@ -48,6 +48,7 @@ const DESKTOP_POLICY = {
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
   cutInputs: { exempt: 'the mod clears results in the desktop app, where a call\'s own text is a file path and not a heredoc: the 2026-11-04 measurement that took input cutting out (#611) still holds for that shape' },
   cutBreakpoint: { exempt: 'a cache breakpoint is a field of the request to the API, which the proxy forwards and a mod inside the session never sees; the mod keeps pricing a cut as the whole conversation written again' },
+  cutThinking: { exempt: 'a thinking block is part of the request to the API, which the proxy forwards; the host hands a mod the tool results alone, so the model\'s earlier thinking is not there for it to leave out' },
   cutImages: { exempt: 'the host hands a mod each tool result as its text alone, so a screenshot is not there for it to save or to take out; the proxy does both' },
 };
 

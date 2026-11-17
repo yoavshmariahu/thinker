@@ -569,7 +569,9 @@ plugin on a machine without thinker does nothing.
   every ask at the floor. `--cut-breakpoint` (`proxy: { cutBreakpoint: true }`, `THINKER_PROXY_CUT_BREAKPOINT=on`;
   off by default) has the proxy place one cache breakpoint of its own just before a cut, on the request before
   the cut and on the cut itself, so the prompt above the cut is read from cache and only what follows is
-  written again. Two more things a clear can take, off until an
+  written again. `--cut-thinking` (`proxy: { cutThinking: true }`, `THINKER_PROXY_CUT_THINKING=on`; off by
+  default) has a cut also leave out the model's thinking from earlier turns below the cut, which the API
+  allows for whole blocks outside the turn in progress. Two more things a clear can take, off until an
   experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
   `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
   goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a
