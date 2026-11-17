@@ -1,0 +1,40 @@
+{
+ "tag": "counted-tokens-posthog",
+ "question": "With the cut pricing as it now ships (a result's tokens counted from its text, #844; the proxy's breakpoint and tail pricing, #838-#841), what does a long session cost, how many calls does it take and what does it pass, beside the same task's earlier uncut session; and does each cut's priced removal match what the API's counts fell by?",
+ "rule": "Chosen 2026-11-17 before the run, at the owner's ask for three tasks already run: nine-turn tasks with a graded uncut session on record whose context passed the 140k trigger (PostHog PR106936, bare $9.32 on 2026-11-15; MLflow PR26269 and PR26300, bare $8.08 and $9.69 on 2026-11-16, peaks 572k and 638k). One arm, the shipped defaults behind a proxy of its own, one rep. Not a paired comparison: the uncut sessions are one to two days older and are one session each.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
+ "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasksDir": "bench/tasks/posthog",
+ "tasks": [
+  "PR106936"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "main-defaults": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
+     "start",
+     "6897",
+     "on",
+     "{CWD}"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
+    "stop",
+    "6897",
+    "on",
+    "{CWD}"
+   ]
+  }
+ }
+}
