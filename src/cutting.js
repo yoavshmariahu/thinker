@@ -118,7 +118,7 @@ export const PAYBACK = 25;
 export const POLICY_REV = 8;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? '+th' : ''}`;
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.

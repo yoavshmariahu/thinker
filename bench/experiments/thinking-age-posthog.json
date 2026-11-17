@@ -1,0 +1,100 @@
+{
+ "tag": "posthog-thinking-age",
+ "question": "Cutting the earlier turns' thinking with a cut (#837): does keeping the last two turns' thinking and cutting only what is older change what the session costs, how many calls it takes and what it passes, beside cutting all of it and cutting none?",
+ "rule": "PR106936 ('Member invitations'), the nine-turn task the first cutThinking session ran on (tag posthog-cut-thinking, 2026-11-17), where a cut was made at every turn from the third. Chosen 2026-11-17 before the run. Three arms on the same code, paired by task; one rep, so a difference is one session against one session.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
+ "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasksDir": "bench/tasks/posthog",
+ "tasks": [
+  "PR106936"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "thinking-kept": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+     "start",
+     "6897",
+     "on",
+     "{CWD}",
+     "off",
+     "0"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+    "stop",
+    "6897",
+    "on",
+    "{CWD}",
+    "off",
+    "0"
+   ]
+  },
+  "thinking-cut": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+     "start",
+     "6897",
+     "on",
+     "{CWD}",
+     "on",
+     "0"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+    "stop",
+    "6897",
+    "on",
+    "{CWD}",
+    "on",
+    "0"
+   ]
+  },
+  "thinking-cut-older-than-2": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+     "start",
+     "6897",
+     "on",
+     "{CWD}",
+     "on",
+     "2"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/cut-thinking-bench/bench/proxy-arm.sh",
+    "stop",
+    "6897",
+    "on",
+    "{CWD}",
+    "on",
+    "2"
+   ]
+  }
+ }
+}
