@@ -219,6 +219,33 @@ export const TOKENS_PER_CHAR = 1.44 / 4;
 // wrong direction at a margin where 62 payback refusals sat at a median 23% removed against the 42% needed.
 // The tail keeps TOKENS_PER_CHAR. `POLICY_REV` 4 marks it (cutting.js).
 export const RESULT_TOKENS_PER_CHAR = 0.445;
+// What a result's text is in tokens, counted from the text itself (2026-11-17). A flat rate a character is right
+// on average and wrong result by result: over 1,082 results from 159 of this machine's sessions, each held to
+// what the API said the next call's prompt grew by, 0.445 a character was 10.6% off at the median and 37% at
+// the ninetieth percentile, and ran 18% high on a whole PostHog session, where three cuts priced at 79k, 123k
+// and 138k took 65k, 102k and 117k out and a fourth was made that the limit should have refused. Four counts
+// fitted to the same figures -- letters, digits, symbols, newlines; spaces weigh nothing -- were 4.0% and 13%
+// off, fitted on half the results and tested on the other half. Characters outside ASCII were too few there to
+// fit alone and take the weight they had beside the four. No tokenizer is public for these models: the two
+// libraries tried (Claude 2's and o200k) read 30% and 38% short.
+export const RESULT_WEIGHTS = { letter: 0.34, digit: 0.78, symbol: 1.05, newline: 1.6, other: 0.7 };
+export function resultTokens(text) {
+  const t = String(text ?? '');
+  let letter = 0, digit = 0, symbol = 0, newline = 0, other = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if ((c >= 97 && c <= 122) || (c >= 65 && c <= 90)) letter++;
+    else if (c >= 48 && c <= 57) digit++;
+    else if (c === 10) newline++;
+    else if (c === 32 || c === 9 || c === 13) continue;
+    else if (c < 128) symbol++;
+    else other++;
+  }
+  const w = RESULT_WEIGHTS;
+  return Math.round(letter * w.letter + digit * w.digit + symbol * w.symbol + newline * w.newline + other * w.other);
+}
+// what else leaves with a result -- its images and its call's own text -- is still sized by the character
+const charTokens = chars => Math.round(chars * RESULT_TOKENS_PER_CHAR);
 // --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`, off by default) -----------------
 // A thinking block of an earlier turn may be left out of a request: "outside tool use, omit prior turns'
 // thinking, but not a block between two that you keep", and never edited (the API's thinking pages, read that
@@ -473,7 +500,7 @@ function walkResults(messages, keepMin, fn) {
 // messages (two brackets and the commas), which the old single stringify of the slice included.
 export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
   const have = new Set(cut), ids = [];
-  let chars = 0, inputChars = 0, firstChanged = -1;
+  let chars = 0, inputChars = 0, firstChanged = -1, tokens = 0;
   const takeAt = new Map();
   // What each call's own text would give up, by its id (`cutting.js:cutInput`). Read once here, because the
   // ladder prices what it will send and a call's bytes leave the prompt exactly as its result's do -- a step
@@ -498,10 +525,13 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     // stays as it is, which is still the pair the model reads to know what the call did.
     if (text.length < minChars && !imgs.length && !own) return;
     // what leaves: the text where it is long enough to be replaced, and the images at what they cost
-    const gone = (text.length >= minChars ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR);
-    ids.push(b.tool_use_id); chars += gone; inputChars += own; firstChanged = i;
+    const pics = imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR), long = text.length >= minChars;
+    const gone = (long ? text.length : 0) + pics;
+    // in tokens: the text counted (`resultTokens`), the images and the call's own text by the character
+    const tok = (long ? resultTokens(text) : 0) + charTokens(pics) + charTokens(own);
+    ids.push(b.tool_use_id); chars += gone; inputChars += own; tokens += tok; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
-    takeAt.get(i).push({ id: b.tool_use_id, len: gone + own });
+    takeAt.get(i).push({ id: b.tool_use_id, len: gone + own, tok });
   });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
@@ -520,14 +550,14 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   const steps = [];
   if (takeAt.size) {
     const sent = new Set(have);
-    let acc = 0, count = 0, took = 0, sum = 0;
+    let acc = 0, count = 0, took = 0, sum = 0, sumTok = 0;
     for (let i = messages.length - 1; i >= 0; i--) {
       const take = takeAt.get(i) || [];
       for (const t of take) sent.add(t.id);
       acc += wireChars(applyCut([messages[i]], sent, { cutInputs, imagePath }).messages[0]);
       count++;
       if (!take.length) continue;
-      for (const t of take) { took++; sum += t.len; }
+      for (const t of take) { took++; sum += t.len; sumTok += t.tok; }
       // The tail runs from the first message this rung changes, and that is the assistant message before the
       // results wherever a call's own text is cut with its result (2026-11-17): the breakpoint goes before it.
       const pre = i > 0 && take.some(t => inputOf.has(t.id)) ? wireChars(applyCut([messages[i - 1]], sent, { cutInputs, imagePath }).messages[0]) : 0;
@@ -540,7 +570,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       let over = 0, stepped = 0;
       for (let q = i - (pre ? 1 : 0) - 1; q >= 0 && markBlock(messages[q]) < 0; q--) { over += before[q + 1] - before[q]; stepped++; }
       steps.push({
-        ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * RESULT_TOKENS_PER_CHAR),
+        ids: ids.slice(0, took), chars: sum, tokens: sumTok,
         recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
         tail: Math.round((acc + pre + over + count + (pre ? 1 : 0) + stepped + 1) * TOKENS_PER_CHAR), firstChanged: i,
       });
@@ -579,7 +609,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   return {
     // `chars` is the results, `inputChars` the finished calls' own text, and `tokens` the two together, because
     // both leave the prompt and the saving is what the prompt is shorter by (`applyCut`).
-    ids, chars, inputChars, tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR) + thinkAll, ...(thinking ? { thinking: thinkAll } : {}),
+    ids, chars, inputChars, tokens: tokens + thinkAll, ...(thinking ? { thinking: thinkAll } : {}),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }
@@ -599,7 +629,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
   if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
-  let chars = 0, inputChars = 0, firstChanged = -1;
+  let chars = 0, inputChars = 0, firstChanged = -1, tokens = 0;
   // the calls this changed, by id: a result replaced, a call's own text replaced, or both -- one use either way
   const done = new Set();
   const out = messages.map((m, i) => {
@@ -613,14 +643,15 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
       if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
         const red = cutInput(b.input, { minChars: CUT_MIN_CHARS });
         if (!red) return b;
-        inputChars += red.chars; touched = true; done.add(b.id);
+        inputChars += red.chars; tokens += charTokens(red.chars); touched = true; done.add(b.id);
         return { ...b, input: red.input };
       }
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
       if (text.length < CUT_MIN_CHARS && !imgs.length) return b;
       const long = text.length >= CUT_MIN_CHARS;
-      done.add(b.tool_use_id); chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
+      const pics = imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR);
+      done.add(b.tool_use_id); chars += (long ? text.length : 0) + pics; tokens += (long ? resultTokens(text) : 0) + charTokens(pics); touched = true;
       // a short line beside a screenshot ("Screenshot captured") stays as it is: it is what the model reads to
       // know what the call did, and it is under the size worth a placeholder
       const words = [long ? cutPlaceholder(text.length) : text, imgs.length ? imagePlaceholder(imgs.map((x, k) => imagePath(b.tool_use_id, k, x.source.media_type))) : ''].filter(Boolean).join('\n');
@@ -653,7 +684,7 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
   }
   const thought = Math.round(thinkingChars_ * THINKING_TOKENS_PER_CHAR);
   return { messages: out, cut: done.size, chars, inputChars, ...(thinking ? { thinking: thought } : {}),
-    tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR) + thought, firstChanged };
+    tokens: tokens + thought, firstChanged };
 }
 
 // --- the proxy's own cache breakpoint (2026-11-17, `cutBreakpoint`, on by default) -------------------------
@@ -770,8 +801,8 @@ export function cutActions(messages, cut, { cutInputs = false } = {}) {
     if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
     const e = by.get(nameOf.get(b.tool_use_id) || 'tool');
     // a result too short to replace is still in the prompt, so it is nothing the cut took
-    const len = resultText(b).length;
-    if (e && (!cutInputs || len >= CUT_MIN_CHARS)) e.tokens += Math.round(len * RESULT_TOKENS_PER_CHAR);
+    const text = resultText(b);
+    if (e && (!cutInputs || text.length >= CUT_MIN_CHARS)) e.tokens += resultTokens(text);
   }
   return [...by.values()].sort((a, b) => b.tokens - a.tokens);
 }

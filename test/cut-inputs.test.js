@@ -9,7 +9,7 @@
 // began doing that. So the shape here is never a blank, and these tests are mostly about that.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCut, cutCandidates, cutActions, transformRequest, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { applyCut, cutCandidates, cutActions, transformRequest, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR, resultTokens } from '../src/proxy.js';
 import { cutInput, inputPlaceholder, policyId, freshCut, MIN_CHARS } from '../src/cutting.js';
 
 const BIG = 'x'.repeat(12_000), CMD = 'npm test 2>&1 | tail -5\n' + 'y'.repeat(8_000);
@@ -56,7 +56,7 @@ test('a cut takes the call beside the result, and only where the result goes too
   assert.equal(on.cut, 2, 'two results');
   assert.equal(on.chars, 2 * BIG.length);
   assert.equal(on.inputChars, 2 * CMD.length, 'and the two calls that produced them');
-  assert.equal(on.tokens, Math.round((on.chars + on.inputChars) * RESULT_TOKENS_PER_CHAR), 'both halves are the saving');
+  assert.equal(on.tokens, 2 * resultTokens(BIG) + 2 * Math.round(CMD.length * RESULT_TOKENS_PER_CHAR), 'both halves are the saving: the results counted from their text, the calls by the character');
   // the call of a result still in the prompt keeps its text: the pair is what the model reads
   const kept = on.messages.flatMap(m => (Array.isArray(m.content) ? m.content : [])).filter(b => b.type === 'tool_use');
   assert.equal(kept.find(b => b.id === 't2').input.command, CMD, 'an uncut call is untouched');
@@ -71,7 +71,7 @@ test('off, the bytes are exactly what they were before this shipped', () => {
   const messages = job(6);
   const off = applyCut(messages, ['t0', 't1'], { cutInputs: false });
   assert.equal(off.inputChars, 0);
-  assert.equal(off.tokens, Math.round(off.chars * RESULT_TOKENS_PER_CHAR), 'the results alone, as #611 left it');
+  assert.equal(off.tokens, 2 * resultTokens(BIG), 'the results alone, as #611 left it');
   const calls = off.messages.flatMap(m => (Array.isArray(m.content) ? m.content : [])).filter(b => b.type === 'tool_use');
   assert.ok(calls.every(b => b.input.command === CMD), 'no call is rewritten');
 });
@@ -91,8 +91,8 @@ test('on by default, and reachable by flag, environment and machine config', asy
 
 test('the saving names the policy that made it, so a figure with the calls in it is never pooled with one without', () => {
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r7-t140k-f8k-p25-deep+in');
-  assert.equal(policyId({ ...base }), 'r7-t140k-f8k-p25-deep');
+  assert.equal(policyId({ ...base, cutInputs: true }), 'r8-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base }), 'r8-t140k-f8k-p25-deep');
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {
@@ -126,7 +126,7 @@ test('a long call with a short result is a candidate on the call\'s text alone',
   assert.deepEqual(c.ids, ['q2', 'q1', 'q0'], 'the three outside the newest three, newest first');
   assert.equal(c.chars, 0, 'no result is long enough to go');
   assert.equal(c.inputChars, 3 * CMD.length);
-  assert.equal(c.tokens, Math.round(3 * CMD.length * RESULT_TOKENS_PER_CHAR));
+  assert.equal(c.tokens, 3 * Math.round(CMD.length * RESULT_TOKENS_PER_CHAR));
   assert.equal(c.steps.length, 3, 'a rung a call, as for results');
   assert.deepEqual(cutCandidates(ms, { keepMin: 3, cutInputs: false }).ids, [], 'and nothing at all where the call\'s text is not cut');
 });
@@ -152,7 +152,7 @@ test('a cut of calls alone reaches the API, and the breakdown shows what the cal
   const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, cutRecord: rec, now: 1e12 });
   assert.equal(t.injected, true, 'the request is rewritten though no result was replaced');
   assert.equal(t.clientCut.cut, 3);
-  assert.equal(t.clientCut.tokens, Math.round(3 * CMD.length * RESULT_TOKENS_PER_CHAR));
+  assert.equal(t.clientCut.tokens, 3 * Math.round(CMD.length * RESULT_TOKENS_PER_CHAR));
   const sent = JSON.parse(t.body);
   assert.equal(sent.messages[1].content[0].input.command, inputPlaceholder(CMD.length));
   assert.equal(sent.messages[2].content[0].content, 'ok');
