@@ -53,7 +53,12 @@ own transcript, never by comparing sessions.
 
 Payback (`cutting.js:decideCut`) is the number of later calls a cut needs to earn back its own rewrite:
 
-    payback calls = (write rate x tail rewritten) / (read rate x tokens cut)
+    payback calls = (write rate x conversation rewritten) / (read rate x tokens cut)
+
+What is rewritten is **every message after the cut**, not the tail from the first replaced result: the API
+reads a cached prefix only within 20 positions of a breakpoint, so a result replaced further back leaves
+the system prompt as the only thing read (`proxy.js:cutCandidates`). Check a pricing change against the
+log: the cut row carries the prediction (`clear.recache`) and the API's own `write` and `read`.
 
 The ratio of write to read rate is the model's: 20 where a read is a tenth of input, 40 at a twentieth, 80
 at a fortieth. Take it from `readRate(model)`, never a constant. A cut is made when payback is within the
@@ -113,4 +118,5 @@ Delegation's alone is the write half.
 | Every rewrite after a first clear charged to the clearing | compactions and lapsed caches read as the clearing's loss | only the cut's own request |
 | A cold cut's write charged | $11.01 charged against $3.89 saved on a session the cut cost nothing | cold is priced at zero on both sides |
 | Cleared sessions compared with held-out sessions | a cut only fires on long sessions, so the sides were never alike | within-session counterfactual, plus re-reads |
+| A rung priced on its tail, as if the prompt above the cut stayed cached | cuts taken at a payback of 23-25 calls that the API's writes put at 38-179; three of three lost | the whole post-cut conversation |
 | A saving term added that changed 0 of 30 decisions | two constants and a parity exemption for nothing | re-price the refused cases first |

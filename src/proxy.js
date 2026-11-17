@@ -89,7 +89,10 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
 // `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
 // tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true };
+// `cutBreakpoint` off since it was written (2026-11-17): a cut is seeded with a cache breakpoint of the proxy's
+// own and made on the next request (`cutting.js:SEED_MS`, `placeMark` below), which is what makes the tail the
+// thing a cut writes. Off until one live cut row on the owner's machine shows a cache read that covers the prefix.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -244,6 +247,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.clearDeep = onOff('clear-deep', 'THINKER_PROXY_CLEAR_DEEP', PROXY_DEFAULTS.clearDeep);
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
   cfg.cutImages = onOff('cut-images', undefined, PROXY_DEFAULTS.cutImages);   // a flag or the machine config; no variable
+  cfg.cutBreakpoint = onOff('cut-breakpoint', 'THINKER_PROXY_CUT_BREAKPOINT', PROXY_DEFAULTS.cutBreakpoint);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -396,8 +400,8 @@ function walkResults(messages, keepMin, fn) {
   }
 }
 
-// What a boundary could newly cut, and what replacing it would cost: `recache` is the prompt from
-// the first result we would replace to the end, which is what a changed prefix makes the API write.
+// What a boundary could newly cut, and what replacing it would cost: `recache` is the messages as they
+// will be sent, all of them, which is what a result replaced in the middle makes the API write (below).
 // The ladder a boundary could cut, from the tail backwards (2026-11-13).
 //
 // Until now this took EVERY eligible result and handed back one candidate. That is the most a boundary can
@@ -434,16 +438,33 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   walkResults(messages, keepMin, (b, i, prot) => {
     if (prot || have.has(b.tool_use_id)) return;
     const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
-    if (text.length < minChars && !imgs.length) return;
+    const own = inputOf.get(b.tool_use_id) || 0;
+    // A long call with a short result is a candidate on the call's text alone (2026-11-17). Until now a call's
+    // text went only where its result did, so a heredoc, a Write or an Edit that answered in one line kept its
+    // whole body for the rest of the session: on this machine's boundaries over the trigger that was 6% of the
+    // messages' characters (Bash 4.8%, Write 0.8%, Edit 0.3%), about 20k tokens a boundary. The short result
+    // stays as it is, which is still the pair the model reads to know what the call did.
+    if (text.length < minChars && !imgs.length && !own) return;
     // what leaves: the text where it is long enough to be replaced, and the images at what they cost
     const gone = (text.length >= minChars ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR);
-    const own = inputOf.get(b.tool_use_id) || 0;
     ids.push(b.tool_use_id); chars += gone; inputChars += own; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: gone + own });
   });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
+  // What a rung makes the API write: EVERY message as sent after the cut, not the tail from the first replaced
+  // result (2026-11-16). The API reads a cached prefix only where an earlier request left a breakpoint, and
+  // looks back at most 20 positions from this request's own; Claude Code's breakpoints sit on the newest
+  // messages, so a result replaced further back than that leaves the system prompt as the only thing read and
+  // the whole conversation is written again. The ladder priced the tail alone, and the three warm cuts it
+  // made on this machine (2026-11-15/16) were predicted at 35k, 54k and 55k and wrote 245k, 87k and 124k,
+  // each with a cache read of exactly the 19,256-token system prompt: paybacks of 23-25 calls that were
+  // really 40 to 180, in sessions that ended first. It is the fact `cutting.js:priceCut` has recorded since
+  // 2026-11-04 (566,723 predicted, 548,009 written). `tail` is still measured and logged beside it, so a row
+  // says which of the two the API's own write was nearer.
+  const before = [0];
+  if (takeAt.size) for (let i = 0; i < messages.length; i++) before.push(before[i] + wireChars(applyCut([messages[i]], have, { cutInputs, imagePath }).messages[0]));
   const steps = [];
   if (takeAt.size) {
     const sent = new Set(have);
@@ -455,9 +476,13 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       count++;
       if (!take.length) continue;
       for (const t of take) { took++; sum += t.len; }
+      // The tail runs from the first message this rung changes, and that is the assistant message before the
+      // results wherever a call's own text is cut with its result (2026-11-17): the breakpoint goes before it.
+      const pre = i > 0 && take.some(t => inputOf.has(t.id)) ? wireChars(applyCut([messages[i - 1]], sent, { cutInputs, imagePath }).messages[0]) : 0;
       steps.push({
         ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * RESULT_TOKENS_PER_CHAR),
-        recache: Math.round((acc + count + 1) * TOKENS_PER_CHAR), firstChanged: i,
+        recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
+        tail: Math.round((acc + pre + count + (pre ? 1 : 0) + 1) * TOKENS_PER_CHAR), firstChanged: i,
       });
     }
   }
@@ -495,7 +520,9 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
   if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
-  let n = 0, chars = 0, inputChars = 0, firstChanged = -1;
+  let chars = 0, inputChars = 0, firstChanged = -1;
+  // the calls this changed, by id: a result replaced, a call's own text replaced, or both -- one use either way
+  const done = new Set();
   const out = messages.map((m, i) => {
     const c = m?.content;
     if (!Array.isArray(c)) return m;
@@ -507,14 +534,14 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
       if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
         const red = cutInput(b.input, { minChars: CUT_MIN_CHARS });
         if (!red) return b;
-        inputChars += red.chars; touched = true;
+        inputChars += red.chars; touched = true; done.add(b.id);
         return { ...b, input: red.input };
       }
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
       if (text.length < CUT_MIN_CHARS && !imgs.length) return b;
       const long = text.length >= CUT_MIN_CHARS;
-      n++; chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
+      done.add(b.tool_use_id); chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
       // a short line beside a screenshot ("Screenshot captured") stays as it is: it is what the model reads to
       // know what the call did, and it is under the size worth a placeholder
       const words = [long ? cutPlaceholder(text.length) : text, imgs.length ? imagePlaceholder(imgs.map((x, k) => imagePath(b.tool_use_id, k, x.source.media_type))) : ''].filter(Boolean).join('\n');
@@ -531,20 +558,101 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
   // the prompt to save anything.
   // `chars` is the results and `inputChars` the calls' own text; both leave the prompt, so both are the saving,
   // and they are reported apart so a reader can see which half a policy's figure came from.
-  return { messages: out, cut: n, chars, inputChars,
+  return { messages: out, cut: done.size, chars, inputChars,
     tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR), firstChanged };
+}
+
+// --- the proxy's own cache breakpoint (2026-11-17, `cutBreakpoint`, off by default) ------------------------
+// A breakpoint is `cache_control` on a content block: the API stores the prompt up to that block and, on a
+// later request, looks for a stored prefix from each breakpoint backwards. At most four a request, and a
+// longer lifetime may not follow a shorter one (a 400 otherwise, which would be the person's request failing).
+// `breakpointsOf` is what the request already carries, which decides whether there is room for one more.
+const MAX_BREAKPOINTS = 4;
+const MARKABLE = new Set(['text', 'tool_use', 'tool_result', 'image', 'document']);
+export function breakpointsOf(j) {
+  const ttls = [], at = [];
+  const see = (b, i) => { if (b && typeof b === 'object' && b.cache_control) { ttls.push(b.cache_control.ttl || '5m'); if (i != null) at.push(i); } };
+  if (j?.cache_control) ttls.push(j.cache_control.ttl || '5m');   // automatic caching: the last block's slot
+  for (const t of Array.isArray(j?.tools) ? j.tools : []) see(t);
+  for (const b of Array.isArray(j?.system) ? j.system : []) see(b);
+  (Array.isArray(j?.messages) ? j.messages : []).forEach((m, i) => {
+    for (const b of Array.isArray(m?.content) ? m.content : []) {
+      see(b, i);
+      if (b?.type === 'tool_result') for (const c of Array.isArray(b.content) ? b.content : []) see(c, i);
+    }
+  });
+  return { n: ttls.length, ttls, at };
+}
+// The first message a cut of `ids` changes: the one holding the oldest result of the set, or the call that
+// produced it where the call's own text goes too (`cutInput`). Asked of the request as the agent sent it:
+// in the messages as cut the call's text is already short, and would read as untouched.
+const firstTouched = (messages, ids, cutInputs) => messages.findIndex(m => Array.isArray(m?.content)
+  && m.content.some(b => (b?.type === 'tool_result' && ids.has(b.tool_use_id))
+    || (cutInputs && b?.type === 'tool_use' && ids.has(b.id) && !!cutInput(b.input, { minChars: CUT_MIN_CHARS }))));
+// One breakpoint on the last block before the first one the cut changes. Its lifetime is copied from the
+// next breakpoint after it (or the request's automatic one), which keeps the order the API insists on
+// whatever Claude Code chose. Null where it cannot be placed: no room, nothing after it to copy, or no
+// block before the cut that may carry one (a thinking block may not, and a message whose content is a
+// plain string is left alone, because turning it into a block is a change to the prefix itself).
+export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
+  const ids = cutIds instanceof Set ? cutIds : new Set(cutIds || []);
+  const k = firstTouched(j.messages, ids, cutInputs);
+  if (k <= 0) return null;
+  const bp = breakpointsOf({ ...j, messages });
+  let copy = null;
+  for (let i = k; i < messages.length && !copy; i++) for (const b of Array.isArray(messages[i]?.content) ? messages[i].content : []) {
+    copy = b?.cache_control || (b?.type === 'tool_result' && Array.isArray(b.content) ? b.content.find(c => c?.cache_control)?.cache_control : null) || copy;
+  }
+  copy ||= j?.cache_control || null;
+  if (!copy) return null;
+  for (let i = k - 1; i >= 0; i--) {
+    const c = messages[i]?.content;
+    if (!Array.isArray(c)) continue;
+    for (let n = c.length - 1; n >= 0; n--) {
+      const b = c[n];
+      if (!MARKABLE.has(b?.type) || (b.type === 'text' && !b.text)) continue;
+      const ttl = copy.ttl || '5m';
+      if (b.cache_control) return { messages, at: i, ttl, n: bp.n, had: true };   // one is already there
+      if (bp.n >= MAX_BREAKPOINTS) return null;
+      const out = messages.slice();
+      out[i] = { ...messages[i], content: c.map((x, q) => (q === n ? { ...x, cache_control: { ...copy } } : x)) };
+      return { messages: out, at: i, ttl, n: bp.n + 1 };
+    }
+  }
+  return null;
+}
+// Whether a cut on this request could be given its breakpoint, asked before anything is priced: room for
+// one more, and a breakpoint at or after the oldest eligible result to copy the lifetime from.
+export function canMark(j, cand, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
+  if (!cand?.ids?.length) return null;
+  const bp = breakpointsOf(j);
+  if (bp.n >= MAX_BREAKPOINTS) return null;
+  // the newest eligible result is the shallowest cut there is, so a breakpoint after it is after every rung
+  const k = firstTouched(j.messages, new Set([cand.ids[0]]), cutInputs);
+  if (k <= 0) return null;
+  if (bp.at.length && bp.at[bp.at.length - 1] >= k) return { ttl: bp.ttls[bp.ttls.length - 1] };
+  return j.cache_control ? { ttl: j.cache_control.ttl || '5m' } : null;
 }
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
 // knows which uses it replaced, so this needs no guess at what a server chose.
-export function cutActions(messages, cut) {
+// `cutInputs`: the call's own text counts where it went too, so a call cut on its text alone (a long command
+// that answered in a line) shows what it gave up and not the size of the line that stayed.
+export function cutActions(messages, cut, { cutInputs = false } = {}) {
   const ids = new Set(cut), nameOf = new Map(), by = new Map();
   for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) if (b?.type === 'tool_use') nameOf.set(b.id, b.name);
   for (const id of ids) { const name = nameOf.get(id) || 'tool'; if (!by.has(name)) by.set(name, { name, calls: 0, tokens: 0 }); by.get(name).calls++; }
   for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+    if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
+      const red = cutInput(b.input, { minChars: CUT_MIN_CHARS }), e = by.get(b.name || 'tool');
+      if (red && e) e.tokens += Math.round(red.chars * RESULT_TOKENS_PER_CHAR);
+      continue;
+    }
     if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
     const e = by.get(nameOf.get(b.tool_use_id) || 'tool');
-    if (e) e.tokens += Math.round(resultText(b).length * RESULT_TOKENS_PER_CHAR);
+    // a result too short to replace is still in the prompt, so it is nothing the cut took
+    const len = resultText(b).length;
+    if (e && (!cutInputs || len >= CUT_MIN_CHARS)) e.tokens += Math.round(len * RESULT_TOKENS_PER_CHAR);
   }
   return [...by.values()].sort((a, b) => b.tokens - a.tokens);
 }
@@ -620,25 +728,42 @@ export function transformRequest(method, url, headers, body, cfg) {
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null });
-  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model });
+  // what the request carries for breakpoints rides on every row, because how many Claude Code sends and for
+  // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
+  const had = breakpointsOf(j);
+  const bp = { n: had.n, ttl: [...new Set(had.ttls)].join(',') };
+  const room = cfg.cutBreakpoint ? canMark(j, cand, { cutInputs: cfg.cutInputs }) : null;
+  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, mark: !!room, markTtl: room?.ttl });
   // the images are on disk before the prompt loses them, or they stay in the prompt
   const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath });
+  // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
+  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
+  const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}) } } : {};
+  // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
+  // next boundary decides again.
+  const seed = 'seed' in d ? { seed: d.seed && !marked ? null : d.seed } : {};
+  if (d.reason === 'seed' && marked) {
+    j.messages = marked.messages;
+    return { body: Buffer.from(JSON.stringify(j)), ...(stubbed ? { stubbed } : {}), policy: d.policy || policyId(cfg), reason: 'seed', model: j.model, turn: m.turn, cut: d.cut,
+      bp, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
+      ...(d.candidate != null ? { candidate: d.candidate } : {}) };
+  }
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
   // 'below-clear-minimum', so the log could not say whether a lower floor would have admitted the boundary,
   // and that question had to be answered by rebuilding request bodies from transcripts. The reason itself is
   // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
   // the policy that decided this, named on the row so no reader has to date it (cutting.js:policyId): on a
   // refusal it says which floor refused, on a clear it says what the saving is worth comparing with
-  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
   // was the placeholders' own size -- 59 tokens for a 42k-char read, 531 against a session's 1.48M saved.
   // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
-  const actions = cutActions(j.messages, d.cut);
-  j.messages = applied.messages;
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
+  const actions = cutActions(j.messages, d.cut, { cutInputs: cfg.cutInputs });
+  j.messages = marked ? marked.messages : applied.messages;
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
@@ -647,7 +772,7 @@ export function transformRequest(method, url, headers, body, cfg) {
     // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
     // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,
     // so this branch had never run, and `Math.round(undefined)` would have logged `"saving":null`.
-    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, ...(d.tail != null ? { tail: d.tail } : {}), ...(d.marked ? { whole: d.whole } : {}), ...(d.seeded ? { seeded: true } : {}), cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
     ...(d.held ? { held: d.held } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
     ...(d.turn != null ? { turn: d.turn } : {}) };
@@ -870,6 +995,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       // later tool result would make a previously refused candidate profitable.
       if (cutRec && Array.isArray(t.cut) && t.turn != null) {
         cutRec.cut = t.cut; cutRec.turn = t.turn;
+        if ('seed' in t) cutRec.seed = t.seed || null;   // null, not absent: a write merges over what is stored
         cutStoreOf(t).write(cutRec);
       }
       let n = null;
@@ -995,7 +1121,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             if (rates && t.protocol === 'chat' && ures.statusCode === 200 && Number.isFinite(usage?.cost)) { try { rates.observe(t.model, usage); } catch { /* a rate is never worth a failed request */ } }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), ...(t.rates ? { rates: t.rates } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.bp ? { bp: t.bp } : {}), ...(t.mark ? { mark: t.mark } : {}), ...(t.planned ? { planned: t.planned } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk
