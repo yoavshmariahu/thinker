@@ -497,6 +497,10 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - All changes in isolated worktree. Never edit primary.
 - `git worktree add -b agent/<task> .worktrees/<task> HEAD`. On done: `git worktree remove --force`.
 
+**The website and the hosted infrastructure are not here (2026-11-17, the owner's call):**
+- `site/` (thinker.sh) and `infra/` (the site's deploy, the metrics API, the fleet service) live in the private `thinker-internal` repository. This repository is the tool.
+- A change to a payload the metrics API reads is tested here for what the client sends; the server's half is tested there.
+
 **Releases:**
 - Tag `vX.Y.Z` on `main`, assets `thinker.tgz`, `version.json`, `install.sh`.
 - `npm` publishes at same version. `--hold` for pre-release/`next` tag. `--promote` to stable.
@@ -769,7 +773,7 @@ ignored; its history is in git before 2026-11-08.
 - **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths). Checked in `test/error-report.test.js`.
 - **Consent:** Asked once per machine via agent's question tool, answered through `thinker errors --answer yes|no|never`. Only asked where records exist and telemetry is on.
 - **`thinker errors`:** Prints records. Flags: `--send`, `--json`, `--answer`.
-- **Endpoint:** `/errors` on metrics API (`infra/metrics/errors.mjs`, `handler.mjs`). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`. Requires table and GRANT deploy in `infra/metrics/README.md`.
+- **Endpoint:** `/errors` on metrics API (server side, not in this repository). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`.
 
 ## Knowledge notes, removed (2026-11-08)
 

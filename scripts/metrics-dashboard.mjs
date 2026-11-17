@@ -21,7 +21,7 @@ const stateFile = path.join(work, 'state.json');
 const base = 'http://127.0.0.1:3030';
 const tunnelPort = 15432;
 const host = 'codervibes.cc9u406wsj02.us-east-1.rds.amazonaws.com';
-const composeFile = path.join(root, 'infra/metrics/dashboard.compose.yml');
+const composeFile = path.join(root, 'scripts/dashboard.compose.yml');
 let session;
 let state;
 function save() { fs.writeFileSync(stateFile, JSON.stringify(state, null, 2), { mode: 0o600 }); }

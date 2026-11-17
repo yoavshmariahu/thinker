@@ -6,7 +6,6 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { sendUninstallFeedback, messagesEndpoint } from '../src/telemetry.js';
 import { askUninstallFeedback } from '../src/commands/setup.js';
-import { normalizeMessage } from '../infra/metrics/messages.mjs';
 
 test('uninstall feedback goes to /messages beside /metrics in a shape the server accepts', async () => {
   assert.equal(messagesEndpoint('https://x.example/metrics'), 'https://x.example/messages');
@@ -17,7 +16,10 @@ test('uninstall feedback goes to /messages beside /metrics in a shape the server
   const r = await sendUninstallFeedback('  too slow on my repo  ', { home, endpoint: 'https://x.example/messages', fetchFn });
   assert.equal(r.sent, true);
   assert.equal(call.url, 'https://x.example/messages');
-  const m = normalizeMessage(call.body);
+  // the shape the messages API accepts: an id, a page under the site, a message of at most 5000 characters
+  const m = call.body;
+  assert.match(m.id, /^[0-9a-f-]{36}$/);
+  assert.ok(m.message.length <= 5000);
   assert.equal(m.page, '/cli/uninstall');
   assert.match(m.message, /^too slow on my repo\n\n\(thinker \S+, install [0-9a-f-]{36}, \w+\)$/);
   assert.deepEqual(await sendUninstallFeedback('   ', { home, fetchFn }), { sent: false, reason: 'empty' });
