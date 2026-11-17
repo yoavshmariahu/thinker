@@ -301,7 +301,7 @@ export function installIdStable(home = thinkerHome()) {
 // ---------------------------------------------------------------------------------------------
 // Token spend: the proxy, the actions people take to cut what a prompt costs, and what those
 // actions measured as saved. The Metabase "Token spend" dashboard reads these three blocks from
-// reports.raw_json (scripts/spend-dashboard.mjs). Counts, tokens and published model ids only: the
+// reports.raw_json (the Token spend dashboard, in thinker-internal). Counts, tokens and published model ids only: the
 // one place a part's own name may be sent is part-describe.js:partIdentity, which names the agent's
 // built-in tools and the common shell commands and nothing else -- never a section title, file
 // name, skill name, MCP server name or repository.

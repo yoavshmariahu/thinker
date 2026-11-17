@@ -150,7 +150,7 @@ test('the figure counts conversations, and a row from before the session was wri
 
 // It had to become a metric, not just a log row: thinker rewrites the history itself now, so a refusal is
 // thinker's own fault and nothing on anybody else's machine says it happened.
-test('the refusal leaves the machine as counts alone, and lands on the Token spend dashboard', async () => {
+test('the refusal leaves the machine as counts alone', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-rej-home-'));
   fs.mkdirSync(path.join(home, 'state'), { recursive: true });
   const at = new Date().toISOString();
@@ -167,15 +167,4 @@ test('the refusal leaves the machine as counts alone, and lands on the Token spe
   // what the API said is never sent: it quotes the machine's own request back, paths and all
   assert.equal(JSON.stringify(m).includes('secret'), false, 'the body stays on the machine');
   assert.equal(JSON.stringify(m).includes('says'), false);
-
-  const { spendQuestions } = await import('../scripts/spend-dashboard.mjs');
-  const cards = spendQuestions.filter(q => /refused/i.test(q.name));
-  assert.equal(cards.length, 2, 'a scalar to watch and a table naming the devices');
-  for (const c of cards) {
-    assert.match(c.sql, /rejected,history/, 'reads the figure this test just produced');
-    assert.match(c.sql, /rejected,messages/, 'and says which door was refused');
-    assert.match(c.sql, /rejected,responses/, 'so a machine using only the Codex door is never a blank');
-    assert.ok(c.description.length > 80, 'a card nobody can read is not a metric');
-  }
-  assert.ok(cards.some(c => c.display === 'scalar'));
 });
