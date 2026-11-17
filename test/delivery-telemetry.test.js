@@ -14,7 +14,6 @@ import { buildTelemetryPayload, armsMetrics } from '../src/telemetry.js';
 import { writeReport } from '../src/report-snapshot.js';
 import { armTally } from '../src/factory.js';
 import { REPORT_WEEKS } from '../src/report.js';
-import { normalizeReport } from '../infra/metrics/report.mjs';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
 import { guardScript, install, MARKER } from '../scripts/install-pr-guard.mjs';
 
@@ -226,26 +225,16 @@ test('a window holds the clears made inside it, priced at the model the proxy sa
   assert.equal(sessionsOf(store, { since: five, home }).get(undated).cleared, 7_000);
 });
 
-test('the payload carries them, and the metrics API promotes them to columns', t => {
+test('the payload carries them', t => {
   const store = fixture(t), home = path.join(store.repo, 'home');
   evidence(store, home);
   const payload = buildTelemetryPayload(store, { all: false, home });
   assert.equal(payload.prs.merged, 1);
   assert.equal(payload.delivery, undefined);
-  const row = normalizeReport('test-only', payload, new Date(now).toISOString());
-  assert.equal(row.prs_merged, 1);
-  assert.equal(row.prs_merged_assisted, 1);
-  assert.equal(row.pr_saved_tokens, payload.prs.savedTokens);
-  assert.equal(row.pr_cleared_tokens, payload.prs.clearedTokens);
-  assert.equal(row.pr_agent_tokens, payload.prs.agentTokens);
-  assert.equal(row.prs_linked_sessions, 1);
-  assert.deepEqual(JSON.parse(row.raw_json).prs, payload.prs);
-});
-
-test('a report from before this release reads as no pull requests, not as a refusal', () => {
-  const row = normalizeReport('old', { installId: 'i', timestamp: new Date(now).toISOString(), delivery: { mergedPrs: 4 } }, new Date(now).toISOString());
-  assert.equal(row.prs_merged, 0);
-  assert.equal(row.pr_saved_tokens, 0);
+  // the fields the metrics API promotes to columns (its own tests hold the other half)
+  assert.equal(payload.prs.mergedAssisted, 1);
+  assert.equal(payload.prs.linkedSessions, 1);
+  for (const field of ['savedTokens', 'clearedTokens', 'agentTokens']) assert.equal(typeof payload.prs[field], 'number', field);
 });
 
 test("a repository's opt-out holds even when another repository triggered the upload", t => {

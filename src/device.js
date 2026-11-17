@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 
-const DEVICE_ID = /^v1:[a-f0-9]{64}$/;   // the shape the metrics server accepts (infra/metrics/report.mjs)
+const DEVICE_ID = /^v1:[a-f0-9]{64}$/;   // the shape the metrics server accepts
 const commandOptions = { encoding: 'utf8', timeout: 1000, maxBuffer: 256 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] };
 
 export function getDeviceId(opts = {}) {

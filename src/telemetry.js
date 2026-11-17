@@ -753,7 +753,7 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
   return { schemaVersion: 2, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
-// The metrics API refuses a payload over 64 KB (infra/metrics/handler.mjs), and a refusal loses the whole
+// The metrics API refuses a payload over 64 KB, and a refusal loses the whole
 // report, not the block that overflowed it: a machine with many repositories would stop reporting at all, and
 // nothing on it would say why. So the lists go before the budget does, longest first, and the payload says what
 // it dropped. The counts and sums are never trimmed -- a row list is a distribution, and a sum is the figure.

@@ -128,6 +128,5 @@ machine to the OS, so without it they are either unknown or one device per run.
 The value is hashed before it is sent, so a hostname or an account name in it
 discloses nothing.
 
-For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
-[the telemetry operations guide](../infra/metrics/README.md).
+The service that receives these reports is not part of this repository.
 
