@@ -104,7 +104,10 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
     const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
     return cfg => new Function('p', 'POLICY_REV', 'PAYBACK', 'roundTo', `return ${m[1].replace(/ as number/g, '')}`)(cfg, POLICY_REV, PAYBACK, round);
   })();
-  for (const cfg of [PROXY_DEFAULTS, { ...PROXY_DEFAULTS, clearAtLeast: 20000 }, { ...PROXY_DEFAULTS, trigger: 250000, clearDeep: false }, {}]) {
+  // The mod's name is the proxy's for the policy the mod can run: it never sees the request, so it places no
+  // breakpoint and leaves out no thinking, and a saving it makes is one made without either (`DESKTOP_POLICY`).
+  const NO_REQUEST = { cutBreakpoint: false, cutThinking: false };
+  for (const cfg of [{ ...PROXY_DEFAULTS, ...NO_REQUEST }, { ...PROXY_DEFAULTS, ...NO_REQUEST, clearAtLeast: 20000 }, { ...PROXY_DEFAULTS, ...NO_REQUEST, trigger: 250000, clearDeep: false }, {}]) {
     assert.equal(modPolicy(cfg), policyId(cfg), `the mod names the policy as the proxy does (${policyId(cfg)})`);
   }
   // and the record it writes carries it, or the saving reaches no comparison at all

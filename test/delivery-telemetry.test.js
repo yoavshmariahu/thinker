@@ -50,7 +50,7 @@ test('the arms block is the kept report\'s two sides per feature, as sums, with 
   assert.equal(empty.profile.shown, null); assert.equal(empty.compression.on, null); assert.equal(empty.reportsFrom, null);
   // the shape, not a fixed string: this reads the machine's own `proxy` block, so a switch the person has turned on
   // here is in it (cutting.js:policyId) and a hardcoded tail would fail on their machine and not ours
-  assert.match(empty.policy, /^r\d+-t\d+k-f\d+k-p\d+-(deep|one)(\+in)?(\+img)?$/, 'the policy this machine runs today');
+  assert.match(empty.policy, /^r\d+-t\d+k-f\d+k-p\d+-(deep|one)(\+in)?(\+img)?(\+bp)?(\+th)?$/, 'the policy this machine runs today');
   const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
   const r = (cost, exchanges, loops = []) => ({ cost, tokens: cost * 1e5, calls: 10, exchanges, stages: { ...stages, build: { cost: cost / 2, tokens: 0, rework: cost / 10, reworkTokens: 0 } }, loops, cacheWrite: 1000, cacheRead: 9000 });
   const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');

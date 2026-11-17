@@ -566,8 +566,8 @@ plugin on a machine without thinker does nothing.
   it costs; between changes every call sends the same edit, so what was cleared stays cleared and a later clear only
   extends the cleared region at its newer end. The session's record is on disk beside the proxy log, so a restarted
   proxy sends the same edit. `--no-clear-deep` (`proxy: { clearDeep: false }`, `THINKER_PROXY_CLEAR_DEEP=off`) keeps
-  every ask at the floor. `--cut-breakpoint` (`proxy: { cutBreakpoint: true }`, `THINKER_PROXY_CUT_BREAKPOINT=on`;
-  off by default) has the proxy place one cache breakpoint of its own just before a cut, on the request before
+  every ask at the floor. `--no-cut-breakpoint` (`proxy: { cutBreakpoint: false }`, `THINKER_PROXY_CUT_BREAKPOINT=off`)
+  turns off what is otherwise the default: the proxy places one cache breakpoint of its own just before a cut, on the request before
   the cut and on the cut itself, so the prompt above the cut is read from cache and only what follows is
   written again. `--cut-thinking` (`proxy: { cutThinking: true }`, `THINKER_PROXY_CUT_THINKING=on`; off by
   default) has a cut also leave out the model's thinking from earlier turns below the cut, which the API
