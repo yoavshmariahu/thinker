@@ -49,7 +49,7 @@ listed; `prices` in config and the provider registry override.
 |---|---|
 | A token cut from the prefix, on a later call | cache read, that call's model |
 | The request that made a cut | cache write (1h), on what it wrote |
-| A read handed to a subagent, the write half | lead's cache write less what the subagent paid |
+| Work handed to a subagent, at the handoff | the same work at the lead's rates, less the subagent's whole bill at its own (cheaper) model |
 | A read handed to a subagent, later calls | cache read, the lead's model |
 | A file read again after it was cut | cache write once, then cache read on each later call |
 | An instruction section or tool definition carried by a call | that session's input cost per input token |

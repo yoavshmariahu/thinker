@@ -63,12 +63,27 @@ the decision set does not change, the term is not worth having.
 ## Delegation
 
 A delegated read never entered the lead's context, so nothing in the prefix changed and **there is no
-rewrite to charge, ever**. Its value has two halves (`report-savings.js:delegationSavings`):
+rewrite to charge, ever**. The work goes to a **cheaper model**, and that price gap is where the immediate
+half of the saving comes from. Its value has two halves (`report-savings.js:delegationSavings`):
 
-- **The write, once, at the handoff:** the lead did not write the read into its cache. Netted against what
-  the subagent paid for the same read: its own reported cost where thinker ran it, the same tokens at the
-  subagent's write rate where the host pins its model, zero where neither is known.
-- **The reads, on every later call:** as rule 1.
+- **The work, once, at the handoff:** what the same work would have cost on the lead, at the lead's rates,
+  less the subagent's **whole bill at its own model** (its prefix, its calls, its report). For a read that
+  is the lead's cache write of the tokens against the subagent's bill: its own reported cost where thinker
+  ran it, its usage priced at its own model where the host ran it, and where neither is known the subagent
+  is assumed to have paid what the lead would have, so this half is zero.
+- **The reads, on every later call:** as rule 1, on what stayed out of the lead's context (the input the
+  subagent took, less the report that came back).
+
+The price gap is only a saving when the subagent is really on the cheaper model. A subagent that ran on the
+lead's model has no gap, pays its own prefix on top, and its handoff half is negative; only the later reads
+can carry it. Price every subagent at the model its own usage names, never at the model it was meant to run on.
+
+**A scoped task is more than a read** (a suite run, an exploration of several calls). The counterfactual is
+still the same work on the lead at the lead's rates: its input written, its output, and the lead's whole
+prefix read again on each call the task would have taken. Today's code credits only the input kept out
+(its write and its later reads) and subtracts the subagent's whole bill, so for a multi-call task the
+figure is a **floor**. Say so beside it; do not add an estimate of the lead's avoided output or calls
+without a measurement of what the lead spends on the same task.
 
 A firing counts only if the read was really kept out: not held out, not declined, not failed, not a repeat
 answered from the turn's cache, and not a handoff after which the lead read the file anyway.
