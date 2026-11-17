@@ -52,7 +52,9 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
   model: 'claude-haiku-5-5', // the model thinker pins the host's agent definition to where the host lets it
-  threshold: 35000,   // tokens of read results in one turn past which the rest of its exploration is delegated
+  threshold: 8000,    // tokens of read results in one turn past which the rest of its exploration is delegated. 35000
+                      // until 2026-11-16 (the owner's call): a Haiku explorer costs under a cent, so a read of 8k
+                      // pays for it on the main model's cache write alone. Equal to minRead: every read of 8k+ fires
   minRead: 8000,      // a read under this is never delegated: the lines the main model edits
   holdout: 0.25,      // share of sessions left alone, by hash of the session id (proxy.js:heldOut); 0.5 until 2026-11-16
   families: true,     // on a host whose models come from a gateway, the explorer is the lead's own family's cheap
