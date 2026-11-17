@@ -246,6 +246,13 @@ export const sessionOf = headers => {
   return null;
 };
 
+// The thinking a cut leaves out (proxy.js:thinkingGone), one [oldest result id, turn] a cut. Adding one that is
+// there already keeps the later turn, so a retry or a merge of two clones never shortens a range.
+export const addThink = (list, [id, turn]) => {
+  const out = (Array.isArray(list) ? list : []).map(e => [...e]), at = out.findIndex(e => e[0] === id);
+  if (at < 0) out.push([id, turn]); else out[at][1] = Math.max(out[at][1], turn);
+  return out;
+};
 export const freshCut = session => ({
   session: session || '', cut: [], turn: 0, calls: 0, clears: 0,
   saved: 0, written: 0, chars: 0, model: null, at: 0,
@@ -433,7 +440,7 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const ahead = t.turn == null || t.turn >= (rec.turn || 0);
   if (ahead && t.turn != null) rec.turn = t.turn;
   if (ahead && t.cut) rec.cut = t.cut;
-  if (t.thinkTurn != null) rec.thinkTurn = Math.max(rec.thinkTurn || 0, t.thinkTurn);
+  if (t.think) rec.think = addThink(rec.think, t.think);
   // the request that carried the seed's breakpoint was answered, so the entry is there to be read
   if (t.seed && rec.seed && rec.seed.last === t.seed.last && !rec.seed.ready) rec.seed = { ...rec.seed, ready: now };
   if (t.clear) {
@@ -469,8 +476,8 @@ export function mergeCut(prev, rec) {
     calls: upto(prev.calls, rec.calls), clears: upto(prev.clears, rec.clears),
     saved: upto(prev.saved, rec.saved), written: upto(prev.written, rec.written),
     chars: upto(prev.chars, rec.chars), model: rec.model || prev.model || null,
-    // the turn the thinking is left out up to only ever rises, as the turn itself does
-    ...(prev.thinkTurn || rec.thinkTurn ? { thinkTurn: upto(prev.thinkTurn, rec.thinkTurn) } : {}) };
+    // the ranges of thinking left out only ever grow: a block that came back would be a change above everything since
+    ...(prev.think || rec.think ? { think: (rec.think || []).reduce(addThink, prev.think || []) } : {}) };
 }
 
 export function cutStore(dir) {
