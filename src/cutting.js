@@ -107,7 +107,9 @@ export const PAYBACK = 25;
 // 5 since 2026-11-16: a rung's rewrite is every message as sent after the cut, not the tail from the first
 // replaced result (`proxy.js:cutCandidates`). `r3` and `r4` priced the tail, cut at paybacks the API's own
 // writes put 1.6x to 7x higher, and their savings are never folded into this one's.
-export const POLICY_REV = 5;
+// 6 since 2026-11-17: a long call whose result is short is a candidate on the call's own text
+// (`proxy.js:cutCandidates`), so a boundary has more to take than it had under `r5`.
+export const POLICY_REV = 6;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}`;

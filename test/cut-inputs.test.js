@@ -9,8 +9,8 @@
 // began doing that. So the shape here is never a blank, and these tests are mostly about that.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyCut, cutCandidates, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
-import { cutInput, inputPlaceholder, policyId, MIN_CHARS } from '../src/cutting.js';
+import { applyCut, cutCandidates, cutActions, transformRequest, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { cutInput, inputPlaceholder, policyId, freshCut, MIN_CHARS } from '../src/cutting.js';
 
 const BIG = 'x'.repeat(12_000), CMD = 'npm test 2>&1 | tail -5\n' + 'y'.repeat(8_000);
 
@@ -91,8 +91,8 @@ test('on by default, and reachable by flag, environment and machine config', asy
 
 test('the saving names the policy that made it, so a figure with the calls in it is never pooled with one without', () => {
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r5-t140k-f8k-p25-deep+in');
-  assert.equal(policyId({ ...base }), 'r5-t140k-f8k-p25-deep');
+  assert.equal(policyId({ ...base, cutInputs: true }), 'r6-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base }), 'r6-t140k-f8k-p25-deep');
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {
@@ -107,4 +107,56 @@ test('the price of a cut is measured on the bytes it will send, calls included',
   assert.ok(deep(withIn).recache < deep(without).recache,
     `calls out means less to rewrite (${deep(withIn).recache} < ${deep(without).recache})`);
   assert.ok(deep(withIn).tokens > deep(without).tokens, 'and more taken out');
+});
+
+// --- a long call whose result is short (2026-11-17) --------------------------------------------------------
+// A heredoc that answered "ok", a Write that answered "File created": the result is under the size worth a
+// placeholder, so until now the pair was never a candidate and the call's body stayed for the whole session.
+const quiet = n => {
+  const ms = [{ role: 'user', content: [{ type: 'text', text: 'fix the ticket' }] }];
+  for (let i = 0; i < n; i++) ms.push(
+    { role: 'assistant', content: [{ type: 'tool_use', id: `q${i}`, name: i % 2 ? 'Write' : 'Bash', input: i % 2 ? { file_path: `/r/${i}.py`, content: CMD } : { command: CMD, description: 'Write the file' } }] },
+    { role: 'user', content: [{ type: 'tool_result', tool_use_id: `q${i}`, content: 'ok' }] });
+  ms.push({ role: 'user', content: [{ type: 'text', text: 'and now the next thing' }] });
+  return ms;
+};
+
+test('a long call with a short result is a candidate on the call\'s text alone', () => {
+  const ms = quiet(6), c = cutCandidates(ms, { keepMin: 3 });
+  assert.deepEqual(c.ids, ['q2', 'q1', 'q0'], 'the three outside the newest three, newest first');
+  assert.equal(c.chars, 0, 'no result is long enough to go');
+  assert.equal(c.inputChars, 3 * CMD.length);
+  assert.equal(c.tokens, Math.round(3 * CMD.length * RESULT_TOKENS_PER_CHAR));
+  assert.equal(c.steps.length, 3, 'a rung a call, as for results');
+  assert.deepEqual(cutCandidates(ms, { keepMin: 3, cutInputs: false }).ids, [], 'and nothing at all where the call\'s text is not cut');
+});
+
+test('the call loses its body and the short result stays word for word', () => {
+  const ms = quiet(6), a = applyCut(ms, ['q0', 'q1']);
+  assert.equal(a.cut, 2, 'two uses, counted once each');
+  assert.equal(a.chars, 0);
+  assert.equal(a.inputChars, 2 * CMD.length);
+  assert.equal(a.firstChanged, 1, 'the call\'s own message is the first one changed');
+  assert.equal(a.messages[1].content[0].input.command, inputPlaceholder(CMD.length));
+  assert.equal(a.messages[1].content[0].input.description, 'Write the file');
+  assert.deepEqual(a.messages[2], ms[2], 'the result is the agent\'s own bytes');
+  assert.equal(a.messages[3].content[0].input.file_path, '/r/1.py');
+  assert.deepEqual(a.messages[5], ms[5], 'a call outside the set is untouched');
+  // a pair cut on both halves is still one use
+  assert.equal(applyCut(job(2), ['t0']).cut, 1);
+});
+
+test('a cut of calls alone reaches the API, and the breakdown shows what the calls gave up', () => {
+  const ms = quiet(6), j = { model: 'claude-opus-5', messages: ms };
+  const rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour: everything eligible goes
+  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, cutRecord: rec, now: 1e12 });
+  assert.equal(t.injected, true, 'the request is rewritten though no result was replaced');
+  assert.equal(t.clientCut.cut, 3);
+  assert.equal(t.clientCut.tokens, Math.round(3 * CMD.length * RESULT_TOKENS_PER_CHAR));
+  const sent = JSON.parse(t.body);
+  assert.equal(sent.messages[1].content[0].input.command, inputPlaceholder(CMD.length));
+  assert.equal(sent.messages[2].content[0].content, 'ok');
+  assert.ok(Math.abs(t.actions.reduce((n, a) => n + a.tokens, 0) - t.clientCut.tokens) <= 3, 'by tool, the same total, each call rounded on its own');
+  assert.deepEqual(t.actions.map(a => a.name).sort(), ['Bash', 'Write']);
+  assert.deepEqual(cutActions(ms, ['q0']), [{ name: 'Bash', calls: 1, tokens: 1 }], 'without the call\'s text the breakdown is the result, as it was');
 });

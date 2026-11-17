@@ -438,10 +438,15 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   walkResults(messages, keepMin, (b, i, prot) => {
     if (prot || have.has(b.tool_use_id)) return;
     const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
-    if (text.length < minChars && !imgs.length) return;
+    const own = inputOf.get(b.tool_use_id) || 0;
+    // A long call with a short result is a candidate on the call's text alone (2026-11-17). Until now a call's
+    // text went only where its result did, so a heredoc, a Write or an Edit that answered in one line kept its
+    // whole body for the rest of the session: on this machine's boundaries over the trigger that was 6% of the
+    // messages' characters (Bash 4.8%, Write 0.8%, Edit 0.3%), about 20k tokens a boundary. The short result
+    // stays as it is, which is still the pair the model reads to know what the call did.
+    if (text.length < minChars && !imgs.length && !own) return;
     // what leaves: the text where it is long enough to be replaced, and the images at what they cost
     const gone = (text.length >= minChars ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR);
-    const own = inputOf.get(b.tool_use_id) || 0;
     ids.push(b.tool_use_id); chars += gone; inputChars += own; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: gone + own });
@@ -515,7 +520,9 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
   if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
-  let n = 0, chars = 0, inputChars = 0, firstChanged = -1;
+  let chars = 0, inputChars = 0, firstChanged = -1;
+  // the calls this changed, by id: a result replaced, a call's own text replaced, or both -- one use either way
+  const done = new Set();
   const out = messages.map((m, i) => {
     const c = m?.content;
     if (!Array.isArray(c)) return m;
@@ -527,14 +534,14 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
       if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
         const red = cutInput(b.input, { minChars: CUT_MIN_CHARS });
         if (!red) return b;
-        inputChars += red.chars; touched = true;
+        inputChars += red.chars; touched = true; done.add(b.id);
         return { ...b, input: red.input };
       }
       if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) return b;
       const text = resultText(b), imgs = imagePath ? resultImages(b) : [];
       if (text.length < CUT_MIN_CHARS && !imgs.length) return b;
       const long = text.length >= CUT_MIN_CHARS;
-      n++; chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
+      done.add(b.tool_use_id); chars += (long ? text.length : 0) + imageCharsOf(imgs, RESULT_TOKENS_PER_CHAR); touched = true;
       // a short line beside a screenshot ("Screenshot captured") stays as it is: it is what the model reads to
       // know what the call did, and it is under the size worth a placeholder
       const words = [long ? cutPlaceholder(text.length) : text, imgs.length ? imagePlaceholder(imgs.map((x, k) => imagePath(b.tool_use_id, k, x.source.media_type))) : ''].filter(Boolean).join('\n');
@@ -551,7 +558,7 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
   // the prompt to save anything.
   // `chars` is the results and `inputChars` the calls' own text; both leave the prompt, so both are the saving,
   // and they are reported apart so a reader can see which half a policy's figure came from.
-  return { messages: out, cut: n, chars, inputChars,
+  return { messages: out, cut: done.size, chars, inputChars,
     tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR), firstChanged };
 }
 
@@ -629,14 +636,23 @@ export function canMark(j, cand, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) 
 
 // What the cut took out, by tool, for the card and the Stop hook's line (compression.js). The cut
 // knows which uses it replaced, so this needs no guess at what a server chose.
-export function cutActions(messages, cut) {
+// `cutInputs`: the call's own text counts where it went too, so a call cut on its text alone (a long command
+// that answered in a line) shows what it gave up and not the size of the line that stayed.
+export function cutActions(messages, cut, { cutInputs = false } = {}) {
   const ids = new Set(cut), nameOf = new Map(), by = new Map();
   for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) if (b?.type === 'tool_use') nameOf.set(b.id, b.name);
   for (const id of ids) { const name = nameOf.get(id) || 'tool'; if (!by.has(name)) by.set(name, { name, calls: 0, tokens: 0 }); by.get(name).calls++; }
   for (const m of (Array.isArray(messages) ? messages : [])) for (const b of (Array.isArray(m?.content) ? m.content : [])) {
+    if (cutInputs && b?.type === 'tool_use' && ids.has(b.id)) {
+      const red = cutInput(b.input, { minChars: CUT_MIN_CHARS }), e = by.get(b.name || 'tool');
+      if (red && e) e.tokens += Math.round(red.chars * RESULT_TOKENS_PER_CHAR);
+      continue;
+    }
     if (b?.type !== 'tool_result' || !ids.has(b.tool_use_id)) continue;
     const e = by.get(nameOf.get(b.tool_use_id) || 'tool');
-    if (e) e.tokens += Math.round(resultText(b).length * RESULT_TOKENS_PER_CHAR);
+    // a result too short to replace is still in the prompt, so it is nothing the cut took
+    const len = resultText(b).length;
+    if (e && (!cutInputs || len >= CUT_MIN_CHARS)) e.tokens += Math.round(len * RESULT_TOKENS_PER_CHAR);
   }
   return [...by.values()].sort((a, b) => b.tokens - a.tokens);
 }
@@ -745,7 +761,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
   // was the placeholders' own size -- 59 tokens for a 42k-char read, 531 against a session's 1.48M saved.
   // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
-  const actions = cutActions(j.messages, d.cut);
+  const actions = cutActions(j.messages, d.cut, { cutInputs: cfg.cutInputs });
   j.messages = marked ? marked.messages : applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
