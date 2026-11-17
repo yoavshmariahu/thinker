@@ -27,7 +27,7 @@
 //    failure is "still waiting", never an error a hook could raise.
 //
 // 5. **What leaves is a closed list**: the machine's id, hostname, OS and thinker version; per session
-//    its id, agent, the repository's name (never a URL, never a path), two times and numbers. No prompt,
+//    its id, agent, model, the repository's name (never a URL, never a path), two times and numbers. No prompt,
 //    no code, no path. The server drops anything else too, so a bug here cannot store one there.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -178,7 +178,7 @@ export function noteSession(store, { session, home = thinkerHome(), env = proces
   const state = readFleetState(home);
   const known = state.sessions[ev.session] || { sent: {}, lastSentAt: null };
   state.sessions[ev.session] = { ...known, startedAt: known.startedAt || ev.firstAt || new Date(now).toISOString(), lastAt: ev.lastAt || new Date(now).toISOString(),
-    agent: ev.client || null, repo: repoName(store?.repo), seen: metricsOf(ev), notedAt: now };
+    agent: ev.client || null, model: ev.model || null, repo: repoName(store?.repo), seen: metricsOf(ev), notedAt: now };
   // The depth is a picture of the session as it stands, not an increment: it is kept whole, and sent again
   // only when it has changed (its stamp), since most turns move the figures and not every one adds a call.
   const detail = detailOf(ev);
@@ -197,7 +197,7 @@ function buildReport(state, { home, env, now }) {
     body: {
       machine_id: machineId({ env, home }), report_id: crypto.randomUUID(), hostname: os.hostname(), os: `${process.platform} ${os.release()}`,
       thinker_version: appVersion(),
-      sessions: moved.map(({ id, s, metrics }) => ({ session_id: id, started_at: s.startedAt, last_at: s.lastAt, agent: s.agent, repo: s.repo, metrics,
+      sessions: moved.map(({ id, s, metrics }) => ({ session_id: id, started_at: s.startedAt, last_at: s.lastAt, agent: s.agent, model: s.model || null, repo: s.repo, metrics,
         ...(s.detail && (s.detailStamp || null) !== (s.detailSent || null) ? { detail: s.detail } : {}) })),
     },
   };
