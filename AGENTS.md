@@ -321,9 +321,12 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   second later call, stop at the first cut, and a subagent the lead started unprompted is neither charged nor
   credited. On two bench sessions of 2026-11-14: $0.53 on a $3.15 mlflow session (one 45k read), $0.13 on a $7.12
   PostHog session (three firings, one ignored).
-- The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of 35k tokens
-  (`threshold`, ~1000 lines of Python) fires at once; smaller reads of 8k+ fire once the turn's reads have passed
-  35k. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
+- The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of `threshold`
+  tokens fires at once; smaller reads of 8k+ (`minRead`) fire once the turn's reads have passed it. **The threshold
+  is 8k since 2026-11-16 (the owner's call; 35k until then), so every read of 8k or more fires**: the explorer is
+  Haiku now, under a cent a run on this machine's 30 latest, against ~$0.08-0.14 for an 8k read kept in an Opus
+  session, so the dollars no longer set the floor; what is judged on the holdout is the re-read share and the
+  wait. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
   on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
   `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
   itself). A shell line that names a range (`sed -n 10,60p`, `head -n 40`, `sedLines`) is sized by the lines it asks

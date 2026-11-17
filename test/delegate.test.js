@@ -113,7 +113,7 @@ test('delegateConfig: defaults, the machine config, and the environment', t => {
   assert.equal(delegateConfig({ env: {}, home }).holdout, 0.25);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'on' }, home }).enabled, true);
-  assert.equal(delegateConfig({ env: {}, home }).threshold, 35000);
+  assert.equal(delegateConfig({ env: {}, home }).threshold, 8000);
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, threshold: 20000, model: 'claude-haiku-5-5' } }));
   const c = delegateConfig({ env: {}, home });
   assert.equal(c.threshold, 20000); assert.equal(c.model, 'claude-haiku-5-5'); assert.equal(c.enabled, true);
