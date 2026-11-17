@@ -42,7 +42,7 @@ import { noteCompression } from './compression.js';
 import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
-import { decideCut, cutResponse, cutStore, freshCut, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
+import { decideCut, cutResponse, cutStore, freshCut, addThink, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -92,7 +92,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // `cutBreakpoint` off since it was written (2026-11-17): a cut is seeded with a cache breakpoint of the proxy's
 // own and made on the next request (`cutting.js:SEED_MS`, `placeMark` below), which is what makes the tail the
 // thing a cut writes. Off until one live cut row on the owner's machine shows a cache read that covers the prefix.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: false, cutThinking: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -216,6 +216,54 @@ export const TOKENS_PER_CHAR = 1.44 / 4;
 // wrong direction at a margin where 62 payback refusals sat at a median 23% removed against the 42% needed.
 // The tail keeps TOKENS_PER_CHAR. `POLICY_REV` 4 marks it (cutting.js).
 export const RESULT_TOKENS_PER_CHAR = 0.445;
+// --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`, off by default) -----------------
+// A thinking block of an earlier turn may be left out of a request: "outside tool use, omit prior turns'
+// thinking, but not a block between two that you keep", and never edited (the API's thinking pages, read that
+// day). On the models that keep earlier thinking -- Opus 4.5 on, Sonnet 4.6 on, every Fable -- it is billed as
+// input on each later call, and on this machine's boundaries over the trigger it was 30% of the messages'
+// characters. Left out from the top it would move the cached prefix to the top; left out from the cut down, it
+// leaves a span the cut is writing again anyway. So that is the rule: a cut also leaves out the thinking of the
+// messages after its own oldest replaced result and before the turn it was made in, on that request and on
+// every one after it (`rec.think`, one [result id, turn] a cut). The turn in progress keeps its own, which
+// the API requires. Nothing above a cut's own first result is touched, so the prefix a breakpoint there
+// protects is still the one the cache holds, and thinking said since an earlier cut stays until a later
+// cut reaches past it.
+// Replayed over 30 days of this machine's proxied sessions (1,582 warm boundaries over the trigger): 200 cuts
+// taking 9.2M tokens became 359 taking 22.4M with the breakpoint, 81 became 230 without it, because a tail
+// with no thinking in it is one a deeper rung can pay for.
+// What a block is worth is its signature at about 4.3 characters a token (transcripts.js), written here as a
+// rate on the block's wire characters, which are the signature and a few dozen more.
+export const THINKING_TOKENS_PER_CHAR = 1 / 4.3;
+const isThinking = b => b?.type === 'thinking' || b?.type === 'redacted_thinking';
+// the wire characters of the thinking a message would lose; none where thinking is all the message holds,
+// since an assistant message may not be sent empty
+export function thinkingChars(m) {
+  if (m?.role !== 'assistant' || !Array.isArray(m.content) || !m.content.some(isThinking) || m.content.every(isThinking)) return 0;
+  return m.content.reduce((n, b) => n + (isThinking(b) ? wireChars(b) + 1 : 0), 0);
+}
+// where turn `turn` starts, by `turnId`'s count of the person's prompts; the end of the messages if it has not
+export function turnIndex(messages, turn) {
+  let n = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (m?.role !== 'user') continue;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
+    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result') && ++n === turn) return i;
+  }
+  return messages.length;
+}
+// the message holding the oldest result of a set of ids: the thinking after it is what goes
+const cutAnchor = (messages, ids) => (ids.size ? messages.findIndex(m => Array.isArray(m?.content) && m.content.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) : -1);
+// which messages have had their thinking left out by the cuts so far: one flag a message, from `rec.think`
+export function thinkingGone(messages, ranges) {
+  const gone = new Array(messages.length).fill(false);
+  for (const [id, turn] of Array.isArray(ranges) ? ranges : []) {
+    const a = cutAnchor(messages, new Set([id]));
+    if (a < 0) continue;
+    for (let i = a + 1, to = Math.min(turnIndex(messages, turn), messages.length); i < to; i++) gone[i] = true;
+  }
+  return gone;
+}
 // the margin the proxy's count of the clearable results must clear by before it sends the thinking edit, since the
 // server counts exactly and the proxy estimates: a thinking clear on a request whose tool clear does not fire would break
 // the cache on its own
@@ -248,6 +296,7 @@ export function proxyConfig(flags = {}, env = process.env) {
   cfg.cutInputs = onOff('cut-inputs', 'THINKER_PROXY_CUT_INPUTS', PROXY_DEFAULTS.cutInputs);
   cfg.cutImages = onOff('cut-images', undefined, PROXY_DEFAULTS.cutImages);   // a flag or the machine config; no variable
   cfg.cutBreakpoint = onOff('cut-breakpoint', 'THINKER_PROXY_CUT_BREAKPOINT', PROXY_DEFAULTS.cutBreakpoint);
+  cfg.cutThinking = onOff('cut-thinking', 'THINKER_PROXY_CUT_THINKING', PROXY_DEFAULTS.cutThinking);
   cfg.upstream = flags.upstream || env.THINKER_PROXY_UPSTREAM || cfg.upstream;
   cfg.port = pick('port', 'THINKER_PROXY_PORT');
   cfg.protocol = flags.protocol || env.THINKER_PROXY_PROTOCOL || 'anthropic';
@@ -419,7 +468,7 @@ function walkResults(messages, keepMin, fn) {
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, inputChars = 0, firstChanged = -1;
   const takeAt = new Map();
@@ -496,11 +545,30 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // The deepest step IS this set, and its `recache` is that same tail summed message by message rather than
   // stringified in one slice, which `test/cut-ladder.test.js` holds to the old figure. So the whole-set
   // candidate the other doors and the old tests read is the last rung, and nothing is measured twice.
+  // With `thinking` ({ to, done }: where the turn in progress starts, and the ranges earlier cuts left out) every
+  // rung also loses the thinking between its oldest result and that turn. It comes off what the rung writes,
+  // at the rate the ladder counted it, and what an earlier cut had not already left out is added to what the
+  // rung removes, at a thinking block's own rate.
+  let thinkAll = 0;
+  if (thinking && steps.length) {
+    const gone = thinkingGone(messages, thinking.done), pre = [0], preGone = [0];
+    messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
+    const to = Math.min(thinking.to ?? messages.length, messages.length);
+    for (const s of steps) {
+      const from = Math.min(s.firstChanged + 1, to);
+      const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
+      s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
+      s.tokens += s.thinking;
+      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
+      s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
+    }
+    thinkAll = steps[steps.length - 1].thinking;
+  }
   const whole = steps.length ? steps[steps.length - 1] : null;
   return {
     // `chars` is the results, `inputChars` the finished calls' own text, and `tokens` the two together, because
     // both leave the prompt and the saving is what the prompt is shorter by (`applyCut`).
-    ids, chars, inputChars, tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR),
+    ids, chars, inputChars, tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR) + thinkAll, ...(thinking ? { thinking: thinkAll } : {}),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }
@@ -517,7 +585,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // own blanked calls, reported that it had been "making the tool calls without file paths", and began
 // doing so -- a false history of itself that it then copied. Dropping thinking bought nothing and was
 // the one edit that broke the API in October. The results are the feature; both piggybacks are gone.
-export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null } = {}) {
+export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
   const ids = cut instanceof Set ? cut : new Set(cut || []);
   if (!ids.size) return { messages, cut: 0, chars: 0, tokens: 0, inputChars: 0, firstChanged: -1 };
   let chars = 0, inputChars = 0, firstChanged = -1;
@@ -558,8 +626,23 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
   // the prompt to save anything.
   // `chars` is the results and `inputChars` the calls' own text; both leave the prompt, so both are the saving,
   // and they are reported apart so a reader can see which half a policy's figure came from.
-  return { messages: out, cut: done.size, chars, inputChars,
-    tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR), firstChanged };
+  // The earlier turns' thinking, in the ranges the cuts so far left out (`thinking`: `rec.think`). A pure
+  // function of those ranges, so every request of the conversation leaves out the same blocks: a thinking block
+  // is bound to what came before it, and one that came and went would be a change above everything said since.
+  let thinkingChars_ = 0;
+  if (thinking?.length) {
+    const gone = thinkingGone(messages, thinking);
+    for (let i = 0; i < out.length; i++) {
+      const n = gone[i] ? thinkingChars(out[i]) : 0;
+      if (!n) continue;
+      thinkingChars_ += n;
+      if (firstChanged < 0 || i < firstChanged) firstChanged = i;
+      out[i] = { ...out[i], content: out[i].content.filter(b => !isThinking(b)) };
+    }
+  }
+  const thought = Math.round(thinkingChars_ * THINKING_TOKENS_PER_CHAR);
+  return { messages: out, cut: done.size, chars, inputChars, ...(thinking ? { thinking: thought } : {}),
+    tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR) + thought, firstChanged };
 }
 
 // --- the proxy's own cache breakpoint (2026-11-17, `cutBreakpoint`, off by default) ------------------------
@@ -727,7 +810,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   // here because this is the first point the body has been parsed
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null });
+  // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress
+  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, m.turn), done: rec.think || [] } : null;
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking });
   // what the request carries for breakpoints rides on every row, because how many Claude Code sends and for
   // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
   const had = breakpointsOf(j);
@@ -736,7 +821,12 @@ export function transformRequest(method, url, headers, body, cfg) {
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, mark: !!room, markTtl: room?.ttl });
   // the images are on disk before the prompt loses them, or they stay in the prompt
   const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
-  const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath });
+  // a cut made on this request adds its own range: from the oldest result it newly replaces to this turn
+  const fresh = thinking && d.clear ? d.cut.slice(rec.cut.length) : [];
+  const anchor = fresh.length ? cutAnchor(j.messages, new Set(fresh)) : -1;
+  const oldest = anchor >= 0 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
+  const think = thinking ? [...thinking.done, ...(oldest ? [[oldest, m.turn]] : [])] : null;
+  const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath, thinking: think });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
   const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
   const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}) } } : {};
@@ -767,12 +857,13 @@ export function transformRequest(method, url, headers, body, cfg) {
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
-    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged },
+    clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged, ...(applied.thinking != null ? { thinking: applied.thinking } : {}) },
+    ...(oldest ? { think: [oldest, m.turn] } : {}),
     // the decision's own arithmetic, so a cut can be audited against the floor that allowed it. `saving`,
     // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
     // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,
     // so this branch had never run, and `Math.round(undefined)` would have logged `"saving":null`.
-    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, ...(d.tail != null ? { tail: d.tail } : {}), ...(d.marked ? { whole: d.whole } : {}), ...(d.seeded ? { seeded: true } : {}), cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, ...(d.tail != null ? { tail: d.tail } : {}), ...(d.marked ? { whole: d.whole } : {}), ...(d.thinking != null ? { thinking: d.thinking } : {}), ...(d.seeded ? { seeded: true } : {}), cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
     ...(d.held ? { held: d.held } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
     ...(d.turn != null ? { turn: d.turn } : {}) };
@@ -996,6 +1087,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
       if (cutRec && Array.isArray(t.cut) && t.turn != null) {
         cutRec.cut = t.cut; cutRec.turn = t.turn;
         if ('seed' in t) cutRec.seed = t.seed || null;   // null, not absent: a write merges over what is stored
+        if (t.think) cutRec.think = addThink(cutRec.think, t.think);
         cutStoreOf(t).write(cutRec);
       }
       let n = null;
