@@ -566,7 +566,10 @@ plugin on a machine without thinker does nothing.
   it costs; between changes every call sends the same edit, so what was cleared stays cleared and a later clear only
   extends the cleared region at its newer end. The session's record is on disk beside the proxy log, so a restarted
   proxy sends the same edit. `--no-clear-deep` (`proxy: { clearDeep: false }`, `THINKER_PROXY_CLEAR_DEEP=off`) keeps
-  every ask at the floor. Two more things a clear can take, off until an
+  every ask at the floor. `--cut-breakpoint` (`proxy: { cutBreakpoint: true }`, `THINKER_PROXY_CUT_BREAKPOINT=on`;
+  off by default) has the proxy place one cache breakpoint of its own just before a cut, on the request before
+  the cut and on the cut itself, so the prompt above the cut is read from cache and only what follows is
+  written again. Two more things a clear can take, off until an
   experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
   `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
   goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a

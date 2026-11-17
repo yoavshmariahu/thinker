@@ -107,10 +107,12 @@ export const PAYBACK = 25;
 // 5 since 2026-11-16: a rung's rewrite is every message as sent after the cut, not the tail from the first
 // replaced result (`proxy.js:cutCandidates`). `r3` and `r4` priced the tail, cut at paybacks the API's own
 // writes put 1.6x to 7x higher, and their savings are never folded into this one's.
-export const POLICY_REV = 5;
+// 6 since 2026-11-17: a long call whose result is short is a candidate on the call's own text
+// (`proxy.js:cutCandidates`), so a boundary has more to take than it had under `r5`.
+export const POLICY_REV = 6;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}`;
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -260,7 +262,7 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rates = null } = {}) {
+export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rates = null, mark = false } = {}) {
   // Dynamic rates (gateway-rates.js): what a write and a read cost relative to an input token,
   // resolved per model from config or the gateway's own measured prices. Null keeps the
   // Anthropic ratios, as before this existed.
@@ -270,7 +272,11 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // the API writes again: the prompt above the first replaced result does NOT keep its place in the cache
   // unless a breakpoint of an earlier request sits within the API's 20-position lookback of this one's, and
   // a cut worth making reaches further back than that. The system prompt is not in the messages at all.
-  const recache = Math.max(0, cand.recache || 0);
+  // With a breakpoint of our own on the last block before the first replaced one (`mark`, proxy.js:placeMark,
+  // 2026-11-17) the API has somewhere to find that prefix again, so what is written is the tail and the
+  // tail is what is priced. `whole` rides along so a row says what the cut would have cost without the mark.
+  const marked = mark && cand.tail != null;
+  const recache = Math.max(0, (marked ? cand.tail : cand.recache) || 0);
   // What the cut adds to THIS call, against the same call made without it (2026-11-13). Without the cut
   // the whole prompt is read back from the cache -- the tail and the results in it included, which is the
   // 175k-278k read on this machine's own boundary rows. With the cut, the tail is written instead of read
@@ -293,7 +299,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
   // that `Math.ceil` returns for a negative fraction out of the log and out of every `=== 0` a reader writes.
   const payback = cand.tokens > 0 && read > 0 ? Math.max(0, Math.ceil(cost / (cand.tokens * read))) : Infinity;
-  return { tokens: cand.tokens, recache, ...(cand.tail != null ? { tail: cand.tail } : {}), cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
+  return { tokens: cand.tokens, recache, ...(cand.tail != null ? { tail: cand.tail } : {}), ...(marked ? { marked: true, whole: cand.recache } : {}), cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // --- the turn in progress is never cut into ---------------------------------------------------------------
@@ -325,11 +331,40 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
 export function decideCut(rec, cfg, m, opts = {}) {
   const eff = scaledPolicy(cfg, { rates: opts.rates ?? null });
   const d = decide(rec, eff, m, opts);
+  // a seed the decision did not keep is over: taken, gone stale, or the request has no room for the mark
+  if (rec.seed && !('seed' in d)) d.seed = null;
   return { ...d, policy: policyId(eff), ...(eff.scale ? { scale: eff.scale } : {}) };
 }
-function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null } = {}) {
+// --- a cut is seeded on one request and made on the next (2026-11-17, off by default) ---------------------
+// The API reads a cached prefix only where some request left a breakpoint, so a result replaced in the
+// middle of the conversation leaves the system prompt as the one thing read back (`priceCut`). With
+// `mark` (proxy.js: the request has room for a breakpoint of ours and the switch is on) a boundary that
+// finds a cut worth making does not make it. It records the oldest result of the set (`seed.last`) and
+// the request goes out unchanged but for one breakpoint on the last block before that result, so the API
+// stores exactly the prefix the cut will keep. Once that request has been answered (`seed.ready`,
+// `cutResponse`) the next request of the conversation makes the cut, with the same breakpoint, whether
+// or not a new turn has begun: everything in the set is older than the turn that chose it, so the
+// running turn is still untouched. A seed older than the entry's own lifetime is dropped and the
+// boundary decides again.
+export const SEED_MS = { '1h': 55 * 60 * 1000, '5m': 4 * 60 * 1000 };
+const seedRung = (cand, seed) => (cand?.steps || []).find(s => s.ids[s.ids.length - 1] === seed.last) || null;
+function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, mark = false, markTtl = ttl } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
+  if (mark && rec.seed) {
+    const rung = seedRung(cand, rec.seed);
+    const live = rung && now - (rec.seed.ready || rec.seed.at) <= (SEED_MS[markTtl] || SEED_MS['5m']);
+    const moved = turn !== rec.turn ? { turn } : {};
+    // the seed's own request is not answered yet (a retry, a subagent's call beside it): it carries the mark too
+    if (live && !rec.seed.ready) return { ...same, ...moved, candidate: rung.tokens, reason: 'seed', seed: rec.seed, markIds: rung.ids };
+    if (live) {
+      // the rung that ends on the seeded result, as the conversation stands now: it holds whatever became
+      // eligible since, at the same breakpoint, and is priced again so the row says what this request wrote
+      const p = priceCut(m, rung, { ttl, model, rates, mark });
+      return { cut: [...rec.cut, ...rung.ids], clear: true, turn, cold: false, candidate: rung.tokens, seeded: true, seed: null, markIds: rung.ids,
+        depth: rung.ids.length, rungs: cand.steps.length, ...(rates ? { rates } : {}), ...p };
+    }
+  }
   // A branch that refused something names itself; a request with nothing cuttable in it says so whichever branch
   // it took, because 'mid-turn' on a request that had nothing to cut anyway reads as a refusal that never happened
   // -- and mid-turn is most of the traffic, so that one label would drown the log it is meant to explain.
@@ -362,7 +397,7 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   let take = null, takeP = null, best = null, bestP = null;
   for (const rung of rungs) {
     if (rung.tokens < cfg.clearAtLeast) continue;
-    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates });
+    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates, mark });
     if (p.pays && (!take || rung.tokens > take.tokens)) { take = rung; takeP = p; }
     if (!bestP || p.payback < bestP.payback) { best = rung; bestP = p; }
   }
@@ -375,6 +410,10 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // back unreadable: the decision carried the two fields and no row did).
   if (!take) return { ...same, turn, candidate: best.tokens,
     held: { ...bestP, depth: best.ids.length, rungs: rungs.length, ...(rates ? { rates } : {}) }, reason: 'payback' };
+  // with a breakpoint to place, this request seeds the cut and the next one makes it (above)
+  if (mark && takeP.marked) return { ...same, turn, candidate: take.tokens, reason: 'seed', markIds: take.ids,
+    seed: { last: take.ids[take.ids.length - 1], at: now },
+    planned: { ...takeP, depth: take.ids.length, rungs: rungs.length } };
   // `candidate` is what the chosen rung takes, not what the whole ladder could: the log's question is what
   // this boundary cut and what it cost, and `depth` says how far back it had to reach to find it.
   return { cut: [...rec.cut, ...take.ids], clear: true, turn, cold, candidate: take.tokens,
@@ -394,6 +433,8 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const ahead = t.turn == null || t.turn >= (rec.turn || 0);
   if (ahead && t.turn != null) rec.turn = t.turn;
   if (ahead && t.cut) rec.cut = t.cut;
+  // the request that carried the seed's breakpoint was answered, so the entry is there to be read
+  if (t.seed && rec.seed && rec.seed.last === t.seed.last && !rec.seed.ready) rec.seed = { ...rec.seed, ready: now };
   if (t.clear) {
     rec.clears++; rec.chars += t.clientCut?.chars || 0;
     // the rates this clear was priced with, kept so the record's savings are read at the same rates
