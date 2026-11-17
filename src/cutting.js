@@ -112,7 +112,10 @@ export const PAYBACK = 25;
 // 7 since 2026-11-17: with the proxy's breakpoint, the tail a rung is priced at starts after the message the
 // breakpoint can sit on, not at the first changed message (`proxy.js:markBlock`). Where the walk back steps
 // over a message, `r6` priced the cut short by that message.
-export const POLICY_REV = 7;
+// 8 since 2026-11-17: what a rung removes is counted from each result's own text (`proxy.js:resultTokens`),
+// not its characters at a flat 0.445. On one PostHog session `r7` priced three cuts 17-22% over what the API's
+// own counts fell by, and made a fourth that the payback limit should have refused.
+export const POLICY_REV = 8;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;

@@ -1,4 +1,4 @@
-// Thinker by day: what was saved (by the clearing and by delegation), who used it, how often it cut and delegated, and how many machines there are.
+// Thinker by day: what was saved (by the context cuts and by delegation, together and each), who used it, how often it cut and delegated, and how many machines there are.
 //
 // Every card but the last is a day's own figure, exploded from a block's `byDay` map: `sessions.byDay`
 // (src/delivery-telemetry.js: a session on the UTC day of its last request, with what its clearing netted),
@@ -11,12 +11,17 @@
 const device = "coalesce('device:' || device_id, 'install:' || install_id)";
 const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE 'UTC'), ${device}) *
   FROM reports ORDER BY date_trunc('day', received_at AT TIME ZONE 'UTC'), ${device}, received_at DESC, file_key DESC) daily_snapshots`;
+// Every card shows the same window, the last 30 UTC days with today (the owner, 2026-11-17): a day's figure does
+// not change when it leaves the window, it is only no longer drawn or summed.
+export const WINDOW_DAYS = 30;
+const windowStart = `((now() AT TIME ZONE 'UTC')::date - ${WINDOW_DAYS - 1})`;
+const calendar = `(SELECT d::date AS day_utc FROM generate_series(${windowStart}, (now() AT TIME ZONE 'UTC')::date, interval '1 day') d) calendar`;
 // one row per device and day of a block's byDay, from the newest snapshot holding that day; `prefer` puts the
 // snapshots it holds for first, so a day both kinds carry is read from the preferred one however old it is
 const days = (block, prefer = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures, s.preferred
   FROM (SELECT ${device} AS device, received_at, file_key, raw_json, coalesce(${prefer}, FALSE) AS preferred FROM ${daily}) s
   CROSS JOIN LATERAL jsonb_each(CASE WHEN jsonb_typeof(s.raw_json #> '{${block},byDay}') = 'object' THEN s.raw_json #> '{${block},byDay}' ELSE '{}'::jsonb END) AS dd(day, figures)
-  WHERE dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$'
+  WHERE dd.day ~ '^\\d{4}-\\d{2}-\\d{2}$' AND dd.day >= to_char(${windowStart}, 'YYYY-MM-DD')
   ORDER BY s.device, dd.day, s.preferred DESC, s.received_at DESC, s.file_key DESC) days`;
 const fig = name => `(CASE WHEN jsonb_typeof(figures->'${name}') = 'number' THEN (figures->>'${name}')::numeric END)`;
 
@@ -41,21 +46,41 @@ const delegationNote = 'Delegation: a read or a suite run handed to a subagent n
 // one machine charged $64 of rewrites on a day it spent $7. `netUsd` still travels in the block; no card reads it.
 const stampedNote = 'Only sessions whose clear carries the cut policy that made it are counted (src/cutting.js:policyId, clients from 0.3.3): a clear with no recorded policy, or a session cleared under two, is in no figure here.';
 
+// The two savings, a row a day, and the one place the total and the per-day bars are both read from: the total is
+// this table's sum and the bars are its rows, so the two cannot disagree (the owner, 2026-11-17: the total added
+// delegation in and "Saved per day" drew the clearing alone, $43 beside bars that summed to $5). A day one side
+// has no figure for still has the other's.
+const savedDays = `(SELECT day_utc, c.usd AS cuts_usd, g.usd AS delegation_usd, coalesce(c.usd, 0) + coalesce(g.usd, 0) AS total_usd
+  FROM (SELECT day_utc, sum(${fig('stampedNetUsd')}) AS usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1) c
+  FULL JOIN (SELECT day_utc, sum(${fig('savedUsd')}) AS usd FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('savedUsd')} IS NOT NULL GROUP BY 1) g USING (day_utc)) saved_days`;
+const lossNote = 'A day below zero is a measured loss, not a counting error: a cut pays for its cache rewrite on the call that makes it and earns it back over the calls after, so a session that ended (or has not yet run) long enough after its cut is behind. The cut policies before r5 priced that rewrite as the tail after the cut where the API wrote the whole conversation again, and made cuts that never repaid (src/cutting.js:POLICY_REV). Today\'s figure moves as its sessions go on.';
+
 export const dailyQuestions = [
-  { name: `Total saved since ${SAVINGS_SINCE}`, display: 'scalar',
-    sql: `SELECT round(coalesce(c.usd, 0) + coalesce(g.usd, 0), 2) AS net_saved_usd, round(c.usd, 2) AS by_clearing_usd, round(g.usd, 2) AS by_delegation_usd
-      FROM (SELECT sum(${fig('stampedNetUsd')}) AS usd, count(${fig('stampedNetUsd')}) AS n FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}') c
-      CROSS JOIN (SELECT sum(${fig('savedUsd')}) AS usd, count(${fig('savedUsd')}) AS n FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}') g
-      WHERE c.n + g.n > 0`,
-    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up: what the clearing netted plus what delegation saved, the two series of "Saved per day" and "Saved by delegation, per day". ${netNote} ${stampedNote} ${delegationNote} ${datedNote}` },
+  { name: `Total saved · last ${WINDOW_DAYS} days`, display: 'scalar',
+    sql: `SELECT round(sum(total_usd), 2) AS total_saved_usd, round(sum(cuts_usd), 2) AS by_context_cuts_usd, round(sum(delegation_usd), 2) AS by_delegation_usd
+      FROM ${savedDays} HAVING count(*) > 0`,
+    description: `The sum of the bars of "Saved per day", every reporting device over the last ${WINDOW_DAYS} days (no day before ${SAVINGS_SINCE}, when thinker began cutting the context itself, is counted): what the context cuts netted plus what delegation saved. ${netNote} ${stampedNote} ${delegationNote} ${datedNote}` },
 
   { name: 'Saved per day', display: 'bar',
-    sql: `SELECT day_utc, round(sum(${fig('stampedNetUsd')}), 2) AS net_saved_usd, round(sum(${fig('stampedSavedUsd')}), 2) AS saved_before_rewrites_usd,
-      sum(${fig('stampedSessions')}) AS sessions_cleared,
+    sql: `SELECT day_utc, round(total_usd, 2) AS total_saved_usd, round(cuts_usd, 2) AS by_context_cuts_usd, round(delegation_usd, 2) AS by_delegation_usd
+      FROM ${savedDays} ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['total_saved_usd'] },
+    description: `What the context cuts netted plus what delegation saved, that UTC day; the bars add up to the total beside them, and each half has its own card below. ${lossNote}` },
+
+  { name: 'Saved by context cuts, per day', display: 'bar',
+    sql: `SELECT day_utc, round(sum(${fig('stampedNetUsd')}), 2) AS saved_by_context_cuts_usd, round(sum(${fig('stampedSavedUsd')}), 2) AS saved_before_cut_costs_usd,
+      round(sum(${fig('stampedSavedUsd')}) - sum(${fig('stampedNetUsd')}), 2) AS cut_costs_usd, sum(${fig('stampedSessions')}) AS sessions_cleared,
       count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
       FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1 ORDER BY 1`,
-    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['net_saved_usd'] },
-    description: `What the clearing netted; the total beside it adds what delegation saved (the next card). ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['saved_by_context_cuts_usd'] },
+    description: `The clearing's half of "Saved per day". ${netNote} Saved before cut costs is the gross figure the Report page shows; cut costs is what comes off it, the cache rewrite of each cut and the re-reads of what a cut took out. ${lossNote} ${stampedNote} ${datedNote}` },
+
+  { name: 'Context cuts per day', display: 'bar',
+    sql: `SELECT day_utc, sum(${fig('cuts')}) AS context_cuts, sum(${fig('requestsCleared')}) AS requests_sent_shorter, sum(${fig('cleared')}) AS tokens_left_out,
+      count(DISTINCT device) FILTER (WHERE ${fig('cuts')} > 0) AS devices_cut_for
+      FROM ${days('proxy')} GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['context_cuts'] },
+    description: 'A cut is one decision to drop finished tool results at a turn boundary (the proxy row that carries `clear`, by any of its three doors). Every later request of the conversation is sent shorter by it: those are the requests column, not cuts. Counted by clients released after 0.4.0; an older client reports the requests and tokens alone. A desktop session cleared by the mod inside it never reaches the proxy and is not here.' },
 
   { name: 'Saved by delegation, per day', display: 'bar',
     sql: `SELECT day_utc, round(sum(${fig('savedUsd')}), 2) AS saved_by_delegation_usd, sum(${fig('savedTokens')}) AS tokens_kept_out_of_the_lead,
@@ -65,19 +90,6 @@ export const dailyQuestions = [
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['saved_by_delegation_usd'] },
     description: `${delegationNote} Tokens kept out of the lead counts a delegated read once for the write and once for every later call that would have read it back. Tokens in a session whose model has no list price are in the token column and in no dollar figure.` },
 
-  { name: 'Devices with a thinker session, per day', display: 'line',
-    sql: `SELECT day_utc, count(DISTINCT device) FILTER (WHERE ${fig('sessions')} > 0) AS devices_with_a_session, sum(${fig('sessions')}) AS sessions
-      FROM ${days('sessions')} GROUP BY 1 ORDER BY 1`,
-    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['devices_with_a_session'] },
-    description: 'Devices on which thinker recorded at least one agent session whose last request was that UTC day. A device is a machine, so one person with two machines is two. A session held out from the clearing or the profile still counts: thinker was running in it.' },
-
-  { name: 'Context cuts per day', display: 'bar',
-    sql: `SELECT day_utc, sum(${fig('cuts')}) AS context_cuts, sum(${fig('requestsCleared')}) AS requests_sent_shorter, sum(${fig('cleared')}) AS tokens_left_out,
-      count(DISTINCT device) FILTER (WHERE ${fig('cuts')} > 0) AS devices_cut_for
-      FROM ${days('proxy')} GROUP BY 1 ORDER BY 1`,
-    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['context_cuts'] },
-    description: 'A cut is one decision to drop finished tool results at a turn boundary (the proxy row that carries `clear`, by any of its three doors). Every later request of the conversation is sent shorter by it: those are the requests column, not cuts. Counted by clients released after 0.4.0; an older client reports the requests and tokens alone. A desktop session cleared by the mod inside it never reaches the proxy and is not here.' },
-
   { name: 'Delegations to a subagent, per day', display: 'bar',
     sql: `SELECT day_utc, sum(${fig('delegated')}) AS delegated, sum(${fig('held')}) AS held_out, sum(${fig('failed')}) AS failed, sum(${fig('cached')}) AS answered_from_the_turns_report,
       round(sum(${fig('costUsd')}), 2) AS subagent_cost_usd, count(DISTINCT device) FILTER (WHERE ${fig('delegated')} > 0) AS devices
@@ -85,10 +97,19 @@ export const dailyQuestions = [
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['delegated'] },
     description: 'Reads and whole-suite test runs the delegation trigger handed to a subagent instead of the model (src/delegate.js; src/telemetry.js:delegateMetrics). Held out is a firing in a session the holdout kept as it was; failed is a subagent that errored or timed out, where the call went through. Subagent cost is what the runs themselves reported. Sent by clients released after 0.4.0.' },
 
+  { name: 'Devices with a thinker session, per day', display: 'line',
+    sql: `SELECT day_utc, count(DISTINCT device) FILTER (WHERE ${fig('sessions')} > 0) AS devices_with_a_session, sum(${fig('sessions')}) AS sessions
+      FROM ${days('sessions')} GROUP BY 1 ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['devices_with_a_session'] },
+    description: 'Devices on which thinker recorded at least one agent session whose last request was that UTC day. A device is a machine, so one person with two machines is two. A session held out from the clearing or the profile still counts: thinker was running in it.' },
+
   { name: 'Known devices, per day', display: 'line',
-    sql: `SELECT day_utc, sum(count(*)) OVER (ORDER BY day_utc) AS known_devices, count(*) AS new_devices
-      FROM (SELECT device_id, min(date_trunc('day', received_at AT TIME ZONE 'UTC')) AS day_utc FROM reports WHERE device_id IS NOT NULL GROUP BY 1) first_seen
+    sql: `SELECT calendar.day_utc, count(*) FILTER (WHERE first_seen.day_utc <= calendar.day_utc) AS known_devices, count(*) FILTER (WHERE first_seen.day_utc = calendar.day_utc) AS new_devices
+      FROM ${calendar} CROSS JOIN (SELECT device_id, min(date_trunc('day', received_at AT TIME ZONE 'UTC'))::date AS day_utc FROM reports WHERE device_id IS NOT NULL GROUP BY 1) first_seen
       GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['known_devices'] },
-    description: 'Every device that has ever sent a report, counted from the UTC day of its first one: the running total, with the day\'s new devices beside it. A device that uninstalled stays known. A day with no new device has no point of its own.' },
-].map(q => ({ ...q, daily: true }));
+    description: 'Every device that has ever sent a report, counted from the UTC day of its first one: the running total, with the day\'s new devices beside it. A device that uninstalled stays known.' },
+].map(q => ({ ...q, daily: true,
+  // every chart has a row for each of the window's days, so they all draw the same 30-day axis; a day a card has
+  // no figure for is an empty row (not measured), never a zero
+  sql: q.display === 'scalar' || q.sql.includes(calendar) ? q.sql : `SELECT * FROM ${calendar} LEFT JOIN (${q.sql.replace(/\s+ORDER BY 1$/, '')}) charted USING (day_utc) ORDER BY 1` }));

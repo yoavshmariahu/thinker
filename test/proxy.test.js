@@ -8,7 +8,7 @@ import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, t
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
 import { idleRestartWatcher, requestRestart, restartWanted } from '../src/proxy-service.js';
 import { clearedBySession, compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
-import { TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';
 
@@ -80,7 +80,7 @@ test('a boundary refused for size says how much was cuttable', () => {
   const h = { 'x-claude-code-session-id': 's-size' };
   const t = transformRequest('POST', '/v1/messages', h, cuttable(), { ...PROXY_DEFAULTS, trigger: 0, clearAtLeast: 10 ** 9 });
   assert.equal(t.reason, 'below-clear-minimum');
-  assert.equal(t.candidate, Math.round(7 * 40000 * RESULT_TOKENS_PER_CHAR), 'the seven droppable 40k-char results, at a result\'s own rate');
+  assert.equal(t.candidate, Math.round(7 * 40000 * RESULT_WEIGHTS.letter), 'the seven droppable 40k-char results, counted from their text');
   assert.equal(transformRequest('POST', '/v1/messages', h, body(), PROXY_DEFAULTS).candidate, undefined, 'nothing to cut carries no size');
 });
 
@@ -620,7 +620,7 @@ test('what the cut took out is on the row, in the session record, and summed as 
     for (const r of cut) {
       assert.ok(r.cleared > 0, 'the row says what the prompt was shorter by');
       assert.equal(r.cleared, r.clientCut.tokens, 'and the figure is the cut\'s own, the API having reported none');
-      assert.equal(r.cleared, Math.round(r.clientCut.chars * RESULT_TOKENS_PER_CHAR), 'tied to the characters it replaced, at a result\'s own rate');
+      assert.equal(r.cleared, Math.round(r.clientCut.chars * RESULT_WEIGHTS.letter), 'tied to the text it replaced, counted as the letters it is');
       assert.equal(r.clearedUses, r.clientCut.cut, 'with the results it replaced beside it');
       assert.equal(r.clientCut.inputChars, undefined, 'the call text is not the cut\'s business');
       assert.equal(r.clientCut.thinking, undefined, 'nor the thinking');
@@ -651,7 +651,7 @@ test('the breakdown by action is what the results were worth, not what the place
     assert.equal(read.calls, row.clearedUses, 'every result the cut replaced is counted');
     // Each cut result is 40,000 chars; the placeholder that replaces it is ~150. Reading the breakdown off
     // the already-cut messages gave 59 tokens a call -- 531 against a session's 1.48M saved (#610..0.2.23).
-    assert.equal(read.tokens, Math.round(40000 * RESULT_TOKENS_PER_CHAR) * read.calls, 'at the size they were when the agent sent them');
+    assert.equal(read.tokens, Math.round(40000 * RESULT_WEIGHTS.letter) * read.calls, 'at the size they were when the agent sent them');
     assert.ok(Math.abs(read.tokens - row.cleared) <= read.calls, 'so the breakdown adds up to what the row says was taken out');
     assert.equal(compressionTools(state, n => n), `Read \u00d7${read.calls} (${read.tokens})`);
   } finally { p.server.close(); up.server.close(); }
@@ -693,4 +693,17 @@ test('a restart waits for the answer in flight: the proxy counts its requests, a
     assert.deepEqual(order, ['close', 'exit'], 'idle for the window: closed, then gone');
     assert.ok(restartWanted(home), 'the marker is left for the new instance to clear when it listens');
   } finally { stop(); slow.close(); try { server.close(); } catch {} fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('a result is counted from its text: letters, digits, symbols and newlines, and spaces weigh nothing', () => {
+  assert.equal(resultTokens(''), 0);
+  assert.equal(resultTokens(null), 0);
+  assert.equal(resultTokens('a'.repeat(1000)), 340);
+  assert.equal(resultTokens('7'.repeat(1000)), 780);
+  assert.equal(resultTokens('{'.repeat(1000)), 1050);
+  assert.equal(resultTokens('\n'.repeat(1000)), 1600);
+  assert.equal(resultTokens(' \t\r'.repeat(1000)), 0);
+  assert.equal(resultTokens('é'.repeat(1000)), 700);
+  const code = '  12\tconst x = foo(bar, 42);\n'.repeat(200);
+  assert.equal(resultTokens(code), Math.round(200 * (12 * 0.34 + 4 * 0.78 + 5 * 1.05 + 1.6)), 'a line of code is the sum of its parts');
 });

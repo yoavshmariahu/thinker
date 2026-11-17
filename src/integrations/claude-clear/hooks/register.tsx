@@ -22,6 +22,24 @@ export const HOLDOUT = 0
 export const TOKENS_PER_CHAR = 1.44 / 4
 // a tool result's own rate, for the breakdown's estimate of the results (proxy.js:RESULT_TOKENS_PER_CHAR, measured on results)
 export const RESULT_TOKENS_PER_CHAR = 0.445
+// what a result's text is in tokens, counted from the text: letters, digits, symbols and newlines, spaces weighing
+// nothing (proxy.js:resultTokens, the same weights and the same rule; held to it by test/claude-clear.test.js)
+export const RESULT_WEIGHTS = { letter: 0.34, digit: 0.78, symbol: 1.05, newline: 1.6, other: 0.7 }
+export function resultTokens(text: string): number {
+  const t = String(text ?? '');
+  let letter = 0, digit = 0, symbol = 0, newline = 0, other = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if ((c >= 97 && c <= 122) || (c >= 65 && c <= 90)) letter++;
+    else if (c >= 48 && c <= 57) digit++;
+    else if (c === 10) newline++;
+    else if (c === 32 || c === 9 || c === 13) continue;
+    else if (c < 128) symbol++;
+    else other++;
+  }
+  const w = RESULT_WEIGHTS;
+  return Math.round(letter * w.letter + digit * w.digit + symbol * w.symbol + newline * w.newline + other * w.other);
+}
 // a result under this is not worth a placeholder
 export const MIN_CHARS = 200
 // Clear, freeze what was cleared, and clear again when it pays (src/clearing.js: the proxy's policy and this door's,
@@ -44,7 +62,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 7
+export const POLICY_REV = 8
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 // `+in` is the proxy's `cutInputs` (proxy.js:applyCut, 2026-11-14): a cut that also takes the finished call's own
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
@@ -170,7 +188,7 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
   const pre: number[] = [0]
   for (let i = 0; i < messages.length; i++) pre.push(pre[i] + charsOf(messages[i]))
   const out: { depth: number; tokens: number; prefixChars: number }[] = []
-  let kept = 0, inLatestTurn = true, chars = 0, depth = 0
+  let kept = 0, inLatestTurn = true, tokens = 0, depth = 0
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]
     const rs = m.role === 'user' ? m.toolResults ?? [] : []
@@ -180,9 +198,9 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; continue }
       if (text.length < MIN_CHARS) continue
-      depth++; chars += text.length; took = true
+      depth++; tokens += resultTokens(text); took = true
     }
-    if (took) out.push({ depth, tokens: Math.round(chars * RESULT_TOKENS_PER_CHAR), prefixChars: pre[i] })
+    if (took) out.push({ depth, tokens, prefixChars: pre[i] })
   }
   return out
 }
@@ -205,8 +223,8 @@ export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx:
 export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
-  const byTool = new Map<string, { calls: number; chars: number }>()
-  let kept = 0, cleared = 0, chars = 0, inputChars = 0, rows = 0, inLatestTurn = true, firstChanged = -1
+  const byTool = new Map<string, { calls: number; tokens: number }>()
+  let kept = 0, cleared = 0, chars = 0, resultTokens_ = 0, inputChars = 0, rows = 0, inLatestTurn = true, firstChanged = -1
   const out: SessionMessage[] = []
   const older: number[] = [], olderAt: number[] = []   // positions in `out` (and in `messages`) of assistant rows before the newest turn
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -224,10 +242,10 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       if (inLatestTurn || kept < keepMin) { kept++; return r }
       if (text.length < MIN_CHARS) return r
       if (cleared >= depth) return r      // the rung chosen: the newest `depth` results and no more
-      cleared++; chars += text.length; touched = true
+      cleared++; chars += text.length; resultTokens_ += resultTokens(text); touched = true
       const name = nameOf.get(r.tool_use_id) ?? 'tool'
-      const t = byTool.get(name) ?? { calls: 0, chars: 0 }
-      t.calls++; t.chars += text.length; byTool.set(name, t)
+      const t = byTool.get(name) ?? { calls: 0, tokens: 0 }
+      t.calls++; t.tokens += resultTokens(text); byTool.set(name, t)
       return { tool_use_id: r.tool_use_id, text: placeholder(text.length), ...(r.isError ? { isError: true as const } : {}) }
     }).reverse()
     out.push(touched ? { role: 'user', text: m.text, toolUses: [], toolResults } : m)
@@ -237,10 +255,10 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
   // the rows before the first one a clear changes keep their place in the cache; what follows is written again
   const changedAt = firstChanged
   const prefixChars = changedAt > 0 ? messages.slice(0, changedAt).reduce((n, m) => n + charsOf(m), 0) : 0
-  const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: Math.round(t.chars * RESULT_TOKENS_PER_CHAR) }))
+  const tools = [...byTool].map(([name, t]) => ({ name, calls: t.calls, tokens: t.tokens }))
     .sort((a, b) => b.tokens - a.tokens).slice(0, TOP_TOOLS)
-  const resultTokens = Math.round(chars * RESULT_TOKENS_PER_CHAR), inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
-  return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens + inputTokens, resultTokens, inputTokens, rows, prefixChars, tools }
+  const inputTokens = Math.round(inputChars * TOKENS_PER_CHAR)
+  return { messages: out, cleared, chars: chars + inputChars, tokens: resultTokens_ + inputTokens, resultTokens: resultTokens_, inputTokens, rows, prefixChars, tools }
 }
 
 // The record the proxy writes (compression.js:noteCompression): `saved` adds up over the requests that leave
