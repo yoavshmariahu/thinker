@@ -6,7 +6,7 @@ import { deliveryQuestions } from './delivery-dashboard.mjs';
 import { savingsQuestions } from './savings-dashboard.mjs';
 import { holdoutQuestions } from './holdout-dashboard.mjs';
 import { armsQuestions } from './arms-dashboard.mjs';
-import { dailyQuestions, SAVINGS_SINCE } from './daily-dashboard.mjs';
+import { dailyQuestions, SAVINGS_SINCE, WINDOW_DAYS } from './daily-dashboard.mjs';
 import { cacheQuestions } from './cache-dashboard.mjs';
 import { spendQuestions } from './spend-dashboard.mjs';
 import path from 'node:path';
@@ -194,13 +194,15 @@ export async function provision({ call = api, config = state, persist = save, re
     // daily 3: a day is read from a `sessions.byDaySchema` 2 snapshot (a session dated by its own turns) where a
     // device has one, and as reported where it has not. 5: what delegation saved, in the total and on a card of its own.
     // 6: only a saving whose clear names its cut policy is counted (#827 changed the SQL and left the marker, so it never landed).
-    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 2 : question.daily ? state.dailyCardVersion === 6 : state.cardVersion === 8)) continue;
+    // 7: the total and "Saved per day" read one table of days, and the context cuts' saving has a card of its own.
+    // 8: every card shows the last 30 days, and the total's name carries no date. 9: a row for every day of the window, so the charts share an axis.
+    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 2 : question.daily ? state.dailyCardVersion === 9 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 6; state.savingsCardVersion = 2; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 9; state.savingsCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;
@@ -347,10 +349,10 @@ export async function provision({ call = api, config = state, persist = save, re
       description: 'What thinker saved, the devices it ran on, the context cuts, the delegations to a subagent and the known devices, each by UTC day (scripts/daily-dashboard.mjs). A day is its own figure from the newest snapshot that carries it, so days add up.' })).id;
     save();
   }
-  if (state.dailyDashboardVersion !== 5) {
+  if (state.dailyDashboardVersion !== 7) {
     const cards = [{ id: -1, card_id: null, row: 0, col: 0, size_x: 24, size_y: 3,
-      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEach point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are the clearing's and delegation's, counted from ${SAVINGS_SINCE}, the first whole day of thinker cutting the context itself; nothing on or before 2026-11-04 is counted. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0, and a device on an older client can date an old session late (see the savings cards).` } }];
-    // the total beside the bars it is the sum of, then the graphs two to a row
+      visualization_settings: { virtual_card: { display: 'text' }, text: `## Thinker by day\nEvery card shows the last ${WINDOW_DAYS} UTC days. Each point is that UTC day's own figure, from the newest snapshot of each device that carries the day, so days add up and the total is their sum. Savings are the clearing's and delegation's, counted from ${SAVINGS_SINCE}, the first whole day of thinker cutting the context itself; nothing on or before 2026-11-04 is counted. No data means not measured, not zero: cuts and delegations are sent by clients released after 0.4.0, and a device on an older client can date an old session late (see the savings cards).` } }];
+    // the total beside the bars it is the sum of, then the graphs two to a row: the context cuts' pair, delegation's pair, the devices
     let row = 3, col = 0;
     dailyQuestions.forEach((q, i) => {
       const id = state.cards[q.name], base = { id: -(i + 2), card_id: id, parameter_mappings: mappings(id) };
@@ -360,7 +362,7 @@ export async function provision({ call = api, config = state, persist = save, re
       if (col) { row += 8; col = 0; } else col = 12;
     });
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters, dashcards: cards });
-    state.dailyDashboardVersion = 5; save();
+    state.dailyDashboardVersion = 7; save();
   } else {
     const dashboard = await api(`/dashboard/${state.dailyId}`);
     await api(`/dashboard/${state.dailyId}`, 'PUT', { parameters: [...parameters,
