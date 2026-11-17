@@ -36,26 +36,24 @@ const dated = "raw_json #>> '{sessions,byDaySchema}' = '2'";
 const dollars = days('sessions', dated);
 const datedNote = 'A device on a client released after 0.4.0 dates a session by its own turns. An older client can place an old session on the day the profile read it, which moved losses of the older clearing past the line on one machine; its days are counted as it reported them until it updates, and "devices with corrected dating" says how many of the devices in a figure have.';
 const delegationNote = 'Delegation: a read or a suite run handed to a subagent never enters the lead\'s context, so the lead does not write it to its cache (counted once, on the day of the handoff) and does not read it back on each later call (counted on the day of that call, until a cut or a compaction would have taken it out anyway), less what the subagent cost. The machine\'s own savings ledger, the figure its footer and Report show (src/report-savings.js:delegationSavings; src/telemetry.js:delegateMetrics). Sent by clients released after 0.4.0.';
-const stampedNote = 'Under a recorded policy counts only the sessions whose clear carries the cut policy that made it (src/cutting.js:policyId), which no date can get wrong: a machine still on an older client, or a session begun under the older clearing, is never in it.';
+// Only a saving that names the cut policy that made it is counted (the owner's call, 2026-11-16). A clear with no
+// stamp is an older client's or an older clearing's, and two days' losses on the first reading were exactly those:
+// one machine charged $64 of rewrites on a day it spent $7. `netUsd` still travels in the block; no card reads it.
+const stampedNote = 'Only sessions whose clear carries the cut policy that made it are counted (src/cutting.js:policyId, clients from 0.3.3): a clear with no recorded policy, or a session cleared under two, is in no figure here.';
 
 export const dailyQuestions = [
   { name: `Total saved since ${SAVINGS_SINCE}`, display: 'scalar',
     sql: `SELECT round(coalesce(c.usd, 0) + coalesce(g.usd, 0), 2) AS net_saved_usd, round(c.usd, 2) AS by_clearing_usd, round(g.usd, 2) AS by_delegation_usd
-      FROM (SELECT sum(${fig('netUsd')}) AS usd, count(${fig('netUsd')}) AS n FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}') c
+      FROM (SELECT sum(${fig('stampedNetUsd')}) AS usd, count(${fig('stampedNetUsd')}) AS n FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}') c
       CROSS JOIN (SELECT sum(${fig('savedUsd')}) AS usd, count(${fig('savedUsd')}) AS n FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}') g
       WHERE c.n + g.n > 0`,
-    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up: what the clearing netted plus what delegation saved, the two series of "Saved per day" and "Saved by delegation, per day". ${netNote} ${delegationNote} ${datedNote}` },
-
-  { name: `Saved since ${SAVINGS_SINCE} under a recorded cut policy`, display: 'scalar',
-    sql: `SELECT round(sum(${fig('stampedNetUsd')}), 2) AS net_saved_usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' HAVING count(${fig('stampedNetUsd')}) > 0`,
-    description: `The part of the total above that is certain to be the current mechanism's. ${stampedNote} The stamp shipped in 0.3.3, so the first days after ${SAVINGS_SINCE} are in the total and not here.` },
+    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up: what the clearing netted plus what delegation saved, the two series of "Saved per day" and "Saved by delegation, per day". ${netNote} ${stampedNote} ${delegationNote} ${datedNote}` },
 
   { name: 'Saved per day', display: 'bar',
-    sql: `SELECT day_utc, round(sum(${fig('netUsd')}), 2) AS net_saved_usd, round(sum(${fig('savedUsd')}), 2) AS saved_before_rewrites_usd,
-      round(sum(${fig('stampedNetUsd')}), 2) AS net_under_a_recorded_policy_usd, sum(${fig('stampedSessions')}) AS sessions_under_a_recorded_policy,
-      sum(${fig('clearedSessions')}) AS sessions_cleared, sum(${fig('clearedTokens')}) AS tokens_cleared,
-      count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('clearedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
-      FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' GROUP BY 1 ORDER BY 1`,
+    sql: `SELECT day_utc, round(sum(${fig('stampedNetUsd')}), 2) AS net_saved_usd, round(sum(${fig('stampedSavedUsd')}), 2) AS saved_before_rewrites_usd,
+      sum(${fig('stampedSessions')}) AS sessions_cleared,
+      count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
+      FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['net_saved_usd'] },
     description: `What the clearing netted; the total beside it adds what delegation saved (the next card). ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
 
