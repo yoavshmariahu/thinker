@@ -45,26 +45,33 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
 
 test('every daily card reads a day\'s own figure, and the savings count from the day the cut shipped', () => {
   const by = name => dailyQuestions.find(q => q.name.startsWith(name));
-  assert.equal(dailyQuestions.length, 7);
+  assert.equal(dailyQuestions.length, 8);
   // a day from the newest snapshot that carries it, never a 30-day sum by snapshot
-  for (const [name, block] of [['Total saved', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
+  for (const [name, block] of [['Total saved', 'sessions'], ['Total saved', 'delegate'], ['Saved per day', 'sessions'], ['Saved per day', 'delegate'], ['Saved by context cuts', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
     const q = by(name);
     assert.ok(q, name);
     assert.match(q.sql, new RegExp(`\\{${block},byDay\\}`), `"${name}" reads ${block}.byDay`);
     assert.match(q.sql, /DISTINCT ON \(s\.device, dd\.day\)/, `"${name}" takes each device's day once`);
   }
   assert.equal(SAVINGS_SINCE, '2026-11-05', 'nothing on or before 2026-11-04 is counted');
-  for (const name of ['Total saved', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-05'/, name);
+  const savings = ['Total saved', 'Saved per day', 'Saved by context cuts'];
+  for (const name of savings) assert.match(by(name).sql, /day_utc >= DATE '2026-11-05'/, name);
   // a day both kinds of snapshot carry is read from the correctly dated one; an older client is still read
-  for (const name of ['Total saved', 'Saved per day']) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
-  assert.match(by('Saved per day').sql, /devices_with_corrected_dating/);
+  for (const name of savings) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
+  assert.match(by('Saved by context cuts').sql, /devices_with_corrected_dating/);
   // only a saving that names its cut policy is counted: no card reads the unstamped figures
-  for (const name of ['Total saved', 'Saved per day']) { assert.match(by(name).sql, /figures->>'stampedNetUsd'/, name); assert.doesNotMatch(by(name).sql, /'netUsd'|'clearedSessions'|'clearedTokens'/, name); }
-  assert.match(by('Saved per day').sql, /figures->>'stampedSavedUsd'/);
-  assert.deepEqual(by('Saved per day').settings['graph.metrics'], ['net_saved_usd']);
-  // the total is the clearing's net plus what delegation saved, each from its own block's days
-  assert.match(by('Total saved').sql, /\{delegate,byDay\}/);
-  assert.match(by('Total saved').sql, /figures->>'savedUsd'/);
+  for (const name of savings) { assert.match(by(name).sql, /figures->>'stampedNetUsd'/, name); assert.doesNotMatch(by(name).sql, /'netUsd'|'clearedSessions'|'clearedTokens'/, name); }
+  // The total is the sum of the bars beside it: both read the same table of days, the context cuts' net plus what
+  // delegation saved. The total once added delegation in while the bars drew the clearing alone ($43 beside $5).
+  const table = sql => sql.slice(sql.indexOf('FROM (SELECT day_utc, c.usd'), sql.lastIndexOf('saved_days'));
+  assert.ok(table(by('Total saved').sql).length > 100);
+  assert.equal(table(by('Total saved').sql), table(by('Saved per day').sql), 'one table of days behind the total and its bars');
+  assert.match(by('Total saved').sql, /^SELECT round\(sum\(total_usd\), 2\) AS total_saved_usd/);
+  assert.deepEqual(by('Saved per day').settings['graph.metrics'], ['total_saved_usd']);
+  assert.match(by('Saved per day').sql, /figures->>'savedUsd'/);
+  // and each half has a graph of its own
+  assert.match(by('Saved by context cuts').sql, /figures->>'stampedSavedUsd'/);
+  assert.deepEqual(by('Saved by context cuts').settings['graph.metrics'], ['saved_by_context_cuts_usd']);
   assert.match(by('Saved by delegation').sql, /figures->>'savedUsd'/);
   assert.match(by('Saved by delegation').sql, /day_utc >= DATE '2026-11-05'/);
   assert.deepEqual(by('Saved by delegation').settings['graph.metrics'], ['saved_by_delegation_usd']);

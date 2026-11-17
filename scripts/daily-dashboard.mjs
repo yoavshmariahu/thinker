@@ -1,4 +1,4 @@
-// Thinker by day: what was saved (by the clearing and by delegation), who used it, how often it cut and delegated, and how many machines there are.
+// Thinker by day: what was saved (by the context cuts and by delegation, together and each), who used it, how often it cut and delegated, and how many machines there are.
 //
 // Every card but the last is a day's own figure, exploded from a block's `byDay` map: `sessions.byDay`
 // (src/delivery-telemetry.js: a session on the UTC day of its last request, with what its clearing netted),
@@ -41,21 +41,34 @@ const delegationNote = 'Delegation: a read or a suite run handed to a subagent n
 // one machine charged $64 of rewrites on a day it spent $7. `netUsd` still travels in the block; no card reads it.
 const stampedNote = 'Only sessions whose clear carries the cut policy that made it are counted (src/cutting.js:policyId, clients from 0.3.3): a clear with no recorded policy, or a session cleared under two, is in no figure here.';
 
+// The two savings, a row a day, and the one place the total and the per-day bars are both read from: the total is
+// this table's sum and the bars are its rows, so the two cannot disagree (the owner, 2026-11-17: the total added
+// delegation in and "Saved per day" drew the clearing alone, $43 beside bars that summed to $5). A day one side
+// has no figure for still has the other's.
+const savedDays = `(SELECT day_utc, c.usd AS cuts_usd, g.usd AS delegation_usd, coalesce(c.usd, 0) + coalesce(g.usd, 0) AS total_usd
+  FROM (SELECT day_utc, sum(${fig('stampedNetUsd')}) AS usd FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1) c
+  FULL JOIN (SELECT day_utc, sum(${fig('savedUsd')}) AS usd FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('savedUsd')} IS NOT NULL GROUP BY 1) g USING (day_utc)) saved_days`;
+const lossNote = 'A day below zero is a measured loss, not a counting error: a cut pays for its cache rewrite on the call that makes it and earns it back over the calls after, so a session that ended (or has not yet run) long enough after its cut is behind. The cut policies before r5 priced that rewrite as the tail after the cut where the API wrote the whole conversation again, and made cuts that never repaid (src/cutting.js:POLICY_REV). Today\'s figure moves as its sessions go on.';
+
 export const dailyQuestions = [
   { name: `Total saved since ${SAVINGS_SINCE}`, display: 'scalar',
-    sql: `SELECT round(coalesce(c.usd, 0) + coalesce(g.usd, 0), 2) AS net_saved_usd, round(c.usd, 2) AS by_clearing_usd, round(g.usd, 2) AS by_delegation_usd
-      FROM (SELECT sum(${fig('stampedNetUsd')}) AS usd, count(${fig('stampedNetUsd')}) AS n FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}') c
-      CROSS JOIN (SELECT sum(${fig('savedUsd')}) AS usd, count(${fig('savedUsd')}) AS n FROM ${days('delegate')} WHERE day_utc >= DATE '${SAVINGS_SINCE}') g
-      WHERE c.n + g.n > 0`,
-    description: `Every day from ${SAVINGS_SINCE} on, every reporting device, added up: what the clearing netted plus what delegation saved, the two series of "Saved per day" and "Saved by delegation, per day". ${netNote} ${stampedNote} ${delegationNote} ${datedNote}` },
+    sql: `SELECT round(sum(total_usd), 2) AS total_saved_usd, round(sum(cuts_usd), 2) AS by_context_cuts_usd, round(sum(delegation_usd), 2) AS by_delegation_usd
+      FROM ${savedDays} HAVING count(*) > 0`,
+    description: `The sum of the bars of "Saved per day", every day from ${SAVINGS_SINCE} on and every reporting device: what the context cuts netted plus what delegation saved. ${netNote} ${stampedNote} ${delegationNote} ${datedNote}` },
 
   { name: 'Saved per day', display: 'bar',
-    sql: `SELECT day_utc, round(sum(${fig('stampedNetUsd')}), 2) AS net_saved_usd, round(sum(${fig('stampedSavedUsd')}), 2) AS saved_before_rewrites_usd,
-      sum(${fig('stampedSessions')}) AS sessions_cleared,
+    sql: `SELECT day_utc, round(total_usd, 2) AS total_saved_usd, round(cuts_usd, 2) AS by_context_cuts_usd, round(delegation_usd, 2) AS by_delegation_usd
+      FROM ${savedDays} ORDER BY 1`,
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['total_saved_usd'] },
+    description: `What the context cuts netted plus what delegation saved, that UTC day; the bars add up to the total beside them, and each half has its own card below. ${lossNote}` },
+
+  { name: 'Saved by context cuts, per day', display: 'bar',
+    sql: `SELECT day_utc, round(sum(${fig('stampedNetUsd')}), 2) AS saved_by_context_cuts_usd, round(sum(${fig('stampedSavedUsd')}), 2) AS saved_before_cut_costs_usd,
+      round(sum(${fig('stampedSavedUsd')}) - sum(${fig('stampedNetUsd')}), 2) AS cut_costs_usd, sum(${fig('stampedSessions')}) AS sessions_cleared,
       count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0) AS devices_cleared, count(DISTINCT device) FILTER (WHERE ${fig('stampedSessions')} > 0 AND preferred) AS devices_with_corrected_dating
       FROM ${dollars} WHERE day_utc >= DATE '${SAVINGS_SINCE}' AND ${fig('stampedNetUsd')} IS NOT NULL GROUP BY 1 ORDER BY 1`,
-    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['net_saved_usd'] },
-    description: `What the clearing netted; the total beside it adds what delegation saved (the next card). ${netNote} Saved before rewrites is the gross figure the Report page shows. ${stampedNote} ${datedNote}` },
+    settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['saved_by_context_cuts_usd'] },
+    description: `The clearing's half of "Saved per day". ${netNote} Saved before cut costs is the gross figure the Report page shows; cut costs is what comes off it, the cache rewrite of each cut and the re-reads of what a cut took out. ${lossNote} ${stampedNote} ${datedNote}` },
 
   { name: 'Saved by delegation, per day', display: 'bar',
     sql: `SELECT day_utc, round(sum(${fig('savedUsd')}), 2) AS saved_by_delegation_usd, sum(${fig('savedTokens')}) AS tokens_kept_out_of_the_lead,
