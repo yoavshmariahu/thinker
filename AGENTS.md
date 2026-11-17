@@ -260,7 +260,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   call before it runs. A read past the rule (below) or a whole-suite test run is **denied**, and the denial's reason
   tells the model to hand the work to **its own named native subagent**, with a brief thinker has already written
   (`handoff` mode, `executionFor`). The rule stays thinker's -- `decide`, the thresholds, the holdout, the `op:
-  delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under `minRead` 8k tokens) is
+  delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under the 8k `threshold`) is
   never delegated, so the model still reads the lines it edits. The hook answers in ~0.25 s either way, because it
   starts nothing: the settings entry's timeout is 30 s, and only 300 s while the fallback below is on.
   The brief carries the **person's own request**, read from the transcript (`lastPromptOf`, #777): the last 400 KB
@@ -321,16 +321,19 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   second later call, stop at the first cut, and a subagent the lead started unprompted is neither charged nor
   credited. On two bench sessions of 2026-11-14: $0.53 on a $3.15 mlflow session (one 45k read), $0.13 on a $7.12
   PostHog session (three firings, one ignored).
-- The rule (`decide`): the unit is the **turn's** reads, keyed on Claude Code's `prompt_id`. One read of `threshold`
-  tokens fires at once; smaller reads of 8k+ (`minRead`) fire once the turn's reads have passed it. **The threshold
-  is 8k since 2026-11-16 (the owner's call; 35k until then), so every read of 8k or more fires**: the explorer is
+- The rule (`decide`) is one comparison: **a read of `threshold` tokens (8k) or more fires, and no other read
+  does** (the owner's call, 2026-11-17: "I just wanted if read >= 8k"). Nothing is added up across a turn; the
+  turn, keyed on Claude Code's `prompt_id`, only bounds the handoff budget. Until then the rule was a tally of
+  the turn's reads against the threshold (35k until 2026-11-16) with a per-read floor (`minRead` 8k), which is
+  what the bench runs of 2026-11-15/16 and the website's delegation pages ran under; `minRead` is gone and a
+  config that still names it is ignored. Why 8k: the explorer is
   Haiku now, under a cent a run on this machine's 30 latest, against ~$0.08-0.14 for an 8k read kept in an Opus
   session, so the dollars no longer set the floor; what is judged on the holdout is the re-read share and the
-  wait. A delegated read never enters the tally, since it never entered the context. Reads are sized from the file
+  wait. Reads are sized from the file
   on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
   `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
   itself). A shell line that names a range (`sed -n 10,60p`, `head -n 40`, `sedLines`) is sized by the lines it asks
-  for, as a ranged Read is, so it falls under `minRead` and is never the thing that fires: a ranged read is the model
+  for, as a ranged Read is, so it falls under the threshold and is never the thing that fires: a ranged read is the model
   reading the lines it edits, and the denial sends it there (2026-11-12, after an 18-line `sed -n` of a 290-line file
   was delegated). An open range or a pattern (`100,$p`) says nothing about the size, so the whole file counts. A suite
   run is the test program with no path of its own (`suiteCommand`: pytest, npm test, go test ./..., cargo test,
@@ -373,7 +376,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   `delegate: { enabled: true }` in `<THINKER_HOME>/config.json`, then `thinker rewire` for Claude Code (the PreToolUse
   entry is written only while it is on, since a hook that exits at once is still one node process per tool call;
   `PreToolUse` in setHooks's list takes it out again on the next rewire once it is off) and OpenCode started again
-  (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold, minRead,
+  (its plugin reads the switch once at setup). `THINKER_DELEGATE=<model>` or `delegate: { model, threshold,
   holdout, timeoutMs, handoff, fallback, handoffsPerTurn }` tune it;
   `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm, and
   `THINKER_DELEGATE_HANDOFF=off` / `THINKER_DELEGATE_FALLBACK=on` to run the old owned-subagent arm instead.
@@ -454,7 +457,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - Logged, costed per session, judged live on holdout.
 
 **On Claude Code the mod runs the delegated subagent, on thinker's rule, on the fly (2026-11-15, the owner's call):**
-- `claude-clear/hooks/register.tsx:delegateCall`: a `tool.call` hook on Read and Bash, inside the harness. It asks `hook pretool` with `host_runs` (the size, the turn's tally, the holdout, the log row: one copy of the rule, the CLI's), and when it fires spawns the harness's own subagent (`$.agent.spawn`, the order's `Explore`) and answers the call with the report in `denial`'s sentence. What `opencode-v2.js:hostRun` is for OpenCode. Works in the terminal and the desktop app.
+- `claude-clear/hooks/register.tsx:delegateCall`: a `tool.call` hook on Read and Bash, inside the harness. It asks `hook pretool` with `host_runs` (the size, the holdout, the log row: one copy of the rule, the CLI's), and when it fires spawns the harness's own subagent (`$.agent.spawn`, the order's `Explore`) and answers the call with the report in `denial`'s sentence. What `opencode-v2.js:hostRun` is for OpenCode. Works in the terminal and the desktop app.
 - A settings hook cannot do this: it can deny, never spawn, and nothing fires after its denial; a redirect to a stub with an agent hook after the read was called an injection 3 times in 3.
 - The mod marks the session (`state/claude-delegate/<session>`) and the settings hook's copy of the call stands down there (`preToolHook`); the settings hook stays for a Claude Code too old for mods, with the handoff's words.
 - No model is named to the spawn (the Agent tool refuses a full id); Explore.md's pin picks it. A spawn that fails or passes 240 s lets the call through. The wait is spent in `$` calls, which a hook's time budget does not count.
@@ -466,7 +469,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - `delegate.js:agentHookEntries`, `agentHookPrompt`; reads only. Rules are `delegate: { agentHooks: [{ matcher, if? }] }`, **empty by default, so nothing is written**. When to fire is a separate decision.
 - Live on 2.1.325: whole read of 600 lines answered in 12 s for $0.005 on Haiku, worked from; a ranged read let through by the subagent in 3 s; `if` (`Read(*.js)`) filters.
 - The reason must open with `denial`'s report sentence and the subagent must be told it is the one named: a bare report, or one hedging about who read the file, was called an injection and re-read.
-- Limits: static match only (no size, tally or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
+- Limits: static match only (no size or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
 
 **Telemetry and tests (MANDATORY):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.

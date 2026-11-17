@@ -76,7 +76,7 @@ test('denial: the handoff names the host\'s tool, agent and brief, and is an ins
 });
 
 test('decide: a budget of one hands a turn\'s reads over once, and the suite run has its own', () => {
-  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000, handoffsPerTurn: 1 };
+  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, handoffsPerTurn: 1 };
   const st = {};
   const big = { tokens: 40000, files: ['a'] };
   const first = decide(st, { prompt: 'p1', read: big, cfg, handoff: true });
@@ -85,7 +85,6 @@ test('decide: a budget of one hands a turn\'s reads over once, and the suite run
   // every later read of the turn goes through, and says it is after a handoff
   const after = decide(st, { prompt: 'p1', read: { tokens: 50000, files: ['b'] }, cfg, handoff: true });
   assert.equal(after.fire, false); assert.equal(after.spent, true);
-  assert.equal(st.delegate.readTokens, 50000, 'a read that goes through enters the tally');
   // the suite run of the same turn has a budget of its own
   const v = decide(st, { prompt: 'p1', suite: 'pytest', cfg, handoff: true });
   assert.equal(v.fire, true); assert.equal(v.kind, 'verify');
@@ -262,7 +261,7 @@ test('the hook command, handoff: a big read is denied with the handoff and no mo
 });
 
 test('decide: five reads a turn are handed over, a file only once, a suite run only once', () => {
-  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000 };
+  const cfg = { ...DELEGATE_DEFAULTS, threshold: 35000 };
   const st = {}, big = f => ({ tokens: 40000, files: [f] });
   for (const f of ['a', 'b', 'c', 'd', 'e']) {
     const d = decide(st, { prompt: 'p1', read: big(f), cfg, handoff: true });

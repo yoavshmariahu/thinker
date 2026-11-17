@@ -52,10 +52,10 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
   model: 'claude-haiku-5-5', // the model thinker pins the host's agent definition to where the host lets it
-  threshold: 8000,    // tokens of read results in one turn past which the rest of its exploration is delegated. 35000
-                      // until 2026-11-16 (the owner's call): a Haiku explorer costs under a cent, so a read of 8k
-                      // pays for it on the main model's cache write alone. Equal to minRead: every read of 8k+ fires
-  minRead: 8000,      // a read under this is never delegated: the lines the main model edits
+  threshold: 8000,    // a read of this many tokens or more is delegated, and nothing else is: a smaller read is the
+                      // lines the main model edits. The whole rule since 2026-11-17 (the owner's call); until then
+                      // it was a tally of the turn's reads against 35000 with a per-read floor of 8000 (`minRead`).
+                      // A Haiku explorer costs under a cent, so a read of 8k pays for it on the cache write alone
   holdout: 0.25,      // share of sessions left alone, by hash of the session id (proxy.js:heldOut); 0.5 until 2026-11-16
   families: true,     // on a host whose models come from a gateway, the explorer is the lead's own family's cheap
                       // model (EXPLORER_FAMILIES); `delegate: { families: false }` keeps it on the session's model
@@ -116,7 +116,7 @@ function linesOf(p) { try { return fs.readFileSync(p, 'utf8').split('\n').length
 /**
  * What this tool call would put into the context: { tokens, files }, or null when it is not a read. `readCap` is
  * the most characters the host's Read returns in one call (OpenCode truncates at about 58k and tells the model to
- * continue at an offset, so a whole file there is several reads, which the turn's tally adds up).
+ * continue at an offset, so a whole file there is several reads; `fileTokens` carries the file's size to the rule).
  */
 export function readOf(toolName, input = {}, cwd, { readCap = 0 } = {}) {
   if (toolName === 'Read') {
@@ -180,12 +180,11 @@ export function suiteCommand(toolName, input = {}) {
   return parts.length <= 2 && SUITE.some(r => r.test(head)) ? bare : null;
 }
 
-// ---- the turn's tally, kept on the session's state file ----
-// `prompt` is Claude Code's prompt_id, a new value for every prompt of the person's, so the tally and the
-// cached reports belong to one turn. A read under minRead never fires; one at or over the threshold on its own
-// fires at once (the write saving alone pays for it); anything else fires once the turn's reads have passed
-// the threshold. The state carries the tally whether or not the session is held out, so a held-out session
-// logs the same would-have-fired rows.
+// ---- the rule, and the turn's handoffs, kept on the session's state file ----
+// The rule is one comparison: a read of `threshold` tokens or more fires, and no other read does. Nothing is
+// added up across a turn. `prompt` is Claude Code's prompt_id, a new value for every prompt of the person's,
+// so the handoff budget and the cached reports belong to one turn. The decision is made whether or not the
+// session is held out, so a held-out session logs the same would-have-fired rows.
 // `spent` is the handoff guard, and it is what keeps a handoff from ever becoming a loop. Once the turn's
 // exploration has been handed to the host's subagent, that subagent reads the files itself -- in the same
 // turn, and on some hosts in a child session with an id of its own -- and those reads must go through. A
@@ -198,27 +197,25 @@ export function suiteCommand(toolName, input = {}) {
 // it insists: a file already handed over this turn is never denied twice (`handed`), or a lead that wants the
 // file itself would be refused it five times running.
 export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, handoff = false }) {
-  const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : { prompt, readTokens: 0, reports: {}, handoffs: {} };
+  const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : { prompt, reports: {}, handoffs: {} };
   if (!d.handoffs) d.handoffs = {};
   st.delegate = d;
   const spentOn = kind => handoff && (d.handoffs[kind] || 0) >= (kind === 'explore' ? cfg.handoffsPerTurn ?? 5 : 1);
   if (suite) {
     const spent = spentOn('verify');
-    return { fire: !spent, spent, kind: 'verify', key: 'suite:' + suite, tokens: 0, turnTokens: d.readTokens };
+    return { fire: !spent, spent, kind: 'verify', key: 'suite:' + suite, tokens: 0 };
   }
   if (!read || !read.tokens) return { fire: false };
   const key = read.files.join('\n');
-  const before = d.readTokens;
-  d.readTokens += read.tokens;
-  // a host that returns a big file in chunks: the first chunk fires when the file asked for is over the threshold
-  const over = read.tokens >= cfg.threshold || (read.fileTokens || 0) >= cfg.threshold || (read.tokens >= cfg.minRead && d.readTokens >= cfg.threshold);
+  // `fileTokens` is the read on a host that returns a big file in chunks (OpenCode): the first chunk is sized
+  // by the file asked for, since the model would read the rest anyway. Elsewhere it equals `tokens`.
+  const over = Math.max(read.tokens, read.fileTokens || 0) >= cfg.threshold;
   const spent = over && (spentOn('explore') || Boolean(handoff && d.handed && d.handed[key]));
-  if (over && !spent) d.readTokens = before; // a delegated read never enters the context
-  return { fire: over && !spent, spent, kind: 'explore', key, tokens: read.tokens, turnTokens: d.readTokens };
+  return { fire: over && !spent, spent, kind: 'explore', key, tokens: read.tokens };
 }
 /** Record that this turn's `kind` has been handed to the host's subagent. Runs under the session's lock. */
 export function noteHandoff(st, prompt, kind, key) {
-  const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : (st.delegate = { prompt, readTokens: 0, reports: {}, handoffs: {} });
+  const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : (st.delegate = { prompt, reports: {}, handoffs: {} });
   if (!d.handoffs) d.handoffs = {};
   d.handoffs[kind] = (d.handoffs[kind] || 0) + 1;
   if (key) { if (!d.handed) d.handed = {}; d.handed[key] = true; }
@@ -377,7 +374,7 @@ export function handoffLabel(kind, files = [], cwd) {
 //
 // What it cannot do: the entry is static settings, matched on the tool's name (`matcher`) and one
 // permission-rule pattern (`if`, e.g. `Read(*.py)`; seen to filter live), so no rule of thinker's runs first
-// -- no size, no turn tally, no holdout -- and thinker's own hook never sees the run, so there is no
+// -- no size, no holdout -- and thinker's own hook never sees the run, so there is no
 // `op: delegate` row for it. That is why this is the mechanism alone: `agentHooks` is empty, nothing is
 // written, and what should fire it is a separate decision. A rule is `{ matcher, if? }`.
 // Reads only. A suite run was tried the same day and is not here: the hook's subagent gets a shell only where
@@ -423,23 +420,23 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   let d, cached, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
   // A read the rule declined still leaves a row, because without one "the hook never ran" and "the hook
-  // ran and the turn never reached the threshold" are the same silence -- and on 2026-11-14 a whole
+  // ran and the read was under the threshold" are the same silence -- and on 2026-11-14 a whole
   // PostHog pair could not be read for exactly that reason: 31 reads, no denial, no row, no way to tell
   // which. Only a sized read is logged (`d.tokens` is a number), so an ordinary shell call stays quiet
-  // and a session's rows number its reads, not its tool calls. `turnTokens` against `threshold` is then
-  // the answer to "how close did this turn come".
+  // and a session's rows number its reads, not its tool calls. `tokens` against `threshold` is then
+  // the answer to "how close did this read come".
   if (!d.fire && !d.spent) {
     if (typeof d.tokens === 'number') log({
       op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name,
       files: (read ? read.files : []).map(f => path.relative(cwd || '', f) || f),
-      tokens: d.tokens, turnTokens: d.turnTokens, threshold: cfg.threshold, minRead: cfg.minRead,
+      tokens: d.tokens, threshold: cfg.threshold,
       mode: exec.mode, fired: false, declined: 'below-threshold',
     });
     return null;
   }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
-  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, turnTokens: d.turnTokens, held, mode: exec.mode };
+  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode };
   if (held) { log(row); return null; }
   // the turn's handoff of this kind has already been made: the call goes through, and the row says so. These
   // rows are also the one free signal of whether the model obeyed the handoff (see AGENTS.md).
@@ -471,7 +468,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });
   if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
-  state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, readTokens: 0, reports: {}, handoffs: {} }; st.delegate.reports[d.key] = r.report; });
+  state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, reports: {}, handoffs: {} }; st.delegate.reports[d.key] = r.report; });
   if (d.kind === 'explore') state.update(st => noteFiring(st, { t: Date.now(), tokens: d.tokens, files }));
   log({ ...row, model: r.model, usage: r.usage, cost: r.cost, ms: r.ms, reportChars: r.report.length, subagent: r.sessionId });
   return denial({ kind: d.kind, report: r.report, files, cwd, model: r.model });

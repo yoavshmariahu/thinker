@@ -60,7 +60,7 @@ export function opencodeV2(config, run = hookRunner(config)) {
         });
       }
       if (config.hooks) {
-        // The delegation trigger (delegate.js): a read past the turn's threshold or a whole-suite run is handed
+        // The delegation trigger (delegate.js): a read of the threshold's size or more, or a whole-suite run is handed
         // to a subagent, and its report is thrown here, which v2 makes the call's result (checked live on 2.2.7:
         // the model read the report and answered from it). The CLI answers the same JSON as Claude Code's
         // PreToolUse deny; a call that goes through gets no answer and the hook returns in silence.

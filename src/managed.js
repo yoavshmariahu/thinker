@@ -61,7 +61,7 @@ export const MANAGED = [
   { path: 'delegate.enabled', type: 'bool', coerce: bool, dflt: false,
     label: 'Delegate big reads', help: 'A read past the size below, or a whole-suite test run, is handed to a Sonnet subagent and its report comes back instead of the file.' },
   { path: 'delegate.threshold', type: 'int', coerce: int(8_000, 120_000), min: 8_000, max: 120_000, step: 1_000, dflt: 8_000,
-    label: 'Delegate above', unit: 'tokens', help: "One read this size fires at once; where it is set higher, reads of 8k or more fire once the turn's reads have passed it together." },
+    label: 'Delegate above', unit: 'tokens', help: 'A read of this many tokens or more is handed to the subagent. Smaller reads stay with the main model.' },
   { path: 'learn.profile', type: 'bool', coerce: bool, dflt: true,
     label: 'Session profile', help: 'Whether what thinker learns about how someone works is compiled and served on the first prompt of a session.' },
 ];

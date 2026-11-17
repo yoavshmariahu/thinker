@@ -300,4 +300,4 @@ sessions are held out so the saving can be measured, and the log's `delegate` ro
 - Off: `"delegate": false` in `~/.thinker/config.json` (or `THINKER_DELEGATE=off`), then `thinker rewire`;
   OpenCode reads it when it starts. The held-out share: `"delegate": { "holdout": 0.25 }`.
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
-- The threshold (tokens of reads in one turn before the rest is delegated, 8000, so every read of 8k or more): `"delegate": { "threshold": 35000 }`.
+- The threshold (a read of this many tokens or more is delegated, 8000 by default; nothing is added up across a turn): `"delegate": { "threshold": 20000 }`.
