@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { transformRequest, proxyConfig, cutCandidates, applyCut, placeMark, breakpointsOf, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { transformRequest, proxyConfig, cutCandidates, applyCut, placeMark, markBlock, breakpointsOf, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { cutResponse, freshCut, policyId, SEED_MS } from '../src/cutting.js';
 import { serviceArgs } from '../src/proxy-service.js';
 
@@ -188,6 +188,34 @@ test('a rung\'s tail starts at the call whose own text is cut with its result', 
   const slice = applyCut(ms.slice(from), new Set(rung.ids)).messages;
   assert.equal(rung.tail, Math.round(JSON.stringify(slice).length * TOKENS_PER_CHAR));
   assert.equal(rung.firstChanged, from + 1, 'the result\'s own message is still where the rung is named');
+});
+
+test('a rung\'s tail starts after the message the breakpoint can sit on, whatever the walk back steps over', () => {
+  // Claude Code's second message is the environment block, sent as a plain string: no breakpoint can go on it
+  const env = 'e'.repeat(50000);
+  const ms = [{ role: 'user', content: [{ type: 'text', text: 'reminders and the prompt' }] }, { role: 'system', content: env }];
+  for (let k = 0; k < 6; k++) {
+    // the first call's own text is long, so the cut changes the call's message and the walk starts above it
+    ms.push({ role: 'assistant', content: [think(300), tu(`r${k}`, k === 0 ? { command: 'c'.repeat(6000) } : undefined)] });
+    ms.push({ role: 'user', content: [tr(`r${k}`, 20000)] });
+  }
+  ms.push({ role: 'user', content: [{ type: 'text', text: 'the live turn', cache_control: HOUR }] });
+  assert.equal(markBlock(ms[1]), -1);
+  assert.equal(markBlock(ms[0]), 0);
+  assert.equal(markBlock({ role: 'assistant', content: [think(10)] }), -1, 'a thinking block carries none');
+  assert.equal(markBlock({ role: 'user', content: [{ type: 'text', text: '' }] }), -1);
+  const { steps } = cutCandidates(ms, { keepMin: 3 });
+  const deep = steps[steps.length - 1], shallow = steps[0];
+  assert.equal(deep.ids[deep.ids.length - 1], 'r0');
+  const j = { system: [{ type: 'text', text: 'sys', cache_control: HOUR }], messages: ms };
+  const mark = placeMark(j, ms, deep.ids);
+  assert.equal(mark.at, 0, 'the breakpoint steps over the string message');
+  const written = applyCut(ms.slice(mark.at + 1), new Set(deep.ids)).messages;
+  assert.equal(deep.tail, Math.round(JSON.stringify(written).length * TOKENS_PER_CHAR), 'and the price is everything after it');
+  assert.ok(deep.tail > env.length * TOKENS_PER_CHAR, 'the message stepped over is in it');
+  // a rung whose breakpoint has somewhere to sit right before it is priced as it was
+  const at = placeMark(j, ms, shallow.ids).at;
+  assert.equal(shallow.tail, Math.round(JSON.stringify(applyCut(ms.slice(at + 1), new Set(shallow.ids)).messages).length * TOKENS_PER_CHAR));
 });
 
 test('the switch: a flag, a variable, the machine config, and a policy name of its own', () => {

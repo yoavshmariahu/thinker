@@ -91,8 +91,8 @@ test('on by default, and reachable by flag, environment and machine config', asy
 
 test('the saving names the policy that made it, so a figure with the calls in it is never pooled with one without', () => {
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r6-t140k-f8k-p25-deep+in');
-  assert.equal(policyId({ ...base }), 'r6-t140k-f8k-p25-deep');
+  assert.equal(policyId({ ...base, cutInputs: true }), 'r7-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base }), 'r7-t140k-f8k-p25-deep');
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {
