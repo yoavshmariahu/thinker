@@ -1,10 +1,12 @@
 // The ladder: a boundary's candidate sets taken from the tail backwards, and the decision picking the
 // deepest rung that pays (proxy.js:cutCandidates, cutting.js:decideCut).
 //
-// What these hold. That the ladder's deepest rung is exactly the whole-set candidate the single stringify
-// used to produce, so the change costs no accuracy. That the rungs are nested suffixes, newest first. That
-// the decision takes the biggest paying rung and not merely the first. That a tail-local cut is made where
-// the whole set is refused, which is the point. And that a cold boundary still takes everything.
+// What these hold. That every rung is priced at the WHOLE conversation as it will be sent (2026-11-16): the
+// API reads a cached prefix only within 20 positions of a breakpoint, so a result replaced further back
+// leaves the system prompt as the only thing read, and the tail the ladder priced until then was 1.6x to 7x
+// under what the API wrote. That the tail is still measured beside it, for the log. That the rungs are
+// nested suffixes, newest first. That the decision takes the biggest paying rung and not merely the first.
+// That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary takes everything.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cutCandidates, applyCut, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
@@ -29,42 +31,52 @@ function conversation(sizes, { tailPrompt = true, thinkChars = 400 } = {}) {
   return ms;
 }
 
-// the old way of pricing the whole set: one stringify of the slice from the first replaced result
+// every message as sent with a set replaced, in one stringify: what a cut makes the API write
+const allByStringify = (messages, ids, have = []) =>
+  Math.round(JSON.stringify(applyCut(messages, new Set([...have, ...ids])).messages).length * TOKENS_PER_CHAR);
+// the tail alone: one stringify of the slice from the first replaced result (what `recache` was until 2026-11-16)
 const wholeByStringify = (messages, ids, have = []) => {
   const first = Math.min(...messages.map((m, i) => (Array.isArray(m.content) && m.content.some(b => b?.type === 'tool_result' && ids.includes(b.tool_use_id)) ? i : Infinity)));
   const sent = applyCut(messages.slice(first), new Set([...have, ...ids])).messages;
   return Math.round(JSON.stringify(sent).length * TOKENS_PER_CHAR);
 };
 
-test('the deepest rung is the whole-set candidate, priced as the single stringify priced it', () => {
+test('the deepest rung is the whole-set candidate, priced at every message as sent', () => {
   const ms = conversation([9000, 12000, 30000, 8000, 15000, 20000]);
   const c = cutCandidates(ms, { keepMin: 3 });
   assert.ok(c.steps.length >= 2, 'a ladder, not one set');
   const deepest = c.steps[c.steps.length - 1];
   assert.deepEqual(deepest.ids.slice().sort(), c.ids.slice().sort(), 'the last rung is every eligible result');
   assert.equal(deepest.tokens, c.tokens);
-  assert.equal(c.recache, deepest.recache, 'the returned tail is the last rung');
-  assert.equal(c.recache, wholeByStringify(ms, c.ids), 'and it equals the slice stringified in one piece');
+  assert.equal(c.recache, deepest.recache, 'the returned rewrite is the last rung');
+  assert.equal(c.recache, allByStringify(ms, c.ids), 'and it is the whole conversation as sent, stringified in one piece');
+  assert.equal(deepest.tail, wholeByStringify(ms, c.ids), 'the tail from the first replaced result is kept beside it');
+  assert.ok(c.recache > deepest.tail, 'and the whole is more than the tail: the prompt above the cut is written too');
 });
 
-test('the rungs are nested suffixes from the tail backwards, each dearer and bigger than the last', () => {
+test('the rungs are nested suffixes from the tail backwards, each bigger and no dearer than the last', () => {
   const ms = conversation([9000, 12000, 30000, 8000, 15000, 20000]);
   const { steps } = cutCandidates(ms, { keepMin: 3 });
   for (let i = 1; i < steps.length; i++) {
     assert.ok(steps[i].ids.length > steps[i - 1].ids.length, 'each rung reaches one result further back');
     assert.deepEqual(steps[i].ids.slice(0, steps[i - 1].ids.length), steps[i - 1].ids, 'nested: the shallower set is a prefix');
     assert.ok(steps[i].tokens > steps[i - 1].tokens, 'deeper removes more');
-    assert.ok(steps[i].recache >= steps[i - 1].recache, 'and rewrites at least as much');
-    assert.ok(steps[i].firstChanged < steps[i - 1].firstChanged, 'the rewrite starts earlier');
+    assert.ok(steps[i].recache < steps[i - 1].recache, 'and rewrites less: the same conversation, shorter by what it took');
+    assert.ok(steps[i].tail >= steps[i - 1].tail, 'while its tail is at least as long');
+    assert.ok(steps[i].firstChanged < steps[i - 1].firstChanged, 'the first replaced result is earlier');
   }
-  // every rung's own tail matches the one-piece stringify of its own set
-  for (const s of steps) assert.equal(s.recache, wholeByStringify(ms, s.ids), `rung of ${s.ids.length}`);
+  // every rung's rewrite is the one-piece stringify of the whole conversation with its own set replaced
+  for (const s of steps) {
+    assert.equal(s.recache, allByStringify(ms, s.ids), `rung of ${s.ids.length}`);
+    assert.equal(s.tail, wholeByStringify(ms, s.ids), `tail of ${s.ids.length}`);
+  }
 });
 
-test('a tail-local cut is made where the whole set is refused, which is the whole point', () => {
-  // Eight turns whose results are a third of what they weigh, which is the measured shape. Taking everything
-  // rewrites eight turns of thinking to remove eight results; taking the newest removes one and rewrites
-  // almost nothing.
+test('a tail-local cut is refused where the whole set is: a shallow rung rewrites the conversation too', () => {
+  // Eight turns whose results are a third of what they weigh, which is the measured shape. Until 2026-11-16
+  // the newest rung was priced as rewriting almost nothing and was taken here. The API wrote the whole
+  // conversation for such a cut (35k predicted, 245k written, a cache read of the system prompt alone), so
+  // a rung that removes less than everything can only cost more than the set that was already refused.
   const ms = conversation(Array(8).fill(30000), { thinkChars: 90000 });
   const cand = cutCandidates(ms, { keepMin: 0 });
   const m = { prompt: Math.round(JSON.stringify(ms).length * TOKENS_PER_CHAR), turn: 1 };
@@ -73,12 +85,16 @@ test('a tail-local cut is made where the whole set is refused, which is the whol
   const whole = priceCut(m, { tokens: cand.tokens, recache: cand.recache }, opus);
   assert.equal(whole.pays, false, 'the old single set does not pay');
 
+  const shallow = cand.steps[0];
+  assert.equal(priceCut(m, { tokens: shallow.tokens, recache: shallow.tail }, opus).pays, true, 'priced on its tail the newest rung paid');
+  assert.equal(priceCut(m, shallow, opus).pays, false, 'priced on what the API writes it does not');
+
   const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS }, m, { cand, ...opus });
-  assert.equal(d.clear, true, 'a rung of it does');
-  assert.ok(d.payback <= PAYBACK);
-  assert.ok(d.candidate < cand.tokens, 'and it took less than everything');
-  assert.ok(d.depth < cand.ids.length, 'reaching back less far');
-  assert.equal(d.rungs, cand.steps.length);
+  assert.equal(d.clear, false, 'so no rung is taken');
+  assert.equal(d.reason, 'payback');
+  assert.ok(d.held.payback > PAYBACK);
+  assert.equal(d.held.depth, cand.ids.length, 'and the rung nearest to paying is the deepest');
+  assert.equal(d.held.rungs, cand.steps.length);
 });
 
 test('the deepest paying rung is taken, not the first that pays', () => {
@@ -145,8 +161,8 @@ test('the decision puts depth and rungs where every door already logs them', asy
 
   // a refusal names the rung it refused, so the log says whether there was a choice at all
   // A refusal needs the eligible result to be OLD, with protected bulk behind it: the shallowest rung is
-  // otherwise almost free. Measured here with keepMin 0: the newest eligible result takes out 10,800 tokens
-  // for a 111-token rewrite, payback 2. That is the whole mechanism, and the reason a ladder refuses less.
+  // otherwise almost free on its tail (10,800 tokens out for a 111-token tail) -- which is the pricing that
+  // was wrong, and since 2026-11-16 that rung is priced at the whole conversation like any other.
   // With keepMin 7 only the oldest result is eligible and seven turns of bulk follow it, so it cannot pay.
   const far = cutCandidates(ms, { keepMin: 7 });
   assert.equal(far.steps.length, 1, 'one eligible result, so one rung and no choice to make');
