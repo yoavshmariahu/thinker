@@ -577,17 +577,19 @@ export function breakpointsOf(j) {
   return { n: ttls.length, ttls, at };
 }
 // The first message a cut of `ids` changes: the one holding the oldest result of the set, or the call that
-// produced it where the call's own text goes too.
-const firstTouched = (messages, ids) => messages.findIndex(m => Array.isArray(m?.content)
-  && m.content.some(b => (b?.type === 'tool_result' && ids.has(b.tool_use_id)) || (b?.type === 'tool_use' && ids.has(b.id))));
+// produced it where the call's own text goes too (`cutInput`). Asked of the request as the agent sent it:
+// in the messages as cut the call's text is already short, and would read as untouched.
+const firstTouched = (messages, ids, cutInputs) => messages.findIndex(m => Array.isArray(m?.content)
+  && m.content.some(b => (b?.type === 'tool_result' && ids.has(b.tool_use_id))
+    || (cutInputs && b?.type === 'tool_use' && ids.has(b.id) && !!cutInput(b.input, { minChars: CUT_MIN_CHARS }))));
 // One breakpoint on the last block before the first one the cut changes. Its lifetime is copied from the
 // next breakpoint after it (or the request's automatic one), which keeps the order the API insists on
 // whatever Claude Code chose. Null where it cannot be placed: no room, nothing after it to copy, or no
 // block before the cut that may carry one (a thinking block may not, and a message whose content is a
 // plain string is left alone, because turning it into a block is a change to the prefix itself).
-export function placeMark(j, messages, cutIds) {
+export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   const ids = cutIds instanceof Set ? cutIds : new Set(cutIds || []);
-  const k = firstTouched(messages, ids);
+  const k = firstTouched(j.messages, ids, cutInputs);
   if (k <= 0) return null;
   const bp = breakpointsOf({ ...j, messages });
   let copy = null;
@@ -614,12 +616,12 @@ export function placeMark(j, messages, cutIds) {
 }
 // Whether a cut on this request could be given its breakpoint, asked before anything is priced: room for
 // one more, and a breakpoint at or after the oldest eligible result to copy the lifetime from.
-export function canMark(j, cand) {
+export function canMark(j, cand, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   if (!cand?.ids?.length) return null;
   const bp = breakpointsOf(j);
   if (bp.n >= MAX_BREAKPOINTS) return null;
   // the newest eligible result is the shallowest cut there is, so a breakpoint after it is after every rung
-  const k = firstTouched(j.messages, new Set([cand.ids[0]]));
+  const k = firstTouched(j.messages, new Set([cand.ids[0]]), cutInputs);
   if (k <= 0) return null;
   if (bp.at.length && bp.at[bp.at.length - 1] >= k) return { ttl: bp.ttls[bp.ttls.length - 1] };
   return j.cache_control ? { ttl: j.cache_control.ttl || '5m' } : null;
@@ -714,13 +716,13 @@ export function transformRequest(method, url, headers, body, cfg) {
   // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
   const had = breakpointsOf(j);
   const bp = { n: had.n, ttl: [...new Set(had.ttls)].join(',') };
-  const room = cfg.cutBreakpoint ? canMark(j, cand) : null;
+  const room = cfg.cutBreakpoint ? canMark(j, cand, { cutInputs: cfg.cutInputs }) : null;
   const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, mark: !!room, markTtl: room?.ttl });
   // the images are on disk before the prompt loses them, or they stay in the prompt
   const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
-  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds) : null;
+  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
   const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}) } } : {};
   // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
   // next boundary decides again.
