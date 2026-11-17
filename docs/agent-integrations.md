@@ -571,7 +571,8 @@ plugin on a machine without thinker does nothing.
   the cut and on the cut itself, so the prompt above the cut is read from cache and only what follows is
   written again. `--cut-thinking` (`proxy: { cutThinking: true }`, `THINKER_PROXY_CUT_THINKING=on`; off by
   default) has a cut also leave out the model's thinking from earlier turns below the cut, which the API
-  allows for whole blocks outside the turn in progress. Two more things a clear can take, off until an
+  allows for whole blocks outside the turn in progress; `--thinking-keep-turns n` (`proxy: { thinkingKeepTurns }`,
+  `THINKER_PROXY_THINKING_KEEP_TURNS`; 0 by default) keeps the thinking of the last n turns, so only older thinking goes. Two more things a clear can take, off until an
   experiment (2026-10-25): `--clear-inputs` (`proxy: { clearInputs: true }` in `~/.thinker/config.json`,
   `THINKER_PROXY_CLEAR_INPUTS=on`) adds the edit's `clear_tool_inputs`, so the text of the agent's own calls
   goes with their results; `--clear-thinking` (`clearThinking`, `THINKER_PROXY_CLEAR_THINKING=on`) sends a

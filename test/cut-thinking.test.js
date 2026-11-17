@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { transformRequest, proxyConfig, cutCandidates, applyCut, thinkingChars, thinkingGone, turnIndex, turnId, PROXY_DEFAULTS, TOKENS_PER_CHAR, THINKING_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { transformRequest, proxyConfig, cutCandidates, applyCut, placeMark, thinkingChars, thinkingGone, turnIndex, turnId, PROXY_DEFAULTS, TOKENS_PER_CHAR, THINKING_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { cutResponse, freshCut, addThink, mergeCut, policyId } from '../src/cutting.js';
 import { serviceArgs } from '../src/proxy-service.js';
 
@@ -146,4 +146,57 @@ test('the record only ever grows, and the switch has a flag, a variable, a confi
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutThinking: true } }));
     assert.ok(serviceArgs(home, { port: 4000 }).includes('--cut-thinking'));
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('thinkingKeepTurns: only thinking that many turns old goes with a cut', () => {
+  const ms = conversation(6), rec = { ...freshCut('s'), at: 1 };
+  const { t, sent } = send(rec, { model: 'claude-opus-5', messages: ms }, { ...CFG, thinkingKeepTurns: 2 }, 1e12);
+  assert.equal(t.injected, true);
+  assert.deepEqual(t.think, ['r0', 5], 'the range stops two turns before the one in progress');
+  // turns 5 and 6 (messages 16 to 23) keep theirs; message 1 is above the first replaced result
+  assert.deepEqual(thinkingAt(sent.messages), [1, 17, 19, 21, 23]);
+  const lost = [3, 5, 7, 9, 11, 13, 15].reduce((n, i) => n + thinkingChars(ms[i]), 0);
+  assert.equal(t.clientCut.thinking, Math.round(lost * THINKING_TOKENS_PER_CHAR));
+  assert.equal(t.clear.thinking, t.clientCut.thinking, 'and the ladder priced the same blocks');
+  assert.ok(t.policy.endsWith('+th2'));
+  // more turns kept than there are: no range, and no thinking moves
+  const all = send({ ...freshCut('s'), at: 1 }, { model: 'claude-opus-5', messages: ms }, { ...CFG, thinkingKeepTurns: 50 }, 1e12);
+  assert.equal(all.t.injected, true);
+  assert.equal('think' in all.t, false);
+  assert.deepEqual(thinkingAt(all.sent.messages), thinkingAt(ms));
+  assert.equal(turnIndex(ms, 0), 0);
+  assert.equal(proxyConfig({}, {}).thinkingKeepTurns, 0);
+  assert.equal(proxyConfig({ 'thinking-keep-turns': '3' }, {}).thinkingKeepTurns, 3);
+  assert.equal(proxyConfig({}, { THINKER_PROXY_THINKING_KEEP_TURNS: '2' }).thinkingKeepTurns, 2);
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-th-'));
+  try {
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutThinking: true, thinkingKeepTurns: 3 } }));
+    const args = serviceArgs(home, { port: 4000 });
+    assert.equal(args[args.indexOf('--thinking-keep-turns') + 1], '3');
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('thinkingKeepTurns: a later cut carries the range on, so thinking that has aged since goes too', () => {
+  const cfg = { ...CFG, thinkingKeepTurns: 1, keepMin: 1 }, rec = { ...freshCut('s'), at: 1 };
+  const ms = conversation(6);
+  const first = send(rec, { model: 'claude-opus-5', messages: ms }, cfg, 1e12);
+  assert.deepEqual(rec.think, [['r0', 6]]);
+  assert.deepEqual(thinkingAt(first.sent.messages), [1, 21, 23], 'the turn before the live one keeps its thinking');
+  // two more turns, a long pause, and the boundary cuts again: its own oldest result is far below turn 6
+  const more = conversation(8);
+  const second = send(rec, { model: 'claude-opus-5', messages: more }, cfg, 1e12 + 3 * 3600e3);
+  assert.equal(second.t.injected, true);
+  assert.deepEqual(rec.think, [['r0', 8]], 'the first range, carried on: one run with no thinking left stranded in it');
+  assert.deepEqual(thinkingAt(second.sent.messages), [1, 29, 31]);
+  const newly = [21, 23, 25, 27].reduce((n, i) => n + thinkingChars(more[i]), 0);
+  assert.equal(second.t.clear.thinking, Math.round(newly * THINKING_TOKENS_PER_CHAR), 'priced as what this cut newly leaves out');
+  // the ladder's tail for that rung starts where the first aged block went, not at the rung's first result
+  const c = cutCandidates(more, { keepMin: 1, cut: first.t.cut, thinking: { to: turnIndex(more, 8), done: [['r0', 6]], from: 3 } });
+  assert.ok(c.steps.length >= 1);
+  for (const s of c.steps) {
+    assert.equal(s.thinkFirst, 21);
+    const sent = applyCut(more, [...first.t.cut, ...s.ids], { thinking: [['r0', 8]] });
+    assert.ok(Math.abs(s.tail - Math.round(JSON.stringify(sent.messages.slice(20)).length * TOKENS_PER_CHAR)) <= 2, 'the tail is the messages as sent from the breakpoint before it');
+    assert.equal(placeMark({ messages: more, cache_control: { type: 'ephemeral' } }, sent.messages, s.ids, { first: s.thinkFirst }).at, 19, 'and the breakpoint goes before it');
+  }
 });
