@@ -221,11 +221,10 @@ function readCompressionTail(file) {
 // rewrote their prefix on 15% of the calls over LONG_CONTEXT against 1% before one, which is $1.4k of writes
 // against $354 of saving over seven days here. `thinker proxy report` says the same in rates and warns on it.
 //
-// So the figure is netted: what the calls after a clear wrote into the cache again, charged against what the
-// clearing saved. Deliberately the conservative reading -- a rewrite the clearing did not cause is charged to
-// it anyway, and 1% to 3% of long calls rewrite their prefix on the held-out side where nothing is cleared --
-// because a saving figure that flatters itself is worth nothing to the person reading it. The clearing
-// request itself counts as after the clear, as in `proxyReport`: it is the request that carries the edit.
+// So the figure is netted: what the request that made a cut wrote into the cache again, charged against what
+// the clearing saved. Until 2026-11-16 every rewrite from the first clear onward was charged, caused by it or
+// not (1% to 3% of long calls rewrite their prefix on the held-out side where nothing is cleared); now only
+// the cut's own request is, since that is the one request whose prefix the cut changed.
 // A clear the proxy never saw. The Claude desktop app sets its own ANTHROPIC_BASE_URL, so its sessions
 // bypass the proxy and the clearing mod (src/integrations/claude-clear) runs inside the session instead,
 // writing this directory's record and nothing to the proxy's log; Devin's compactor is measured the same
@@ -357,13 +356,22 @@ const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * 
 // With `dir`, the sessions the log has no rows for are read from their records (desktopClearingCost): a clear
 // made inside a desktop session is charged its writes as a proxied one is, so no door shows it gross.
 export function clearingCostBySession(file, { since = '', config, dir = null, key = s => String(s), events = [] } = {}) {
-  const out = new Map(), cleared = new Set(), covered = new Set();
+  const out = new Map(), covered = new Set(), highest = new Map();
   const rows = compressionRecords(file);
   for (const r of rows) {
     covered.add(key(r.session));
+    // read before the window is applied, so a figure that stood before it is not taken for a new cut inside it
+    const high = highest.get(r.session) || 0, now = clearedOf(r);
+    if (now > high) highest.set(r.session, now);
     if (since && r.at && r.at < since) continue;
-    if (clearedOf(r) > 0) cleared.add(r.session);
-    if (!cleared.has(r.session) || !chargedRewrite(r)) continue;
+    // Only the rewrite a cut caused is the clearing's cost (the owner's call, 2026-11-16). A cut changes the
+    // prefix once, on the request that makes it; every request after it sends the same replacements byte for
+    // byte and reads the cache back. So a rewrite on any later request -- a compaction, the agent editing its
+    // own history, a cache that lapsed part-way -- was coming with or without the clearing. The request that
+    // made a cut carries the decision (`clear`); a row from before the cut was thinker's own carries neither
+    // that nor `clientCut`, and there the mark is the cleared figure rising past the session's highest so far.
+    const madeCut = r.clear ? true : !r.clientCut && now > high;
+    if (!madeCut || !chargedRewrite(r)) continue;
     // A cold cut's own call is not the clearing's cost. Past the cache's hour the request writes its whole
     // context again whether or not anything was replaced, which is exactly why `decideCut` prices that cut at
     // zero (cutting.js, the cold branch) -- and then this door charged the very same write to the clearing.

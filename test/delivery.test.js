@@ -317,8 +317,8 @@ test('no saving and no clearing cost on or before 2026-11-04 is counted', t => {
   fs.mkdirSync(path.join(home, 'state'), { recursive: true });
   const row = (at, extra) => ({ op: 'proxy', at, session: 'sOld', model: 'claude-opus-5-5', status: 200, injected: true, ...extra });
   fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
-    row('2026-11-03T10:00:00.000Z', { cleared: 5_000_000 }),
-    row('2026-11-04T23:00:00.000Z', { cleared: 1_000_000, read: 1000, write: 400_000 }),   // a rewrite after a clear, still before the line
+    row('2026-11-03T10:00:00.000Z', { cleared: 1_000_000 }),
+    row('2026-11-04T23:00:00.000Z', { cleared: 5_000_000, read: 1000, write: 400_000 }),   // a clear's own rewrite, still before the line
     row('2026-11-05T09:00:00.000Z', { cleared: 200_000 }),
   ].map(r => JSON.stringify(r)).join('\n') + '\n');
   store.log({ op: 'session', t: '2026-11-05T09:30:00.000Z', session: 'sOld', client: 'claude', model: 'claude-opus-5-5', turns: 6, totalTokens: 900_000, tokenCoverage: 'complete' });

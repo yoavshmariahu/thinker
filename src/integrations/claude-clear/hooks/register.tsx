@@ -65,8 +65,11 @@ export const chargedRewrite = (u: { read?: number; write?: number; input?: numbe
 export const usageOf = (usage: any) => usage ? { input: Number(usage.input_tokens) || 0, read: Number(usage.cache_read_input_tokens) || 0, write: Number(usage.cache_creation_input_tokens) || 0 } : null
 export type Cost = { rewrites: number; write: number }
 // the cost after one more request: the write counted when the request rewrote its prefix, as the proxy charges it
-export const charge = (cost: Cost | undefined, usage: any): Cost => {
+// Only on the first request after a clear (`caused`): that is the one request whose prefix the clear changed, and a
+// rewrite on any later one was coming without it (compression.js:clearingCostBySession holds the same rule).
+export const charge = (cost: Cost | undefined, usage: any, caused = true): Cost => {
   const u = usageOf(usage), c = { rewrites: cost?.rewrites ?? 0, write: cost?.write ?? 0 }
+  if (!caused) return c
   if (u && chargedRewrite(u)) { c.rewrites++; c.write += u.write }
   return c
 }
@@ -523,6 +526,7 @@ export const register: Register = (on) => {
     if (!e.agentId) { if (!inTurn) { inTurn = true; idle = lastTurnAt ? Date.now() - lastTurnAt : 0 } steps++ }
     const r = yield* next(e)
     if (!e.agentId && out > 0 && state) {
+      const first = settle
       if (settle) {
         // what the API says left the prompt: the context before the clear less the context this request was
         // answered over (which carries the new prompt too, so this is a floor); thinking is the remainder
@@ -537,9 +541,9 @@ export const register: Register = (on) => {
         }
       }
       state.requests++; state.saved += out; state.lastAt = Date.now()
-      // and what this request cost: a prefix rewrite's write tokens, from the clear onward, and the model that
+      // and what this request cost: a prefix rewrite's write tokens on the first request after a clear, and the model that
       // answered, which is what prices them
-      state.cost = charge(state.cost, r?.usage)
+      state.cost = charge(state.cost, r?.usage, first)
       if (r?.usage?.model) state.model = String(r.usage.model)
       await save($)
     }

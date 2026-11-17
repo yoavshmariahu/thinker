@@ -176,6 +176,9 @@ test('a request that rewrote a long prefix is charged its write tokens; a cache 
   expect(c).toEqual({ rewrites: 1, write: 150_000 })
   c = charge(c, usage({ cache_creation_input_tokens: 120_000, cache_read_input_tokens: 1000 }))
   expect(c).toEqual({ rewrites: 2, write: 270_000 })
+  // a rewrite on a request that is not the first after a clear was coming without it, and is not charged
+  c = charge(c, usage({ cache_creation_input_tokens: 150_000, cache_read_input_tokens: 12_000 }), false)
+  expect(c).toEqual({ rewrites: 2, write: 270_000 })
 })
 
 test('delegation: on by default, off by the environment or the machine config', () => {

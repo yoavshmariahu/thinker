@@ -202,9 +202,11 @@ test('the record keeps what the clear cost, counted as the proxy counts a rewrit
   const charged = new Function('isRewrite', 'u', chargedBody);
   for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 }, null])
     assert.equal(charged(isRewrite, u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
-  // counted on every request after a clear, from the usage the engine reports for that request, in the API's spelling
+  // counted on the first request after a clear alone, the one whose prefix the clear changed (compression.js:
+  // clearingCostBySession charges the row that made a cut), from the usage the engine reports for it
   const step = s.slice(s.indexOf("on('turn.step'"), s.indexOf("on('turn.complete'"));
-  assert.ok(step.includes('state.cost = charge(state.cost, r?.usage)'), 'every request after a clear is charged');
+  assert.ok(step.includes('const first = settle') && step.includes('state.cost = charge(state.cost, r?.usage, first)'), 'only the first request after a clear is charged');
+  assert.ok(s.includes('if (!caused) return c'), 'a later rewrite is not the clear\'s');
   assert.ok(s.includes('if (u && chargedRewrite(u))'), 'the mod charges by the one rule');
   assert.ok(step.includes('state.model = String(r.usage.model)'), 'the model that answered is kept');
   for (const f of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) assert.ok(s.includes(`usage.${f}`), `reads ${f}`);

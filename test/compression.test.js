@@ -145,10 +145,10 @@ test('the cleared actions are the tool uses outside the kept window, biggest fir
   assert.deepEqual(cutActions([{ role: 'assistant', content: [{ type: 'tool_use', id: 'z' }] }], ['z']), [{ name: 'tool', calls: 1, tokens: 0 }], 'a use with no name or result still counts');
 });
 
-// The clearing's own cost: the calls after a clear write the prefix into the cache again, and until the figure
-// was netted the band showed the saving without it (the owner's call, 2026-11-04). A session is charged only
-// from its first clear onward, because the rewrites before one cannot be the clear's doing.
-test('a session is charged for the prefix rewrites of the calls after its first clear, never before it', () => {
+// The clearing's own cost: the request that makes a cut writes the prefix into the cache again, and until the
+// figure was netted the band showed the saving without it (the owner's call, 2026-11-04). Only that request is
+// charged (2026-11-16): a rewrite before the cut or on a later request cannot be the cut's doing.
+test('a session is charged for the prefix rewrite of the request that made a cut, and no other', () => {
   const dir = tmp(), log = path.join(dir, 'proxy.log');
   const call = (over = {}) => JSON.stringify({
     at: '2026-11-04T10:00:00.000Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5',
@@ -157,10 +157,14 @@ test('a session is charged for the prefix rewrites of the calls after its first 
   fs.writeFileSync(log, [
     // a rewrite before any clear: real, but nothing to do with the clearing
     call({ write: 150_000, read: 0 }),
-    // the clearing request itself, and the rewrite on the call after it. A rewrite is a call whose write is
-    // more than half its context (cutting.js:isRewrite); the system prompt is what a warm prefix still reads back.
+    // the clearing request itself. A rewrite is a call whose write is more than half its context
+    // (cutting.js:isRewrite); the system prompt is what a warm prefix still reads back.
     call({ cleared: 80_000, write: 120_000, read: 12_000 }),
-    call({ write: 100_000, read: 12_000 }),
+    // a rewrite on a later request that cut nothing new: a compaction, say. Not the clearing's
+    call({ cleared: 80_000, write: 100_000, read: 12_000 }),
+    // a second cut, on a row that carries its decision as the cut's own rows do, and the same set sent again
+    call({ cleared: 0, clientCut: { cut: 5, tokens: 130_000 }, clear: { tokens: 50_000, recache: 110_000 }, write: 110_000, read: 12_000 }),
+    call({ cleared: 0, clientCut: { cut: 5, tokens: 130_000 }, write: 105_000, read: 12_000 }),
     // a rewrite that read nothing back: the cache had expired (a pause past its hour), so the write was coming with
     // or without the clearing and is not charged to it (cutting.js:chargedRewrite)
     call({ write: 150_000, read: 0 }),
@@ -173,10 +177,10 @@ test('a session is charged for the prefix rewrites of the calls after its first 
   const costs = clearingCostBySession(log);
   assert.equal(costs.has('s2'), false, 'a session with no clear has no clearing cost');
   const s1 = costs.get('s1');
-  assert.equal(s1.rewrites, 2, 'the clearing call and the one after it, not the one before');
-  assert.equal(s1.write, 220_000);
-  // Opus 5.5: $4/M input, a 1h cache write at twice that. 220k x $8/M = $1.76
-  assert.ok(Math.abs(s1.usd - 1.76) < 0.01, `priced at the 1h write rate, got ${s1.usd}`);
+  assert.equal(s1.rewrites, 2, 'the two requests that made a cut, not the ones before, between or after');
+  assert.equal(s1.write, 230_000);
+  // Opus 5.5: $4/M input, a 1h cache write at twice that. 230k x $8/M = $1.84
+  assert.ok(Math.abs(s1.usd - 1.84) < 0.01, `priced at the 1h write rate, got ${s1.usd}`);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -213,7 +217,9 @@ test('the clearing cost honours the window, so a report of today never charges y
   });
   fs.writeFileSync(log, [
     call('2026-11-01T10:00:00.000Z', { cleared: 80_000, write: 150_000 }),
-    call('2026-11-04T10:00:00.000Z', { cleared: 80_000, write: 100_000 }),
+    call('2026-11-04T10:00:00.000Z', { cleared: 160_000, write: 100_000 }),
+    // the same figure again inside the window is no new cut, though the window never saw the row that set it
+    call('2026-11-05T10:00:00.000Z', { cleared: 160_000, write: 100_000 }),
   ].join('\n') + '\n');
   assert.equal(clearingCostBySession(log).get('s1').write, 250_000, 'the whole log by default');
   assert.equal(clearingCostBySession(log, { since: '2026-11-03T00:00:00.000Z' }).get('s1').write, 100_000);
@@ -243,17 +249,17 @@ test('what a pull request saved, and what its rewrites cost, both see a cut row'
   const file = path.join(dir, 'proxy.jsonl');
   const rows = [
     { at: '2026-11-05T10:00:00Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5', status: 200,
-      clientCut: { cut: 2, chars: 30000, tokens: 10800 }, input: 10, read: 20000, write: 0 },
-    // a call after the clear that wrote its prefix again: the cost side, charged from the first clear on
+      clientCut: { cut: 2, chars: 30000, tokens: 10800 }, clear: { tokens: 10800, recache: 150000 }, input: 10, read: 1000, write: 150000 },
+    // a later call that wrote its prefix again with no new cut: not the cut's doing, not charged
     { at: '2026-11-05T10:01:00Z', op: 'proxy', session: 's1', model: 'claude-opus-5-5', status: 200,
-      input: 10, read: 1000, write: 150000 },
+      clientCut: { cut: 2, chars: 30000, tokens: 10800 }, input: 10, read: 1000, write: 150000 },
   ];
   fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
   const saved = clearedBySession(file);
-  assert.equal(saved.get('s1').cleared, 10800);
-  assert.equal(saved.get('s1').requests, 1);
+  assert.equal(saved.get('s1').cleared, 21600, 'left out of both requests');
+  assert.equal(saved.get('s1').requests, 2);
   const cost = clearingCostBySession(file, {});
-  assert.equal(cost.get('s1').rewrites, 1, 'a rewrite after a cut is charged to the cut');
+  assert.equal(cost.get('s1').rewrites, 1, 'the cut\'s own rewrite is charged to the cut, the later one is not');
   assert.ok(cost.get('s1').usd > 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
