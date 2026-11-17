@@ -476,6 +476,14 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - The reason must open with `denial`'s report sentence and the subagent must be told it is the one named: a bare report, or one hedging about who read the file, was called an injection and re-read.
 - Limits: static match only (no size or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
 
+**Fleet reporting: a machine with an org API key reports to its org's dashboard (2026-11-17, `src/fleet.js`):**
+- Beside the telemetry and separate from it: the telemetry is thinker's own, anonymous, hourly, a 30-day window; this is the person's org, keyed, incremental. Neither reads the other's state.
+- **No key, nothing**: no request, no state file, no process. Key is `THINKER_API_KEY`, else `<THINKER_HOME>/fleet-key` (`thinker config set api-key`, 0600, never `config.json`). `THINKER_FLEET=off` is local mode with a key set.
+- **From the Stop hook** (`fleetTick`, beside `emitSession`), so every client is covered, desktops included. At most one report every 5 min (`FLEET.everyMs`): due now is sent now (2 s), else one detached `fleet-report --at` waits for the mark. An idle machine sends nothing.
+- **A report is increments, applied exactly once**: per moved session, figures now minus figures last acknowledged (`sessionEvent`'s, so the one pricing door). Written to `state/fleet.json` under its own id before sending and re-sent unchanged until acknowledged; nothing new is built meanwhile; one sender at a time (`state/fleet.lock`). The server refuses the last id applied. Do not make a report a total: the server adds.
+- **Closed list out**: machine id (the install id, or `THINKER_MACHINE_ID`), hostname, OS, version; per session id, agent, repository name (origin's last two parts, never a path or URL), two times, numbers. No prompt, code or path.
+- `thinker status` sends a real report (the waiting one, or an empty one), so "reachable" means the key was accepted. The server lives in the private repository; `fleet: { url }` in config points a test at loopback.
+
 **Telemetry and tests (MANDATORY):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.
 - `THINKER_OFFERS=on`: restore offers (offer tests only).
