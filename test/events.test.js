@@ -171,6 +171,14 @@ test('the per-call series is the session as it ran, thinned but never truncated'
   assert.ok(d.series.length > 50, 'and still has a shape');
   assert.equal(d.series.filter(p => p.cut).length, 1, 'the cut is always kept — it is the thing being shown');
   assert.equal(d.series[d.series.length - 1].c, 400, 'the line ends where the session did');
+  // each point says what its context was made of, and the session's cost is split by the kind of token
+  for (const p of d.series) assert.equal(p.fresh + p.read + p.write, p.carried, 'call ' + p.c);
+  if (d.series.some(p => p.cost != null)) {
+    assert.deepEqual(Object.keys(d.byType).sort(), ['fresh', 'out', 'read', 'write']);
+    const perCall = d.series.filter(p => p.cost != null).map(p => p.cost / p.carried);
+    assert.ok(Object.values(d.byType).reduce((x, v) => x + v, 0) >= Math.max(...d.series.map(p => p.cost || 0)), 'the parts add up to at least one call');
+    assert.ok(perCall.every(v => v > 0));
+  } else assert.equal(d.byType, null, 'no priced call, no dollars by type');
   assert.equal(d.cuts, 1);
   assert.ok(d.refusals['mid-turn'] > 0 && d.refusals['below-trigger'] > 0, 'and why nothing was cut on the rest');
 

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FLEET, fleetKey, setFleetKey, unsetFleetKey, fleetTick, noteSession, sendFleetReport, fleetStatus, readFleetState, metricsOf, repoName, machineId, redactKey } from '../src/fleet.js';
+import { FLEET, fleetKey, setFleetKey, unsetFleetKey, fleetTick, noteSession, sendFleetReport, fleetStatus, readFleetState, metricsOf, detailOf, repoName, machineId, redactKey } from '../src/fleet.js';
 
 const KEY = 'thk_live_' + 'a'.repeat(43);
 const T0 = Date.parse('2026-11-17T10:00:00.000Z');
@@ -25,8 +25,8 @@ function machine(t, { key = KEY } = {}) {
     return { status, ok: status >= 200 && status < 300, json: async () => body };
   };
   const spawnFn = (...args) => { spawned.push(args); return { unref() {} }; };
-  const event = (session, { prompts = 1, tokens = 1000, cleared = 0, cost = null, lastAt = '2026-11-17T09:59:00.000Z' } = {}) => ({
-    session, client: 'claude', firstAt: '2026-11-17T09:50:00.000Z', lastAt, prompts, tokens, cleared,
+  const event = (session, { prompts = 1, tokens = 1000, cleared = 0, cost = null, lastAt = '2026-11-17T09:59:00.000Z', decisions } = {}) => ({
+    session, client: 'claude', firstAt: '2026-11-17T09:50:00.000Z', lastAt, prompts, tokens, cleared, decisions,
     cost: cost || { priced: true, saved: 0, net: 0, rewrite: 0, reread: 0, spend: tokens / 1e6 } });
   const note = (session, figures, now) => noteSession(null, { session, home, env, now, event: event(session, figures) });
   return { home, env, calls, spawned, fleet, fetchFn, spawnFn, note, opts: now => ({ home, env, now, fetchFn, spawnFn }) };
@@ -202,7 +202,7 @@ test('a repository is its name and never a path; a test may reach only loopback'
   assert.equal(repoName(checkout('https', 'https://someone:token@github.com/acme/widgets.git')), 'acme/widgets', 'and nothing of the URL');
   assert.equal(repoName(null), null);
   assert.deepEqual(metricsOf({ prompts: 2, tokens: null, cleared: 5, cost: { priced: true, saved: 1, net: 1, rewrite: 0, reread: 0, spend: null } }),
-    { prompts: 2, tokens: 0, cleared_tokens: 5, saved_usd: 1, net_usd: 1, rewrite_usd: 0, reread_usd: 0 });
+    { prompts: 2, tokens: 0, cleared_tokens: 5, calls: 0, cuts: 0, saved_usd: 1, net_usd: 1, rewrite_usd: 0, reread_usd: 0 });
   // the default URL is production, and a test never reaches it
   fs.writeFileSync(path.join(m.home, 'config.json'), '{}');
   m.note('ses_1', {}, T0);
@@ -237,4 +237,58 @@ test('from a real store: the session as the one pricing door measured it reaches
   assert.ok(Object.values(sent.metrics).every(Number.isFinite), 'numbers only');
   assert.ok(!JSON.stringify(m.calls[0].body).includes(dir), 'nothing of where the repository is');
   assert.equal((await fleetTick(store, { session: 'unknown', ...m.opts(now + FLEET.everyMs) })).reason, 'nothing-new');
+});
+
+test('a session in depth goes with its report when it changes, and only its numbers and closed names', async t => {
+  const m = machine(t);
+  const decisions = { calls: 2, cuts: 1,
+    series: [{ c: 1, at: '2026-11-17T09:51:00.000Z', carried: 40_000, fresh: 2000, read: 30_000, write: 8000, out: 500, cost: 0.12, turn: 1 },
+      { c: 2, at: '2026-11-17T09:52:00.000Z', carried: 150_000, fresh: 1000, read: 140_000, write: 9000, out: 700, cost: null, turn: 1, cut: 60_000, cold: true }],
+    actions: [{ at: '2026-11-17T09:52:00.000Z', kind: 'cut', turn: 1, tokens: 60_000, policy: 'r3-t140k-f8k-p25-deep', cold: true, results: 9 },
+      { at: '2026-11-17T09:53:00.000Z', kind: 'delegate', of: 'read', tool: 'Read', files: ['/home/ada/secret.py'], tokens: 9000, held: false, cached: false, error: 'ENOENT /home/ada/x', model: 'claude-sonnet-5-5', usd: 0.2 },
+      { at: '2026-11-17T09:54:00.000Z', kind: 'dropped', results: 9, tools: [{ name: 'Read', calls: 5, tokens: 40_000, args: 'x' }] }],
+    byType: { fresh: 0.012345678, read: 0.2, write: 0.5, out: 0.3 } };
+  m.note('ses_1', { prompts: 3, tokens: 1200, decisions }, T0);
+  await fleetTick(null, m.opts(T0));
+  const [sent] = m.calls[0].body.sessions;
+  assert.deepEqual([sent.metrics.calls, sent.metrics.cuts], [2, 1]);
+  assert.deepEqual(sent.detail.series[1], { c: 2, at: '2026-11-17T09:52:00.000Z', carried: 150_000, out: 700, turn: 1, cut: 60_000, cold: true, fresh: 1000, read: 140_000, write: 9000 }, 'an unpriced call carries no cost');
+  assert.deepEqual(sent.detail.actions[1], { kind: 'delegate', at: '2026-11-17T09:53:00.000Z', tokens: 9000, usd: 0.2, of: 'read', model: 'claude-sonnet-5-5' });
+  assert.deepEqual(sent.detail.actions[2].tools, [{ name: 'Read', calls: 5, tokens: 40_000 }]);
+  assert.deepEqual(sent.detail.by_type, { fresh: 0.0123, read: 0.2, write: 0.5, out: 0.3 });
+  for (const leak of ['/home/ada', 'ENOENT', 'secret.py', '"args"']) assert.ok(!JSON.stringify(m.calls[0].body).includes(leak), leak);
+  // the figures move and the depth does not: it is not sent again
+  m.note('ses_1', { prompts: 4, tokens: 1500, decisions }, T0 + FLEET.everyMs);
+  await fleetTick(null, m.opts(T0 + FLEET.everyMs));
+  assert.equal('detail' in m.calls[1].body.sessions[0], false);
+  // a call is added: the depth alone is a reason to report, and it goes whole
+  const more = { ...decisions, calls: 3, series: [...decisions.series, { c: 3, carried: 95_000, out: 100, cost: 0.1, reason: 'below-trigger' }] };
+  m.note('ses_1', { prompts: 4, tokens: 1500, decisions: more }, T0 + 2 * FLEET.everyMs);
+  await fleetTick(null, m.opts(T0 + 2 * FLEET.everyMs));
+  assert.equal(m.calls[2].body.sessions[0].detail.series.length, 3);
+  assert.deepEqual(m.calls[2].body.sessions[0].metrics, { calls: 1 });
+  assert.equal(detailOf({}), null);
+  assert.equal(detailOf({ decisions: { series: [], actions: [] } }), null);
+});
+
+test('more sessions than a report holds go in a few reports back to back, each acknowledged before the next', async t => {
+  const m = machine(t);
+  for (let i = 0; i < 23; i++) m.note('ses_' + String(i).padStart(2, '0'), { prompts: 1, tokens: 100 + i }, T0 + i);
+  const result = await fleetTick(null, m.opts(T0 + 100));
+  assert.deepEqual({ sent: result.sent, sessions: result.sessions }, { sent: true, sessions: 23 });
+  assert.deepEqual(m.calls.map(c => c.body.sessions.length), [FLEET.sessionsMax, FLEET.sessionsMax, 3]);
+  assert.equal(new Set(m.calls.flatMap(c => c.body.sessions.map(s => s.session_id))).size, 23, 'every session once');
+  assert.equal(new Set(m.calls.map(c => c.body.report_id)).size, 3);
+  // a failure part-way leaves the rest for the next report, and nothing already acknowledged goes twice
+  for (let i = 0; i < 23; i++) m.note('ses_' + String(i).padStart(2, '0'), { prompts: 2, tokens: 200 + i }, T0 + 1000 + i);
+  let n = 0;
+  m.fleet.answer = () => (++n === 2 ? { status: 503, body: {} } : { status: 200, body: { org_name: 'acme', applied: true } });
+  const partial = await sendFleetReport(m.opts(T0 + FLEET.everyMs));
+  assert.deepEqual({ sent: partial.sent, sessions: partial.sessions }, { sent: true, sessions: FLEET.sessionsMax }, 'what got through is what it reports');
+  assert.ok(readFleetState(m.home).pending, 'and the report that failed waits on disk');
+  m.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true } });
+  await sendFleetReport(m.opts(T0 + 2 * FLEET.everyMs));
+  const second = m.calls.slice(3).flatMap(c => c.body.sessions.map(s => s.session_id));
+  assert.equal(new Set(second).size, 23);
+  assert.equal(second.length, 23 + FLEET.sessionsMax, 'the report that failed is the one sent again, whole');
 });

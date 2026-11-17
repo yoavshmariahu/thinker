@@ -149,7 +149,10 @@ set, and `THINKER_MACHINE_ID` names a machine that is rebuilt for every job so i
 
 **What is sent:** this machine's id, hostname, operating system and thinker version; and for each agent
 session its id, the agent's name, the repository's name (never its URL), when it started and was last active,
-and numbers: prompts, tokens, tokens cleared, and what the session cost and saved in dollars.
+and numbers: prompts, model calls, tokens, tokens cleared, and what the session cost and saved in dollars. For
+each model call: its size, its cost and its turn, with no text. And what thinker did in the session: each
+context cut with its size, the names of the tools whose results were cleared, whether your profile was
+served, and reads handed to a subagent, by size and model.
 
-**What is never sent:** prompts, completions, code, file paths, file contents, cache contents, environment
-variables.
+**What is never sent:** prompts, completions, code, file paths, file contents, tool arguments or results, cache
+contents, environment variables.
