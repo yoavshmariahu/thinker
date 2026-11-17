@@ -133,6 +133,25 @@ test('no room for a breakpoint: the cut is priced whole, as without the switch',
   assert.equal(send(freshCut('s'), bare, CFG(true), 1e12).t.reason, 'payback');
 });
 
+test('four breakpoints already, two of them on the last two messages: the older one moves', () => {
+  // what Claude Code sends on every request after its first (read from its request bodies, 2026-11-17)
+  const rec = freshCut('s'), j = body();
+  j.system.unshift({ type: 'text', text: 'You are Claude Code.', cache_control: HOUR });
+  const prev = j.messages.length - 2;   // the last assistant message, which holds r4's call
+  j.messages[prev] = { ...j.messages[prev], content: j.messages[prev].content.map((b, n, all) => (n === all.length - 1 ? { ...b, cache_control: HOUR } : b)) };
+  assert.equal(breakpointsOf(j).n, 4);
+  const { t, sent } = send(rec, j, CFG(true), 1e12, { answered: false });
+  assert.equal(t.reason, 'seed', 'there is room after all');
+  assert.equal(breakpointsOf(sent).n, 4, 'still four: the API takes no more');
+  assert.deepEqual(t.mark, { at: 3, ttl: '1h', n: 4, moved: prev });
+  assert.equal(sent.messages[prev].content.some(b => b.cache_control), false, 'the older of the agent\'s two message breakpoints is the one given up');
+  assert.deepEqual(sent.messages[sent.messages.length - 1].content[0].cache_control, HOUR, 'the newest stays: it is what stores this request for the next');
+  assert.deepEqual(sent.messages[3].content.find(b => b.type === 'tool_use').cache_control, HOUR);
+  assert.deepEqual(sent.system, j.system, 'and the system prompt\'s are never touched');
+  const strip = x => JSON.parse(JSON.stringify(x, (k, v) => (k === 'cache_control' ? undefined : v)));
+  assert.deepEqual(strip(sent), strip(j), 'not a byte else');
+});
+
 test('placeMark passes over a thinking block and a plain-string message', () => {
   const ms = [
     { role: 'user', content: [{ type: 'text', text: 'first' }] },
