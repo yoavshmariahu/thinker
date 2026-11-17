@@ -392,7 +392,7 @@ export const isToolFile = (file: unknown, dir: string) => typeof file === 'strin
 // THE DELEGATION TRIGGER, FROM INSIDE THE HARNESS (2026-11-15, the owner's call; src/delegate.js).
 // A settings hook can deny a read but cannot start a subagent, and words asking the lead to start one are a
 // nudge (Sonnet refused them). This hook can do both: it sees the call before it runs, asks thinker's own rule
-// on the fly (`hook pretool` with `host_runs`: the file's size, the turn's tally, the holdout, the log row --
+// on the fly (`hook pretool` with `host_runs`: the file's size, the holdout, the log row --
 // one copy of the rule, the CLI's), and when the rule fires it spawns the harness's own subagent
 // (`$.agent.spawn`) and answers the call with its report inside the sentence a lead works from. What
 // `opencode-v2.js:hostRun` is for OpenCode. A run that fails or runs out of time lets the call through.

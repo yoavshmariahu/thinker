@@ -1389,7 +1389,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
     if (hooks) {
       const target = shared && f.shared ? f.shared : f.local;
       const entries = [['UserPromptSubmit', { matcher: '', hooks: [{ type: 'command', command: cmd('prompt'), timeout: 15 }] }]];
-      // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read past the turn's threshold, or a whole-suite
+      // PreToolUse on Read and Bash (2026-11-11, delegate.js): a read of the threshold's size or more, or a whole-suite
       // run, is denied and answered with a subagent's report. The timeout covers the subagent's run; the hook
       // itself answers in a few milliseconds when the call goes through. Written only while the trigger is on
       // (on by default since 2026-11-16): a hook that exits at once is still one node process per tool call, and
