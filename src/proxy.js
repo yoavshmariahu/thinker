@@ -396,8 +396,8 @@ function walkResults(messages, keepMin, fn) {
   }
 }
 
-// What a boundary could newly cut, and what replacing it would cost: `recache` is the prompt from
-// the first result we would replace to the end, which is what a changed prefix makes the API write.
+// What a boundary could newly cut, and what replacing it would cost: `recache` is the messages as they
+// will be sent, all of them, which is what a result replaced in the middle makes the API write (below).
 // The ladder a boundary could cut, from the tail backwards (2026-11-13).
 //
 // Until now this took EVERY eligible result and handed back one candidate. That is the most a boundary can
@@ -444,6 +444,18 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   });
   // the ladder, smallest (newest) first. Empty when there is nothing to cut, and one step long when every
   // eligible result sits in one message, in which case this is exactly what the old single candidate was.
+  // What a rung makes the API write: EVERY message as sent after the cut, not the tail from the first replaced
+  // result (2026-11-16). The API reads a cached prefix only where an earlier request left a breakpoint, and
+  // looks back at most 20 positions from this request's own; Claude Code's breakpoints sit on the newest
+  // messages, so a result replaced further back than that leaves the system prompt as the only thing read and
+  // the whole conversation is written again. The ladder priced the tail alone, and the three warm cuts it
+  // made on this machine (2026-11-15/16) were predicted at 35k, 54k and 55k and wrote 245k, 87k and 124k,
+  // each with a cache read of exactly the 19,256-token system prompt: paybacks of 23-25 calls that were
+  // really 40 to 180, in sessions that ended first. It is the fact `cutting.js:priceCut` has recorded since
+  // 2026-11-04 (566,723 predicted, 548,009 written). `tail` is still measured and logged beside it, so a row
+  // says which of the two the API's own write was nearer.
+  const before = [0];
+  if (takeAt.size) for (let i = 0; i < messages.length; i++) before.push(before[i] + wireChars(applyCut([messages[i]], have, { cutInputs, imagePath }).messages[0]));
   const steps = [];
   if (takeAt.size) {
     const sent = new Set(have);
@@ -457,7 +469,8 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       for (const t of take) { took++; sum += t.len; }
       steps.push({
         ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * RESULT_TOKENS_PER_CHAR),
-        recache: Math.round((acc + count + 1) * TOKENS_PER_CHAR), firstChanged: i,
+        recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
+        tail: Math.round((acc + count + 1) * TOKENS_PER_CHAR), firstChanged: i,
       });
     }
   }
@@ -647,7 +660,7 @@ export function transformRequest(method, url, headers, body, cfg) {
     // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
     // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,
     // so this branch had never run, and `Math.round(undefined)` would have logged `"saving":null`.
-    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
+    ...(d.clear ? { clear: { tokens: d.tokens, recache: d.recache, ...(d.tail != null ? { tail: d.tail } : {}), cost: Math.round(d.cost), payback: d.payback, ...(d.depth != null ? { depth: d.depth, rungs: d.rungs } : {}), ...(d.cold ? { cold: true } : {}) }, tokens: d.tokens, recache: d.recache, cost: d.cost, payback: d.payback, cold: d.cold } : {}),
     ...(d.held ? { held: d.held } : {}),
     ...(d.candidate != null ? { candidate: d.candidate } : {}),
     ...(d.turn != null ? { turn: d.turn } : {}) };

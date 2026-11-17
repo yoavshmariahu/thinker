@@ -44,7 +44,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 4
+export const POLICY_REV = 5
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 // `+in` is the proxy's `cutInputs` (proxy.js:applyCut, 2026-11-14): a cut that also takes the finished call's own
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
@@ -110,7 +110,7 @@ export function policyOf(config: any): Policy {
 }
 
 // A clear is made when what it drops (`dropped` tokens), read back over the requests the session likely has left
-// (`calls` made so far), outweighs the write after it (`recache`, the context after the first row it changes); free
+// (`calls` made so far), outweighs the write after it (`recache`, the whole context after the clear); free
 // after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
 // never held back.
 // The proxy's cold rule goes further (cutting.js:decideCut, 2026-11-06): at a boundary past the cache's hour it
@@ -163,9 +163,9 @@ const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m
 // newest, and so on from the tail backwards. Sizes alone -- no rows are rebuilt -- so the check can price
 // every depth and the clear itself happens once, at the depth chosen.
 //
-// Why a ladder here at all: the rewrite runs from the first row a clear changes to the end, so a set reaching
-// the oldest eligible result rewrites nearly the whole session to remove results that are a third of it. A
-// removed token saves the same wherever it sat; only the cost depends on position.
+// Since 2026-11-16 every rung is priced at the whole context after the clear (`chooseDepth`), because a row
+// replaced in the middle leaves no cached prefix to read back; a deeper rung then costs less and saves more,
+// so the deepest one is the one that can pay, and the ladder is kept for the depth it names.
 export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): { depth: number; tokens: number; prefixChars: number }[] {
   const pre: number[] = [0]
   for (let i = 0; i < messages.length; i++) pre.push(pre[i] + charsOf(messages[i]))
@@ -194,7 +194,9 @@ export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx:
   let take: number | null = null
   for (const rung of clearLadder(messages, p)) {
     if (rung.tokens < p.clearAtLeast) continue
-    const recache = Math.max(0, ctx.tokens - Math.round(rung.prefixChars * TOKENS_PER_CHAR) - rung.tokens)
+    // the whole context after the clear, not the part after the first row it changes: a row replaced in the
+    // middle leaves no cached prefix to read back (proxy.js:cutCandidates, 2026-11-16)
+    const recache = Math.max(0, ctx.tokens - rung.tokens)
     if (clearPays(p, { dropped: rung.tokens, recache, calls: ctx.calls, idle: ctx.idle, cleared: ctx.cleared, model: ctx.model ?? '' })) take = rung.depth
   }
   return take

@@ -104,7 +104,10 @@ export const PAYBACK = 25;
 // 4 since 2026-11-14: what a rung removes is counted at a tool result's own rate (0.445 a character,
 // `proxy.js:RESULT_TOKENS_PER_CHAR`) instead of the whole-prompt 0.36, so the same boundary prices about a
 // fifth more removed against the same tail, and a cut refused under `r3` may be taken under `r4`.
-export const POLICY_REV = 4;
+// 5 since 2026-11-16: a rung's rewrite is every message as sent after the cut, not the tail from the first
+// replaced result (`proxy.js:cutCandidates`). `r3` and `r4` priced the tail, cut at paybacks the API's own
+// writes put 1.6x to 7x higher, and their savings are never folded into this one's.
+export const POLICY_REV = 5;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}`;
@@ -263,9 +266,10 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // Anthropic ratios, as before this existed.
   const read = rates?.read != null ? rates.read : readRate(model);
   const write = rates?.write != null ? rates.write : writeRate(ttl);
-  // `cand.recache` is the tail as it will be sent (proxy.js:cutCandidates), which is what the API writes
-  // again. Nothing else enters the cost: not the prompt above the first replaced result, which keeps its
-  // place in the cache, and not the system prompt, which is not in the messages at all.
+  // `cand.recache` is the messages as they will be sent, all of them (proxy.js:cutCandidates), which is what
+  // the API writes again: the prompt above the first replaced result does NOT keep its place in the cache
+  // unless a breakpoint of an earlier request sits within the API's 20-position lookback of this one's, and
+  // a cut worth making reaches further back than that. The system prompt is not in the messages at all.
   const recache = Math.max(0, cand.recache || 0);
   // What the cut adds to THIS call, against the same call made without it (2026-11-13). Without the cut
   // the whole prompt is read back from the cache -- the tail and the results in it included, which is the
@@ -289,7 +293,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
   // that `Math.ceil` returns for a negative fraction out of the log and out of every `=== 0` a reader writes.
   const payback = cand.tokens > 0 && read > 0 ? Math.max(0, Math.ceil(cost / (cand.tokens * read))) : Infinity;
-  return { tokens: cand.tokens, recache, cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
+  return { tokens: cand.tokens, recache, ...(cand.tail != null ? { tail: cand.tail } : {}), cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // --- the turn in progress is never cut into ---------------------------------------------------------------
