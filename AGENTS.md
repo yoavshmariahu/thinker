@@ -60,6 +60,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
 - A long call whose result is short (a heredoc, a Write, an Edit that answered in a line) is a candidate on the call's own text (2026-11-17, `r6`); the short result stays. Only with `cutInputs`.
 - `cutThinking` (2026-11-17, off by default; `--cut-thinking`, `THINKER_PROXY_CUT_THINKING=on`, `proxy: { cutThinking: true }`): a cut also leaves out the earlier turns' thinking blocks after its own oldest replaced result and before the turn it was made in, whole blocks only, never the turn in progress. Ranges kept on the record (`rec.think`, one `[result id, turn]` a cut) and only ever grow. Priced in the ladder (`thinking` on the rung and the row). Policy name ends `+th`. Messages door only; the mod is exempt.
+- `thinkingKeepTurns` (2026-11-17, 0 by default; `--thinking-keep-turns n`, `THINKER_PROXY_THINKING_KEEP_TURNS`, `proxy: { thinkingKeepTurns }`): with `cutThinking`, the last n turns before the one in progress keep their thinking, so only older thinking goes. A later cut carries the earliest range on to its own turn minus n (same `[result id, turn]`, the turn raised), so thinking that was too new for one cut goes with the next; where that starts above the rung's first result the ladder prices the tail from there (`thinkFirst`) and `placeMark` puts the breakpoint before it. Policy name ends `+th<n>`.
 - `cutBreakpoint` (2026-11-17, on by default, not yet confirmed live; off with `--no-cut-breakpoint`, `THINKER_PROXY_CUT_BREAKPOINT=off`, `proxy: { cutBreakpoint: false }`): a boundary that finds a cut seeds it (one `cache_control` on the last block before the first changed one, nothing replaced, `reason: seed`), and the next request after that one's answer makes the cut at the same breakpoint, priced at `tail`. Policy name ends `+bp`. Rows carry `bp` (breakpoints the request came with), `mark`, `planned`. Messages door only; the mod is exempt. Claude Code already sends four breakpoints (two on the system prompt, one on each of the last two messages), so on the seed and cut requests the proxy's takes the place of the older message one.
 - The tail is priced from where the breakpoint lands (2026-11-17, `proxy.js:markBlock`, `POLICY_REV` 7): the walk back from the first changed message steps over a message that can carry none (a plain string, thinking alone), and what it steps over is written again. Priced from the first changed message, a PostHog session's first cut was predicted at 41,465 and wrote 57,346, the difference being Claude Code's environment message.
 - **A cut takes a finished call's screenshot too, and leaves its path (2026-11-15, the owner's call; `cutImages`,
@@ -475,6 +476,14 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - The reason must open with `denial`'s report sentence and the subagent must be told it is the one named: a bare report, or one hedging about who read the file, was called an injection and re-read.
 - Limits: static match only (no size or holdout), one model call per matched read, no `op: delegate` row. A suite run failed live (shell only where the session's permissions allow it; report distrusted).
 
+**Fleet reporting: a machine with an org API key reports to its org's dashboard (2026-11-17, `src/fleet.js`):**
+- Beside the telemetry and separate from it: the telemetry is thinker's own, anonymous, hourly, a 30-day window; this is the person's org, keyed, incremental. Neither reads the other's state.
+- **No key, nothing**: no request, no state file, no process. Key is `THINKER_API_KEY`, else `<THINKER_HOME>/fleet-key` (`thinker config set api-key`, 0600, never `config.json`). `THINKER_FLEET=off` is local mode with a key set.
+- **From the Stop hook** (`fleetTick`, beside `emitSession`), so every client is covered, desktops included. At most one report every 5 min (`FLEET.everyMs`): due now is sent now (2 s), else one detached `fleet-report --at` waits for the mark. An idle machine sends nothing.
+- **A report is increments, applied exactly once**: per moved session, figures now minus figures last acknowledged (`sessionEvent`'s, so the one pricing door). Written to `state/fleet.json` under its own id before sending and re-sent unchanged until acknowledged; nothing new is built meanwhile; one sender at a time (`state/fleet.lock`). The server refuses the last id applied. Do not make a report a total: the server adds.
+- **Closed list out**: machine id (the install id, or `THINKER_MACHINE_ID`), hostname, OS, version; per session id, agent, repository name (origin's last two parts, never a path or URL), two times, numbers. No prompt, code or path.
+- `thinker status` sends a real report (the waiting one, or an empty one), so "reachable" means the key was accepted. The server lives in the private repository; `fleet: { url }` in config points a test at loopback.
+
 **Telemetry and tests (MANDATORY):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.
 - `THINKER_OFFERS=on`: restore offers (offer tests only).
@@ -496,6 +505,10 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 **Worktrees (MANDATORY):**
 - All changes in isolated worktree. Never edit primary.
 - `git worktree add -b agent/<task> .worktrees/<task> HEAD`. On done: `git worktree remove --force`.
+
+**The website and the hosted infrastructure are not here (2026-11-17, the owner's call):**
+- `site/` (thinker.sh) and `infra/` (the site's deploy, the metrics API, the fleet service) live in the private `thinker-internal` repository. This repository is the tool.
+- A change to a payload the metrics API reads is tested here for what the client sends; the server's half is tested there.
 
 **Releases:**
 - Tag `vX.Y.Z` on `main`, assets `thinker.tgz`, `version.json`, `install.sh`.
@@ -769,7 +782,7 @@ ignored; its history is in git before 2026-11-08.
 - **Scrubbing:** Replace `<thinker>` (install path), `<repo>` (repository), `~` (home), `<token>` (credentials), `<url>` (URLs), last two segments (other absolute paths). Checked in `test/error-report.test.js`.
 - **Consent:** Asked once per machine via agent's question tool, answered through `thinker errors --answer yes|no|never`. Only asked where records exist and telemetry is on.
 - **`thinker errors`:** Prints records. Flags: `--send`, `--json`, `--answer`.
-- **Endpoint:** `/errors` on metrics API (`infra/metrics/errors.mjs`, `handler.mjs`). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`. Requires table and GRANT deploy in `infra/metrics/README.md`.
+- **Endpoint:** `/errors` on metrics API (server side, not in this repository). Rejects payloads matching `LOOKS_PRIVATE`, `LOOKS_LIKE_URL`, `LOOKS_LIKE_TOKEN`.
 
 ## Knowledge notes, removed (2026-11-08)
 

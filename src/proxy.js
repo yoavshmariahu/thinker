@@ -95,7 +95,7 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // pays, so a cut without the breakpoint is hardly a cut at all. It shipped before any live request had shown the
 // API reading the seeded prefix; the first cut rows (`mark`, `clear.whole` beside the call's own cache read)
 // are what confirm it, and `--no-cut-breakpoint` or `proxy: { cutBreakpoint: false }` is the way back.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: false };
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: false, thinkingKeepTurns: 0 };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -273,6 +273,7 @@ export function thinkingChars(m) {
 }
 // where turn `turn` starts, by `turnId`'s count of the person's prompts; the end of the messages if it has not
 export function turnIndex(messages, turn) {
+  if (turn < 1) return 0;   // before the first turn: a range that ends there holds nothing
   let n = 0;
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
@@ -306,7 +307,8 @@ export function proxyConfig(flags = {}, env = process.env) {
   const pick = (flag, name) => num(flags[flag]) ?? num(env[name]);
   const cfg = { ...PROXY_DEFAULTS };
   for (const [key, flag, name] of [['trigger', 'trigger', 'THINKER_PROXY_TRIGGER'], ['keep', 'keep', 'THINKER_PROXY_KEEP'], ['keepMin', 'keep-min', 'THINKER_PROXY_KEEP_MIN'],
-    ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT']]) {
+    ['clearAtLeast', 'clear-at-least', 'THINKER_PROXY_CLEAR_AT_LEAST'], ['holdout', 'holdout', 'THINKER_PROXY_HOLDOUT'],
+    ['thinkingKeepTurns', 'thinking-keep-turns', 'THINKER_PROXY_THINKING_KEEP_TURNS']]) {
     const v = pick(flag, name);
     // a guard the person set by hand is pinned, and the route's prices never move it (cutting.js:scaledPolicy)
     if (v !== undefined) { cfg[key] = v; if (key === 'trigger' || key === 'clearAtLeast') (cfg.pinned ??= {})[key] = true; }
@@ -573,6 +575,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
         ids: ids.slice(0, took), chars: sum, tokens: sumTok,
         recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
         tail: Math.round((acc + pre + over + count + (pre ? 1 : 0) + stepped + 1) * TOKENS_PER_CHAR), firstChanged: i,
+        tailFrom: i - (pre ? 1 : 0) - stepped,
       });
     }
   }
@@ -596,11 +599,22 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
     const to = Math.min(thinking.to ?? messages.length, messages.length);
     for (const s of steps) {
-      const from = Math.min(s.firstChanged + 1, to);
+      // `thinking.from` (set where `thinkingKeepTurns` holds recent thinking back): the earliest range so far is
+      // carried on to `to`, so thinking that was too new for an earlier cut goes with this one now it is old.
+      const from = Math.min(s.firstChanged + 1, thinking.from ?? Infinity, to);
       const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
       s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
       s.tokens += s.thinking;
-      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
+      // Thinking that goes above the rung's own first change moves where the rewrite starts: the tail then runs
+      // from the nearest message below it that can carry the breakpoint (`thinkFirst`, which `placeMark` is given).
+      let start = s.tailFrom, more = 0;
+      const end = Math.min(to, s.tailFrom);
+      let g = from; while (g < end && !(pre[g + 1] > pre[g] && !gone[g])) g++;
+      if (g < end) {
+        let q = g - 1; while (q >= 0 && markBlock(messages[q]) < 0) q--;
+        start = q + 1; more = before[s.tailFrom] - before[start] + (s.tailFrom - start); s.thinkFirst = g;
+      }
+      s.tail = Math.max(0, s.tail + Math.round(more * TOKENS_PER_CHAR) - Math.round((pre[to] - pre[Math.min(to, Math.max(start, from))]) * TOKENS_PER_CHAR));
       s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
     }
     thinkAll = steps[steps.length - 1].thinking;
@@ -729,9 +743,10 @@ const firstTouched = (messages, ids, cutInputs) => messages.findIndex(m => Array
 // whatever Claude Code chose. Null where it cannot be placed: no room, nothing after it to copy, or no
 // block before the cut that may carry one (a thinking block may not, and a message whose content is a
 // plain string is left alone, because turning it into a block is a change to the prefix itself).
-export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
+export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs, first = null } = {}) {
   const ids = cutIds instanceof Set ? cutIds : new Set(cutIds || []);
-  const k = firstTouched(j.messages, ids, cutInputs);
+  // `first`: a message the cut changes above its oldest result (thinking left out there), which the breakpoint must precede
+  const touched = firstTouched(j.messages, ids, cutInputs), k = first != null && touched > first ? first : touched;
   if (k <= 0) return null;
   const bp = breakpointsOf({ ...j, messages });
   let copy = null;
@@ -877,8 +892,13 @@ export function transformRequest(method, url, headers, body, cfg) {
   // here because this is the first point the body has been parsed
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
-  // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress
-  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, m.turn), done: rec.think || [] } : null;
+  // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
+  // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17, 0 by default)
+  const thinkTo = Math.max(m.turn - Math.max(0, Math.floor(cfg.thinkingKeepTurns || 0)), 0);
+  // with turns held back, the earliest range so far is the one a new cut carries on (cutCandidates prices it)
+  let firstRange = null;
+  if (cfg.cutThinking && thinkTo < m.turn) for (const [id] of rec.think || []) { const at = cutAnchor(j.messages, new Set([id])); if (at >= 0 && (!firstRange || at < firstRange.at)) firstRange = { id, at }; }
+  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [], ...(firstRange ? { from: firstRange.at + 1 } : {}) } : null;
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking });
   // what the request carries for breakpoints rides on every row, because how many Claude Code sends and for
   // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
@@ -891,11 +911,13 @@ export function transformRequest(method, url, headers, body, cfg) {
   // a cut made on this request adds its own range: from the oldest result it newly replaces to this turn
   const fresh = thinking && d.clear ? d.cut.slice(rec.cut.length) : [];
   const anchor = fresh.length ? cutAnchor(j.messages, new Set(fresh)) : -1;
-  const oldest = anchor >= 0 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
-  const think = thinking ? [...thinking.done, ...(oldest ? [[oldest, m.turn]] : [])] : null;
+  const own = anchor >= 0 && thinkTo >= 1 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
+  const oldest = own && firstRange && firstRange.at < anchor ? firstRange.id : own;
+  const think = thinking ? [...thinking.done, ...(oldest ? [[oldest, thinkTo]] : [])] : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath, thinking: think });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
-  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
+  const markStep = d.markIds && thinking ? cand.steps.find(s => s.ids.length === d.markIds.length) : null;
+  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs, first: markStep?.thinkFirst ?? null }) : null;
   const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}), ...(marked.moved != null ? { moved: marked.moved } : {}) } } : {};
   // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
   // next boundary decides again.
@@ -925,7 +947,7 @@ export function transformRequest(method, url, headers, body, cfg) {
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged, ...(applied.thinking != null ? { thinking: applied.thinking } : {}) },
-    ...(oldest ? { think: [oldest, m.turn] } : {}),
+    ...(oldest ? { think: [oldest, thinkTo] } : {}),
     // the decision's own arithmetic, so a cut can be audited against the floor that allowed it. `saving`,
     // `need` and `have` stood here until 2026-11-06 and `priceCut` returns none of them: it returns the
     // payback. No row ever carried them -- until the floor moved to 25 the Claude path made no cut at all,

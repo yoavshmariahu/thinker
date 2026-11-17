@@ -128,6 +128,28 @@ machine to the OS, so without it they are either unknown or one device per run.
 The value is hashed before it is sent, so a hostname or an account name in it
 discloses nothing.
 
-For the PostgreSQL ingestion service, S3 migration, and SQL queries, see
-[the telemetry operations guide](../infra/metrics/README.md).
+The service that receives these reports is not part of this repository.
 
+
+## Fleet dashboard (optional)
+
+thinker needs no account. If your team has a fleet dashboard, a machine reports to it once it holds your
+organisation's API key:
+
+```bash
+thinker config set api-key thk_live_...   # or set THINKER_API_KEY, e.g. as a CI secret
+thinker status                            # fleet or local, the org, this machine's id, whether the fleet answers
+thinker config unset api-key              # back to local
+```
+
+Without a key thinker makes no call to the fleet service at all. With one, it reports at most every five
+minutes, only what changed since its last report, and never holds up an agent: if the service is slow or
+down, thinker carries on locally and reports when it can. `THINKER_FLEET=off` forces local mode with a key
+set, and `THINKER_MACHINE_ID` names a machine that is rebuilt for every job so it stays one row.
+
+**What is sent:** this machine's id, hostname, operating system and thinker version; and for each agent
+session its id, the agent's name, the repository's name (never its URL), when it started and was last active,
+and numbers: prompts, tokens, tokens cleared, and what the session cost and saved in dollars.
+
+**What is never sent:** prompts, completions, code, file paths, file contents, cache contents, environment
+variables.

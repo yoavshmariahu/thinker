@@ -29,6 +29,7 @@ import { commands as savingsCommands } from './commands/savings.js';
 import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as containerCommands } from './commands/containers.js';
 import { commands as errorCommands } from './commands/errors.js';
+import { commands as fleetCommands } from './commands/fleet.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -222,6 +223,11 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the checkouts wire (update runs it; the prompt hook does it for its own checkout)
   stats [--here] [--days n] [--json]
                                  machine-wide overview: activity, agents, learning, tokens and repositories; current checkout cache details
+  config set api-key <key> | config unset api-key
+                                 the org API key this machine reports to its fleet dashboard with (kept in
+                                 <THINKER_HOME>/fleet-key, mode 0600; THINKER_API_KEY wins over it). Without a
+                                 key thinker runs locally and calls nothing
+  status [--json]                fleet or local, the org, this machine's id, and whether the fleet answers
   errors [--list] [--send] [--answer yes|no|never] [--json]
                                 what thinker itself has failed at on this machine, exactly as it would be
                                  sent to its developers. Nothing is sent until you answer yes; never stops
@@ -290,10 +296,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands };
+const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', 'config', 'status', 'fleet-report', undefined];
 
 async function main() {
   // Retired entrypoints must not initialize a cache, schedule work or execute a command.

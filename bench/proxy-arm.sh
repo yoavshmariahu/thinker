@@ -10,14 +10,16 @@
 # with the parent environment, not the arm's (bench.mjs: sh(cmd[0], args, { cwd })). The arm's `env` still
 # reaches the AGENT, which is what ANTHROPIC_BASE_URL is for.
 #
-#   start <port> <cut-inputs on|off> <cwd>   start it, wait until it listens
-#   stop  <port> <cut-inputs on|off> <cwd>   print the session's own figures as JSON, then stop it
+#   start <port> <cut-inputs on|off> <cwd> [cut-thinking on|off] [turns whose thinking is kept]   start it, wait until it listens
+#   stop  <port> <cut-inputs on|off> <cwd> [cut-thinking on|off] [turns whose thinking is kept]   print the session's own figures as JSON, then stop it
+#
+# The proxy is this checkout's own (the script's directory), so an arm tests the code it sits beside.
 #
 # One proxy per session: the log is the session's own worktree, so two arms can never pool their rows.
 set -u
-CLI=${THINKER_CLI:-/Users/yoavshmariahu/src/thinker/.worktrees/cutinputs-arm/src/cli.js}
+CLI=${THINKER_CLI:-$(cd "$(dirname "$0")/.." && pwd)/src/cli.js}
 NODE=${THINKER_NODE:-/opt/homebrew/Cellar/node@24/24.15.0/bin/node}
-ACT=$1; PORT=$2; INPUTS=$3; CWD=$4
+ACT=$1; PORT=$2; INPUTS=$3; CWD=$4; THINKING=${5:-off}; KEEP_TURNS=${6:-0}
 LOG=$CWD/.thinker-bench/proxy.jsonl
 OUT=$CWD/.thinker-bench/proxy.out
 PID=$CWD/.thinker-bench/proxy.pid
@@ -28,6 +30,8 @@ export THINKER_TEST=1
 export THINKER_PROXY_LOG=$LOG
 export THINKER_PROXY_PORT=$PORT
 export THINKER_PROXY_CUT_INPUTS=$INPUTS
+export THINKER_PROXY_CUT_THINKING=$THINKING
+export THINKER_PROXY_THINKING_KEEP_TURNS=$KEEP_TURNS
 export THINKER_PROXY_HOLDOUT=0      # every session is cut: the bench pairs arms itself
 
 case "$ACT" in

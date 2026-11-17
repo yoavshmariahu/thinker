@@ -6,7 +6,7 @@
 // bench and research) with an edge for each relative `import … from`, `export … from`,
 // `import()`, `require()` and `new URL(…, import.meta.url)`, and, for a test file, each
 // string literal that names an existing repository file by a path with a directory in it
-// (`'src/cli.js'`, `'../site/index.html'`: the tests spawn the command and read assets
+// (`'src/cli.js'`, `'../install.sh'`: the tests spawn the command and read assets
 // by path) or a `join(x, '..', 'install.sh')` reaching up from the test or src directory.
 // A bare name (`'AGENTS.md'`, `'package.json'`) is not an edge: the tests write those
 // files into scratch repositories far more often than they read the repository's own.
