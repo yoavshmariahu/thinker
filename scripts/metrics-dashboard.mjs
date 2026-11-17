@@ -195,14 +195,14 @@ export async function provision({ call = api, config = state, persist = save, re
     // device has one, and as reported where it has not. 5: what delegation saved, in the total and on a card of its own.
     // 6: only a saving whose clear names its cut policy is counted (#827 changed the SQL and left the marker, so it never landed).
     // 7: the total and "Saved per day" read one table of days, and the context cuts' saving has a card of its own.
-    // 8: every card shows the last 30 days, and the total's name carries no date.
-    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 2 : question.daily ? state.dailyCardVersion === 8 : state.cardVersion === 8)) continue;
+    // 8: every card shows the last 30 days, and the total's name carries no date. 9: a row for every day of the window, so the charts share an axis.
+    if (existingId && (question.spend ? state.spendCardVersion === 4 : question.cache ? state.cacheCardVersion === 7 : question.holdout ? state.holdoutCardVersion === 3 : question.delivery ? state.deliveryCardVersion === 4 : question.savings ? state.savingsCardVersion === 2 : question.daily ? state.dailyCardVersion === 9 : state.cardVersion === 8)) continue;
     const card = await api(existingId ? `/card/${existingId}` : '/card', existingId ? 'PUT' : 'POST', { name: question.name, display: question.display, description: question.description || null,
       collection_id: state.collectionId, visualization_settings: question.settings || {},
       dataset_query: dataset(question, db.id) });
     state.cards[question.name] = card.id; save();
   }
-  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 8; state.savingsCardVersion = 2; save();
+  state.cardVersion = 8; state.deliveryCardVersion = 4; state.holdoutCardVersion = 3; state.cacheCardVersion = 7; state.spendCardVersion = 4; state.dailyCardVersion = 9; state.savingsCardVersion = 2; save();
   if (!state.dashboardId) {
     state.dashboardId = (await api('/dashboard', 'POST', { name: 'Thinker telemetry', collection_id: state.collectionId,
       description: 'Live reports, installation activity, and data quality. Installation IDs are not people. Older telemetry may contain test data. Usage fields are rolling snapshots; do not sum all reports.' })).id;

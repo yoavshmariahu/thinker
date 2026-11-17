@@ -82,7 +82,9 @@ test('every daily card reads a day\'s own figure, and the savings count from the
   assert.equal(by('Total saved').name, 'Total saved · last 30 days');
   // the context cuts' two cards share a row, and delegation's two the next
   assert.deepEqual(dailyQuestions.map(q => q.name), ['Total saved · last 30 days', 'Saved per day', 'Saved by context cuts, per day', 'Context cuts per day', 'Saved by delegation, per day', 'Delegations to a subagent, per day', 'Devices with a thinker session, per day', 'Known devices, per day']);
-  assert.match(by('Known devices').sql, /sum\(count\(\*\)\) OVER \(ORDER BY day_utc\)/, 'known devices is a running total');
+  assert.match(by('Known devices').sql, /count\(\*\) FILTER \(WHERE first_seen\.day_utc <= calendar\.day_utc\) AS known_devices/, 'known devices is a running total');
+  // every chart draws the same axis: a row for each day of the window, whether or not the card has a figure for it
+  for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.match(q.sql, /FROM \(SELECT d::date AS day_utc FROM generate_series\(\(\(now\(\) AT TIME ZONE 'UTC'\)::date - 29\), \(now\(\) AT TIME ZONE 'UTC'\)::date, interval '1 day'\) d\) calendar (LEFT|CROSS) JOIN/, q.name);
   for (const q of dailyQuestions.filter(q => q.display !== 'scalar')) assert.deepEqual(q.settings['graph.dimensions'], ['day_utc'], q.name);
 });
 

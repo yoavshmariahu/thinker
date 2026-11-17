@@ -15,6 +15,7 @@ const daily = `(SELECT DISTINCT ON (date_trunc('day', received_at AT TIME ZONE '
 // not change when it leaves the window, it is only no longer drawn or summed.
 export const WINDOW_DAYS = 30;
 const windowStart = `((now() AT TIME ZONE 'UTC')::date - ${WINDOW_DAYS - 1})`;
+const calendar = `(SELECT d::date AS day_utc FROM generate_series(${windowStart}, (now() AT TIME ZONE 'UTC')::date, interval '1 day') d) calendar`;
 // one row per device and day of a block's byDay, from the newest snapshot holding that day; `prefer` puts the
 // snapshots it holds for first, so a day both kinds carry is read from the preferred one however old it is
 const days = (block, prefer = 'TRUE') => `(SELECT DISTINCT ON (s.device, dd.day) s.device, dd.day::date AS day_utc, dd.figures, s.preferred
@@ -103,9 +104,12 @@ export const dailyQuestions = [
     description: 'Devices on which thinker recorded at least one agent session whose last request was that UTC day. A device is a machine, so one person with two machines is two. A session held out from the clearing or the profile still counts: thinker was running in it.' },
 
   { name: 'Known devices, per day', display: 'line',
-    sql: `SELECT * FROM (SELECT day_utc, sum(count(*)) OVER (ORDER BY day_utc) AS known_devices, count(*) AS new_devices
-      FROM (SELECT device_id, min(date_trunc('day', received_at AT TIME ZONE 'UTC')) AS day_utc FROM reports WHERE device_id IS NOT NULL GROUP BY 1) first_seen
-      GROUP BY 1) running WHERE day_utc >= ${windowStart} ORDER BY 1`,
+    sql: `SELECT calendar.day_utc, count(*) FILTER (WHERE first_seen.day_utc <= calendar.day_utc) AS known_devices, count(*) FILTER (WHERE first_seen.day_utc = calendar.day_utc) AS new_devices
+      FROM ${calendar} CROSS JOIN (SELECT device_id, min(date_trunc('day', received_at AT TIME ZONE 'UTC'))::date AS day_utc FROM reports WHERE device_id IS NOT NULL GROUP BY 1) first_seen
+      GROUP BY 1 ORDER BY 1`,
     settings: { 'graph.dimensions': ['day_utc'], 'graph.metrics': ['known_devices'] },
-    description: 'Every device that has ever sent a report, counted from the UTC day of its first one: the running total, with the day\'s new devices beside it. A device that uninstalled stays known. A day with no new device has no point of its own.' },
-].map(q => ({ ...q, daily: true }));
+    description: 'Every device that has ever sent a report, counted from the UTC day of its first one: the running total, with the day\'s new devices beside it. A device that uninstalled stays known.' },
+].map(q => ({ ...q, daily: true,
+  // every chart has a row for each of the window's days, so they all draw the same 30-day axis; a day a card has
+  // no figure for is an empty row (not measured), never a zero
+  sql: q.display === 'scalar' || q.sql.includes(calendar) ? q.sql : `SELECT * FROM ${calendar} LEFT JOIN (${q.sql.replace(/\s+ORDER BY 1$/, '')}) charted USING (day_utc) ORDER BY 1` }));
