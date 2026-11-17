@@ -89,10 +89,13 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // rewrite span the conversation. What is left for a floor is a guard against acting on arithmetic noise:
 // `recache` is an estimate at TOKENS_PER_CHAR, so a cut of a few hundred tokens priced against a six-figure
 // tail is inside the estimator's error. 8k is one substantial result, and `payback` governs everything above.
-// `cutBreakpoint` off since it was written (2026-11-17): a cut is seeded with a cache breakpoint of the proxy's
-// own and made on the next request (`cutting.js:SEED_MS`, `placeMark` below), which is what makes the tail the
-// thing a cut writes. Off until one live cut row on the owner's machine shows a cache read that covers the prefix.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: false, cutThinking: false };
+// `cutBreakpoint` (2026-11-17): a cut is seeded with a cache breakpoint of the proxy's own and made on the next
+// request (`cutting.js:SEED_MS`, `placeMark` below), which is what makes the tail the thing a cut writes. On by
+// default the day it was written, at the owner's call: priced at the whole conversation a cut all but never
+// pays, so a cut without the breakpoint is hardly a cut at all. It shipped before any live request had shown the
+// API reading the seeded prefix; the first cut rows (`mark`, `clear.whole` beside the call's own cache read)
+// are what confirm it, and `--no-cut-breakpoint` or `proxy: { cutBreakpoint: false }` is the way back.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: false };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -645,7 +648,7 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
     tokens: Math.round((chars + inputChars) * RESULT_TOKENS_PER_CHAR) + thought, firstChanged };
 }
 
-// --- the proxy's own cache breakpoint (2026-11-17, `cutBreakpoint`, off by default) ------------------------
+// --- the proxy's own cache breakpoint (2026-11-17, `cutBreakpoint`, on by default) -------------------------
 // A breakpoint is `cache_control` on a content block: the API stores the prompt up to that block and, on a
 // later request, looks for a stored prefix from each breakpoint backwards. At most four a request, and a
 // longer lifetime may not follow a shorter one (a 400 otherwise, which would be the person's request failing).

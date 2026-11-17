@@ -45,8 +45,8 @@ function send(rec, j, cfg, now, { answered = true } = {}) {
 const marks = sent => sent.messages.flatMap((m, i) => (Array.isArray(m.content) ? m.content : []).filter(b => b.cache_control).map(b => ({ i, type: b.type, id: b.id, cc: b.cache_control })));
 const replaced = sent => sent.messages.flatMap(m => (Array.isArray(m.content) ? m.content : [])).filter(b => b.type === 'tool_result' && Array.isArray(b.content)).length;
 
-test('off by default: the cut is priced whole and refused, and the row says what breakpoints came', () => {
-  assert.equal(PROXY_DEFAULTS.cutBreakpoint, false);
+test('switched off: the cut is priced whole and refused, and the row says what breakpoints came', () => {
+  assert.equal(PROXY_DEFAULTS.cutBreakpoint, true, 'on by default');
   const rec = freshCut('s'), j = body();
   const { t, sent } = send(rec, j, CFG(false), 1e12);
   assert.equal(t.reason, 'payback');
@@ -172,14 +172,14 @@ test('a rung\'s tail starts at the call whose own text is cut with its result', 
 });
 
 test('the switch: a flag, a variable, the machine config, and a policy name of its own', () => {
-  assert.equal(proxyConfig({}, {}).cutBreakpoint, false);
-  assert.equal(proxyConfig({ 'cut-breakpoint': true }, {}).cutBreakpoint, true);
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_BREAKPOINT: 'on' }).cutBreakpoint, true);
+  assert.equal(proxyConfig({}, {}).cutBreakpoint, true);
+  assert.equal(proxyConfig({ 'no-cut-breakpoint': true }, {}).cutBreakpoint, false);
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_BREAKPOINT: 'off' }).cutBreakpoint, false);
   assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).endsWith('+bp'));
-  assert.ok(!policyId(PROXY_DEFAULTS).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
+  assert.ok(!policyId({ ...PROXY_DEFAULTS, cutBreakpoint: false }).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-bp-'));
   try {
-    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutBreakpoint: true } }));
-    assert.ok(serviceArgs(home, { port: 4000 }).includes('--cut-breakpoint'));
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutBreakpoint: false } }));
+    assert.ok(serviceArgs(home, { port: 4000 }).includes('--no-cut-breakpoint'), 'the service carries a machine that said no');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
