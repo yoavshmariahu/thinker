@@ -112,7 +112,7 @@ export const PAYBACK = 25;
 export const POLICY_REV = 6;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}`;
+  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? '+th' : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -299,7 +299,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
   // that `Math.ceil` returns for a negative fraction out of the log and out of every `=== 0` a reader writes.
   const payback = cand.tokens > 0 && read > 0 ? Math.max(0, Math.ceil(cost / (cand.tokens * read))) : Infinity;
-  return { tokens: cand.tokens, recache, ...(cand.tail != null ? { tail: cand.tail } : {}), ...(marked ? { marked: true, whole: cand.recache } : {}), cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
+  return { tokens: cand.tokens, recache, ...(cand.thinking != null ? { thinking: cand.thinking } : {}), ...(cand.tail != null ? { tail: cand.tail } : {}), ...(marked ? { marked: true, whole: cand.recache } : {}), cost, payback, pays: cand.tokens > 0 && payback <= PAYBACK };
 }
 
 // --- the turn in progress is never cut into ---------------------------------------------------------------
@@ -433,6 +433,7 @@ export function cutResponse(rec, cfg, t, usage, { now = Date.now() } = {}) {
   const ahead = t.turn == null || t.turn >= (rec.turn || 0);
   if (ahead && t.turn != null) rec.turn = t.turn;
   if (ahead && t.cut) rec.cut = t.cut;
+  if (t.thinkTurn != null) rec.thinkTurn = Math.max(rec.thinkTurn || 0, t.thinkTurn);
   // the request that carried the seed's breakpoint was answered, so the entry is there to be read
   if (t.seed && rec.seed && rec.seed.last === t.seed.last && !rec.seed.ready) rec.seed = { ...rec.seed, ready: now };
   if (t.clear) {
@@ -467,7 +468,9 @@ export function mergeCut(prev, rec) {
     turn: upto(prev.turn, rec.turn), at: upto(prev.at, rec.at),
     calls: upto(prev.calls, rec.calls), clears: upto(prev.clears, rec.clears),
     saved: upto(prev.saved, rec.saved), written: upto(prev.written, rec.written),
-    chars: upto(prev.chars, rec.chars), model: rec.model || prev.model || null };
+    chars: upto(prev.chars, rec.chars), model: rec.model || prev.model || null,
+    // the turn the thinking is left out up to only ever rises, as the turn itself does
+    ...(prev.thinkTurn || rec.thinkTurn ? { thinkTurn: upto(prev.thinkTurn, rec.thinkTurn) } : {}) };
 }
 
 export function cutStore(dir) {
