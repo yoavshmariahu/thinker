@@ -58,6 +58,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
+- `cutBreakpoint` (2026-11-17, off by default; `--cut-breakpoint`, `THINKER_PROXY_CUT_BREAKPOINT=on`, `proxy: { cutBreakpoint: true }`): a boundary that finds a cut seeds it (one `cache_control` on the last block before the first changed one, nothing replaced, `reason: seed`), and the next request after that one's answer makes the cut at the same breakpoint, priced at `tail`. Policy name ends `+bp`. Rows carry `bp` (breakpoints the request came with), `mark`, `planned`. Messages door only; the mod is exempt.
 - **A cut takes a finished call's screenshot too, and leaves its path (2026-11-15, the owner's call; `cutImages`,
   `proxy.js:saveCutImages`, `cutting.js:imagePlaceholder`).** A result was eligible by its text alone, so a browser
   session's screenshots were never cut. Now a base64 image in a result that is going is saved under the clearing's
