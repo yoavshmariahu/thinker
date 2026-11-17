@@ -109,7 +109,10 @@ export const PAYBACK = 25;
 // writes put 1.6x to 7x higher, and their savings are never folded into this one's.
 // 6 since 2026-11-17: a long call whose result is short is a candidate on the call's own text
 // (`proxy.js:cutCandidates`), so a boundary has more to take than it had under `r5`.
-export const POLICY_REV = 6;
+// 7 since 2026-11-17: with the proxy's breakpoint, the tail a rung is priced at starts after the message the
+// breakpoint can sit on, not at the first changed message (`proxy.js:markBlock`). Where the walk back steps
+// over a message, `r6` priced the cut short by that message.
+export const POLICY_REV = 7;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? '+th' : ''}`;

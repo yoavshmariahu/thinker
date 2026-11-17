@@ -531,10 +531,18 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       // The tail runs from the first message this rung changes, and that is the assistant message before the
       // results wherever a call's own text is cut with its result (2026-11-17): the breakpoint goes before it.
       const pre = i > 0 && take.some(t => inputOf.has(t.id)) ? wireChars(applyCut([messages[i - 1]], sent, { cutInputs, imagePath }).messages[0]) : 0;
+      // And it runs from where the breakpoint can actually go (2026-11-17). `placeMark` walks back from the
+      // first changed message to the nearest one that can carry a breakpoint, and whatever it steps over is
+      // written again with the tail. Priced from the first changed message, the first cut of a nine-turn
+      // PostHog session was predicted at 41,465 and wrote 57,346: Claude Code's second message there is the
+      // environment block, 50k characters that the walk passed over, so the breakpoint sat on the message
+      // before it and the API read 31,363 where the price assumed 48,718.
+      let over = 0, stepped = 0;
+      for (let q = i - (pre ? 1 : 0) - 1; q >= 0 && markBlock(messages[q]) < 0; q--) { over += before[q + 1] - before[q]; stepped++; }
       steps.push({
         ids: ids.slice(0, took), chars: sum, tokens: Math.round(sum * RESULT_TOKENS_PER_CHAR),
         recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
-        tail: Math.round((acc + pre + count + (pre ? 1 : 0) + 1) * TOKENS_PER_CHAR), firstChanged: i,
+        tail: Math.round((acc + pre + over + count + (pre ? 1 : 0) + stepped + 1) * TOKENS_PER_CHAR), firstChanged: i,
       });
     }
   }
@@ -655,6 +663,16 @@ export function applyCut(messages, cut, { cutInputs = PROXY_DEFAULTS.cutInputs, 
 // `breakpointsOf` is what the request already carries, which decides whether there is room for one more.
 const MAX_BREAKPOINTS = 4;
 const MARKABLE = new Set(['text', 'tool_use', 'tool_result', 'image', 'document']);
+// The block of a message a breakpoint can sit on: its last one of a kind that may carry `cache_control`, or -1.
+// A thinking block may not, an empty text block may not, and a message whose content is a plain string is
+// left alone, because turning it into a block is a change to the prefix itself. One rule for where the
+// breakpoint goes (`placeMark`) and for what the ladder prices as written (`cutCandidates`).
+export function markBlock(m) {
+  const c = m?.content;
+  if (!Array.isArray(c)) return -1;
+  for (let n = c.length - 1; n >= 0; n--) { const b = c[n]; if (MARKABLE.has(b?.type) && !(b.type === 'text' && !b.text)) return n; }
+  return -1;
+}
 export function breakpointsOf(j) {
   const ttls = [], at = [];
   const see = (b, i) => { if (b && typeof b === 'object' && b.cache_control) { ttls.push(b.cache_control.ttl || '5m'); if (i != null) at.push(i); } };
@@ -709,18 +727,15 @@ export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutI
     give = later[0];
   }
   for (let i = k - 1; i >= 0; i--) {
-    const c = messages[i]?.content;
-    if (!Array.isArray(c)) continue;
-    for (let n = c.length - 1; n >= 0; n--) {
-      const b = c[n];
-      if (!MARKABLE.has(b?.type) || (b.type === 'text' && !b.text)) continue;
-      const ttl = copy.ttl || '5m';
-      if (b.cache_control) return { messages, at: i, ttl, n: bp.n, had: true };   // one is already there
-      const out = messages.slice();
-      out[i] = { ...messages[i], content: c.map((x, q) => (q === n ? { ...x, cache_control: { ...copy } } : x)) };
-      if (give) out[give[0]] = { ...out[give[0]], content: out[give[0]].content.map((x, q) => { if (q !== give[1]) return x; const { cache_control: _gone, ...rest } = x; return rest; }) };
-      return { messages: out, at: i, ttl, n: give ? bp.n : bp.n + 1, ...(give ? { moved: give[0] } : {}) };
-    }
+    const n = markBlock(messages[i]);
+    if (n < 0) continue;
+    const c = messages[i].content, b = c[n];
+    const ttl = copy.ttl || '5m';
+    if (b.cache_control) return { messages, at: i, ttl, n: bp.n, had: true };   // one is already there
+    const out = messages.slice();
+    out[i] = { ...messages[i], content: c.map((x, q) => (q === n ? { ...x, cache_control: { ...copy } } : x)) };
+    if (give) out[give[0]] = { ...out[give[0]], content: out[give[0]].content.map((x, q) => { if (q !== give[1]) return x; const { cache_control: _gone, ...rest } = x; return rest; }) };
+    return { messages: out, at: i, ttl, n: give ? bp.n : bp.n + 1, ...(give ? { moved: give[0] } : {}) };
   }
   return null;
 }
