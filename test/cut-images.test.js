@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { applyCut, cutCandidates, saveCutImages, imagePathIn, wireChars, measurePrompt, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { applyCut, cutCandidates, saveCutImages, imagePathIn, wireChars, measurePrompt, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR, TOKENS_PER_CHAR, resultTokens } from '../src/proxy.js';
 import { imagePlaceholder, policyId, placeholder } from '../src/cutting.js';
 
 // a PNG as far as its header goes: 1280x800, which the API charges 1280*800/750 = 1365 tokens for
@@ -73,7 +73,7 @@ test('the placeholder names the file, the short line stays, and the image is gon
 test('a long result with a screenshot loses both, and says where the picture went', t => {
   const dir = tmp(t), imagePath = imagePathIn(dir), long = 'p'.repeat(5000), ms = browse(5, { text: long });
   const cand = cutCandidates(ms, { keepMin: 3, imagePath });
-  assert.ok(Math.abs(cand.tokens - 2 * (Math.round(5000 * RESULT_TOKENS_PER_CHAR) + TOKENS)) < 10, 'the text and the image are both the saving');
+  assert.ok(Math.abs(cand.tokens - 2 * (resultTokens(long) + TOKENS)) < 10, 'the text and the image are both the saving');
   saveCutImages(ms, cand.ids, imagePath);
   const text = applyCut(ms, cand.ids, { imagePath }).messages[2].content[0].content[0].text;
   assert.equal(text, `${placeholder(5000)}\n${imagePlaceholder([path.join(dir, 's0-0.png')])}`);

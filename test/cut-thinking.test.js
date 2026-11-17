@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { transformRequest, proxyConfig, cutCandidates, applyCut, thinkingChars, thinkingGone, turnIndex, turnId, PROXY_DEFAULTS, TOKENS_PER_CHAR, THINKING_TOKENS_PER_CHAR } from '../src/proxy.js';
+import { transformRequest, proxyConfig, cutCandidates, applyCut, thinkingChars, thinkingGone, turnIndex, turnId, PROXY_DEFAULTS, TOKENS_PER_CHAR, THINKING_TOKENS_PER_CHAR, resultTokens } from '../src/proxy.js';
 import { cutResponse, freshCut, addThink, mergeCut, policyId } from '../src/cutting.js';
 import { serviceArgs } from '../src/proxy-service.js';
 
@@ -59,7 +59,7 @@ test('a cut leaves out the thinking after its oldest result and before the turn 
   assert.deepEqual(thinkingAt(a.messages), [1, 3, 5], 'everything above the cut point stays, as one run');
   const lost = [7, 9, 11, 13, 15, 17, 19, 21, 23].reduce((n, i) => n + thinkingChars(ms[i]), 0);
   assert.equal(a.thinking, Math.round(lost * THINKING_TOKENS_PER_CHAR));
-  assert.equal(a.tokens, Math.round(a.chars * 0.445) + a.thinking, 'and it is part of what the prompt is shorter by');
+  assert.equal(a.tokens, resultTokens('x'.repeat(a.chars)) + a.thinking, 'and it is part of what the prompt is shorter by');
   for (const i of [7, 23]) assert.deepEqual(a.messages[i].content, ms[i].content.filter(b => !isThink(b)), 'the rest of the message is the agent\'s own');
   assert.equal(ms[7].content.length, 2, 'the request\'s own messages are not written on');
   // the turn in progress: its thinking must go back to the API as it came
