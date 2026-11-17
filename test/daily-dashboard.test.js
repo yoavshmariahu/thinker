@@ -45,22 +45,22 @@ test('dashboard provisioning creates Thinker by day, maps its filters, lays its 
 
 test('every daily card reads a day\'s own figure, and the savings count from the day the cut shipped', () => {
   const by = name => dailyQuestions.find(q => q.name.startsWith(name));
-  assert.equal(dailyQuestions.length, 8);
+  assert.equal(dailyQuestions.length, 7);
   // a day from the newest snapshot that carries it, never a 30-day sum by snapshot
-  for (const [name, block] of [['Total saved', 'sessions'], ['Saved since', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
+  for (const [name, block] of [['Total saved', 'sessions'], ['Saved per day', 'sessions'], ['Devices with a thinker session', 'sessions'], ['Context cuts', 'proxy'], ['Delegations', 'delegate'], ['Saved by delegation', 'delegate']]) {
     const q = by(name);
     assert.ok(q, name);
     assert.match(q.sql, new RegExp(`\\{${block},byDay\\}`), `"${name}" reads ${block}.byDay`);
     assert.match(q.sql, /DISTINCT ON \(s\.device, dd\.day\)/, `"${name}" takes each device's day once`);
   }
   assert.equal(SAVINGS_SINCE, '2026-11-05', 'nothing on or before 2026-11-04 is counted');
-  for (const name of ['Total saved', 'Saved since', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-05'/, name);
+  for (const name of ['Total saved', 'Saved per day']) assert.match(by(name).sql, /day_utc >= DATE '2026-11-05'/, name);
   // a day both kinds of snapshot carry is read from the correctly dated one; an older client is still read
-  for (const name of ['Total saved', 'Saved since', 'Saved per day']) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
+  for (const name of ['Total saved', 'Saved per day']) { assert.match(by(name).sql, /\{sessions,byDaySchema\}' = '2', FALSE\) AS preferred/, name); assert.match(by(name).sql, /ORDER BY s\.device, dd\.day, s\.preferred DESC/, name); }
   assert.match(by('Saved per day').sql, /devices_with_corrected_dating/);
-  assert.match(by('Total saved').sql, /figures->>'netUsd'/);
-  assert.match(by('Saved since').sql, /figures->>'stampedNetUsd'/);
-  assert.doesNotMatch(by('Saved since').sql, /'netUsd'/);
+  // only a saving that names its cut policy is counted: no card reads the unstamped figures
+  for (const name of ['Total saved', 'Saved per day']) { assert.match(by(name).sql, /figures->>'stampedNetUsd'/, name); assert.doesNotMatch(by(name).sql, /'netUsd'|'clearedSessions'|'clearedTokens'/, name); }
+  assert.match(by('Saved per day').sql, /figures->>'stampedSavedUsd'/);
   assert.deepEqual(by('Saved per day').settings['graph.metrics'], ['net_saved_usd']);
   // the total is the clearing's net plus what delegation saved, each from its own block's days
   assert.match(by('Total saved').sql, /\{delegate,byDay\}/);
