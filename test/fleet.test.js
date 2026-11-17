@@ -26,7 +26,7 @@ function machine(t, { key = KEY } = {}) {
   };
   const spawnFn = (...args) => { spawned.push(args); return { unref() {} }; };
   const event = (session, { prompts = 1, tokens = 1000, cleared = 0, cost = null, lastAt = '2026-11-17T09:59:00.000Z', decisions } = {}) => ({
-    session, client: 'claude', firstAt: '2026-11-17T09:50:00.000Z', lastAt, prompts, tokens, cleared, decisions,
+    session, client: 'claude', model: 'claude-opus-5', firstAt: '2026-11-17T09:50:00.000Z', lastAt, prompts, tokens, cleared, decisions,
     cost: cost || { priced: true, saved: 0, net: 0, rewrite: 0, reread: 0, spend: tokens / 1e6 } });
   const note = (session, figures, now) => noteSession(null, { session, home, env, now, event: event(session, figures) });
   return { home, env, calls, spawned, fleet, fetchFn, spawnFn, note, opts: now => ({ home, env, now, fetchFn, spawnFn }) };
@@ -74,8 +74,8 @@ test('the first report goes at once and carries the closed list; later ones carr
   assert.equal(call.url, 'http://127.0.0.1:9/v1/reports');
   assert.equal(call.auth, 'Bearer ' + KEY);
   assert.deepEqual(Object.keys(call.body).sort(), ['hostname', 'machine_id', 'os', 'report_id', 'sessions', 'thinker_version']);
-  assert.deepEqual(Object.keys(call.body.sessions[0]).sort(), ['agent', 'last_at', 'metrics', 'repo', 'session_id', 'started_at']);
-  assert.deepEqual(call.body.sessions[0], { session_id: 'ses_1', started_at: '2026-11-17T09:50:00.000Z', last_at: '2026-11-17T09:59:00.000Z', agent: 'claude', repo: null,
+  assert.deepEqual(Object.keys(call.body.sessions[0]).sort(), ['agent', 'last_at', 'metrics', 'model', 'repo', 'session_id', 'started_at']);
+  assert.deepEqual(call.body.sessions[0], { session_id: 'ses_1', started_at: '2026-11-17T09:50:00.000Z', last_at: '2026-11-17T09:59:00.000Z', agent: 'claude', model: 'claude-opus-5', repo: null,
     metrics: { prompts: 3, tokens: 1200, spend_usd: 0.0012 } });
   assert.ok(!JSON.stringify(call.body).includes(m.home), 'no path');
   assert.ok(!fs.readFileSync(path.join(m.home, 'state', 'fleet.json'), 'utf8').includes('thk_'), 'the key is not in the state');
