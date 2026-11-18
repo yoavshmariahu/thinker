@@ -642,6 +642,82 @@ async function delegateCall($: any, e: any): Promise<string | null> {
   return report ? String(order.wrap).replace(REPORT_SLOT, report) : null
 }
 
+// --- thinker off for one session ---------------------------------------------------------------
+// `/thinker-disable` takes the session it is typed in out of thinker and leaves every other session as it
+// was (issue #858): the wiring is machine-wide (the proxy's URL and the hooks are in the agent's settings,
+// read by every session), and this is the one place that runs inside a single session. Two writes to this
+// process's environment do it, checked live on Claude Code 2.1.327 (2026-11-18):
+//   - ANTHROPIC_BASE_URL unset: the engine reads it at every send, so the next model request goes to
+//     Anthropic itself and the proxy never sees the session again. Rewriting the request's URL in an
+//     `http.fetch` hook does not do this: the engine keeps the credential to the origin the request was
+//     raised for, and Anthropic answers 401.
+//   - THINKER_HOOKS=off: every hook command the engine starts afterwards inherits it, and a user-scope
+//     hook returns on it before doing anything (commands/hooks.js). The hooks cannot be taken out for one
+//     session: the engine runs the settings' hooks whatever a `settings.read` hook answers, and a
+//     `classic.*` hook that answers in their place silences every other tool's hooks with them.
+// Only thinker's own plain route is taken away: a gateway, the desktop app's own URL and the Bedrock route
+// (a path on the proxy, with a credential of its own beside it) are left where they are, and the answer
+// says so. The mark is a file by session id, so a resumed session and a reloaded mod stay off; it holds
+// what was there, for `/thinker-enable` to put back.
+export const SESSION_OFF_MARK = 'session-off'
+export const DISABLE = 'thinker-disable'
+export const ENABLE = 'thinker-enable'
+export type OffMark = { off: boolean; baseUrl?: string | null; hooks?: string | null; at?: number }
+// the proxy service's own URL with no path (state/proxy-service.json: `port`, and `ports` while one is being replaced)
+export function ownRoute(baseUrl: string | undefined | null, service: any): boolean {
+  const m = /^https?:\/\/(?:127\.0\.0\.1|localhost):(\d+)\/?$/i.exec(String(baseUrl ?? '').trim())
+  if (!m) return false
+  const ports = [service?.port, ...(Array.isArray(service?.ports) ? service.ports : [])].map(Number).filter(n => n > 0)
+  return ports.includes(Number(m[1]))
+}
+// what `/thinker-disable` answers: whether the route went, and why not when it stayed
+export function offWords(route: 'direct' | 'none' | 'kept' | 'refused', baseUrl?: string | null, why?: string): string {
+  const hooks = 'its hooks do nothing here'
+  if (route === 'direct') return `thinker is off for this session: model requests go straight to Anthropic, not through the proxy, and ${hooks}. Other sessions are unchanged. /${ENABLE} turns it back on.`
+  if (route === 'none') return `thinker is off for this session: it was not going through the proxy, and ${hooks}. Other sessions are unchanged. /${ENABLE} turns it back on.`
+  if (route === 'refused') return `thinker's hooks are off for this session, but it still goes through the proxy: Claude Code refused the change${why ? ` (${why})` : ''}. /${ENABLE} turns the hooks back on.`
+  return `thinker's hooks are off for this session, but its route is left as it is: ${baseUrl} is not thinker's plain proxy route, so taking it away would break the session. /${ENABLE} turns the hooks back on.`
+}
+let off: OffMark | null = null
+const homeOf = async ($: any) => (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+const offFile = async ($: any) => `${await homeOf($)}/state/${SESSION_OFF_MARK}/${String(await $.session.id()).replace(/[^\w.-]/g, '_')}.json`
+const serviceOf = async ($: any) => { try { return JSON.parse(String(await $.fs.read(`${await homeOf($)}/state/proxy-service.json`))) } catch { return null } }
+async function readOff($: any): Promise<OffMark | null> {
+  try { const m = JSON.parse(String(await $.fs.read(await offFile($)))); return m?.off === true ? m : null } catch { return null }
+}
+// Applies the mark to this process: called by the command, and at every session start that finds the mark
+// (a resumed session starts with the settings' route again; after a reload there is nothing left to take).
+async function sessionOff($: any, was: OffMark | null): Promise<string> {
+  const url = await $.env.get('ANTHROPIC_BASE_URL')
+  const own = ownRoute(url, await serviceOf($))
+  let route: 'direct' | 'none' | 'kept' | 'refused' = url ? 'kept' : 'none', why = ''
+  if (own) { const r = await $.env.set('ANTHROPIC_BASE_URL', undefined); route = r?.deny ? 'refused' : 'direct'; why = r?.deny || '' }
+  const hooks = await $.env.get('THINKER_HOOKS')
+  await $.env.set('THINKER_HOOKS', 'off')
+  off = { off: true, baseUrl: was?.baseUrl ?? (route === 'direct' ? url : null), hooks: was ? was.hooks ?? null : hooks ?? null, at: was?.at ?? Date.now() }
+  await $.fs.write(await offFile($), JSON.stringify(off))
+  auto = false
+  delegating = false
+  return offWords(route === 'none' && off.baseUrl ? 'direct' : route, url, why)
+}
+async function sessionOn($: any): Promise<string> {
+  const was = off ?? await readOff($)
+  if (!was) return `thinker is on in this session already. /${DISABLE} turns it off here.`
+  await $.env.set('THINKER_HOOKS', was.hooks ?? undefined)
+  // the route goes back only while it is still the service's: a proxy that was turned off or moved since is not written back
+  let route = ''
+  if (was.baseUrl && !(await $.env.get('ANTHROPIC_BASE_URL'))) {
+    if (ownRoute(was.baseUrl, await serviceOf($))) { const r = await $.env.set('ANTHROPIC_BASE_URL', was.baseUrl); route = r?.deny ? ` Claude Code refused to put the proxy route back (${r.deny}): requests stay direct.` : ' Model requests go through the proxy again.' }
+    else route = ' The proxy is no longer at the address this session had, so requests stay direct; a new session takes the current route.'
+  }
+  off = null
+  await $.fs.write(await offFile($), JSON.stringify({ off: false }))
+  const test = (await $.env.get('THINKER_TEST')) === '1'
+  auto = policy.auto && !test && !proxied(await $.env.get('ANTHROPIC_BASE_URL')) && !heldOut(String(await $.session.id()), policy.holdout)
+  await delegateSetup($)
+  return `thinker is on for this session again: its hooks run.${route}`
+}
+
 export const register: Register = (on) => {
   for (const tool of ['Read', 'Bash']) on('tool.call', { tool }, async ($, e, next) => {
     let words: string | null = null
@@ -691,6 +767,11 @@ export const register: Register = (on) => {
       const test = (await $.env.get('THINKER_TEST')) === '1'
       auto = policy.auto && !test && !proxied(await $.env.get('ANTHROPIC_BASE_URL')) && !heldOut(session, policy.holdout)
       $.command.register({ name: COMMAND, description: 'Clear old tool results from this conversation in place (thinker)' })
+      $.command.register({ name: DISABLE, description: 'Turn thinker off for this session only: no proxy, no hooks' })
+      $.command.register({ name: ENABLE, description: 'Turn thinker back on for this session' })
+      // a session that was turned off stays off: resumed, it starts with the settings' route again
+      off = await readOff($)
+      if (off) await sessionOff($, off)
       // once per machine, in the desktop app, where there was no clearing before this mod: say so
       if (auto && (await $.env.get('CLAUDE_CODE_ENTRYPOINT')) === 'claude-desktop' && !(await $.store.get(INTRODUCED))) {
         await $.store.set(INTRODUCED, Date.now())
@@ -796,6 +877,13 @@ export const register: Register = (on) => {
     if (from === 'manual') $.ui.toast(`thinker ${describe(c)}`)
     return { messages: c.messages }
   }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: DISABLE }, async ($) => {
+    try { return { text: await sessionOff($, off ?? await readOff($)) } } catch (err: any) { return { text: `${DISABLE}: ${String(err?.message || err).slice(0, 200)}` } }
+  })
+  on('command.run', { command: ENABLE }, async ($) => {
+    try { return { text: await sessionOn($) } } catch (err: any) { return { text: `${ENABLE}: ${String(err?.message || err).slice(0, 200)}` } }
+  })
 
   on('command.run', { command: COMMAND }, async ($) => {
     if (pending) return { text: 'thinker-clear: a clear is already on its way' }
