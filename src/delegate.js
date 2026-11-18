@@ -43,7 +43,7 @@ import { sessionState, locked } from './session-state.js';
 import { claudeCardActive } from './claude-card.js';
 import { traceFile } from './transcripts.js';
 import { shellRead } from './shell-read.js';
-import { keepPatterns, keepReason } from './keep.js';
+import { keepPatterns, keepMatcher, namedIn } from './keep.js';
 export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
@@ -415,6 +415,20 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     });
     return null;
   }
+  // A kept file is read by the model itself, whatever its size (keep.js): the person's notes (`*.md`), what the
+  // profile learned they point at, a file they named in the prompt this turn answers. A report of such a file
+  // is the harm the keep list exists for -- the model working from a summary of the one file it was told to
+  // read. Decided before the holdout, so both sides read it alike and the row says why nothing fired.
+  let ctx = null;
+  if (d.kind === 'explore' && d.fire) {
+    const match = keepMatcher(cfg.keepPatterns || keepPatterns());
+    let why = read.files.some(match) ? 'pattern' : null;
+    if (!why) { ctx = lastPrompt() || {}; if (read.files.some(namedIn([ctx.prompt || '']))) why = 'named'; }
+    if (why) {
+      log({ op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, threshold: cfg.threshold, mode: exec.mode, fired: false, declined: 'kept', kept: why });
+      return null;
+    }
+  }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
   const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode };
@@ -424,7 +438,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (d.spent) { log({ ...row, fired: false, after: 'handoff' }); return null; }
   // a host with no subagent of its own and no fallback asked for: read as before, and say why in the log
   if (exec.mode === 'none') { log({ ...row, fired: false, skipped: exec.reason }); return null; }
-  const ctx = lastPrompt() || {};
+  ctx = ctx || lastPrompt() || {};
   const brief = d.kind === 'verify'
     ? verifierBrief({ command: suite, cwd, rules: handoff })
     : explorerBrief({ files, prompt: ctx.prompt, lastSay: ctx.lastSay, cwd, lines: cfg.reportLines, rules: handoff });

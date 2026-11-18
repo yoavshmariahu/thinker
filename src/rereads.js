@@ -22,6 +22,10 @@
 // call until a cut takes it too -- the very reads the saving counted as avoided, since the old copy is still out of
 // the prompt. Both come off the saving. One rule: a re-read of a cleared file costs its write and its reads after.
 //
+// The keep list (keep.js, policy r10) is not replayed here: a kept result was never cut, and this still counts it as
+// cleared, so a later read of a kept file is charged as a re-read it was not. That errs the one way this figure may --
+// over -- and replaying it would need each cut's policy, since the cuts before r10 did take those results.
+//
 // Never understated: a read the model would have made anyway (checking an edit) counts too, so the figure is a ceiling
 // on what the clearing cost in reading, not a floor. What it cannot see is an answer that went wrong without a read,
 // which is the graded run's question (Artemis), not this one's.
@@ -29,7 +33,7 @@ import path from 'node:path';
 import { Buffer } from 'node:buffer';
 import { PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from './proxy.js';
 import { MIN_CHARS, clearedOf } from './cutting.js';
-import { shellRead } from './delegate.js';
+import { shellRead } from './shell-read.js';
 import { compressionRecords, readCompression, CLEARING_OP } from './compression.js';
 
 const ms = v => (typeof v === 'number' ? v : typeof v === 'string' ? Date.parse(v) || 0 : 0);
