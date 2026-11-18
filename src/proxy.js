@@ -216,13 +216,13 @@ export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true, quiet
     let e = seen.get(key);
     if (!e) {
       if (seen.size >= AUTH_SESSIONS) seen.delete(seen.keys().next().value);
-      seen.set(key, e = { agent, named: !!session, refusals: 0, answeredAt: 0, held: false });
+      seen.set(key, e = { agent, named: !!session, refusals: 0, answeredAt: null, held: false });
     }
     return e;
   };
   const works = e => {
-    if (e.named && e.answeredAt) return 'the API answered this session before';
-    for (const o of seen.values()) if (o !== e && o.named && o.agent === e.agent && o.answeredAt && now() - o.answeredAt < quietMs) return 'the API is answering another session of the same agent';
+    if (e.named && e.answeredAt !== null) return 'the API answered this session before';
+    for (const o of seen.values()) if (o !== e && o.named && o.agent === e.agent && o.answeredAt !== null && now() - o.answeredAt < quietMs) return 'the API is answering another session of the same agent';
     return null;
   };
   const fire = (e, reason) => {
