@@ -169,9 +169,10 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 **The keep list: file reads no cut takes and no delegation hands away (2026-11-17, `src/keep.js`):**
 - From a person's report: an agent that "forgets what worked", whose notes file they had to shout at it to read again. A read of the notes is a tool result like any other, and a model that carries on without it scores zero on the re-read measure.
 - The newest copy of a kept file stays (a whole read, a `cat`, a Write); older copies are cut as before. Kept: `*.md`, what the profile learned, a file the person named in a prompt, a file read again after a cut.
+- A web address is kept as a file is (a fetch tool's call, an untrimmed `curl`): learned or named, and it covers the pages under it.
 - No model at decision time. The profile's reader records `sources` on an observation (files the person pointed at, held to their own words by `sourcePattern`); `profile.js:syncKeep` writes them to `<THINKER_HOME>/state/keep.json`, a list per checkout, read together by every door.
 - Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the mod's own copy between `keep:begin`/`keep:end` (run against keep.js by `test/keep.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
-- Delegation's "named" reads the newest prompt only; `rereads.js` does not replay the list (it errs over).
+- Delegation's "named" reads the newest prompt only.
 - Replayed over this machine's 14 days (16 cut sessions, 1.88M tokens taken): `.md` 1.3% of it, the list as a whole 8.3%, most of that files named in a prompt.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**

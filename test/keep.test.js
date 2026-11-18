@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { KEEP_DEFAULT, keepMatcher, namedIn, copyOf, keptCalls, keepPatterns, writeKeep, keepFile, sourcePattern } from '../src/keep.js';
+import { KEEP_DEFAULT, keepMatcher, namedIn, copyOf, keptCalls, keepPatterns, writeKeep, keepFile, sourcePattern, urlKey } from '../src/keep.js';
 import { cutCandidates, keptOf, transformRequest, proxyConfig } from '../src/proxy.js';
 import { responsesCandidates, responsesKept } from '../src/proxy-responses.js';
 import { chatCandidates, chatKept } from '../src/proxy-chat.js';
@@ -76,6 +76,37 @@ test('the newest copy of a kept file stays: by pattern, by the person naming it,
   assert.deepEqual([...keptCalls(calls.slice(0, 1), { cut: ['1'] }).ids], []);
 });
 
+test('a web address is kept as a file is: learned, or named by the person, and it covers what lies under it', () => {
+  assert.equal(urlKey('HTTPS://www.Example.com/Insights/#top'), 'example.com/insights');
+  const m = keepMatcher(['*.md', 'https://example.com/insights']);
+  assert.equal(m('https://example.com/insights'), true);
+  assert.equal(m('http://www.example.com/insights/?range=7d'), true, 'another spelling, and a page under it');
+  assert.equal(m('https://example.com/insights/posts/42'), true);
+  assert.equal(m('https://example.com/insights-old'), false, 'a parent covers whole segments only');
+  assert.equal(m('https://example.com/'), false, 'and never the site above it');
+  assert.equal(m('https://raw.githubusercontent.com/o/r/main/README.md?x=1'), true, 'a page named like the notes is the notes');
+  const said = namedIn(['what does https://example.com/insights say now? (see https://other.io/a.)']);
+  assert.equal(said('https://example.com/insights?range=30d'), true);
+  assert.equal(said('https://other.io/a'), true, 'the bracket and the full stop are the sentence\'s');
+  assert.equal(said('https://example.com/pricing'), false);
+  // a fetch is a copy: the fetch tool's, or a curl nothing trims
+  assert.deepEqual(copyOf('WebFetch', { url: 'https://example.com/insights', prompt: 'summarise' }), { files: ['https://example.com/insights'], whole: true });
+  assert.deepEqual(copyOf('Bash', { command: 'curl -sL "https://example.com/insights?a=1&b=2"' }), { files: ['https://example.com/insights?a=1&b=2'], whole: true });
+  assert.equal(copyOf('Bash', { command: 'curl -s https://example.com/insights | jq .data' }), null, 'a trimmed fetch is the model trimming for itself');
+  assert.equal(copyOf('WebFetch', { url: 'not a url' }), null);
+  // the newest fetch of a learned address stays; the older one is cut as any result is
+  const calls = [
+    { id: '1', name: 'WebFetch', input: { url: 'https://example.com/insights' } }, { id: '2', name: 'WebFetch', input: { url: 'https://example.com/pricing' } },
+    { id: '3', name: 'WebFetch', input: { url: 'https://example.com/insights' } },
+  ];
+  assert.deepEqual([...keptCalls(calls, { patterns: ['https://example.com/insights'] }).ids], ['3']);
+  assert.deepEqual([...keptCalls(calls, { prompts: ['look at https://example.com/pricing'] }).ids], ['2']);
+  // learned only as the person wrote it
+  assert.equal(sourcePattern('https://example.com/insights.', ['check https://example.com/insights. again']), 'https://example.com/insights');
+  assert.equal(sourcePattern('https://example.com/other', ['check https://example.com/insights again']), null);
+  assert.equal(sourcePattern('https://example.com/*', ['check https://example.com/* again']), null);
+});
+
 test('the clearing mod\'s copy of the rule gives the same answers as keep.js', () => {
   const src = fs.readFileSync(new URL('../src/integrations/claude-clear/hooks/register.tsx', import.meta.url), 'utf8');
   const a = src.indexOf('// keep:begin'), b = src.indexOf('// keep:end');
@@ -89,10 +120,13 @@ test('the clearing mod\'s copy of the rule gives the same answers as keep.js', (
     { id: '5', name: 'shell', input: { command: ['bash', '-lc', 'cat stats.csv'] } }, { id: '6', name: 'Write', input: { file_path: 'out/Plan.MD', content: 'x' } },
     { id: '7', name: 'Bash', input: { command: "sed -n '1,9p' docs/plan.txt" } }, { id: '8', name: 'Bash', input: { command: 'cat a.py | head -3' } },
     { id: '9', name: 'exec_command', input: '{"cmd":"cat \\"my notes.md\\" other.txt"}' }, { id: '10', name: 'Grep', input: { pattern: 'x' } },
+    { id: '11', name: 'WebFetch', input: { url: 'https://Example.com/insights/?range=7d' } }, { id: '12', name: 'Bash', input: { command: 'curl -sL https://other.io/a' } },
+    { id: '13', name: 'Bash', input: { command: 'curl -s https://other.io/a | head' } }, { id: '14', name: 'web_fetch', input: { url: 'https://raw.example.com/r/README.md' } },
   ];
   for (const opts of [
     {}, { cut: ['2'] }, { cut: ['1', '2', '5'] }, { prompts: ['read stats.csv and other.txt'] },
     { patterns: ['*.md', 'docs/plan.txt', '**/a.py'], prompts: ['<system-reminder>stats.csv</system-reminder> go'] },
+    { patterns: ['https://example.com/insights'], prompts: ['see https://other.io/a.'] }, { patterns: [], cut: ['11'] },
   ]) {
     const ours = keptCalls(calls, opts), theirs = mod.keptCalls(calls, opts);
     assert.deepEqual([...theirs.ids], [...ours.ids], JSON.stringify(opts));
@@ -230,4 +264,53 @@ test('the session reader\'s sources reach the ledger checked, and the ledger\'s 
   appendObservations(store, r.observations, { session: 's1', client: 'claude' });
   assert.equal(syncKeep(store, { dir: home }), true);
   assert.deepEqual(keepPatterns({ dir: home }), ['*.md', 'learnings.txt']);
+});
+
+test('the re-read measure replays the list: a kept file was never cut, so reading it again is no re-read', async () => {
+  const { rereadsOf } = await import('../src/rereads.js');
+  const at = n => Date.parse('2026-11-17T10:00:00Z') + n * 60_000;
+  const read = (file, n) => ({ t: 'tool', name: 'Read', input: { file_path: file }, result: big(4000), at: at(n) });
+  const events = [
+    { t: 'prompt', text: 'track the posts', at: at(0) },
+    read('/w/learnings.md', 1), read('/w/a.py', 2), read('/w/x1.py', 3), read('/w/x2.py', 4), read('/w/x3.py', 5),
+    { t: 'prompt', text: 'next', at: at(10) },
+    read('/w/learnings.md', 12), read('/w/a.py', 13),
+  ];
+  const cut = [at(11)];
+  const kept = rereadsOf({ events, calls: [] }, cut, { patterns: KEEP_DEFAULT });
+  assert.equal(kept.reads, 1, 'a.py was cut and read again; learnings.md was kept');
+  // without the list both were cut, and both reads are re-reads
+  assert.equal(rereadsOf({ events, calls: [] }, cut, { patterns: [] }).reads, 2);
+});
+
+test('through the running proxy: the kept result reaches the upstream whole, and the log row says what was held back', async t => {
+  const http = await import('node:http');
+  const { startProxy } = await import('../src/proxy.js');
+  const seen = [];
+  const usage = { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 };
+  const upstream = http.createServer((req, res) => {
+    const chunks = []; req.on('data', c => chunks.push(c)); req.on('end', () => {
+      seen.push(JSON.parse(Buffer.concat(chunks).toString()));
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(`data: ${JSON.stringify({ id: 'x', choices: [{ delta: { content: 'ok' } }], usage })}\n\ndata: [DONE]\n\n`);
+    });
+  });
+  await new Promise(r => upstream.listen(0, '127.0.0.1', r));
+  const dir = tmp(t), logFile = path.join(dir, 'proxy.jsonl');
+  const url = `http://127.0.0.1:${upstream.address().port}/api/v1`;
+  const proxy = startProxy({ ...proxyConfig({ 'gateway-openrouter': true }, {}), trigger: 1, clearAtLeast: 1, keepMin: 0, upstream: url, gateways: { openrouter: { upstream: url } }, keepPatterns: KEEP_DEFAULT },
+    { logFile, clearingDir: path.join(dir, 'clearing'), compressionDir: path.join(dir, 'compression') });
+  await new Promise(r => proxy.once('listening', r));
+  t.after(() => { proxy.close(); upstream.close(); });
+  const callOf = (id, file) => ({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'read', arguments: JSON.stringify({ path: file }) } }] });
+  const messages = [
+    { role: 'user', content: 'track the posts' }, callOf('a', 'learnings.md'), { role: 'tool', tool_call_id: 'a', content: big(4000, 'n') },
+    callOf('b', 'data.json'), { role: 'tool', tool_call_id: 'b', content: big(60000, 'd') }, { role: 'user', content: 'next' },
+  ];
+  const r = await fetch(`http://127.0.0.1:${proxy.address().port}/openrouter/chat/completions`, { method: 'POST', headers: { authorization: 'Bearer mock-only', 'x-session-id': 'keep-http' }, body: JSON.stringify({ model: 'test-model', messages, stream: true }) });
+  await r.text();
+  assert.equal(seen[0].messages[2].content, big(4000, 'n'), 'the notes went upstream as they were');
+  assert.match(seen[0].messages[4].content, /removed by thinker after use/);
+  const row = fs.readFileSync(logFile, 'utf8').trim().split('\n').map(l => JSON.parse(l)).find(x => x.op === 'proxy');
+  assert.deepEqual(row.kept, { results: 1, tokens: 1000 }, 'the row carries what the keep list held back');
 });

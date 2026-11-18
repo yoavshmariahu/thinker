@@ -177,7 +177,7 @@ const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m
 
 // ---- the keep list: file reads a clear never takes (src/keep.js, 2026-11-17) ----
 // The proxy's rule, in this door's own copy, there being no import in a mod: the newest copy of a kept file
-// stays -- a `*.md`, what the profile learned the person points at (`<THINKER_HOME>/state/keep.json`), a file
+// stays (a read, a write, or a fetch of a web address) -- a `*.md`, what the profile learned the person points at (`<THINKER_HOME>/state/keep.json`), a file
 // the person named in a prompt, a file read again after a clear took it. The block between the two markers is
 // run by test/keep.test.js against keep.js on the same conversations, so the two cannot drift. It is written
 // with `any` alone for that reason: the test strips the annotations and evaluates what is left.
@@ -186,19 +186,24 @@ export const KEEP_DEFAULT = ['*.md']
 const kEsc = (s: any) => String(s).replace(/[.+^${}()|[\]\\?]/g, '\\$&')
 const kGlob = (p: any) => kEsc(p).replace(/\*\*\/?/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '(?:.*/)?')
 const kNorm = (f: any) => String(f || '').replace(/\\/g, '/').replace(/^\.\//, '')
+const kIsUrl = (s: any) => /^https?:\/\//i.test(String(s || '').trim())
+const kUrlKey = (u: any) => String(u || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/#.*$/, '').replace(/\/+$/, '').toLowerCase()
+const kUrlCovers = (parent: any, key: any) => !!parent && (key === parent || (key.startsWith(parent) && '/?&'.includes(key[parent.length])))
 export function keepMatcher(patterns: any = KEEP_DEFAULT) {
-  const names: any = [], paths: any = []
+  const names: any = [], paths: any = [], urls: any = []
   for (const raw of patterns || []) {
+    if (kIsUrl(raw)) { urls.push(kUrlKey(raw)); continue }
     const p = kNorm(String(raw || '').trim())
     if (!p) continue
     if (p.includes('/')) paths.push(new RegExp(`(?:^|/)${kGlob(p.replace(/^\//, ''))}$`, 'i'))
     else names.push(new RegExp(`^${kGlob(p)}$`, 'i'))
   }
   return (file: any) => {
-    const f = kNorm(file)
+    if (kIsUrl(file)) { const key = kUrlKey(file); if (urls.some((p: any) => kUrlCovers(p, key))) return true }
+    const f = kIsUrl(file) ? kUrlKey(file).replace(/\?.*$/, '') : kNorm(file)
     if (!f) return false
     const base = f.slice(f.lastIndexOf('/') + 1)
-    return names.some((r: any) => r.test(base)) || paths.some((r: any) => r.test(f))
+    return names.some((r: any) => r.test(base)) || (!kIsUrl(file) && paths.some((r: any) => r.test(f)))
   }
 }
 const K_INJECTED = /<(thinker-[\w-]+|system[-_]reminder|command-name|command-message|command-args|local-command-stdout|local-command-caveat|task-notification|agent-message)>[\s\S]*?<\/\1>/g
@@ -206,7 +211,9 @@ const K_NAMEABLE = /^[^\s/]{1,120}\.[A-Za-z0-9]{1,8}$/
 export function namedIn(prompts: any = []) {
   const said = (Array.isArray(prompts) ? prompts : [prompts]).map((t: any) => String(t || '').replace(K_INJECTED, ' ')).join('\n').toLowerCase()
   const memo = new Map()
+  const urls = (said.match(/https?:\/\/[^\s<>"')\]]+/g) || []).map((u: any) => kUrlKey(u.replace(/[.,;:!?]+$/, '')))
   return (file: any) => {
+    if (kIsUrl(file)) { const key = kUrlKey(file); return urls.some((p: any) => kUrlCovers(p, key)) }
     const f = kNorm(file), base = f.slice(f.lastIndexOf('/') + 1).toLowerCase()
     if (!said || !K_NAMEABLE.test(base)) return false
     if (!memo.has(base)) memo.set(base, new RegExp(`(?:^|[^\\w.-])${kEsc(base)}(?![\\w-]|\\.\\w)`).test(said) || said.startsWith(base))
@@ -216,6 +223,8 @@ export function namedIn(prompts: any = []) {
 const K_SHRINKS = /\|\s*(grep|rg|head|tail|wc|awk|cut|sort|uniq|jq|python|node)\b/
 const K_READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+('[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/
 const K_READ_TOOL = /^(read|read_file|view|view_file|open_file|cat)$/i
+const K_FETCH_TOOL = /^(webfetch|web_fetch|fetch|fetch_url|url_fetch|read_url|open_url)$/i
+const K_FETCH_CMD = /^\s*(curl|wget)\s/
 const K_WRITE_TOOL = /^(write|write_file|create_file)$/i
 const K_SHELL_TOOL = /^(bash|shell|exec_command|local_shell|run_terminal_cmd|run_shell_command|execute_command|container\.exec)$/i
 const K_CD = /^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/
@@ -233,12 +242,18 @@ export function copyOf(name: any, input: any) {
     const f = kPathOf(input)
     return f && typeof (input.content ?? input.contents ?? input.text) === 'string' ? { files: [kUnquote(f)], whole: true } : null
   }
+  if (K_FETCH_TOOL.test(name)) return kIsUrl(input.url) ? { files: [String(input.url).trim()], whole: true } : null
   if (K_SHELL_TOOL.test(name)) {
     const raw = input.command ?? input.cmd
     const cmd = Array.isArray(raw) ? String(raw[raw.length - 1] ?? '') : typeof raw === 'string' ? raw : ''
     if (!cmd) return null
     const m = cmd.match(K_CD), dir = m ? kUnquote(m[1]) : ''
     const line = m ? cmd.slice(m[0].length) : cmd
+    if (K_FETCH_CMD.test(line)) {
+      if (/\|/.test(line) || /[;&]/.test(line.replace(/https?:\/\/\S+/g, ''))) return null
+      const urls = (line.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(kUnquote).filter(kIsUrl)
+      return urls.length ? { files: urls, whole: true } : null
+    }
     if (K_SHRINKS.test(line) || /[;&]|\|\|/.test(line.replace(/\|\|/g, ';'))) return null
     const r = line.match(K_READ_CMD)
     if (!r) return null

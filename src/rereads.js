@@ -22,9 +22,10 @@
 // call until a cut takes it too -- the very reads the saving counted as avoided, since the old copy is still out of
 // the prompt. Both come off the saving. One rule: a re-read of a cleared file costs its write and its reads after.
 //
-// The keep list (keep.js, policy r10) is not replayed here: a kept result was never cut, and this still counts it as
-// cleared, so a later read of a kept file is charged as a re-read it was not. That errs the one way this figure may --
-// over -- and replaying it would need each cut's policy, since the cuts before r10 did take those results.
+// The keep list is replayed with the cut (keep.js, policy r10): the newest copy of a kept file was never taken, so
+// it is not in the cleared set and a later read of that file is no re-read. The replay runs when a turn ends, on the
+// code that made the cuts, so the two agree; a session that spans the update to r10 has its earlier cuts replayed
+// with the list too, and may miss a re-read of a kept file there.
 //
 // Never understated: a read the model would have made anyway (checking an edit) counts too, so the figure is a ceiling
 // on what the clearing cost in reading, not a floor. What it cannot see is an answer that went wrong without a read,
@@ -34,6 +35,7 @@ import { Buffer } from 'node:buffer';
 import { PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR } from './proxy.js';
 import { MIN_CHARS, clearedOf } from './cutting.js';
 import { shellRead } from './shell-read.js';
+import { keptCalls, keepPatterns } from './keep.js';
 import { compressionRecords, readCompression, CLEARING_OP } from './compression.js';
 
 const ms = v => (typeof v === 'number' ? v : typeof v === 'string' ? Date.parse(v) || 0 : 0);
@@ -101,18 +103,19 @@ export const callKey = (name, input) => {
 // each tool call stamped `at` and indexed `call` into `calls`, the model calls with their own `t`), given the cut times.
 // Returns the count, the tokens read again, and `laterTokens`: each re-read's tokens times the calls it stayed in
 // the prompt for -- what delivery.js prices at the cache-read rate.
-export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS } = {}) {
+export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin = PROXY_DEFAULTS.keepMin, minChars = MIN_CHARS, patterns = keepPatterns() } = {}) {
   const none = { reads: 0, tokens: 0, laterTokens: 0, files: 0, calls: 0 };
   const times = [...new Set((cuts || []).map(ms).filter(Boolean))].sort((a, b) => a - b);
   if (!times.length) return none;
   // the turns, by the prompt that opened each: a cut at T sits in the last turn opened at or before T
   const turnAt = []; // index k (1-based) -> ms the turn opened
   const results = []; // tool calls with a result, in transcript order
+  const said = [];    // the person's prompts, by turn: what the keep list reads for a file they named
   let turn = 0;
   for (const e of events) {
-    if (e.t === 'prompt') { turn++; turnAt[turn] = ms(e.at) || turnAt[turn - 1] || 0; continue; }
+    if (e.t === 'prompt') { turn++; turnAt[turn] = ms(e.at) || turnAt[turn - 1] || 0; said[turn] = String(e.text || ''); continue; }
     if (e.t !== 'tool') continue;
-    results.push({ e, turn, at: ms(e.at), chars: chars(e.result), cleared: 0 });
+    results.push({ id: `r${results.length}`, e, turn, at: ms(e.at), chars: chars(e.result), cleared: 0 });
   }
   if (!results.length) return none;
   const turnOf = T => { let k = 0; for (let i = 1; i < turnAt.length; i++) if (turnAt[i] <= T) k = i; return k; };
@@ -123,7 +126,9 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
     const older = results.filter(r => r.turn < k), keep = keepMin;
     // `slice(-0)` is `slice(0)` -- the whole array -- so a keep of zero would protect everything rather than nothing
     const protect = new Set(keep > 0 ? older.slice(-keep) : []);
-    for (const r of older) if (!r.cleared && !protect.has(r) && r.chars >= minChars) r.cleared = turnAt[k];
+    // what the keep list held at this boundary: the conversation as it stood, the prompts so far, the cuts so far
+    const held = keptCalls(older.map(r => ({ id: r.id, name: r.e.name, input: r.e.input })), { patterns, prompts: said.slice(1, k + 1), cut: older.filter(r => r.cleared).map(r => r.id) }).ids;
+    for (const r of older) if (!r.cleared && !protect.has(r) && !held.has(r.id) && r.chars >= minChars) r.cleared = turnAt[k];
   }
   // the model calls, for how long a re-read stays in the prompt
   const callTimes = calls.map(c => ms(c.t)).filter(Boolean).sort((a, b) => a - b);

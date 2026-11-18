@@ -259,7 +259,7 @@ Fields:
 - reaction: the person's words that decided the outcome, quoted, under 160 characters. Empty for unknown.
 - lesson: one line, only from a reaction: after a correction, what should have been done; after an acceptance that followed a correction on the same work, what worked. Never from the agent's account alone. Written as an instruction for next time.
 - prefs: how the person says they want work done or answers given ("never push main", "don't ask, just do it", "no headers"), near their words. Stated only, never inferred from behaviour.
-- sources: files the person told the agent to read or work from, or said it had not read or had forgotten ("read learnings.md first", "you ignored the notes file again"), each written exactly as the person wrote it in a USER line. Only files, only from the person's own words, never a file the agent chose for itself. Empty for most observations.
+- sources: files and web addresses the person told the agent to read or work from, or said it had not read or had forgotten ("read learnings.md first", "check https://example.com/insights again", "you ignored the notes file again"), each written exactly as the person wrote it in a USER line. Only a file name, a path or a full address, only from the person's own words, never one the agent chose for itself. Empty for most observations.
 - topics: one to four short tags.
 - No file contents, no credentials; write a key or token as <token>.
 An empty list is the right answer for a session that decided nothing.
@@ -311,7 +311,7 @@ export const OBSERVATION_SCHEMA = {
           lesson: { type: 'string' },
           prefs: { type: 'array', items: { type: 'string' } },
           repeats: { type: 'array', items: { type: 'string' }, description: 'ids from SAID BEFORE that this exchange\'s prefs, lesson or correction repeat: the person said or corrected the same thing again. Empty when nothing here was said before.' },
-          sources: { type: 'array', items: { type: 'string' }, description: 'files the person told the agent to read or use, or said it missed or forgot, exactly as written in a USER line; empty when none' },
+          sources: { type: 'array', items: { type: 'string' }, description: 'files and web addresses the person told the agent to read or use, or said it missed or forgot, exactly as written in a USER line; empty when none' },
           topics: { type: 'array', items: { type: 'string' } },
         },
         required: ['turn', 'request', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics'],
@@ -333,7 +333,7 @@ export function tidyObservation(o) {
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
     reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40),
     repeats: list(o.repeats, 12, 60),
-    ...(list(o.sources, 6, 200).length ? { sources: list(o.sources, 6, 200) } : {}),
+    ...(list(o.sources, 6, 300).length ? { sources: list(o.sources, 6, 300) } : {}),
   };
 }
 
