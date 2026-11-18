@@ -1,0 +1,3 @@
+Report 3. A scorer function is stored as its body, its signature text and its name, and rebuilt from those later. Rebuilding fails or gives the wrong function when the signature has parentheses inside it. For example a body of `return sep.join(parts) + suffix` with the signature text `(parts=('a', 'b'), sep=str('-'), suffix=')') -> str` and the name join_parts should rebuild into a function that returns "a-b)" when called with no arguments and "x+y" when called with (("x", "y"), "+", "").
+
+Reproduce it, find the cause, and fix it. A signature that is not a signature at all must still be refused with the same kind of error as today. Reply in two lines at most.
