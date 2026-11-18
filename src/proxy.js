@@ -42,6 +42,7 @@ import { noteCompression } from './compression.js';
 import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
+import { keptCalls, keepPatterns } from './keep.js';
 import { decideCut, cutResponse, cutStore, freshCut, addThink, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
@@ -481,6 +482,21 @@ function walkResults(messages, keepMin, fn) {
   }
 }
 
+// The calls and the person's words of a Messages conversation, for the keep list (keep.js:keptCalls).
+export function keptOf(messages, cut = [], patterns = keepPatterns()) {
+  const calls = [], prompts = [];
+  for (const m of messages || []) {
+    const c = m?.content;
+    if (m?.role === 'user') {
+      if (typeof c === 'string') prompts.push(c);
+      else if (Array.isArray(c)) for (const b of c) if (b?.type === 'text' && typeof b.text === 'string') prompts.push(b.text);
+    } else if (m?.role === 'assistant' && Array.isArray(c)) {
+      for (const b of c) if (b?.type === 'tool_use' && b.id) calls.push({ id: b.id, name: b.name, input: b.input });
+    }
+  }
+  return keptCalls(calls, { patterns, prompts, cut });
+}
+
 // What a boundary could newly cut, and what replacing it would cost: `recache` is the messages as they
 // will be sent, all of them, which is what a result replaced in the middle makes the API write (below).
 // The ladder a boundary could cut, from the tail backwards (2026-11-13).
@@ -500,9 +516,11 @@ function walkResults(messages, keepMin, fn) {
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null, keep = null } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, inputChars = 0, firstChanged = -1, tokens = 0;
+  // what the keep list held back (keep.js): results a boundary would otherwise have had to take
+  const kept = { results: 0, tokens: 0 };
   const takeAt = new Map();
   // What each call's own text would give up, by its id (`cutting.js:cutInput`). Read once here, because the
   // ladder prices what it will send and a call's bytes leave the prompt exactly as its result's do -- a step
@@ -531,6 +549,9 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     const gone = (long ? text.length : 0) + pics;
     // in tokens: the text counted (`resultTokens`), the images and the call's own text by the character
     const tok = (long ? resultTokens(text) : 0) + charTokens(pics) + charTokens(own);
+    // The newest copy of a kept file is not a candidate at all (keep.js): the person's notes, a file they named,
+    // a file the model had to fetch back. It does not count towards `keepMin` either -- that is the recency rule's.
+    if (keep?.has(b.tool_use_id)) { kept.results++; kept.tokens += tok; return; }
     ids.push(b.tool_use_id); chars += gone; inputChars += own; tokens += tok; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: gone + own, tok });
@@ -624,6 +645,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     // `chars` is the results, `inputChars` the finished calls' own text, and `tokens` the two together, because
     // both leave the prompt and the saving is what the prompt is shorter by (`applyCut`).
     ids, chars, inputChars, tokens: tokens + thinkAll, ...(thinking ? { thinking: thinkAll } : {}),
+    ...(kept.results ? { kept } : {}),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }
@@ -899,7 +921,10 @@ export function transformRequest(method, url, headers, body, cfg) {
   let firstRange = null;
   if (cfg.cutThinking && thinkTo < m.turn) for (const [id] of rec.think || []) { const at = cutAnchor(j.messages, new Set([id])); if (at >= 0 && (!firstRange || at < firstRange.at)) firstRange = { id, at }; }
   const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [], ...(firstRange ? { from: firstRange.at + 1 } : {}) } : null;
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking });
+  const keep = keptOf(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking, keep });
+  // on every row of a boundary that had something kept: what the list cost the cut, in the cut's own tokens
+  const keptRow = cand.kept ? { kept: cand.kept } : {};
   // what the request carries for breakpoints rides on every row, because how many Claude Code sends and for
   // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
   const had = breakpointsOf(j);
@@ -925,7 +950,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (d.reason === 'seed' && marked) {
     j.messages = marked.messages;
     return { body: Buffer.from(JSON.stringify(j)), ...(stubbed ? { stubbed } : {}), policy: d.policy || policyId(cfg), reason: 'seed', model: j.model, turn: m.turn, cut: d.cut,
-      bp, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
+      bp, ...keptRow, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
       ...(d.candidate != null ? { candidate: d.candidate } : {}) };
   }
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
@@ -934,7 +959,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
   // the policy that decided this, named on the row so no reader has to date it (cutting.js:policyId): on a
   // refusal it says which floor refused, on a clear it says what the saving is worth comparing with
-  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...keptRow, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
@@ -942,7 +967,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
   const actions = cutActions(j.messages, d.cut, { cutInputs: cfg.cutInputs });
   j.messages = marked ? marked.messages : applied.messages;
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...keptRow, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
