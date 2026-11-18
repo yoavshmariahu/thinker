@@ -58,7 +58,7 @@ const bool = v => (typeof v === 'boolean' ? v : v === 'true' ? true : v === 'fal
 export const MANAGED = [
   { path: 'proxy.trigger', type: 'int', coerce: int(40_000, 400_000), min: 40_000, max: 400_000, step: 10_000, dflt: 140_000,
     label: 'Cut above', unit: 'tokens', help: 'Context size a call must reach before thinker cuts finished tool results out of it. Lower cuts sooner and more often; too low and the cache rewrite costs more than the cut saves.' },
-  { path: 'delegate.enabled', type: 'bool', coerce: bool, dflt: false,
+  { path: 'delegate.enabled', type: 'bool', coerce: bool, dflt: true,
     label: 'Delegate big reads', help: 'A read past the size below, or a whole-suite test run, is handed to a Sonnet subagent and its report comes back instead of the file.' },
   { path: 'delegate.threshold', type: 'int', coerce: int(8_000, 120_000), min: 8_000, max: 120_000, step: 1_000, dflt: 8_000,
     label: 'Delegate above', unit: 'tokens', help: 'A read of this many tokens or more is handed to the subagent. Smaller reads stay with the main model.' },
