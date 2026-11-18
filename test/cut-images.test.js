@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { applyCut, cutCandidates, saveCutImages, imagePathIn, wireChars, measurePrompt, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR, TOKENS_PER_CHAR, resultTokens } from '../src/proxy.js';
-import { imagePlaceholder, policyId, placeholder } from '../src/cutting.js';
+import { imagePlaceholder, policyId, VERSION, placeholder } from '../src/cutting.js';
 
 // a PNG as far as its header goes: 1280x800, which the API charges 1280*800/750 = 1365 tokens for
 const png = (w = 1280, h = 800, bytes = 60_000) => {
@@ -87,7 +87,7 @@ test('an image that cannot be saved stays in the prompt', t => {
 
 test('the policy names it: a saving made with screenshots cut is never pooled with one made without', () => {
   const base = { trigger: 140000, clearAtLeast: 8000 };
-  assert.equal(policyId({ ...base, cutInputs: true, cutImages: true }), 'r11-t140k-f8k-p25-deep+in+img');
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r11-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base, cutInputs: true, cutImages: true }), `v${VERSION}-t140k-f8k-p25-deep+in+img`);
+  assert.equal(policyId({ ...base, cutInputs: true }), `v${VERSION}-t140k-f8k-p25-deep+in`);
   assert.equal(PROXY_DEFAULTS.cutImages, true);
 });

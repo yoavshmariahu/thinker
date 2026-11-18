@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_WEIGHTS } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, POLICY_REV, PAYBACK } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -83,10 +83,10 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
-test('a cold boundary keeps to the trigger and the size floor, and is free where it does cut', () => {
+test('a cold boundary keeps to the trigger, the size floor and the payback, like a live one', () => {
   // Through r8 a session resumed past the cache's hour lost every eligible result at any size, because the
   // cut was free. The owner's call of 2026-11-17: that loses too much context, so a resumed session is cut
-  // by the rules of a live one, and the pause only prices the rewrite at nothing.
+  // by the rules of a live one. And of 2026-11-18: the pause no longer prices the rewrite at nothing either.
   const cfg = { trigger: 140000, clearAtLeast: 20000 };
   const cand = { ids: ['a', 'b'], tokens: 30000, recache: 90000, firstChanged: 0 };
   const h = 65 * 60 * 1000 + 1;
@@ -95,11 +95,20 @@ test('a cold boundary keeps to the trigger and the size floor, and is free where
   assert.equal(under.reason, 'below-trigger');
   const small = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, { ...cfg, clearAtLeast: 100000 }, { prompt: 200000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
   assert.equal(small.clear, false); assert.equal(small.reason, 'below-clear-minimum', 'and the size floor stands');
-  const d = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
+  // a cut that pays warm: 30k taken out for 30k written again
+  const cheap = { ...cand, recache: 30000 };
+  const d = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand: cheap, now: 1000 + h, model: 'claude-opus-5' });
   assert.equal(d.clear, true, 'over the trigger it is cut, as a live session would be');
   assert.deepEqual(d.cut, ['a', 'b']);
-  assert.equal(d.cold, true); assert.equal(d.cost, 0, 'and its rewrite is priced at nothing');
+  const warm = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand: cheap, now: 2000, model: 'claude-opus-5' });
+  assert.equal(d.cold, true, 'the row still says the request found the cache cold');
+  assert.ok(d.cost > 0 && d.cost === warm.cost && d.payback === warm.payback, 'and its rewrite is priced as a warm one is');
   assert.equal(d.candidate, 30000);
+  // so a cut a live session would refuse is refused after a pause too: 400k to write again for 30k taken out
+  const dear = { ids: ['a', 'b'], tokens: 30000, recache: 400000, firstChanged: 0 };
+  const held = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 450000, turn: 2 }, { cand: dear, now: 1000 + h, model: 'claude-fable-5-2' });
+  assert.equal(held.clear, false); assert.equal(held.reason, 'payback', 'a pause is no pass');
+  assert.ok(held.held.payback > 25);
   // nothing eligible is still nothing to cut, cold or not
   const empty = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 90000, turn: 2 }, { cand: { ids: [], tokens: 0, recache: 0 }, now: 1000 + h });
   assert.equal(empty.clear, false);
@@ -356,7 +365,7 @@ test('a refusal says which branch refused it, and a request with nothing to cut 
 // reader groups by it (cutting.js:policyId, the comment there).
 test('a policy names itself from the settings in force, so two floors are never pooled', () => {
   const now = { trigger: 140000, clearAtLeast: 60000, clearDeep: true };
-  assert.equal(policyId(now), `r${POLICY_REV}-t140k-f60k-p${PAYBACK}-deep`);
+  assert.equal(policyId(now), `v${VERSION}-t140k-f60k-p${PAYBACK}-deep`);
   // every lever that changes what a cut is worth changes the id
   assert.notEqual(policyId({ ...now, clearAtLeast: 100000 }), policyId(now), 'the floor that gates a cut');
   assert.notEqual(policyId({ ...now, trigger: 110000 }), policyId(now), 'the trigger');

@@ -96,7 +96,13 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // pays, so a cut without the breakpoint is hardly a cut at all. It shipped before any live request had shown the
 // API reading the seeded prefix; the first cut rows (`mark`, `clear.whole` beside the call's own cache read)
 // are what confirm it, and `--no-cut-breakpoint` or `proxy: { cutBreakpoint: false }` is the way back.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: false, thinkingKeepTurns: 0 };
+// `cutThinking` on with `thinkingKeepTurns` 2 since 2026-11-18, the owner's call: a cut also leaves out the
+// thinking older than the last two turns that sits inside what it already rewrites. Eight bench tasks on four
+// repositories beside a session with no proxy (bench/ledger.jsonl, 2026-11-17/18): every check and every
+// essential criterion the same, up to 32k of thinking gone in a session, no refusal from the API. What it adds
+// over a cut that keeps the thinking was not isolated there, so the holdout is what says; `--no-cut-thinking`
+// or `proxy: { cutThinking: false }` is the way back.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: true, thinkingKeepTurns: 2 };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -255,7 +261,7 @@ export const TOKENS_PER_CHAR = 1.44 / 4;
 // is priced as it will be sent, with the results already placeholders, so it is thinking, call text and prose,
 // and only the removed side is results. Pricing both at 0.36 ran the removed side a fifth short, which is the
 // wrong direction at a margin where 62 payback refusals sat at a median 23% removed against the 42% needed.
-// The tail keeps TOKENS_PER_CHAR. `POLICY_REV` 4 marks it (cutting.js).
+// The tail keeps TOKENS_PER_CHAR. The stamp `r4` marks it (cutting.js).
 export const RESULT_TOKENS_PER_CHAR = 0.445;
 // What a result's text is in tokens, counted from the text itself (2026-11-17). A flat rate a character is right
 // on average and wrong result by result: over 1,082 results from 159 of this machine's sessions, each held to
@@ -284,7 +290,7 @@ export function resultTokens(text) {
 }
 // what else leaves with a result -- its images and its call's own text -- is still sized by the character
 const charTokens = chars => Math.round(chars * RESULT_TOKENS_PER_CHAR);
-// --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`, off by default) -----------------
+// --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`; on by default since 2026-11-18) -----------------
 // A thinking block of an earlier turn may be left out of a request: "outside tool use, omit prior turns'
 // thinking, but not a block between two that you keep", and never edited (the API's thinking pages, read that
 // day). On the models that keep earlier thinking -- Opus 4.5 on, Sonnet 4.6 on, every Fable -- it is billed as
@@ -318,6 +324,16 @@ export function turnIndex(messages, turn) {
     if (m?.role !== 'user') continue;
     const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
     if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result') && ++n === turn) return i;
+  }
+  return messages.length;
+}
+// where the turn in progress starts: the person's newest prompt, or the end of the messages where there is none
+export function lastPrompt(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role !== 'user') continue;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
+    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) return i;
   }
   return messages.length;
 }
@@ -650,11 +666,20 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // rung also loses the thinking between its oldest result and that turn. It comes off what the rung writes,
   // at the rate the ladder counted it, and what an earlier cut had not already left out is added to what the
   // rung removes, at a thinking block's own rate.
+  // And the thinking below a rung's first change is in nothing the rung writes, whether or not this proxy leaves
+  // it out (2026-11-18). A thinking block is bound to what came before it, so once a message above it is
+  // changed the API no longer counts it: on this machine's two first cuts under 0.4.5, which sent every
+  // thinking block, the rewrite was predicted at 181,105 and 265,464 tokens and the API wrote 54,838 and
+  // 95,689 -- and 324k and 450k characters of those conversations were thinking signatures below the cut,
+  // 117k and 162k of the prediction. Without them it reads 64k and 104k. So it comes off the tail and off the
+  // whole for every rung; only what the rung is credited with removing still depends on `thinking`. The turn in
+  // progress is left in the price: its thinking goes back as it came, which the API requires, and nothing here
+  // has measured what that costs after a cut.
   let thinkAll = 0;
-  if (thinking && steps.length) {
-    const gone = thinkingGone(messages, thinking.done), pre = [0], preGone = [0];
+  if (steps.length) {
+    const gone = thinking ? thinkingGone(messages, thinking.done) : [], pre = [0], preGone = [0];
     messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
-    const to = Math.min(thinking.to ?? messages.length, messages.length);
+    const end = lastPrompt(messages), to = Math.min(thinking?.to ?? end, end);
     for (const s of steps) {
       // Only thinking at or below the rung's own first change goes (2026-11-18). Thinking that has aged since an
       // earlier cut sits further back than the results a later cut replaces, and reaching for it moved the
@@ -663,14 +688,17 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       // 19k -- about 41k more written for 15.5k removed, a payback past 100 calls carried over the limit by the
       // results beside it. So a cut never reaches above itself for thinking: what is old enough and already
       // inside the span it rewrites goes with it, and the rest waits for a cut that reaches that far.
-      const from = Math.min(s.firstChanged + 1, to);
-      const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
-      s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
-      s.tokens += s.thinking;
-      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
-      s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
+      const below = Math.min(s.firstChanged + 1, end), from = Math.min(below, to);
+      if (thinking) {
+        const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // the thinking this rung leaves out, and what was gone already
+        s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
+        s.tokens += s.thinking;
+      }
+      const unwritten = pre[end] - pre[below];   // every thinking block below the first change and before the turn in progress, kept turns and all
+      s.tail = Math.max(0, s.tail - Math.round(unwritten * TOKENS_PER_CHAR));
+      s.recache = Math.max(0, s.recache - Math.round((unwritten + preGone[below]) * TOKENS_PER_CHAR));
     }
-    thinkAll = steps[steps.length - 1].thinking;
+    if (thinking) thinkAll = steps[steps.length - 1].thinking;
   }
   const whole = steps.length ? steps[steps.length - 1] : null;
   return {
@@ -685,7 +713,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // Apply a known set. Deterministic: the agent re-sends the whole conversation every call, so the
 // same ids give the same bytes, which is what keeps the prefix still.
 //
-// Three operations, the same three the desktop mod performs (`register.tsx:clearOld`), so the two
+// Three operations, the same three the desktop door performs (`clear-door.js:clearPlan`), so the two
 // doors do the same thing and not merely hold the same config keys: an old result becomes a
 // placeholder, and nothing else is touched. Measured 2026-11-04 in the final request of a seven-turn
 // session: the tool results held 487,332 chars, the tool_use inputs 2,800 (a file path each) and the
@@ -946,7 +974,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
-  // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17, 0 by default)
+  // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17; 2 by default since 2026-11-18)
   const thinkTo = Math.max(m.turn - Math.max(0, Math.floor(cfg.thinkingKeepTurns || 0)), 0);
   const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [] } : null;
   const keep = keptOf(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;

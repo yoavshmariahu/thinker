@@ -157,8 +157,8 @@ test('a session is charged for the prefix rewrite of the request that made a cut
   fs.writeFileSync(log, [
     // a rewrite before any clear: real, but nothing to do with the clearing
     call({ write: 150_000, read: 0 }),
-    // the clearing request itself. A rewrite is a call whose write is more than half its context
-    // (cutting.js:isRewrite); the system prompt is what a warm prefix still reads back.
+    // the clearing request itself: what it wrote into a warm cache is the cut's cost (cutting.js:chargedRewrite);
+    // the system prompt is what a warm prefix still reads back.
     call({ cleared: 80_000, write: 120_000, read: 12_000 }),
     // a rewrite on a later request that cut nothing new: a compaction, say. Not the clearing's
     call({ cleared: 80_000, write: 100_000, read: 12_000 }),
@@ -181,6 +181,33 @@ test('a session is charged for the prefix rewrite of the request that made a cut
   assert.equal(s1.write, 230_000);
   // Opus 5.5: $4/M input, a 1h cache write at twice that. 230k x $8/M = $1.84
   assert.ok(Math.abs(s1.usd - 1.84) < 0.01, `priced at the 1h write rate, got ${s1.usd}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// The cost is whatever the cut's request wrote, not a guess at whether that was "a rewrite". The old test put a
+// 100k floor on the context after the cut and asked for half of it written, so the larger the cut the likelier it
+// read as free. These are the three warm cuts one machine recorded at no cost (2026-11-14 to 11-18).
+test('a warm cut is charged what its request wrote, however small the context it left or the share it wrote', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.log');
+  const call = (over = {}) => JSON.stringify({ at: '2026-11-17T10:00:00.000Z', op: 'proxy', model: 'claude-opus-5-5', cleared: 0, input: 0, read: 0, write: 0, ...over });
+  fs.writeFileSync(log, [
+    // 40% of a 114k context written
+    call({ session: 'a', clear: { tokens: 101_000 }, read: 68_000, write: 46_000 }),
+    // a context of 79k after the cut
+    call({ session: 'b', clear: { tokens: 71_000 }, read: 20_000, write: 59_000 }),
+    // a cut of 258k that left 90k
+    call({ session: 'c', clear: { tokens: 258_000 }, read: 35_000, write: 55_000 }),
+    // a cut whose request wrote nothing (a provider with no cache write) costs nothing
+    call({ session: 'd', clear: { tokens: 109_000 }, read: 13_000, write: 0 }),
+    // and the next request of a cut session is still not the cut's
+    call({ session: 'c', read: 90_000, write: 4_000 }),
+  ].join('\n') + '\n');
+  const costs = clearingCostBySession(log);
+  assert.deepEqual(['a', 'b', 'c'].map(s => [costs.get(s)?.rewrites, costs.get(s)?.write]), [[1, 46_000], [1, 59_000], [1, 55_000]]);
+  assert.equal(costs.has('d'), false, 'nothing written, nothing charged');
+  // Opus 5.5 at $8/M for a one-hour write: 160k tokens is $1.28 that was reported as $0
+  const usd = ['a', 'b', 'c'].reduce((n, s) => n + costs.get(s).usd, 0);
+  assert.ok(Math.abs(usd - 1.28) < 0.01, `got ${usd}`);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

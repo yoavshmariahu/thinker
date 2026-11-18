@@ -7,10 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, POLICY_REV, priceCut } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, chargedRewrite, policyId, VERSION, priceCut } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
+import { clearAnswer, clearPays, desktopPolicy, HOLD_GROWTH } from '../src/clear-door.js';
 import { REPORT_SLOT, DELEGATE_SESSION_MARK, DELEGATE_DEFAULTS } from '../src/delegate.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +22,7 @@ const D = path.delimiter;
 const MOD_SRC = path.join('src', 'integrations', 'claude-clear', 'hooks', 'register.tsx');
 const src = () => fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
 // the value of an `export const NAME = <expr>` in the mod, so a constant written as `65 * 60 * 1000` compares
+const modLet = (s, name) => { const m = s.match(new RegExp(`\nlet ${name} = ([^\n/]+)`)); return m ? new Function(`return ${m[1]}`)() : undefined; };
 const modConst = (s, name) => {
   const m = s.match(new RegExp(`export const ${name} = (.+)\\n`));
   return m ? new Function(`return ${m[1]}`)() : undefined;
@@ -28,26 +30,23 @@ const modConst = (s, name) => {
 
 // Every key of the proxy's clearing policy must reach the desktop door, or say here why it cannot.
 // The drift this stops: PR #588 turned `clearDeep` on in src/proxy.js alone, and the suite stayed green
-// because the test below pinned four constants by hand and knew nothing of a fifth key. Desktop sessions
-// kept a policy the replay had measured as a loss until it was found by hand. So the check is keyed on
-// `Object.keys(PROXY_DEFAULTS)` now: a key added there fails this test until someone either wires it into
-// the mod or writes down why a mod inside the session cannot have it.
-//   reads   - what `policyOf` must contain for the key to reach the mod's own policy
-//   mirrors - a constant in the mod that must equal the proxy's default (`value` where it differs by design)
-//   acts    - what the mod must contain to act on the key, where reading it is not the whole of it
-//   exempt  - why the key has no desktop meaning; a sentence, not a word
-// What this cannot check: that the two doors *behave* alike. It pins the policy surface, not the mechanism;
-// the mod's own behaviour is `claude plugin test src/integrations/claude-clear`.
+// because a test pinned four constants by hand and knew nothing of a fifth key. Desktop sessions kept a
+// policy the replay had measured as a loss until it was found by hand. So the check is keyed on
+// `Object.keys(PROXY_DEFAULTS)`: a key added there fails this test until someone either honours it in
+// clear-door.js:desktopPolicy (where this door's policy has lived since 2026-11-18; the mod carries none) or
+// writes down why a mod inside the session cannot have it.
+//   honoured - the key is in this door's policy, at the proxy's default (`value` where it differs by design)
+//   exempt   - why the key has no desktop meaning; a sentence, not a word
 const DESKTOP_POLICY = {
-  trigger: { reads: 'p.trigger,', mirrors: 'TRIGGER' },
-  clearAtLeast: { reads: 'p.clearAtLeast,', mirrors: 'CLEAR_AT_LEAST' },
-  keepMin: { reads: 'p.keepMin,', mirrors: 'KEEP_MIN' },
+  trigger: { honoured: true },
+  clearAtLeast: { honoured: true },
+  keepMin: { honoured: true },
   // the share the service runs with, not PROXY_DEFAULTS' 0: a held-out desktop session stays held out
-  holdout: { reads: 'p.holdout,', mirrors: 'HOLDOUT', value: SERVICE_HOLDOUT },
-  clearDeep: { reads: 'p.clearDeep !== false', acts: 'clearPays(p, {' },   // inside chooseDepth, which prices every rung
+  holdout: { honoured: true, value: SERVICE_HOLDOUT },
+  clearDeep: { honoured: true },
   upstream: { exempt: 'where the proxy forwards a request; a mod inside the session edits the conversation and sends nothing anywhere' },
   cutInputs: { exempt: 'the mod clears results in the desktop app, where a call\'s own text is a file path and not a heredoc: the 2026-11-04 measurement that took input cutting out (#611) still holds for that shape' },
-  cutBreakpoint: { exempt: 'a cache breakpoint is a field of the request to the API, which the proxy forwards and a mod inside the session never sees; the mod keeps pricing a cut as the whole conversation written again' },
+  cutBreakpoint: { exempt: 'a cache breakpoint is a field of the request to the API, which the proxy forwards and a mod inside the session never sees; the door keeps pricing a cut as the whole conversation written again' },
   cutThinking: { exempt: 'a thinking block is part of the request to the API, which the proxy forwards; the host hands a mod the tool results alone, so the model\'s earlier thinking is not there for it to leave out' },
   thinkingKeepTurns: { exempt: 'how many earlier turns keep their thinking when `cutThinking` is on, which the mod cannot do at all' },
   cutImages: { exempt: 'the host hands a mod each tool result as its text alone, so a screenshot is not there for it to save or to take out; the proxy does both' },
@@ -61,80 +60,54 @@ test('the clearing mod ships beside the CLI, with a manifest and one hooks modul
 });
 
 test('every key of the proxy\'s clearing policy reaches the desktop door, or says why it cannot', () => {
-  const s = src();
+  const door = desktopPolicy(null);
   for (const key of Object.keys(PROXY_DEFAULTS)) {
-    assert.ok(DESKTOP_POLICY[key], `proxy.${key} is new in PROXY_DEFAULTS and this door knows nothing about it. `
-      + `Either honour it in ${MOD_SRC} (policyOf, and whatever reads it) and add a { reads } entry to DESKTOP_POLICY `
-      + `in this test, or add { exempt: '<why a mod inside the session cannot have it>' }.`);
+    const d = DESKTOP_POLICY[key];
+    assert.ok(d, `proxy.${key} is new in PROXY_DEFAULTS and this door knows nothing about it. `
+      + 'Either honour it in src/clear-door.js (desktopPolicy, and whatever reads it) and add { honoured: true } to DESKTOP_POLICY '
+      + 'in this test, or add { exempt: \'<why a mod inside the session cannot have it>\' }.');
+    if (d.honoured) assert.equal(door[key], 'value' in d ? d.value : PROXY_DEFAULTS[key], `this door's ${key} is the proxy's`);
+    else assert.ok(String(d.exempt || '').length > 40 && !(key in door), `proxy.${key} is exempt with a reason, and not half-honoured`);
   }
   for (const key of Object.keys(DESKTOP_POLICY)) {
     assert.ok(key in PROXY_DEFAULTS, `DESKTOP_POLICY names proxy.${key}, which PROXY_DEFAULTS no longer has`);
   }
-  const policy = s.slice(s.indexOf('export function policyOf'), s.indexOf('export const clearPays'));
-  const shape = s.match(/export type Policy = \{(.+?)\}/s)?.[1] ?? '';
-  const defaults = s.match(/export const DEFAULTS: Policy = \{(.+?)\}/s)?.[1] ?? '';
-  for (const [key, rule] of Object.entries(DESKTOP_POLICY)) {
-    if (rule.exempt) {
-      assert.ok(rule.exempt.length > 40, `the exemption for proxy.${key} must say why, in a sentence`);
-      continue;
-    }
-    assert.ok(policy.includes(rule.reads), `policyOf must read proxy.${key} (\`${rule.reads}\`)`);
-    assert.ok(new RegExp(`\\b${key}\\b`).test(shape), `the mod's Policy type must carry ${key}`);
-    assert.ok(new RegExp(`\\b${key}:`).test(defaults), `the mod's DEFAULTS must set ${key}`);
-    if (rule.mirrors) {
-      const want = 'value' in rule ? rule.value : PROXY_DEFAULTS[key];
-      assert.equal(modConst(s, rule.mirrors), want, `${rule.mirrors} in the mod is the proxy's ${key} (${want})`);
-    }
-    if (rule.acts) assert.ok(s.includes(rule.acts), `the mod must act on proxy.${key}, not only read it`);
-  }
-  // the mod's own switch, which the proxy has no use for: the automatic clearing off, the command still there
-  assert.ok(policy.includes('p.desktop !== false'), 'proxy.desktop: false switches the automatic clearing off');
-  // shared mechanism, not policy keys: the token rate the mod estimates with and the cache's own hour
-  assert.equal(modConst(s, 'TOKENS_PER_CHAR'), TOKENS_PER_CHAR, 'tokens per char match proxy.js');
-  assert.equal(modConst(s, 'RESULT_TOKENS_PER_CHAR'), RESULT_TOKENS_PER_CHAR, 'a result\'s own rate matches proxy.js');
-  // a result's tokens are counted from its text, by one rule on both doors: the same weights, and the same answer
-  assert.deepEqual(modConst(s, 'RESULT_WEIGHTS'), RESULT_WEIGHTS, 'the weights of the count match proxy.js');
-  const body = s.match(/export function resultTokens\(text: string\): number \{\n([\s\S]*?)\n\}\n/);
-  assert.ok(body, 'the mod counts a result\'s tokens in one function');
-  const modCount = new Function('RESULT_WEIGHTS', 'text', body[1]);
-  for (const text of ['', 'plain words here', '  12\tconst x = foo(bar, 42);\n'.repeat(50), '{"a":[1,2,3],"é":"ü"}\r\n'.repeat(40)]) {
-    assert.equal(modCount(RESULT_WEIGHTS, text), resultTokens(text), 'the mod counts a result as the proxy does');
-  }
-  assert.equal(modConst(s, 'COLD_MS'), COLD_MS, 'the cache-cold pause matches clearing.js');
-  // the floor itself: one policy, so a move on either door fails here until the other follows. Nothing pinned it
-  // until 2026-11-06, the day the proxy's went from 20 to 25, which is exactly the divergence #588 cost a release.
-  assert.equal(modConst(s, 'PAYBACK'), PAYBACK, "the mod's payback floor is the proxy's");
-  // One policy means one name for it. Every saving's record carries the policy that made it (cutting.js:policyId),
-  // and the two doors must spell the same policy the same way or a dashboard would read one machine as two.
-  assert.equal(modConst(s, 'POLICY_REV'), POLICY_REV, "the mod's policy revision is the proxy's");
-  const modPolicy = (() => {
-    const m = s.match(/export const policyId = \(p: \{[^}]*\}\) =>\n  (`[^`]+`)/);
-    assert.ok(m, 'the mod builds a policy id on one line');
-    const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-    return cfg => new Function('p', 'POLICY_REV', 'PAYBACK', 'roundTo', `return ${m[1].replace(/ as number/g, '')}`)(cfg, POLICY_REV, PAYBACK, round);
-  })();
-  // The mod's name is the proxy's for the policy the mod can run: it never sees the request, so it places no
-  // breakpoint and leaves out no thinking, and a saving it makes is one made without either (`DESKTOP_POLICY`).
-  const NO_REQUEST = { cutBreakpoint: false, cutThinking: false };
-  for (const cfg of [{ ...PROXY_DEFAULTS, ...NO_REQUEST }, { ...PROXY_DEFAULTS, ...NO_REQUEST, clearAtLeast: 20000 }, { ...PROXY_DEFAULTS, ...NO_REQUEST, trigger: 250000, clearDeep: false }, {}]) {
-    assert.equal(modPolicy(cfg), policyId(cfg), `the mod names the policy as the proxy does (${policyId(cfg)})`);
-  }
-  // and the record it writes carries it, or the saving reaches no comparison at all
-  assert.ok(/policy: policyId\(policy\),/.test(s), "the mod's session record names the policy that cleared");
-  // one price: the mod's reads-per-written-token is the proxy's write rate over its read rate for the model (20 on
-  // most models, 40 on Opus 5.5, 80 on Fable; a read priced at 2.5% for every model stopped the first paired smoke on
-  // 2026-11-02, and one at 10% for every model would call a losing clear on Opus 5.5 a win)
-  const table = s.match(/export const READ_RATES[^=]*= (\[.*\])\n/);
-  assert.ok(table, 'READ_RATES is one line');
-  const rates = new Function(`return ${table[1]}`)();
-  const modRead = m => (rates.find(([re]) => re.test(m.toLowerCase())) || [null, 0.1])[1];
-  for (const m of ['claude-opus-5-5', 'claude-opus-5', 'opus', 'claude-sonnet-5-5', 'claude-haiku-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'gpt-6-astra']) assert.equal(modRead(m), readRate(m), `the mod's read rate for ${m} is clearing.js's`);
-  assert.ok(/export const writeRatio = \(model: string\) => 2 \/ readRate\(model\)/.test(s), 'the write is WRITE_1H over the read');
-  assert.equal(WRITE_1H, 2);
+  // and a config that moves a key moves this door with it
+  assert.equal(desktopPolicy({ proxy: { trigger: 90000, clearAtLeast: 20000, keepMin: 5, clearDeep: false } }).trigger, 90000);
+  assert.deepEqual(desktopPolicy({ proxy: { clearAtLeast: 20000, keepMin: 5, clearDeep: false, desktop: false } }), { keepMin: 5, clearAtLeast: 20000, trigger: PROXY_DEFAULTS.trigger, holdout: SERVICE_HOLDOUT, auto: false, clearDeep: false });
 });
 
-// The second thing the two doors hold together: a switched-off tool's definition is sent as one sentence naming
-// its file (tool-stubs.js:pointer, the proxy's door); the mod answers tool.describe with the same sentence.
+// An open session keeps the mod it loaded at its start, for days (claude-card.js: the folder is named by its bytes
+// and an update never replaces it). Whatever policy the mod carried was therefore frozen at the release the session
+// was opened under: measured on the fleet 2026-11-18, one machine was still being cut by the first revision of the
+// rules a day and four updates later, and its losing sessions were those. So the mod carries none. A constant or a
+// rule that comes back into it fails here, with the reason.
+test('the mod holds no clearing policy of its own: it asks the installed CLI, which an update replaces', () => {
+  const s = src();
+  for (const name of ['TRIGGER', 'CLEAR_AT_LEAST', 'KEEP_MIN', 'HOLDOUT', 'PAYBACK', 'COLD_MS', 'MIN_CHARS', 'READ_RATES', 'RESULT_WEIGHTS', 'TOKENS_PER_CHAR', 'HOLD_GROWTH', 'VERSION', 'POLICY_REV', 'DEFAULTS', 'KEEP_DEFAULT']) {
+    assert.ok(!new RegExp(`\\b(const|let) ${name}\\b`).test(s), `${name} is the CLI's (src/clear-door.js, cutting.js): a copy in the mod is frozen for as long as a session stays open`);
+  }
+  for (const fn of ['policyOf', 'policyId', 'clearPays', 'clearLadder', 'chooseDepth', 'clearOld', 'keptOf', 'keepMatcher', 'heldOut', 'resultTokens', 'placeholder', 'readRate']) {
+    assert.ok(!new RegExp(`\\b(function|const) ${fn}\\b`).test(s), `${fn} is decided in the CLI, not in the mod`);
+  }
+  assert.ok(s.includes("$.process.run(['node', cli, 'hook', 'clear', '--client', 'claude', '--user']"), 'the mod asks thinker hook clear');
+  // the three questions, and each is one clear-door.js answers
+  for (const op of ['start', 'decide', 'apply']) {
+    assert.ok(s.includes(`op: '${op}'`), `the mod asks "${op}"`);
+    assert.ok(Object.keys(clearAnswer({ op, from: 'auto', session: 's', messages: [] }, { config: {} })).length > 1, `and the CLI answers "${op}"`);
+  }
+  // the CLI it asks is the one the settings' hooks name, found whether or not delegation is on
+  const start = s.slice(s.indexOf("on('session.start'"), s.indexOf("on('turn.step'"));
+  assert.ok(start.indexOf('await findCli($)') > 0 && start.indexOf('await findCli($)') < start.indexOf('await delegateSetup($)'), 'the CLI is found first, for both');
+  // no answer -- no CLI, a timeout, the hooks off for this session -- is "leave it alone", never a guess
+  assert.ok(s.includes('if (!cli) return null') && /catch \{ return null \}/.test(s), 'ask resolves null where there is no answer');
+  // the stamp on the record is the answer's, which is the version of the thinker that decided
+  assert.ok(s.includes('...(c.policy ? { policy: c.policy }'), "the mod's session record names the policy the answer names");
+  assert.ok(s.includes('state.policy !== c.policy ? { policyChanged: true }'), 'and a session that spans two says so');
+  assert.equal(clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: [] }, { config: {} }).policy, policyId({ ...PROXY_DEFAULTS, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }), 'the proxy\'s spelling of the policy this door can run');
+  assert.match(clearAnswer({ op: 'start', session: 's' }, { config: {} }).policy, new RegExp(`^v${VERSION.replace(/\./g, '\\.')}-`));
+});
+
 test('the mod sends a switched-off tool as the sentence the proxy sends, naming the same file', () => {
   const s = src();
   assert.equal(modConst(s, 'POINTER_OPENS'), POINTER_OPENS, 'the clause the two doors recognise a pointer by');
@@ -164,25 +137,29 @@ test('an automatic clear that would be refused is never started, so the engine p
   // (reported 2026-11-05: a /compact and a skip line after every answer in Claude Desktop)
   assert.ok(s.includes("$.session.messages({ as: 'api' })"), 'the mod reads the live window before scheduling');
   assert.ok(!s.includes('$.session.messages()'), 'never the saved transcript');
-  assert.ok(/const depth = rows \? chooseDepth\(rows, policy, \{[^\n]*\) : null/.test(s), 'turn.complete prices the rungs');
-  assert.ok(/if \(depth != null\) \{ pendingDepth = depth; schedule\(\$, 'auto', tokens\) \}/.test(s), 'and schedules only when some depth repays its rewrite');
+  const done = s.slice(s.indexOf("on('turn.complete'"), s.indexOf("on('session.compact'"));
+  assert.ok(/const a = await ask\(\$, \{ op: 'decide', from: 'auto', messages: [^\n]*tokens, idle: wasIdle, cleared: clearedAt > 0, holdUntil, model \}\)/.test(done), 'the turn\'s end asks whether some rung repays, with what the session knows');
+  assert.ok(/if \(a\.clear && a\.depth != null\) \{ pendingDepth = a\.depth; schedule\(\$, 'auto', tokens\) \}/.test(done), 'and schedules only when the answer chose a depth');
+  // the conversation travels only with a question that can end in a clear; the every-few-turns check goes without it
+  assert.ok(done.includes('const due = tokens >= askAt') && done.includes('const rows = due ? await liveMessages($) : null'), 'below the context it was told to come back at, the mod sends no conversation');
+  assert.ok(done.includes("if (typeof a.askAt === 'number') askAt = a.askAt"), 'and it comes back where the answer says');
   // the rung the check chose is the rung the compaction applies, never the whole set by accident
-  assert.ok(/const chosen = pendingDepth; pendingDepth = null/.test(s), 'the chosen depth is taken once');
-  assert.ok(/clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity, keep: keptOf\(e\.messages, keepPatterns\) \}\)/.test(s), 'the clear applies it, less what the keep list holds; a hand-run clear takes everything else');
-  assert.ok(/if \(cleared >= depth\) return r/.test(s), 'clearOld stops at the depth, counting from the newest eligible result');
+  const compact = s.slice(s.indexOf("on('session.compact'"), s.indexOf("on('command.run', { command: DISABLE }"));
+  assert.ok(/const chosen = pendingDepth; pendingDepth = null/.test(compact), 'the chosen depth is taken once');
+  assert.ok(compact.includes("await ask($, { op: 'apply', from, depth: chosen, messages: slim(e.messages) })"), 'the clear asks for that rung; a hand-run clear (no depth) takes everything eligible');
+  assert.ok(compact.includes('return { messages: applyPlan(e.messages, c.replace) }'), 'and puts in place exactly what the answer names');
+  assert.ok(/if \(!c \|\| c\.skip \|\| !c\.cleared \|\| !c\.replace\) \{\n\s+hold\(\)/.test(compact), 'a clear not made holds the next attempt');
   // The latch is NOT the size floor. They were the same 60,000 until the floor fell to 8,000 with the ladder,
   // which silently cut the hold to 8k -- no hold at all, a working session grows that in a turn -- and put the
-  // skip-line-after-every-answer bug back (reported 2026-11-02 and 2026-11-05). The mod's own suite caught it;
-  // this assertion is here because that suite needs `claude-code/testing`, which `npm test` does not have.
-  assert.match(s, /export const HOLD_GROWTH = (\d+)/, 'the hold window is a constant of its own');
-  assert.equal(modConst(s, 'HOLD_GROWTH'), 60000, 'and it is the 60k the latch had while the floor was 60k');
-  assert.ok(/holdUntil = attemptAt \+ HOLD_GROWTH/.test(s), 'the latch holds on its own window');
-  assert.ok(!/holdUntil = attemptAt \+ policy\.clearAtLeast/.test(s), 'never on the size floor, which the pricing now moves');
-  // and the ladder is the proxy's: nested sets from the tail backwards, deepest paying one taken
-  assert.ok(/export function clearLadder/.test(s) && /for \(let i = messages\.length - 1; i >= 0; i--\)/.test(s), 'the ladder walks from the tail back');
-  assert.ok(/if \(clearPays\(p, \{[^\n]*\)\) take = rung\.depth/.test(s), 'the deepest rung that pays wins, as decideCut picks the largest paying set');
-  assert.ok(/if \(autoDue\(tokens, policy, holdUntil\)\)/.test(s), 'an attempt that did not clear holds the next');
-  assert.ok(/worthIt\(await wouldClear\(\$, policy\), policy, 'manual'\)/.test(s), 'the command answers by itself instead of spending a turn');
+  // skip-line-after-every-answer bug back (reported 2026-11-02 and 2026-11-05).
+  assert.equal(HOLD_GROWTH, 60000, 'the hold window is a constant of its own, the 60k the latch had while the floor was 60k');
+  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 0, messages: null }, { config: { proxy: { clearAtLeast: 8000 } } }).hold, HOLD_GROWTH, 'the answer carries it, whatever the size floor');
+  assert.ok(/holdUntil = attemptAt \+ holdGrowth/.test(s) && s.includes("if (typeof a.hold === 'number') holdGrowth = a.hold"), 'the latch holds on the window the answer gave');
+  assert.equal(modLet(s, 'holdGrowth'), HOLD_GROWTH, 'and on the same 60k before any answer has come');
+  // the command answers by itself instead of spending a turn
+  const cmd = s.slice(s.indexOf("on('command.run', { command: COMMAND }"));
+  assert.ok(cmd.indexOf("op: 'decide', from: 'manual'") > 0 && cmd.indexOf("op: 'decide', from: 'manual'") < cmd.indexOf("schedule($, 'manual')"), 'a hand-run clear is asked for before it is scheduled');
+  assert.ok(cmd.includes("if (!a.clear) return { text: 'thinker-clear: nothing old enough to clear' }"));
 });
 
 test('the mod writes the record the proxy writes, where the card and the report read it', () => {
@@ -201,21 +178,20 @@ test('the mod writes the record the proxy writes, where the card and the report 
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('the record keeps what the clear cost, counted as the proxy counts a rewrite, and the model that prices it', () => {
+test('the record keeps what the clear cost, counted as the proxy counts it, and the model that prices it', () => {
   const s = src();
-  // one definition of a rewrite (cutting.js:isRewrite): the same long-context floor, and the same test on sample calls
-  assert.equal(modConst(s, 'LONG_CONTEXT'), LONG_CONTEXT, 'the mod\'s long-context floor is the proxy\'s');
-  const body = s.match(/export const isRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
-  assert.ok(body, 'the mod defines isRewrite');
-  const mine = new Function('LONG_CONTEXT', 'u', body)
-  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 0, write: 40_000, input: 10 }, { read: 60_000, write: 70_000, input: 0 }, null])
-    assert.equal(mine(LONG_CONTEXT, u), isRewrite(u), `the two doors agree on ${JSON.stringify(u)}`);
-  // and one rule for which of those the clearing is charged for (cutting.js:chargedRewrite): a read of zero is the cold cache's
+  // one rule for what the clearing is charged (cutting.js:chargedRewrite): a write into a warm cache, of any size.
+  // The report's rewrite heuristic is no part of it: its floor on the context after the cut made large cuts free.
+  assert.ok(!/\bisRewrite\b|\bLONG_CONTEXT\b/.test(s), 'the mod charges by no context floor and no share of the context');
   const chargedBody = s.match(/export const chargedRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
   assert.ok(chargedBody, 'the mod defines chargedRewrite');
-  const charged = new Function('isRewrite', 'u', chargedBody);
-  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 }, null])
-    assert.equal(charged(isRewrite, u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
+  const charged = new Function('u', chargedBody);
+  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 },
+    { read: 68_000, write: 46_000, input: 0 }, { read: 20_000, write: 59_000, input: 0 }, { read: 35_000, write: 55_000, input: 0 }, { read: 0, write: 40_000, input: 10 }, null])
+    assert.equal(charged(u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
+  assert.equal(chargedRewrite({ read: 35_000, write: 55_000, input: 0 }), true, 'a warm cut that left 90k of context is charged');
+  assert.equal(chargedRewrite({ read: 68_000, write: 46_000, input: 0 }), true, 'a warm cut that wrote 40% of its context is charged');
+  assert.equal(chargedRewrite({ read: 0, write: 349_000, input: 0 }), false, 'a cold one is not');
   // counted on the first request after a clear alone, the one whose prefix the clear changed (compression.js:
   // clearingCostBySession charges the row that made a cut), from the usage the engine reports for it
   const step = s.slice(s.indexOf("on('turn.step'"), s.indexOf("on('turn.complete'"));
@@ -271,35 +247,30 @@ test('the first desktop session on a machine is told once that clearing reaches 
 // ratios, so neither reads the other's arithmetic and only this test holds them to the same answer. It matters
 // most for the correction of 2026-11-13: a rewrite is charged less the read it displaces, which in the mod's
 // form is `writeRatio - 1` on one side and `PAYBACK + 1` on the other. A move on either door fails here.
-test('the mod decides a clear exactly where the proxy prices one', () => {
-  const s = src();
-  const m = s.match(/export const clearPays = [\s\S]*?\n  return (dropped > 0 && [^\n]+)\n\}/);
-  assert.ok(m, 'the mod decides on one line');
-  assert.match(m[1], /writeRatio\(model\) - 1/, 'the displaced read comes off the rewrite');
-  assert.match(m[1], /PAYBACK \+ 1/, 'and the call that makes the clear is one of the calls that repay it');
-  const modPays = new Function('dropped', 'recache', 'writeRatio', 'PAYBACK', 'model', `return ${m[1]}`);
-  const writeRatio = model => WRITE_1H / readRate(model);
+test('the desktop door decides a clear exactly where the proxy prices one', () => {
+  // one rule, two spellings: the door's is (writeRatio - 1) x recache against (PAYBACK + 1) x dropped
+  // (clear-door.js:clearPays), the proxy's is priceCut's payback against PAYBACK. They must agree on every
+  // priced model, on both sides of the floor.
+  const p = desktopPolicy(null);
   let agreed = 0;
   for (const model of ['claude-opus-5', 'claude-opus-5-5', 'claude-sonnet-5-5', 'claude-fable-5-2']) {
     for (const tokens of [6000, 20000, 60000, 105472, 200000]) {
       for (const ratio of [0.5, 1, 1.21, 1.5, 1.94, 2.5, 4, 10]) {
         const recache = Math.round(tokens * ratio);
         const proxy = priceCut({ prompt: recache + tokens }, { tokens, recache }, { model }).pays;
-        const mod = modPays(tokens, recache, writeRatio, PAYBACK, model);
-        assert.equal(mod, proxy, `${model} tail/cut ${ratio} of ${tokens}: mod ${mod}, proxy ${proxy}`);
+        const door = clearPays(p, { dropped: tokens, recache, idle: 0, cleared: false, model });
+        assert.equal(door, proxy, `${model} tail/cut ${ratio} of ${tokens}: door ${door}, proxy ${proxy}`);
         agreed++;
       }
     }
   }
   assert.ok(agreed >= 160, 'the grid covers both sides of the floor on every priced model');
-  // A cut can now price at or below zero -- already ahead on the call that makes it -- which the old
-  // arithmetic could not express at all, having charged the whole rewrite. On Anthropic it is unreachable:
-  // it needs a tail under read/(write-read) of what the cut removes, 5% at these rates. It is ordinary
-  // wherever a read is dear, so the state is checked at GLM's rates, which this door never sees (its
-  // writeRatio is Anthropic's by construction, the mod running only in Claude Desktop).
-  // Zero is the floor and it is reachable: payback is recache x (write-read) / (removed x read) - 1, so a
-  // positive tail can never price below -1 and the whole number can never be under 0. Zero means repaid on
-  // the call that makes the cut, needing no later call at all.
+  assert.equal(WRITE_1H / readRate(''), 20, 'a written token needs 20 read back where the model is unknown');
+  // A cut can price at or below zero -- already ahead on the call that makes it. On Anthropic it is unreachable:
+  // it needs a tail under read/(write-read) of what the cut removes, 5% at these rates. It is ordinary wherever
+  // a read is dear, so the state is checked at GLM's rates, which this door never sees (the mod runs only in
+  // Claude Desktop). Zero is the floor and it is reachable: payback is recache x (write-read) / (removed x read)
+  // - 1, so a positive tail can never price below -1 and the whole number can never be under 0.
   const glm = { read: 0.5, write: 1.0 };
   const pay = (tokens, recache, opts) => priceCut({ prompt: recache + tokens }, { tokens, recache }, opts).payback;
   assert.equal(pay(100000, 100000, { rates: glm }), 0, 'at GLM rates a tail equal to what the cut removes is repaid at once');

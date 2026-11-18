@@ -6,6 +6,8 @@ import path from 'node:path';
 import { KEEP_DEFAULT, keepMatcher, namedIn, copyOf, keptCalls, keepPatterns, writeKeep, keepFile, sourcePattern, urlKey } from '../src/keep.js';
 import { cutCandidates, keptOf, transformRequest, proxyConfig } from '../src/proxy.js';
 import { responsesCandidates, responsesKept } from '../src/proxy-responses.js';
+import { keptOf as doorKept, clearPlan, clearLadder } from '../src/clear-door.js';
+import { placeholder } from '../src/cutting.js';
 import { chatCandidates, chatKept } from '../src/proxy-chat.js';
 import { delegateTool, DELEGATE_DEFAULTS } from '../src/delegate.js';
 import { tidyObservation, extractObservations, keepSources, syncKeep, appendObservations } from '../src/profile.js';
@@ -107,35 +109,28 @@ test('a web address is kept as a file is: learned, or named by the person, and i
   assert.equal(sourcePattern('https://example.com/*', ['check https://example.com/* again']), null);
 });
 
-test('the clearing mod\'s copy of the rule gives the same answers as keep.js', () => {
+test('the desktop door has no copy of the rule: its decision runs keep.js itself', () => {
+  // The mod carried its own copy until 2026-11-18, marked off and held to this file by a test, because a mod has no
+  // import. The decision is the CLI's now (clear-door.js, asked for with `thinker hook clear`), so there is one rule.
   const src = fs.readFileSync(new URL('../src/integrations/claude-clear/hooks/register.tsx', import.meta.url), 'utf8');
-  const a = src.indexOf('// keep:begin'), b = src.indexOf('// keep:end');
-  assert.ok(a > 0 && b > a, 'the mod marks its copy of the rule');
-  const block = src.slice(a, b).replace(/: any/g, '').replace(/^export /gm, '');
-  const mod = new Function(`${block}; return { keptCalls, copyOf, keepMatcher, namedIn, KEEP_DEFAULT };`)();
-  assert.deepEqual(mod.KEEP_DEFAULT, KEEP_DEFAULT);
-  const calls = [
-    { id: '1', name: 'Read', input: { file_path: '/r/learn.md' } }, { id: '2', name: 'Read', input: { file_path: '/r/a.py' } },
-    { id: '3', name: 'Read', input: { file_path: '/r/learn.md', offset: 1, limit: 5 } }, { id: '4', name: 'Bash', input: { command: 'cd /r && cat a.py' } },
-    { id: '5', name: 'shell', input: { command: ['bash', '-lc', 'cat stats.csv'] } }, { id: '6', name: 'Write', input: { file_path: 'out/Plan.MD', content: 'x' } },
-    { id: '7', name: 'Bash', input: { command: "sed -n '1,9p' docs/plan.txt" } }, { id: '8', name: 'Bash', input: { command: 'cat a.py | head -3' } },
-    { id: '9', name: 'exec_command', input: '{"cmd":"cat \\"my notes.md\\" other.txt"}' }, { id: '10', name: 'Grep', input: { pattern: 'x' } },
-    { id: '11', name: 'WebFetch', input: { url: 'https://Example.com/insights/?range=7d' } }, { id: '12', name: 'Bash', input: { command: 'curl -sL https://other.io/a' } },
-    { id: '13', name: 'Bash', input: { command: 'curl -s https://other.io/a | head' } }, { id: '14', name: 'web_fetch', input: { url: 'https://raw.example.com/r/README.md' } },
+  assert.ok(!src.includes('// keep:begin') && !/\b(keptCalls|keepMatcher|namedIn|copyOf)\b/.test(src), 'no copy of the keep list in the mod');
+  const door = fs.readFileSync(new URL('../src/clear-door.js', import.meta.url), 'utf8');
+  assert.match(door, /import \{ keptCalls, keepPatterns, KEEP_DEFAULT \} from '.\/keep.js'/);
+  // the rows are the mod's (role, text, toolUses, toolResults); a result that is already a placeholder is the cut
+  const call = (id, tool, input) => ({ role: 'assistant', text: '', toolUses: [{ tool_use_id: id, tool, input }] });
+  const result = (id, text = big()) => ({ role: 'user', text: '', toolUses: [], toolResults: [{ tool_use_id: id, text }] });
+  const rows = [
+    { role: 'user', text: 'read stats.csv', toolUses: [] },
+    call('1', 'Read', { file_path: '/r/learn.md' }), result('1'), call('2', 'Read', { file_path: '/r/a.py' }), result('2', placeholder(9000)),
+    call('3', 'Read', { file_path: '/r/stats.csv' }), result('3'), call('4', 'Read', { file_path: '/r/a.py' }), result('4'),
+    call('5', 'Read', { file_path: '/r/other.py' }), result('5'),
   ];
-  for (const opts of [
-    {}, { cut: ['2'] }, { cut: ['1', '2', '5'] }, { prompts: ['read stats.csv and other.txt'] },
-    { patterns: ['*.md', 'docs/plan.txt', '**/a.py'], prompts: ['<system-reminder>stats.csv</system-reminder> go'] },
-    { patterns: ['https://example.com/insights'], prompts: ['see https://other.io/a.'] }, { patterns: [], cut: ['11'] },
-  ]) {
-    const ours = keptCalls(calls, opts), theirs = mod.keptCalls(calls, opts);
-    assert.deepEqual([...theirs.ids], [...ours.ids], JSON.stringify(opts));
-    assert.deepEqual(theirs.files, ours.files, JSON.stringify(opts));
-  }
-  for (const c of calls) assert.deepEqual(mod.copyOf(c.name, c.input), copyOf(c.name, c.input), c.id);
-  // and the mod hands the set to both of its walks
-  assert.match(src, /clearLadder\(messages, \{ keepMin: p\.keepMin, keep: ctx\.keep \?\? null \}\)/);
-  assert.match(src, /clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity, keep: keptOf\(e\.messages, keepPatterns\) \}\)/);
+  // learn.md by the default pattern, stats.csv because the person named it, a.py because it was read again after a cut
+  assert.deepEqual([...doorKept(rows)].sort(), ['1', '3', '4']);
+  assert.deepEqual([...doorKept(rows, [])].sort(), ['3', '4'], 'the patterns are the ones handed in');
+  // and both of the door's walks leave the set alone
+  assert.deepEqual(Object.keys(clearPlan([...rows, { role: 'user', text: 'go on', toolUses: [] }], { keepMin: 0, keep: doorKept(rows) }).replace), ['5']);
+  assert.equal(clearLadder([...rows, { role: 'user', text: 'go on', toolUses: [] }], { keepMin: 0, keep: doorKept(rows) }).at(-1).depth, 1);
 });
 
 // ---- the three doors ----
@@ -165,7 +160,7 @@ test('Messages: a kept result is no candidate, and the row says what the list he
   const sent = JSON.parse(out.body).messages;
   assert.equal(sent[2].content[0].content, big(), 'learnings.md is still in the prompt');
   assert.match(JSON.stringify(sent[4].content), /removed by thinker after use/);
-  assert.match(out.policy, /^r11-/);
+  assert.match(out.policy, /^v\d+\.\d+\.\d+-/);
   // named in a later prompt: data.json is then kept too
   const named = [...messages.slice(0, 7), say('what was in data.json again?'), ...messages.slice(8)];
   assert.deepEqual([...keptOf(named, [], KEEP_DEFAULT).ids].sort(), ['a', 'b']);

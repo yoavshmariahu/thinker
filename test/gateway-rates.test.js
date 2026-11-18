@@ -90,7 +90,8 @@ test('priceCut honors the rates it is given', () => {
   const implicit = priceCut({}, cand, { rates: { read: 0.5, write: 1 } });
   assert.equal(implicit.payback, 5);
   assert.equal(implicit.pays, true);
-  assert.equal(priceCut({}, cand, { cold: true, rates: { read: 0.5, write: 1 } }).cost, 0);
+  // a pause past the cache's hour changes no price (2026-11-18)
+  assert.equal(priceCut({}, cand, { cold: true, rates: { read: 0.5, write: 1 } }).cost, implicit.cost);
 });
 
 test('decideCut prices, names and records the rates behind a clear and a refusal', () => {

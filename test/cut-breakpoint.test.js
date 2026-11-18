@@ -11,13 +11,16 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { transformRequest, proxyConfig, cutCandidates, applyCut, placeMark, markBlock, breakpointsOf, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { transformRequest, proxyConfig, cutCandidates, applyCut, placeMark, markBlock, breakpointsOf, thinkingChars, lastPrompt, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { cutResponse, freshCut, policyId, SEED_MS } from '../src/cutting.js';
 import { serviceArgs } from '../src/proxy-service.js';
 
 const tu = (id, input = { file_path: `/p/${id}` }) => ({ type: 'tool_use', id, name: 'Read', input });
 const tr = (id, n) => ({ type: 'tool_result', tool_use_id: id, content: 'x'.repeat(n) });
 const think = n => ({ type: 'thinking', thinking: 'T'.repeat(n), signature: 'sig' });
+// The thinking below a rung's first change and before the turn in progress: no cut writes it (2026-11-18), so
+// it is off every rung's price, whether or not the proxy also leaves it out.
+const unwritten = (messages, firstChanged) => { const live = lastPrompt(messages); return Math.round(messages.reduce((n, m, i) => n + (i > firstChanged && i < live ? thinkingChars(m) : 0), 0) * TOKENS_PER_CHAR); };
 const HOUR = { type: 'ephemeral', ttl: '1h' };
 
 // A long conversation whose bulk is above the cut: one huge thinking block, then two 300k results and three
@@ -186,7 +189,7 @@ test('a rung\'s tail starts at the call whose own text is cut with its result', 
   const rung = steps.find(s => s.ids[s.ids.length - 1] === 'r1');
   const from = ms.findIndex(m => Array.isArray(m.content) && m.content.some(b => b.id === 'r1'));
   const slice = applyCut(ms.slice(from), new Set(rung.ids)).messages;
-  assert.equal(rung.tail, Math.round(JSON.stringify(slice).length * TOKENS_PER_CHAR));
+  assert.equal(rung.tail, Math.round(JSON.stringify(slice).length * TOKENS_PER_CHAR) - unwritten(ms, rung.firstChanged));
   assert.equal(rung.firstChanged, from + 1, 'the result\'s own message is still where the rung is named');
 });
 
@@ -211,18 +214,18 @@ test('a rung\'s tail starts after the message the breakpoint can sit on, whateve
   const mark = placeMark(j, ms, deep.ids);
   assert.equal(mark.at, 0, 'the breakpoint steps over the string message');
   const written = applyCut(ms.slice(mark.at + 1), new Set(deep.ids)).messages;
-  assert.equal(deep.tail, Math.round(JSON.stringify(written).length * TOKENS_PER_CHAR), 'and the price is everything after it');
+  assert.equal(deep.tail, Math.round(JSON.stringify(written).length * TOKENS_PER_CHAR) - unwritten(ms, deep.firstChanged), 'and the price is everything after it, less the thinking below the cut');
   assert.ok(deep.tail > env.length * TOKENS_PER_CHAR, 'the message stepped over is in it');
   // a rung whose breakpoint has somewhere to sit right before it is priced as it was
   const at = placeMark(j, ms, shallow.ids).at;
-  assert.equal(shallow.tail, Math.round(JSON.stringify(applyCut(ms.slice(at + 1), new Set(shallow.ids)).messages).length * TOKENS_PER_CHAR));
+  assert.equal(shallow.tail, Math.round(JSON.stringify(applyCut(ms.slice(at + 1), new Set(shallow.ids)).messages).length * TOKENS_PER_CHAR) - unwritten(ms, shallow.firstChanged));
 });
 
 test('the switch: a flag, a variable, the machine config, and a policy name of its own', () => {
   assert.equal(proxyConfig({}, {}).cutBreakpoint, true);
   assert.equal(proxyConfig({ 'no-cut-breakpoint': true }, {}).cutBreakpoint, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_BREAKPOINT: 'off' }).cutBreakpoint, false);
-  assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).endsWith('+bp'));
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).includes('+bp'));
   assert.ok(!policyId({ ...PROXY_DEFAULTS, cutBreakpoint: false }).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-bp-'));
   try {

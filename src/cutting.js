@@ -49,12 +49,18 @@ export const COLD_MS = 65 * 60 * 1000;
 // over a 21k file read into a 40k conversation (2026-11-02).
 export const LONG_CONTEXT = 100000;
 export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
-// Of those, the ones the clearing can be charged for. A rewrite that read nothing back found the cache cold -- a
-// pause past the cache's hour, a session's first request -- and that write was coming with or without the cut; the
-// cut only made it smaller. A warm prefix always reads at least the system prompt back, so a read of zero is the
-// mark. On this machine's 30 days to 2026-11-12, 30 of the 604 rewrites charged after a clear were of that kind.
+// What the clearing is charged for on the request that made a cut: whatever that request wrote into the cache,
+// when the cache was warm. A request that read nothing back found the cache cold -- a pause past the cache's hour,
+// a session's first request -- and that write was coming with or without the cut; the cut only made it smaller. A
+// warm prefix always reads at least the system prompt back, so a read of zero is the mark.
+// Until 2026-11-18 this was `isRewrite(u) && read > 0`, and the report's heuristic is the wrong test for a cost:
+// its floor is on the context AFTER the cut, so the larger a cut the likelier it was recorded as free, and a cut
+// that wrote 40% of its context was free too. On one machine's fourteen cuts of 2026-11-05 to 11-18, three of the
+// six warm ones were charged nothing: 46k written of 114k, 59k of 79k, and 55k of 90k on a cut of 258k -- 160k
+// written tokens uncharged beside 456k charged. The write includes the turn's own new tokens, which would have
+// been written anyway; that overstates a cut's cost by a little, where the old rule understated it by a lot.
 // The desktop clearing mod holds the same rule (register.tsx:chargedRewrite, test/claude-clear.test.js).
-export const chargedRewrite = u => isRewrite(u) && (u?.read || 0) > 0;
+export const chargedRewrite = u => (u?.write || 0) > 0 && (u?.read || 0) > 0;
 // What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
 // plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
 // known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written
@@ -95,10 +101,19 @@ export const PAYBACK = 25;
 // a week late would have good sessions thrown away. Nothing on this machine can know when another machine
 // updated, and it does not have to: the policy names itself.
 //
-// `POLICY_REV` covers what no setting can change -- the cold-boundary rule, the payback pricing, the ratchet.
-// Bump it when one of those moves. The rest is the settings that were in force for that request
-// (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the machine config), so two machines running the same
-// code with different floors are never pooled either.
+// The stamp leads with the version of thinker that made the decision (`v0.4.6-...`, the owner's call, 2026-11-18),
+// then the settings that were in force for that request (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the
+// machine config), so two machines running the same code with different floors are never pooled either. The
+// version is read ONCE, when this module loads, and that is the point of it: an update replaces the files under a
+// proxy that is still running the old rules, and a version read at the moment of the cut would put the new
+// release's name on the old code's decision. The process that decided names the code it is actually running.
+//
+// Until 0.4.5 the lead was `r<n>`, a revision somebody bumped by hand whenever the cold-boundary rule, the
+// payback pricing or the ratchet moved: eleven of them in six days, each a bucket of a few hours that no reader
+// could place without this file, and nothing said which release a machine had to be on to run one. A version is
+// what the fleet already reports and what a person can check on their own machine. Those stamps stay in the
+// records and in every 30-day figure until they age out, and `delivery-telemetry.js:STAMPED` reads both; what
+// each one meant:
 // 2 since 2026-11-13: the payback pricing changed. A cut's cost is now what it adds to the call that
 // makes it, against the same call without it, so the read the rewrite displaces is subtracted instead of
 // ignored (`priceCut`). Every saving made under the old arithmetic keeps `r1` and is never folded in.
@@ -122,10 +137,10 @@ export const PAYBACK = 25;
 // person named, a file the model read again after a cut. A boundary has less to take than it had under `r9`.
 // 11 since 2026-11-18: with `cutThinking` and turns held back, a cut no longer reaches above its own oldest
 // replaced result for thinking that has aged (`proxy.js:cutCandidates`); before, it did, and rewrote from the top for it.
-export const POLICY_REV = 11;
+export const VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || '?'; } catch { return '?'; } })();
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
+  `v${VERSION}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -137,7 +152,7 @@ export const policyId = (cfg = {}) =>
 // that would repay in 3 calls is refused as below-trigger.
 //
 // So: scale both guards by the ratio against Anthropic's 20, and name no provider in the rule. GLM lands at
-// 14k/6k, Anthropic stays at 140k/60k exactly (the desktop mod's mirrored constants still match, and a
+// 14k/6k, Anthropic stays at 140k/60k exactly (the desktop door, clear-door.js, reads the same two, and a
 // saving made on an Anthropic route keeps the policy id it already had). PAYBACK stays at 25 and does the
 // real policing on both: a small cut late in a long conversation is still refused, because the tail dwarfs
 // what it takes out. That is what makes the cheap route cut EARLY and in SMALL batches rather than merely
@@ -149,8 +164,8 @@ export const policyId = (cfg = {}) =>
 // tenth is the floor until the holdout says otherwise.
 // Only a route whose OWN prices are known moves its guards, which is why nothing is read from `model` or
 // `ttl` here. The five-minute write is 1.25 and would price Anthropic's ratio at 12.5, scaling the guards to
-// 0.63 on the cache TTL alone -- and the desktop mod, which holds this same policy from mirrored constants,
-// cannot know a rate. A route with no resolved rates is Anthropic's, at the ratio the guards were set
+// 0.63 on the cache TTL alone -- and the desktop door (clear-door.js), which runs this same policy inside Claude Desktop,
+// is never handed one. A route with no resolved rates is Anthropic's, at the ratio the guards were set
 // against, and stays exactly where it was.
 export const BASE_RATIO = WRITE_1H / READ;   // 20
 export const SCALE_MIN = 0.1;
@@ -274,7 +289,7 @@ export const freshCut = session => ({
 // What a cut would cost and save. `recache` is the prompt from the first result we would replace to
 // the end: that is what a changed prefix makes the API write again, and we know it exactly because we
 // choose the result. `saving` is the tokens we take out, read back over the calls the session likely
-// has left. A pause past COLD_MS writes the context anyway, so the rewrite is free then.
+// has left.
 // A cut costs the WHOLE post-cut prompt, less the system prompt. Claude Code sets its cache
 // breakpoints on the system prompt and the newest messages, and the API finds a cached prefix only
 // at a breakpoint, so an edit in the middle leaves the system prompt as the only reusable part and
@@ -282,7 +297,13 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rates = null, mark = false } = {}) {
+// A pause past the cache's hour is priced like any other boundary (2026-11-18, the owner's call). Until then
+// `cold` priced the rewrite at nothing, because a cold request writes its whole context whatever is cut. That
+// made every cold session over the trigger take the deepest cut there was, and with the proxy's breakpoint the
+// cut was not even made on the cold request: it was seeded there and made on the next one, warm. Two sessions
+// resumed after seven and eight hours on 2026-11-18 wrote 398k and 486k uncut, then rewrote 55k and 96k for cuts
+// approved at a payback of zero and logged, as made, at 55 and 81.
+export function priceCut(m, cand, { ttl = '1h', model = null, rates = null, mark = false } = {}) {
   // Dynamic rates (gateway-rates.js): what a write and a read cost relative to an input token,
   // resolved per model from config or the gateway's own measured prices. Null keeps the
   // Anthropic ratios, as before this existed.
@@ -313,7 +334,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   //
   // The cost may now be negative: a cut that takes out more than its rewrite costs is already ahead on the
   // call that makes it, and `payback` then reads zero or below. That is a real state, not a floor to clamp.
-  const cost = cold ? 0 : recache * (write - read) - read * cand.tokens;
+  const cost = recache * (write - read) - read * cand.tokens;
   // How many later calls until the cut has paid for that cost. No horizon is guessed: see PAYBACK.
   // Zero means repaid on the call that makes the cut, needing no later call. It cannot go below: the cost
   // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
@@ -396,8 +417,10 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // eligible whatever the trigger and the size floor said, because past the cache's hour the request writes
   // its whole context anyway and the cut is free. Free was the wrong test: a 90k session picked up the next
   // morning came back without its results, and what the person lost was the context, not money. So the
-  // trigger and the floor stand here too, and `cold` only prices the rewrite at nothing below (`priceCut`),
-  // which is why a cold session over the trigger still takes the deepest rung.
+  // trigger and the floor stand here too. And since 2026-11-18 so does the payback: the rewrite is priced as
+  // a warm one is (`priceCut`), so a resumed session is cut only where a live one would be. `cold` is kept
+  // on a cut's row as a fact about the request, which is what tells the ledger that request's write was the
+  // expired cache's (compression.js:clearingCostBySession).
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
@@ -412,7 +435,7 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   let take = null, takeP = null, best = null, bestP = null;
   for (const rung of rungs) {
     if (rung.tokens < cfg.clearAtLeast) continue;
-    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates, mark });
+    const p = priceCut(m, rung, { ttl, calls: rec.calls, model, rates, mark });
     if (p.pays && (!take || rung.tokens > take.tokens)) { take = rung; takeP = p; }
     if (!bestP || p.payback < bestP.payback) { best = rung; bestP = p; }
   }
