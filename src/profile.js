@@ -22,6 +22,7 @@ import { complete, available, providerOfModel } from './llm.js';
 import { tokensOf } from './model-usage.js';
 import { areaOf } from './areas.js';
 import { sessionState, locked, holdoutRate } from './session-state.js';
+import { sourcePattern, writeKeep } from './keep.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -258,6 +259,7 @@ Fields:
 - reaction: the person's words that decided the outcome, quoted, under 160 characters. Empty for unknown.
 - lesson: one line, only from a reaction: after a correction, what should have been done; after an acceptance that followed a correction on the same work, what worked. Never from the agent's account alone. Written as an instruction for next time.
 - prefs: how the person says they want work done or answers given ("never push main", "don't ask, just do it", "no headers"), near their words. Stated only, never inferred from behaviour.
+- sources: files the person told the agent to read or work from, or said it had not read or had forgotten ("read learnings.md first", "you ignored the notes file again"), each written exactly as the person wrote it in a USER line. Only files, only from the person's own words, never a file the agent chose for itself. Empty for most observations.
 - topics: one to four short tags.
 - No file contents, no credentials; write a key or token as <token>.
 An empty list is the right answer for a session that decided nothing.
@@ -309,6 +311,7 @@ export const OBSERVATION_SCHEMA = {
           lesson: { type: 'string' },
           prefs: { type: 'array', items: { type: 'string' } },
           repeats: { type: 'array', items: { type: 'string' }, description: 'ids from SAID BEFORE that this exchange\'s prefs, lesson or correction repeat: the person said or corrected the same thing again. Empty when nothing here was said before.' },
+          sources: { type: 'array', items: { type: 'string' }, description: 'files the person told the agent to read or use, or said it missed or forgot, exactly as written in a USER line; empty when none' },
           topics: { type: 'array', items: { type: 'string' } },
         },
         required: ['turn', 'request', 'approach', 'outcome', 'reaction', 'lesson', 'prefs', 'topics'],
@@ -330,6 +333,7 @@ export function tidyObservation(o) {
     approach: str(o.approach, 400), outcome: OUTCOMES.includes(o.outcome) ? o.outcome : 'unknown',
     reaction: str(o.reaction, 160), lesson: str(o.lesson), prefs: list(o.prefs), topics: list(o.topics, 4, 40),
     repeats: list(o.repeats, 12, 60),
+    ...(list(o.sources, 6, 200).length ? { sources: list(o.sources, 6, 200) } : {}),
   };
 }
 
@@ -394,7 +398,11 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   // failed) or a single earlier statement (the compile never learned it)
   const known = new Map(prior.map(p => [p.id, p]));
   const tag = o => { const ids = (o.repeats || []).filter(id => known.has(id)); return { ...o, repeats: { profile: ids.filter(id => known.get(id).inProfile), ledger: ids.filter(id => !known.get(id).inProfile) } }; };
-  const observations = observationSkills(observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean).map(tag), xs), xs);
+  // A source is kept only as the person wrote it: it must stand in one of their prompts and look like a file
+  // (keep.js:sourcePattern). What survives feeds the keep list, which no model reads or writes at decision time.
+  const promptsOf = xs.map(x => x.prompt);
+  const sourced = o => { const { sources, ...rest } = o; const ok = [...new Set((sources || []).map(f => sourcePattern(f, promptsOf)).filter(Boolean))]; return ok.length ? { ...rest, sources: ok } : rest; };
+  const observations = observationSkills(observationTimes((res.json?.observations || []).map(tidyObservation).filter(Boolean).map(sourced).map(tag), xs), xs);
   const ok = new Map(shown.map(l => [l.id, l]));
   const seen = new Set();
   // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
@@ -1067,6 +1075,15 @@ export function compare(shown, holdout, { boots = 2000, seed = 1 } = {}) {
   return { delta, ci, relative: holdout.tokens ? delta / holdout.tokens : null, enough, verdict, corrections };
 }
 
+// What the person points at, from the ledger to the machine's keep file (keep.js): every file an observation in
+// the window names as a source. One naming is enough -- it is the person's own words, checked against their
+// prompt when it was read -- and it leaves with the observation, when the window no longer holds it. The file is
+// this checkout's list alone; the cut and the delegation trigger read every checkout's together.
+export function keepSources(rows) { return [...new Set((rows || []).flatMap(r => (Array.isArray(r.sources) ? r.sources : [])))].sort(); }
+export function syncKeep(store, { now = Date.now(), dir } = {}) {
+  return writeKeep(real(store.repo), keepSources(readLedger(store, { now })), { now, ...(dir ? { dir } : {}) });
+}
+
 // --- a session, end to end ------------------------------------------------
 // Extract a session's observations into the ledger, then compile when due. The caller has parsed the transcript
 // and decided the session is done with (the end hook, or the catch-up over quiet sessions).
@@ -1086,6 +1103,7 @@ export async function profileSession(store, events, { session, client, repoHint,
   const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
   const verdicts = appendLineVerdicts(store, r.lines, { session, client, model: r.model, now });
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
+  try { syncKeep(store, { now }); } catch { /* the keep file is a convenience of the cut's, never a reason to lose a session's reading */ }
   const rec = recurrence(rows);
   store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, repeats: rec.recurrences || undefined, repeatsServed: rec.served || undefined, repeatsUnlearned: rec.unlearned || undefined, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;
