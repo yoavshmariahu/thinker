@@ -1,0 +1,39 @@
+{
+ "id": "PR21834",
+ "pr": "21834",
+ "title": "Custom prefetch database routing",
+ "source": "Artemis archive, taskset django-astra-compression-criteria-2026-11-04 (frozen 2026-11-04); prompts and criteria copied unchanged",
+ "criteria": [
+  {
+   "id": "forward_database",
+   "behavior": "A custom Prefetch queryset for a forward ForeignKey with no explicit database uses the parent instance’s database through the existing router, including correct related data when default and other contain different rows.",
+   "essential": true
+  },
+  {
+   "id": "reverse_database",
+   "behavior": "The same parent-database behavior holds for a reverse OneToOneField custom Prefetch queryset with no explicit database.",
+   "essential": true
+  },
+  {
+   "id": "explicit_database",
+   "behavior": "An explicit database selected on the custom queryset with using() continues to take precedence; the fix does not force all custom querysets onto the parent database.",
+   "essential": true
+  },
+  {
+   "id": "router_hints",
+   "behavior": "Existing router behavior and instance hints are preserved, with routing performed at the appropriate point rather than prematurely fixing the default database.",
+   "essential": true
+  },
+  {
+   "id": "prefetch_compatibility",
+   "behavior": "Existing queryset reuse, cached-relation handling, empty-prefetch behavior and unaffected many-to-many paths retain their observable behavior; the patch does not bypass prefetching or add unnecessary per-object database queries.",
+   "essential": true
+  }
+ ],
+ "goldFiles": [
+  "django/db/models/fields/related_descriptors.py",
+  "docs/releases/6.1.1.txt",
+  "tests/prefetch_related/tests.py"
+ ],
+ "mergeCommit": "60a17fccf4f2fa31b823b0f938005897f2f3ef16"
+}

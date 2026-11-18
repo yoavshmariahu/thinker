@@ -1,0 +1,1 @@
+Trace the router and manager behavior around relation loading. Inspect django/db/utils.py, django/db/models/manager.py, django/db/models/base.py and related query paths. Explain how instance hints and explicit using() selections interact. Do not fix anything yet.

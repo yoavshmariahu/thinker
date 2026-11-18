@@ -1,0 +1,1 @@
+Trace tsc/internal/project/session.go, tsc/internal/project/snapshot.go and tsc/internal/ls/host.go in full. Explain how workspace information reaches a language-service request and what is stable across edits.

@@ -1,0 +1,1 @@
+Review tests/multiple_database/tests.py and its router definitions, including custom database-selection cases. Explain the invariants that a prefetch fix must preserve and give a concrete test plan.

@@ -1,0 +1,22 @@
+{
+ "tag": "thinking-five-django",
+ "question": "Before thinking-cutting is released: on five further long tasks from three codebases, does a session with thinker on and thinking cut when older than two turns come out as correct as a session with no proxy, and what does it cost and cut?",
+ "rule": "Chosen 2026-11-18 before any run, at the owner's ask for five more different tasks with a good amount of thinking: long multi-turn tasks from the Artemis archive whose prompts and criteria were frozen on or before 2026-11-04 and that the bench had not run (PostHog PR106466 and PR106917, the other two of the four website demo tasks; Django PR21834 and TypeScript PR64108, the fourteen-prompt tasks; MLflow PR26442 from the fair-turns pool). Two arms, one session each: bare (no proxy) first, which also sizes the task; then the shipped defaults with cutThinking on and thinkingKeepTurns 2, on every task whose bare session holds at least 20k tokens of thinking.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/django",
+ "ref": "189136c2a3e166c59a49cca2444aa6a1d77aa136",
+ "tasksDir": "bench/tasks/django",
+ "tasks": [
+  "PR21834"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  }
+ }
+}

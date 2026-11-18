@@ -1,0 +1,1 @@
+Run the prefetch_related test suite. Diagnose and fix failures using the test output. Explain which observed failures relate to the requested behavior.

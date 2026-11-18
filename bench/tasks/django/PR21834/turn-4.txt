@@ -1,0 +1,1 @@
+Read tests/prefetch_related/models.py and tests/prefetch_related/tests.py in full, in bounded chunks. Map the fixtures and existing coverage for custom prefetch querysets, multiple databases, and cached relations.

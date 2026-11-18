@@ -1,0 +1,14 @@
+This is turn 1 of a nine-turn coding and review session. The requested change is below; first map the existing behavior and do not edit until the next turn.
+
+Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.
+
+Once a scheduled broadcast has been launched, there is no way to stop or edit it from the Broadcasts area. It stays read-only until it sends, so someone who launches by mistake or wants to change the details has no control. There is also a bug when a broadcast is relaunched: if the audience of a draft was edited, its schedule gets paused. Launching does not resume that paused schedule, and the schedule's status can't be changed through the API. The broadcast then appears live and shows the "Broadcast scheduled" confirmation, but it never sends. Users should be able to move a live, scheduled broadcast back to draft so they can edit it. Launching should also replace any existing schedule with a fresh, active one, so a relaunched broadcast always sends at the chosen time and never ends up silently paused.
+
+Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+products/workflows/backend/api/hog_flow.py
+products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts
+products/workflows/frontend/Broadcasts/BroadcastSummary.tsx
+products/workflows/frontend/Broadcasts/broadcastsLogic.ts
+
+Summarize the current data flow and likely change boundaries in under 250 words; do not implement yet.

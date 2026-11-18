@@ -1,0 +1,1 @@
+Review path case-folding behavior, including Unicode path cases already covered by the path utilities. Test against the existing conventions; avoid ad hoc lowercasing.

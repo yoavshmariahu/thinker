@@ -1,0 +1,49 @@
+{
+ "id": "PR26442-hard",
+ "pr": "26442",
+ "title": "Allow custom `typesafe_api_base` for TypeSafe Gateway endpoints",
+ "source": "mlflow-b2-fair-turns acceptance criteria (Artemis archive, written 2026-10, before these runs)",
+ "criteria": [
+  {
+   "id": "a1",
+   "behavior": "A TypeSafe endpoint configured with a custom API base URL sends its requests (e.g. the System One passthrough call) to that custom address instead of the public TypeSafe hosted address.",
+   "essential": true
+  },
+  {
+   "id": "a2",
+   "behavior": "A TypeSafe endpoint with no custom API base URL set still sends requests to the existing public TypeSafe hosted address, so previously configured endpoints keep working unchanged.",
+   "essential": true
+  },
+  {
+   "id": "a3",
+   "behavior": "A custom API base URL value saved on a TypeSafe connection is passed through and used when the Gateway builds the provider for an endpoint that uses that connection.",
+   "essential": true
+  },
+  {
+   "id": "a4",
+   "behavior": "The TypeSafe provider's listed configuration options include an API base URL setting marked as optional (not required), alongside the existing required API key setting.",
+   "essential": true
+  },
+  {
+   "id": "a5",
+   "behavior": "The endpoint form for a saved TypeSafe connection displays an optional API Base URL input field, consistent with other providers that already expose this field.",
+   "essential": true
+  },
+  {
+   "id": "a6",
+   "behavior": "The model providers documentation describes the optional API base URL setting for TypeSafe and explains when to use it, such as routing through a proxy or pointing at a self-hosted System One server.",
+   "essential": true
+  }
+ ],
+ "goldFiles": [
+  "docs/docs/genai/governance/ai-gateway/endpoints/model-providers.mdx",
+  "mlflow/gateway/config.py",
+  "mlflow/gateway/providers/typesafe.py",
+  "mlflow/server/gateway_api.py",
+  "mlflow/utils/providers.py",
+  "tests/gateway/providers/test_typesafe.py",
+  "tests/server/test_gateway_api.py",
+  "tests/utils/test_providers.py"
+ ],
+ "mergeCommit": "311bbbd3cc6551f5837e31ff7310ac0cb3d3e4b9"
+}

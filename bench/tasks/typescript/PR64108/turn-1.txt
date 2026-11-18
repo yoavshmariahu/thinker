@@ -1,0 +1,10 @@
+Work only from this checkout. Do not use git history, remote repositories, issue or PR pages, or answer keys. This is an interactive coding session; respond to the current request and wait for the next. Read code with ordinary tools in bounded chunks when needed, so output is not silently truncated. Map the native TypeScript language service call-hierarchy pipeline. Read tsc/internal/ls/callhierarchy.go in full and the relevant language-service entry points. Explain how names, containers, file URIs, and spans are produced. Do not edit yet.
+
+The final implementation will be judged against these observable success criteria after the interactive session:
+- display_and_navigation: File/module call-hierarchy items display the basename as their name and the containing directory as detail; absolute file URI, navigation spans, and incoming/outgoing call targets remain correct.
+- workspace_relative: With a containing workspace, directory detail is relative to the most-specific containing workspace folder.
+- multi_workspace: With multiple workspace folders, the chosen folder’s display name prefixes the relative detail, so same-named files in different folders remain distinguishable.
+- initialization_fallback: Workspace roots supplied during LSP initialization are honored: workspaceFolders takes precedence, with rootUri/rootPath fallback when appropriate.
+- root_and_outside: A directory equal to a workspace root resolves against its parent instead of producing empty detail; files outside every workspace, or with no containing workspace, retain the absolute containing directory.
+- path_semantics: Workspace containment, nested-root selection, and relative path display honor the repository’s existing platform case-sensitivity and path-normalization conventions.
+- session_consistency: Workspace information reaches language-service requests and remains correct across snapshots and repeated requests without changing unrelated symbol-node display behavior.
