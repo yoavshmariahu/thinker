@@ -17,9 +17,7 @@ The command:
 
 1. Fetches `origin/main` and creates a temporary, isolated checkout. It leaves
    your current branch and uncommitted work alone.
-2. Bumps `package.json`, `package-lock.json` and the clearing mod's `VERSION`
-   (`src/integrations/claude-clear/hooks/register.tsx`, the version its clears are
-   stamped with), installs dependencies, runs the
+2. Bumps `package.json` and `package-lock.json`, installs dependencies, runs the
    full tests with `THINKER_TEST=1`, and opens `release/vX.Y.Z` as a PR to `main`.
 3. Prints the PR URL and waits. **Review and merge the PR yourself**, then press
    Enter. The runner never merges a PR or pushes to `main`.

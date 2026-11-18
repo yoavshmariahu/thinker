@@ -24,8 +24,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   26 such assertions were taken out on 2026-11-15, and they were most of why the file was edited twice a day.
 
 **The proxy and desktop clearing hold one policy (MANDATORY):**
-- `src/proxy.js` and `src/integrations/claude-clear` implement the same clearing policy, never two.
-- Every `PROXY_DEFAULTS` key honored by mod or exempted with reason in `DESKTOP_POLICY` (`test/claude-clear.test.js`).
+- `src/proxy.js` and the desktop door implement the same clearing policy, never two.
+- The clearing mod (`src/integrations/claude-clear`) holds NO policy (2026-11-18): an open session keeps the mod it loaded, so a copy there is frozen at the release the session was opened under. It asks the installed CLI at each decision (`thinker hook clear`, `src/clear-door.js`: `start`, `decide`, `apply`) and puts the answer in place. A constant or rule back in the mod fails `test/claude-clear.test.js`.
+- Every `PROXY_DEFAULTS` key honored by `clear-door.js:desktopPolicy` or exempted with reason in `DESKTOP_POLICY` (`test/claude-clear.test.js`).
 - Policy change is judged live on cache writes against 15% holdout, not replays.
 
 **Codex and Claude use the same cut policy (MANDATORY):**
@@ -89,7 +90,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **The two guards scale with what the route charges for a rewrite (2026-11-13, `cutting.js:cutScale`, `scaledPolicy`):**
 - Trigger and `clearAtLeast` × `clamp((write/read) / 20, 0.1, 1)`. 20 is Anthropic's 1h ratio, the harshest any provider charges, and the reason a cut needs a tail ≤1.25× what it removes.
-- Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the mod holds this policy from mirrored constants and cannot know a rate. Anthropic unmoved, keeps its policy id.
+- Only a route with rates of its own scales (`gateway-rates.js`, four sources). Nothing reads model or TTL: the 5m write would price Anthropic at 12.5 and move its guards on the TTL alone, and the desktop door (`clear-door.js`) is Anthropic's by construction and reads no rate. Anthropic unmoved, keeps its policy id.
 - GLM: write 1.0, read 0.5 stated (implicit cache, no write or storage line), so a 14k trigger; the floor stays 8k, since #783 left only the trigger scaling (`cutting.js`: "Only the trigger scales"). Stamp `r3-t14k-f8k-p25-deep`. Never pooled with an Anthropic saving; the scaling itself bumped no `POLICY_REV`, the guards are already in the stamp.
 - `PAYBACK` 25 unchanged and does the policing, but it polices less than this said: with the rewrite charged whole, a 7k cut behind a 180k tail priced at 52 and was refused; corrected (below) it prices at 25 and is made. A cheap route still prefers **early and small**, since the tail is what it is paying for, but "late and small is refused" now needs a tail 40x the cut, not 25x.
 - A guard pinned by flag or env is never scaled (`cfg.pinned`). `prices.js:statedRates` answers only where cache prices are **stated**, never from `fill`'s invented tenth.
@@ -100,7 +101,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - On Anthropic a read is a tenth of a write, so it is a ~6% change -- invisible while only Anthropic was priced. Where a read is half the input price it is most of the cost.
 - Measured on this machine's 93 priced warm boundaries: Anthropic 1h cuts 13 → 20, Anthropic 5m 49 → 68, GLM read 1/2 93 → 93 (already all passing), GLM read 1/5 89 → 92. **So it lands on Anthropic and the OpenAI/Gemini shape, not on GLM**, where the guards above were the only thing refusing.
 - `payback` 0 is reachable and means repaid on the call that makes the cut; it cannot go below (clamped, to keep `Math.ceil`'s `-0` out of the log).
-- The mod decides in ratios: `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
+- The desktop door decides in ratios (`clear-door.js:clearPays`): `(writeRatio - 1) x recache <= (PAYBACK + 1) x dropped`, held to `priceCut` over 160 points by `test/claude-clear.test.js`.
 **The cut is taken from the tail backwards (2026-11-13, `proxy.js:cutCandidates`, `cutting.js:decideCut`):**
 - Taking every eligible result starts the rewrite at the OLDEST one, so it spans nearly the whole conversation while removing only the results in that span -- 26-34% of it on this machine's 93 priced warm boundaries against the 42% Anthropic's hourly rates need, which is why 0 of the 12 boundaries under the current stamp were cut.
 - A removed token saves the same wherever it sat; only the cost depends on position. So `cutCandidates` returns `steps`, the nested suffixes from the tail backwards, built in one backward pass (the set only grows backwards, so a message already passed never changes and the running sum is every deeper rung's tail). The deepest rung IS the old whole-set candidate, held to the single stringify's figure by `test/cut-ladder.test.js`.
@@ -171,13 +172,13 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - The newest copy of a kept file stays (a whole read, a `cat`, a Write); older copies are cut as before. Kept: `*.md`, what the profile learned, a file the person named in a prompt, a file read again after a cut.
 - A web address is kept as a file is (a fetch tool's call, an untrimmed `curl`): learned or named, and it covers the pages under it.
 - No model at decision time. The profile's reader records `sources` on an observation (files the person pointed at, held to their own words by `sourcePattern`); `profile.js:syncKeep` writes them to `<THINKER_HOME>/state/keep.json`, a list per checkout, read together by every door.
-- Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the mod's own copy between `keep:begin`/`keep:end` (run against keep.js by `test/keep.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
+- Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the desktop door (`clear-door.js:keptOf`, which calls keep.js itself; the mod has no copy, `test/keep.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
 - Delegation's "named" reads the newest prompt only.
 - Replayed over this machine's 14 days (16 cut sessions, 1.88M tokens taken): `.md` 1.3% of it, the list as a whole 8.3%, most of that files named in a prompt.
 
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
-- A cut result's tokens are counted from its text (2026-11-17, `proxy.js:resultTokens`, mirrored by the mod and held to it in `test/claude-clear.test.js`): letters 0.34, digits 0.78, symbols 1.05, newlines 1.6, other 0.7, spaces nothing. Fitted to the API's own counts on 1,082 results (median error 4.0% against 10.6% for a flat 0.445). `POLICY_REV` 8. Images and a call's own text keep `RESULT_TOKENS_PER_CHAR` (0.445), as do delegation and the re-read figures.
+- A cut result's tokens are counted from its text (2026-11-17, `proxy.js:resultTokens`, which the desktop door calls too): letters 0.34, digits 0.78, symbols 1.05, newlines 1.6, other 0.7, spaces nothing. Fitted to the API's own counts on 1,082 results (median error 4.0% against 10.6% for a flat 0.445). `POLICY_REV` 8. Images and a call's own text keep `RESULT_TOKENS_PER_CHAR` (0.445), as do delegation and the re-read figures.
 - Session record: `state/compression/<session>.json`; `compressionHeader` on four doors.
 - Desktop clears measure cost from API's `cache_creation_input_tokens` and `cache_read_input_tokens`.
 

@@ -23,8 +23,7 @@ function fixture(t) {
   const pkg = { name: 'thinker', version: '0.1.0', bin: { thinker: './src/cli.js', 'thinker-server': './src/server.js' } };
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify(pkg));
   fs.writeFileSync(path.join(repo, 'package-lock.json'), JSON.stringify({ version: '0.1.0', packages: { '': { version: '0.1.0' } } }));
-  fs.mkdirSync(path.join(repo, 'src/integrations/claude-clear/hooks'), { recursive: true });
-  for (const [f, s] of Object.entries({ 'src/integrations/claude-clear/hooks/register.tsx': "// the mod\nexport const VERSION = '0.1.0'\nexport const PAYBACK = 25\n", 'src/cli.js': 'console.log("hello");', 'README.md': '# Thinker', 'LICENSE': 'MIT', 'install.sh': '#!/bin/sh\necho install\n' })) fs.writeFileSync(path.join(repo, f), s);
+  for (const [f, s] of Object.entries({ 'src/cli.js': 'console.log("hello");', 'README.md': '# Thinker', 'LICENSE': 'MIT', 'install.sh': '#!/bin/sh\necho install\n' })) fs.writeFileSync(path.join(repo, f), s);
   git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'initial'); git(repo, 'push', '-q', 'origin', 'main');
   const initial = git(repo, 'rev-parse', 'HEAD');
   // A caller on an old dirty checkout must never package these uncommitted bytes.
@@ -200,9 +199,7 @@ test('a manual release creates a version-only PR, waits for review, and resumes 
   const f = fixture(t);
   const pending = await f.invoke();
   assert.equal(pending.pending, true);
-  assert.deepEqual(git(f.repo, 'diff', '--name-only', `origin/main...${f.state.pr.headRefOid}`).split('\n'), ['package-lock.json', 'package.json', 'src/integrations/claude-clear/hooks/register.tsx']);
-  // the mod stamps its clears with the version in its own bytes: the release moves that line with package.json's
-  assert.equal(git(f.repo, 'show', `${f.state.pr.headRefOid}:src/integrations/claude-clear/hooks/register.tsx`), `// the mod\nexport const VERSION = '${JSON.parse(git(f.repo, 'show', `${f.state.pr.headRefOid}:package.json`)).version}'\nexport const PAYBACK = 25`);
+  assert.deepEqual(git(f.repo, 'diff', '--name-only', `origin/main...${f.state.pr.headRefOid}`).split('\n'), ['package-lock.json', 'package.json']);
   assert.equal(Object.keys(f.state.releases).length, 0);
   f.assertUntouched();
   f.merge();

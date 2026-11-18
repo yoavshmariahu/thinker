@@ -685,7 +685,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
 // Apply a known set. Deterministic: the agent re-sends the whole conversation every call, so the
 // same ids give the same bytes, which is what keeps the prefix still.
 //
-// Three operations, the same three the desktop mod performs (`register.tsx:clearOld`), so the two
+// Three operations, the same three the desktop door performs (`clear-door.js:clearPlan`), so the two
 // doors do the same thing and not merely hold the same config keys: an old result becomes a
 // placeholder, and nothing else is touched. Measured 2026-11-04 in the final request of a seven-turn
 // session: the tool results held 487,332 chars, the tool_use inputs 2,800 (a file path each) and the

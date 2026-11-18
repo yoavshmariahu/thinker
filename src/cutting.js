@@ -146,7 +146,7 @@ export const policyId = (cfg = {}) =>
 // that would repay in 3 calls is refused as below-trigger.
 //
 // So: scale both guards by the ratio against Anthropic's 20, and name no provider in the rule. GLM lands at
-// 14k/6k, Anthropic stays at 140k/60k exactly (the desktop mod's mirrored constants still match, and a
+// 14k/6k, Anthropic stays at 140k/60k exactly (the desktop door, clear-door.js, reads the same two, and a
 // saving made on an Anthropic route keeps the policy id it already had). PAYBACK stays at 25 and does the
 // real policing on both: a small cut late in a long conversation is still refused, because the tail dwarfs
 // what it takes out. That is what makes the cheap route cut EARLY and in SMALL batches rather than merely
@@ -158,8 +158,8 @@ export const policyId = (cfg = {}) =>
 // tenth is the floor until the holdout says otherwise.
 // Only a route whose OWN prices are known moves its guards, which is why nothing is read from `model` or
 // `ttl` here. The five-minute write is 1.25 and would price Anthropic's ratio at 12.5, scaling the guards to
-// 0.63 on the cache TTL alone -- and the desktop mod, which holds this same policy from mirrored constants,
-// cannot know a rate. A route with no resolved rates is Anthropic's, at the ratio the guards were set
+// 0.63 on the cache TTL alone -- and the desktop door (clear-door.js), which runs this same policy inside Claude Desktop,
+// is never handed one. A route with no resolved rates is Anthropic's, at the ratio the guards were set
 // against, and stays exactly where it was.
 export const BASE_RATIO = WRITE_1H / READ;   // 20
 export const SCALE_MIN = 0.1;
