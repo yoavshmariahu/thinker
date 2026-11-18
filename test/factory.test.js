@@ -258,7 +258,7 @@ test('the clearing\'s on side is a session that actually got a clear, its held-o
 });
 
 test('with the clearing\'s holdout off the comparison says so, and names where the re-reads are netted instead', () => {
-  assert.equal(SERVICE_HOLDOUT, 0, 'no holdout since 2026-11-12: re-reads of cleared files are measured per session (rereads.js)');
+  assert.equal(SERVICE_HOLDOUT, 0.25, 'a quarter held out since 2026-11-18, with the thinking cut on by default');
   const cell = () => ({ sessions: 0, cost2: 0, exchanges: 0, calls: 0, cost: 0, tokens: 0, rework: 0, reworkTokens: 0, cacheWrite: 0, cacheRead: 0, stages: Object.fromEntries(STAGES.map(([k]) => [k, { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }])), loops: {}, prs: { merged: 0, firstPass: 0, cost: 0 } });
   const v = { cost: 0, loops: [], arms: { compression: { rate: 0, on: cell(), holdout: cell() } } };
   const lines = renderArms(v, 'compression');
