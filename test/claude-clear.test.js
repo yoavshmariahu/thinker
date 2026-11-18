@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, POLICY_REV, priceCut } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, VERSION, priceCut } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -106,12 +106,16 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   assert.equal(modConst(s, 'PAYBACK'), PAYBACK, "the mod's payback floor is the proxy's");
   // One policy means one name for it. Every saving's record carries the policy that made it (cutting.js:policyId),
   // and the two doors must spell the same policy the same way or a dashboard would read one machine as two.
-  assert.equal(modConst(s, 'POLICY_REV'), POLICY_REV, "the mod's policy revision is the proxy's");
+  // The stamp leads with thinker's version, and the mod carries its own copy of it in its bytes (an open session
+  // keeps the mod it loaded, so the installed version is not the version of the rules it runs). A release that
+  // bumps package.json and not the mod fails here.
+  assert.equal(modConst(s, 'VERSION'), JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version, "the mod's version is the package's: bump both in a release");
+  assert.equal(modConst(s, 'VERSION'), VERSION, "the mod's version is the one the proxy stamps");
   const modPolicy = (() => {
     const m = s.match(/export const policyId = \(p: \{[^}]*\}\) =>\n  (`[^`]+`)/);
     assert.ok(m, 'the mod builds a policy id on one line');
     const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
-    return cfg => new Function('p', 'POLICY_REV', 'PAYBACK', 'roundTo', `return ${m[1].replace(/ as number/g, '')}`)(cfg, POLICY_REV, PAYBACK, round);
+    return cfg => new Function('p', 'VERSION', 'PAYBACK', 'roundTo', `return ${m[1].replace(/ as number/g, '')}`)(cfg, VERSION, PAYBACK, round);
   })();
   // The mod's name is the proxy's for the policy the mod can run: it never sees the request, so it places no
   // breakpoint and leaves out no thinking, and a saving it makes is one made without either (`DESKTOP_POLICY`).

@@ -58,18 +58,26 @@ export const writeRatio = (model: string) => 2 / readRate(model)
 // A clear must repay its rewrite inside this many later calls; the proxy's own floor (cutting.js:PAYBACK,
 // which carries the measurement that set it). test/claude-clear.test.js holds the two together.
 export const PAYBACK = 25
-// Which cut policy made a saving, in the proxy's own spelling (cutting.js:policyId, POLICY_REV; held to it by
+// Which cut policy made a saving, in the proxy's own spelling (cutting.js:policyId; held to it by
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
-// so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 11
+// so they must name it with one string.
+//
+// The stamp leads with thinker's version (the owner's call, 2026-11-18; `r<n>`, bumped by hand, until 0.4.5), and
+// here it is written into the file instead of read from the installed app. An open session keeps the copy of this
+// mod it loaded at its start (claude-card.js: the folder is named by its bytes and an update never replaces it), so
+// a session opened under one release goes on clearing by that release's rules for as long as it stays open, days
+// after the machine updated. Reading the installed version would stamp those clears with a release whose rules
+// they never ran. So this is the version of THIS copy: a release bumps it with package.json
+// (test/claude-clear.test.js fails the release that does not), which also gives every release its own folder.
+export const VERSION = '0.4.5'
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 // `+in` is the proxy's `cutInputs` (proxy.js:applyCut, 2026-11-14): a cut that also takes the finished call's own
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
 // measurement that removed input cutting still holds there (test/claude-clear.test.js exempts the key) -- but the
 // term is mirrored here, because the rule is that one policy has one spelling, not that both doors run one config.
 export const policyId = (p: { trigger?: number; clearAtLeast?: number; clearDeep?: boolean; cutInputs?: boolean; cutImages?: boolean }) =>
-  `r${POLICY_REV}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}${p?.cutInputs ? '+in' : ''}${p?.cutImages ? '+img' : ''}`
+  `v${VERSION}-t${roundTo(p?.trigger as number)}-f${roundTo(p?.clearAtLeast as number)}-p${PAYBACK}-${p?.clearDeep === false ? 'one' : 'deep'}${p?.cutInputs ? '+in' : ''}${p?.cutImages ? '+img' : ''}`
 // What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
 // holds the two together): from the first clear onward, a request that wrote more than half of a long context
 // into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,

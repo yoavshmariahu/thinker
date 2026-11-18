@@ -255,7 +255,7 @@ export const TOKENS_PER_CHAR = 1.44 / 4;
 // is priced as it will be sent, with the results already placeholders, so it is thinking, call text and prose,
 // and only the removed side is results. Pricing both at 0.36 ran the removed side a fifth short, which is the
 // wrong direction at a margin where 62 payback refusals sat at a median 23% removed against the 42% needed.
-// The tail keeps TOKENS_PER_CHAR. `POLICY_REV` 4 marks it (cutting.js).
+// The tail keeps TOKENS_PER_CHAR. The stamp `r4` marks it (cutting.js).
 export const RESULT_TOKENS_PER_CHAR = 0.445;
 // What a result's text is in tokens, counted from the text itself (2026-11-17). A flat rate a character is right
 // on average and wrong result by result: over 1,082 results from 159 of this machine's sessions, each held to

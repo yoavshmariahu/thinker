@@ -70,7 +70,7 @@ const roundGroup = g => {
   return g;
 };
 // a saving whose policy was never recorded is its own key, never folded into today's
-const STAMPED = /^r\d/;
+const STAMPED = /^[rv]\d/;   // `v<version>-...` (cutting.js:policyId), and the `r<n>-...` the records made through 0.4.5 carry
 const policyKey = x => (x.cleared > 0 ? (x.policyChanged ? 'mixed' : x.policy || 'unstamped') : 'none');
 
 export function deliveryMetrics(store, { all = true, now = Date.now(), home } = {}) {
