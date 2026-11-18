@@ -37,6 +37,9 @@ back. So:
 - A **cold** cut's own request is not charged either (`clear.cold`, or a rewrite whose cache read is zero,
   `cutting.js:chargedRewrite`): past the cache's hour the whole context is written again whatever thinker
   does, which is why `decideCut` prices that cut at zero. The decision and the ledger must price it alike.
+- A **warm** cut is charged whatever its request wrote into the cache, with no floor on the context and no
+  share of it (2026-11-18). The report's rewrite heuristic (`cutting.js:isRewrite`: 100k of context, half of it
+  written) is not the test: its floor is on the context after the cut, so large cuts were recorded as free.
 
 The code is `compression.js:clearingCostBySession`; the desktop mod holds the same rule and
 `test/claude-clear.test.js` holds the two together.
