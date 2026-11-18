@@ -12,7 +12,10 @@
 //     at (`sources` on an observation, profile.js; the machine's keep file below);
 //   - the person named it in a prompt of this conversation;
 //   - the model read it again after a cut took it, so a file is lost at most once.
-// A copy is a whole read, a `cat`, or a Write of the file. Older copies of a kept file are cut as before -- the
+// A web address is kept the same way as a file (2026-11-17, the owner's call): a page the person pointed at is
+// a source like their notes, and a fetch of it is a copy. A learned or named address also covers what lies
+// under it (`site.com/insights` keeps `site.com/insights?range=7d`).
+// A copy is a whole read, a `cat`, a Write of the file, or a fetch of the address. Older copies of a kept file are cut as before -- the
 // newest one holds the content -- so a file read ten times costs one copy, not ten. A ranged read never
 // displaces a whole one.
 //
@@ -34,19 +37,27 @@ export const KEEP_DEFAULT = ['*.md'];
 const esc = s => s.replace(/[.+^${}()|[\]\\?]/g, '\\$&');
 const glob = p => esc(p).replace(/\*\*\/?/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '(?:.*/)?');
 const norm = f => String(f || '').replace(/\\/g, '/').replace(/^\.\//, '');
+// A web address, reduced to what makes two spellings of it the same: no scheme, no `www.`, no fragment, no
+// trailing slash, lower case. One address covers another when it is the same or a parent of it.
+const isUrl = s => /^https?:\/\//i.test(String(s || '').trim());
+export const urlKey = u => String(u || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/#.*$/, '').replace(/\/+$/, '').toLowerCase();
+const urlCovers = (parent, key) => !!parent && (key === parent || (key.startsWith(parent) && '/?&'.includes(key[parent.length])));
 export function keepMatcher(patterns = KEEP_DEFAULT) {
-  const names = [], paths = [];
+  const names = [], paths = [], urls = [];
   for (const raw of patterns || []) {
+    if (isUrl(raw)) { urls.push(urlKey(raw)); continue; }
     const p = norm(String(raw || '').trim());
     if (!p) continue;
     if (p.includes('/')) paths.push(new RegExp(`(?:^|/)${glob(p.replace(/^\//, ''))}$`, 'i'));
     else names.push(new RegExp(`^${glob(p)}$`, 'i'));
   }
   return file => {
-    const f = norm(file);
+    // an address is matched as an address, and by its page's name too (a raw README.md is still the notes)
+    if (isUrl(file)) { const key = urlKey(file); if (urls.some(p => urlCovers(p, key))) return true; }
+    const f = isUrl(file) ? urlKey(file).replace(/\?.*$/, '') : norm(file);
     if (!f) return false;
     const base = f.slice(f.lastIndexOf('/') + 1);
-    return names.some(r => r.test(base)) || paths.some(r => r.test(f));
+    return names.some(r => r.test(base)) || (!isUrl(file) && paths.some(r => r.test(f)));
   };
 }
 
@@ -61,7 +72,10 @@ const NAMEABLE = /^[^\s/]{1,120}\.[A-Za-z0-9]{1,8}$/;
 export function namedIn(prompts = []) {
   const said = (Array.isArray(prompts) ? prompts : [prompts]).map(spoken).join('\n').toLowerCase();
   const memo = new Map();
+  // the addresses the person wrote, each without the punctuation that ended its sentence
+  const urls = (said.match(/https?:\/\/[^\s<>"')\]]+/g) || []).map(u => urlKey(u.replace(/[.,;:!?]+$/, '')));
   return file => {
+    if (isUrl(file)) { const key = urlKey(file); return urls.some(p => urlCovers(p, key)); }
     const f = norm(file), base = f.slice(f.lastIndexOf('/') + 1).toLowerCase();
     if (!said || !NAMEABLE.test(base)) return false;
     if (!memo.has(base)) memo.set(base, new RegExp(`(?:^|[^\\w.-])${esc(base)}(?![\\w-]|\\.\\w)`).test(said) || said.startsWith(base));
@@ -75,6 +89,8 @@ export function namedIn(prompts = []) {
 // array), so the reading is by shape: a read tool's path, a write tool's path where it carries the content, a
 // shell line that prints a file (shell-read.js, the delegation trigger's own parser).
 const READ_TOOL = /^(read|read_file|view|view_file|open_file|cat)$/i;
+const FETCH_TOOL = /^(webfetch|web_fetch|fetch|fetch_url|url_fetch|read_url|open_url)$/i;
+const FETCH_CMD = /^\s*(curl|wget)\s/;
 const WRITE_TOOL = /^(write|write_file|create_file)$/i;
 const SHELL_TOOL = /^(bash|shell|exec_command|local_shell|run_terminal_cmd|run_shell_command|execute_command|container\.exec)$/i;
 const CD = /^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/;
@@ -92,6 +108,7 @@ export function copyOf(name, input) {
     const f = pathOf(input);
     return f && typeof (input.content ?? input.contents ?? input.text) === 'string' ? { files: [unquote(f)], whole: true } : null;
   }
+  if (FETCH_TOOL.test(name)) return isUrl(input.url) ? { files: [String(input.url).trim()], whole: true } : null;
   if (SHELL_TOOL.test(name)) {
     // Codex sends the command as an argv (`["bash", "-lc", "cat notes.md"]`): the line is its last element
     const raw = input.command ?? input.cmd;
@@ -99,6 +116,12 @@ export function copyOf(name, input) {
     if (!cmd) return null;
     const m = cmd.match(CD), dir = m ? unquote(m[1]) : '';
     const line = m ? cmd.slice(m[0].length) : cmd;
+    // a `curl` or `wget` of an address, untrimmed: a fetch, as the fetch tool's is
+    if (FETCH_CMD.test(line)) {
+      if (/\|/.test(line) || /[;&]/.test(line.replace(/https?:\/\/\S+/g, ''))) return null;
+      const urls = (line.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(unquote).filter(isUrl);
+      return urls.length ? { files: urls, whole: true } : null;
+    }
     const r = shellRead(line);
     if (!r) return null;
     return {
@@ -205,8 +228,12 @@ export function writeKeep(repo, files, { dir = home(), now = Date.now() } = {}) 
 // stand in one of their prompts, and it must look like a file. A name alone becomes a name pattern, a path a
 // path pattern. Nothing with a wildcard is learned: a model does not get to widen the list.
 const SOURCE = /^[\w@~./-]{1,200}\.[A-Za-z0-9]{1,8}$/;
+const SOURCE_URL = /^https?:\/\/[^\s*<>"'`]{4,300}$/i;
 export function sourcePattern(source, prompts = []) {
-  const s = norm(String(source || '').trim().replace(/^[`'"]+|[`'".,;:]+$/g, ''));
+  const raw = String(source || '').trim().replace(/^[`'"<(]+|[`'".,;:!?>)]+$/g, '');
+  // a web address: learned as written, where the person wrote it (the matcher reduces it, and covers what lies under it)
+  if (isUrl(raw)) return SOURCE_URL.test(raw) && spoken((Array.isArray(prompts) ? prompts : [prompts]).join('\n')).toLowerCase().includes(raw.toLowerCase()) ? raw.replace(/#.*$/, '') : null;
+  const s = norm(raw);
   if (!SOURCE.test(s) || s.includes('*')) return null;
   if (!spoken((Array.isArray(prompts) ? prompts : [prompts]).join('\n')).toLowerCase().includes(s.toLowerCase())) return null;
   const rel = s.replace(/^~\//, '').replace(/^\/+/, '');
