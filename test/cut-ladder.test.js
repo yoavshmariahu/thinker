@@ -9,7 +9,7 @@
 // That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary is priced as a warm one is.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cutCandidates, applyCut, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
+import { cutCandidates, applyCut, thinkingChars, lastPrompt, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
 import { decideCut, priceCut, freshCut, PAYBACK } from '../src/cutting.js';
 
 const tu = id => ({ type: 'tool_use', id, name: 'Read', input: { file_path: `/p/${id}` } });
@@ -20,25 +20,29 @@ const think = n => ({ type: 'thinking', thinking: 'T'.repeat(n), signature: 'sig
 // `thinkChars` is the bulk a cut can never remove -- thinking, prompts, the agent's text, tool inputs. It is
 // the whole reason a deep set is dear: on this machine's boundaries the results are only 26-34% of the span
 // the rewrite covers, so a conversation built with token thinking blocks would not be one of ours.
-function conversation(sizes, { tailPrompt = true, thinkChars = 400 } = {}) {
+function conversation(sizes, { tailPrompt = true, thinkChars = 400, textChars = 0 } = {}) {
   const ms = [];
   sizes.forEach((size, k) => {
     ms.push({ role: 'user', content: `prompt ${k}` });
-    ms.push({ role: 'assistant', content: [think(thinkChars), tu(`r${k}`)] });
+    ms.push({ role: 'assistant', content: [think(thinkChars), ...(textChars ? [{ type: 'text', text: 't'.repeat(textChars) }] : []), tu(`r${k}`)] });
     ms.push({ role: 'user', content: [tr(`r${k}`, size)] });
   });
   if (tailPrompt) ms.push({ role: 'user', content: 'the live turn' });
   return ms;
 }
 
-// every message as sent with a set replaced, in one stringify: what a cut makes the API write
+// The thinking below a rung's first change and before the turn in progress: no cut writes it (2026-11-18), so
+// it is off every rung's price, whether or not the proxy also leaves it out.
+const unwritten = (messages, firstChanged) => { const live = lastPrompt(messages); return Math.round(messages.reduce((n, m, i) => n + (i > firstChanged && i < live ? thinkingChars(m) : 0), 0) * TOKENS_PER_CHAR); };
+// every message as sent with a set replaced, in one stringify: what a cut makes the API write, less that thinking
+const firstOf = (messages, ids) => Math.min(...messages.map((m, i) => (Array.isArray(m.content) && m.content.some(b => b?.type === 'tool_result' && ids.includes(b.tool_use_id)) ? i : Infinity)));
 const allByStringify = (messages, ids, have = []) =>
-  Math.round(JSON.stringify(applyCut(messages, new Set([...have, ...ids])).messages).length * TOKENS_PER_CHAR);
+  Math.round(JSON.stringify(applyCut(messages, new Set([...have, ...ids])).messages).length * TOKENS_PER_CHAR) - unwritten(messages, firstOf(messages, ids));
 // the tail alone: one stringify of the slice from the first replaced result (what `recache` was until 2026-11-16)
 const wholeByStringify = (messages, ids, have = []) => {
   const first = Math.min(...messages.map((m, i) => (Array.isArray(m.content) && m.content.some(b => b?.type === 'tool_result' && ids.includes(b.tool_use_id)) ? i : Infinity)));
   const sent = applyCut(messages.slice(first), new Set([...have, ...ids])).messages;
-  return Math.round(JSON.stringify(sent).length * TOKENS_PER_CHAR);
+  return Math.round(JSON.stringify(sent).length * TOKENS_PER_CHAR) - unwritten(messages, first);
 };
 
 test('the deepest rung is the whole-set candidate, priced at every message as sent', () => {
@@ -77,7 +81,8 @@ test('a tail-local cut is refused where the whole set is: a shallow rung rewrite
   // the newest rung was priced as rewriting almost nothing and was taken here. The API wrote the whole
   // conversation for such a cut (35k predicted, 245k written, a cache read of the system prompt alone), so
   // a rung that removes less than everything can only cost more than the set that was already refused.
-  const ms = conversation(Array(8).fill(30000), { thinkChars: 90000 });
+  // The bulk is the agent's own text here, not thinking: thinking below a cut is in nothing the cut writes.
+  const ms = conversation(Array(8).fill(30000), { textChars: 90000 });
   const cand = cutCandidates(ms, { keepMin: 0 });
   const m = { prompt: Math.round(JSON.stringify(ms).length * TOKENS_PER_CHAR), turn: 1 };
   const opus = { model: 'claude-opus-5' };
@@ -182,4 +187,23 @@ test('the decision puts depth and rungs where every door already logs them', asy
     assert.equal(typeof t.clear.depth, 'number', 'the row names the rung');
     assert.ok(t.clear.rungs >= 1);
   }
+});
+
+test('thinking below a cut is in nothing the cut writes, and thinking above it and in the turn in progress still is', () => {
+  // The shape of this machine's 2026-11-18 cuts: a third of the conversation's characters are thinking
+  // signatures, and the rewrite was predicted three times what the API wrote (181,105 against 54,838).
+  const plain = conversation([30000, 30000, 30000, 30000, 30000, 30000], { thinkChars: 0 });
+  const thought = conversation([30000, 30000, 30000, 30000, 30000, 30000], { thinkChars: 20000 });
+  const a = cutCandidates(plain, { keepMin: 3 }), b = cutCandidates(thought, { keepMin: 3 });
+  const deep = b.steps[b.steps.length - 1], bare = a.steps[a.steps.length - 1];
+  // the deepest rung's first change is r0's result: only r0's own call sits above it with its thinking
+  const above = Math.round(thinkingChars(thought[1]) * TOKENS_PER_CHAR) - Math.round(thinkingChars(plain[1]) * TOKENS_PER_CHAR);
+  assert.ok(above > 7000);
+  assert.equal(deep.tail, bare.tail, 'the tail is priced as if the thinking below it were not there');
+  assert.ok(Math.abs(deep.recache - bare.recache - above) <= 2, 'and the whole keeps only the thinking above the first change');
+  // a turn in progress keeps its thinking in the price
+  const turn = n => [...thought, { role: 'assistant', content: [think(n), tu('live')] }, { role: 'user', content: [tr('live', 300)] }];
+  const deepest = ms => cutCandidates(ms, { keepMin: 3 }).steps.find(st => st.ids[st.ids.length - 1] === 'r0');
+  const live = Math.round(thinkingChars(turn(20000)[turn(20000).length - 2]) * TOKENS_PER_CHAR) - Math.round(thinkingChars(turn(0)[turn(0).length - 2]) * TOKENS_PER_CHAR);
+  assert.ok(Math.abs(deepest(turn(20000)).tail - deepest(turn(0)).tail - live) <= 2, 'the live turn\'s thinking is still counted');
 });

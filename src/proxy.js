@@ -327,6 +327,16 @@ export function turnIndex(messages, turn) {
   }
   return messages.length;
 }
+// where the turn in progress starts: the person's newest prompt, or the end of the messages where there is none
+export function lastPrompt(messages) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m?.role !== 'user') continue;
+    const blocks = Array.isArray(m.content) ? m.content : [{ type: 'text' }];
+    if (blocks.some(b => b?.type === 'text') && !blocks.some(b => b?.type === 'tool_result')) return i;
+  }
+  return messages.length;
+}
 // the message holding the oldest result of a set of ids: the thinking after it is what goes
 const cutAnchor = (messages, ids) => (ids.size ? messages.findIndex(m => Array.isArray(m?.content) && m.content.some(b => b?.type === 'tool_result' && ids.has(b.tool_use_id))) : -1);
 // which messages have had their thinking left out by the cuts so far: one flag a message, from `rec.think`
@@ -656,11 +666,20 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // rung also loses the thinking between its oldest result and that turn. It comes off what the rung writes,
   // at the rate the ladder counted it, and what an earlier cut had not already left out is added to what the
   // rung removes, at a thinking block's own rate.
+  // And the thinking below a rung's first change is in nothing the rung writes, whether or not this proxy leaves
+  // it out (2026-11-18). A thinking block is bound to what came before it, so once a message above it is
+  // changed the API no longer counts it: on this machine's two first cuts under 0.4.5, which sent every
+  // thinking block, the rewrite was predicted at 181,105 and 265,464 tokens and the API wrote 54,838 and
+  // 95,689 -- and 324k and 450k characters of those conversations were thinking signatures below the cut,
+  // 117k and 162k of the prediction. Without them it reads 64k and 104k. So it comes off the tail and off the
+  // whole for every rung; only what the rung is credited with removing still depends on `thinking`. The turn in
+  // progress is left in the price: its thinking goes back as it came, which the API requires, and nothing here
+  // has measured what that costs after a cut.
   let thinkAll = 0;
-  if (thinking && steps.length) {
-    const gone = thinkingGone(messages, thinking.done), pre = [0], preGone = [0];
+  if (steps.length) {
+    const gone = thinking ? thinkingGone(messages, thinking.done) : [], pre = [0], preGone = [0];
     messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
-    const to = Math.min(thinking.to ?? messages.length, messages.length);
+    const end = lastPrompt(messages), to = Math.min(thinking?.to ?? end, end);
     for (const s of steps) {
       // Only thinking at or below the rung's own first change goes (2026-11-18). Thinking that has aged since an
       // earlier cut sits further back than the results a later cut replaces, and reaching for it moved the
@@ -669,14 +688,17 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
       // 19k -- about 41k more written for 15.5k removed, a payback past 100 calls carried over the limit by the
       // results beside it. So a cut never reaches above itself for thinking: what is old enough and already
       // inside the span it rewrites goes with it, and the rest waits for a cut that reaches that far.
-      const from = Math.min(s.firstChanged + 1, to);
-      const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
-      s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
-      s.tokens += s.thinking;
-      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
-      s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
+      const below = Math.min(s.firstChanged + 1, end), from = Math.min(below, to);
+      if (thinking) {
+        const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // the thinking this rung leaves out, and what was gone already
+        s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
+        s.tokens += s.thinking;
+      }
+      const unwritten = pre[end] - pre[below];   // every thinking block below the first change and before the turn in progress, kept turns and all
+      s.tail = Math.max(0, s.tail - Math.round(unwritten * TOKENS_PER_CHAR));
+      s.recache = Math.max(0, s.recache - Math.round((unwritten + preGone[below]) * TOKENS_PER_CHAR));
     }
-    thinkAll = steps[steps.length - 1].thinking;
+    if (thinking) thinkAll = steps[steps.length - 1].thinking;
   }
   const whole = steps.length ? steps[steps.length - 1] : null;
   return {
