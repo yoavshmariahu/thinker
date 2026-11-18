@@ -96,7 +96,7 @@ test('a checkout wired at repo scope gets the directory, and uninstallWiring rep
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('the v2 server part calls the CLI hooks the way the v1 plugin did', async () => {
+test('the v2 server part calls the CLI hooks the way the v1 plugin did', async t => {
   const runs = [];
   const run = async (what, ev) => { runs.push([what, ev]); if (what === 'pretool') return ev.tool_name === 'read' ? JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: 'REPORT' } }) : ''; return what === 'prompt' ? 'SERVED' : 'NOTED'; };
   const hooks = {};
@@ -127,10 +127,17 @@ test('the v2 server part calls the CLI hooks the way the v1 plugin did', async (
   };
   const plugin = opencodeV2({ client: 'opencode', repo: null, cli: CLI, hooks: true, learn: true, late: true, mcp: true, mcpEntry: ENTRY }, run);
   assert.equal(plugin.id, 'thinker');
-  // the delegation hook registers only while the trigger is on (off by default)
-  const wasOn = process.env.THINKER_DELEGATE; process.env.THINKER_DELEGATE = 'on';
+  // The delegation hook is always registered and reads the switch at each call (2026-11-18): an OpenCode left
+  // open for days keeps the plugin it loaded, so a switch read once at setup held it to that day's setting.
+  const wasOn = process.env.THINKER_DELEGATE; process.env.THINKER_DELEGATE = 'off';
+  t.after(() => { if (wasOn === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = wasOn; });
   const cleanup = await plugin.setup(ctx);
-  if (wasOn === undefined) delete process.env.THINKER_DELEGATE; else process.env.THINKER_DELEGATE = wasOn;
+  assert.equal(typeof hooks['tool:execute.before'], 'function', 'registered with the switch off');
+  const quiet = runs.length;
+  assert.equal(await hooks['tool:execute.before']({ tool: 'read', sessionID: 'ses0', agent: 'build', input: { path: '/r/core.py' } }), undefined);
+  assert.equal(runs.length, quiet, 'off: the CLI is not asked, and the read goes through');
+  // switched on while the session is open: the very next call is decided, with no restart
+  process.env.THINKER_DELEGATE = 'on';
   assert.deepEqual(hooks.mcp, [['thinker', { type: 'local', command: ENTRY.command ? [ENTRY.command, ...ENTRY.args] : ENTRY.args, environment: ENTRY.env || {}, enabled: true }]]);
   // the prompt hook: what the CLI serves goes as a synthetic message (the model reads it, the screens draw
   // the description alone), and the person's own prompt is left exactly as they typed it. Checked live on

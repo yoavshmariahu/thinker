@@ -10,12 +10,6 @@ import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const ASSETS = ['thinker.tgz', 'version.json', 'install.sh'];
-// The clearing mod carries the release's version in its own bytes, because it stamps its clears with it and an
-// open session keeps the copy it loaded (register.tsx:VERSION; test/claude-clear.test.js holds it to package.json).
-// So a release bumps three files, and the mod's line is the only one of its file a release may touch.
-const MOD = 'src/integrations/claude-clear/hooks/register.tsx';
-const MOD_VERSION = /^export const VERSION = '[^'\n]*'$/m;
-const BUMPED = ['package.json', 'package-lock.json', MOD];
 const compare = (a, b) => {
   const x = a.replace(/^v/, '').split('.').map(Number), y = b.replace(/^v/, '').split('.').map(Number);
   for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] > y[i] ? 1 : -1;
@@ -198,25 +192,19 @@ export async function release({ version, noWait = false, hold = false, promote =
           git('fetch', 'origin', `refs/heads/${branch}`);
           checkoutAt('FETCH_HEAD');
           const files = at('git', ['diff', '--name-only', 'origin/main...HEAD']).split('\n').filter(Boolean);
-          if (readJson(path.join(checkout, 'package.json')).version !== version || files.some(f => !BUMPED.includes(f))) {
+          if (readJson(path.join(checkout, 'package.json')).version !== version || files.some(f => !['package.json', 'package-lock.json'].includes(f))) {
             throw new Error(`Existing branch ${branch} is not a version-only bump; inspect it manually.`);
           }
         } else {
           checkoutAt('origin/main');
           at('npm', ['version', version, '--no-git-tag-version', '--ignore-scripts'], { stdio: 'inherit' });
-          const mod = path.join(checkout, MOD);
-          if (fs.existsSync(mod)) {
-            const src = fs.readFileSync(mod, 'utf8');
-            if (!MOD_VERSION.test(src)) throw new Error(`${MOD} has no VERSION line to bump; the mod stamps its clears with it.`);
-            fs.writeFileSync(mod, src.replace(MOD_VERSION, `export const VERSION = '${version}'`));
-          }
-          at('git', ['add', ...BUMPED.filter(f => fs.existsSync(path.join(checkout, f)))]);
+          at('git', ['add', 'package.json', 'package-lock.json']);
           at('git', ['commit', '-m', `Release ${version}`], { stdio: 'inherit' });
         }
         test(); // Required before pushing a release PR; do not rely on disabled GitHub test workflows.
         at('git', ['push', 'origin', `HEAD:refs/heads/${branch}`], { stdio: 'inherit' });
         const bodyFile = path.join(temp, 'pr.md');
-        fs.writeFileSync(bodyFile, `Bump package.json, package-lock.json and the clearing mod's version to ${version}.\n\nValidation: npm ci and the full npm test suite passed with THINKER_TEST=1.\n\nReview and merge this PR to continue the manual release. No automatic merge.\n`);
+        fs.writeFileSync(bodyFile, `Bump package.json and package-lock.json to ${version}.\n\nValidation: npm ci and the full npm test suite passed with THINKER_TEST=1.\n\nReview and merge this PR to continue the manual release. No automatic merge.\n`);
         gh('pr', 'create', '--base', 'main', '--head', branch, '--title', `Release ${version}`, '--body-file', bodyFile);
         pr = prs()[0];
         if (!pr) throw new Error(`Could not find the release PR. Rerun: ${retry}`);

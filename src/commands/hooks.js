@@ -39,6 +39,7 @@ import { isWorkerPrompt, isWorkerTool, isWorkerLaunch } from '../session-llm.js'
 import { ensureShellPath } from '../shell-path.js';
 import { ensureProxy, gatewayHint, proxyLogFile } from '../proxy-service.js';
 import { cutTimesFor, rereadsOf } from '../rereads.js';
+import { clearAnswer } from '../clear-door.js';
 import { emitSession } from '../events.js';
 import { fleetTick } from '../fleet.js';
 
@@ -74,6 +75,16 @@ async function hookCommand(ctx) {
   const client = hookClient(flags.client, ev);
   try {
     if (process.env.THINKER_IN_LLM) return;
+    // The clearing mod's question (clear-door.js): is there a clear to make in this desktop session, and which
+    // results does it replace. Answered before anything below, which is a repository's business: a session in a
+    // folder that is no checkout is cleared like any other, and the answer writes nothing. One line of JSON, always:
+    // an empty object where the question could not be answered, which the mod reads as "leave it alone".
+    if (pos[0] === 'clear') {
+      let answer = {};
+      try { answer = clearAnswer(ev, { home: thinkerHome() }) || {}; } catch (e) { recordError('hook.clear', e, {}); }
+      ctx.out(JSON.stringify(answer));
+      return;
+    }
     ev = normalizeHookEvent(client, ev, pos[0]);
     if (process.env.THINKER_HOOK_DEBUG) fs.appendFileSync(process.env.THINKER_HOOK_DEBUG, JSON.stringify({ hook: pos[0], client, ev }) + '\n');
     // Cursor also runs the Claude Code hooks it imports; its own hooks do the work

@@ -64,9 +64,13 @@ export function opencodeV2(config, run = hookRunner(config)) {
         // to a subagent, and its report is thrown here, which v2 makes the call's result (checked live on 2.2.7:
         // the model read the report and answered from it). The CLI answers the same JSON as Claude Code's
         // PreToolUse deny; a call that goes through gets no answer and the hook returns in silence.
-        // On by default (2026-11-16); read once at setup, so switching it needs OpenCode started again.
-        if (delegateConfig().enabled) await ctx.tool.hook('execute.before', async ev => {
+        // On by default (2026-11-16). The switch is read at each call, not once at setup (2026-11-18): an OpenCode
+        // left open for days keeps the plugin it loaded, and a switch read at its start would hold it to the setting
+        // of that day. The decision itself was always the installed CLI's (`hook pretool`), so an open session runs
+        // the current release's rule, as it does for the cuts, which the proxy makes.
+        await ctx.tool.hook('execute.before', async ev => {
           if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
+          if (!delegateConfig().enabled) return;
           // The lead's model, which neither hook event carries: `session.get({ sessionID })` answers
           // `model: { id, providerID, variant }` (probed live on 2.2.7, 2026-11-15). The trigger reads it to
           // hand the read to the lead's own family's cheap model on a gateway (delegate.js:EXPLORER_FAMILIES);

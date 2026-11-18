@@ -20,8 +20,8 @@
 // displaces a whole one.
 //
 // One rule, every door: the three wire formats the proxy cuts (proxy.js, proxy-responses.js, proxy-chat.js)
-// call `keptCalls` on the calls of the request, the clearing mod mirrors it (claude-clear/hooks/register.tsx,
-// held to this file by test/keep.test.js), delegate.js asks `keepReason` before it denies a read, and
+// call `keptCalls` on the calls of the request, so does the desktop door for the clearing mod (clear-door.js:keptOf;
+// the mod carried a copy until 2026-11-18), delegate.js asks `keepReason` before it denies a read, and
 // rereads.js leaves kept results out of the cleared set it replays.
 import fs from 'node:fs';
 import os from 'node:os';
