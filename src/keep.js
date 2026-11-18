@@ -165,12 +165,14 @@ export function keptCalls(calls = [], { patterns = KEEP_DEFAULT, prompts = [], c
 // each repository's reading replaces only its own. Read by every door on the machine, which is why it is one
 // file and not the repository's: the proxy sees a request, never a checkout. The patterns of every repository
 // apply everywhere -- a name learned in one checkout keeps a same-named file in another, one copy of it.
-const home = () => process.env.THINKER_HOME || path.join(os.homedir(), '.thinker');
-export const keepFile = (dir = home()) => path.join(dir, 'state', 'keep.json');
+// Under THINKER_TEST with no home of its own a run has no keep file: it neither reads the person's nor writes it.
+const home = () => process.env.THINKER_HOME || (process.env.THINKER_TEST === '1' ? null : path.join(os.homedir(), '.thinker'));
+export const keepFile = (dir = home()) => (dir ? path.join(dir, 'state', 'keep.json') : null);
 let cache = { file: '', at: 0, mtime: -1, patterns: KEEP_DEFAULT };
 /** Every pattern in force on this machine: the defaults and what the profile learned. Stats at most once a second. */
 export function keepPatterns({ dir = home(), now = Date.now() } = {}) {
   const file = keepFile(dir);
+  if (!file) return KEEP_DEFAULT;
   if (cache.file === file && now - cache.at < 1000) return cache.patterns;
   let mtime = 0; try { mtime = fs.statSync(file).mtimeMs; } catch { mtime = 0; }
   if (cache.file !== file || mtime !== cache.mtime) {
@@ -183,6 +185,7 @@ export function keepPatterns({ dir = home(), now = Date.now() } = {}) {
 /** Replace one repository's learned patterns. An empty list takes the repository out of the file. */
 export function writeKeep(repo, files, { dir = home(), now = Date.now() } = {}) {
   const file = keepFile(dir);
+  if (!file) return false;
   let all = {}; try { all = JSON.parse(fs.readFileSync(file, 'utf8')) || {}; } catch { all = {}; }
   const repos = all.repos && typeof all.repos === 'object' ? all.repos : {};
   const list = [...new Set((files || []).map(f => String(f || '').trim()).filter(Boolean))].sort();
