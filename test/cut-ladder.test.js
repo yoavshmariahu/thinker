@@ -6,7 +6,7 @@
 // leaves the system prompt as the only thing read, and the tail the ladder priced until then was 1.6x to 7x
 // under what the API wrote. That the tail is still measured beside it, for the log. That the rungs are
 // nested suffixes, newest first. That the decision takes the biggest paying rung and not merely the first.
-// That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary takes everything.
+// That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary over the trigger takes the deepest rung.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cutCandidates, applyCut, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
@@ -121,7 +121,7 @@ test('a floor above every rung is the floor refusing, and the shallow rungs stay
   if (d.clear) assert.ok(d.candidate >= PROXY_DEFAULTS.clearAtLeast, 'what it took clears the floor');
 });
 
-test('a cold boundary still takes everything, at no cost, whatever the ladder says', () => {
+test('a cold boundary over the trigger takes the deepest rung, at no cost', () => {
   const ms = conversation([40000, 40000, 40000, 40000, 300000]);
   const cand = cutCandidates(ms, { keepMin: 0 });
   const rec = { ...freshCut('s'), turn: 0, at: 1000 };
@@ -129,7 +129,7 @@ test('a cold boundary still takes everything, at no cost, whatever the ladder sa
   assert.equal(d.clear, true);
   assert.equal(d.cold, true);
   assert.equal(d.cost, 0);
-  assert.deepEqual(d.cut.slice().sort(), cand.ids.slice().sort(), 'every eligible result, not a rung');
+  assert.deepEqual(d.cut.slice().sort(), cand.ids.slice().sort(), 'every rung pays when the rewrite is free, so the deepest is taken');
 });
 
 test('nothing eligible is still no ladder and no cut', () => {

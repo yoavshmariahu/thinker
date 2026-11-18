@@ -83,19 +83,20 @@ test('a cut that does not pay is not made, and the placeholder is deterministic'
   assert.equal(applyCut(a.messages, ['u0.0']).cut, 0, 'an already-cut result is never cut twice');
 });
 
-test('a cold boundary cuts everything eligible, whatever the trigger and the size floor say', () => {
-  // Past the cache's hour the request writes its whole context again whether or not anything is replaced, so
-  // the tail is free and the two floors have nothing to protect. Replayed over this machine's last 14 days,
-  // 41 cold boundaries had something to cut and only 9 cleared the 100k floor: 32 free cuts refused.
-  const cfg = { trigger: 140000, clearAtLeast: 100000 };
+test('a cold boundary keeps to the trigger and the size floor, and is free where it does cut', () => {
+  // Through r8 a session resumed past the cache's hour lost every eligible result at any size, because the
+  // cut was free. The owner's call of 2026-11-17: that loses too much context, so a resumed session is cut
+  // by the rules of a live one, and the pause only prices the rewrite at nothing.
+  const cfg = { trigger: 140000, clearAtLeast: 20000 };
   const cand = { ids: ['a', 'b'], tokens: 30000, recache: 90000, firstChanged: 0 };
   const h = 65 * 60 * 1000 + 1;
-  const warm = freshCut('s'); warm.at = 1000; warm.turn = 1;
-  const refused = decideCut(warm, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + 60000, model: 'claude-opus-5' });
-  assert.equal(refused.clear, false, 'under the trigger and the floor, a warm boundary is refused');
-  const cold = freshCut('s'); cold.at = 1000; cold.turn = 1;
-  const d = decideCut(cold, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
-  assert.equal(d.clear, true, 'the same boundary past the hour is cut');
+  const under = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 90000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
+  assert.equal(under.clear, false, 'under the trigger a resumed session keeps its results');
+  assert.equal(under.reason, 'below-trigger');
+  const small = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, { ...cfg, clearAtLeast: 100000 }, { prompt: 200000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
+  assert.equal(small.clear, false); assert.equal(small.reason, 'below-clear-minimum', 'and the size floor stands');
+  const d = decideCut({ ...freshCut('s'), at: 1000, turn: 1 }, cfg, { prompt: 200000, turn: 2 }, { cand, now: 1000 + h, model: 'claude-opus-5' });
+  assert.equal(d.clear, true, 'over the trigger it is cut, as a live session would be');
   assert.deepEqual(d.cut, ['a', 'b']);
   assert.equal(d.cold, true); assert.equal(d.cost, 0, 'and its rewrite is priced at nothing');
   assert.equal(d.candidate, 30000);

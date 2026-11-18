@@ -36,7 +36,8 @@ export const WRITE_1H = 2.0, WRITE_5M = 1.25, READ = 0.1;
 export const writeRate = ttl => (ttl === '5m' ? WRITE_5M : WRITE_1H);
 export const readRate = model => { const r = relativeRate(model); return r ? Math.round(r.cacheRead / r.input * 1000) / 1000 : READ; };
 // Past the cache's hour the next request writes its whole context whatever the proxy does, so a clear at that moment
-// costs nothing extra: the decision prices it at zero. Not a state of its own.
+// costs nothing extra: the decision prices it at zero. Not a state of its own, and not a reason to cut: the trigger
+// and the size floor decide whether, as on any boundary.
 export const COLD_MS = 65 * 60 * 1000;
 // median further calls a session makes, by the calls it has made, measured on this machine's 146 proxied sessions
 // (5 -> 47, 10 -> 47, 20 -> 40, 40 -> 68, 60 -> 90, 100 -> 92, 150 -> 68). Flat-ish and heavy-tailed, so the steps
@@ -115,7 +116,9 @@ export const PAYBACK = 25;
 // 8 since 2026-11-17: what a rung removes is counted from each result's own text (`proxy.js:resultTokens`),
 // not its characters at a flat 0.445. On one PostHog session `r7` priced three cuts 17-22% over what the API's
 // own counts fell by, and made a fourth that the payback limit should have refused.
-export const POLICY_REV = 8;
+// 9 since 2026-11-17: a cold boundary keeps to the trigger and the size floor (`decide`). Through `r8` a session
+// resumed past the cache's hour was cut of everything eligible at any size.
+export const POLICY_REV = 9;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
@@ -385,17 +388,12 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   if (turn === rec.turn) return { ...same, reason: size ? 'mid-turn' : 'nothing-to-cut' };
   if (cfg.clearDeep === false && rec.cut.length) return { ...same, turn, reason: size ? 'one-cut' : 'nothing-to-cut' };  // one cut a session, as the mod reads it
   const cold = rec.at > 0 && now - rec.at > COLD_MS;
-  // A cold boundary cuts everything eligible, whatever the size (2026-11-06). Past the cache's hour this
-  // request writes its whole context again whether or not anything is replaced, so the tail costs nothing
-  // and the trigger and the size floor are answering a question that does not arise: they exist to keep a
-  // rewrite from being paid for too little, and here no rewrite is being added. Replayed over this
-  // machine's last 14 days (145 sessions), 41 cold boundaries had something to cut and 9 of them cleared
-  // the 100k floor; the other 32 were refused for a cost of zero. Only a refusal the trigger made is left
-  // to the trigger: a cold boundary with nothing eligible is still nothing to cut.
-  if (cold && cand?.ids.length) {
-    const p = priceCut(m, cand, { ttl, cold, calls: rec.calls, model, rates });
-    return { cut: [...rec.cut, ...cand.ids], clear: true, turn, cold, candidate: cand.tokens, ...(rates ? { rates } : {}), ...p };
-  }
+  // A cold boundary is decided like any other (2026-11-17, the owner's call). From 2026-11-06 it cut everything
+  // eligible whatever the trigger and the size floor said, because past the cache's hour the request writes
+  // its whole context anyway and the cut is free. Free was the wrong test: a 90k session picked up the next
+  // morning came back without its results, and what the person lost was the context, not money. So the
+  // trigger and the floor stand here too, and `cold` only prices the rewrite at nothing below (`priceCut`),
+  // which is why a cold session over the trigger still takes the deepest rung.
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
