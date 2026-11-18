@@ -1,7 +1,7 @@
 {
  "tag": "rollout-posthog",
  "question": "Before the cut policy as it stands on main (r8: a result's tokens counted from its text, the proxy's breakpoint, tail pricing; thinking kept) goes out in a release: on every nine-turn task the bench has, what does a session cost, how many calls does it take and what does it pass with the cuts on, beside the same task run the same day with no proxy at all; and did each cut pay for itself by the end of its session?",
- "rule": "Chosen 2026-11-17 before the run, at the owner's ask for one larger benchmark before the release: every nine-turn task in bench/tasks (PostHog PR106936 and PR106672; MLflow PR26267, PR26269, PR26270, PR26300, PR26307, PR26311), none left out. Two arms paired by task, both run fresh: bare (straight to the API) and main-defaults (the shipped defaults behind a proxy of its own). One rep. PR26267 and PR26307 have no criteria and are judged by their check alone. A third arm added the same day while the first two were running, at the owner's ask, because whether thinking-cutting is safe to turn on is the question the benchmark was for: main-cut-thinking-older-than-2 is main-defaults with cutThinking on and thinkingKeepTurns 2: the two turns before the one in progress keep their thinking and only older thinking goes with a cut. The arm first started without the safeguard (thinkingKeepTurns 0) and was stopped two turns in at the owner's call; those sessions left no record. Same tasks, same model, one rep; its two lanes differ by the proxy's port alone.",
+ "rule": "Chosen 2026-11-17 before the run, at the owner's ask for one larger benchmark before the release: every nine-turn task in bench/tasks (PostHog PR106936 and PR106672; MLflow PR26267, PR26269, PR26270, PR26300, PR26307, PR26311), none left out. Two arms paired by task, both run fresh: bare (straight to the API) and main-defaults (the shipped defaults behind a proxy of its own). One rep. PR26267 and PR26307 have no criteria and are judged by their check alone. 2026-11-18, at the owner's ask for three more tasks beside the long bug hunt: the thinking arm (cutThinking on, thinkingKeepTurns 2) on the three tasks whose no-proxy sessions of 2026-11-17 held the most thinking (PR106672 50k, PR106936 32k, PR26307 21k), one session each, beside those sessions. The lanes differ by the proxy's port alone.",
  "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
  "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
  "tasksDir": "bench/tasks/posthog",
@@ -15,7 +15,7 @@
  "arms": {
   "main-cut-thinking-older-than-2": {
    "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6901",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
     "THINKER_TEST": "1"
    },
    "before": [
@@ -23,7 +23,7 @@
      "sh",
      "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
      "start",
-     "6901",
+     "6897",
      "on",
      "{CWD}",
      "on",
@@ -34,7 +34,7 @@
     "sh",
     "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
     "stop",
-    "6901",
+    "6897",
     "on",
     "{CWD}",
     "on",
