@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
 import { PROXY_DEFAULTS, TOKENS_PER_CHAR, RESULT_TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
-import { COLD_MS, WRITE_1H, PAYBACK, readRate, LONG_CONTEXT, isRewrite, chargedRewrite, policyId, VERSION, priceCut } from '../src/cutting.js';
+import { COLD_MS, WRITE_1H, PAYBACK, readRate, chargedRewrite, policyId, VERSION, priceCut } from '../src/cutting.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
@@ -178,21 +178,20 @@ test('the mod writes the record the proxy writes, where the card and the report 
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('the record keeps what the clear cost, counted as the proxy counts a rewrite, and the model that prices it', () => {
+test('the record keeps what the clear cost, counted as the proxy counts it, and the model that prices it', () => {
   const s = src();
-  // one definition of a rewrite (cutting.js:isRewrite): the same long-context floor, and the same test on sample calls
-  assert.equal(modConst(s, 'LONG_CONTEXT'), LONG_CONTEXT, 'the mod\'s long-context floor is the proxy\'s');
-  const body = s.match(/export const isRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
-  assert.ok(body, 'the mod defines isRewrite');
-  const mine = new Function('LONG_CONTEXT', 'u', body)
-  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 0, write: 40_000, input: 10 }, { read: 60_000, write: 70_000, input: 0 }, null])
-    assert.equal(mine(LONG_CONTEXT, u), isRewrite(u), `the two doors agree on ${JSON.stringify(u)}`);
-  // and one rule for which of those the clearing is charged for (cutting.js:chargedRewrite): a read of zero is the cold cache's
+  // one rule for what the clearing is charged (cutting.js:chargedRewrite): a write into a warm cache, of any size.
+  // The report's rewrite heuristic is no part of it: its floor on the context after the cut made large cuts free.
+  assert.ok(!/\bisRewrite\b|\bLONG_CONTEXT\b/.test(s), 'the mod charges by no context floor and no share of the context');
   const chargedBody = s.match(/export const chargedRewrite = \(u: [^)]*\) => \{ (.+) \}\n/)?.[1];
   assert.ok(chargedBody, 'the mod defines chargedRewrite');
-  const charged = new Function('isRewrite', 'u', chargedBody);
-  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 }, null])
-    assert.equal(charged(isRewrite, u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
+  const charged = new Function('u', chargedBody);
+  for (const u of [{ read: 0, write: 150_000, input: 10 }, { read: 12_000, write: 150_000, input: 10 }, { read: 200_000, write: 0, input: 10 }, { read: 1, write: 100_000, input: 0 },
+    { read: 68_000, write: 46_000, input: 0 }, { read: 20_000, write: 59_000, input: 0 }, { read: 35_000, write: 55_000, input: 0 }, { read: 0, write: 40_000, input: 10 }, null])
+    assert.equal(charged(u), chargedRewrite(u), `the two doors charge alike on ${JSON.stringify(u)}`);
+  assert.equal(chargedRewrite({ read: 35_000, write: 55_000, input: 0 }), true, 'a warm cut that left 90k of context is charged');
+  assert.equal(chargedRewrite({ read: 68_000, write: 46_000, input: 0 }), true, 'a warm cut that wrote 40% of its context is charged');
+  assert.equal(chargedRewrite({ read: 0, write: 349_000, input: 0 }), false, 'a cold one is not');
   // counted on the first request after a clear alone, the one whose prefix the clear changed (compression.js:
   // clearingCostBySession charges the row that made a cut), from the usage the engine reports for it
   const step = s.slice(s.indexOf("on('turn.step'"), s.indexOf("on('turn.complete'"));

@@ -49,12 +49,18 @@ export const COLD_MS = 65 * 60 * 1000;
 // over a 21k file read into a 40k conversation (2026-11-02).
 export const LONG_CONTEXT = 100000;
 export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx; };
-// Of those, the ones the clearing can be charged for. A rewrite that read nothing back found the cache cold -- a
-// pause past the cache's hour, a session's first request -- and that write was coming with or without the cut; the
-// cut only made it smaller. A warm prefix always reads at least the system prompt back, so a read of zero is the
-// mark. On this machine's 30 days to 2026-11-12, 30 of the 604 rewrites charged after a clear were of that kind.
+// What the clearing is charged for on the request that made a cut: whatever that request wrote into the cache,
+// when the cache was warm. A request that read nothing back found the cache cold -- a pause past the cache's hour,
+// a session's first request -- and that write was coming with or without the cut; the cut only made it smaller. A
+// warm prefix always reads at least the system prompt back, so a read of zero is the mark.
+// Until 2026-11-18 this was `isRewrite(u) && read > 0`, and the report's heuristic is the wrong test for a cost:
+// its floor is on the context AFTER the cut, so the larger a cut the likelier it was recorded as free, and a cut
+// that wrote 40% of its context was free too. On one machine's fourteen cuts of 2026-11-05 to 11-18, three of the
+// six warm ones were charged nothing: 46k written of 114k, 59k of 79k, and 55k of 90k on a cut of 258k -- 160k
+// written tokens uncharged beside 456k charged. The write includes the turn's own new tokens, which would have
+// been written anyway; that overstates a cut's cost by a little, where the old rule understated it by a lot.
 // The desktop clearing mod holds the same rule (register.tsx:chargedRewrite, test/claude-clear.test.js).
-export const chargedRewrite = u => isRewrite(u) && (u?.read || 0) > 0;
+export const chargedRewrite = u => (u?.write || 0) > 0 && (u?.read || 0) > 0;
 // What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
 // plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
 // known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written
