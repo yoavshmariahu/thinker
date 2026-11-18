@@ -1,6 +1,6 @@
 // Run with `claude plugin test src/integrations/claude-clear` (npm test runs test/claude-clear.test.js).
 import { test, expect } from 'claude-code/testing'
-import { clearOld, policyOf, HOLD_GROWTH, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, resultTokens, COLD_MS, DEFAULTS , delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT } from './register'
+import { clearOld, keptOf, clearLadder, policyOf, HOLD_GROWTH, heldOut, proxied, placeholder, worthIt, clearPays, liveRows, autoDue, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, PAYBACK, writeRatio, KEEP_MIN, MIN_CHARS, resultTokens, COLD_MS, DEFAULTS , delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -200,4 +200,28 @@ test('delegation: on by default, off by the environment or the machine config', 
   expect(orderOf(JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny' } }))).toBe(null)
   expect(orderOf('')).toBe(null)
   expect(orderOf(JSON.stringify({ thinkerRun: { agent: 'Explore', prompt: 'b', wrap: 'no slot' } }))).toBe(null)
+})
+
+test('the keep list: the newest copy of a notes file, and of a file the person named, is never cleared', () => {
+  const read = (id: string, file: string) => ({ role: 'assistant' as const, text: '', toolUses: [{ tool_use_id: id, tool: 'Read', input: { file_path: file } }], handle: 'h' })
+  const messages = [
+    prompt('track the posts'), read('a', '/w/learnings.md'), result('a', big(3000)), read('b', '/w/data.json'), result('b', big(3000)),
+    read('c', '/w/stats.csv'), result('c', big(3000)), read('d', '/w/learnings.md'), result('d', big(3000)),
+    prompt('what did stats.csv say?'), call('e'), result('e', big(500)),
+  ]
+  const keep = keptOf(messages as any)
+  // the older copy of learnings.md (a) is not kept: the newest one (d) holds the file
+  expect([...keep].sort()).toEqual(['c', 'd'])
+  const c = clearOld(messages as any, { keepMin: 0, keep })
+  expect(c.cleared).toBe(2)
+  const rows = c.messages as any[]
+  expect(rows[2].toolResults[0].text).toBe(placeholder(3000))
+  expect(rows[4].toolResults[0].text).toBe(placeholder(3000))
+  expect(rows[6]).toBe(messages[6])
+  expect(rows[8]).toBe(messages[8])
+  // the ladder prices the same set the clear takes
+  expect(clearLadder(messages as any, { keepMin: 0, keep }).at(-1)!.depth).toBe(2)
+  // a result this mod replaced is the cut: read again afterwards, the file is kept from then on
+  const again = [...rows.slice(0, 9), prompt('go on'), read('f', '/w/data.json'), result('f', big(3000)), prompt('and now'), call('g'), result('g', big(500))]
+  expect(keptOf(again as any).has('f')).toBe(true)
 })

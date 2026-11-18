@@ -166,6 +166,14 @@ The knowledge notes (distilled per session, served per prompt, verified against 
   alternative is `clear_tool_uses_20250919` with `clear_tool_inputs: true`, which is exempt from the check -- and is
   what the pre-2026-11-04 proxy used (`injected: true, inputs: true` on those log rows, no `clientCut`).
 
+**The keep list: file reads no cut takes and no delegation hands away (2026-11-17, `src/keep.js`):**
+- From a person's report: an agent that "forgets what worked", whose notes file they had to shout at it to read again. A read of the notes is a tool result like any other, and a model that carries on without it scores zero on the re-read measure.
+- The newest copy of a kept file stays (a whole read, a `cat`, a Write); older copies are cut as before. Kept: `*.md`, what the profile learned, a file the person named in a prompt, a file read again after a cut.
+- No model at decision time. The profile's reader records `sources` on an observation (files the person pointed at, held to their own words by `sourcePattern`); `profile.js:syncKeep` writes them to `<THINKER_HOME>/state/keep.json`, a list per checkout, read together by every door.
+- Every door: `proxy.js:keptOf`, `proxy-responses.js:responsesKept`, `proxy-chat.js:chatKept`, the mod's own copy between `keep:begin`/`keep:end` (run against keep.js by `test/keep.test.js`), `delegate.js:delegateTool` (`declined: 'kept'`). Policy `r10`; a boundary's row carries `kept: { results, tokens }`.
+- Delegation's "named" reads the newest prompt only; `rereads.js` does not replay the list (it errs over).
+- Replayed over this machine's 14 days (16 cut sessions, 1.88M tokens taken): `.md` 1.3% of it, the list as a whole 8.3%, most of that files named in a prompt.
+
 **What the clearing saved is shown, three turns on (2026-10-29):**
 - `clearedBy` on row; `cleared: 0` if nothing cut. Measured: the cut's own `tokens`, not API's.
 - A cut result's tokens are counted from its text (2026-11-17, `proxy.js:resultTokens`, mirrored by the mod and held to it in `test/claude-clear.test.js`): letters 0.34, digits 0.78, symbols 1.05, newlines 1.6, other 0.7, spaces nothing. Fitted to the API's own counts on 1,082 results (median error 4.0% against 10.6% for a flat 0.445). `POLICY_REV` 8. Images and a call's own text keep `RESULT_TOKENS_PER_CHAR` (0.445), as do delegation and the re-read figures.

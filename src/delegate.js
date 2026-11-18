@@ -42,6 +42,9 @@ import { findBin, BINS } from './llm.js';
 import { sessionState, locked } from './session-state.js';
 import { claudeCardActive } from './claude-card.js';
 import { traceFile } from './transcripts.js';
+import { shellRead } from './shell-read.js';
+import { keepPatterns, keepMatcher, namedIn } from './keep.js';
+export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
 export const DELEGATE_SESSION_MARK = 'claude-delegate';
@@ -96,17 +99,6 @@ export function delegateConfig({ env = process.env, home } = {}) {
 // the model trimming for itself, and is left alone. A line range (`sed -n 10,60p`, `head -n 40`) is sized
 // by the lines it asks for, as a ranged Read is: it is the model reading the lines it edits, and the denial
 // sends it there, so it may not be the thing that fires.
-const SHRINKS = /\|\s*(grep|rg|head|tail|wc|awk|cut|sort|uniq|jq|python|node)\b/;
-const READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+('[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/;
-// The lines a `sed -n` script prints, or 0 where that cannot be read off it (an open range, a pattern, several ranges).
-function sedLines(script) {
-  const a = String(script || '').replace(/^["']|["']$/g, '');
-  let m = a.match(/^(\d+),(\d+)p$/); if (m) return Math.max(1, Number(m[2]) - Number(m[1]) + 1);
-  m = a.match(/^(\d+)p$/); if (m) return 1;
-  m = a.match(/^(\d+),\+(\d+)p$/); if (m) return Number(m[2]) + 1;
-  return 0;
-}
-function splitArgs(s) { return (s.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(a => a.replace(/^["']|["']$/g, '')); }
 function fileStats(file, cwd) {
   const p = path.isAbsolute(file) ? file : path.join(cwd || process.cwd(), file);
   try { const st = fs.statSync(p); if (!st.isFile()) return null; return { path: p, bytes: st.size }; } catch { return null; }
@@ -143,17 +135,6 @@ export function readOf(toolName, input = {}, cwd, { readCap = 0 } = {}) {
     return { tokens: Math.round(bytes * TOKENS_PER_CHAR), files: files.map(f => f.path) };
   }
   return null;
-}
-// A shell line whose work is to print a file: the files it names (as written) and the line count a `head -n` caps it at,
-// or null. The one reading of a shell read, shared with the re-read measure (rereads.js), which replays it over a
-// transcript where the files no longer need to exist.
-export function shellRead(command) {
-  const cmd = String(command || '');
-  if (SHRINKS.test(cmd) || /[;&]|\|\|/.test(cmd.replace(/\|\|/g, ';'))) return null;
-  const m = cmd.match(READ_CMD);
-  if (!m) return null;
-  const files = splitArgs(m[3]).filter(a => !a.startsWith('-'));
-  return files.length ? { files, lines: m[2] ? Number(m[2]) : sedLines(m[1]) } : null;
 }
 
 // A whole-suite run: the test program with no path of its own. A single file's run is the main model
@@ -434,6 +415,20 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     });
     return null;
   }
+  // A kept file is read by the model itself, whatever its size (keep.js): the person's notes (`*.md`), what the
+  // profile learned they point at, a file they named in the prompt this turn answers. A report of such a file
+  // is the harm the keep list exists for -- the model working from a summary of the one file it was told to
+  // read. Decided before the holdout, so both sides read it alike and the row says why nothing fired.
+  let ctx = null;
+  if (d.kind === 'explore' && d.fire) {
+    const match = keepMatcher(cfg.keepPatterns || keepPatterns());
+    let why = read.files.some(match) ? 'pattern' : null;
+    if (!why) { ctx = lastPrompt() || {}; if (read.files.some(namedIn([ctx.prompt || '']))) why = 'named'; }
+    if (why) {
+      log({ op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, threshold: cfg.threshold, mode: exec.mode, fired: false, declined: 'kept', kept: why });
+      return null;
+    }
+  }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
   const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode };
@@ -443,7 +438,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (d.spent) { log({ ...row, fired: false, after: 'handoff' }); return null; }
   // a host with no subagent of its own and no fallback asked for: read as before, and say why in the log
   if (exec.mode === 'none') { log({ ...row, fired: false, skipped: exec.reason }); return null; }
-  const ctx = lastPrompt() || {};
+  ctx = ctx || lastPrompt() || {};
   const brief = d.kind === 'verify'
     ? verifierBrief({ command: suite, cwd, rules: handoff })
     : explorerBrief({ files, prompt: ctx.prompt, lastSay: ctx.lastSay, cwd, lines: cfg.reportLines, rules: handoff });

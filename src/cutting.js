@@ -118,7 +118,9 @@ export const PAYBACK = 25;
 // own counts fell by, and made a fourth that the payback limit should have refused.
 // 9 since 2026-11-17: a cold boundary keeps to the trigger and the size floor (`decide`). Through `r8` a session
 // resumed past the cache's hour was cut of everything eligible at any size.
-export const POLICY_REV = 9;
+// 10 since 2026-11-17: the newest copy of a kept file is never a candidate (keep.js): a `*.md`, a file the
+// person named, a file the model read again after a cut. A boundary has less to take than it had under `r9`.
+export const POLICY_REV = 10;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
