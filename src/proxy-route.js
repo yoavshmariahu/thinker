@@ -88,7 +88,17 @@ export function shellRoute(text, { isOwn = () => false, ignoreCloud = [] } = {})
     if (!code || code.startsWith('#')) continue;
     const v = ROUTE_VARS.find(name => code.includes(name) && !ignoreCloud.includes(name));
     if (!v) continue;
-    const value = new RegExp(`${v}[=\\s:]+["']?([^"'\\s;]+)`).exec(code)?.[1];
+    // An occurrence that takes the variable away is the opposite of a route: `VAR=` with nothing after it (the
+    // shell passes an empty string, which Claude Code treats as unset), `unset VAR`, `env -u VAR`. Those are
+    // taken out of the line, and what is left is read as before, so `unset VAR; export VAR=https://gw` still
+    // finds the gateway. Before 2026-11-18 `VAR= NEXT=off claude` read as "VAR is set to NEXT=off": the separator
+    // class swallowed the `=` and the space, and the next word became the value, so a `claude-clean` alias that
+    // cleared the route stood the proxy down for every session.
+    const kept = code
+      .replace(new RegExp(`(?:unset|env)(?:\\s+-?\\S+)*?\\s+(?:-u\\s+)?${v}(?=$|[\\s;|&])`, 'g'), '')
+      .replace(new RegExp(`${v}=(?:""|'')?(?=$|[\\s;|&])`, 'g'), '');
+    if (!kept.includes(v)) continue;
+    const value = new RegExp(`${v}(?:=|[\\s:]+)["']?([^"'\\s;]+)`).exec(kept)?.[1];
     if (value && (isOwn(value) || isAnthropicHost(value))) continue;
     if (v === BASE_URL_VAR && value) return { what: `${BASE_URL_VAR} is set to ${value}`, url: value };
     return { what: `${v} is set`, ...(CLOUD_VARS.includes(v) ? { cloud: v } : {}) };

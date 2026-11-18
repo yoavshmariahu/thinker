@@ -94,6 +94,29 @@ test('one session\'s credentials are that session\'s: nothing stands down while 
   assert.equal(a.stood.length, 1);
 });
 
+test('a line that clears the route is no route: an empty assignment, unset, env -u', () => {
+  // the alias that stood the proxy down on 2026-11-18: `ANTHROPIC_BASE_URL=` read as "set to THINKER_HOOKS=off"
+  assert.equal(shellRoute("alias claude-clean='ANTHROPIC_BASE_URL= THINKER_HOOKS=off THINKER_MCP=off claude'", { isOwn }), null, 'cleared, then another assignment');
+  assert.equal(shellRoute('export ANTHROPIC_BASE_URL=', { isOwn }), null, 'exported empty');
+  assert.equal(shellRoute('ANTHROPIC_BASE_URL=""', { isOwn }), null);
+  assert.equal(shellRoute("ANTHROPIC_BASE_URL='' claude", { isOwn }), null);
+  assert.equal(shellRoute('unset ANTHROPIC_BASE_URL', { isOwn }), null);
+  assert.equal(shellRoute('unset FOO ANTHROPIC_BASE_URL; claude', { isOwn }), null);
+  assert.equal(shellRoute("alias claude-clean='env -u ANTHROPIC_BASE_URL claude'", { isOwn }), null);
+  assert.equal(shellRoute('unset CLAUDE_CODE_USE_BEDROCK', { isOwn }), null, 'a cloud variable cleared is no cloud route');
+  // a clearing and a real route on one line: the route wins (the old code found it, and it must still be found)
+  assert.equal(shellRoute('[ -n "$GW" ] && export ANTHROPIC_BASE_URL=https://gw.corp || unset ANTHROPIC_BASE_URL', { isOwn }).url, 'https://gw.corp');
+  assert.equal(shellRoute('unset ANTHROPIC_BASE_URL; export ANTHROPIC_BASE_URL=https://gw.corp', { isOwn }).url, 'https://gw.corp');
+  assert.equal(shellRoute('ANTHROPIC_BASE_URL= claude; ANTHROPIC_BASE_URL=https://gw.corp claude', { isOwn }).url, 'https://gw.corp');
+  assert.equal(shellRoute("alias a='env -u ANTHROPIC_BASE_URL claude'; alias b='ANTHROPIC_BASE_URL=https://gw.corp claude'", { isOwn }).url, 'https://gw.corp');
+  // what still counts, unchanged
+  assert.equal(shellRoute("alias cc='ANTHROPIC_BASE_URL=https://gw.corp claude'", { isOwn }).url, 'https://gw.corp');
+  assert.equal(shellRoute('export ANTHROPIC_BASE_URL="https://gw.corp"', { isOwn }).url, 'https://gw.corp');
+  assert.equal(shellRoute('set -x ANTHROPIC_BASE_URL https://gw.corp', { isOwn }).url, 'https://gw.corp', 'fish');
+  assert.equal(shellRoute('ANTHROPIC_BASE_URL: https://gw.corp', { isOwn }).url, 'https://gw.corp');
+  assert.match(shellRoute('export CLAUDE_CODE_USE_BEDROCK=1', { isOwn }).what, /is set/);
+});
+
 test('the user\'s settings.local.json and a project\'s own settings are read too', () => {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-route-repo-'));
   const m = fakeHome({ '.claude/settings.local.json': JSON.stringify({ env: { [BASE_URL_VAR]: 'https://local.gw' } }) });
