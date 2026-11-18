@@ -1,0 +1,1 @@
+A constraint I had not mentioned: this must work for streaming chat requests exactly as for regular ones. Check whether your pick still holds. Reply "noted" if it does; if it does not, reply with only the name of the design you now pick.

@@ -1,0 +1,1 @@
+Another one: besides "required" and "none", a request can name one specific function. That must restrict the model to calling only that function, even when several tools are declared. Check your pick against it. Reply "noted", or only the name of the design you now pick.

@@ -1,0 +1,5 @@
+We are going to design a change to this repository together before anything is built. Do not edit any file until I say so, and do not install dependencies. A Python environment with this project installed exists: run a test file with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>`.
+
+The problem: when I send a chat request to a Gemini or Vertex AI gateway endpoint with a tool choice setting, the setting is silently ignored. If I require the model to call a tool, or turn tool calling off entirely, the model still uses Gemini's default automatic tool selection. The gateway should honor the setting.
+
+Look around the code for as long as you need to understand how a chat request travels from the gateway to these providers. Then answer in two lines at most: where does this change belong?
