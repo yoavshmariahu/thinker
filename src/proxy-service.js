@@ -14,8 +14,9 @@
 // Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
 // fixed OpenAI/ChatGPT Responses route, and proxy-codex.js selects the managed provider.
 //
-// The service runs with no holdout (SERVICE_HOLDOUT 0 since 2026-11-12, the owner's call; half of the sessions from
-// 2026-11-09, 15% from 2026-10-24). The holdout compared sessions that got a cut with sessions held out from one, and a
+// A quarter of the sessions are held out (SERVICE_HOLDOUT 0.25 since 2026-11-18, the owner's call, with the thinking
+// cut going on by default: a held-out session is forwarded byte for byte, test/holdout-untouched.test.js). It was 0
+// from 2026-11-12, half of the sessions from 2026-11-09, 15% from 2026-10-24. Why it was off: The holdout compared sessions that got a cut with sessions held out from one, and a
 // session that gets a cut is a long session, so the two sides were never like with like, and at half the sessions it
 // cost every install half the saving to answer a question it could not answer. What it was kept for -- the model
 // reading again what was cleared -- is read out of each session's own transcript instead (rereads.js) and taken off
@@ -36,7 +37,7 @@ import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
 import { bedrockState, prepareBedrock, commitBedrock, wireBedrock, restoreBedrock } from './proxy-bedrock.js';
 
-export const SERVICE_HOLDOUT = 0;
+export const SERVICE_HOLDOUT = 0.25;
 export const PROXY_LABEL = 'com.thinker.proxy';
 export const PROXY_ENV = BASE_URL_VAR;
 // Claude Code on a cloud route speaks that provider's format, which the proxy does not read
