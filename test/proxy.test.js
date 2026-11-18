@@ -623,7 +623,7 @@ test('what the cut took out is on the row, in the session record, and summed as 
       assert.equal(r.cleared, Math.round(r.clientCut.chars * RESULT_WEIGHTS.letter), 'tied to the text it replaced, counted as the letters it is');
       assert.equal(r.clearedUses, r.clientCut.cut, 'with the results it replaced beside it');
       assert.equal(r.clientCut.inputChars, undefined, 'the call text is not the cut\'s business');
-      assert.equal(r.clientCut.thinking, undefined, 'nor the thinking');
+      assert.ok(!r.clientCut.thinking, 'and there was no thinking to take');
     }
     // the session's record: what the card, the Stop hook's line and `thinker proxy report` read
     const saved = clearedBySession(p.logFile).get('s1');

@@ -222,7 +222,7 @@ test('the switch: a flag, a variable, the machine config, and a policy name of i
   assert.equal(proxyConfig({}, {}).cutBreakpoint, true);
   assert.equal(proxyConfig({ 'no-cut-breakpoint': true }, {}).cutBreakpoint, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_BREAKPOINT: 'off' }).cutBreakpoint, false);
-  assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).endsWith('+bp'));
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).includes('+bp'));
   assert.ok(!policyId({ ...PROXY_DEFAULTS, cutBreakpoint: false }).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-bp-'));
   try {

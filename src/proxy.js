@@ -96,7 +96,13 @@ export const EDIT_BETA = 'context-management-2025-06-27';
 // pays, so a cut without the breakpoint is hardly a cut at all. It shipped before any live request had shown the
 // API reading the seeded prefix; the first cut rows (`mark`, `clear.whole` beside the call's own cache read)
 // are what confirm it, and `--no-cut-breakpoint` or `proxy: { cutBreakpoint: false }` is the way back.
-export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: false, thinkingKeepTurns: 0 };
+// `cutThinking` on with `thinkingKeepTurns` 2 since 2026-11-18, the owner's call: a cut also leaves out the
+// thinking older than the last two turns that sits inside what it already rewrites. Eight bench tasks on four
+// repositories beside a session with no proxy (bench/ledger.jsonl, 2026-11-17/18): every check and every
+// essential criterion the same, up to 32k of thinking gone in a session, no refusal from the API. What it adds
+// over a cut that keeps the thinking was not isolated there, so the holdout is what says; `--no-cut-thinking`
+// or `proxy: { cutThinking: false }` is the way back.
+export const PROXY_DEFAULTS = { upstream: 'https://api.anthropic.com', trigger: 140000, keepMin: 3, cutInputs: true, cutImages: true, clearAtLeast: 8000, holdout: 0, clearDeep: true, cutBreakpoint: true, cutThinking: true, thinkingKeepTurns: 2 };
 // The request as the decision needs it: the prompt in tokens, the cached prefix a cut keeps (`prefix`: the system
 // prompt and the tool definitions, which is all the API finds again once a cut changes the history -- Claude Code
 // sets its breakpoints on the system prompt and the newest messages, so a prefix ending mid-conversation is never
@@ -284,7 +290,7 @@ export function resultTokens(text) {
 }
 // what else leaves with a result -- its images and its call's own text -- is still sized by the character
 const charTokens = chars => Math.round(chars * RESULT_TOKENS_PER_CHAR);
-// --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`, off by default) -----------------
+// --- the earlier turns' thinking goes with a cut (2026-11-17, `cutThinking`; on by default since 2026-11-18) -----------------
 // A thinking block of an earlier turn may be left out of a request: "outside tool use, omit prior turns'
 // thinking, but not a block between two that you keep", and never edited (the API's thinking pages, read that
 // day). On the models that keep earlier thinking -- Opus 4.5 on, Sonnet 4.6 on, every Fable -- it is billed as
@@ -946,7 +952,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
   const m = measurePrompt(cfg, j);
   // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
-  // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17, 0 by default)
+  // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17; 2 by default since 2026-11-18)
   const thinkTo = Math.max(m.turn - Math.max(0, Math.floor(cfg.thinkingKeepTurns || 0)), 0);
   const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [] } : null;
   const keep = keptOf(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
