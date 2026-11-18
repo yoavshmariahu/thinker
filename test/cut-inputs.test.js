@@ -91,8 +91,8 @@ test('on by default, and reachable by flag, environment and machine config', asy
 
 test('the saving names the policy that made it, so a figure with the calls in it is never pooled with one without', () => {
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r8-t140k-f8k-p25-deep+in');
-  assert.equal(policyId({ ...base }), 'r8-t140k-f8k-p25-deep');
+  assert.equal(policyId({ ...base, cutInputs: true }), 'r11-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base }), 'r11-t140k-f8k-p25-deep');
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {
@@ -148,8 +148,8 @@ test('the call loses its body and the short result stays word for word', () => {
 
 test('a cut of calls alone reaches the API, and the breakdown shows what the calls gave up', () => {
   const ms = quiet(6), j = { model: 'claude-opus-5', messages: ms };
-  const rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour: everything eligible goes
-  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, cutRecord: rec, now: 1e12 });
+  const rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour makes the cut free; the trigger and the floor are set aside to reach it
+  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, trigger: 0, clearAtLeast: 0, cutRecord: rec, now: 1e12 });
   assert.equal(t.injected, true, 'the request is rewritten though no result was replaced');
   assert.equal(t.clientCut.cut, 3);
   assert.equal(t.clientCut.tokens, 3 * Math.round(CMD.length * RESULT_TOKENS_PER_CHAR));

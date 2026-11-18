@@ -80,6 +80,9 @@ rm -rf ~/.thinker                  # the app, the ranking model and the usage lo
 ```
 
 To keep thinker but switch it off for one repository (sensitive content, say), run `thinker disable` there.
+To switch it off for one Claude Code session and leave every other session as it is, type `/thinker-disable` in that
+session: its model requests stop going through the proxy and thinker's hooks do nothing there. `/thinker-enable` turns
+it back on.
 
 ## Results
 

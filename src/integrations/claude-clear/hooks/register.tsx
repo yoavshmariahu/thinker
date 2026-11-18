@@ -62,7 +62,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 8
+export const POLICY_REV = 11
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 // `+in` is the proxy's `cutInputs` (proxy.js:applyCut, 2026-11-14): a cut that also takes the finished call's own
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
@@ -131,11 +131,9 @@ export function policyOf(config: any): Policy {
 // (`calls` made so far), outweighs the write after it (`recache`, the whole context after the clear); free
 // after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
 // never held back.
-// The proxy's cold rule goes further (cutting.js:decideCut, 2026-11-06): at a boundary past the cache's hour it
-// cuts everything eligible whatever the trigger or the size floor say, because that request rewrites the whole
-// context anyway. This door cannot: its clear is a compaction turn queued after a turn has completed, so the
-// request that would have been free has already been sent and the cache is warm again by the time it acts. The
-// idle rule below waives the payback alone, and the trigger and the floor stay in place here.
+// The proxy's cold rule is the same since 2026-11-17 (cutting.js:decide): past the cache's hour the payback is
+// waived, and the trigger and the size floor stay in place, so a resumed session under the trigger keeps its
+// results by either door.
 export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, model = '' }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean; model?: string }) => {
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false
@@ -177,6 +175,161 @@ export type Clear = { messages: SessionMessage[]; cleared: number; chars: number
 // what a row weighs, for the prefix a clear keeps in the cache
 const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
 
+// ---- the keep list: file reads a clear never takes (src/keep.js, 2026-11-17) ----
+// The proxy's rule, in this door's own copy, there being no import in a mod: the newest copy of a kept file
+// stays (a read, a write, or a fetch of a web address) -- a `*.md`, what the profile learned the person points at (`<THINKER_HOME>/state/keep.json`), a file
+// the person named in a prompt, a file read again after a clear took it. The block between the two markers is
+// run by test/keep.test.js against keep.js on the same conversations, so the two cannot drift. It is written
+// with `any` alone for that reason: the test strips the annotations and evaluates what is left.
+// keep:begin
+export const KEEP_DEFAULT = ['*.md']
+const kEsc = (s: any) => String(s).replace(/[.+^${}()|[\]\\?]/g, '\\$&')
+const kGlob = (p: any) => kEsc(p).replace(/\*\*\/?/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '(?:.*/)?')
+const kNorm = (f: any) => String(f || '').replace(/\\/g, '/').replace(/^\.\//, '')
+const kIsUrl = (s: any) => /^https?:\/\//i.test(String(s || '').trim())
+const kUrlKey = (u: any) => String(u || '').trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/#.*$/, '').replace(/\/+$/, '').toLowerCase()
+const kUrlCovers = (parent: any, key: any) => !!parent && (key === parent || (key.startsWith(parent) && '/?&'.includes(key[parent.length])))
+export function keepMatcher(patterns: any = KEEP_DEFAULT) {
+  const names: any = [], paths: any = [], urls: any = []
+  for (const raw of patterns || []) {
+    if (kIsUrl(raw)) { urls.push(kUrlKey(raw)); continue }
+    const p = kNorm(String(raw || '').trim())
+    if (!p) continue
+    if (p.includes('/')) paths.push(new RegExp(`(?:^|/)${kGlob(p.replace(/^\//, ''))}$`, 'i'))
+    else names.push(new RegExp(`^${kGlob(p)}$`, 'i'))
+  }
+  return (file: any) => {
+    if (kIsUrl(file)) { const key = kUrlKey(file); if (urls.some((p: any) => kUrlCovers(p, key))) return true }
+    const f = kIsUrl(file) ? kUrlKey(file).replace(/\?.*$/, '') : kNorm(file)
+    if (!f) return false
+    const base = f.slice(f.lastIndexOf('/') + 1)
+    return names.some((r: any) => r.test(base)) || (!kIsUrl(file) && paths.some((r: any) => r.test(f)))
+  }
+}
+const K_INJECTED = /<(thinker-[\w-]+|system[-_]reminder|command-name|command-message|command-args|local-command-stdout|local-command-caveat|task-notification|agent-message)>[\s\S]*?<\/\1>/g
+const K_NAMEABLE = /^[^\s/]{1,120}\.[A-Za-z0-9]{1,8}$/
+export function namedIn(prompts: any = []) {
+  const said = (Array.isArray(prompts) ? prompts : [prompts]).map((t: any) => String(t || '').replace(K_INJECTED, ' ')).join('\n').toLowerCase()
+  const memo = new Map()
+  const urls = (said.match(/https?:\/\/[^\s<>"')\]]+/g) || []).map((u: any) => kUrlKey(u.replace(/[.,;:!?]+$/, '')))
+  return (file: any) => {
+    if (kIsUrl(file)) { const key = kUrlKey(file); return urls.some((p: any) => kUrlCovers(p, key)) }
+    const f = kNorm(file), base = f.slice(f.lastIndexOf('/') + 1).toLowerCase()
+    if (!said || !K_NAMEABLE.test(base)) return false
+    if (!memo.has(base)) memo.set(base, new RegExp(`(?:^|[^\\w.-])${kEsc(base)}(?![\\w-]|\\.\\w)`).test(said) || said.startsWith(base))
+    return memo.get(base)
+  }
+}
+const K_SHRINKS = /\|\s*(grep|rg|head|tail|wc|awk|cut|sort|uniq|jq|python|node)\b/
+const K_READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+('[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/
+const K_READ_TOOL = /^(read|read_file|view|view_file|open_file|cat)$/i
+const K_FETCH_TOOL = /^(webfetch|web_fetch|fetch|fetch_url|url_fetch|read_url|open_url)$/i
+const K_FETCH_CMD = /^\s*(curl|wget)\s/
+const K_WRITE_TOOL = /^(write|write_file|create_file)$/i
+const K_SHELL_TOOL = /^(bash|shell|exec_command|local_shell|run_terminal_cmd|run_shell_command|execute_command|container\.exec)$/i
+const K_CD = /^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/
+const K_RANGED = ['offset', 'limit', 'start_line', 'end_line', 'view_range', 'line_start', 'line_end']
+const kUnquote = (f: any) => String(f).replace(/^["']|["']$/g, '').replace(/^\.\//, '')
+const kPathOf = (input: any) => [input.file_path, input.filePath, input.path, input.target_file, input.filename].find((v: any) => typeof v === 'string' && v) || ''
+export function copyOf(name: any, input: any) {
+  if (typeof input === 'string') { try { input = JSON.parse(input) } catch { return null } }
+  if (!name || !input || typeof input !== 'object') return null
+  if (K_READ_TOOL.test(name)) {
+    const f = kPathOf(input)
+    return f ? { files: [kUnquote(f)], whole: !K_RANGED.some((k: any) => input[k] != null && input[k] !== '') } : null
+  }
+  if (K_WRITE_TOOL.test(name)) {
+    const f = kPathOf(input)
+    return f && typeof (input.content ?? input.contents ?? input.text) === 'string' ? { files: [kUnquote(f)], whole: true } : null
+  }
+  if (K_FETCH_TOOL.test(name)) return kIsUrl(input.url) ? { files: [String(input.url).trim()], whole: true } : null
+  if (K_SHELL_TOOL.test(name)) {
+    const raw = input.command ?? input.cmd
+    const cmd = Array.isArray(raw) ? String(raw[raw.length - 1] ?? '') : typeof raw === 'string' ? raw : ''
+    if (!cmd) return null
+    const m = cmd.match(K_CD), dir = m ? kUnquote(m[1]) : ''
+    const line = m ? cmd.slice(m[0].length) : cmd
+    if (K_FETCH_CMD.test(line)) {
+      if (/\|/.test(line) || /[;&]/.test(line.replace(/https?:\/\/\S+/g, ''))) return null
+      const urls = (line.match(/"[^"]*"|'[^']*'|\S+/g) || []).map(kUnquote).filter(kIsUrl)
+      return urls.length ? { files: urls, whole: true } : null
+    }
+    if (K_SHRINKS.test(line) || /[;&]|\|\|/.test(line.replace(/\|\|/g, ';'))) return null
+    const r = line.match(K_READ_CMD)
+    if (!r) return null
+    const files = (r[3].match(/"[^"]*"|'[^']*'|\S+/g) || []).map((a: any) => a.replace(/^["']|["']$/g, '')).filter((a: any) => !a.startsWith('-'))
+    if (!files.length) return null
+    return {
+      files: files.map(kUnquote).map((f: any) => (dir && !f.startsWith('/') ? `${dir.replace(/\/+$/, '')}/${f}` : f)),
+      whole: /^\s*(cat|less|more)\s/.test(line),
+    }
+  }
+  return null
+}
+const kSame = (a: any, b: any) => a === b || (a.startsWith('/') && !b.startsWith('/') ? a.endsWith('/' + b) : (!a.startsWith('/') && b.startsWith('/') ? b.endsWith('/' + a) : false))
+export function keptCalls(calls: any = [], opts: any = {}) {
+  const gone = opts.cut instanceof Set ? opts.cut : new Set(opts.cut || [])
+  const match = keepMatcher(opts.patterns || KEEP_DEFAULT), said = namedIn(opts.prompts || [])
+  const seen: any = []
+  const byName = new Map()
+  const entryOf = (file: any) => {
+    const hit = byName.get(file)
+    if (hit) return hit
+    let e = seen.find((x: any) => kSame(x.file, file))
+    if (!e) { e = { file, last: null, lastWhole: null, wasCut: false, reread: false }; seen.push(e) }
+    byName.set(file, e)
+    return e
+  }
+  for (const c of calls) {
+    if (!c || !c.id) continue
+    const copy = copyOf(c.name, c.input)
+    if (!copy) continue
+    for (const f of copy.files) {
+      const e = entryOf(f)
+      if (gone.has(c.id)) { e.wasCut = true; continue }
+      if (e.wasCut) e.reread = true
+      e.last = c.id
+      if (copy.whole) e.lastWhole = c.id
+    }
+  }
+  const ids = new Set(), files: any = []
+  for (const e of seen) {
+    const id = e.lastWhole || e.last
+    if (!id) continue
+    const why = match(e.file) ? 'pattern' : said(e.file) ? 'named' : e.reread ? 'reread' : null
+    if (!why) continue
+    ids.add(id)
+    files.push({ file: e.file, why, id })
+  }
+  return { ids, files }
+}
+// keep:end
+
+// The calls and the person's words of this door's rows. A result this mod replaced is the cut: it is in the
+// rows as its placeholder, which is the one record a clear leaves here.
+const CLEARED_PREFIX = '[tool result removed by thinker after use:'
+export function keptOf(messages: readonly SessionMessage[], patterns: string[] = KEEP_DEFAULT): Set<string> {
+  const calls: any[] = [], prompts: string[] = [], cut: string[] = []
+  for (const m of messages) {
+    if (m.role === 'assistant') for (const u of m.toolUses ?? []) calls.push({ id: u.tool_use_id, name: u.tool, input: u.input })
+    else if (m.role === 'user') {
+      if ((m.text ?? '').trim()) prompts.push(m.text as string)
+      for (const r of m.toolResults ?? []) if ((r.text ?? '').startsWith(CLEARED_PREFIX)) cut.push(r.tool_use_id)
+    }
+  }
+  return keptCalls(calls, { patterns, prompts, cut }).ids as Set<string>
+}
+// `<THINKER_HOME>/state/keep.json`, as keep.js:keepPatterns reads it: the defaults and every repository's list
+export async function keepPatternsOf($: any): Promise<string[]> {
+  let learned: string[] = []
+  try {
+    const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+    const all = JSON.parse(String(await $.fs.read(`${home}/state/keep.json`)))
+    learned = Object.values(all?.repos ?? {}).flatMap((r: any) => (Array.isArray(r?.files) ? r.files : [])).filter((p: any) => typeof p === 'string' && p.trim())
+  } catch {}
+  return [...new Set([...KEEP_DEFAULT, ...learned])]
+}
+
 // The ladder the proxy prices (proxy.js:cutCandidates, 2026-11-13): the newest eligible result, then the two
 // newest, and so on from the tail backwards. Sizes alone -- no rows are rebuilt -- so the check can price
 // every depth and the clear itself happens once, at the depth chosen.
@@ -184,7 +337,7 @@ const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m
 // Since 2026-11-16 every rung is priced at the whole context after the clear (`chooseDepth`), because a row
 // replaced in the middle leaves no cached prefix to read back; a deeper rung then costs less and saves more,
 // so the deepest one is the one that can pay, and the ladder is kept for the depth it names.
-export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): { depth: number; tokens: number; prefixChars: number }[] {
+export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, keep = null as Set<string> | null } = {}): { depth: number; tokens: number; prefixChars: number }[] {
   const pre: number[] = [0]
   for (let i = 0; i < messages.length; i++) pre.push(pre[i] + charsOf(messages[i]))
   const out: { depth: number; tokens: number; prefixChars: number }[] = []
@@ -198,6 +351,7 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; continue }
       if (text.length < MIN_CHARS) continue
+      if (keep?.has(r.tool_use_id)) continue   // the newest copy of a kept file is no rung's to take
       depth++; tokens += resultTokens(text); took = true
     }
     if (took) out.push({ depth, tokens, prefixChars: pre[i] })
@@ -208,9 +362,9 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
 // One policy, decided where the proxy decides it: the DEEPEST rung that repays its rewrite. `clearPays` is
 // this door's spelling of the inequality `cutting.js:priceCut` prices, and `decideCut` likewise takes the
 // largest paying set rather than the first. `null` is the refusal the proxy logs as `payback`.
-export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx: { tokens: number; calls: number; idle: number; cleared: boolean; model?: string }): number | null {
+export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx: { tokens: number; calls: number; idle: number; cleared: boolean; model?: string; keep?: Set<string> | null }): number | null {
   let take: number | null = null
-  for (const rung of clearLadder(messages, p)) {
+  for (const rung of clearLadder(messages, { keepMin: p.keepMin, keep: ctx.keep ?? null })) {
     if (rung.tokens < p.clearAtLeast) continue
     // the whole context after the clear, not the part after the first row it changes: a row replaced in the
     // middle leaves no cached prefix to read back (proxy.js:cutCandidates, 2026-11-16)
@@ -220,7 +374,7 @@ export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx:
   return take
 }
 
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity } = {}): Clear {
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity, keep = null as Set<string> | null } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; tokens: number }>()
@@ -241,6 +395,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; return r }
       if (text.length < MIN_CHARS) return r
+      if (keep?.has(r.tool_use_id)) return r   // kept (keep.js): the person's notes, a file they named, a file fetched back
       if (cleared >= depth) return r      // the rung chosen: the newest `depth` results and no more
       cleared++; chars += text.length; resultTokens_ += resultTokens(text); touched = true
       const name = nameOf.get(r.tool_use_id) ?? 'tool'
@@ -274,6 +429,7 @@ export type State = { session: string; firstAt: number; lastAt: number; requests
 
 // module state: starts over on a reload (the record on disk does not)
 let policy: Policy = DEFAULTS
+let keepPatterns: string[] = KEEP_DEFAULT   // the keep list's patterns, read again whenever a clear is weighed
 let auto = false
 let pending = false
 let pendingFrom = ''
@@ -344,7 +500,10 @@ export async function liveMessages($: any): Promise<SessionMessage[] | null> {
 async function wouldClear($: any, p: Policy): Promise<Clear | null> {
   try {
     const api = await $.session.messages({ as: 'api' })
-    return Array.isArray(api) ? clearOld(liveRows(api), p) : null
+    if (!Array.isArray(api)) return null
+    const rows = liveRows(api)
+    keepPatterns = await keepPatternsOf($)
+    return clearOld(rows, { ...p, keep: keptOf(rows, keepPatterns) })
   } catch { return null }
 }
 
@@ -483,6 +642,82 @@ async function delegateCall($: any, e: any): Promise<string | null> {
   return report ? String(order.wrap).replace(REPORT_SLOT, report) : null
 }
 
+// --- thinker off for one session ---------------------------------------------------------------
+// `/thinker-disable` takes the session it is typed in out of thinker and leaves every other session as it
+// was (issue #858): the wiring is machine-wide (the proxy's URL and the hooks are in the agent's settings,
+// read by every session), and this is the one place that runs inside a single session. Two writes to this
+// process's environment do it, checked live on Claude Code 2.1.327 (2026-11-18):
+//   - ANTHROPIC_BASE_URL unset: the engine reads it at every send, so the next model request goes to
+//     Anthropic itself and the proxy never sees the session again. Rewriting the request's URL in an
+//     `http.fetch` hook does not do this: the engine keeps the credential to the origin the request was
+//     raised for, and Anthropic answers 401.
+//   - THINKER_HOOKS=off: every hook command the engine starts afterwards inherits it, and a user-scope
+//     hook returns on it before doing anything (commands/hooks.js). The hooks cannot be taken out for one
+//     session: the engine runs the settings' hooks whatever a `settings.read` hook answers, and a
+//     `classic.*` hook that answers in their place silences every other tool's hooks with them.
+// Only thinker's own plain route is taken away: a gateway, the desktop app's own URL and the Bedrock route
+// (a path on the proxy, with a credential of its own beside it) are left where they are, and the answer
+// says so. The mark is a file by session id, so a resumed session and a reloaded mod stay off; it holds
+// what was there, for `/thinker-enable` to put back.
+export const SESSION_OFF_MARK = 'session-off'
+export const DISABLE = 'thinker-disable'
+export const ENABLE = 'thinker-enable'
+export type OffMark = { off: boolean; baseUrl?: string | null; hooks?: string | null; at?: number }
+// the proxy service's own URL with no path (state/proxy-service.json: `port`, and `ports` while one is being replaced)
+export function ownRoute(baseUrl: string | undefined | null, service: any): boolean {
+  const m = /^https?:\/\/(?:127\.0\.0\.1|localhost):(\d+)\/?$/i.exec(String(baseUrl ?? '').trim())
+  if (!m) return false
+  const ports = [service?.port, ...(Array.isArray(service?.ports) ? service.ports : [])].map(Number).filter(n => n > 0)
+  return ports.includes(Number(m[1]))
+}
+// what `/thinker-disable` answers: whether the route went, and why not when it stayed
+export function offWords(route: 'direct' | 'none' | 'kept' | 'refused', baseUrl?: string | null, why?: string): string {
+  const hooks = 'its hooks do nothing here'
+  if (route === 'direct') return `thinker is off for this session: model requests go straight to Anthropic, not through the proxy, and ${hooks}. Other sessions are unchanged. /${ENABLE} turns it back on.`
+  if (route === 'none') return `thinker is off for this session: it was not going through the proxy, and ${hooks}. Other sessions are unchanged. /${ENABLE} turns it back on.`
+  if (route === 'refused') return `thinker's hooks are off for this session, but it still goes through the proxy: Claude Code refused the change${why ? ` (${why})` : ''}. /${ENABLE} turns the hooks back on.`
+  return `thinker's hooks are off for this session, but its route is left as it is: ${baseUrl} is not thinker's plain proxy route, so taking it away would break the session. /${ENABLE} turns the hooks back on.`
+}
+let off: OffMark | null = null
+const homeOf = async ($: any) => (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+const offFile = async ($: any) => `${await homeOf($)}/state/${SESSION_OFF_MARK}/${String(await $.session.id()).replace(/[^\w.-]/g, '_')}.json`
+const serviceOf = async ($: any) => { try { return JSON.parse(String(await $.fs.read(`${await homeOf($)}/state/proxy-service.json`))) } catch { return null } }
+async function readOff($: any): Promise<OffMark | null> {
+  try { const m = JSON.parse(String(await $.fs.read(await offFile($)))); return m?.off === true ? m : null } catch { return null }
+}
+// Applies the mark to this process: called by the command, and at every session start that finds the mark
+// (a resumed session starts with the settings' route again; after a reload there is nothing left to take).
+async function sessionOff($: any, was: OffMark | null): Promise<string> {
+  const url = await $.env.get('ANTHROPIC_BASE_URL')
+  const own = ownRoute(url, await serviceOf($))
+  let route: 'direct' | 'none' | 'kept' | 'refused' = url ? 'kept' : 'none', why = ''
+  if (own) { const r = await $.env.set('ANTHROPIC_BASE_URL', undefined); route = r?.deny ? 'refused' : 'direct'; why = r?.deny || '' }
+  const hooks = await $.env.get('THINKER_HOOKS')
+  await $.env.set('THINKER_HOOKS', 'off')
+  off = { off: true, baseUrl: was?.baseUrl ?? (route === 'direct' ? url : null), hooks: was ? was.hooks ?? null : hooks ?? null, at: was?.at ?? Date.now() }
+  await $.fs.write(await offFile($), JSON.stringify(off))
+  auto = false
+  delegating = false
+  return offWords(route === 'none' && off.baseUrl ? 'direct' : route, url, why)
+}
+async function sessionOn($: any): Promise<string> {
+  const was = off ?? await readOff($)
+  if (!was) return `thinker is on in this session already. /${DISABLE} turns it off here.`
+  await $.env.set('THINKER_HOOKS', was.hooks ?? undefined)
+  // the route goes back only while it is still the service's: a proxy that was turned off or moved since is not written back
+  let route = ''
+  if (was.baseUrl && !(await $.env.get('ANTHROPIC_BASE_URL'))) {
+    if (ownRoute(was.baseUrl, await serviceOf($))) { const r = await $.env.set('ANTHROPIC_BASE_URL', was.baseUrl); route = r?.deny ? ` Claude Code refused to put the proxy route back (${r.deny}): requests stay direct.` : ' Model requests go through the proxy again.' }
+    else route = ' The proxy is no longer at the address this session had, so requests stay direct; a new session takes the current route.'
+  }
+  off = null
+  await $.fs.write(await offFile($), JSON.stringify({ off: false }))
+  const test = (await $.env.get('THINKER_TEST')) === '1'
+  auto = policy.auto && !test && !proxied(await $.env.get('ANTHROPIC_BASE_URL')) && !heldOut(String(await $.session.id()), policy.holdout)
+  await delegateSetup($)
+  return `thinker is on for this session again: its hooks run.${route}`
+}
+
 export const register: Register = (on) => {
   for (const tool of ['Read', 'Bash']) on('tool.call', { tool }, async ($, e, next) => {
     let words: string | null = null
@@ -532,6 +767,11 @@ export const register: Register = (on) => {
       const test = (await $.env.get('THINKER_TEST')) === '1'
       auto = policy.auto && !test && !proxied(await $.env.get('ANTHROPIC_BASE_URL')) && !heldOut(session, policy.holdout)
       $.command.register({ name: COMMAND, description: 'Clear old tool results from this conversation in place (thinker)' })
+      $.command.register({ name: DISABLE, description: 'Turn thinker off for this session only: no proxy, no hooks' })
+      $.command.register({ name: ENABLE, description: 'Turn thinker back on for this session' })
+      // a session that was turned off stays off: resumed, it starts with the settings' route again
+      off = await readOff($)
+      if (off) await sessionOff($, off)
       // once per machine, in the desktop app, where there was no clearing before this mod: say so
       if (auto && (await $.env.get('CLAUDE_CODE_ENTRYPOINT')) === 'claude-desktop' && !(await $.store.get(INTRODUCED))) {
         await $.store.set(INTRODUCED, Date.now())
@@ -587,7 +827,8 @@ export const register: Register = (on) => {
           // rewrite -- the refusal the proxy logs as `payback` -- and this door says nothing, as before.
           let model = ''; try { model = await $.session.model() } catch {}
           const rows = await liveMessages($)
-          const depth = rows ? chooseDepth(rows, policy, { tokens, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model }) : null
+          keepPatterns = await keepPatternsOf($)
+          const depth = rows ? chooseDepth(rows, policy, { tokens, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model, keep: keptOf(rows, keepPatterns) }) : null
           if (depth != null) { pendingDepth = depth; schedule($, 'auto', tokens) }
         }
       } catch {}
@@ -601,7 +842,9 @@ export const register: Register = (on) => {
     const from = pendingFrom
     pending = false
     const chosen = pendingDepth; pendingDepth = null
-    const c = clearOld(e.messages, { ...policy, depth: chosen ?? Infinity })
+    // the same kept set the depth was chosen against: a compact hook may not wait on a file, so the patterns are
+    // the ones read when the clear was scheduled (a typed /thinker-clear reads them in `wouldClear`)
+    const c = clearOld(e.messages, { ...policy, depth: chosen ?? Infinity, keep: keptOf(e.messages, keepPatterns) })
     if (!c.cleared || (from === 'auto' && c.tokens < policy.clearAtLeast)) {
       hold()
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }
@@ -634,6 +877,13 @@ export const register: Register = (on) => {
     if (from === 'manual') $.ui.toast(`thinker ${describe(c)}`)
     return { messages: c.messages }
   }).catch(($, e, next) => next(e))
+
+  on('command.run', { command: DISABLE }, async ($) => {
+    try { return { text: await sessionOff($, off ?? await readOff($)) } } catch (err: any) { return { text: `${DISABLE}: ${String(err?.message || err).slice(0, 200)}` } }
+  })
+  on('command.run', { command: ENABLE }, async ($) => {
+    try { return { text: await sessionOn($) } } catch (err: any) { return { text: `${ENABLE}: ${String(err?.message || err).slice(0, 200)}` } }
+  })
 
   on('command.run', { command: COMMAND }, async ($) => {
     if (pending) return { text: 'thinker-clear: a clear is already on its way' }

@@ -6,6 +6,7 @@
 import crypto from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { decideCut, freshCut, MIN_CHARS, placeholder, sessionOf } from './cutting.js';
+import { keptCalls, keepPatterns } from './keep.js';
 
 // OpenRouter answers every call with the account's own cost and cache split in the usage object
 // (openrouter.ai/docs/use-cases/usage-accounting); LiteLLM normalizes tokens and needs
@@ -65,8 +66,24 @@ export function applyChatCut(messages, cut) {
   return { messages: clearedUses ? out : messages, removedBytes, chars, clearedUses, firstChanged };
 }
 
-export function chatCandidates(messages, { keepMin = 3, cut = [], minChars = MIN_CHARS } = {}) {
+// The calls and the person's words of a Chat Completions history, for the keep list (keep.js:keptCalls): the
+// same rule as the other two doors. A call is an entry of an assistant message's `tool_calls`.
+export function chatKept(messages, cut = [], patterns = keepPatterns()) {
+  const calls = [], prompts = [];
+  for (const m of messages || []) {
+    if (isUserMessage(m)) {
+      if (typeof m.content === 'string') prompts.push(m.content);
+      else if (Array.isArray(m.content)) for (const p of m.content) if (p?.type === 'text' && typeof p.text === 'string') prompts.push(p.text);
+    } else if (m?.role === 'assistant' && Array.isArray(m.tool_calls)) {
+      for (const c of m.tool_calls) if (c?.id && c.function) calls.push({ id: c.id, name: c.function.name, input: c.function.arguments });
+    }
+  }
+  return keptCalls(calls, { patterns, prompts, cut });
+}
+
+export function chatCandidates(messages, { keepMin = 3, cut = [], minChars = MIN_CHARS, keep = null } = {}) {
   const existing = new Set(cut), ids = [];
+  const held = { results: 0, tokens: 0 };
   let inLatestTurn = true, kept = 0, chars = 0, firstChanged = -1;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
@@ -76,10 +93,11 @@ export function chatCandidates(messages, { keepMin = 3, cut = [], minChars = MIN
     if (existing.has(m.tool_call_id)) continue;
     const value = plainContent(m.content);
     if (value == null || value.length < minChars || isCutText(value)) continue;
+    if (keep?.has(m.tool_call_id)) { held.results++; held.tokens += Math.round(value.length * TOKENS_PER_CHAR); continue; }
     ids.push(m.tool_call_id); chars += value.length; firstChanged = i;
   }
   const sent = firstChanged < 0 ? [] : applyChatCut(messages.slice(firstChanged), [...existing, ...ids]).messages;
-  return { ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged, recache: JSON.stringify(sent).length * TOKENS_PER_CHAR };
+  return { ids, chars, tokens: Math.round(chars * TOKENS_PER_CHAR), firstChanged, recache: JSON.stringify(sent).length * TOKENS_PER_CHAR, ...(held.results ? { kept: held } : {}) };
 }
 
 // LiteLLM only reports usage on a streamed call when asked (OpenRouter deprecated the flag and
@@ -121,12 +139,14 @@ export function transformChat(method, url, headers, body, cfg) {
   // (gateway-rates.js), then the Anthropic defaults the shared policy has always kept.
   const rates = cfg.ratesFor?.(j.model) || null;
   const prompt = out.length * TOKENS_PER_CHAR;
-  const candidate = chatCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
+  const keep = chatKept(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
+  const candidate = chatCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, keep });
   const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model, rates });
   const applied = applyChatCut(j.messages, decision.cut);
   const state = { model: j.model, session, turn, cut: decision.cut, policy: decision.policy,
     ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
+    ...(candidate.kept ? { kept: candidate.kept } : {}),
     ...(decision.held ? { held: decision.held } : {}),
     ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.depth != null ? { depth: decision.depth, rungs: decision.rungs } : {}), ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
   // the reason is the decision's own, as on both other doors: deriving it here saw neither mid-turn nor one-cut

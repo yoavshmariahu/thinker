@@ -6,6 +6,7 @@
 import crypto from 'node:crypto';
 import { StringDecoder } from 'node:string_decoder';
 import { decideCut, freshCut, MIN_CHARS, placeholder } from './cutting.js';
+import { keptCalls, keepPatterns } from './keep.js';
 
 export const CLEARED_OUTPUT = '[thinker: an older turn\'s tool output was cleared. Run the tool again if you need it.]';
 export const responsesSession = (headers, request = {}) => headers['session_id'] || headers['x-codex-session-id'] || request.prompt_cache_key || null;
@@ -38,8 +39,25 @@ export function applyResponsesCut(input, cut) {
   return { input: clearedUses ? out : input, removedBytes, chars, clearedUses, firstChanged };
 }
 
-export function responsesCandidates(input, { keepMin = 3, cut = [], minChars = MIN_CHARS } = {}) {
+// The calls and the person's words of a Responses history, for the keep list (keep.js:keptCalls): the same
+// rule as the Messages door, read off this wire format. A call is a `function_call` (its arguments a JSON
+// string), a `custom_tool_call`, or a `local_shell_call` whose command is an argv.
+export function responsesKept(input, cut = [], patterns = keepPatterns()) {
+  const calls = [], prompts = [];
+  for (const item of input || []) {
+    if (isUserMessage(item)) {
+      if (typeof item.content === 'string') prompts.push(item.content);
+      else if (Array.isArray(item.content)) for (const b of item.content) if (typeof b?.text === 'string') prompts.push(b.text);
+    } else if (item?.type === 'function_call' && item.call_id) calls.push({ id: item.call_id, name: item.name, input: item.arguments });
+    else if (item?.type === 'custom_tool_call' && item.call_id) calls.push({ id: item.call_id, name: item.name, input: item.input });
+    else if (item?.type === 'local_shell_call' && item.call_id) calls.push({ id: item.call_id, name: 'local_shell', input: { command: item.action?.command } });
+  }
+  return keptCalls(calls, { patterns, prompts, cut });
+}
+
+export function responsesCandidates(input, { keepMin = 3, cut = [], minChars = MIN_CHARS, keep = null } = {}) {
   const existing = new Set(cut), ids = [];
+  const held = { results: 0, tokens: 0 };
   let inLatestTurn = true, kept = 0, chars = 0, firstChanged = -1;
   for (let i = input.length - 1; i >= 0; i--) {
     const item = input[i];
@@ -49,10 +67,11 @@ export function responsesCandidates(input, { keepMin = 3, cut = [], minChars = M
     if (existing.has(item.call_id)) continue;
     const value = plainOutput(item.output);
     if (value == null || value.length < minChars || value === CLEARED_OUTPUT || value.startsWith('[tool result removed by thinker after use:')) continue;
+    if (keep?.has(item.call_id)) { held.results++; held.tokens += Math.round(value.length * TOKENS_PER_CHAR); continue; }
     ids.push(item.call_id); chars += value.length; firstChanged = i;
   }
   const sent = firstChanged < 0 ? [] : applyResponsesCut(input.slice(firstChanged), [...existing, ...ids]).input;
-  return { ids, chars, tokens: chars * TOKENS_PER_CHAR, firstChanged, recache: JSON.stringify(sent).length * TOKENS_PER_CHAR };
+  return { ids, chars, tokens: chars * TOKENS_PER_CHAR, firstChanged, recache: JSON.stringify(sent).length * TOKENS_PER_CHAR, ...(held.results ? { kept: held } : {}) };
 }
 
 export function transformResponses(method, url, headers, body, cfg) {
@@ -74,7 +93,8 @@ export function transformResponses(method, url, headers, body, cfg) {
   if (!turn) return pass('no-user-turn');
   const rec = cfg.cutRecord || cfg.readResponsesCut?.(session) || freshCut(session);
   const prompt = body.length * TOKENS_PER_CHAR;
-  const candidate = responsesCandidates(j.input, { keepMin: cfg.keepMin ?? 3, cut: rec.cut });
+  const keep = responsesKept(j.input, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
+  const candidate = responsesCandidates(j.input, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, keep });
   // the decision's rates, per model, as on the Chat door: a Responses upstream is not always Anthropic's
   const rates = cfg.ratesFor?.(j.model) || null;
   const decision = decideCut(rec, cfg, { prompt, turn }, { cand: candidate, ttl: cfg.ttl, now: cfg.now, model: j.model, rates });
@@ -82,6 +102,7 @@ export function transformResponses(method, url, headers, body, cfg) {
   const state = { model: j.model, session, turn, cut: decision.cut, policy: decision.policy,
     ...(decision.rates ? { rates: decision.rates } : {}),
     ...(decision.candidate != null ? { candidate: decision.candidate } : {}),
+    ...(candidate.kept ? { kept: candidate.kept } : {}),
     ...(decision.held ? { held: decision.held } : {}),
     ...(decision.clear ? { clear: { tokens: decision.tokens, recache: decision.recache, cost: decision.cost, payback: decision.payback, ...(decision.depth != null ? { depth: decision.depth, rungs: decision.rungs } : {}), ...(decision.cold ? { cold: true } : {}) }, tokens: decision.tokens, recache: decision.recache, cost: decision.cost, cold: decision.cold } : {}) };
   // the reason is the decision's, as on the Messages door: deriving it here saw neither mid-turn nor one-cut

@@ -87,7 +87,7 @@ test('an image that cannot be saved stays in the prompt', t => {
 
 test('the policy names it: a saving made with screenshots cut is never pooled with one made without', () => {
   const base = { trigger: 140000, clearAtLeast: 8000 };
-  assert.equal(policyId({ ...base, cutInputs: true, cutImages: true }), 'r8-t140k-f8k-p25-deep+in+img');
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r8-t140k-f8k-p25-deep+in');
+  assert.equal(policyId({ ...base, cutInputs: true, cutImages: true }), 'r11-t140k-f8k-p25-deep+in+img');
+  assert.equal(policyId({ ...base, cutInputs: true }), 'r11-t140k-f8k-p25-deep+in');
   assert.equal(PROXY_DEFAULTS.cutImages, true);
 });

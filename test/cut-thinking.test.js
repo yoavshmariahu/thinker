@@ -176,27 +176,34 @@ test('thinkingKeepTurns: only thinking that many turns old goes with a cut', () 
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
-test('thinkingKeepTurns: a later cut carries the range on, so thinking that has aged since goes too', () => {
+test('thinkingKeepTurns: a later cut never reaches above its own first result for thinking that has aged', () => {
+  // The case from a nine-turn PostHog session (2026-11-18): thinking too new for the first cut had aged by the
+  // next one, sat above everything that cut replaced, and taking it moved the breakpoint to the top.
   const cfg = { ...CFG, thinkingKeepTurns: 1, keepMin: 1 }, rec = { ...freshCut('s'), at: 1 };
   const ms = conversation(6);
   const first = send(rec, { model: 'claude-opus-5', messages: ms }, cfg, 1e12);
   assert.deepEqual(rec.think, [['r0', 6]]);
   assert.deepEqual(thinkingAt(first.sent.messages), [1, 21, 23], 'the turn before the live one keeps its thinking');
-  // two more turns, a long pause, and the boundary cuts again: its own oldest result is far below turn 6
+  // two more turns, a long pause, and the boundary cuts again. Its oldest new result is r5, at message 22.
   const more = conversation(8);
   const second = send(rec, { model: 'claude-opus-5', messages: more }, cfg, 1e12 + 3 * 3600e3);
   assert.equal(second.t.injected, true);
-  assert.deepEqual(rec.think, [['r0', 8]], 'the first range, carried on: one run with no thinking left stranded in it');
-  assert.deepEqual(thinkingAt(second.sent.messages), [1, 29, 31]);
-  const newly = [21, 23, 25, 27].reduce((n, i) => n + thinkingChars(more[i]), 0);
-  assert.equal(second.t.clear.thinking, Math.round(newly * THINKING_TOKENS_PER_CHAR), 'priced as what this cut newly leaves out');
-  // the ladder's tail for that rung starts where the first aged block went, not at the rung's first result
-  const c = cutCandidates(more, { keepMin: 1, cut: first.t.cut, thinking: { to: turnIndex(more, 8), done: [['r0', 6]], from: 3 } });
+  assert.deepEqual(rec.think, [['r0', 6], ['r5', 8]], 'its own range, from its own oldest result');
+  // message 21 is above r5's result: aged, and left where it is. 23 to 27 are inside the span being rewritten.
+  assert.deepEqual(thinkingAt(second.sent.messages), [1, 21, 29, 31]);
+  const newly = [23, 25, 27].reduce((n, i) => n + thinkingChars(more[i]), 0);
+  assert.equal(second.t.clear.thinking, Math.round(newly * THINKING_TOKENS_PER_CHAR));
+  assert.deepEqual(second.sent.messages.slice(0, 22), first.sent.messages.slice(0, 22), 'not a byte above the cut has moved');
+  // so the rewrite starts where it would have without the thinking, and is only ever smaller for it
+  const plain = cutCandidates(more, { keepMin: 1, cut: first.t.cut });
+  const c = cutCandidates(more, { keepMin: 1, cut: first.t.cut, thinking: { to: turnIndex(more, 8), done: [['r0', 6]] } });
   assert.ok(c.steps.length >= 1);
-  for (const s of c.steps) {
-    assert.equal(s.thinkFirst, 21);
-    const sent = applyCut(more, [...first.t.cut, ...s.ids], { thinking: [['r0', 8]] });
-    assert.ok(Math.abs(s.tail - Math.round(JSON.stringify(sent.messages.slice(20)).length * TOKENS_PER_CHAR)) <= 2, 'the tail is the messages as sent from the breakpoint before it');
-    assert.equal(placeMark({ messages: more, cache_control: { type: 'ephemeral' } }, sent.messages, s.ids, { first: s.thinkFirst }).at, 19, 'and the breakpoint goes before it');
-  }
+  c.steps.forEach((s, k) => {
+    assert.equal(s.firstChanged, plain.steps[k].firstChanged);
+    assert.ok(s.tail <= plain.steps[k].tail, `rung ${k}: the tail is never longer for the thinking`);
+    const j = { messages: more, cache_control: { type: 'ephemeral' } };
+    const sent = applyCut(more, [...first.t.cut, ...s.ids], { thinking: [['r0', 6], [s.ids[s.ids.length - 1], 8]] });
+    const bare = applyCut(more, [...first.t.cut, ...s.ids]);
+    assert.equal(placeMark(j, sent.messages, s.ids).at, placeMark(j, bare.messages, s.ids).at, `rung ${k}: the breakpoint is where it would be with the thinking kept`);
+  });
 });

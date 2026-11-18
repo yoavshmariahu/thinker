@@ -27,7 +27,7 @@
 //    failure is "still waiting", never an error a hook could raise.
 //
 // 5. **What leaves is a closed list**: the machine's id, hostname, OS and thinker version; per session
-//    its id, agent, the repository's name (never a URL, never a path), two times and numbers. No prompt,
+//    its id, agent, model, the repository's name (never a URL, never a path), two times and numbers. No prompt,
 //    no code, no path. The server drops anything else too, so a bug here cannot store one there.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { getInstallId } from './telemetry.js';
 import { readMachineConfig } from './repo-switch.js';
+import { applyManaged } from './managed.js';
 import { appVersion } from './proxy-service.js';
 import { sessionEvent, isTestShipBlocked } from './events.js';
 import { repoId } from './store.js';
@@ -47,7 +48,8 @@ export const FLEET = {
   url: 'https://api.thinker.sh/v1',
   everyMs: 5 * 60_000,
   timeoutMs: 2000,
-  sessionsMax: 50,       // the server's limit on one report; the rest go in the next
+  sessionsMax: 10,       // a report's sessions; one in depth is ~15 KB, and the server takes 20
+  reportsMax: 5,         // reports sent back to back when more sessions moved than one holds
   keepDays: 2,           // a session untouched this long with nothing left to send is forgotten
   lockMs: 30_000,        // a lock older than this was left by a process that died
 };
@@ -59,8 +61,17 @@ const stateFile = home => path.join(home, 'state', 'fleet.json');
 const lockFile = home => path.join(home, 'state', 'fleet.lock');
 
 // ---------------------------------------------------------------- the key
+// Under test the person's own home is never a fleet machine: a suite's hooks run with its environment and,
+// where a test names no home of its own, against `~/.thinker`. Blocking only the send (`isTestShipBlocked`)
+// was not enough: the fixture sessions were still noted in the real state, and the person's next real hook
+// reported them (2026-11-17, `cascade-1`, `agy-conv-1` and three more on the owner's dashboard). So there is
+// no key there at all, which is rule 1: no socket, no state, no process. A test that means to report gives
+// a home of its own (`home`, or `THINKER_HOME`).
+const ownHomeUnderTest = (env, home) => (isTestMode(env) || !!env.NODE_TEST_CONTEXT) && !env.THINKER_HOME
+  && path.resolve(home) === path.resolve(os.homedir(), '.thinker');
 export function fleetKey({ env = process.env, home = thinkerHome() } = {}) {
   if (String(env.THINKER_FLEET || '').toLowerCase() === 'off') return null;
+  if (ownHomeUnderTest(env, home)) return null;
   if (env.THINKER_API_KEY) return { key: env.THINKER_API_KEY.trim(), from: 'env' };
   try {
     const key = fs.readFileSync(keyFile(home), 'utf8').trim();
@@ -126,7 +137,8 @@ function withLock(home, now, run) {
 // `thinker prs`'s -- flattened to the numbers a report carries. Dollars only where the session was priced.
 export function metricsOf(event) {
   const n = value => (Number.isFinite(value) ? value : 0);
-  const out = { prompts: n(event.prompts), tokens: n(event.tokens), cleared_tokens: n(event.cleared) };
+  const out = { prompts: n(event.prompts), tokens: n(event.tokens), cleared_tokens: n(event.cleared),
+    calls: n(event.decisions?.calls), cuts: n(event.decisions?.cuts) };
   if (event.cost?.priced) {
     Object.assign(out, { saved_usd: n(event.cost.saved), net_usd: n(event.cost.net), rewrite_usd: n(event.cost.rewrite), reread_usd: n(event.cost.reread) });
     if (event.cost.spend != null) out.spend_usd = n(event.cost.spend);
@@ -142,6 +154,23 @@ export function repoName(repo) {
   const name = id.replace(/\.git$/, '').split(/[/:]/).filter(Boolean).slice(-2).join('/');
   return /^[\w.-]+(?:\/[\w.-]+)?$/.test(name) ? name : null;
 }
+// A session in depth, for the dashboard's session page: one point a model call, what thinker did, and the
+// cost by token type. Rebuilt here field by field from what `events.js` holds, so only numbers and names
+// from closed sets go: a delegation's file names and its error text stay on the machine.
+export function detailOf(event) {
+  const d = event?.decisions;
+  if (!d || !(d.series?.length || d.actions?.length)) return null;
+  const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] != null && o[k] !== false).map(k => [k, o[k]]));
+  return {
+    series: d.series.map(p => pick(p, ['c', 'at', 'carried', 'out', 'cost', 'turn', 'cut', 'cold', 'reason', 'fresh', 'read', 'write'])),
+    actions: (d.actions || []).map(a => ({
+      ...pick(a, ['kind', 'at', 'turn', 'tokens', 'results', 'lines', 'chars', 'usd', 'cold', 'held', 'cached', 'afterCompaction', 'policy', 'arm', 'of', 'model']),
+      ...(a.tools ? { tools: a.tools.map(t => pick(t, ['name', 'calls', 'tokens'])) } : {}),
+    })),
+    by_type: d.byType ? Object.fromEntries(Object.entries(d.byType).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4])) : {},
+  };
+}
+const stampOf = detail => (detail ? crypto.createHash('sha256').update(JSON.stringify(detail)).digest('hex').slice(0, 16) : null);
 const round = value => Math.round(value * 1e6) / 1e6;
 const deltaOf = (seen = {}, sent = {}) => {
   const out = {};
@@ -159,7 +188,11 @@ export function noteSession(store, { session, home = thinkerHome(), env = proces
   const state = readFleetState(home);
   const known = state.sessions[ev.session] || { sent: {}, lastSentAt: null };
   state.sessions[ev.session] = { ...known, startedAt: known.startedAt || ev.firstAt || new Date(now).toISOString(), lastAt: ev.lastAt || new Date(now).toISOString(),
-    agent: ev.client || null, repo: repoName(store?.repo), seen: metricsOf(ev), notedAt: now };
+    agent: ev.client || null, model: ev.model || null, repo: repoName(store?.repo), seen: metricsOf(ev), notedAt: now };
+  // The depth is a picture of the session as it stands, not an increment: it is kept whole, and sent again
+  // only when it has changed (its stamp), since most turns move the figures and not every one adds a call.
+  const detail = detailOf(ev);
+  Object.assign(state.sessions[ev.session], { detail, detailStamp: stampOf(detail) });
   writeFleetState(home, state);
   return true;
 }
@@ -167,21 +200,22 @@ export function noteSession(store, { session, home = thinkerHome(), env = proces
 // The next report: every session whose figures or last activity moved since it was last acknowledged.
 function buildReport(state, { home, env, now }) {
   const moved = Object.entries(state.sessions).map(([id, s]) => ({ id, s, metrics: deltaOf(s.seen, s.sent) }))
-    .filter(({ s, metrics }) => Object.keys(metrics).length || s.lastAt !== s.lastSentAt)
+    .filter(({ s, metrics }) => Object.keys(metrics).length || s.lastAt !== s.lastSentAt || (s.detailStamp || null) !== (s.detailSent || null))
     .sort((a, b) => (a.s.notedAt || 0) - (b.s.notedAt || 0)).slice(0, FLEET.sessionsMax);
   return {
-    marks: Object.fromEntries(moved.map(({ id, s }) => [id, { sent: s.seen, lastSentAt: s.lastAt }])),
+    marks: Object.fromEntries(moved.map(({ id, s }) => [id, { sent: s.seen, lastSentAt: s.lastAt, detailSent: s.detailStamp || null }])),
     body: {
       machine_id: machineId({ env, home }), report_id: crypto.randomUUID(), hostname: os.hostname(), os: `${process.platform} ${os.release()}`,
       thinker_version: appVersion(),
-      sessions: moved.map(({ id, s, metrics }) => ({ session_id: id, started_at: s.startedAt, last_at: s.lastAt, agent: s.agent, repo: s.repo, metrics })),
+      sessions: moved.map(({ id, s, metrics }) => ({ session_id: id, started_at: s.startedAt, last_at: s.lastAt, agent: s.agent, model: s.model || null, repo: s.repo, metrics,
+        ...(s.detail && (s.detailStamp || null) !== (s.detailSent || null) ? { detail: s.detail } : {}) })),
     },
   };
 }
 
-// Send what is waiting, or what has moved. `force` sends even an empty report -- a machine saying it is
-// there -- which is what `thinker status` asks for. Never throws.
-export async function sendFleetReport({ home = thinkerHome(), env = process.env, now = Date.now(), fetchFn = globalThis.fetch, force = false } = {}) {
+// One report: what is waiting, or what has moved. `force` sends even an empty one -- a machine saying it
+// is there -- which is what `thinker status` asks for. Never throws.
+async function sendOne({ home = thinkerHome(), env = process.env, now = Date.now(), fetchFn = globalThis.fetch, force = false } = {}) {
   const found = fleetKey({ env, home });
   if (!found) return { mode: 'local' };
   const url = fleetUrl({ home }) + '/reports';
@@ -217,6 +251,10 @@ export async function sendFleetReport({ home = thinkerHome(), env = process.env,
     if (!response.ok) return finish({ sent: false, reason: 'unreachable', detail: 'HTTP ' + response.status });
     let answer = {};
     try { answer = await response.json(); } catch {}
+    // The answer is also where the org's settings come back (managed.js): what the dashboard's Machine
+    // settings hold, with the time they were set. Newest wins there, a machine that refuses a sink's settings
+    // (`managed: false`, THINKER_MANAGED=off) refuses these too, and it never throws.
+    applyManaged(answer.managed, { home, env, from: 'fleet' });
     return finish({ sent: true, sessions: pending.body.sessions.length }, fresh => {
       for (const [id, mark] of Object.entries(pending.marks)) if (fresh.sessions[id]) Object.assign(fresh.sessions[id], mark);
       const cutoff = now - FLEET.keepDays * 86400e3;
@@ -227,6 +265,18 @@ export async function sendFleetReport({ home = thinkerHome(), env = process.env,
     });
   });
   return done || { mode: 'fleet', sent: false, reason: 'busy' };
+}
+
+// Send what is waiting or has moved. A report holds `sessionsMax` sessions, so a machine with more than
+// that to say sends a few back to back rather than waiting five minutes for each; the first failure stops it.
+export async function sendFleetReport(options = {}) {
+  let result = await sendOne(options), sessions = result.sessions || 0;
+  for (let n = 1; n < FLEET.reportsMax && result.sent && result.sessions === FLEET.sessionsMax; n++) {
+    const next = await sendOne({ ...options, force: false });
+    if (!next.sent) break;
+    result = next; sessions += next.sessions || 0;
+  }
+  return result.sent ? { ...result, sessions } : result;
 }
 
 // The hook's whole part in this: note the session, then send now if a report is due, else make sure one

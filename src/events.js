@@ -118,6 +118,7 @@ function seriesOf(rows, { config, max = EVENTS.seriesMax } = {}) {
       c: i + 1,
       at: r.at,
       carried,
+      fresh, read, write,
       out: r.out || 0,
       cost,
       ...(r.turn != null ? { turn: r.turn } : {}),
@@ -173,6 +174,24 @@ export function actionsOf({ session, events = [], rows = [], record = null }) {
   return out.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
 }
 
+// Where a session's dollars went, by the kind of token, over every call (the series is thinned; this is
+// not). The four parts are `costOf`'s own terms, each asked for alone, so they add up to the calls' cost.
+function costByType(rows, { config } = {}) {
+  const sum = { fresh: 0, read: 0, write: 0, out: 0 };
+  let priced = 0;
+  for (const r of rows) {
+    const price = listPrice(r.model, { config });
+    if (!price) continue;
+    priced += 1;
+    const read = r.read || 0, write = r.write || 0;
+    sum.fresh += costOf({ input: r.input || 0 }, price);
+    sum.read += costOf({ input: read, cacheRead: read }, price);
+    sum.write += costOf({ input: write, cacheWrite: write, cacheWrite1h: r.write1h || 0 }, price);
+    sum.out += costOf({ output: r.out || 0 }, price);
+  }
+  return priced ? sum : null;
+}
+
 export function decisionsOf({ session, home = thinkerHome(), env = process.env, since = '', log = null } = {}) {
   const key = sessionKey(session);
   let rows = [];
@@ -190,6 +209,8 @@ export function decisionsOf({ session, home = thinkerHome(), env = process.env, 
   return {
     // the session as it ran, one point a model call, for the trend the cuts happened in
     series: seriesOf(rows, { config }),
+    // and what those calls cost by the kind of token, or null where no call had a list price
+    byType: costByType(rows, { config }),
     // and what thinker did in it, in order (actionsOf)
     actions: actionsOf({ session, events: log || [], rows, record: rec }),
     calls: rows.length,

@@ -42,6 +42,7 @@ import { noteCompression } from './compression.js';
 import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
+import { keptCalls, keepPatterns } from './keep.js';
 import { decideCut, cutResponse, cutStore, freshCut, addThink, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
@@ -191,14 +192,51 @@ export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthro
 // API's own answer reaches the agent: the proxy invents no failure, and a session under way hears it from the API.
 // The clearing has its own gauge for the rewrites after a clear (clearing.js:response); the report still counts them
 // (proxyReport, rewriteWarning) beside the held-out rate, which is the number that judges a policy.
-export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}) {
-  let refusals = 0, stoodDown = false;
-  const fire = reason => { if (stoodDown || !on) return; stoodDown = true; onStandDown(reason); };
+// One session's evidence is that session's, not the machine's (2026-11-18). Until then the count was one for the
+// whole proxy and either sign fired at once, so a single terminal with a key of its own exported, or a login that
+// expired, took the proxy out of every agent's settings while the sessions beside it were being answered. A
+// harness that is routed elsewhere fails from its first request in every session it has; so the evidence is kept
+// by session (`sessionOf`; the sessions that name none share one count for their agent, as before), and it is
+// held where something says the route works:
+//   - the API has answered this session through the proxy: its credentials were Anthropic's, and what refuses
+//     them now is a login that ran out;
+//   - the API answered another session of the same agent (the user-agent's product) inside `AUTH_QUIET_MS`:
+//     that agent is not routed elsewhere, this session is.
+// Held is not forgotten: the next refusal or foreign request of that session is judged again, so a terminal that
+// stays wrong after the others have gone quiet still stands the proxy down. `onHeld` hears of it once a session.
+export const AUTH_QUIET_MS = 10 * 60 * 1000;
+const AUTH_SESSIONS = 500;   // the sessions remembered, oldest out first: the proxy's process lives for days
+export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true, quietMs = AUTH_QUIET_MS, now = Date.now, onHeld = null } = {}) {
+  let stoodDown = false;
+  const seen = new Map();   // session (or `?agent` where it names none) -> { agent, named, refusals, answeredAt, held }
+  const entry = headers => {
+    const agent = String(headers?.['user-agent'] || '').split(/[/\s]/)[0];
+    const session = sessionOf(headers || {});
+    const key = session || `?${agent}`;
+    let e = seen.get(key);
+    if (!e) {
+      if (seen.size >= AUTH_SESSIONS) seen.delete(seen.keys().next().value);
+      seen.set(key, e = { agent, named: !!session, refusals: 0, answeredAt: null, held: false });
+    }
+    return e;
+  };
+  const works = e => {
+    if (e.named && e.answeredAt !== null) return 'the API answered this session before';
+    for (const o of seen.values()) if (o !== e && o.named && o.agent === e.agent && o.answeredAt !== null && now() - o.answeredAt < quietMs) return 'the API is answering another session of the same agent';
+    return null;
+  };
+  const fire = (e, reason) => {
+    if (stoodDown || !on) return;
+    const why = works(e);
+    if (why) { if (!e.held) { e.held = true; try { onHeld?.(why); } catch { /* the request in hand matters more */ } } return; }
+    stoodDown = true; onStandDown(reason);
+  };
   return {
-    request: headers => { if (foreignAuth(headers)) fire('the agent sent credentials that are not Anthropic\'s, so it is routed through a model server of its own'); },
-    response: status => {
-      if ([401, 403].includes(status)) { if (++refusals >= limit) fire(`the API refused the agent's credentials on ${refusals} requests running (HTTP ${status})`); }
-      else if (status < 400) refusals = 0;
+    request: headers => { if (foreignAuth(headers)) fire(entry(headers), 'the agent sent credentials that are not Anthropic\'s, so it is routed through a model server of its own'); },
+    response: (status, headers) => {
+      const e = entry(headers);
+      if ([401, 403].includes(status)) { if (++e.refusals >= limit) fire(e, `the API refused the agent's credentials on ${e.refusals} requests running (HTTP ${status})`); }
+      else if (status < 400) { e.refusals = 0; e.answeredAt = now(); }
     },
     get stoodDown() { return stoodDown; },
   };
@@ -481,6 +519,21 @@ function walkResults(messages, keepMin, fn) {
   }
 }
 
+// The calls and the person's words of a Messages conversation, for the keep list (keep.js:keptCalls).
+export function keptOf(messages, cut = [], patterns = keepPatterns()) {
+  const calls = [], prompts = [];
+  for (const m of messages || []) {
+    const c = m?.content;
+    if (m?.role === 'user') {
+      if (typeof c === 'string') prompts.push(c);
+      else if (Array.isArray(c)) for (const b of c) if (b?.type === 'text' && typeof b.text === 'string') prompts.push(b.text);
+    } else if (m?.role === 'assistant' && Array.isArray(c)) {
+      for (const b of c) if (b?.type === 'tool_use' && b.id) calls.push({ id: b.id, name: b.name, input: b.input });
+    }
+  }
+  return keptCalls(calls, { patterns, prompts, cut });
+}
+
 // What a boundary could newly cut, and what replacing it would cost: `recache` is the messages as they
 // will be sent, all of them, which is what a result replaced in the middle makes the API write (below).
 // The ladder a boundary could cut, from the tail backwards (2026-11-13).
@@ -500,9 +553,11 @@ function walkResults(messages, keepMin, fn) {
 // already passed never changes which of its results are replaced: its sent length is final, and the running
 // sum is the tail for every deeper step. `+ count + 1` is what JSON.stringify adds to an array of that many
 // messages (two brackets and the commas), which the old single stringify of the slice included.
-export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null } = {}) {
+export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_MIN_CHARS, cutInputs = PROXY_DEFAULTS.cutInputs, imagePath = null, thinking = null, keep = null } = {}) {
   const have = new Set(cut), ids = [];
   let chars = 0, inputChars = 0, firstChanged = -1, tokens = 0;
+  // what the keep list held back (keep.js): results a boundary would otherwise have had to take
+  const kept = { results: 0, tokens: 0 };
   const takeAt = new Map();
   // What each call's own text would give up, by its id (`cutting.js:cutInput`). Read once here, because the
   // ladder prices what it will send and a call's bytes leave the prompt exactly as its result's do -- a step
@@ -531,6 +586,9 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     const gone = (long ? text.length : 0) + pics;
     // in tokens: the text counted (`resultTokens`), the images and the call's own text by the character
     const tok = (long ? resultTokens(text) : 0) + charTokens(pics) + charTokens(own);
+    // The newest copy of a kept file is not a candidate at all (keep.js): the person's notes, a file they named,
+    // a file the model had to fetch back. It does not count towards `keepMin` either -- that is the recency rule's.
+    if (keep?.has(b.tool_use_id)) { kept.results++; kept.tokens += tok; return; }
     ids.push(b.tool_use_id); chars += gone; inputChars += own; tokens += tok; firstChanged = i;
     if (!takeAt.has(i)) takeAt.set(i, []);
     takeAt.get(i).push({ id: b.tool_use_id, len: gone + own, tok });
@@ -575,7 +633,6 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
         ids: ids.slice(0, took), chars: sum, tokens: sumTok,
         recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
         tail: Math.round((acc + pre + over + count + (pre ? 1 : 0) + stepped + 1) * TOKENS_PER_CHAR), firstChanged: i,
-        tailFrom: i - (pre ? 1 : 0) - stepped,
       });
     }
   }
@@ -599,22 +656,18 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
     const to = Math.min(thinking.to ?? messages.length, messages.length);
     for (const s of steps) {
-      // `thinking.from` (set where `thinkingKeepTurns` holds recent thinking back): the earliest range so far is
-      // carried on to `to`, so thinking that was too new for an earlier cut goes with this one now it is old.
-      const from = Math.min(s.firstChanged + 1, thinking.from ?? Infinity, to);
+      // Only thinking at or below the rung's own first change goes (2026-11-18). Thinking that has aged since an
+      // earlier cut sits further back than the results a later cut replaces, and reaching for it moved the
+      // rewrite to the top of the conversation: on a nine-turn PostHog session the cut at turn 6 took 15.5k of
+      // thinking that way, placed its breakpoint at message 0 and wrote 65k where the same cut without it wrote
+      // 19k -- about 41k more written for 15.5k removed, a payback past 100 calls carried over the limit by the
+      // results beside it. So a cut never reaches above itself for thinking: what is old enough and already
+      // inside the span it rewrites goes with it, and the rest waits for a cut that reaches that far.
+      const from = Math.min(s.firstChanged + 1, to);
       const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
       s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
       s.tokens += s.thinking;
-      // Thinking that goes above the rung's own first change moves where the rewrite starts: the tail then runs
-      // from the nearest message below it that can carry the breakpoint (`thinkFirst`, which `placeMark` is given).
-      let start = s.tailFrom, more = 0;
-      const end = Math.min(to, s.tailFrom);
-      let g = from; while (g < end && !(pre[g + 1] > pre[g] && !gone[g])) g++;
-      if (g < end) {
-        let q = g - 1; while (q >= 0 && markBlock(messages[q]) < 0) q--;
-        start = q + 1; more = before[s.tailFrom] - before[start] + (s.tailFrom - start); s.thinkFirst = g;
-      }
-      s.tail = Math.max(0, s.tail + Math.round(more * TOKENS_PER_CHAR) - Math.round((pre[to] - pre[Math.min(to, Math.max(start, from))]) * TOKENS_PER_CHAR));
+      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
       s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
     }
     thinkAll = steps[steps.length - 1].thinking;
@@ -624,6 +677,7 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     // `chars` is the results, `inputChars` the finished calls' own text, and `tokens` the two together, because
     // both leave the prompt and the saving is what the prompt is shorter by (`applyCut`).
     ids, chars, inputChars, tokens: tokens + thinkAll, ...(thinking ? { thinking: thinkAll } : {}),
+    ...(kept.results ? { kept } : {}),
     recache: whole ? whole.recache : 0, firstChanged, steps,
   };
 }
@@ -743,10 +797,9 @@ const firstTouched = (messages, ids, cutInputs) => messages.findIndex(m => Array
 // whatever Claude Code chose. Null where it cannot be placed: no room, nothing after it to copy, or no
 // block before the cut that may carry one (a thinking block may not, and a message whose content is a
 // plain string is left alone, because turning it into a block is a change to the prefix itself).
-export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs, first = null } = {}) {
+export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   const ids = cutIds instanceof Set ? cutIds : new Set(cutIds || []);
-  // `first`: a message the cut changes above its oldest result (thinking left out there), which the breakpoint must precede
-  const touched = firstTouched(j.messages, ids, cutInputs), k = first != null && touched > first ? first : touched;
+  const k = firstTouched(j.messages, ids, cutInputs);
   if (k <= 0) return null;
   const bp = breakpointsOf({ ...j, messages });
   let copy = null;
@@ -895,11 +948,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
   // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17, 0 by default)
   const thinkTo = Math.max(m.turn - Math.max(0, Math.floor(cfg.thinkingKeepTurns || 0)), 0);
-  // with turns held back, the earliest range so far is the one a new cut carries on (cutCandidates prices it)
-  let firstRange = null;
-  if (cfg.cutThinking && thinkTo < m.turn) for (const [id] of rec.think || []) { const at = cutAnchor(j.messages, new Set([id])); if (at >= 0 && (!firstRange || at < firstRange.at)) firstRange = { id, at }; }
-  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [], ...(firstRange ? { from: firstRange.at + 1 } : {}) } : null;
-  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking });
+  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [] } : null;
+  const keep = keptOf(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
+  const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking, keep });
+  // on every row of a boundary that had something kept: what the list cost the cut, in the cut's own tokens
+  const keptRow = cand.kept ? { kept: cand.kept } : {};
   // what the request carries for breakpoints rides on every row, because how many Claude Code sends and for
   // how long is what decides whether the proxy can add one, and no log said (2026-11-17)
   const had = breakpointsOf(j);
@@ -911,13 +964,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // a cut made on this request adds its own range: from the oldest result it newly replaces to this turn
   const fresh = thinking && d.clear ? d.cut.slice(rec.cut.length) : [];
   const anchor = fresh.length ? cutAnchor(j.messages, new Set(fresh)) : -1;
-  const own = anchor >= 0 && thinkTo >= 1 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
-  const oldest = own && firstRange && firstRange.at < anchor ? firstRange.id : own;
+  const oldest = anchor >= 0 && thinkTo >= 1 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
   const think = thinking ? [...thinking.done, ...(oldest ? [[oldest, thinkTo]] : [])] : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath, thinking: think });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
-  const markStep = d.markIds && thinking ? cand.steps.find(s => s.ids.length === d.markIds.length) : null;
-  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs, first: markStep?.thinkFirst ?? null }) : null;
+  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
   const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}), ...(marked.moved != null ? { moved: marked.moved } : {}) } } : {};
   // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
   // next boundary decides again.
@@ -925,7 +976,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (d.reason === 'seed' && marked) {
     j.messages = marked.messages;
     return { body: Buffer.from(JSON.stringify(j)), ...(stubbed ? { stubbed } : {}), policy: d.policy || policyId(cfg), reason: 'seed', model: j.model, turn: m.turn, cut: d.cut,
-      bp, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
+      bp, ...keptRow, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
       ...(d.candidate != null ? { candidate: d.candidate } : {}) };
   }
   // A refusal for size carries the size (`candidate`, 2026-11-06): until then the row said only
@@ -934,7 +985,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
   // the policy that decided this, named on the row so no reader has to date it (cutting.js:policyId): on a
   // refusal it says which floor refused, on a clear it says what the saving is worth comparing with
-  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...keptRow, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
@@ -942,7 +993,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // Wrong since the cut shipped (#610). `saved` was never affected: that is `applied.tokens`.
   const actions = cutActions(j.messages, d.cut, { cutInputs: cfg.cutInputs });
   j.messages = marked ? marked.messages : applied.messages;
-  return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
+  return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...keptRow, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
@@ -1094,7 +1145,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   // priced at Anthropic's ratios, which is wrong by a factor of ten in the direction that refuses every cut.
   const rates = createRateTracker();
   const ratesFor = makeRatesResolver({ tracker: rates, configured: cfg.ratesConfig, prices: statedRates });
-  const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
+  const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown, onHeld: reason => log({ at: new Date().toISOString(), op: 'proxy-auth-held', reason }) });
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();
   const server = http.createServer((req, res) => {
@@ -1235,7 +1286,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           log({ at: new Date().toISOString(), op: extra?.aborted ? 'proxy-cancelled' : 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + routedPath, method: req.method, headers, agent: getAgent(!!attempt), lookup }, ures => {
-          if (judgeAuth) watch.response(ures.statusCode);
+          if (judgeAuth) watch.response(ures.statusCode, req.headers);
           const firstByteMs = Date.now() - started;
           // A 400 on a request the proxy cut may be the cut itself being rejected -- a history the API will not
           // take -- or it may be about the request, which is the agent's own to see. The body says which
@@ -1302,7 +1353,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             if (rates && t.protocol === 'chat' && ures.statusCode === 200 && Number.isFinite(usage?.cost)) { try { rates.observe(t.model, usage); } catch { /* a rate is never worth a failed request */ } }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), ...(t.rates ? { rates: t.rates } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.bp ? { bp: t.bp } : {}), ...(t.mark ? { mark: t.mark } : {}), ...(t.planned ? { planned: t.planned } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.kept ? { kept: t.kept } : {}), ...(t.bp ? { bp: t.bp } : {}), ...(t.mark ? { mark: t.mark } : {}), ...(t.planned ? { planned: t.planned } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk

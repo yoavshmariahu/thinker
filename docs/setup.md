@@ -71,6 +71,13 @@ Notes:
 - **Switching it off.** To turn thinker off in one repository (sensitive content, say), run `thinker disable`
   there; `thinker enable` turns it back on. `{ "learn": { "profile": false } }` in `.thinker/config.json` keeps the
   profile off in a repository while the rest runs. To remove it, see the [README](../README.md#uninstall).
+- **Switching it off for one session.** In Claude Code, `/thinker-disable` turns thinker off for the session it is
+  typed in, and for that session only: its model requests go straight to Anthropic instead of through the context
+  proxy, and thinker's hooks do nothing there (they still start, and return at once). Every other session, running
+  or new, is unchanged. `/thinker-enable` turns it back on, and a resumed session stays the way it was left. Only
+  thinker's own proxy route is taken away: with a gateway of your own or the Bedrock route the hooks go quiet and
+  the route stays, and the command says so. The thinker MCP tools stay listed in the session. Needs a Claude Code
+  that loads mods (the same one that draws the card under an answer).
 
 ## Your local profile
 
@@ -148,8 +155,11 @@ down, thinker carries on locally and reports when it can. `THINKER_FLEET=off` fo
 set, and `THINKER_MACHINE_ID` names a machine that is rebuilt for every job so it stays one row.
 
 **What is sent:** this machine's id, hostname, operating system and thinker version; and for each agent
-session its id, the agent's name, the repository's name (never its URL), when it started and was last active,
-and numbers: prompts, tokens, tokens cleared, and what the session cost and saved in dollars.
+session its id, the agent's name, the model's name, the repository's name (never its URL), when it started and was last active,
+and numbers: prompts, model calls, tokens, tokens cleared, and what the session cost and saved in dollars. For
+each model call: its size, its cost and its turn, with no text. And what thinker did in the session: each
+context cut with its size, the names of the tools whose results were cleared, whether your profile was
+served, and reads handed to a subagent, by size and model.
 
-**What is never sent:** prompts, completions, code, file paths, file contents, cache contents, environment
-variables.
+**What is never sent:** prompts, completions, code, file paths, file contents, tool arguments or results, cache
+contents, environment variables.
