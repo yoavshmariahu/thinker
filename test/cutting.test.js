@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_WEIGHTS } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, POLICY_REV, PAYBACK } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -356,7 +356,7 @@ test('a refusal says which branch refused it, and a request with nothing to cut 
 // reader groups by it (cutting.js:policyId, the comment there).
 test('a policy names itself from the settings in force, so two floors are never pooled', () => {
   const now = { trigger: 140000, clearAtLeast: 60000, clearDeep: true };
-  assert.equal(policyId(now), `r${POLICY_REV}-t140k-f60k-p${PAYBACK}-deep`);
+  assert.equal(policyId(now), `v${VERSION}-t140k-f60k-p${PAYBACK}-deep`);
   // every lever that changes what a cut is worth changes the id
   assert.notEqual(policyId({ ...now, clearAtLeast: 100000 }), policyId(now), 'the floor that gates a cut');
   assert.notEqual(policyId({ ...now, trigger: 110000 }), policyId(now), 'the trigger');

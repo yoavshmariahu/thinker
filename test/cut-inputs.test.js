@@ -10,7 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyCut, cutCandidates, cutActions, transformRequest, PROXY_DEFAULTS, RESULT_TOKENS_PER_CHAR, resultTokens } from '../src/proxy.js';
-import { cutInput, inputPlaceholder, policyId, freshCut, MIN_CHARS } from '../src/cutting.js';
+import { cutInput, inputPlaceholder, policyId, VERSION, freshCut, MIN_CHARS } from '../src/cutting.js';
 
 const BIG = 'x'.repeat(12_000), CMD = 'npm test 2>&1 | tail -5\n' + 'y'.repeat(8_000);
 
@@ -91,8 +91,8 @@ test('on by default, and reachable by flag, environment and machine config', asy
 
 test('the saving names the policy that made it, so a figure with the calls in it is never pooled with one without', () => {
   const base = { trigger: 140_000, clearAtLeast: 8_000 };
-  assert.equal(policyId({ ...base, cutInputs: true }), 'r11-t140k-f8k-p25-deep+in');
-  assert.equal(policyId({ ...base }), 'r11-t140k-f8k-p25-deep');
+  assert.equal(policyId({ ...base, cutInputs: true }), `v${VERSION}-t140k-f8k-p25-deep+in`);
+  assert.equal(policyId({ ...base }), `v${VERSION}-t140k-f8k-p25-deep`);
 });
 
 test('the price of a cut is measured on the bytes it will send, calls included', () => {

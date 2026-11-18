@@ -95,10 +95,19 @@ export const PAYBACK = 25;
 // a week late would have good sessions thrown away. Nothing on this machine can know when another machine
 // updated, and it does not have to: the policy names itself.
 //
-// `POLICY_REV` covers what no setting can change -- the cold-boundary rule, the payback pricing, the ratchet.
-// Bump it when one of those moves. The rest is the settings that were in force for that request
-// (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the machine config), so two machines running the same
-// code with different floors are never pooled either.
+// The stamp leads with the version of thinker that made the decision (`v0.4.6-...`, the owner's call, 2026-11-18),
+// then the settings that were in force for that request (`proxy.js:PROXY_DEFAULTS`, over the `proxy` block of the
+// machine config), so two machines running the same code with different floors are never pooled either. The
+// version is read ONCE, when this module loads, and that is the point of it: an update replaces the files under a
+// proxy that is still running the old rules, and a version read at the moment of the cut would put the new
+// release's name on the old code's decision. The process that decided names the code it is actually running.
+//
+// Until 0.4.5 the lead was `r<n>`, a revision somebody bumped by hand whenever the cold-boundary rule, the
+// payback pricing or the ratchet moved: eleven of them in six days, each a bucket of a few hours that no reader
+// could place without this file, and nothing said which release a machine had to be on to run one. A version is
+// what the fleet already reports and what a person can check on their own machine. Those stamps stay in the
+// records and in every 30-day figure until they age out, and `delivery-telemetry.js:STAMPED` reads both; what
+// each one meant:
 // 2 since 2026-11-13: the payback pricing changed. A cut's cost is now what it adds to the call that
 // makes it, against the same call without it, so the read the rewrite displaces is subtracted instead of
 // ignored (`priceCut`). Every saving made under the old arithmetic keeps `r1` and is never folded in.
@@ -122,10 +131,10 @@ export const PAYBACK = 25;
 // person named, a file the model read again after a cut. A boundary has less to take than it had under `r9`.
 // 11 since 2026-11-18: with `cutThinking` and turns held back, a cut no longer reaches above its own oldest
 // replaced result for thinking that has aged (`proxy.js:cutCandidates`); before, it did, and rewrote from the top for it.
-export const POLICY_REV = 11;
+export const VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || '?'; } catch { return '?'; } })();
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
-  `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
+  `v${VERSION}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
