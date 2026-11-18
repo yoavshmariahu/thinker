@@ -108,8 +108,9 @@ test('a clear is made when it repays its write inside PAYBACK calls, and nothing
   assert.equal(writeRatio('claude-opus-5-5'), 40);
   assert.equal(clearPays(DEFAULTS, { dropped: 80000, recache: edge, idle: 0, cleared: true, model: 'claude-opus-5-5' }), false);
   assert.equal(clearPays(DEFAULTS, { dropped: 80000, recache: edgeAt(80000, 'claude-opus-5-5'), idle: 0, cleared: true, model: 'claude-opus-5-5' }), true);
-  // past the cache's hour the whole context is written again anyway, so a clear there costs nothing extra
-  assert.equal(clearPays(DEFAULTS, { dropped: 80000, recache: 900000, idle: COLD_MS, cleared: true }), true);
+  // a pause past the cache's hour is no pass (2026-11-18): it is priced as a live session is
+  assert.equal(clearPays(DEFAULTS, { dropped: 80000, recache: 900000, idle: COLD_MS, cleared: true }), false);
+  assert.equal(clearPays(DEFAULTS, { dropped: 80000, recache: edge, idle: COLD_MS, cleared: true }), true);
   // one clear a session where the config says so
   assert.equal(clearPays({ ...DEFAULTS, clearDeep: false }, { dropped: 100000, recache: 20000, idle: 0, cleared: true }), false);
 });
