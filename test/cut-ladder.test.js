@@ -6,7 +6,7 @@
 // leaves the system prompt as the only thing read, and the tail the ladder priced until then was 1.6x to 7x
 // under what the API wrote. That the tail is still measured beside it, for the log. That the rungs are
 // nested suffixes, newest first. That the decision takes the biggest paying rung and not merely the first.
-// That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary over the trigger takes the deepest rung.
+// That a tail-local cut is NOT made where the whole set is refused. And that a cold boundary is priced as a warm one is.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cutCandidates, applyCut, PROXY_DEFAULTS, TOKENS_PER_CHAR } from '../src/proxy.js';
@@ -121,15 +121,17 @@ test('a floor above every rung is the floor refusing, and the shallow rungs stay
   if (d.clear) assert.ok(d.candidate >= PROXY_DEFAULTS.clearAtLeast, 'what it took clears the floor');
 });
 
-test('a cold boundary over the trigger takes the deepest rung, at no cost', () => {
+test('a cold boundary takes the rung a warm one would, and no deeper', () => {
+  // Until 2026-11-18 a pause past the cache's hour priced every rung at nothing, so the deepest was always taken.
   const ms = conversation([40000, 40000, 40000, 40000, 300000]);
   const cand = cutCandidates(ms, { keepMin: 0 });
   const rec = { ...freshCut('s'), turn: 0, at: 1000 };
-  const d = decideCut(rec, { ...PROXY_DEFAULTS }, { prompt: 500000, turn: 1 }, { cand, now: 1000 + 66 * 60 * 1000, model: 'claude-opus-5' });
-  assert.equal(d.clear, true);
-  assert.equal(d.cold, true);
-  assert.equal(d.cost, 0);
-  assert.deepEqual(d.cut.slice().sort(), cand.ids.slice().sort(), 'every rung pays when the rewrite is free, so the deepest is taken');
+  const opts = { cand, model: 'claude-opus-5' };
+  const cold = decideCut(rec, { ...PROXY_DEFAULTS }, { prompt: 500000, turn: 1 }, { ...opts, now: 1000 + 66 * 60 * 1000 });
+  const warm = decideCut(rec, { ...PROXY_DEFAULTS }, { prompt: 500000, turn: 1 }, { ...opts, now: 2000 });
+  const { cold: _c, ...coldRest } = cold, { cold: _w, ...warmRest } = warm;
+  assert.deepEqual(coldRest, warmRest, 'the same verdict, the same rung, the same price');
+  if (cold.clear) assert.ok(cold.cost !== 0 || cold.payback === 0, 'no rewrite is priced at nothing for the pause');
 });
 
 test('nothing eligible is still no ladder and no cut', () => {

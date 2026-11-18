@@ -18,19 +18,17 @@ import type { Register, SessionMessage } from 'claude-code'
 // because a mod has no import, and a session keeps the mod it loaded at its start: one opened under an old release
 // went on clearing by that release's rules for days after the machine had updated, and that is where the fleet's
 // losing sessions were. The mod now asks the installed CLI at each decision (`ask`, below) and does what it is told.
-// What a clear costs, counted as the proxy counts it (cutting.js:isRewrite, LONG_CONTEXT; test/claude-clear.test.js
-// holds the two together): from the first clear onward, a request that wrote more than half of a long context
-// into the prompt cache again is a rewrite, and the cache-write tokens of those requests are the clear's cost,
-// priced at the one-hour write rate (compression.js:clearingCostBySession) -- unless it read nothing back, which
-// means the cache had expired and the write was coming anyway (cutting.js:chargedRewrite). The engine reports every request's
+// What a clear costs, counted as the proxy counts it (cutting.js:chargedRewrite; test/claude-clear.test.js holds
+// the two together): what the first request after a clear wrote into the prompt cache, priced at the one-hour
+// write rate (compression.js:clearingCostBySession) -- unless it read nothing back, which means the cache had
+// expired and the write was coming anyway. No floor on the context and no share of it (2026-11-18): the floor was
+// on the context after the clear, so a large clear was recorded as free. The engine reports every request's
 // usage to `turn.step` in the API's own counts, so the figure is measured, not modelled.
-export const LONG_CONTEXT = 100000
-export const isRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { const ctx = (u?.read || 0) + (u?.write || 0) + (u?.input || 0); return ctx >= LONG_CONTEXT && (u?.write || 0) > 0.5 * ctx }
-export const chargedRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { return isRewrite(u) && (u?.read || 0) > 0 }
+export const chargedRewrite = (u: { read?: number; write?: number; input?: number } | null | undefined) => { return (u?.write || 0) > 0 && (u?.read || 0) > 0 }
 // the API's counts, as `turn.step`'s usage carries them, in the proxy log's spelling
 export const usageOf = (usage: any) => usage ? { input: Number(usage.input_tokens) || 0, read: Number(usage.cache_read_input_tokens) || 0, write: Number(usage.cache_creation_input_tokens) || 0 } : null
 export type Cost = { rewrites: number; write: number }
-// the cost after one more request: the write counted when the request rewrote its prefix, as the proxy charges it
+// the cost after one more request: its cache write, when the cache was warm, as the proxy charges it
 // Only on the first request after a clear (`caused`): that is the one request whose prefix the clear changed, and a
 // rewrite on any later one was coming without it (compression.js:clearingCostBySession holds the same rule).
 export const charge = (cost: Cost | undefined, usage: any, caused = true): Cost => {

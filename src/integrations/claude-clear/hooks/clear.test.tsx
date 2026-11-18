@@ -2,7 +2,7 @@
 // What to clear is decided by the installed CLI (src/clear-door.js, test/clear-door.test.js); what is tested here is
 // what the mod still does itself: read the live window, hand it over, put the answer in place, count what a clear cost.
 import { test, expect } from 'claude-code/testing'
-import { ownRoute, offWords, ENABLE, liveRows, charge, isRewrite, chargedRewrite, usageOf, LONG_CONTEXT, delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT, slim, applyPlan, answerOf, ASK_EVERY } from './register'
+import { ownRoute, offWords, ENABLE, liveRows, charge, chargedRewrite, usageOf, delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT, slim, applyPlan, answerOf, ASK_EVERY } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -68,18 +68,19 @@ test('the check reads the live window, so what an earlier clear left as placehol
   expect(rows[2].toolResults[0].text.startsWith('[tool result removed by thinker after use:')).toBe(true)
 })
 
-test('a request that rewrote a long prefix is charged its write tokens; a cache read, a short context and no usage are not', () => {
+test('the first request after a clear is charged what it wrote into a warm cache, whatever its size; a cache read, a cold cache and no usage are not', () => {
   const usage = (o: Partial<{ input_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }>) =>
     ({ input_tokens: 0, output_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'claude-opus-5-5', ...o })
   expect(usageOf(usage({ input_tokens: 5, cache_read_input_tokens: 7, cache_creation_input_tokens: 9 }))).toEqual({ input: 5, read: 7, write: 9 })
   expect(usageOf(null)).toBe(null)
-  // the proxy's definition (cutting.js:isRewrite): a long context, more than half of it written
-  expect(isRewrite({ read: 0, write: LONG_CONTEXT, input: 10 })).toBe(true)
-  expect(isRewrite({ read: LONG_CONTEXT, write: 1000, input: 10 })).toBe(false)
-  expect(isRewrite({ read: 0, write: LONG_CONTEXT / 2, input: 0 })).toBe(false)
-  // and charged only when something was read back: a rewrite that read nothing found the cache cold (cutting.js:chargedRewrite)
-  expect(chargedRewrite({ read: 0, write: LONG_CONTEXT, input: 10 })).toBe(false)
-  expect(chargedRewrite({ read: 12_000, write: LONG_CONTEXT, input: 10 })).toBe(true)
+  // charged only when something was read back: a write that read nothing found the cache cold (cutting.js:chargedRewrite)
+  expect(chargedRewrite({ read: 0, write: 100_000, input: 10 })).toBe(false)
+  expect(chargedRewrite({ read: 12_000, write: 100_000, input: 10 })).toBe(true)
+  // no floor on the context and no share of it: the three warm cuts one machine recorded as free (2026-11-18)
+  expect(chargedRewrite({ read: 68_000, write: 46_000, input: 0 })).toBe(true)
+  expect(chargedRewrite({ read: 20_000, write: 59_000, input: 0 })).toBe(true)
+  expect(chargedRewrite({ read: 35_000, write: 55_000, input: 0 })).toBe(true)
+  expect(chargedRewrite({ read: 200_000, write: 0, input: 10 })).toBe(false)
   let c = charge(undefined, null)
   expect(c).toEqual({ rewrites: 0, write: 0 })
   c = charge(c, usage({ cache_read_input_tokens: 200_000 }))
@@ -89,13 +90,17 @@ test('a request that rewrote a long prefix is charged its write tokens; a cache 
   expect(c).toEqual({ rewrites: 0, write: 0 })
   c = charge(c, usage({ cache_creation_input_tokens: 150_000, cache_read_input_tokens: 12_000, input_tokens: 10 }))
   expect(c).toEqual({ rewrites: 1, write: 150_000 })
+  // a small write into a cold cache is still the cold cache's
   c = charge(c, usage({ cache_creation_input_tokens: 40_000 }))
   expect(c).toEqual({ rewrites: 1, write: 150_000 })
-  c = charge(c, usage({ cache_creation_input_tokens: 120_000, cache_read_input_tokens: 1000 }))
-  expect(c).toEqual({ rewrites: 2, write: 270_000 })
+  // and a small write into a warm one is the clear's: 40k of a 76k context used to be free
+  c = charge(c, usage({ cache_creation_input_tokens: 40_000, cache_read_input_tokens: 36_000 }))
+  expect(c).toEqual({ rewrites: 2, write: 190_000 })
+  c = charge(c, usage({ cache_creation_input_tokens: 80_000, cache_read_input_tokens: 1000 }))
+  expect(c).toEqual({ rewrites: 3, write: 270_000 })
   // a rewrite on a request that is not the first after a clear was coming without it, and is not charged
   c = charge(c, usage({ cache_creation_input_tokens: 150_000, cache_read_input_tokens: 12_000 }), false)
-  expect(c).toEqual({ rewrites: 2, write: 270_000 })
+  expect(c).toEqual({ rewrites: 3, write: 270_000 })
 })
 
 test('delegation: on by default, off by the environment or the machine config', () => {

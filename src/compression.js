@@ -263,8 +263,8 @@ export function desktopClearRows(dir, { covered = new Set(), modelOf = () => nul
 }
 
 // What a desktop session's clears cost, read from the record: the mod counts, on every request from its first
-// clear onward, the ones that rewrote their prefix and the cache-write tokens they carried (register.tsx:charge,
-// the proxy's own isRewrite), and keeps the model that answered. Priced as the proxy's rows are, below. A record
+// clear onward, the requests charged to a clear and the cache-write tokens they carried (register.tsx:charge,
+// by cutting.js:chargedRewrite), and keeps the model that answered. Priced as the proxy's rows are, below. A record
 // with no `cost` block is from before the mod counted it: no cost figure, rather than a zero that reads as free.
 export function desktopClearingCost(dir, { covered = new Set(), since = '', key = s => String(s), config } = {}) {
   const out = new Map();
@@ -381,7 +381,7 @@ export function clearingCostBySession(file, { since = '', config, dir = null, ke
     // charged against $3.89 saved, and at Fable's 80 reads to a written token they read as the clearing
     // losing money on a session it had not cost a token. The two doors have to price a cold cut alike.
     if (r.clear?.cold) continue;
-    // and a rewrite that read nothing back is the expired cache's for the same reason (cutting.js:chargedRewrite)
+    // and a write that read nothing back is the expired cache's for the same reason (cutting.js:chargedRewrite)
     const price = listPrice(r.model, { config });
     const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
     x.rewrites++; x.write += r.write || 0;
