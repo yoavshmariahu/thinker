@@ -1,0 +1,1 @@
+Run the related language-service and call-hierarchy suites. Inspect the baseline differences and verify that only names/details changed, not destinations or spans.

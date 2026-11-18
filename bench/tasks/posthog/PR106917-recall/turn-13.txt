@@ -1,0 +1,1 @@
+Three questions about earlier decisions in this session. Do not open files or run anything. One line each: (1) the symbol, test file and risk you named before you started editing, and whether the final change stayed with each; (2) the caller you judged riskiest and what you repaired at that point; (3) the requirement you said had the weakest test protection, and what you added.

@@ -1,0 +1,1 @@
+Revisit the snapshot and language-service host implementation after the changes. Review whether repeated edits or requests can observe stale workspace data. Fix any issue you can substantiate.

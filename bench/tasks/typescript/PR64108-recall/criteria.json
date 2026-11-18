@@ -1,0 +1,89 @@
+{
+ "id": "PR64108-recall",
+ "pr": "64108",
+ "title": "Call hierarchy display and workspace paths",
+ "source": "Artemis archive, taskset typescript-astra-compression-criteria-2026-11-04 (frozen 2026-11-04); prompts and criteria copied unchanged; recall variant written 2026-11-18: 3 short decision turns inserted and 2 recall turns appended, the original turns unchanged. The recall criteria are judged by hand from the transcript, against the session's own earlier answers and its final diff.",
+ "criteria": [
+  {
+   "id": "display_and_navigation",
+   "behavior": "File/module call-hierarchy items display the basename as their name and the containing directory as detail; absolute file URI, navigation spans, and incoming/outgoing call targets remain correct.",
+   "essential": true
+  },
+  {
+   "id": "workspace_relative",
+   "behavior": "With a containing workspace, directory detail is relative to the most-specific containing workspace folder.",
+   "essential": true
+  },
+  {
+   "id": "multi_workspace",
+   "behavior": "With multiple workspace folders, the chosen folder\u2019s display name prefixes the relative detail, so same-named files in different folders remain distinguishable.",
+   "essential": true
+  },
+  {
+   "id": "initialization_fallback",
+   "behavior": "Workspace roots supplied during LSP initialization are honored: workspaceFolders takes precedence, with rootUri/rootPath fallback when appropriate.",
+   "essential": true
+  },
+  {
+   "id": "root_and_outside",
+   "behavior": "A directory equal to a workspace root resolves against its parent instead of producing empty detail; files outside every workspace, or with no containing workspace, retain the absolute containing directory.",
+   "essential": true
+  },
+  {
+   "id": "path_semantics",
+   "behavior": "Workspace containment, nested-root selection, and relative path display honor the repository\u2019s existing platform case-sensitivity and path-normalization conventions.",
+   "essential": true
+  },
+  {
+   "id": "session_consistency",
+   "behavior": "Workspace information reaches language-service requests and remains correct across snapshots and repeated requests without changing unrelated symbol-node display behavior.",
+   "essential": true
+  },
+  {
+   "id": "recall_first_choices",
+   "behavior": "At the first recall turn the three choices named match the three lines given before the first edit, and what is said about each being kept matches the final diff.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_outside_and_root",
+   "behavior": "The outside-workspace and workspace-root details stated at the recall turn match the two lines given earlier.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_stale",
+   "behavior": "The yes/no and symbol on stale workspace data match the one line given earlier.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_memory_checked",
+   "behavior": "The from-memory answer on the containment utility and case sensitivity is right against the diff, and the session says so truthfully after checking.",
+   "essential": false,
+   "recall": true
+  }
+ ],
+ "goldFiles": [
+  "tsc/internal/fourslash/fourslash.go",
+  "tsc/internal/fourslash/tests/callHierarchyFile_test.go",
+  "tsc/internal/ls/callhierarchy.go",
+  "tsc/internal/ls/file_rename_test.go",
+  "tsc/internal/ls/host.go",
+  "tsc/internal/lsp/server.go",
+  "tsc/internal/project/session.go",
+  "tsc/internal/project/snapshot.go",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyAnonymousClassNoCrash2.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyAnonymousFunctionNoCrash2.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyCallExpressionByConstNamedFunctionExpression.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyExportEqualsFunction.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFile.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFileNestedWorkspaceRoot.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFileOutsideWorkspace.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFileWorkspaceFolderRoot.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFileWorkspaceFolders.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyFileWorkspaceRootUri.callHierarchy.txt",
+  "tsc/testdata/baselines/reference/fourslash/callHierarchy/callHierarchyInterfaceMethod.callHierarchy.txt"
+ ],
+ "mergeCommit": "6df5e729f907439a84a452054052fa189547ea0f"
+}

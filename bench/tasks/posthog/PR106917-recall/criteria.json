@@ -1,0 +1,81 @@
+{
+ "id": "PR106917-recall",
+ "pr": "106917",
+ "title": "fix(warehouse-sources): pause cdc table schedules on break and disable",
+ "source": "Artemis archive, taskset posthog-opus-demo-nine-turns-2026-11-04 (frozen 2026-11-04, before any of these runs); prompts and criteria copied unchanged; recall variant written 2026-11-18: 3 short decision turns inserted and 2 recall turns appended, the original turns unchanged. The recall criteria are judged by hand from the transcript, against the session's own earlier answers and its final diff.",
+ "criteria": [
+  {
+   "id": "c1",
+   "behavior": "Turning off change data capture on a source pauses the extraction schedule of every table that was syncing via CDC on that source, so none of those tables start further runs after the request succeeds. Tables on the source that were not syncing via CDC keep their schedules running and their sync settings unchanged.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c2",
+   "behavior": "If pausing a table's schedule fails while disabling CDC, the request fails with an error response and nothing else about the source or its tables is changed: CDC still reads as enabled, the CDC tables keep their CDC sync type and still-syncing flag, and no source-side CDC resource cleanup is performed \u2014 so retrying the request performs the full disable rather than reporting it as already disabled.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c3",
+   "behavior": "When a disable-CDC request is aborted because a pause failed, the schedules that this request had successfully paused are resumed, while schedules that were already paused before the request began (for example a table with sync turned off, or a broken source) are left paused.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c4",
+   "behavior": "Marking a CDC source as broken pauses the extraction schedule of each CDC table it marks as broken, in addition to pausing the change-capture process, so no further table runs fire while the source is broken.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c5",
+   "behavior": "When marking a source broken without requesting a pause, no table schedule is paused; and when pausing is requested, only the tables actually marked broken (the source's actively syncing CDC tables) have their schedules paused \u2014 tables with sync already off are not touched.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c6",
+   "behavior": "A failure to pause any individual table schedule while marking a source broken does not prevent the broken state from being persisted on the source and its tables, nor prevent the remaining tables' schedules from being paused; the failure is only reported/logged.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c7",
+   "behavior": "Determining whether a table's extraction schedule is currently paused reports a non-existent schedule as not paused (nothing to resume), while other errors from the scheduling system surface as failures rather than being silently treated as not paused.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "recall_first_choices",
+   "behavior": "At the first recall turn the symbol, test file and risk named match the three lines given before editing, and what is said about each matches the final diff.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_caller_and_repair",
+   "behavior": "The riskiest caller and the repair stated at the recall turn match the two lines given earlier.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_weakest",
+   "behavior": "The weakest-protected requirement and what was added match the one line given earlier.",
+   "essential": false,
+   "recall": true
+  },
+  {
+   "id": "recall_memory_checked",
+   "behavior": "The from-memory list of touched files and the protecting assertion are right against the diff, and the session says so truthfully after checking.",
+   "essential": false,
+   "recall": true
+  }
+ ],
+ "goldFiles": [
+  "products/data_warehouse/backend/facade/api.py",
+  "products/data_warehouse/backend/logic/data_load/service.py",
+  "products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py",
+  "products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py"
+ ],
+ "mergeCommit": "7cac99c34e42bb9e9d6366f587567273595bb048"
+}

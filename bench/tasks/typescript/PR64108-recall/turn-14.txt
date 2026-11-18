@@ -1,0 +1,1 @@
+A short check before the next request. Do not open files or run anything for this one. Reply with one line and nothing else: did you find a stale-workspace-data problem you could substantiate, yes or no, and the symbol it is in or would have been in.

@@ -1,0 +1,1 @@
+One more. First answer from memory, without opening anything: which files does the final diff touch, and which single assertion protects the main requirement? Then open your diff and say whether your answer was right.

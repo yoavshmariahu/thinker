@@ -1,0 +1,1 @@
+A short check before the next request. Do not open files or run anything for this one. Reply with exactly two lines and nothing else: what the detail is for a file outside every workspace folder, and what it is for a file sitting directly in a workspace root.
