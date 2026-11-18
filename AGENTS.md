@@ -471,6 +471,13 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - PreToolUse hook can deny a read/test, run subagent, return report.
 - Logged, costed per session, judged live on holdout.
 
+**One Claude Code session can be turned off, from inside it (2026-11-18, issue #858):**
+- `/thinker-disable` and `/thinker-enable` are the clearing mod's (`claude-clear/hooks/register.tsx:sessionOff`, `sessionOn`): the wiring is machine-wide, and a mod is the one thing that runs inside a single session.
+- Off is two writes to that process's environment: `ANTHROPIC_BASE_URL` unset (the engine reads it at every send, so the next request goes to Anthropic) and `THINKER_HOOKS=off` (every hook command started afterwards inherits it and returns in `commands/hooks.js`). Checked live on Claude Code 2.1.327.
+- What does not work, tried the same day: rewriting the URL in an `http.fetch` hook (the credential stays with the origin the request was raised for: 401); taking thinker's hooks out in a `settings.read` hook (the engine runs them all the same); answering `classic.*` in their place (silences every other tool's settings hooks too).
+- Only the service's own plain route is taken (`ownRoute`, against `state/proxy-service.json`): a gateway, the desktop app's URL and the Bedrock path stay. The mark is `state/session-off/<session>.json`, read at session start, so a resumed session stays off.
+- A hook that is off still costs a Node start (about 0.25 s, beside other tools' hooks, which run at the same time). A shell guard in the command would cost 7 ms but the command's exact text is what `clients.js` recognises as ours and what Codex's trust hash is taken over.
+
 **On Claude Code the mod runs the delegated subagent, on thinker's rule, on the fly (2026-11-15, the owner's call):**
 - `claude-clear/hooks/register.tsx:delegateCall`: a `tool.call` hook on Read and Bash, inside the harness. It asks `hook pretool` with `host_runs` (the size, the holdout, the log row: one copy of the rule, the CLI's), and when it fires spawns the harness's own subagent (`$.agent.spawn`, the order's `Explore`) and answers the call with the report in `denial`'s sentence. What `opencode-v2.js:hostRun` is for OpenCode. Works in the terminal and the desktop app.
 - A settings hook cannot do this: it can deny, never spawn, and nothing fires after its denial; a redirect to a stub with an agent hook after the read was called an injection 3 times in 3.
