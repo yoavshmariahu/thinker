@@ -168,7 +168,7 @@ test('an automatic clear that would be refused is never started, so the engine p
   assert.ok(/if \(depth != null\) \{ pendingDepth = depth; schedule\(\$, 'auto', tokens\) \}/.test(s), 'and schedules only when some depth repays its rewrite');
   // the rung the check chose is the rung the compaction applies, never the whole set by accident
   assert.ok(/const chosen = pendingDepth; pendingDepth = null/.test(s), 'the chosen depth is taken once');
-  assert.ok(/clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity \}\)/.test(s), 'the clear applies it; a hand-run clear takes everything');
+  assert.ok(/clearOld\(e\.messages, \{ \.\.\.policy, depth: chosen \?\? Infinity, keep: keptOf\(e\.messages, keepPatterns\) \}\)/.test(s), 'the clear applies it, less what the keep list holds; a hand-run clear takes everything else');
   assert.ok(/if \(cleared >= depth\) return r/.test(s), 'clearOld stops at the depth, counting from the newest eligible result');
   // The latch is NOT the size floor. They were the same 60,000 until the floor fell to 8,000 with the ladder,
   // which silently cut the hold to 8k -- no hold at all, a working session grows that in a turn -- and put the
