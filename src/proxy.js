@@ -633,7 +633,6 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
         ids: ids.slice(0, took), chars: sum, tokens: sumTok,
         recache: Math.round((before[i] + acc + messages.length + 1) * TOKENS_PER_CHAR),
         tail: Math.round((acc + pre + over + count + (pre ? 1 : 0) + stepped + 1) * TOKENS_PER_CHAR), firstChanged: i,
-        tailFrom: i - (pre ? 1 : 0) - stepped,
       });
     }
   }
@@ -657,22 +656,18 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
     messages.forEach((m, i) => { const n = thinkingChars(m); pre.push(pre[i] + n); preGone.push(preGone[i] + (gone[i] ? n : 0)); });
     const to = Math.min(thinking.to ?? messages.length, messages.length);
     for (const s of steps) {
-      // `thinking.from` (set where `thinkingKeepTurns` holds recent thinking back): the earliest range so far is
-      // carried on to `to`, so thinking that was too new for an earlier cut goes with this one now it is old.
-      const from = Math.min(s.firstChanged + 1, thinking.from ?? Infinity, to);
+      // Only thinking at or below the rung's own first change goes (2026-11-18). Thinking that has aged since an
+      // earlier cut sits further back than the results a later cut replaces, and reaching for it moved the
+      // rewrite to the top of the conversation: on a nine-turn PostHog session the cut at turn 6 took 15.5k of
+      // thinking that way, placed its breakpoint at message 0 and wrote 65k where the same cut without it wrote
+      // 19k -- about 41k more written for 15.5k removed, a payback past 100 calls carried over the limit by the
+      // results beside it. So a cut never reaches above itself for thinking: what is old enough and already
+      // inside the span it rewrites goes with it, and the rest waits for a cut that reaches that far.
+      const from = Math.min(s.firstChanged + 1, to);
       const span = pre[to] - pre[from], had = preGone[to] - preGone[from];   // all the thinking in the rung's span, and what was gone already
       s.thinking = Math.round((span - had) * THINKING_TOKENS_PER_CHAR);
       s.tokens += s.thinking;
-      // Thinking that goes above the rung's own first change moves where the rewrite starts: the tail then runs
-      // from the nearest message below it that can carry the breakpoint (`thinkFirst`, which `placeMark` is given).
-      let start = s.tailFrom, more = 0;
-      const end = Math.min(to, s.tailFrom);
-      let g = from; while (g < end && !(pre[g + 1] > pre[g] && !gone[g])) g++;
-      if (g < end) {
-        let q = g - 1; while (q >= 0 && markBlock(messages[q]) < 0) q--;
-        start = q + 1; more = before[s.tailFrom] - before[start] + (s.tailFrom - start); s.thinkFirst = g;
-      }
-      s.tail = Math.max(0, s.tail + Math.round(more * TOKENS_PER_CHAR) - Math.round((pre[to] - pre[Math.min(to, Math.max(start, from))]) * TOKENS_PER_CHAR));
+      s.tail = Math.max(0, s.tail - Math.round(span * TOKENS_PER_CHAR));
       s.recache = Math.max(0, s.recache - Math.round((span + preGone[from]) * TOKENS_PER_CHAR));
     }
     thinkAll = steps[steps.length - 1].thinking;
@@ -802,10 +797,9 @@ const firstTouched = (messages, ids, cutInputs) => messages.findIndex(m => Array
 // whatever Claude Code chose. Null where it cannot be placed: no room, nothing after it to copy, or no
 // block before the cut that may carry one (a thinking block may not, and a message whose content is a
 // plain string is left alone, because turning it into a block is a change to the prefix itself).
-export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs, first = null } = {}) {
+export function placeMark(j, messages, cutIds, { cutInputs = PROXY_DEFAULTS.cutInputs } = {}) {
   const ids = cutIds instanceof Set ? cutIds : new Set(cutIds || []);
-  // `first`: a message the cut changes above its oldest result (thinking left out there), which the breakpoint must precede
-  const touched = firstTouched(j.messages, ids, cutInputs), k = first != null && touched > first ? first : touched;
+  const k = firstTouched(j.messages, ids, cutInputs);
   if (k <= 0) return null;
   const bp = breakpointsOf({ ...j, messages });
   let copy = null;
@@ -954,10 +948,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
   // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17, 0 by default)
   const thinkTo = Math.max(m.turn - Math.max(0, Math.floor(cfg.thinkingKeepTurns || 0)), 0);
-  // with turns held back, the earliest range so far is the one a new cut carries on (cutCandidates prices it)
-  let firstRange = null;
-  if (cfg.cutThinking && thinkTo < m.turn) for (const [id] of rec.think || []) { const at = cutAnchor(j.messages, new Set([id])); if (at >= 0 && (!firstRange || at < firstRange.at)) firstRange = { id, at }; }
-  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [], ...(firstRange ? { from: firstRange.at + 1 } : {}) } : null;
+  const thinking = cfg.cutThinking ? { to: turnIndex(j.messages, thinkTo), done: rec.think || [] } : null;
   const keep = keptOf(j.messages, rec.cut, cfg.keepPatterns || keepPatterns()).ids;
   const cand = cutCandidates(j.messages, { keepMin: cfg.keepMin ?? 3, cut: rec.cut, cutInputs: cfg.cutInputs, imagePath: cfg.imagePath || null, thinking, keep });
   // on every row of a boundary that had something kept: what the list cost the cut, in the cut's own tokens
@@ -973,13 +964,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   // a cut made on this request adds its own range: from the oldest result it newly replaces to this turn
   const fresh = thinking && d.clear ? d.cut.slice(rec.cut.length) : [];
   const anchor = fresh.length ? cutAnchor(j.messages, new Set(fresh)) : -1;
-  const own = anchor >= 0 && thinkTo >= 1 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
-  const oldest = own && firstRange && firstRange.at < anchor ? firstRange.id : own;
+  const oldest = anchor >= 0 && thinkTo >= 1 ? j.messages[anchor].content.find(b => b?.type === 'tool_result' && fresh.includes(b.tool_use_id)).tool_use_id : null;
   const think = thinking ? [...thinking.done, ...(oldest ? [[oldest, thinkTo]] : [])] : null;
   const applied = applyCut(j.messages, d.cut, { cutInputs: cfg.cutInputs, imagePath, thinking: think });
   // the breakpoint, on the request that seeds a cut and on the one that makes it (`cutting.js:SEED_MS`)
-  const markStep = d.markIds && thinking ? cand.steps.find(s => s.ids.length === d.markIds.length) : null;
-  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs, first: markStep?.thinkFirst ?? null }) : null;
+  const marked = d.markIds ? placeMark(j, applied.messages, d.markIds, { cutInputs: cfg.cutInputs }) : null;
   const markRow = marked ? { mark: { at: marked.at, ttl: marked.ttl, n: marked.n, ...(marked.had ? { had: true } : {}), ...(marked.moved != null ? { moved: marked.moved } : {}) } } : {};
   // A seed whose breakpoint could not be placed after all is no seed: the request goes as it came and the
   // next boundary decides again.

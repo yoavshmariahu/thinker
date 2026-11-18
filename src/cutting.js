@@ -120,7 +120,9 @@ export const PAYBACK = 25;
 // resumed past the cache's hour was cut of everything eligible at any size.
 // 10 since 2026-11-17: the newest copy of a kept file is never a candidate (keep.js): a `*.md`, a file the
 // person named, a file the model read again after a cut. A boundary has less to take than it had under `r9`.
-export const POLICY_REV = 10;
+// 11 since 2026-11-18: with `cutThinking` and turns held back, a cut no longer reaches above its own oldest
+// replaced result for thinking that has aged (`proxy.js:cutCandidates`); before, it did, and rewrote from the top for it.
+export const POLICY_REV = 11;
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
 export const policyId = (cfg = {}) =>
   `r${POLICY_REV}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;

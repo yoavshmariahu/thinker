@@ -165,7 +165,7 @@ test('Messages: a kept result is no candidate, and the row says what the list he
   const sent = JSON.parse(out.body).messages;
   assert.equal(sent[2].content[0].content, big(), 'learnings.md is still in the prompt');
   assert.match(JSON.stringify(sent[4].content), /removed by thinker after use/);
-  assert.match(out.policy, /^r10-/);
+  assert.match(out.policy, /^r11-/);
   // named in a later prompt: data.json is then kept too
   const named = [...messages.slice(0, 7), say('what was in data.json again?'), ...messages.slice(8)];
   assert.deepEqual([...keptOf(named, [], KEEP_DEFAULT).ids].sort(), ['a', 'b']);
