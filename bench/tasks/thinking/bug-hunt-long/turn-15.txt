@@ -1,0 +1,3 @@
+Report 8. A pyfunc model with an input signature returns wrong rows when the DataFrame it is given does not have a default index. Take a frame with a double column and a column of a complex type (an array of strings, an object, or a map), four rows, indexed either 0..3 or by labels "first".."fourth"; slice it with .iloc[2:] and call predict on a model that just returns its input. The result should equal the sliced frame. It does not: values are missing or misplaced. It happens whether the signature's columns are named or not. A frame with only a scalar column is fine.
+
+Reproduce it. Do not change any source file in this turn. Then answer in three lines at most: confirmed or not, and at what point do the rows go wrong?

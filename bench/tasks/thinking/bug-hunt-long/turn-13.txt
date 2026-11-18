@@ -1,0 +1,5 @@
+Six more reports came in. Same rules as before.
+
+Report 7. The Gemini gateway provider mishandles a model reply that mixes text with a function call. When Gemini answers with a candidate whose parts are a text part "Let me look that up." and a functionCall part for get_weather with args {"city": "Baku"} and id "call_1", the chat response should carry both: the message content "Let me look that up." and one tool call (id call_1, name get_weather, arguments '{"city": "Baku"}'). Today one of the two is lost or the call is missed, and it depends on which part comes first. The streaming conversion has the same problem with its delta.
+
+Reproduce it for both orders and for both the regular and the streaming conversion. Do not change any source file in this turn. Reply in three lines at most.

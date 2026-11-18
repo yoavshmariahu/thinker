@@ -1,0 +1,1 @@
+For each of the six fixes, find the existing caller most likely to be surprised by the changed behaviour, and check that caller properly, by reading it and where it is cheap by running something. Fix anything that is wrong. Reply with six lines: report number, the caller you checked, safe or changed.

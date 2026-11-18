@@ -1,0 +1,1 @@
+Fix report 8 for named and unnamed signature columns. The scalar-only case must keep behaving as it does today, including the conversion of an int column to double. Run the single tests that cover what you changed. Reply in two lines at most.

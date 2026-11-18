@@ -1,0 +1,5 @@
+You are helping me work through a batch of bug reports against this repository, one at a time. Do not install dependencies and never run the whole test suite. A Python environment with this project installed exists: run a script or a test with `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python` (for a test: `PYTHONPATH=. /Users/yoavshmariahu/src/thinker/bench/repos/mlflow-venv/bin/python -m pytest <path>::<test> -q`). Some test files here take minutes; run single tests, not whole files. Keep your answers as short as I ask: I read them on a phone.
+
+Report 1. Users searching traces by text cannot find traces whose content is not plain English. A trace whose span input is {"question": "café"}, or "什么是MLflow", or "🚀 launch", is not returned by a search with the filter trace.text LIKE "%café%" (the same with ILIKE, and with span.content in place of trace.text), while a trace with ASCII text is found the same way. This is on the SQL-backed tracking store with SQLite and Postgres.
+
+Reproduce it first. Do not change any source file in this turn. Then answer in three lines at most: is it confirmed, and at what point is the text lost?
