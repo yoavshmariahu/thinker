@@ -1,0 +1,44 @@
+{
+ "tag": "thinking-long",
+ "question": "On a long task with a realistic share of thinking (bug-hunt-long: 27 turns, context past the 140k trigger from turn 16, about 39k of thinking), does a session with thinking-cutting on still pass the check and answer the recall turns right, and what does it cost and cut, beside the no-proxy session of the same task?",
+ "rule": "bug-hunt-long, the one task sized for this (thinking-sizing, 2026-11-17: no proxy, $8.13, 219 calls, 208k peak, check passes); that session is the no-thinker reference, at the owner's call. One arm, one session: the shipped defaults with cutThinking on and thinkingKeepTurns 2 (the safeguard the owner chose earlier the same day). Not a paired comparison: one session against one session.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/mlflow-b2",
+ "ref": "569176474",
+ "tasksDir": "bench/tasks/thinking",
+ "tasks": [
+  "bug-hunt-long"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "main-cut-thinking-older-than-2": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
+    "THINKER_TEST": "1"
+   },
+   "before": [
+    [
+     "sh",
+     "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
+     "start",
+     "6897",
+     "on",
+     "{CWD}",
+     "on",
+     "2"
+    ]
+   ],
+   "after": [
+    "sh",
+    "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
+    "stop",
+    "6897",
+    "on",
+    "{CWD}",
+    "on",
+    "2"
+   ]
+  }
+ }
+}
