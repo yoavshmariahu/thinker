@@ -14,7 +14,7 @@
  "arms": {
   "main-cut-thinking-th2": {
    "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6901",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:6897",
     "THINKER_TEST": "1"
    },
    "before": [
@@ -22,7 +22,7 @@
      "sh",
      "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
      "start",
-     "6901",
+     "6897",
      "on",
      "{CWD}",
      "on",
@@ -33,7 +33,7 @@
     "sh",
     "/Users/yoavshmariahu/src/thinker/.worktrees/bench-counted-tokens/bench/proxy-arm.sh",
     "stop",
-    "6901",
+    "6897",
     "on",
     "{CWD}",
     "on",
