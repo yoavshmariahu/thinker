@@ -1,4 +1,5 @@
-// The earlier turns' thinking goes with a cut (proxy.js: `cutThinking`, off by default).
+// The earlier turns' thinking goes with a cut (proxy.js: `cutThinking`, on by default since 2026-11-18 with the
+// last two turns' kept).
 //
 // What these hold. That a cut leaves out the thinking of the messages after its own oldest replaced result and
 // before the turn it was made in, and nothing else: not a block above the cut, not one of the turn in progress,
@@ -44,8 +45,9 @@ test('what a message can lose, and where a turn starts', () => {
   assert.deepEqual([1, 2, 3, 4, 5].map(t => turnIndex(ms, t)), [0, 4, 8, 12, 13], 'the prompt that opens each turn; the end for one not begun');
 });
 
-test('off by default: a cut leaves the thinking where it is', () => {
-  assert.equal(PROXY_DEFAULTS.cutThinking, false);
+test('on by default with two turns kept; a cut given no range leaves the thinking where it is', () => {
+  assert.equal(PROXY_DEFAULTS.cutThinking, true);
+  assert.equal(PROXY_DEFAULTS.thinkingKeepTurns, 2);
   const ms = conversation(6), a = applyCut(ms, ['r0', 'r1']);
   assert.deepEqual(thinkingAt(a.messages), thinkingAt(ms));
   assert.equal('thinking' in a, false);
@@ -92,7 +94,7 @@ function send(rec, j, cfg, now) {
   cutResponse(rec, cfg, t, { read: 1 }, { now });
   return { t, sent: JSON.parse(t.body) };
 }
-const CFG = { ...PROXY_DEFAULTS, trigger: 1000, clearAtLeast: 1000, cutThinking: true };
+const CFG = { ...PROXY_DEFAULTS, trigger: 1000, clearAtLeast: 1000, cutThinking: true, thinkingKeepTurns: 0 };
 
 test('through the door: the cut names its range, and every later request leaves out the same blocks', () => {
   const ms = conversation(6), rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour: everything eligible goes
@@ -136,15 +138,16 @@ test('the record only ever grows, and the switch has a flag, a variable, a confi
   const merged = mergeCut({ ...freshCut('s'), turn: 5, think: [['a', 3]] }, { ...freshCut('s'), turn: 5, think: [['b', 5]] });
   assert.deepEqual(merged.think, [['a', 3], ['b', 5]], 'two clones of one record keep both ranges');
   assert.equal('think' in mergeCut(freshCut('s'), freshCut('s')), false);
-  assert.equal(proxyConfig({}, {}).cutThinking, false);
-  assert.equal(proxyConfig({ 'cut-thinking': true }, {}).cutThinking, true);
-  assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_THINKING: 'on' }).cutThinking, true);
-  assert.ok(policyId({ ...PROXY_DEFAULTS, cutThinking: true }).endsWith('+th'));
-  assert.ok(!policyId(PROXY_DEFAULTS).includes('+th'));
+  assert.equal(proxyConfig({}, {}).cutThinking, true);
+  assert.equal(proxyConfig({ 'no-cut-thinking': true }, {}).cutThinking, false);
+  assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_THINKING: 'off' }).cutThinking, false);
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cutThinking: true, thinkingKeepTurns: 0 }).endsWith('+th'));
+  assert.ok(policyId(PROXY_DEFAULTS).endsWith('+th2'), 'the default names the two turns it keeps');
+  assert.ok(!policyId({ ...PROXY_DEFAULTS, cutThinking: false }).includes('+th'), 'a saving made with the thinking kept is never pooled with one made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-th-'));
   try {
-    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutThinking: true } }));
-    assert.ok(serviceArgs(home, { port: 4000 }).includes('--cut-thinking'));
+    fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutThinking: false } }));
+    assert.ok(serviceArgs(home, { port: 4000 }).includes('--no-cut-thinking'), 'the way back reaches the service');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -165,7 +168,7 @@ test('thinkingKeepTurns: only thinking that many turns old goes with a cut', () 
   assert.equal('think' in all.t, false);
   assert.deepEqual(thinkingAt(all.sent.messages), thinkingAt(ms));
   assert.equal(turnIndex(ms, 0), 0);
-  assert.equal(proxyConfig({}, {}).thinkingKeepTurns, 0);
+  assert.equal(proxyConfig({}, {}).thinkingKeepTurns, 2);
   assert.equal(proxyConfig({ 'thinking-keep-turns': '3' }, {}).thinkingKeepTurns, 3);
   assert.equal(proxyConfig({}, { THINKER_PROXY_THINKING_KEEP_TURNS: '2' }).thinkingKeepTurns, 2);
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-th-'));
