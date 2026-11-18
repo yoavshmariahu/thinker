@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readManaged } from '../src/managed.js';
+import { readMachineConfig } from '../src/repo-switch.js';
 import { FLEET, fleetKey, setFleetKey, unsetFleetKey, fleetTick, noteSession, sendFleetReport, fleetStatus, readFleetState, metricsOf, detailOf, repoName, machineId, redactKey } from '../src/fleet.js';
 
 const KEY = 'thk_live_' + 'a'.repeat(43);
@@ -291,4 +293,32 @@ test('more sessions than a report holds go in a few reports back to back, each a
   const second = m.calls.slice(3).flatMap(c => c.body.sessions.map(s => s.session_id));
   assert.equal(new Set(second).size, 23);
   assert.equal(second.length, 23 + FLEET.sessionsMax, 'the report that failed is the one sent again, whole');
+});
+
+test('the org\'s settings come back on a report\'s answer: the newest is taken, and a machine may refuse them', async t => {
+  const m = machine(t);
+  const managed = { at: '2026-11-17T09:00:00.000Z', config: { proxy: { trigger: 90_000, upstream: 'https://elsewhere.example' }, delegate: { enabled: false } } };
+  m.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true, managed } });
+  m.note('ses_1', { prompts: 1 }, T0);
+  assert.equal((await fleetTick(null, m.opts(T0))).sent, true);
+  assert.deepEqual(readManaged(m.home).config, { proxy: { trigger: 90_000 }, delegate: { enabled: false } }, 'only what a fleet may set');
+  assert.equal(readManaged(m.home).from, 'fleet');
+  assert.equal(readMachineConfig(m.home).proxy.trigger, 90_000, 'and it is what the machine runs');
+  // an answer with nothing set, or with settings older than the ones held, changes nothing
+  m.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true } });
+  await sendFleetReport({ ...m.opts(T0 + 1), force: true });
+  m.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true, managed: { at: '2026-11-16T09:00:00.000Z', config: {} } } });
+  await sendFleetReport({ ...m.opts(T0 + 2), force: true });
+  assert.equal(readManaged(m.home).at, managed.at);
+  // everything handed back, later: the machine's own file stands again
+  m.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true, managed: { at: '2026-11-17T09:30:00.000Z', config: {} } } });
+  await sendFleetReport({ ...m.opts(T0 + 3), force: true });
+  assert.deepEqual(readManaged(m.home).config, {});
+
+  const off = machine(t);
+  off.env.THINKER_MANAGED = 'off';
+  off.fleet.answer = () => ({ status: 200, body: { org_name: 'acme', applied: true, managed } });
+  off.note('ses_1', { prompts: 1 }, T0);
+  assert.equal((await fleetTick(null, off.opts(T0))).sent, true);
+  assert.equal(readManaged(off.home), null, 'the figures still go; the settings are refused');
 });

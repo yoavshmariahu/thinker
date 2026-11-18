@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { getInstallId } from './telemetry.js';
 import { readMachineConfig } from './repo-switch.js';
+import { applyManaged } from './managed.js';
 import { appVersion } from './proxy-service.js';
 import { sessionEvent, isTestShipBlocked } from './events.js';
 import { repoId } from './store.js';
@@ -241,6 +242,10 @@ async function sendOne({ home = thinkerHome(), env = process.env, now = Date.now
     if (!response.ok) return finish({ sent: false, reason: 'unreachable', detail: 'HTTP ' + response.status });
     let answer = {};
     try { answer = await response.json(); } catch {}
+    // The answer is also where the org's settings come back (managed.js): what the dashboard's Machine
+    // settings hold, with the time they were set. Newest wins there, a machine that refuses a sink's settings
+    // (`managed: false`, THINKER_MANAGED=off) refuses these too, and it never throws.
+    applyManaged(answer.managed, { home, env, from: 'fleet' });
     return finish({ sent: true, sessions: pending.body.sessions.length }, fresh => {
       for (const [id, mark] of Object.entries(pending.marks)) if (fresh.sessions[id]) Object.assign(fresh.sessions[id], mark);
       const cutoff = now - FLEET.keepDays * 86400e3;
