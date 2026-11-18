@@ -48,6 +48,27 @@ test('no key: no request, no state, no process; THINKER_FLEET=off is the same wi
   assert.ok(!fs.existsSync(path.join(m.home, 'state', 'fleet.json')), 'local mode writes no fleet state');
 });
 
+test('under test the person\'s own home is not a fleet machine: a hook there notes nothing and sends nothing', async t => {
+  // HOME is a directory of this test's, so `~/.thinker` here is what a suite's hook would take for the real one.
+  const m = machine(t, { key: null });
+  const was = process.env.HOME;
+  t.after(() => { if (was === undefined) delete process.env.HOME; else process.env.HOME = was; });
+  process.env.HOME = m.home;
+  const home = path.join(m.home, '.thinker');
+  setFleetKey(KEY, { home });
+  for (const env of [{ THINKER_TEST: '1' }, { NODE_TEST_CONTEXT: 'child-v8' }, { THINKER_TEST: '1', THINKER_API_KEY: KEY }]) {
+    assert.equal(fleetKey({ env, home }), null);
+    assert.deepEqual(await fleetTick(null, { session: 'cascade-1', ...m.opts(T0), env, home }), { mode: 'local' });
+    assert.equal((await fleetStatus({ ...m.opts(T0), env, home })).mode, 'local');
+  }
+  assert.equal(m.calls.length, 0);
+  assert.equal(m.spawned.length, 0);
+  assert.ok(!fs.existsSync(path.join(home, 'state', 'fleet.json')), 'no fixture session is left in the real state');
+  // outside a test it is a fleet machine as before, and a test that names its own home still reports
+  assert.equal(fleetKey({ env: {}, home })?.from, 'file');
+  assert.equal(fleetKey({ env: { THINKER_TEST: '1', THINKER_HOME: home }, home })?.from, 'file');
+});
+
 test('the key: the environment wins, the file is 0600 and holds only a real key, and it never prints', t => {
   const m = machine(t, { key: null });
   assert.throws(() => setFleetKey('not-a-key', { home: m.home }), /thk_live_/);

@@ -61,8 +61,17 @@ const stateFile = home => path.join(home, 'state', 'fleet.json');
 const lockFile = home => path.join(home, 'state', 'fleet.lock');
 
 // ---------------------------------------------------------------- the key
+// Under test the person's own home is never a fleet machine: a suite's hooks run with its environment and,
+// where a test names no home of its own, against `~/.thinker`. Blocking only the send (`isTestShipBlocked`)
+// was not enough: the fixture sessions were still noted in the real state, and the person's next real hook
+// reported them (2026-11-17, `cascade-1`, `agy-conv-1` and three more on the owner's dashboard). So there is
+// no key there at all, which is rule 1: no socket, no state, no process. A test that means to report gives
+// a home of its own (`home`, or `THINKER_HOME`).
+const ownHomeUnderTest = (env, home) => (isTestMode(env) || !!env.NODE_TEST_CONTEXT) && !env.THINKER_HOME
+  && path.resolve(home) === path.resolve(os.homedir(), '.thinker');
 export function fleetKey({ env = process.env, home = thinkerHome() } = {}) {
   if (String(env.THINKER_FLEET || '').toLowerCase() === 'off') return null;
+  if (ownHomeUnderTest(env, home)) return null;
   if (env.THINKER_API_KEY) return { key: env.THINKER_API_KEY.trim(), from: 'env' };
   try {
     const key = fs.readFileSync(keyFile(home), 'utf8').trim();
