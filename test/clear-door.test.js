@@ -61,8 +61,8 @@ test('a rung stops the clear at the newest results the decision chose', () => {
 });
 
 test('the policy is the proxy\'s unless the machine config says otherwise, and its stamp is this release\'s', () => {
-  assert.deepEqual(DEFAULTS, { keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0, auto: true, clearDeep: true });
-  assert.deepEqual(desktopPolicy({ proxy: { trigger: 90000, holdout: 0, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, auto: false });
+  assert.deepEqual(DEFAULTS, { keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0.25, auto: true, clearDeep: true });
+  assert.deepEqual(desktopPolicy({ proxy: { trigger: 90000, holdout: 0, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, holdout: 0, auto: false });
   // The mod never sees the request: it places no breakpoint, leaves out no thinking and takes no call text, so a
   // saving made here is named without them and never pooled with the proxy's.
   assert.equal(stampOf(DEFAULTS), `v${VERSION}-t140k-f8k-p${PAYBACK}-deep`);
