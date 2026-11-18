@@ -55,7 +55,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Tests cover desktop path (`appFn`, missing CLI login).
 
 **The clearing: thinker cuts results itself (MANDATORY, 2026-11-04):**
-- Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls, cold boundary.
+- Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls. A session resumed past the cache's hour is cut by the same trigger and floor (2026-11-17); the pause only makes the cut free.
 - `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
 - A long call whose result is short (a heredoc, a Write, an Edit that answered in a line) is a candidate on the call's own text (2026-11-17, `r6`); the short result stays. Only with `cutInputs`.

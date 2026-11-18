@@ -62,7 +62,7 @@ export const PAYBACK = 25
 // test/claude-clear.test.js). It goes on the session's record so every door that compares savings groups by the
 // policy behind them instead of dating them from one machine's clock -- this door and the proxy are one policy,
 // so they must name it with one string. Bump POLICY_REV there and here together.
-export const POLICY_REV = 8
+export const POLICY_REV = 9
 const roundTo = (n: number) => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)))
 // `+in` is the proxy's `cutInputs` (proxy.js:applyCut, 2026-11-14): a cut that also takes the finished call's own
 // text. The mod never sets it -- in the desktop app a call's input is a file path, not a heredoc, so the 2026-11-04
@@ -131,11 +131,9 @@ export function policyOf(config: any): Policy {
 // (`calls` made so far), outweighs the write after it (`recache`, the whole context after the clear); free
 // after a pause past the cache's hour. With the proxy's `clearDeep` off, one clear a session. `/thinker-clear` is
 // never held back.
-// The proxy's cold rule goes further (cutting.js:decideCut, 2026-11-06): at a boundary past the cache's hour it
-// cuts everything eligible whatever the trigger or the size floor say, because that request rewrites the whole
-// context anyway. This door cannot: its clear is a compaction turn queued after a turn has completed, so the
-// request that would have been free has already been sent and the cache is warm again by the time it acts. The
-// idle rule below waives the payback alone, and the trigger and the floor stay in place here.
+// The proxy's cold rule is the same since 2026-11-17 (cutting.js:decide): past the cache's hour the payback is
+// waived, and the trigger and the size floor stay in place, so a resumed session under the trigger keeps its
+// results by either door.
 export const clearPays = (p: Policy, { dropped, recache, calls, idle, cleared, model = '' }: { dropped: number; recache: number; calls: number; idle: number; cleared: boolean; model?: string }) => {
   if (!(dropped > 0)) return false
   if (!p.clearDeep && cleared) return false
