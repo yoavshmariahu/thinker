@@ -82,7 +82,8 @@ test('the ladder prices what is then sent, and counts the thinking as removed', 
     assert.ok(Math.abs(s.recache - Math.round(JSON.stringify(sent.messages).length * TOKENS_PER_CHAR)) <= 1, `rung ${k}: and the whole is every message as sent`);
     assert.equal(s.tokens, sent.tokens, `rung ${k}: what it removes is what the applied cut reports`);
     assert.equal(s.tokens, plain.steps[k].tokens + s.thinking);
-    assert.ok(s.tail < plain.steps[k].tail && s.thinking > 0);
+    // the price is the same where the proxy sends that thinking (2026-11-18): the API writes none of it either way
+    assert.ok(Math.abs(s.tail - plain.steps[k].tail) <= 1 && Math.abs(s.recache - plain.steps[k].recache) <= 1 && s.thinking > 0);
   });
   assert.equal(c.tokens, c.steps[c.steps.length - 1].tokens, 'the whole set is the deepest rung');
 });
