@@ -175,6 +175,146 @@ export type Clear = { messages: SessionMessage[]; cleared: number; chars: number
 // what a row weighs, for the prefix a clear keeps in the cache
 const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m.toolResults ?? []).reduce((n, r) => n + (r.text ?? '').length, 0) + (m.toolUses ?? []).reduce((n, u) => n + JSON.stringify(u.input ?? {}).length, 0) } catch { return 0 } }
 
+// ---- the keep list: file reads a clear never takes (src/keep.js, 2026-11-17) ----
+// The proxy's rule, in this door's own copy, there being no import in a mod: the newest copy of a kept file
+// stays -- a `*.md`, what the profile learned the person points at (`<THINKER_HOME>/state/keep.json`), a file
+// the person named in a prompt, a file read again after a clear took it. The block between the two markers is
+// run by test/keep.test.js against keep.js on the same conversations, so the two cannot drift. It is written
+// with `any` alone for that reason: the test strips the annotations and evaluates what is left.
+// keep:begin
+export const KEEP_DEFAULT = ['*.md']
+const kEsc = (s: any) => String(s).replace(/[.+^${}()|[\]\\?]/g, '\\$&')
+const kGlob = (p: any) => kEsc(p).replace(/\*\*\/?/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '(?:.*/)?')
+const kNorm = (f: any) => String(f || '').replace(/\\/g, '/').replace(/^\.\//, '')
+export function keepMatcher(patterns: any = KEEP_DEFAULT) {
+  const names: any = [], paths: any = []
+  for (const raw of patterns || []) {
+    const p = kNorm(String(raw || '').trim())
+    if (!p) continue
+    if (p.includes('/')) paths.push(new RegExp(`(?:^|/)${kGlob(p.replace(/^\//, ''))}$`, 'i'))
+    else names.push(new RegExp(`^${kGlob(p)}$`, 'i'))
+  }
+  return (file: any) => {
+    const f = kNorm(file)
+    if (!f) return false
+    const base = f.slice(f.lastIndexOf('/') + 1)
+    return names.some((r: any) => r.test(base)) || paths.some((r: any) => r.test(f))
+  }
+}
+const K_INJECTED = /<(thinker-[\w-]+|system[-_]reminder|command-name|command-message|command-args|local-command-stdout|local-command-caveat|task-notification|agent-message)>[\s\S]*?<\/\1>/g
+const K_NAMEABLE = /^[^\s/]{1,120}\.[A-Za-z0-9]{1,8}$/
+export function namedIn(prompts: any = []) {
+  const said = (Array.isArray(prompts) ? prompts : [prompts]).map((t: any) => String(t || '').replace(K_INJECTED, ' ')).join('\n').toLowerCase()
+  const memo = new Map()
+  return (file: any) => {
+    const f = kNorm(file), base = f.slice(f.lastIndexOf('/') + 1).toLowerCase()
+    if (!said || !K_NAMEABLE.test(base)) return false
+    if (!memo.has(base)) memo.set(base, new RegExp(`(?:^|[^\\w.-])${kEsc(base)}(?![\\w-]|\\.\\w)`).test(said) || said.startsWith(base))
+    return memo.get(base)
+  }
+}
+const K_SHRINKS = /\|\s*(grep|rg|head|tail|wc|awk|cut|sort|uniq|jq|python|node)\b/
+const K_READ_CMD = /^\s*(?:cat|less|more|sed\s+-n\s+('[^']*'|"[^"]*"|\S+)|head\s+-n?\s*(\d+)|head\s+-c\s*\d+)\s+(.+?)\s*$/
+const K_READ_TOOL = /^(read|read_file|view|view_file|open_file|cat)$/i
+const K_WRITE_TOOL = /^(write|write_file|create_file)$/i
+const K_SHELL_TOOL = /^(bash|shell|exec_command|local_shell|run_terminal_cmd|run_shell_command|execute_command|container\.exec)$/i
+const K_CD = /^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/
+const K_RANGED = ['offset', 'limit', 'start_line', 'end_line', 'view_range', 'line_start', 'line_end']
+const kUnquote = (f: any) => String(f).replace(/^["']|["']$/g, '').replace(/^\.\//, '')
+const kPathOf = (input: any) => [input.file_path, input.filePath, input.path, input.target_file, input.filename].find((v: any) => typeof v === 'string' && v) || ''
+export function copyOf(name: any, input: any) {
+  if (typeof input === 'string') { try { input = JSON.parse(input) } catch { return null } }
+  if (!name || !input || typeof input !== 'object') return null
+  if (K_READ_TOOL.test(name)) {
+    const f = kPathOf(input)
+    return f ? { files: [kUnquote(f)], whole: !K_RANGED.some((k: any) => input[k] != null && input[k] !== '') } : null
+  }
+  if (K_WRITE_TOOL.test(name)) {
+    const f = kPathOf(input)
+    return f && typeof (input.content ?? input.contents ?? input.text) === 'string' ? { files: [kUnquote(f)], whole: true } : null
+  }
+  if (K_SHELL_TOOL.test(name)) {
+    const raw = input.command ?? input.cmd
+    const cmd = Array.isArray(raw) ? String(raw[raw.length - 1] ?? '') : typeof raw === 'string' ? raw : ''
+    if (!cmd) return null
+    const m = cmd.match(K_CD), dir = m ? kUnquote(m[1]) : ''
+    const line = m ? cmd.slice(m[0].length) : cmd
+    if (K_SHRINKS.test(line) || /[;&]|\|\|/.test(line.replace(/\|\|/g, ';'))) return null
+    const r = line.match(K_READ_CMD)
+    if (!r) return null
+    const files = (r[3].match(/"[^"]*"|'[^']*'|\S+/g) || []).map((a: any) => a.replace(/^["']|["']$/g, '')).filter((a: any) => !a.startsWith('-'))
+    if (!files.length) return null
+    return {
+      files: files.map(kUnquote).map((f: any) => (dir && !f.startsWith('/') ? `${dir.replace(/\/+$/, '')}/${f}` : f)),
+      whole: /^\s*(cat|less|more)\s/.test(line),
+    }
+  }
+  return null
+}
+const kSame = (a: any, b: any) => a === b || (a.startsWith('/') && !b.startsWith('/') ? a.endsWith('/' + b) : (!a.startsWith('/') && b.startsWith('/') ? b.endsWith('/' + a) : false))
+export function keptCalls(calls: any = [], opts: any = {}) {
+  const gone = opts.cut instanceof Set ? opts.cut : new Set(opts.cut || [])
+  const match = keepMatcher(opts.patterns || KEEP_DEFAULT), said = namedIn(opts.prompts || [])
+  const seen: any = []
+  const byName = new Map()
+  const entryOf = (file: any) => {
+    const hit = byName.get(file)
+    if (hit) return hit
+    let e = seen.find((x: any) => kSame(x.file, file))
+    if (!e) { e = { file, last: null, lastWhole: null, wasCut: false, reread: false }; seen.push(e) }
+    byName.set(file, e)
+    return e
+  }
+  for (const c of calls) {
+    if (!c || !c.id) continue
+    const copy = copyOf(c.name, c.input)
+    if (!copy) continue
+    for (const f of copy.files) {
+      const e = entryOf(f)
+      if (gone.has(c.id)) { e.wasCut = true; continue }
+      if (e.wasCut) e.reread = true
+      e.last = c.id
+      if (copy.whole) e.lastWhole = c.id
+    }
+  }
+  const ids = new Set(), files: any = []
+  for (const e of seen) {
+    const id = e.lastWhole || e.last
+    if (!id) continue
+    const why = match(e.file) ? 'pattern' : said(e.file) ? 'named' : e.reread ? 'reread' : null
+    if (!why) continue
+    ids.add(id)
+    files.push({ file: e.file, why, id })
+  }
+  return { ids, files }
+}
+// keep:end
+
+// The calls and the person's words of this door's rows. A result this mod replaced is the cut: it is in the
+// rows as its placeholder, which is the one record a clear leaves here.
+const CLEARED_PREFIX = '[tool result removed by thinker after use:'
+export function keptOf(messages: readonly SessionMessage[], patterns: string[] = KEEP_DEFAULT): Set<string> {
+  const calls: any[] = [], prompts: string[] = [], cut: string[] = []
+  for (const m of messages) {
+    if (m.role === 'assistant') for (const u of m.toolUses ?? []) calls.push({ id: u.tool_use_id, name: u.tool, input: u.input })
+    else if (m.role === 'user') {
+      if ((m.text ?? '').trim()) prompts.push(m.text as string)
+      for (const r of m.toolResults ?? []) if ((r.text ?? '').startsWith(CLEARED_PREFIX)) cut.push(r.tool_use_id)
+    }
+  }
+  return keptCalls(calls, { patterns, prompts, cut }).ids as Set<string>
+}
+// `<THINKER_HOME>/state/keep.json`, as keep.js:keepPatterns reads it: the defaults and every repository's list
+export async function keepPatternsOf($: any): Promise<string[]> {
+  let learned: string[] = []
+  try {
+    const home = (await $.env.get('THINKER_HOME')) || `${await $.env.get('HOME')}/.thinker`
+    const all = JSON.parse(String(await $.fs.read(`${home}/state/keep.json`)))
+    learned = Object.values(all?.repos ?? {}).flatMap((r: any) => (Array.isArray(r?.files) ? r.files : [])).filter((p: any) => typeof p === 'string' && p.trim())
+  } catch {}
+  return [...new Set([...KEEP_DEFAULT, ...learned])]
+}
+
 // The ladder the proxy prices (proxy.js:cutCandidates, 2026-11-13): the newest eligible result, then the two
 // newest, and so on from the tail backwards. Sizes alone -- no rows are rebuilt -- so the check can price
 // every depth and the clear itself happens once, at the depth chosen.
@@ -182,7 +322,7 @@ const charsOf = (m: SessionMessage) => { try { return (m.text ?? '').length + (m
 // Since 2026-11-16 every rung is priced at the whole context after the clear (`chooseDepth`), because a row
 // replaced in the middle leaves no cached prefix to read back; a deeper rung then costs less and saves more,
 // so the deepest one is the one that can pay, and the ladder is kept for the depth it names.
-export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN } = {}): { depth: number; tokens: number; prefixChars: number }[] {
+export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, keep = null as Set<string> | null } = {}): { depth: number; tokens: number; prefixChars: number }[] {
   const pre: number[] = [0]
   for (let i = 0; i < messages.length; i++) pre.push(pre[i] + charsOf(messages[i]))
   const out: { depth: number; tokens: number; prefixChars: number }[] = []
@@ -196,6 +336,7 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; continue }
       if (text.length < MIN_CHARS) continue
+      if (keep?.has(r.tool_use_id)) continue   // the newest copy of a kept file is no rung's to take
       depth++; tokens += resultTokens(text); took = true
     }
     if (took) out.push({ depth, tokens, prefixChars: pre[i] })
@@ -206,9 +347,9 @@ export function clearLadder(messages: readonly SessionMessage[], { keepMin = KEE
 // One policy, decided where the proxy decides it: the DEEPEST rung that repays its rewrite. `clearPays` is
 // this door's spelling of the inequality `cutting.js:priceCut` prices, and `decideCut` likewise takes the
 // largest paying set rather than the first. `null` is the refusal the proxy logs as `payback`.
-export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx: { tokens: number; calls: number; idle: number; cleared: boolean; model?: string }): number | null {
+export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx: { tokens: number; calls: number; idle: number; cleared: boolean; model?: string; keep?: Set<string> | null }): number | null {
   let take: number | null = null
-  for (const rung of clearLadder(messages, p)) {
+  for (const rung of clearLadder(messages, { keepMin: p.keepMin, keep: ctx.keep ?? null })) {
     if (rung.tokens < p.clearAtLeast) continue
     // the whole context after the clear, not the part after the first row it changes: a row replaced in the
     // middle leaves no cached prefix to read back (proxy.js:cutCandidates, 2026-11-16)
@@ -218,7 +359,7 @@ export function chooseDepth(messages: readonly SessionMessage[], p: Policy, ctx:
   return take
 }
 
-export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity } = {}): Clear {
+export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_MIN, depth = Infinity, keep = null as Set<string> | null } = {}): Clear {
   const nameOf = new Map<string, string>()
   for (const m of messages) if (m.role === 'assistant') for (const u of m.toolUses ?? []) nameOf.set(u.tool_use_id, u.tool)
   const byTool = new Map<string, { calls: number; tokens: number }>()
@@ -239,6 +380,7 @@ export function clearOld(messages: readonly SessionMessage[], { keepMin = KEEP_M
       const text = r.text ?? ''
       if (inLatestTurn || kept < keepMin) { kept++; return r }
       if (text.length < MIN_CHARS) return r
+      if (keep?.has(r.tool_use_id)) return r   // kept (keep.js): the person's notes, a file they named, a file fetched back
       if (cleared >= depth) return r      // the rung chosen: the newest `depth` results and no more
       cleared++; chars += text.length; resultTokens_ += resultTokens(text); touched = true
       const name = nameOf.get(r.tool_use_id) ?? 'tool'
@@ -272,6 +414,7 @@ export type State = { session: string; firstAt: number; lastAt: number; requests
 
 // module state: starts over on a reload (the record on disk does not)
 let policy: Policy = DEFAULTS
+let keepPatterns: string[] = KEEP_DEFAULT   // the keep list's patterns, read again whenever a clear is weighed
 let auto = false
 let pending = false
 let pendingFrom = ''
@@ -342,7 +485,10 @@ export async function liveMessages($: any): Promise<SessionMessage[] | null> {
 async function wouldClear($: any, p: Policy): Promise<Clear | null> {
   try {
     const api = await $.session.messages({ as: 'api' })
-    return Array.isArray(api) ? clearOld(liveRows(api), p) : null
+    if (!Array.isArray(api)) return null
+    const rows = liveRows(api)
+    keepPatterns = await keepPatternsOf($)
+    return clearOld(rows, { ...p, keep: keptOf(rows, keepPatterns) })
   } catch { return null }
 }
 
@@ -585,7 +731,8 @@ export const register: Register = (on) => {
           // rewrite -- the refusal the proxy logs as `payback` -- and this door says nothing, as before.
           let model = ''; try { model = await $.session.model() } catch {}
           const rows = await liveMessages($)
-          const depth = rows ? chooseDepth(rows, policy, { tokens, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model }) : null
+          keepPatterns = await keepPatternsOf($)
+          const depth = rows ? chooseDepth(rows, policy, { tokens, calls: steps, idle: wasIdle, cleared: clearedAt > 0, model, keep: keptOf(rows, keepPatterns) }) : null
           if (depth != null) { pendingDepth = depth; schedule($, 'auto', tokens) }
         }
       } catch {}
@@ -599,7 +746,9 @@ export const register: Register = (on) => {
     const from = pendingFrom
     pending = false
     const chosen = pendingDepth; pendingDepth = null
-    const c = clearOld(e.messages, { ...policy, depth: chosen ?? Infinity })
+    // the same kept set the depth was chosen against: a compact hook may not wait on a file, so the patterns are
+    // the ones read when the clear was scheduled (a typed /thinker-clear reads them in `wouldClear`)
+    const c = clearOld(e.messages, { ...policy, depth: chosen ?? Infinity, keep: keptOf(e.messages, keepPatterns) })
     if (!c.cleared || (from === 'auto' && c.tokens < policy.clearAtLeast)) {
       hold()
       return { skip: c.cleared ? `thinker-clear: ${c.tokens.toLocaleString()} tokens to clear, under ${policy.clearAtLeast.toLocaleString()}` : 'thinker-clear: nothing old enough to clear' }

@@ -102,14 +102,14 @@ export function copyOf(name, input) {
     const r = shellRead(line);
     if (!r) return null;
     return {
-      files: r.files.map(unquote).map(f => (dir && !path.isAbsolute(f) ? path.join(dir, f) : f)),
+      files: r.files.map(unquote).map(f => (dir && !f.startsWith('/') ? `${dir.replace(/\/+$/, '')}/${f}` : f)),
       whole: /^\s*(cat|less|more)\s/.test(line),
     };
   }
   return null;
 }
 // the same file, written absolute by one tool and relative by another: equal, or one the tail of the other
-export const sameFile = (a, b) => a === b || (path.isAbsolute(a) && !path.isAbsolute(b) ? a.endsWith('/' + b) : (!path.isAbsolute(a) && path.isAbsolute(b) ? b.endsWith('/' + a) : false));
+export const sameFile = (a, b) => a === b || (a.startsWith('/') && !b.startsWith('/') ? a.endsWith('/' + b) : (!a.startsWith('/') && b.startsWith('/') ? b.endsWith('/' + a) : false));
 
 /** Why a file is kept, before anything is known of the conversation's cuts: 'pattern', 'named', or null. */
 export function keepReason(file, { patterns = KEEP_DEFAULT, prompts = [], match = null, said = null } = {}) {
