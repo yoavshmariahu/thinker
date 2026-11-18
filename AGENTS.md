@@ -187,6 +187,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - **Thinker's own proxy is never another's route** (2026-11-14): every port a proxy of this thinker bound is in `served` (`recordProxyListening`, `SERVED_KEEP` 20) and `isOwnUrl` reads it, so an ad-hoc `proxy serve --port n` beside the service is known as thinker's.
 - **A hook's environment is the session's, not the machine's** (2026-11-14): `routeAppeared` judges from the files alone (`claudeBlocker({ ambient: false })`); the process env counts only where the person typed the command (`proxy on`, the wiring). One session's variable stood the machine down on 2026-11-01 and again on 2026-11-14, killing live sessions' route.
 - Stands down with reason if credentials fail or API refuses `AUTH_REFUSALS` times.
+- That evidence is a session's own (`proxy.js:authWatch`, 2026-11-18): counted per session, and held (`proxy-auth-held` row) where the API answered that session before or another session of the same agent inside `AUTH_QUIET_MS` (10 min). One terminal's key or an expired login never decides for the machine.
 - Sits in front of a gateway only on `thinker proxy on --gateway` + user yes; kept in service state, or `proxy: { upstream }` wins.
 - On 400 to context-management edit with non-Anthropic upstream: if refusal names field/beta, drop edit rest of proxy's life (`editRejected`, `proxy-edit-rejected` row, `edit-unsupported` read); any other 400 passed once, edit still added next request.
 

@@ -192,14 +192,51 @@ export const forwardsToAnthropic = upstream => { try { return /(^|\.)api\.anthro
 // API's own answer reaches the agent: the proxy invents no failure, and a session under way hears it from the API.
 // The clearing has its own gauge for the rewrites after a clear (clearing.js:response); the report still counts them
 // (proxyReport, rewriteWarning) beside the held-out rate, which is the number that judges a policy.
-export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true } = {}) {
-  let refusals = 0, stoodDown = false;
-  const fire = reason => { if (stoodDown || !on) return; stoodDown = true; onStandDown(reason); };
+// One session's evidence is that session's, not the machine's (2026-11-18). Until then the count was one for the
+// whole proxy and either sign fired at once, so a single terminal with a key of its own exported, or a login that
+// expired, took the proxy out of every agent's settings while the sessions beside it were being answered. A
+// harness that is routed elsewhere fails from its first request in every session it has; so the evidence is kept
+// by session (`sessionOf`; the sessions that name none share one count for their agent, as before), and it is
+// held where something says the route works:
+//   - the API has answered this session through the proxy: its credentials were Anthropic's, and what refuses
+//     them now is a login that ran out;
+//   - the API answered another session of the same agent (the user-agent's product) inside `AUTH_QUIET_MS`:
+//     that agent is not routed elsewhere, this session is.
+// Held is not forgotten: the next refusal or foreign request of that session is judged again, so a terminal that
+// stays wrong after the others have gone quiet still stands the proxy down. `onHeld` hears of it once a session.
+export const AUTH_QUIET_MS = 10 * 60 * 1000;
+const AUTH_SESSIONS = 500;   // the sessions remembered, oldest out first: the proxy's process lives for days
+export function authWatch(onStandDown, { limit = AUTH_REFUSALS, on = true, quietMs = AUTH_QUIET_MS, now = Date.now, onHeld = null } = {}) {
+  let stoodDown = false;
+  const seen = new Map();   // session (or `?agent` where it names none) -> { agent, named, refusals, answeredAt, held }
+  const entry = headers => {
+    const agent = String(headers?.['user-agent'] || '').split(/[/\s]/)[0];
+    const session = sessionOf(headers || {});
+    const key = session || `?${agent}`;
+    let e = seen.get(key);
+    if (!e) {
+      if (seen.size >= AUTH_SESSIONS) seen.delete(seen.keys().next().value);
+      seen.set(key, e = { agent, named: !!session, refusals: 0, answeredAt: null, held: false });
+    }
+    return e;
+  };
+  const works = e => {
+    if (e.named && e.answeredAt !== null) return 'the API answered this session before';
+    for (const o of seen.values()) if (o !== e && o.named && o.agent === e.agent && o.answeredAt !== null && now() - o.answeredAt < quietMs) return 'the API is answering another session of the same agent';
+    return null;
+  };
+  const fire = (e, reason) => {
+    if (stoodDown || !on) return;
+    const why = works(e);
+    if (why) { if (!e.held) { e.held = true; try { onHeld?.(why); } catch { /* the request in hand matters more */ } } return; }
+    stoodDown = true; onStandDown(reason);
+  };
   return {
-    request: headers => { if (foreignAuth(headers)) fire('the agent sent credentials that are not Anthropic\'s, so it is routed through a model server of its own'); },
-    response: status => {
-      if ([401, 403].includes(status)) { if (++refusals >= limit) fire(`the API refused the agent's credentials on ${refusals} requests running (HTTP ${status})`); }
-      else if (status < 400) refusals = 0;
+    request: headers => { if (foreignAuth(headers)) fire(entry(headers), 'the agent sent credentials that are not Anthropic\'s, so it is routed through a model server of its own'); },
+    response: (status, headers) => {
+      const e = entry(headers);
+      if ([401, 403].includes(status)) { if (++e.refusals >= limit) fire(e, `the API refused the agent's credentials on ${e.refusals} requests running (HTTP ${status})`); }
+      else if (status < 400) { e.refusals = 0; e.answeredAt = now(); }
     },
     get stoodDown() { return stoodDown; },
   };
@@ -1119,7 +1156,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
   // priced at Anthropic's ratios, which is wrong by a factor of ten in the direction that refuses every cut.
   const rates = createRateTracker();
   const ratesFor = makeRatesResolver({ tracker: rates, configured: cfg.ratesConfig, prices: statedRates });
-  const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown });
+  const watch = authWatch(reason => { log({ at: new Date().toISOString(), op: 'proxy-standdown', reason }); try { onStandDown(reason); } catch { /* the request in hand matters more */ } }, { on: !!onStandDown, onHeld: reason => log({ at: new Date().toISOString(), op: 'proxy-auth-held', reason }) });
   // what is in flight, for a restart that waits until nothing is (proxy-service.js:idleRestartWatcher)
   let inFlight = 0, lastDone = Date.now();
   const server = http.createServer((req, res) => {
@@ -1260,7 +1297,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
           log({ at: new Date().toISOString(), op: extra?.aborted ? 'proxy-cancelled' : 'proxy-error', error: e.message, code: e.code, reused: !!ureq.reusedSocket, afterMs: Date.now() - started, ...extra });
         };
         ureq = lib.request({ protocol: up.protocol, hostname: up.hostname, port: up.port || undefined, path: base + routedPath, method: req.method, headers, agent: getAgent(!!attempt), lookup }, ures => {
-          if (judgeAuth) watch.response(ures.statusCode);
+          if (judgeAuth) watch.response(ures.statusCode, req.headers);
           const firstByteMs = Date.now() - started;
           // A 400 on a request the proxy cut may be the cut itself being rejected -- a history the API will not
           // take -- or it may be about the request, which is the agent's own to see. The body says which

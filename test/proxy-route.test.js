@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { routeEvidence, ownGateway, shellRoute, envRoute, foreignAuth, cloudOn, isAnthropicHost, BASE_URL_VAR } from '../src/proxy-route.js';
-import { authWatch, forwardsToAnthropic, AUTH_REFUSALS, MESSAGES_PATH } from '../src/proxy.js';
+import { authWatch, forwardsToAnthropic, AUTH_REFUSALS, AUTH_QUIET_MS, MESSAGES_PATH } from '../src/proxy.js';
 
 const OURS = 'http://127.0.0.1:6901';
 const isOwn = u => String(u).replace(/\/+$/, '') === OURS;
@@ -41,6 +41,57 @@ test('a wrapper or an alias around claude counts, a comment and an unrelated lin
   assert.equal(shellRoute('  # export ANTHROPIC_BASE_URL=https://gw.corp', { isOwn }), null);
   assert.equal(shellRoute('export EDITOR=vim\nalias gs="git status"', { isOwn }), null);
   assert.equal(shellRoute(`export ANTHROPIC_BASE_URL=${OURS}`, { isOwn }), null, 'ours');
+});
+
+test('one session\'s credentials are that session\'s: nothing stands down while the route works for the others', () => {
+  const cc = id => ({ 'user-agent': 'claude-cli/2.1.327 (external, cli)', 'x-claude-code-session-id': id });
+  let t = 0;
+  const mk = () => { const stood = [], held = []; return { stood, held, w: authWatch(r => stood.push(r), { now: () => t, onHeld: r => held.push(r) }) }; };
+
+  // a login that ran out in a session the API had answered: not a routed harness, however often it is refused
+  let a = mk();
+  a.w.response(200, cc('one'));
+  for (let i = 0; i < AUTH_REFUSALS + 2; i++) a.w.response(401, cc('one'));
+  assert.deepEqual(a.stood, []);
+  assert.equal(a.held.length, 1, 'said once a session');
+  assert.match(a.held[0], /answered this session before/);
+
+  // a terminal with a key of its own, beside a session that is being answered
+  a = mk();
+  a.w.response(200, cc('healthy'));
+  a.w.request({ ...cc('own-key'), authorization: 'Bearer gw_live_123' });
+  for (let i = 0; i < AUTH_REFUSALS; i++) a.w.response(401, cc('refused'));
+  assert.deepEqual(a.stood, [], 'foreign credentials and refusals alike');
+  assert.equal(a.held.length, 2);
+  assert.match(a.held[0], /another session of the same agent/);
+  // held, not forgotten: the others gone quiet, the same terminal still wrong
+  t += AUTH_QUIET_MS;
+  a.w.request({ ...cc('own-key'), authorization: 'Bearer gw_live_123' });
+  assert.equal(a.stood.length, 1);
+  assert.match(a.stood[0], /not Anthropic's/);
+
+  // the count is a session's own: refusals spread over three sessions are three sessions refused once
+  a = mk();
+  for (const id of ['x', 'y', 'z']) a.w.response(401, cc(id));
+  assert.deepEqual(a.stood, []);
+  // and another session's answer does not start a refused session's count again
+  a.w.response(401, cc('x'));
+  a.w.response(200, cc('y'));
+  t += AUTH_QUIET_MS;
+  a.w.response(401, cc('x'));
+  assert.equal(a.stood.length, 1, 'three running in one session, nothing answering beside it');
+
+  // another agent being answered says nothing about this one: a harness routed elsewhere fails in every session
+  a = mk();
+  a.w.response(200, cc('claude'));
+  a.w.request({ 'user-agent': 'pi/1.2', 'x-session-id': 'p1', authorization: 'Bearer gw_live_123' });
+  assert.equal(a.stood.length, 1);
+
+  // sessions that name none share their agent's count, and an answer there excuses nothing later
+  a = mk();
+  a.w.response(200, { 'user-agent': 'pi/1.2' });
+  for (let i = 0; i < AUTH_REFUSALS; i++) a.w.response(401, { 'user-agent': 'pi/1.2' });
+  assert.equal(a.stood.length, 1);
 });
 
 test('a line that clears the route is no route: an empty assignment, unset, env -u', () => {
