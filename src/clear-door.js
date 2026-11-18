@@ -57,12 +57,11 @@ export const stampOf = p => policyId({ trigger: p.trigger, clearAtLeast: p.clear
 
 // A clear must repay its rewrite inside PAYBACK later calls (cutting.js, which carries the measurement that set
 // it). Clearing writes `recache` tokens again at the one-hour rate where they would have been read; each later
-// call then reads `dropped` fewer. Past the cache's hour the whole context is written again whatever this door
-// does, so a clear there costs nothing extra.
+// call then reads `dropped` fewer. A pause past the cache's hour is priced the same way (2026-11-18, the owner's
+// call): it used to pass at any price, which cleared every resumed session over the trigger as deep as it went.
 export const clearPays = (p, { dropped, recache, idle, cleared, model = '' }) => {
   if (!(dropped > 0)) return false;
   if (!p.clearDeep && cleared) return false;
-  if (idle >= COLD_MS) return true;
   return (WRITE_1H / readRate(model) - 1) * recache <= (PAYBACK + 1) * dropped;
 };
 

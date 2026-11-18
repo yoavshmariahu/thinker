@@ -289,7 +289,7 @@ export const freshCut = session => ({
 // What a cut would cost and save. `recache` is the prompt from the first result we would replace to
 // the end: that is what a changed prefix makes the API write again, and we know it exactly because we
 // choose the result. `saving` is the tokens we take out, read back over the calls the session likely
-// has left. A pause past COLD_MS writes the context anyway, so the rewrite is free then.
+// has left.
 // A cut costs the WHOLE post-cut prompt, less the system prompt. Claude Code sets its cache
 // breakpoints on the system prompt and the newest messages, and the API finds a cached prefix only
 // at a breakpoint, so an edit in the middle leaves the system prompt as the only reusable part and
@@ -297,7 +297,13 @@ export const freshCut = session => ({
 // post-cut prompt minus 12,895 every time, and 12,895 was that call's entire cache read. Pricing it
 // as the tail from the first changed result (what this did until then) underpriced cuts 2, 3 and 4
 // by 2.3x, 3.0x and 3.8x -- the same flattering arithmetic the server-side gauge used.
-export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rates = null, mark = false } = {}) {
+// A pause past the cache's hour is priced like any other boundary (2026-11-18, the owner's call). Until then
+// `cold` priced the rewrite at nothing, because a cold request writes its whole context whatever is cut. That
+// made every cold session over the trigger take the deepest cut there was, and with the proxy's breakpoint the
+// cut was not even made on the cold request: it was seeded there and made on the next one, warm. Two sessions
+// resumed after seven and eight hours on 2026-11-18 wrote 398k and 486k uncut, then rewrote 55k and 96k for cuts
+// approved at a payback of zero and logged, as made, at 55 and 81.
+export function priceCut(m, cand, { ttl = '1h', model = null, rates = null, mark = false } = {}) {
   // Dynamic rates (gateway-rates.js): what a write and a read cost relative to an input token,
   // resolved per model from config or the gateway's own measured prices. Null keeps the
   // Anthropic ratios, as before this existed.
@@ -328,7 +334,7 @@ export function priceCut(m, cand, { ttl = '1h', cold = false, model = null, rate
   //
   // The cost may now be negative: a cut that takes out more than its rewrite costs is already ahead on the
   // call that makes it, and `payback` then reads zero or below. That is a real state, not a floor to clamp.
-  const cost = cold ? 0 : recache * (write - read) - read * cand.tokens;
+  const cost = recache * (write - read) - read * cand.tokens;
   // How many later calls until the cut has paid for that cost. No horizon is guessed: see PAYBACK.
   // Zero means repaid on the call that makes the cut, needing no later call. It cannot go below: the cost
   // is at worst -(read x removed), so the quotient is never under -1. `Math.max` is there to keep the -0
@@ -411,8 +417,10 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // eligible whatever the trigger and the size floor said, because past the cache's hour the request writes
   // its whole context anyway and the cut is free. Free was the wrong test: a 90k session picked up the next
   // morning came back without its results, and what the person lost was the context, not money. So the
-  // trigger and the floor stand here too, and `cold` only prices the rewrite at nothing below (`priceCut`),
-  // which is why a cold session over the trigger still takes the deepest rung.
+  // trigger and the floor stand here too. And since 2026-11-18 so does the payback: the rewrite is priced as
+  // a warm one is (`priceCut`), so a resumed session is cut only where a live one would be. `cold` is kept
+  // on a cut's row as a fact about the request, which is what tells the ledger that request's write was the
+  // expired cache's (compression.js:clearingCostBySession).
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };
@@ -427,7 +435,7 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   let take = null, takeP = null, best = null, bestP = null;
   for (const rung of rungs) {
     if (rung.tokens < cfg.clearAtLeast) continue;
-    const p = priceCut(m, rung, { ttl, cold, calls: rec.calls, model, rates, mark });
+    const p = priceCut(m, rung, { ttl, calls: rec.calls, model, rates, mark });
     if (p.pays && (!take || rung.tokens > take.tokens)) { take = rung; takeP = p; }
     if (!bestP || p.payback < bestP.payback) { best = rung; bestP = p; }
   }

@@ -634,7 +634,7 @@ ignored; its history is in git before 2026-11-08.
     integration point for a harness that owns the job's lifecycle.
 - **`byDay` cumulative per snapshot:** day of session's last request or PR merge. Never add snapshots; explode days, add those.
 - **Desktop clears outlive card record:** `compression.js:mirrorClearing` writes to `state/compression/<session>.json` (max 200 files, pruned after `PRUNE_AGE` 2 days) and once to log (`op: 'clearing'`). `delivery.js:sessionsOf` reads; `clearedBySession` sums cumulative. Take newest row, never add.
-- **Cold cut pricing:** `compression.js:clearingCostBySession` prices at zero (cache expired, rewrite happens anyway). Warm cuts charged their rewrite.
+- **Cold cut pricing:** the ledger (`compression.js:clearingCostBySession`) charges a cut made on a cold request nothing (cache expired, rewrite happens anyway). Warm cuts charged their rewrite. **The decision does not price cold at zero** (2026-11-18, the owner's call): `cutting.js:priceCut` and `clear-door.js:clearPays` price a pause past the cache's hour as a live session, so a resumed session is cut only where a live one would be.
 - **Dashboards:** **Savings per session** (`thinker-internal: scripts/savings-dashboard.mjs`), **Pull requests delivered** (`thinker-internal: scripts/delivery-dashboard.mjs`, `valid` accepts schema 2 or 3). Read from `reports.raw_json`.
 - **Limits:** Clearing holdout off since 2026-11-12 (was per-machine baseline, now end). Unstamped clears on current machine until next build. Sessions with no usage (Cursor) counted but no cost. Model per-session reread tracked in `src/rereads.js`.
 

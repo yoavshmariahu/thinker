@@ -160,10 +160,12 @@ test('thinkingKeepTurns: only thinking that many turns old goes with a cut', () 
   assert.equal(t.clear.thinking, t.clientCut.thinking, 'and the ladder priced the same blocks');
   assert.ok(t.policy.endsWith('+th2'));
   // more turns kept than there are: no range, and no thinking moves
-  const all = send({ ...freshCut('s'), at: 1 }, { model: 'claude-opus-5', messages: ms }, { ...CFG, thinkingKeepTurns: 50 }, 1e12);
+  // (results large enough that the cut pays without the thinking: a pause no longer makes a cut free, 2026-11-18)
+  const big = conversation(6, { size: 60000 });
+  const all = send({ ...freshCut('s'), at: 1 }, { model: 'claude-opus-5', messages: big }, { ...CFG, thinkingKeepTurns: 50 }, 1e12);
   assert.equal(all.t.injected, true);
   assert.equal('think' in all.t, false);
-  assert.deepEqual(thinkingAt(all.sent.messages), thinkingAt(ms));
+  assert.deepEqual(thinkingAt(all.sent.messages), thinkingAt(big));
   assert.equal(turnIndex(ms, 0), 0);
   assert.equal(proxyConfig({}, {}).thinkingKeepTurns, 0);
   assert.equal(proxyConfig({ 'thinking-keep-turns': '3' }, {}).thinkingKeepTurns, 3);
