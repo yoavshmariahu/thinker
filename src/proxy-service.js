@@ -717,10 +717,21 @@ function opencodeFile(url, home) {
 // config.yaml after, and appends `v1/messages` itself, so the value is the proxy's bare origin (OpenCode's takes
 // the `/v1`; this one must not). Read in Goose's source at 1.60, and the proxy's own half run with requests of
 // that shape against a stand-in for the API: every row named the session, the boundary seeded, the next request
-// was cut, and the breakpoints stayed at four. Not yet run with the Goose binary itself. The file is Goose's and
+// was cut, and the breakpoints stayed at four.
+// Run with the Goose binary at 1.60.1 (2026-11-19, `goose run` headless against a stand-in for the API): the line
+// in a config.yaml `goose configure` wrote is the host it calls, `v1/messages` appended, for its model calls and
+// for its model-catalog fetch alike; the environment wins over it; the three config paths above are the three
+// `goose info` reports (an absolute root, a relative one ignored, XDG); 42 proxy rows all named the session
+// `agent-session-id` carried, which is the id `goose session list` and Goose's hooks report; two cuts were made at
+// turn boundaries (12 of the 15 results it had then on the first, 20 of 23 on the second), breakpoints never past
+// four, and Goose carried on through both without a word about its history. The file is Goose's and
 // Goose rewrites it, so the one line is set and taken out as text and nothing else
-// in it is parsed or reordered (clients.js does the same for the MCP entry). A host of the person's own is left
-// alone and named; with no config file there is no Goose here and none is made.
+// in it is parsed or reordered (clients.js does the same for the MCP entry): checked live, our line survived both
+// `goose configure` and the `plugins:` entry Goose adds on a run, and `off` left the file byte-identical but for
+// it. A host of the person's own is left alone and named; with no config file there is no Goose here and none is
+// made. Goose truncates a large tool result itself before the proxy ever sees it (a 97 KB shell output arrived as
+// 10.5 KB, past its own 2000-line and 50000-byte limits), so a Goose session reaches the trigger on the number of
+// results rather than their size.
 // Only the Anthropic provider is carried. Goose on another provider is wired all the same, since the key is
 // inert until Anthropic is the provider, and the line says which provider it is on now.
 const gooseConfig = () => (process.env.GOOSE_PATH_ROOT && path.isAbsolute(process.env.GOOSE_PATH_ROOT)
