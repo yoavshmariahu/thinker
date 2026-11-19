@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { Store } from '../src/store.js';
-import { delegateMetrics, proxyMetrics } from '../src/telemetry.js';
+import { compactionMetrics, delegateMetrics, proxyMetrics } from '../src/telemetry.js';
 import { sessionsOf } from '../src/delivery.js';
 import { repoId } from '../src/store.js';
 
@@ -85,5 +85,33 @@ test('a session is dated by its own turns, never by a background read of it afte
     const x = [...sessionsOf(store, { log, home: path.join(repo, 'home'), env: {} }).values()][0];
     assert.equal(x.firstAt, '2026-10-20T10:00:00.000Z');
     assert.equal(x.lastAt, '2026-10-20T11:00:00.000Z', 'the day it ran, not the day the profile read it');
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('Devin\'s compactions leave the machine as counts by day: each once at its size, the sessions they were in, and no session id', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-daily-'));
+  try {
+    const store = new Store(repo).init();
+    // as devin-compaction.js:recordDevinCompactions logs them
+    store.log({ op: 'compaction', client: 'devin', session: 'brawny-cave', node: 12, before: 25855, after: 17267, saved: 8588 });
+    store.log({ op: 'compaction', client: 'devin', session: 'brawny-cave', node: 31, before: 21000, after: 18195, saved: 2805 });
+    store.log({ op: 'compaction', client: 'devin', session: 'quiet-harbor', node: 9, before: 150000, after: 40000, saved: 110000 });
+    store.log({ op: 'compaction', client: 'devin', session: 'took-nothing', node: 4, before: 900, after: 900, saved: 0 });
+    store.log({ op: 'delegate', session: 'brawny-cave', client: 'devin', kind: 'explore', files: ['a.py'], tokens: 40000, held: false });
+    const m = compactionMetrics(store, { all: false });
+    assert.equal(m.schemaVersion, 1);
+    assert.deepEqual(m.byDay, { [new Date().toISOString().slice(0, 10)]: { compactions: 3, sessions: 2, tokens: 8588 + 2805 + 110000 } });
+    for (const id of ['brawny-cave', 'quiet-harbor', repo]) assert.equal(JSON.stringify(m).includes(id), false, 'no session or repository leaves the machine');
+    // a compaction older than the window is in no day
+    assert.deepEqual(compactionMetrics(store, { all: false, now: Date.now() + 40 * 86400000 }).byDay, {});
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('a machine with no Devin compaction sends an empty block, not a zero day', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-daily-'));
+  try {
+    const store = new Store(repo).init();
+    store.log({ op: 'session', session: 's1', client: 'claude', model: 'claude-opus-5-5' });
+    assert.deepEqual(compactionMetrics(store, { all: false }), { schemaVersion: 1, windowDays: 30, byDay: {} });
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });

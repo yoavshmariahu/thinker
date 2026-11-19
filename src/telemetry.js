@@ -666,6 +666,10 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
     delegate: delegateMetrics(store, { all, home }),
 
+    // an agent's own compactor that thinker steers and measures, by day: Devin's, the one agent whose model
+    // calls no proxy of ours can carry (compactionMetrics). The daily dashboard counts them beside the proxy's cuts.
+    compactions: compactionMetrics(store, { all }),
+
     // what was suggested, offered and decided on Find Savings, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
     actions: tokenSpend.actions,
@@ -751,6 +755,32 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
     for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
   }
   return { schemaVersion: 2, windowDays: SPEND_WINDOW_DAYS, byDay };
+}
+
+// An agent's own compactions by UTC day (devin-compaction.js, the usage log's `op: compaction` rows). Devin's
+// model calls go to Cognition's server in its own protocol, so the context proxy cannot carry them and a Devin
+// session is in none of the proxy's counts (`proxy.byDay`): until 2026-11-19 a machine working in Devin all day
+// read on the dashboard as one thinker did nothing for. What thinker does there is set Devin's compactor to the
+// cut trigger and read what each compaction took out, and this is that, counted: `compactions` is the summaries
+// Devin applied, `sessions` the sessions they were in, `tokens` what they took out of the context -- each
+// compaction once, at its size, not once for every later call as the proxy's `cleared` is. A row is dated by the
+// end of the turn that found it. Counts alone: no session id, no repository, and no dollar figure, since a Devin
+// session is billed in Cognition's units and has no list price here.
+export function compactionMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
+  const byDay = {}, seen = {};
+  let events = []; try { events = readLog(store, { all }); } catch { events = []; }
+  for (const e of events) {
+    if (e.op !== 'compaction' || typeof e.t !== 'string' || e.t < since || !Number.isFinite(Date.parse(e.t))) continue;
+    const saved = Number(e.saved);
+    if (!(saved > 0)) continue;   // a compaction that took nothing out is not a cut
+    const day = e.t.slice(0, 10);
+    const d = byDay[day] ||= { compactions: 0, sessions: 0, tokens: 0 };
+    d.compactions++; d.tokens += Math.round(saved);
+    if (e.session) (seen[day] ||= new Set()).add(e.session);
+  }
+  for (const [day, d] of Object.entries(byDay)) d.sessions = seen[day]?.size || 0;
+  return { schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
 // The metrics API refuses a payload over 64 KB, and a refusal loses the whole
