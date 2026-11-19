@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_WEIGHTS } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK, wroteCold, savedAs, chargedRewrite, readRate } from '../src/cutting.js';
+import { sessionOf, SESSION_HEADERS, decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK, wroteCold, savedAs, chargedRewrite, readRate } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -410,4 +410,16 @@ test('what a token left out of a request was worth: a read from a warm cache, a 
   assert.equal(readRate('claude-fable-5'), 0.1, 'Fable 5 reads at a tenth');
   assert.equal(readRate('claude-sonnet-5-5'), 0.05, 'Sonnet 5.5 at a twentieth'); assert.equal(readRate('claude-sonnet-5'), 0.1);
   assert.equal(readRate('claude-opus-5-5'), 0.05); assert.equal(readRate('claude-opus-5'), 0.1);
+});
+
+// 2026-11-19: Goose names its session in a header of its own, and a session with no name is one the ledger never sees
+test('a request says whose session it is: Claude Code\'s header, OpenCode\'s, Goose\'s, and never a path or a URL', () => {
+  assert.equal(sessionOf({ 'x-claude-code-session-id': 'ce2488b7-f2eb' }), 'ce2488b7-f2eb');
+  assert.equal(sessionOf({ 'x-opencode-session-id': 'ses_abc' }), 'ses_abc');
+  assert.equal(sessionOf({ 'agent-session-id': '20261119_3' }), '20261119_3', 'Goose');
+  assert.equal(sessionOf({ 'agent-session-id': 'goose-1', 'x-session-id': 'other' }), 'goose-1', 'the agent\'s own header before the name anything might set');
+  assert.equal(sessionOf({ 'x-claude-code-session-id': 'cc', 'agent-session-id': 'goose-1' }), 'cc');
+  for (const bad of ['/tmp/session', 'https://x/y', 'two words', '', 'x'.repeat(201)]) assert.equal(sessionOf({ 'agent-session-id': bad }), null, JSON.stringify(bad.slice(0, 20)));
+  assert.equal(sessionOf({}), null);
+  assert.ok(SESSION_HEADERS.indexOf('agent-session-id') < SESSION_HEADERS.indexOf('x-session-id'));
 });

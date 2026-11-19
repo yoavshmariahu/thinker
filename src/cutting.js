@@ -284,7 +284,10 @@ export function cutInput(input, { minChars = MIN_CHARS } = {}) {
 // `ses_...` id its plugin reports to the stop hook), so the figures can be joined on it. The list is
 // ordered most specific first, and a value is taken only if it looks like an id rather than a path or
 // a URL, because `x-session-id` is a name anything upstream might set.
-export const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'x-session-id'];
+// Goose names its session in `agent-session-id` (2026-11-19: `SESSION_ID_HEADER` in its source at 1.60, put on
+// every provider request made inside a session), so a Goose session's rows are its own from the first request.
+// Read in the source, not yet seen from the Goose binary: whether it is the id Goose's hooks report is unchecked.
+export const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'agent-session-id', 'x-session-id'];
 export const sessionOf = headers => {
   for (const h of SESSION_HEADERS) {
     const v = headers[h];
