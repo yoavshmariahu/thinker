@@ -251,7 +251,7 @@ guard: the guards are not what is being reconsidered.
 - Checked live through OpenRouter on GLM 5.3, Gemini 3.6 Flash, Claude Haiku 5.5 and GPT-5.4 mini (trigger lowered to 30k): the cut fired at the boundary, the same set on every call of a turn, 75-82% read from cache on the cut's own call and 92-100% on the next (GLM stayed at 67-82%).
 
 **A request that never reached the API recovers (2026-11-05, `src/proxy-retry.js`):**
-- Address cache (`addressBook`, cached 6 h), ladder (`RETRY_WAITS` 0.25–4s), fresh socket for TLS/EHOSTUNREACH.
+- Address cache (`addressBook`, cached 6 h), ladder (`RETRY_WAITS` 0.25–4s), fresh socket for TLS and the four unreachable/dropped codes (EHOSTUNREACH, ENETUNREACH, EADDRNOTAVAIL, ECONNRESET).
 - Cancellations: `op: 'proxy-cancelled'` (also `aborted` flag while old logs in window).
 
 **One summary, not every turn (2026-11-01):**
