@@ -9,7 +9,9 @@ import { transformChat, chatCandidates, applyChatCut, chatUsage, chatUsageTap, c
 import { placeholder, freshCut, clearedOf, clearedEstimated, cutStore } from '../src/cutting.js';
 
 // A gateway config as the service builds it (proxyConfig reads the flags; the door reads the fields).
-const cfg = extra => ({ ...proxyConfig({}, {}), protocol: 'chat', gateway: 'openrouter', trigger: 1, clearAtLeast: 1, keepMin: 1, ...extra });
+// `cut: true`: cutting is off by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS), and this door's share of
+// the one policy is what these tests are about -- `test/cut-off.test.js` is where the default is held.
+const cfg = extra => ({ ...proxyConfig({}, {}), cut: true, protocol: 'chat', gateway: 'openrouter', trigger: 1, clearAtLeast: 1, keepMin: 1, ...extra });
 const user = text => ({ role: 'user', content: text });
 const call = (id, name = 'read_file') => ({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name, arguments: '{}' } }] });
 const result = (id, content = 'old file contents '.repeat(4000)) => ({ role: 'tool', tool_call_id: id, content });
@@ -162,7 +164,7 @@ test('HTTP transport routes by prefix, preserves auth, and logs the cut', async 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-chat-'));
   const logFile = path.join(dir, 'proxy.jsonl');
   const proxy = startProxy({
-    ...proxyConfig({ 'gateway-openrouter': true }, {}),
+    ...proxyConfig({ 'gateway-openrouter': true, cut: true }, {}),
     trigger: 1, clearAtLeast: 1, keepMin: 1,
     upstream: `http://127.0.0.1:${upstream.address().port}/api/v1`,
     gateways: { openrouter: { upstream: `http://127.0.0.1:${upstream.address().port}/api/v1` } },
@@ -231,7 +233,7 @@ test('the gateways\' own answers become the rates the next decision is priced wi
   const logFile = path.join(dir, 'proxy.jsonl');
   const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/api/v1`;
   const proxy = startProxy({
-    ...proxyConfig({ 'gateway-openrouter': true }, {}),
+    ...proxyConfig({ 'gateway-openrouter': true, cut: true }, {}),
     trigger: 1, clearAtLeast: 1, keepMin: 1,
     upstream: upstreamUrl, gateways: { openrouter: { upstream: upstreamUrl } },
   }, { logFile, clearingDir: path.join(dir, 'clearing'), compressionDir: path.join(dir, 'compression') });

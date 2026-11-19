@@ -47,9 +47,12 @@ test('the arms block is the kept report\'s two sides per feature, as sums, with 
   const empty = armsMetrics(store, { all: false, now });
   assert.equal(empty.schemaVersion, 1); assert.equal(empty.repos, 1); assert.equal(empty.reposWithoutReport, 1);
   assert.equal(empty.profile.shown, null); assert.equal(empty.compression.on, null); assert.equal(empty.reportsFrom, null);
-  // the shape, not a fixed string: this reads the machine's own `proxy` block, so a switch the person has turned on
-  // here is in it (cutting.js:policyId) and a hardcoded tail would fail on their machine and not ours
-  assert.match(empty.policy, /^v\d+\.\d+\.\d+-t\d+k-f\d+k-p\d+-(deep|one)(\+in)?(\+img)?(\+bp)?(\+th\d*)?$/, 'the policy this machine runs today');
+  // The shape, not a fixed string: this reads the machine's own `proxy` block, so a switch the person has turned
+  // on here is in it (cutting.js:policyId) and a hardcoded tail would fail on their machine and not ours. `-off`
+  // is the shape since 2026-11-19, when the cutting was turned off (proxy.js:PROXY_DEFAULTS): a dashboard reading
+  // these payloads must be able to tell a machine that cut nothing from one that cut under some policy.
+  assert.match(empty.policy, /^v\d+\.\d+\.\d+-(off|t\d+k-f\d+k-p\d+-(deep|one)(\+in)?(\+img)?(\+bp)?(\+th\d*)?)$/, 'the policy this machine runs today');
+  assert.equal(empty.policy.endsWith('-off'), true, 'and on an unconfigured machine it is the one that cuts nothing');
   const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
   const r = (cost, exchanges, loops = []) => ({ cost, tokens: cost * 1e5, calls: 10, exchanges, stages: { ...stages, build: { cost: cost / 2, tokens: 0, rework: cost / 10, reworkTokens: 0 } }, loops, cacheWrite: 1000, cacheRead: 9000 });
   const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');

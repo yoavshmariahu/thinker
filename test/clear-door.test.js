@@ -13,7 +13,11 @@ import { PAYBACK, WRITE_1H, MIN_CHARS, COLD_MS, readRate, placeholder, policyId,
 import { PROXY_DEFAULTS, resultTokens } from '../src/proxy.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
-const DEFAULTS = desktopPolicy(null);
+// Cutting is off by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS) and this door clears nothing with it.
+// What the rest of this file tests is the mechanism, which is still there and still asked for by `cut: true`:
+// ON is that config, DEFAULTS the policy it makes. The default -- nothing cleared at all -- is its own test.
+const ON = { proxy: { cut: true } };
+const DEFAULTS = desktopPolicy(ON);
 const big = (n, ch = 'x') => ch.repeat(n);
 const prompt = text => ({ role: 'user', text, toolUses: [] });
 const call = (id, tool = 'Read', input = {}) => ({ role: 'assistant', text: '', toolUses: [{ tool_use_id: id, tool, input }] });
@@ -60,14 +64,31 @@ test('a rung stops the clear at the newest results the decision chose', () => {
   assert.equal(clearPlan(messages, { keepMin: 0 }).cleared, 6, 'no depth is every eligible result');
 });
 
+// Cutting off is the default and this door is half of it: the desktop app is where most of this machine's
+// clearing happened, so a switch the proxy honoured and the mod did not would have changed nothing.
+test('with nothing configured this door clears nothing, and says which policy answered', () => {
+  const off = desktopPolicy(null);
+  assert.deepEqual(off, { ...DEFAULTS, cut: false, auto: false });
+  assert.equal(stampOf(off), `v${VERSION}-off`, 'a row made while cutting was off names that and not the guards it never consulted');
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: null }).auto, false);
+  const due = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() }, { config: null });
+  assert.equal(due.clear, false, 'a conversation well past the trigger with five results to take is left alone');
+  assert.equal(due.reason, 'off');
+  assert.equal(due.askAt, NEVER, 'and the mod is told not to come back on the context alone');
+  // a clear the person asks for by hand is still theirs to ask for
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: long() }, { config: null }).clear, true);
+  // `desktop: false` goes on turning this door off by itself, with the proxy's cutting on
+  assert.equal(desktopPolicy({ proxy: { cut: true, desktop: false } }).auto, false);
+});
+
 test('the policy is the proxy\'s unless the machine config says otherwise, and its stamp is this release\'s', () => {
-  assert.deepEqual(DEFAULTS, { keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0.25, auto: true, clearDeep: true });
-  assert.deepEqual(desktopPolicy({ proxy: { trigger: 90000, holdout: 0, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, holdout: 0, auto: false });
+  assert.deepEqual(DEFAULTS, { cut: true, keepMin: PROXY_DEFAULTS.keepMin, clearAtLeast: PROXY_DEFAULTS.clearAtLeast, trigger: PROXY_DEFAULTS.trigger, holdout: 0.25, auto: true, clearDeep: true });
+  assert.deepEqual(desktopPolicy({ proxy: { cut: true, trigger: 90000, holdout: 0, desktop: false, keepMin: 'x' } }), { ...DEFAULTS, trigger: 90000, holdout: 0, auto: false });
   // The mod never sees the request: it places no breakpoint, leaves out no thinking and takes no call text, so a
   // saving made here is named without them and never pooled with the proxy's.
   assert.equal(stampOf(DEFAULTS), `v${VERSION}-t140k-f8k-p${PAYBACK}-deep`);
-  assert.equal(stampOf(DEFAULTS), policyId({ ...PROXY_DEFAULTS, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }));
-  assert.equal(stampOf(desktopPolicy({ proxy: { clearDeep: false, clearAtLeast: 20000 } })), `v${VERSION}-t140k-f20k-p${PAYBACK}-one`);
+  assert.equal(stampOf(DEFAULTS), policyId({ ...PROXY_DEFAULTS, cut: true, cutInputs: false, cutImages: false, cutBreakpoint: false, cutThinking: false }));
+  assert.equal(stampOf(desktopPolicy({ proxy: { cut: true, clearDeep: false, clearAtLeast: 20000 } })), `v${VERSION}-t140k-f20k-p${PAYBACK}-one`);
 });
 
 test('a session is in or out of the holdout for good, and thinker\'s own proxy is known by its loopback address', () => {
@@ -157,34 +178,34 @@ const long = () => {
 };
 
 test('start: whether this door clears the session by itself', () => {
-  const on = clearAnswer({ op: 'start', session: 's' }, { config: {} });
+  const on = clearAnswer({ op: 'start', session: 's' }, { config: ON });
   assert.deepEqual(on, { auto: true, policy: stampOf(DEFAULTS) });
-  assert.equal(clearAnswer({ op: 'start', session: 's', baseUrl: 'http://127.0.0.1:61056' }, { config: {} }).auto, false, 'the proxy serves it');
-  assert.equal(clearAnswer({ op: 'start', session: 's', test: true }, { config: {} }).auto, false);
-  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: { proxy: { desktop: false } } }).auto, false);
-  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: { proxy: { holdout: 1 } } }).auto, false);
+  assert.equal(clearAnswer({ op: 'start', session: 's', baseUrl: 'http://127.0.0.1:61056' }, { config: ON }).auto, false, 'the proxy serves it');
+  assert.equal(clearAnswer({ op: 'start', session: 's', test: true }, { config: ON }).auto, false);
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: { proxy: { cut: true, desktop: false } } }).auto, false);
+  assert.equal(clearAnswer({ op: 'start', session: 's' }, { config: { proxy: { cut: true, holdout: 1 } } }).auto, false);
 });
 
 test('decide: nothing below the trigger, the deepest rung that repays past it, and when to ask again', () => {
   const messages = long();
-  const below = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 90000, messages: null }, { config: {} });
+  const below = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 90000, messages: null }, { config: ON });
   assert.deepEqual(below, { clear: false, depth: null, askAt: DEFAULTS.trigger, hold: HOLD_GROWTH, policy: stampOf(DEFAULTS), reason: 'below-trigger' });
-  const due = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, idle: 0, cleared: false, messages }, { config: {} });
+  const due = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, idle: 0, cleared: false, messages }, { config: ON });
   assert.deepEqual(due, { clear: true, depth: 5, askAt: DEFAULTS.trigger, hold: HOLD_GROWTH, policy: stampOf(DEFAULTS) });
   // an attempt that cleared nothing holds the next: the mod says how far, the answer says when to come back
-  const held = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, holdUntil: 360000, messages }, { config: {} });
+  const held = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, holdUntil: 360000, messages }, { config: ON });
   assert.equal(held.clear, false);
   assert.equal(held.askAt, 360000);
   assert.equal(held.reason, 'held');
   // due, but the mod sent no conversation (its every-few-turns check): no clear is guessed, and it is asked for
-  const blind = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: null }, { config: {} });
+  const blind = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: null }, { config: ON });
   assert.equal(blind.clear, false);
   assert.equal(blind.askAt, DEFAULTS.trigger);
   assert.equal(blind.reason, 'unreadable');
   // a machine whose config moved the trigger is answered by the config in force now, not at the session's start
-  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages }, { config: { proxy: { trigger: 400000 } } }).askAt, 400000);
+  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages }, { config: { proxy: { cut: true, trigger: 400000 } } }).askAt, 400000);
   // a session this door does not clear by itself is told not to come back on the context alone
-  for (const [ev, config, reason] of [[{ baseUrl: 'http://localhost:9' }, {}, 'proxied'], [{}, { proxy: { desktop: false } }, 'off'], [{}, { proxy: { holdout: 1 } }, 'holdout'], [{ test: true }, {}, 'test']]) {
+  for (const [ev, config, reason] of [[{ baseUrl: 'http://localhost:9' }, ON, 'proxied'], [{}, { proxy: { cut: true, desktop: false } }, 'off'], [{}, { proxy: { cut: true, holdout: 1 } }, 'holdout'], [{ test: true }, ON, 'test'], [{}, {}, 'off']]) {
     const a = clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages, ...ev }, { config });
     assert.equal(a.clear, false, reason);
     assert.equal(a.askAt, NEVER, reason);
@@ -194,28 +215,28 @@ test('decide: nothing below the trigger, the deepest rung that repays past it, a
 
 test('decide by hand: anything at all to clear is enough, and a conversation that cannot be read may still try', () => {
   const some = [prompt('go'), call('a'), result('a', big(5000)), prompt('next'), call('b'), result('b', big(100)), call('c'), result('c', big(100)), call('d'), result('d', big(100)), prompt('more')];
-  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: some }, { config: {} }).clear, true);
-  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: [prompt('go'), call('a'), result('a', big(5000))] }, { config: {} }).clear, false);
-  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: null }, { config: {} }).clear, true);
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: some }, { config: ON }).clear, true);
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: [prompt('go'), call('a'), result('a', big(5000))] }, { config: ON }).clear, false);
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: null }, { config: ON }).clear, true);
   // by hand it runs even where the session is held out or proxied: the person asked
-  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: some, baseUrl: 'http://localhost:9' }, { config: { proxy: { holdout: 1 } } }).clear, true);
+  assert.equal(clearAnswer({ op: 'decide', from: 'manual', session: 's', messages: some, baseUrl: 'http://localhost:9' }, { config: { proxy: { cut: true, holdout: 1 } } }).clear, true);
 });
 
 test('apply: the results to replace and what they come to, or the line the engine prints for a clear not made', () => {
   const messages = long();
-  const a = clearAnswer({ op: 'apply', from: 'auto', session: 's', depth: 2, messages }, { config: {} });
+  const a = clearAnswer({ op: 'apply', from: 'auto', session: 's', depth: 2, messages }, { config: ON });
   assert.deepEqual(Object.keys(a.replace).sort(), ['t3', 't4']);
   assert.equal(a.cleared, 2);
   assert.equal(a.tokens, 2 * resultTokens(big(120000)));
   assert.equal(a.policy, stampOf(DEFAULTS));
   assert.deepEqual(a.tools, [{ name: 'Bash', calls: 2, tokens: a.tokens }]);
-  assert.equal(clearAnswer({ op: 'apply', from: 'manual', session: 's', depth: null, messages }, { config: {} }).cleared, 5, 'no depth is every eligible result');
+  assert.equal(clearAnswer({ op: 'apply', from: 'manual', session: 's', depth: null, messages }, { config: ON }).cleared, 5, 'no depth is every eligible result');
   // under the size floor: by itself it waits and says why, by hand it runs
   const small = [prompt('go'), call('a'), result('a', big(5000)), prompt('next'), call('b'), result('b', big(100)), call('c'), result('c', big(100)), call('d'), result('d', big(100)), prompt('more')];
-  assert.match(clearAnswer({ op: 'apply', from: 'auto', session: 's', depth: null, messages: small }, { config: {} }).skip, /tokens to clear, under 8,000$/);
-  assert.equal(clearAnswer({ op: 'apply', from: 'manual', session: 's', depth: null, messages: small }, { config: {} }).cleared, 1);
-  assert.equal(clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: [prompt('go')] }, { config: {} }).skip, 'thinker-clear: nothing old enough to clear');
-  assert.match(clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: null }, { config: {} }).skip, /could not be read/);
+  assert.match(clearAnswer({ op: 'apply', from: 'auto', session: 's', depth: null, messages: small }, { config: ON }).skip, /tokens to clear, under 8,000$/);
+  assert.equal(clearAnswer({ op: 'apply', from: 'manual', session: 's', depth: null, messages: small }, { config: ON }).cleared, 1);
+  assert.equal(clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: [prompt('go')] }, { config: ON }).skip, 'thinker-clear: nothing old enough to clear');
+  assert.match(clearAnswer({ op: 'apply', from: 'auto', session: 's', messages: null }, { config: ON }).skip, /could not be read/);
 });
 
 test('`thinker hook clear` answers one line of JSON from any folder, and reads the machine config of the home it is given', () => {
@@ -227,13 +248,17 @@ test('`thinker hook clear` answers one line of JSON from any folder, and reads t
     assert.equal(r.stdout.trim().split('\n').length, 1, 'one line');
     return JSON.parse(r.stdout);
   };
+  // an unconfigured machine cuts nothing (2026-11-19), which is what a desktop session asks this and is told
+  assert.deepEqual(ask({ op: 'start', session: 's' }), { auto: false, policy: `v${VERSION}-off` });
+  assert.equal(ask({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() }).reason, 'off');
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify(ON));
   assert.deepEqual(ask({ op: 'start', session: 's' }), { auto: true, policy: stampOf(DEFAULTS) });
   const due = ask({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() });
   assert.equal(due.clear, true);
   assert.equal(due.depth, 5);
   assert.equal(Object.keys(ask({ op: 'apply', from: 'auto', session: 's', depth: due.depth, messages: long() }).replace).length, 5);
   // the config in force when the question is asked, which is the point: a session never restarts to see it
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { trigger: 500000 } }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cut: true, trigger: 500000 } }));
   const later = ask({ op: 'decide', from: 'auto', session: 's', tokens: 300000, messages: long() });
   assert.equal(later.clear, false);
   assert.equal(later.askAt, 500000);

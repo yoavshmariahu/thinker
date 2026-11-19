@@ -45,6 +45,15 @@ data behind both.
 **The saving is measured.** The context proxy replaces the older tool results of a conversation in the requests it
 forwards, counts what it left out of each prompt, and those are added up over the pull request's sessions.
 
+**Cutting is off since 19 November 2026, and the proxy stays.** Nothing is removed from a prompt: on the machine
+this was decided on the clearing was worth under 1% of spend, and its own weekly figures disagreed by fifty times
+over, which no amount of tuning answers. The proxy goes on carrying every request and measuring what it cost --
+which is where every dollar figure here comes from -- recovering a request that never reached the API, routing
+and pricing other providers' models, and counting what delegation saves. A row still says what a cut would have
+taken, so the next strategy can be built on the measurement rather than on another guess. `proxy: { cut: true }`
+in `~/.thinker/config.json` puts the cutting back exactly as it was, guards and all; the saving a session made
+names the policy that made it, so the two are never added together.
+
 **Matching a session to a pull request** needs nothing from you. A session is matched by a commit it
 was sitting on, or failing that by its branch. Where that is wrong or a session split across two pull
 requests, say so:

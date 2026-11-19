@@ -16,7 +16,7 @@ const rec = (over = {}) => ({ ...freshCut('s'), turn: 0, at: Date.now(), ...over
 test('an Anthropic route keeps the guards and the policy id it already had', () => {
   assert.equal(BASE_RATIO, 20);
   assert.equal(cutScale({ model: 'claude-opus-5-5', ttl: '1h' }), 1);
-  const cfg = { ...PROXY_DEFAULTS };
+  const cfg = { ...PROXY_DEFAULTS, cut: true };
   const eff = scaledPolicy(cfg, { model: 'claude-opus-5-5', ttl: '1h' });
   assert.equal(eff, cfg, 'the same object: nothing is derived where the ratio is the one the guards were set against');
   // `+in` is `cutInputs`, on by default since 2026-11-14: the stamp names what the default policy actually does,
@@ -32,7 +32,7 @@ test("GLM's stated prices put the guards ten times lower, and the policy id says
   const rates = statedRates('glm-5.3');
   assert.deepEqual({ read: rates.read, write: rates.write }, GLM, 'write at the input price, read at half');
   assert.equal(cutScale({ model: 'glm-5.3', rates }), 0.1);
-  const eff = scaledPolicy({ ...PROXY_DEFAULTS }, { model: 'glm-5.3', rates });
+  const eff = scaledPolicy({ ...PROXY_DEFAULTS, cut: true }, { model: 'glm-5.3', rates });
   assert.equal(eff.trigger, 14000);
   assert.equal(eff.clearAtLeast, PROXY_DEFAULTS.clearAtLeast, 'the floor does not scale: since the ladder it guards against arithmetic noise, which is in tokens');
   assert.equal(eff.scale, 0.1);
@@ -41,13 +41,13 @@ test("GLM's stated prices put the guards ten times lower, and the policy id says
 
 test('the clamp holds a route with no caching at all off the floor', () => {
   assert.equal(cutScale({ rates: { read: 1, write: 1 } }), SCALE_MIN);
-  assert.equal(scaledPolicy({ ...PROXY_DEFAULTS }, { rates: { read: 1, write: 1 } }).trigger, 14000);
+  assert.equal(scaledPolicy({ ...PROXY_DEFAULTS, cut: true }, { rates: { read: 1, write: 1 } }).trigger, 14000);
   // a rate that cannot be read is not a licence to move anything
   for (const rates of [{ read: 0, write: 1 }, { read: 0.5, write: 0 }]) assert.equal(cutScale({ rates }), 1);
 });
 
 test('a 60k batch that Anthropic refuses as below-trigger is cut on GLM, and priced as paying', () => {
-  const cfg = { ...PROXY_DEFAULTS };
+  const cfg = { ...PROXY_DEFAULTS, cut: true };
   const m = { prompt: 40000, turn: 1 };
   const c = cand(20000, 24000);
   const anth = decideCut(rec(), cfg, m, { cand: c, ttl: '1h', model: 'claude-opus-5-5' });
@@ -68,7 +68,7 @@ test('a 60k batch that Anthropic refuses as below-trigger is cut on GLM, and pri
 });
 
 test('payback still refuses a small batch whose tail dwarfs it, so the cheap route cuts early, not late', () => {
-  const cfg = { ...PROXY_DEFAULTS };
+  const cfg = { ...PROXY_DEFAULTS, cut: true };
   const rates = statedRates('glm-5.3');
   // The tail has to dwarf the cut by more than it used to for this to be refused: at GLM's rates the
   // corrected cost takes the displaced read off the rewrite, so a 7k cut behind a 180k tail -- refused when

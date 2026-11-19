@@ -95,7 +95,7 @@ function send(rec, j, cfg, now) {
   cutResponse(rec, cfg, t, { read: 1 }, { now });
   return { t, sent: JSON.parse(t.body) };
 }
-const CFG = { ...PROXY_DEFAULTS, trigger: 1000, clearAtLeast: 1000, cutThinking: true, thinkingKeepTurns: 0 };
+const CFG = { ...PROXY_DEFAULTS, cut: true, trigger: 1000, clearAtLeast: 1000, cutThinking: true, thinkingKeepTurns: 0 };
 
 test('through the door: the cut names its range, and every later request leaves out the same blocks', () => {
   const ms = conversation(6), rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour: everything eligible goes
@@ -142,9 +142,9 @@ test('the record only ever grows, and the switch has a flag, a variable, a confi
   assert.equal(proxyConfig({}, {}).cutThinking, true);
   assert.equal(proxyConfig({ 'no-cut-thinking': true }, {}).cutThinking, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_THINKING: 'off' }).cutThinking, false);
-  assert.ok(policyId({ ...PROXY_DEFAULTS, cutThinking: true, thinkingKeepTurns: 0 }).endsWith('+th'));
-  assert.ok(policyId(PROXY_DEFAULTS).endsWith('+th2'), 'the default names the two turns it keeps');
-  assert.ok(!policyId({ ...PROXY_DEFAULTS, cutThinking: false }).includes('+th'), 'a saving made with the thinking kept is never pooled with one made without');
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cut: true, cutThinking: true, thinkingKeepTurns: 0 }).endsWith('+th'));
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cut: true }).endsWith('+th2'), 'the default names the two turns it keeps');
+  assert.ok(!policyId({ ...PROXY_DEFAULTS, cut: true, cutThinking: false }).includes('+th'), 'a saving made with the thinking kept is never pooled with one made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-th-'));
   try {
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutThinking: false } }));

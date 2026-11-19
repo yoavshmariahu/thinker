@@ -200,7 +200,9 @@ export function serviceArgs(home = thinkerHome(), state = serviceState(home)) {
   for (const [key, flag] of [['trigger', '--trigger'], ['keep', '--keep'], ['keepMin', '--keep-min'], ['clearAtLeast', '--clear-at-least'], ['thinkingKeepTurns', '--thinking-keep-turns']]) if (cfg[key] != null) args.push(flag, String(cfg[key]));
   if (upstream) args.push('--upstream', String(upstream));
   // on by default (proxy.js:PROXY_DEFAULTS, 2026-10-28); a machine config that says false keeps that clear off.
-  for (const [key, flag] of [['clearDeep', 'clear-deep'], ['cutInputs', 'cut-inputs'], ['cutImages', 'cut-images'], ['cutBreakpoint', 'cut-breakpoint'], ['cutThinking', 'cut-thinking']]) {
+  // `cut` is the one switch over the rest and is OFF by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS), so
+  // it is `cut: true` in the config that has to reach the service; the others are on and it is `false` that does.
+  for (const [key, flag] of [['cut', 'cut'], ['clearDeep', 'clear-deep'], ['cutInputs', 'cut-inputs'], ['cutImages', 'cut-images'], ['cutBreakpoint', 'cut-breakpoint'], ['cutThinking', 'cut-thinking']]) {
     if (cfg[key] === false) args.push(`--no-${flag}`);
     else if (cfg[key] === true) args.push(`--${flag}`);
   }

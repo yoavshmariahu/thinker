@@ -12,7 +12,9 @@ import { CLEARED_OUTPUT, responsesUsage, responsesUsageTap, responsesReport, res
 
 import { placeholder, freshCut, cutResponse, cutStore, decideCut } from '../src/cutting.js';
 
-const cfg = extra => proxyConfig({ protocol: 'responses', upstream: 'http://127.0.0.1:1/v1', trigger: '1', 'clear-at-least': '1', 'keep-min': '1', ...extra }, {});
+// `cut: true`: cutting is off by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS), and this door's share of
+// the one policy is what these tests are about -- `test/cut-off.test.js` is where the default is held.
+const cfg = extra => proxyConfig({ protocol: 'responses', upstream: 'http://127.0.0.1:1/v1', cut: true, trigger: '1', 'clear-at-least': '1', 'keep-min': '1', ...extra }, {});
 const user = text => ({ role: 'user', content: [{ type: 'input_text', text }] });
 const call = id => ({ type: 'function_call', call_id: id, name: 'exec_command', arguments: '{}' });
 const result = (id, output = 'old file contents '.repeat(200)) => ({ type: 'function_call_output', call_id: id, output });

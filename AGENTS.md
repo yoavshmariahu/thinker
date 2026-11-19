@@ -27,6 +27,7 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - `src/proxy.js` and the desktop door implement the same clearing policy, never two.
 - The clearing mod (`src/integrations/claude-clear`) holds NO policy (2026-11-18): an open session keeps the mod it loaded, so a copy there is frozen at the release the session was opened under. It asks the installed CLI at each decision (`thinker hook clear`, `src/clear-door.js`: `start`, `decide`, `apply`) and puts the answer in place. A constant or rule back in the mod fails `test/claude-clear.test.js`.
 - Every `PROXY_DEFAULTS` key honored by `clear-door.js:desktopPolicy` or exempted with reason in `DESKTOP_POLICY` (`test/claude-clear.test.js`).
+- `cut` is honoured there, not exempt (2026-11-19): with the cutting off the desktop door clears nothing either. It is where most of this machine's clearing happened, so a switch one door kept would have left the measurement as unreadable as it was.
 - Policy change is judged live on cache writes against 15% holdout, not replays.
 
 **Codex and Claude use the same cut policy (MANDATORY):**
@@ -55,9 +56,34 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Queued jobs get `session-work.js:MAX_ATTEMPTS` (5 tries), then dropped with `maintain.js:reportGaveUp`.
 - Tests cover desktop path (`appFn`, missing CLI login).
 
-**The clearing: thinker cuts results itself (MANDATORY, 2026-11-04):**
+**Cutting is OFF, and the proxy stays (2026-11-19, the owner's call; `proxy.js:PROXY_DEFAULTS.cut`, held by
+`test/cut-off.test.js`):** nothing below this is in force on an unconfigured machine. Read this before tuning a
+guard: the guards are not what is being reconsidered.
+- **Why.** The cutting was worth $7.01 and $4.03 in the weeks to 2026-11-15 and 2026-11-22 against $1,164 and
+  $393 of spend (the Report's weekly savings table), under 1%, where delegation was $16.60 and $13.52. The two
+  weeks before read $239 and $298, so the series disagrees with itself by fifty times, and the holdout cannot
+  say which is true: 2 sessions cleared against 18 held out past the trigger, a ±54% band around a difference
+  of a percent or two (`thinker factory --diff compression`). A policy whose own ledger cannot be read is not a
+  policy that can be tuned. The strategy is being rethought from the measurement up.
+- **One switch, read in one place.** `cfg.cut === false` is the first branch of `cutting.js:decide`, so all three
+  doors and the desktop door refuse together (`reason: 'off'`), no breakpoint is seeded and no set is remembered.
+  Off is not held out: a held-out session is one the policy still decides about.
+- **Still measured.** A row carries the `candidate` the request would have given up, so the log goes on saying
+  what a cut was worth while none is made -- the only free evidence the next strategy can be built on.
+- **What the proxy is for now:** carrying and logging every request (`op: proxy`, the cache reads and writes
+  every dollar figure on this machine is built from), `proxy-retry.js`, routing and pricing other providers'
+  models, the gateways and Bedrock, and the delegation's savings read off the calls it sees.
+- **The policy stamp says which.** `policyId` is `v<version>-off` while cutting is off, so a saving made under
+  the one policy is never pooled with the other (`cutting.js`).
+- **Back on:** `proxy: { cut: true }` in `<THINKER_HOME>/config.json` (the way to ship it, through a PR),
+  `--cut`, or `THINKER_PROXY_CUT=on`. Every guard below is untouched and comes back exactly as it was.
+- A test that exercises the cutting asks for `cut: true` in its own config; `test/cut-off.test.js` is the only
+  file that says what the default does.
+
+**The clearing: how thinker cuts results when it is asked to (MANDATORY, 2026-11-04; OFF by default since
+2026-11-19, above):**
 - Cut and keep newest turn + 3 results. Trigger 140k, floor 8k, payback 25 calls. A session resumed past the cache's hour is cut by the same trigger and floor (2026-11-17); the pause only makes the cut free.
-- `decideCut` returns `reason` (six branches: `nothing-to-cut` wins, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
+- `decideCut` returns `reason` (seven branches: `off` wins, then `nothing-to-cut`, then `below-trigger`, then `below-clear-minimum`, `mid-turn`, `one-cut`, `payback`). Both doors use it.
 - Ratchet per conversation (keyed on first user message); write merges, never replaces; turn rises, set advances.
 - A long call whose result is short (a heredoc, a Write, an Edit that answered in a line) is a candidate on the call's own text (2026-11-17, `r6`); the short result stays. Only with `cutInputs`.
 - `cutThinking` (2026-11-17, on by default since 2026-11-18; `--no-cut-thinking` is the way back; `--cut-thinking`, `THINKER_PROXY_CUT_THINKING=on`, `proxy: { cutThinking: true }`): a cut also leaves out the earlier turns' thinking blocks after its own oldest replaced result and before the turn it was made in, whole blocks only, never the turn in progress. Ranges kept on the record (`rec.think`, one `[result id, turn]` a cut) and only ever grow. Priced in the ladder (`thinking` on the rung and the row). Policy name ends `+th`. Messages door only; the mod is exempt.

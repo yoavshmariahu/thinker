@@ -31,7 +31,7 @@ const cuttable = () => {
 const proxyTo = (url, cfg = {}) => {
   const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-rej-')), 'proxy.jsonl');
   return new Promise(r => {
-    const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, trigger: 0, clearAtLeast: 0, ...cfg },
+    const server = startProxy({ ...PROXY_DEFAULTS, cut: true, upstream: url, trigger: 0, clearAtLeast: 0, ...cfg },
       { logFile, onListen: a => r({ server, logFile, port: a.port }) });
   });
 };
