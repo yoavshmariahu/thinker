@@ -59,7 +59,7 @@ async function harness(t, reply = {}) {
     async start(overrides = {}) {
       if (proxy) { await close(proxy); proxy = null; }
       return new Promise(resolve => {
-        proxy = startProxy({ ...PROXY_DEFAULTS, protocol: 'anthropic',
+        proxy = startProxy({ ...PROXY_DEFAULTS, cut: true, protocol: 'anthropic',
           upstream: `http://127.0.0.1:${upstream.address().port}/anthropic`,
           // Exercise transport with a small fixture, leaving production policy unchanged.
           trigger: 1, clearAtLeast: 1, holdout: 0, ...overrides }, {

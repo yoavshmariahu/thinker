@@ -158,8 +158,11 @@ export const PAYBACK = 25;
 // replaced result for thinking that has aged (`proxy.js:cutCandidates`); before, it did, and rewrote from the top for it.
 export const VERSION = (() => { try { return JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version || '?'; } catch { return '?'; } })();
 const round = n => (!Number.isFinite(n) ? '?' : n >= 1000 ? `${Math.round(n / 1000)}k` : String(Math.round(n)));
+// A row made while the cutting was off says so and nothing else: the guards it was not asked about are not
+// what decided it, and a saving made under the one policy may never be pooled with the other (the rule this
+// stamp exists for). `off` is a policy like any other -- the policy of cutting nothing.
 export const policyId = (cfg = {}) =>
-  `v${VERSION}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
+  cfg.cut === false ? `v${VERSION}-off` : `v${VERSION}-t${round(cfg.trigger)}-f${round(cfg.clearAtLeast)}-p${PAYBACK}-${cfg.clearDeep === false ? 'one' : 'deep'}${cfg.cutInputs ? '+in' : ''}${cfg.cutImages ? '+img' : ''}${cfg.cutBreakpoint ? '+bp' : ''}${cfg.cutThinking ? `+th${cfg.thinkingKeepTurns > 0 ? Math.floor(cfg.thinkingKeepTurns) : ''}` : ''}`;
 
 // --- the two guards scale with what a rewrite costs -------------------------------------------------------
 // The trigger and the size floor are one guard said twice: do not pay for a rewrite with too small a cut.
@@ -376,7 +379,7 @@ export function priceCut(m, cand, { ttl = '1h', model = null, rates = null, mark
 // The decision, at a turn boundary only. Within a turn the set is returned unchanged, so the bytes
 // are too. `cand` comes from proxy.js:cutCandidates -- the results outside the newest turn and the
 // newest `keepMin`, big enough to be worth a placeholder, not already cut.
-// Every refusal says which of the six branches below refused it (`reason`, 2026-11-08). The branches are not
+// Every refusal says which of the seven branches below refused it (`reason`, 2026-11-08). The branches are not
 // distinguishable from the returned object: `mid-turn`, `one-cut` and `below-trigger` all answer `{cut, clear:
 // false}`, and a payback refusal is a size refusal with a `held` beside it. So the Messages door derived the
 // reason from `candidate` alone (`proxy.js`, one line) and called every refusal that had a candidate
@@ -414,6 +417,13 @@ const seedRung = (cand, seed) => (cand?.steps || []).find(s => s.ids[s.ids.lengt
 function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Date.now(), model = rec.model, rates = null, mark = false, markTtl = ttl } = {}) {
   const same = { cut: rec.cut, clear: false };
   const size = cand?.ids.length ? cand.tokens : 0;
+  // Cutting off (proxy.js:PROXY_DEFAULTS, the owner's call of 2026-11-19), and it is the first thing asked, so
+  // no cut is made, no breakpoint is seeded and no set is remembered whatever the guards below would have said.
+  // The request is still measured: `candidate` is what this boundary would have taken, which is what lets the
+  // log answer what a cut was worth while none is made. Read strictly, as `clearDeep` is: a policy built by hand
+  // that names no `cut` still cuts, so the guards' own tests go on exercising the mechanism unchanged, and what
+  // production runs comes from `proxyConfig` and `desktopPolicy`, where the key is always present.
+  if (cfg.cut === false) return { ...same, turn, candidate: size, reason: 'off' };
   if (mark && rec.seed) {
     const rung = seedRung(cand, rec.seed);
     const live = rung && now - (rec.seed.ready || rec.seed.at) <= (SEED_MS[markTtl] || SEED_MS['5m']);

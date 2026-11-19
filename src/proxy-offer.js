@@ -20,6 +20,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome } from './update.js';
 import { serviceState, enableProxyService, isOwnRoute } from './proxy-service.js';
+import { cuttingOn } from './proxy.js';
+import { readMachineConfig } from './repo-switch.js';
 import { ownGateway, cloudOn, CLOUD_VARS } from './proxy-route.js';
 import { QUESTION_TOOLS, MCP_CLIENTS, askThrough, askInChat } from './repo-onboard.js';
 
@@ -61,6 +63,12 @@ function save(home, st) {
 export function proxyOfferDue({ home = thinkerHome(), env = process.env, now = Date.now() } = {}) {
   const st = offerState(home);
   if (st.asked || st.answered || st.never) return null;
+  // Every word of this question is a promise that old tool results will start leaving long sessions, and with
+  // the cutting off (2026-11-19, proxy.js:PROXY_DEFAULTS) none would. The proxy is still worth having on -- it
+  // is where the measurement comes from -- but that is not what this asks, and asking it anyway would spend the
+  // one question a machine gets on something that will not happen. It holds until the cutting is back, and the
+  // state is untouched, so the machines this was written for are still owed the question then.
+  if (!cuttingOn(readMachineConfig(home).proxy, env)) return null;
   const s = serviceState(home);
   if (s.enabled || !(s.off || s.standDown)) return null;
   const since = s.standDown?.at || s.off || null;

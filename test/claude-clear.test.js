@@ -38,6 +38,8 @@ const modConst = (s, name) => {
 //   honoured - the key is in this door's policy, at the proxy's default (`value` where it differs by design)
 //   exempt   - why the key has no desktop meaning; a sentence, not a word
 const DESKTOP_POLICY = {
+  // the one switch over the rest, off since 2026-11-19: this door clears nothing while the proxy cuts nothing
+  cut: { honoured: true },
   trigger: { honoured: true },
   clearAtLeast: { honoured: true },
   keepMin: { honoured: true },
@@ -74,7 +76,7 @@ test('every key of the proxy\'s clearing policy reaches the desktop door, or say
   }
   // and a config that moves a key moves this door with it
   assert.equal(desktopPolicy({ proxy: { trigger: 90000, clearAtLeast: 20000, keepMin: 5, clearDeep: false } }).trigger, 90000);
-  assert.deepEqual(desktopPolicy({ proxy: { clearAtLeast: 20000, keepMin: 5, clearDeep: false, desktop: false } }), { keepMin: 5, clearAtLeast: 20000, trigger: PROXY_DEFAULTS.trigger, holdout: SERVICE_HOLDOUT, auto: false, clearDeep: false });
+  assert.deepEqual(desktopPolicy({ proxy: { clearAtLeast: 20000, keepMin: 5, clearDeep: false, desktop: false } }), { cut: false, keepMin: 5, clearAtLeast: 20000, trigger: PROXY_DEFAULTS.trigger, holdout: SERVICE_HOLDOUT, auto: false, clearDeep: false });
 });
 
 // An open session keeps the mod it loaded at its start, for days (claude-card.js: the folder is named by its bytes
@@ -153,7 +155,7 @@ test('an automatic clear that would be refused is never started, so the engine p
   // which silently cut the hold to 8k -- no hold at all, a working session grows that in a turn -- and put the
   // skip-line-after-every-answer bug back (reported 2026-11-02 and 2026-11-05).
   assert.equal(HOLD_GROWTH, 60000, 'the hold window is a constant of its own, the 60k the latch had while the floor was 60k');
-  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 0, messages: null }, { config: { proxy: { clearAtLeast: 8000 } } }).hold, HOLD_GROWTH, 'the answer carries it, whatever the size floor');
+  assert.equal(clearAnswer({ op: 'decide', from: 'auto', session: 's', tokens: 0, messages: null }, { config: { proxy: { cut: true, clearAtLeast: 8000 } } }).hold, HOLD_GROWTH, 'the answer carries it, whatever the size floor');
   assert.ok(/holdUntil = attemptAt \+ holdGrowth/.test(s) && s.includes("if (typeof a.hold === 'number') holdGrowth = a.hold"), 'the latch holds on the window the answer gave');
   assert.equal(modLet(s, 'holdGrowth'), HOLD_GROWTH, 'and on the same 60k before any answer has come');
   // the command answers by itself instead of spending a turn

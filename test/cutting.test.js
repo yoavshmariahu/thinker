@@ -24,7 +24,9 @@ const session = (turns, calls = 4) => {
   return ms;
 };
 const body = messages => Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages }));
-const cfg = extra => ({ ...proxyConfig({}, {}), clientCut: true, trigger: 1, clearAtLeast: 1, ...extra });
+// `cut: true`: cutting is off by default since 2026-11-19 (proxy.js:PROXY_DEFAULTS) and what this file tests
+// is the policy that runs when it is asked for. That the default cuts nothing is its own test, below.
+const cfg = extra => ({ ...proxyConfig({}, {}), cut: true, clientCut: true, trigger: 1, clearAtLeast: 1, ...extra });
 
 test('the newest turn is kept by a rule, not a count: a turn of ten tool calls keeps all ten', () => {
   // B6, measured: with `keep: 3` the API kept three echoes and cleared the 25k read the turn was
@@ -233,7 +235,7 @@ test('a cut says what it took out, and every reader of the saving agrees on the 
 
   const t = transformRequest('POST', '/v1/messages', headers,
     Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms })),
-    { ...proxyConfig(), cutRecord: freshCut('s'), trigger: 1000, clearAtLeast: 1000 });
+    { ...proxyConfig(), cut: true, cutRecord: freshCut('s'), trigger: 1000, clearAtLeast: 1000 });
   assert.ok(t.injected && t.clientCut.tokens > 0, 'the request logs its own count');
 
   // A row as the proxy wrote it between 2026-11-04 and the fix in `clearedBy`: `clientCut` alone, no

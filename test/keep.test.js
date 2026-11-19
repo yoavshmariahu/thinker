@@ -153,7 +153,7 @@ test('Messages: a kept result is no candidate, and the row says what the list he
   assert.equal(without.tokens - withKeep.tokens, withKeep.kept.tokens, 'what is kept is exactly what the boundary no longer takes');
   assert.equal(without.kept, undefined);
   // through the door: the notes file survives the cut, the other read does not, and the row carries `kept`
-  const cfg = { ...proxyConfig({}, {}), trigger: 1, clearAtLeast: 1, keepMin: 0, cutBreakpoint: false, keepPatterns: KEEP_DEFAULT };
+  const cfg = { ...proxyConfig({}, {}), cut: true, trigger: 1, clearAtLeast: 1, keepMin: 0, cutBreakpoint: false, keepPatterns: KEEP_DEFAULT };
   const out = transformRequest('POST', '/v1/messages', { 'x-claude-code-session-id': 's-keep' }, Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', max_tokens: 10, messages })), cfg);
   assert.equal(out.injected, true, out.reason);
   assert.equal(out.kept.results, 1);
@@ -293,7 +293,7 @@ test('through the running proxy: the kept result reaches the upstream whole, and
   await new Promise(r => upstream.listen(0, '127.0.0.1', r));
   const dir = tmp(t), logFile = path.join(dir, 'proxy.jsonl');
   const url = `http://127.0.0.1:${upstream.address().port}/api/v1`;
-  const proxy = startProxy({ ...proxyConfig({ 'gateway-openrouter': true }, {}), trigger: 1, clearAtLeast: 1, keepMin: 0, upstream: url, gateways: { openrouter: { upstream: url } }, keepPatterns: KEEP_DEFAULT },
+  const proxy = startProxy({ ...proxyConfig({ 'gateway-openrouter': true, cut: true }, {}), trigger: 1, clearAtLeast: 1, keepMin: 0, upstream: url, gateways: { openrouter: { upstream: url } }, keepPatterns: KEEP_DEFAULT },
     { logFile, clearingDir: path.join(dir, 'clearing'), compressionDir: path.join(dir, 'compression') });
   await new Promise(r => proxy.once('listening', r));
   t.after(() => { proxy.close(); upstream.close(); });

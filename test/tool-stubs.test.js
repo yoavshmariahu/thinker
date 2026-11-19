@@ -82,7 +82,7 @@ test('the reader re-reads the registry when its file changes and writes each def
 test('the proxy sends the stub in place of the definition on every request, cut or not, held out or not', t => {
   const home = tmp(t);
   const { file } = addStub(home, 'Artifact', def('Artifact'));
-  const cfg = { ...PROXY_DEFAULTS, stubs: stubReader(home) };
+  const cfg = { ...PROXY_DEFAULTS, cut: true, stubs: stubReader(home) };
   const h = { 'x-claude-code-session-id': 's1' };
   const req = Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', tools: [def('Bash'), def('Artifact')], messages: [{ role: 'user', content: 'hi' }], stream: true }));
   const r = transformRequest('POST', '/v1/messages', h, req, cfg);

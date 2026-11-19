@@ -5,12 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { proxyOffer, proxyOfferDue, proxyOfferPending, answerProxyOffer, offerState, olderThan, FIXED_IN, FIX_PR, ANSWER_DAYS } from '../src/proxy-offer.js';
 
-// a machine whose proxy state and route are the test's own
-function machine({ service = {}, shell = null } = {}) {
+// A machine whose proxy state and route are the test's own. Its config says `cut: true` because this question
+// is a promise that old results will start leaving long sessions, and the cutting is off by default since
+// 2026-11-19 (proxy.js:PROXY_DEFAULTS): with it off nothing is asked at all, which is the last case below.
+function machine({ service = {}, shell = null, cut = true } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-offer-'));
   const home = path.join(root, 'thinker');
   fs.mkdirSync(path.join(home, 'state'), { recursive: true });
   fs.writeFileSync(path.join(home, 'state', 'proxy-service.json'), JSON.stringify({ port: 6901, ports: [6901], ...service }));
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cut } }));
   const shellHome = path.join(root, 'shell');
   fs.mkdirSync(shellHome, { recursive: true });
   if (shell) fs.writeFileSync(path.join(shellHome, '.zshrc'), shell);
@@ -35,6 +38,12 @@ test('who is asked: off before the fix, or stood down; not a machine that is on,
       assert.equal(due ? due.kind : null, want, why);
     } finally { m.rm(); }
   }
+  // and nobody is asked while the cutting is off: the question would promise a clearing that will not happen
+  const off = machine({ service: { enabled: false, off: OFF_BEFORE }, cut: false });
+  try {
+    assert.equal(proxyOfferDue({ home: off.home, env: off.env }), null, 'the cutting is off, so there is nothing to say yes to');
+    assert.equal(offerState(off.home).asked, undefined, 'and the machine is still owed the question for when it is back');
+  } finally { off.rm(); }
 });
 
 test('a machine routed through its own model server is offered the gateway, a cloud route is not asked at all', () => {

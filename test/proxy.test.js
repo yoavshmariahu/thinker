@@ -27,7 +27,9 @@ const cuttable = (extra = {}) => {
   ms.push({ role: 'user', content: [{ type: 'text', text: 'next' }] });
   return Buffer.from(JSON.stringify({ model: 'claude-opus-5-5', messages: ms, stream: true, ...extra }));
 };
-const CUTS = { trigger: 0, clearAtLeast: 0 };   // so a test fixture is big enough to be worth cutting
+// so a test fixture is big enough to be worth cutting, and `cut: true` because cutting is off by default
+// since 2026-11-19 (proxy.js:PROXY_DEFAULTS) while these tests are about what a cut does when asked for
+const CUTS = { cut: true, trigger: 0, clearAtLeast: 0 };
 const SSE = [
   'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":3,"cache_read_input_tokens":90000,"cache_creation_input_tokens":2000,"output_tokens":1}}}\n\n',
   'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":42},"context_management":{"applied_edits":[{"type":"clear_tool_uses_20250919","cleared_tool_uses":4,"cleared_input_tokens":15626}]}}\n\n',
@@ -53,7 +55,7 @@ function upstream() {
 function proxyTo(url, cfg = {}, opts = {}) {
   const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-')), 'proxy.jsonl');
   return new Promise(r => {
-    const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, ...cfg }, { logFile, ...opts, onListen: a => r({ server, logFile, port: a.port }) });
+    const server = startProxy({ ...PROXY_DEFAULTS, cut: true, upstream: url, ...cfg }, { logFile, ...opts, onListen: a => r({ server, logFile, port: a.port }) });
   });
 }
 
@@ -78,14 +80,14 @@ test('a boundary refused for size says how much was cuttable', () => {
   // The row used to say 'below-clear-minimum' and nothing else, so the log could not tell a 20k candidate from
   // a 95k one, and whether a lower floor would have admitted the boundary had to be worked out from transcripts.
   const h = { 'x-claude-code-session-id': 's-size' };
-  const t = transformRequest('POST', '/v1/messages', h, cuttable(), { ...PROXY_DEFAULTS, trigger: 0, clearAtLeast: 10 ** 9 });
+  const t = transformRequest('POST', '/v1/messages', h, cuttable(), { ...PROXY_DEFAULTS, cut: true, trigger: 0, clearAtLeast: 10 ** 9 });
   assert.equal(t.reason, 'below-clear-minimum');
   assert.equal(t.candidate, Math.round(7 * 40000 * RESULT_WEIGHTS.letter), 'the seven droppable 40k-char results, counted from their text');
   assert.equal(transformRequest('POST', '/v1/messages', h, body(), PROXY_DEFAULTS).candidate, undefined, 'nothing to cut carries no size');
 });
 
 test('forwards the bytes as they came when the edit cannot or should not be added', async () => {
-  const cfg = PROXY_DEFAULTS;
+  const cfg = { ...PROXY_DEFAULTS, cut: true };
   const h = { 'anthropic-beta': BETA, 'x-claude-code-session-id': 's1' };
   const raw = body();
   // the cut asks nothing of the API, so no beta header is needed by any client (pi, OpenCode, Goose included)
@@ -324,7 +326,7 @@ test('an upstream of the person\'s own is never judged: refusals there stand not
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const stood = [];
   const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-proxy-')), 'proxy.jsonl');
-  const px = await new Promise(r => { const s = startProxy({ ...PROXY_DEFAULTS, upstream: `http://127.0.0.1:${server.address().port}` }, { logFile, onStandDown: reason => stood.push(reason), onListen: a => r({ server: s, port: a.port }) }); });
+  const px = await new Promise(r => { const s = startProxy({ ...PROXY_DEFAULTS, cut: true, upstream: `http://127.0.0.1:${server.address().port}` }, { logFile, onStandDown: reason => stood.push(reason), onListen: a => r({ server: s, port: a.port }) }); });
   try {
     for (let i = 0; i < AUTH_REFUSALS + 1; i++) {
       const r = await send(px.port, { headers: { authorization: 'Bearer gw_live_123' } });

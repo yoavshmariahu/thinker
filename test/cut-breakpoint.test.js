@@ -37,7 +37,7 @@ function body({ tail = HOUR, system = HOUR, extra = [] } = {}) {
   ms.push({ role: 'user', content: [{ type: 'text', text: 'the live turn', ...(tail ? { cache_control: tail } : {}) }] });
   return { model: 'claude-opus-5-5', system: [{ type: 'text', text: 'sys', ...(system ? { cache_control: system } : {}) }], messages: ms };
 }
-const CFG = on => ({ ...PROXY_DEFAULTS, trigger: 1000, clearAtLeast: 1000, cutBreakpoint: on });
+const CFG = on => ({ ...PROXY_DEFAULTS, cut: true, trigger: 1000, clearAtLeast: 1000, cutBreakpoint: on });
 // one request through the door, with the record kept the way the proxy keeps it
 function send(rec, j, cfg, now, { answered = true } = {}) {
   const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...cfg, cutRecord: rec, now });
@@ -225,8 +225,8 @@ test('the switch: a flag, a variable, the machine config, and a policy name of i
   assert.equal(proxyConfig({}, {}).cutBreakpoint, true);
   assert.equal(proxyConfig({ 'no-cut-breakpoint': true }, {}).cutBreakpoint, false);
   assert.equal(proxyConfig({}, { THINKER_PROXY_CUT_BREAKPOINT: 'off' }).cutBreakpoint, false);
-  assert.ok(policyId({ ...PROXY_DEFAULTS, cutBreakpoint: true }).includes('+bp'));
-  assert.ok(!policyId({ ...PROXY_DEFAULTS, cutBreakpoint: false }).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
+  assert.ok(policyId({ ...PROXY_DEFAULTS, cut: true, cutBreakpoint: true }).includes('+bp'));
+  assert.ok(!policyId({ ...PROXY_DEFAULTS, cut: true, cutBreakpoint: false }).includes('+bp'), 'savings made with the breakpoint are never pooled with those made without');
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-bp-'));
   try {
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cutBreakpoint: false } }));

@@ -149,7 +149,7 @@ test('the call loses its body and the short result stays word for word', () => {
 test('a cut of calls alone reaches the API, and the breakdown shows what the calls gave up', () => {
   const ms = quiet(6), j = { model: 'claude-opus-5', messages: ms };
   const rec = { ...freshCut('s'), at: 1 };   // a pause past the cache's hour makes the cut free; the trigger and the floor are set aside to reach it
-  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, trigger: 0, clearAtLeast: 0, cutRecord: rec, now: 1e12 });
+  const t = transformRequest('POST', '/v1/messages', {}, Buffer.from(JSON.stringify(j)), { ...PROXY_DEFAULTS, cut: true, trigger: 0, clearAtLeast: 0, cutRecord: rec, now: 1e12 });
   assert.equal(t.injected, true, 'the request is rewritten though no result was replaced');
   assert.equal(t.clientCut.cut, 3);
   assert.equal(t.clientCut.tokens, 3 * Math.round(CMD.length * RESULT_TOKENS_PER_CHAR));

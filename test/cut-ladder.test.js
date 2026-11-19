@@ -94,7 +94,7 @@ test('a tail-local cut is refused where the whole set is: a shallow rung rewrite
   assert.equal(priceCut(m, { tokens: shallow.tokens, recache: shallow.tail }, opus).pays, true, 'priced on its tail the newest rung paid');
   assert.equal(priceCut(m, shallow, opus).pays, false, 'priced on what the API writes it does not');
 
-  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS }, m, { cand, ...opus });
+  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS, cut: true }, m, { cand, ...opus });
   assert.equal(d.clear, false, 'so no rung is taken');
   assert.equal(d.reason, 'payback');
   assert.ok(d.held.payback > PAYBACK);
@@ -107,7 +107,7 @@ test('the deepest paying rung is taken, not the first that pays', () => {
   const cand = cutCandidates(ms, { keepMin: 0 });
   const m = { prompt: Math.round(JSON.stringify(ms).length * TOKENS_PER_CHAR), turn: 1 };
   const rates = { read: 0.5, write: 1.0 };   // GLM's, where most rungs pay
-  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS }, m, { cand, rates });
+  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS, cut: true }, m, { cand, rates });
   assert.equal(d.clear, true);
   const paying = cand.steps.filter(s => s.tokens >= PROXY_DEFAULTS.clearAtLeast && priceCut(m, s, { rates }).pays);
   assert.equal(d.candidate, Math.max(...paying.map(s => s.tokens)), 'the largest saving among the rungs that pay');
@@ -118,11 +118,11 @@ test('a floor above every rung is the floor refusing, and the shallow rungs stay
   const cand = cutCandidates(ms, { keepMin: 3 });
   const m = { prompt: 400000, turn: 1 };
   const rec = () => ({ ...freshCut('s'), turn: 0, at: Date.now() });
-  const high = decideCut(rec(), { ...PROXY_DEFAULTS, clearAtLeast: 10 ** 7 }, m, { cand, model: 'claude-opus-5' });
+  const high = decideCut(rec(), { ...PROXY_DEFAULTS, cut: true, clearAtLeast: 10 ** 7 }, m, { cand, model: 'claude-opus-5' });
   assert.equal(high.clear, false);
   assert.equal(high.reason, 'below-clear-minimum', 'no rung clears the floor');
   // and with the shipped floor the rungs under it are never priced into a verdict
-  const d = decideCut(rec(), { ...PROXY_DEFAULTS }, m, { cand, rates: { read: 0.5, write: 1 } });
+  const d = decideCut(rec(), { ...PROXY_DEFAULTS, cut: true }, m, { cand, rates: { read: 0.5, write: 1 } });
   if (d.clear) assert.ok(d.candidate >= PROXY_DEFAULTS.clearAtLeast, 'what it took clears the floor');
 });
 
@@ -132,8 +132,8 @@ test('a cold boundary takes the rung a warm one would, and no deeper', () => {
   const cand = cutCandidates(ms, { keepMin: 0 });
   const rec = { ...freshCut('s'), turn: 0, at: 1000 };
   const opts = { cand, model: 'claude-opus-5' };
-  const cold = decideCut(rec, { ...PROXY_DEFAULTS }, { prompt: 500000, turn: 1 }, { ...opts, now: 1000 + 66 * 60 * 1000 });
-  const warm = decideCut(rec, { ...PROXY_DEFAULTS }, { prompt: 500000, turn: 1 }, { ...opts, now: 2000 });
+  const cold = decideCut(rec, { ...PROXY_DEFAULTS, cut: true }, { prompt: 500000, turn: 1 }, { ...opts, now: 1000 + 66 * 60 * 1000 });
+  const warm = decideCut(rec, { ...PROXY_DEFAULTS, cut: true }, { prompt: 500000, turn: 1 }, { ...opts, now: 2000 });
   const { cold: _c, ...coldRest } = cold, { cold: _w, ...warmRest } = warm;
   assert.deepEqual(coldRest, warmRest, 'the same verdict, the same rung, the same price');
   if (cold.clear) assert.ok(cold.cost !== 0 || cold.payback === 0, 'no rewrite is priced at nothing for the pause');
@@ -145,7 +145,7 @@ test('nothing eligible is still no ladder and no cut', () => {
   assert.deepEqual(c.steps, []);
   assert.equal(c.recache, 0);
   assert.equal(c.ids.length, 0);
-  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS }, { prompt: 400000, turn: 1 }, { cand: c, model: 'claude-opus-5' });
+  const d = decideCut({ ...freshCut('s'), turn: 0, at: Date.now() }, { ...PROXY_DEFAULTS, cut: true }, { prompt: 400000, turn: 1 }, { cand: c, model: 'claude-opus-5' });
   assert.equal(d.reason, 'nothing-to-cut');
 });
 
@@ -161,7 +161,7 @@ test('the decision puts depth and rungs where every door already logs them', asy
   const rec = () => ({ ...freshCut('s'), turn: 0, at: Date.now() });
 
   // a cut names the rung it took
-  const took = decideCut(rec(), { ...PROXY_DEFAULTS }, m, { cand, rates: { read: 0.5, write: 1 } });
+  const took = decideCut(rec(), { ...PROXY_DEFAULTS, cut: true }, m, { cand, rates: { read: 0.5, write: 1 } });
   assert.equal(took.clear, true);
   assert.equal(typeof took.depth, 'number');
   assert.equal(took.rungs, cand.steps.length);
@@ -173,7 +173,7 @@ test('the decision puts depth and rungs where every door already logs them', asy
   // With keepMin 7 only the oldest result is eligible and seven turns of bulk follow it, so it cannot pay.
   const far = cutCandidates(ms, { keepMin: 7 });
   assert.equal(far.steps.length, 1, 'one eligible result, so one rung and no choice to make');
-  const held = decideCut(rec(), { ...PROXY_DEFAULTS, trigger: 1 }, m, { cand: far, model: 'claude-opus-5' });
+  const held = decideCut(rec(), { ...PROXY_DEFAULTS, cut: true, trigger: 1 }, m, { cand: far, model: 'claude-opus-5' });
   assert.equal(held.reason, 'payback');
   assert.equal(held.held.rungs, 1, 'and the row says so, instead of looking like a boundary that had nine');
   assert.equal(held.held.depth, 1);
@@ -181,7 +181,7 @@ test('the decision puts depth and rungs where every door already logs them', asy
   // and the Messages door's row carries them inside `clear`, which it already logged
   const body = Buffer.from(JSON.stringify({ model: 'claude-opus-5', messages: ms }));
   const t = transformRequest('POST', '/v1/messages', { 'x-claude-code-session-id': 'row-test' }, body, {
-    ...PROXY_DEFAULTS, holdout: 0, cutRecord: { ...freshCut('row-test'), turn: 0, at: Date.now() },
+    ...PROXY_DEFAULTS, cut: true, holdout: 0, cutRecord: { ...freshCut('row-test'), turn: 0, at: Date.now() },
   });
   if (t?.clear) {
     assert.equal(typeof t.clear.depth, 'number', 'the row names the rung');

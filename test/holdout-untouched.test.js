@@ -43,7 +43,7 @@ function upstream() {
 }
 const proxyTo = (url, cfg) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-holdout-')), logFile = path.join(dir, 'proxy.jsonl');
-  return new Promise(r => { const server = startProxy({ ...PROXY_DEFAULTS, upstream: url, ...cfg }, { logFile, onListen: a => r({ server, dir, logFile, port: a.port }) }); });
+  return new Promise(r => { const server = startProxy({ ...PROXY_DEFAULTS, cut: true, upstream: url, ...cfg }, { logFile, onListen: a => r({ server, dir, logFile, port: a.port }) }); });
 };
 const send = (port, session, data) => new Promise((resolve, reject) => {
   const req = http.request({ host: '127.0.0.1', port, path: '/v1/messages?beta=true', method: 'POST', headers: { 'content-type': 'application/json', 'anthropic-beta': BETA, 'x-claude-code-session-id': session } }, res => { res.resume(); res.on('end', resolve); });
@@ -59,7 +59,7 @@ test('the defaults are the ones this is about: everything on, the thinking inclu
 });
 
 test('a held-out request is the very buffer that came in, whatever the conversation holds', () => {
-  const cfg = { ...PROXY_DEFAULTS, holdout: 1, protocol: 'anthropic' };
+  const cfg = { ...PROXY_DEFAULTS, cut: true, holdout: 1, protocol: 'anthropic' };
   for (const body of REQUESTS) {
     let asked = 0;
     const t = transformRequest('POST', '/v1/messages?beta=true', { 'x-claude-code-session-id': 'held' }, body, { ...cfg, readCut: () => { asked++; return freshCut('held'); } });
