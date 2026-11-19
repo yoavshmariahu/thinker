@@ -290,3 +290,27 @@ test('the PR push guard blocks main updates and deletion but preserves branch pu
   assert.equal(install(dir).existing, true);
   assert.equal(fs.readFileSync(installed.hook, 'utf8'), policy);
 });
+
+// 2026-11-18. The part of a saving made on requests that wrote their whole context travels beside the saving.
+test('the saving on a request that found its cache gone is sent on its own, by day and by policy', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const policy = 'v0.4.7-t140k-f8k-p25-deep+in+img+bp';
+  const row = (h, over) => ({ op: 'proxy', at: at(h), session: 'PRIVATE_COLD', model: 'claude-fable-5-2', status: 200, policy, clientCut: { cut: 100, tokens: 250_000 }, cleared: 250_000, input: 4, ...over });
+  fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
+    row(5, { read: 90_000, write: 2_000, write1h: 2_000 }),
+    row(3, { read: 0, write: 195_000, write1h: 195_000 }),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  store.log({ op: 'session', t: at(2), session: 'PRIVATE_COLD', client: 'claude', model: 'claude-fable-5-2', turns: 6, totalTokens: 900_000, tokenCoverage: 'complete' });
+  evidence(store, home, 13, { tokens: 50_000, clearedTokens: 0 });   // and a session nothing cleared
+  const { sessions: s } = deliveryMetrics(store, { all: false, now, home });
+  const days = Object.values(s.byDay).filter(d => d.clearedSessions);
+  assert.equal(days.length, 1);
+  assert.equal(days[0].coldUsd, 4, '250k tokens that would have been written at Fable 5.2\'s $16 a million');
+  assert.equal(days[0].savedUsd, 4.05, 'part of the saving, beside the $0.05 the warm request read back');
+  assert.equal(days[0].stampedColdUsd, 4); assert.equal(days[0].stampedSavedUsd, 4.05);
+  assert.equal(s.cleared.coldUsd, 4); assert.equal(s.byPolicy[policy].coldUsd, 4);
+  assert.equal(s.uncleared.coldUsd, 0); assert.equal(s.all.coldUsd, 4);
+  for (const d of Object.values(s.byDay)) for (const k of ['coldUsd', 'stampedColdUsd']) assert.equal(typeof d[k], 'number', 'a client that counts it says so on every day, with a zero where there was none');
+  assert.equal(JSON.stringify(s).includes('PRIVATE'), false);
+});

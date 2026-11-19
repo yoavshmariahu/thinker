@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cutCandidates, applyCut, transformRequest, proxyConfig, cutPlaceholder, proxyReport, RESULT_WEIGHTS } from '../src/proxy.js';
-import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK } from '../src/cutting.js';
+import { decideCut, freshCut, priceCut, placeholder, mergeCut, cutStore, cutResponse, clearedOf, clearedUsesOf, clearedEstimated, policyId, VERSION, PAYBACK, wroteCold, savedAs, chargedRewrite, readRate } from '../src/cutting.js';
 
 const BIG = 'X'.repeat(40000);
 const headers = { 'anthropic-beta': 'context-management-2025-06-27' };
@@ -388,4 +388,26 @@ test('the row the proxy logs names the policy, on a clear and on a refusal alike
   assert.equal(left.reason, 'below-clear-minimum');
   assert.equal(left.policy, policyId(refusing), 'and a refusal carries the policy that refused it');
   assert.notEqual(left.policy, cut.policy, 'the floor is in the id, so the two are told apart');
+});
+
+// 2026-11-18. Every token a cut left out was priced as a cache read, on the requests where it would have been a write.
+test('what a token left out of a request was worth: a read from a warm cache, a write where the request wrote everything', () => {
+  assert.equal(wroteCold({ read: 0, write: 195_000 }), true, 'past the cache\'s hour: nothing read back, the whole context written');
+  assert.equal(wroteCold({ write: 100 }), true, 'a row with no read at all read nothing');
+  assert.equal(wroteCold({ read: 35_000, write: 55_000 }), false, 'a cut\'s own rewrite still reads the system prompt back');
+  assert.equal(wroteCold({ read: 0, write: 0 }), false, 'a row with no usage says nothing about its cache');
+  assert.equal(wroteCold({}), false); assert.equal(wroteCold(null), false);
+  // the two marks never both hold: a request is charged to the cut or softened by it, not both
+  for (const u of [{ read: 0, write: 9 }, { read: 9, write: 9 }, { read: 9, write: 0 }, {}]) assert.equal(wroteCold(u) && chargedRewrite(u), false);
+  assert.deepEqual(savedAs({ read: 300_000, write: 2_000 }, 1000), { cacheRead: 1000 });
+  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 });
+  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 150_000, write5m: 50_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 750 }, 'at the request\'s own mix of the two TTLs');
+  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 0, write5m: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 0 });
+  assert.deepEqual(savedAs({ read: 0, write: 200_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 }, 'the hour\'s where the row does not say, as every other write is priced');
+  assert.deepEqual(savedAs({ read: 0, write: 200_000, write1h: 900_000 }, 1000), { cacheWrite: 1000, cacheWrite1h: 1000 }, 'never more one-hour writes than writes');
+  // and the read a cut is priced against is the model's own published ratio, not its family's
+  assert.equal(readRate('claude-fable-5-2'), 0.025); assert.equal(readRate('claude-fable-5-1'), 0.025);
+  assert.equal(readRate('claude-fable-5'), 0.1, 'Fable 5 reads at a tenth');
+  assert.equal(readRate('claude-sonnet-5-5'), 0.05, 'Sonnet 5.5 at a twentieth'); assert.equal(readRate('claude-sonnet-5'), 0.1);
+  assert.equal(readRate('claude-opus-5-5'), 0.05); assert.equal(readRate('claude-opus-5'), 0.1);
 });

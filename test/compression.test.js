@@ -318,3 +318,58 @@ test('a desktop session\'s record is charged its own count of rewrites, where th
   assert.equal(rows.find(r => r.session === 'u').model, 'claude-haiku-5-5', 'else the log\'s');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// 2026-11-18. Every saved token was priced as a cache read, on the very requests where it would have been a write.
+test('a token left out of a request that wrote its whole context is priced as the write it would have been', () => {
+  const dir = tmp(), log = path.join(dir, 'proxy.jsonl');
+  const call = (at, over = {}) => ({ at, op: 'proxy', session: 's1', model: 'claude-fable-5-2', status: 200, clientCut: { cut: 100, tokens: 250_000 }, cleared: 250_000, input: 4, ...over });
+  fs.writeFileSync(log, [
+    // warm: the shorter prefix is read back, and the cleared tokens would have been read with it
+    call('2026-11-18T19:40:00Z', { read: 90_000, write: 2_000, write1h: 2_000 }),
+    // past the cache's hour: nothing read back, the whole context written, and 250k fewer tokens in it
+    call('2026-11-18T21:16:00Z', { read: 0, write: 195_000, write1h: 195_000 }),
+    // the same on a request whose writes were split between the two TTLs
+    call('2026-11-18T23:30:00Z', { read: 0, write: 200_000, write1h: 150_000, write5m: 50_000 }),
+    // a row with no usage tapped says nothing about its cache, and is a read as before
+    call('2026-11-18T23:31:00Z', {}),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  const s = clearedBySession(log).get('s1');
+  const read = 250_000 * 0.2 / 1e6, hour = 250_000 * 16 / 1e6, mixed = (187_500 * 16 + 62_500 * 10) / 1e6;
+  assert.equal(s.cleared, 1_000_000); assert.equal(s.requests, 4); assert.equal(s.pricedTokens, 1_000_000);
+  assert.ok(Math.abs(s.usd - (read + hour + mixed + read)) < 1e-9, 'two reads, a write at the hour\'s rate, a write at the request\'s own mix');
+  assert.ok(Math.abs(s.coldUsd - (hour + mixed)) < 1e-9, 'and the part of the saving that was writes, on its own');
+  assert.equal(s.coldRequests, 2);
+  assert.equal(Math.round(hour / read), 80, 'on a Fable that one request is worth eighty of the others');
+  // nothing here is a cut's cost: no request made one
+  assert.equal(clearingCostBySession(log).has('s1'), false);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// 2026-11-18. The request that seeds a cut is sent with every earlier cut applied, and its row said nothing of it.
+test('a seeding request written before its row said so carries the cut the request before it carried', () => {
+  const dir = tmp();
+  const base = { op: 'proxy', session: 's1', model: 'claude-fable-5-2', status: 200, input: 4 };
+  const cutRow = (at, over = {}) => ({ ...base, at, clientCut: { cut: 132, tokens: 257_833 }, cleared: 257_833, clearedUses: 132, read: 188_000, write: 2_000, write1h: 2_000, turn: 29, ...over });
+  const seed = (at, over = {}) => ({ ...base, at, reason: 'seed', cleared: 0, clearedUses: 0, read: 0, write: 194_804, write1h: 194_804, turn: 30, ...over });
+  let n = 0;
+  const ledger = rows => { const f = path.join(dir, `${n++}.jsonl`); fs.writeFileSync(f, rows.map(r => JSON.stringify(r)).join('\n') + '\n'); return clearedBySession(f).get('s1'); };
+  // the boundary after a pause: the cut is still applied, the cache is gone, and the whole context is written
+  const s = ledger([cutRow('2026-11-18T20:06:00Z'), seed('2026-11-18T21:16:55Z')]);
+  assert.equal(s.requests, 2, 'the seed is a request the cut shortened');
+  assert.equal(s.cleared, 2 * 257_833);
+  assert.ok(Math.abs(s.coldUsd - 257_833 * 16 / 1e6) < 1e-9, 'and the one on which each of its tokens was a write: $4.13');
+  // a seed with no cut before it carries nothing: a conversation's first cut is seeded on a request sent whole
+  assert.equal(ledger([seed('2026-11-18T19:34:20Z')]), undefined);
+  // another conversation of the session is not this one: a subagent's size, another model, a turn that is not the next
+  for (const [why, over] of [['a third of the size', { write: 60_000, write1h: 60_000 }], ['three times it', { write: 600_000, write1h: 600_000 }],
+    ['another model', { model: 'claude-haiku-5-5' }], ['an earlier turn', { turn: 3 }], ['a turn far on', { turn: 40 }]]) {
+    assert.equal(ledger([cutRow('2026-11-18T20:06:00Z'), seed('2026-11-18T21:16:55Z', over)]).requests, 1, why);
+  }
+  // a seed the proxy filled itself is read as it is written
+  const own = ledger([cutRow('2026-11-18T20:06:00Z'), seed('2026-11-18T21:16:55Z', { clientCut: { cut: 140, tokens: 300_000 }, cleared: 300_000, clearedUses: 140 })]);
+  assert.equal(own.cleared, 257_833 + 300_000);
+  // and the session's own record says the carried figure is thinker's count, like any a cut made
+  const carried = ledger([cutRow('2026-11-18T20:06:00Z'), seed('2026-11-18T21:16:55Z')]);
+  assert.equal(carried.requests, 2);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

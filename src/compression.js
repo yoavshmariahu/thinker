@@ -20,8 +20,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { chargedRewrite, clearedOf, clearedUsesOf, clearedEstimated } from './cutting.js';
-import { listPrice } from './prices.js';
+import { chargedRewrite, clearedOf, clearedUsesOf, clearedEstimated, wroteCold, savedAs } from './cutting.js';
+import { listPrice, costOfInputSavings } from './prices.js';
 
 // Turns after the first clear of a session before the saving is shown. Three: enough that the figure is the
 // clearing's return and not its cost, few enough that it still lands in the session that paid for it.
@@ -208,7 +208,36 @@ function readCompressionTail(file) {
     let r; try { r = JSON.parse(line); } catch { continue; }
     if (r.op === 'proxy' && r.session) out.push(r);
   }
-  return out;
+  return carrySeeded(out);
+}
+
+// The request that seeds a cut is sent with every earlier cut still applied -- the breakpoint is placed on the
+// messages `applyCut` returned (proxy.js) -- and until 2026-11-18 its row said nothing of that: no `clientCut`,
+// `cleared` 0. One request a cut would be trivia, except for which request it is. A seed is laid at a turn
+// boundary, and the boundary after a pause past the cache's hour is the one request that writes the whole
+// context again, where the tokens an earlier cut removed are worth a write apiece (cutting.js:wroteCold). On this
+// machine's two sessions of 2026-11-18 it was exactly that row, 257k and 256k cleared tokens on a cold request
+// each, that the log said had cleared nothing.
+// The proxy fills the row now. For the rows already written, the figure is the one the conversation's request
+// before it carried: a seed changes nothing but a breakpoint, so the set is the same set. A row names its
+// session and a session holds its subagents' conversations too, so the row before it is taken for this
+// conversation's only where the model is the same, the turn is the same or the next, and the context is the
+// size that row left plus what a turn adds. Marked `carried`, an estimate like any figure a cut counted itself.
+const promptSize = r => (r.input || 0) + (r.read || 0) + (r.write || 0);
+function carrySeeded(rows) {
+  const last = new Map();   // session -> its newest row that carried a cut
+  for (const r of rows) {
+    if (clearedOf(r) > 0) { last.set(r.session, r); continue; }
+    if (r.reason !== 'seed') continue;
+    const p = last.get(r.session);
+    if (!p || p.model !== r.model) continue;
+    const was = promptSize(p), now = promptSize(r);
+    if (!(was > 0) || now < 0.9 * was || now > 2 * was) continue;
+    if (Number.isFinite(p.turn) && Number.isFinite(r.turn) && (r.turn < p.turn || r.turn > p.turn + 2)) continue;
+    r.cleared = clearedOf(p); r.clearedUses = clearedUsesOf(p);
+    r.clientCut = { cut: clearedUsesOf(p), tokens: clearedOf(p), carried: true };
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -436,15 +465,21 @@ export function clearedBySession(file, { since = '', config } = {}) {
   for (const r of compressionRecords(file)) {
     const cleared = clearedOf(r);
     if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
-    const prev = out.get(r.session) || { cleared: 0, requests: 0, usd: 0, pricedTokens: 0 };
+    const prev = out.get(r.session) || { cleared: 0, requests: 0, usd: 0, pricedTokens: 0, coldUsd: 0, coldRequests: 0 };
     // What the row saved, at the model that answered that row -- the ledger's and the Report's rule
     // (report-savings.js:weeklySavings). A session is not one model: its subagents and its routes to another
     // provider run on their own, and the rewrites after a clear are already priced row by row. Pricing the
     // whole session's cleared tokens at the one model its last `session` row named put a machine's 339M
     // cleared tokens at $0.01 a million against rewrites charged at the model that made them (2026-11-16).
     const price = listPrice(r.model, { config });
+    // And at what the request would have paid for it (cutting.js:savedAs, 2026-11-18): a cache read, or a cache
+    // write on a request that read nothing back and wrote its whole context again. `coldUsd` is that second
+    // kind on its own, so a reader can see how much of a saving came from a cache that had expired -- it is
+    // part of `usd`, not beside it.
+    const worth = price ? costOfInputSavings(savedAs(r, cleared), price) : 0, cold = wroteCold(r);
     out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
-      usd: prev.usd + (price ? cleared * price.cacheRead / 1e6 : 0), pricedTokens: prev.pricedTokens + (price ? cleared : 0),
+      usd: prev.usd + worth, pricedTokens: prev.pricedTokens + (price ? cleared : 0),
+      coldUsd: prev.coldUsd + (cold ? worth : 0), coldRequests: prev.coldRequests + (cold ? 1 : 0),
       // The model the API answered with, from the rows themselves. Without it a session is priced only when
       // the usage log's own `session` row names one, and on this machine that left 96% of the cleared tokens
       // in a five-day window unpriced -- so the netted dollars were computed from a handful of sessions and

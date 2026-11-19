@@ -233,3 +233,21 @@ test('the switch: a flag, a variable, the machine config, and a policy name of i
     assert.ok(serviceArgs(home, { port: 4000 }).includes('--no-cut-breakpoint'), 'the service carries a machine that said no');
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
+
+// 2026-11-18. Every earlier cut is still applied on the request that seeds the next one, and the row said nothing
+// of it: `cleared` 0 on the one request a pause past the cache's hour writes whole.
+test('the request that seeds a cut says what the cuts before it took out of it', () => {
+  const cfg = CFG(true);
+  // a conversation's first cut is seeded on a request sent whole: nothing to say
+  const first = send(freshCut('s'), body(), cfg, 1e12);
+  assert.equal(first.t.reason, 'seed'); assert.equal(first.t.clientCut, undefined);
+  // one with r0 already out of it, at the next boundary: r1 is seeded, r0 stays a placeholder
+  const rec = freshCut('s'); rec.cut = ['r0']; rec.turn = first.t.turn - 1; rec.at = 1e12 - 1000;
+  const { t, sent } = send(rec, body(), cfg, 1e12);
+  assert.equal(t.reason, 'seed', 'still a seed: the row keeps its reason');
+  assert.equal(replaced(sent), 1, 'r0 as the earlier cut left it, and r1 not yet replaced');
+  assert.equal(t.clientCut.cut, 1);
+  assert.equal(t.clientCut.tokens, applyCut(body().messages, ['r0'], { cutInputs: cfg.cutInputs }).tokens, 'the tokens this request was sent without');
+  assert.ok(t.clientCut.tokens > 100000);
+  assert.equal(t.injected, undefined, 'and it is not marked as a request that made or held a cut, so nothing else about its row moves');
+});

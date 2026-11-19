@@ -1004,6 +1004,11 @@ export function transformRequest(method, url, headers, body, cfg) {
   if (d.reason === 'seed' && marked) {
     j.messages = marked.messages;
     return { body: Buffer.from(JSON.stringify(j)), ...(stubbed ? { stubbed } : {}), policy: d.policy || policyId(cfg), reason: 'seed', model: j.model, turn: m.turn, cut: d.cut,
+      // Every earlier cut is still applied on the request that seeds the next one (`applied` above is the set as
+      // it stands), and the row says so. Until 2026-11-18 it said nothing, so the one request a pause past the
+      // cache's hour writes whole -- which is this one, the boundary after the pause -- read as having cleared
+      // nothing (compression.js:carrySeeded reads the rows written before this).
+      ...(applied.cut ? { clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged, ...(applied.thinking != null ? { thinking: applied.thinking } : {}) } } : {}),
       bp, ...keptRow, ...markRow, ...seed, ...(d.planned ? { planned: { tokens: d.planned.tokens, recache: d.planned.recache, whole: d.planned.whole, cost: Math.round(d.planned.cost), payback: d.planned.payback, depth: d.planned.depth, rungs: d.planned.rungs } } : {}),
       ...(d.candidate != null ? { candidate: d.candidate } : {}) };
   }

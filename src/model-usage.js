@@ -81,11 +81,25 @@ export function addSpend(total, e) {
 // per input token, Claude Opus 5.5 = 1 (Anthropic's table of 2026-10-06); ratios, never shown as
 // money. A model not listed (another provider's, an alias nobody priced) is null and is counted one
 // token for one, as before.
+//
+// A family is not one price (2026-11-18, read against platform.claude.com/docs/en/about-claude/pricing that
+// day). The first table had one row a family, written when Fable meant 5.1 and Sonnet meant 5, and three
+// models released around it were priced as their neighbours:
+//   - Fable 5.2 and Mythos 5.2 are $8 a million in and $40 out, not 5.1's $10 and $50, with the cache read
+//     still a fortieth ($0.20). Every dollar figure of a 5.2 session read a quarter high, saving and cost alike.
+//   - Fable 5 and Mythos 5 read their cache at the usual tenth, $1 a million, where 5.1 and 5.2 read at a
+//     fortieth: they were priced four times too cheap to read, and `cutting.js:readRate` took that ratio.
+//   - Sonnet 5.5 kept Sonnet 5's $2 and $10 and halved the cache read to $0.10, a twentieth of its input.
+// The version is matched with no digit after it, so a dated id of Fable 5 (`fable-5-2026...`) is not 5.2.
+// A model the list does not know still falls to its family's row, as before.
 const RATES = [
+  [/(fable|mythos)-5[-.]2(?!\d)/, 2, 0.05],
+  [/(fable|mythos)-5(?![-.]\d(?!\d))/, 2.5, 0.25],
   [/fable|mythos/, 2.5, 0.0625],
   [/opus-5-5|opus-5\.5|^opus$/, 1, 0.05],
   [/opus/, 1.25, 0.125],
   [/sonnet-[34]/, 0.75, 0.075],
+  [/sonnet-5[-.]5(?!\d)/, 0.5, 0.025],
   [/sonnet/, 0.5, 0.05],
   [/haiku-[34]/, 0.25, 0.025],
   [/haiku/, 0.025, 0.0025],

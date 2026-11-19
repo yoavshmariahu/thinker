@@ -540,3 +540,20 @@ test('the Report carries the profile metric, pooled across repositories as count
   assert.deepEqual(lineBands([{ shown: 10, applied: 0 }, { shown: 10, applied: 2 }, { shown: 10, applied: 3 }, { shown: 10, applied: 7 }, { shown: 10, applied: 8 }, { shown: 1, applied: 1 }]), { rarely: 2, sometimes: 2, frequently: 2 });
   assert.match(renderReport({ ...reportView(store, { now: NOW, sessions: [] }), profile: null }).join('\n'), /No profile observations/);
 });
+
+// 2026-11-18, read against Anthropic's pricing page that day: one row a family had priced three models as
+// their neighbours (model-usage.js:RATES).
+test('a model family is not one price: Fable 5.2, Fable 5 and Sonnet 5.5 at their own published rates', () => {
+  assert.deepEqual(listPrice('claude-fable-5-2'), { input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10, cacheWrite1h: 16 }, 'not Fable 5.1\'s $10 and $50');
+  assert.deepEqual(listPrice('claude-mythos-5-2'), listPrice('claude-fable-5-2'));
+  assert.equal(listPrice('claude-fable-5-2-fast').input, 8);
+  assert.deepEqual(listPrice('claude-fable-5-1'), { input: 10, output: 50, cacheRead: 0.25, cacheWrite: 12.5, cacheWrite1h: 20 }, 'Fable 5.1 is as it was');
+  assert.deepEqual(listPrice('claude-fable-5'), { input: 10, output: 50, cacheRead: 1, cacheWrite: 12.5, cacheWrite1h: 20 }, 'Fable 5 reads its cache at a tenth, not a fortieth');
+  assert.equal(listPrice('claude-mythos-5').cacheRead, 1);
+  assert.equal(listPrice('claude-fable-5-20260601').cacheRead, 1, 'a dated id of Fable 5 is not Fable 5.2');
+  assert.equal(listPrice('claude-fable-5-20260601').input, 10);
+  assert.deepEqual(listPrice('claude-sonnet-5-5'), { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5, cacheWrite1h: 4 }, 'Sonnet 5.5 reads at a twentieth');
+  assert.deepEqual(listPrice('claude-sonnet-5'), { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5, cacheWrite1h: 4 }, 'Sonnet 5 is as it was');
+  // a Fable nobody has priced yet still falls to the family's row, as before
+  assert.equal(listPrice('claude-fable-6').input, 10);
+});

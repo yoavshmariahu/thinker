@@ -1,7 +1,8 @@
 // What leaves the machine about what thinker saved: two blocks from one walk of the repositories.
 //
 // `prs` -- the pull requests the sessions here produced: counts, token totals, the netted dollars at list
-// prices (delivery.js `summary.cost`: cleared at the cache-read rate, less the cache writes after a clear),
+// prices (delivery.js `summary.cost`: cleared at what each request would have paid for it -- a cache read, or a
+// cache write where the request wrote its whole context again -- less the cache write of the request that cut),
 // what each cost in model calls, whether it got a context clear and how much was cleared on it.
 //
 // `sessions` -- the same savings per session, which is the figure the pull request cannot give: most sessions
@@ -33,12 +34,16 @@ const PR_ROWS = 50;
 // the two apart -- which is why the proxy block grew its own `byDay` (telemetry.js:proxyMetrics). A day here
 // belongs to one snapshot, so a dashboard takes the latest snapshot per device, explodes its days, and days
 // from different devices and different days add up.
-const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, savedUsd: 0, netUsd: 0, stampedSessions: 0, stampedSavedUsd: 0, stampedNetUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
+// `coldUsd` (2026-11-18) is the part of `savedUsd` that was saved on requests which found their cache gone and
+// wrote the whole context again, where a token a cut had left out is priced as the write it would have been
+// (cutting.js:savedAs). A client from before it priced every saved token as a cache read and sends no such
+// field, which is how a dashboard tells whose savings count a resumed session and whose do not.
+const dayGroup = () => ({ sessions: 0, clearedSessions: 0, prompts: 0, clearedTokens: 0, savedUsd: 0, coldUsd: 0, netUsd: 0, stampedSessions: 0, stampedSavedUsd: 0, stampedColdUsd: 0, stampedNetUsd: 0, spendUsd: 0, spendSessions: 0, pricedSessions: 0 });
 const dayOf = at => (typeof at === 'string' && at.length >= 10 && Number.isFinite(Date.parse(at)) ? at.slice(0, 10) : null);
 const roundDays = byDay => {
   for (const d of Object.values(byDay)) {
     d.clearedTokens = Math.round(d.clearedTokens);
-    for (const k of ['savedUsd', 'netUsd', 'stampedSavedUsd', 'stampedNetUsd', 'spendUsd']) if (k in d) d[k] = Math.round(d[k] * 100) / 100;
+    for (const k of ['savedUsd', 'coldUsd', 'netUsd', 'stampedSavedUsd', 'stampedColdUsd', 'stampedNetUsd', 'spendUsd']) if (k in d) d[k] = Math.round(d[k] * 100) / 100;
   }
   return byDay;
 };
@@ -46,7 +51,7 @@ const roundDays = byDay => {
 const group = () => ({
   sessions: 0, prompts: 0, agentTokens: 0, tokenComplete: 0,
   clearedSessions: 0, clearedTokens: 0, clearRequests: 0,
-  savedUsd: 0, rewriteUsd: 0, rereadUsd: 0, rereads: 0, rereadSessions: 0, netUsd: 0, pricedSessions: 0, lossSessions: 0,
+  savedUsd: 0, coldUsd: 0, rewriteUsd: 0, rereadUsd: 0, rereads: 0, rereadSessions: 0, netUsd: 0, pricedSessions: 0, lossSessions: 0,
   spendUsd: 0, spendSessions: 0,
 });
 const bumpGroup = (g, x) => {
@@ -58,7 +63,7 @@ const bumpGroup = (g, x) => {
   if (x.rereads > 0) { g.rereads += x.rereads; g.rereadSessions++; }
   if (x.cost?.priced) {
     g.pricedSessions++;
-    g.savedUsd += x.cost.saved || 0; g.rewriteUsd += x.cost.rewrite || 0; g.rereadUsd += x.cost.reread || 0; g.netUsd += x.cost.net || 0;
+    g.savedUsd += x.cost.saved || 0; g.coldUsd += x.cost.cold || 0; g.rewriteUsd += x.cost.rewrite || 0; g.rereadUsd += x.cost.reread || 0; g.netUsd += x.cost.net || 0;
     if ((x.cost.net || 0) < 0) g.lossSessions++;
   }
   if (x.spend != null) { g.spendUsd += x.spend; g.spendSessions++; }
@@ -66,7 +71,7 @@ const bumpGroup = (g, x) => {
 };
 const roundGroup = g => {
   for (const k of ['agentTokens', 'clearedTokens']) g[k] = Math.round(g[k]);
-  for (const k of ['savedUsd', 'rewriteUsd', 'rereadUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
+  for (const k of ['savedUsd', 'coldUsd', 'rewriteUsd', 'rereadUsd', 'netUsd', 'spendUsd']) g[k] = Math.round(g[k] * 100) / 100;
   return g;
 };
 // a saving whose policy was never recorded is its own key, never folded into today's
@@ -149,12 +154,12 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
       d.sessions++; d.prompts += x.prompts || 0;
       if (x.cleared > 0) { d.clearedSessions++; d.clearedTokens += x.cleared; }
       // gross beside net: what the clearing saved before the cache writes after it are charged (the Report's figure)
-      if (x.cost?.priced) { d.pricedSessions++; d.savedUsd += x.cost.saved || 0; d.netUsd += x.cost.net || 0; }
+      if (x.cost?.priced) { d.pricedSessions++; d.savedUsd += x.cost.saved || 0; d.coldUsd += x.cost.cold || 0; d.netUsd += x.cost.net || 0; }
       // The same dollars over the sessions cleared under a policy the client stamped on the clear (`r<rev>-...`,
       // cutting.js:policyId), which is the only way a day's saving can be known to be the current mechanism's: a
       // date cannot say it, since an old session is dated by its last request and nothing knows when a machine
       // updated. Unstamped and mixed sessions are in the figures above and not in these.
-      if (x.cost?.priced && STAMPED.test(key)) { d.stampedSessions++; d.stampedSavedUsd += x.cost.saved || 0; d.stampedNetUsd += x.cost.net || 0; }
+      if (x.cost?.priced && STAMPED.test(key)) { d.stampedSessions++; d.stampedSavedUsd += x.cost.saved || 0; d.stampedColdUsd += x.cost.cold || 0; d.stampedNetUsd += x.cost.net || 0; }
       if (x.spend != null) { d.spendUsd += x.spend; d.spendSessions++; }
     }
     bumpGroup(sessions.all, x);
