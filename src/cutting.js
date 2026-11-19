@@ -289,7 +289,11 @@ export function cutInput(input, { minChars = MIN_CHARS } = {}) {
 // a URL, because `x-session-id` is a name anything upstream might set.
 // Goose names its session in `agent-session-id` (2026-11-19: `SESSION_ID_HEADER` in its source at 1.60, put on
 // every provider request made inside a session), so a Goose session's rows are its own from the first request.
-// Read in the source, not yet seen from the Goose binary: whether it is the id Goose's hooks report is unchecked.
+// Run with the Goose binary at 1.60.1 (2026-11-19): the header carried `20261119_5` on all 26 requests of a
+// session, which is the id `goose session list` shows for it and the `session_id` its hooks report, so the
+// ledger's join holds. Goose puts the header on every request, a session or not: `goose configure`'s own
+// configuration check sends the literal `agent-session-id: test-session-id`, so one row a `configure` is
+// logged under that name and joins to no session. One row, so it is left as it is.
 export const SESSION_HEADERS = ['x-claude-code-session-id', 'x-opencode-session-id', 'x-opencode-session', 'agent-session-id', 'x-session-id'];
 export const sessionOf = headers => {
   for (const h of SESSION_HEADERS) {
