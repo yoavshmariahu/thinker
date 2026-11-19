@@ -2,7 +2,7 @@
 //
 // The figures are the Report page's own savings table (report-savings.js:weeklySavings), asked for two
 // windows instead of six weeks: one column from midnight, one from the beginning of the log. Every series
-// there is counted -- the context clearing at the prompt-cache read rate, and since 2026-11-14 the reads the
+// there is counted -- the context clearing at the prompt-cache read rate (the write rate on a request that wrote its whole context again, 2026-11-18), and since 2026-11-14 the reads the
 // delegation trigger kept out of the lead's context (report-savings.js:delegationSavings) -- so the footer
 // can never disagree with `thinker report`.
 // Nothing is priced here that is not priced there (the owner's call, 2026-11-05: the footer shows money,

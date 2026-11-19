@@ -61,6 +61,25 @@ export const isRewrite = u => { const ctx = (u?.read || 0) + (u?.write || 0) + (
 // been written anyway; that overstates a cut's cost by a little, where the old rule understated it by a lot.
 // The desktop clearing mod holds the same rule (register.tsx:chargedRewrite, test/claude-clear.test.js).
 export const chargedRewrite = u => (u?.write || 0) > 0 && (u?.read || 0) > 0;
+// The same mark, read the other way round: what the tokens a cut had ALREADY left out were worth on a request.
+// From a warm cache they would have been read back, the cheapest thing a token can be. On a request that read
+// nothing back they would have been written again with everything else -- "the cut only made it smaller", as
+// the note above says, and until 2026-11-18 nothing counted by how much: every saved token was priced as a
+// cache read on the very requests where it was a write, which is 20 reads on Opus 5, 40 on Opus 5.5 and 80 on
+// a Fable. A session cut and then left past the cache's hour comes back to one such request, and on this
+// machine's two of 2026-11-18 that one request was worth more than every read the cut had saved before it.
+// Told from the request's own usage and nothing else, so a rewrite the cut caused is never taken for one it
+// softened: a cut invalidates the conversation and still reads the system prompt, and a read of zero is a
+// cache that was gone before the request arrived.
+export const wroteCold = u => (u?.write || 0) > 0 && !((u?.read || 0) > 0);
+// `tokens` left out of request `r`, as the kind of input they would have been, in the shape
+// `prices.js:costOfInputSavings` prices: a cache read, or on a request that wrote its whole context a cache write
+// at that request's own mix of the two TTLs (the hour's where the row does not say, as every write here is priced).
+export function savedAs(r, tokens) {
+  if (!wroteCold(r)) return { cacheRead: tokens };
+  const hour = Number.isFinite(r.write1h) && r.write > 0 ? Math.min(1, Math.max(0, r.write1h / r.write)) : 1;
+  return { cacheWrite: tokens, cacheWrite1h: tokens * hour };
+}
 // What the gauge uses instead is exact and in the API's own units: every answer reports the prompt's size as input
 // plus cache read plus cache write plus what was cleared (`rawOf`), so the growth from one answer to the next is
 // known, and new content is all a call should write. What the API wrote beyond that growth is the prefix written

@@ -331,3 +331,24 @@ test('no saving and no clearing cost on or before 2026-11-04 is counted', t => {
   assert.equal(x.cost.rewrite, 0, 'and a rewrite before the line is not charged');
   assert.ok(Math.abs(x.cost.saved - 200_000 * await_prices.listPrice('claude-opus-5-5').cacheRead / 1e6) < 1e-9);
 });
+
+// 2026-11-18. A cut in place when a session comes back past the cache's hour is worth a write a token on that request.
+test('a session resumed on an expired cache: the cut in place is priced as the write it spared, and the saving says how much', t => {
+  const { store, home } = fixture(t);
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  const row = (h, over) => ({ op: 'proxy', at: at(h), session: 'sCold', model: 'claude-fable-5-2', status: 200, injected: true, clientCut: { cut: 100, tokens: 250_000 }, cleared: 250_000, input: 4, ...over });
+  fs.writeFileSync(path.join(home, 'state', 'proxy.jsonl'), [
+    row(5, { read: 90_000, write: 2_000, write1h: 2_000 }),
+    row(3, { read: 0, write: 195_000, write1h: 195_000 }),
+    row(2, { read: 195_000, write: 1_000, write1h: 1_000 }),
+  ].map(r => JSON.stringify(r)).join('\n') + '\n');
+  store.log({ op: 'session', t: at(1), session: 'sCold', client: 'claude', model: 'claude-fable-5-2', turns: 6, totalTokens: 900_000, tokenCoverage: 'complete' });
+  const x = sessionsOf(store, { home, env: {} }).get('sCold');
+  const p = await_prices.listPrice('claude-fable-5-2');
+  assert.deepEqual([p.cacheRead, p.cacheWrite1h], [0.2, 16]);
+  assert.equal(x.cleared, 750_000);
+  assert.ok(Math.abs(x.cost.cold - 250_000 * 16 / 1e6) < 1e-9, 'the one request that wrote everything: $4');
+  assert.ok(Math.abs(x.cost.saved - (2 * 250_000 * 0.2 + 250_000 * 16) / 1e6) < 1e-9, 'which is part of the saving, beside the two reads');
+  assert.equal(x.cost.rewrite, 0, 'no request here made a cut, so nothing is charged to one');
+  assert.ok(Math.abs(x.cost.net - x.cost.saved) < 1e-12);
+});

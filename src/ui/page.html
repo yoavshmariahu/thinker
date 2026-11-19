@@ -1656,7 +1656,7 @@ function prStatsTable(v) {
   if (!weeks?.length) return `<figure class="ctx-figure">${heading}<p class="savings-note">${v.refreshing ? 'Updating PR stats…' : 'No PR stats available yet.'}</p></figure>`;
   const metrics = [
     { key: 'merged', name: 'Number of PRs', title: w => `${w.merged} merged with work recorded here` },
-    { key: 'savedUsdPerPr', name: 'Saved per PR · average', title: w => `${money(w.savedUsd || 0)} over ${w.priced || 0} of ${w.merged} PRs with a priced model: what the clearing saved at the cache-read rate. The cache writes after a clear are in the cost` },
+    { key: 'savedUsdPerPr', name: 'Saved per PR · average', title: w => `${money(w.savedUsd || 0)} over ${w.priced || 0} of ${w.merged} PRs with a priced model: what the clearing saved at the cache-read rate, or the cache-write rate on a request that wrote its whole context again. The cache writes after a clear are in the cost` },
     { key: 'spendPerPr', name: 'Cost per PR · average', title: w => `${money(w.spend || 0)} over ${w.spent || 0} of ${w.merged} PRs whose every session is priced: their model calls at list prices by token type, cache writes after a clear included` },
   ];
   const rows = metrics.map(({ key, name, title }) => `<tr><td class="ctx-name">${name}</td>${weeks.map(w => {

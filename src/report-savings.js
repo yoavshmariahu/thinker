@@ -2,7 +2,7 @@
 // These are estimates, separate from billed usage: never add the series to each other.
 import { costOf, costOfInputSavings, listPrice } from './prices.js';
 import { sessionKey } from './usage.js';
-import { clearedOf, clearedEstimated } from './cutting.js';
+import { clearedOf, clearedEstimated, savedAs } from './cutting.js';
 
 const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedTokens: 0, estimatedTokens: 0 });
 // The cache-hits series (reading the notes avoided, an estimate) went with the notes on 2026-11-08.
@@ -156,7 +156,9 @@ export function weeklySavings({ columns, now, config, events = [], compression =
     // request, including subsequent cached reads (cutting.js:clearedOf).
     const estimated = clearedEstimated(r), tokens = clearedOf(r);
     if (!Number.isFinite(tokens) || tokens < 0) continue;
-    account(0, { ...r, estimated }, tokens, costOfInputSavings({ cacheRead: tokens }, listPrice(r.model, { config })));
+    // priced as what the request would have paid for them: a cache read, or a cache write on a request that
+    // wrote its whole context again (cutting.js:savedAs), the same rule the delivery ledger prices a session by
+    account(0, { ...r, estimated }, tokens, costOfInputSavings(savedAs(r, tokens), listPrice(r.model, { config })));
   }
   // `events` is already the repository's own where a repository asked (report.js reads its log), so a firing
   // needs no owner: it is counted where its hook logged it, with the session's later calls wherever they went.

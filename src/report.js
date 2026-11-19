@@ -611,7 +611,7 @@ export function renderReport(v, { total = false, share = false } = {}) {
     L.push('', 'Pull request stats · by merge week (current week so far), in dollars at list prices',
       '  Week of       PRs    Saved / PR     Cost / PR    Priced');
     for (const w of v.prWeekly) L.push(`  ${new Date(w.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).padEnd(12)}${String(w.merged).padStart(5)}${d(w.savedUsdPerPr).padStart(14)}${d(w.spendPerPr).padStart(14)}    ${w.spent ?? 0}/${w.merged}`);
-    L.push('  Merged PRs with work recorded here. Saved / PR: what the clearing saved at the cache-read rate, averaged over the PRs with a priced model.',
+    L.push('  Merged PRs with work recorded here. Saved / PR: what the clearing saved at the cache-read rate (the cache-write rate on a request that wrote its whole context again), averaged over the PRs with a priced model.',
       '  Cost / PR: what their sessions\' model calls cost, cache writes after a clear included, averaged over the PRs whose every session is priced (Priced says how many).');
   }
   if (pr?.merged) {

@@ -129,9 +129,11 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     if (!x.model && x.logged?.model) x.model = x.logged.model;
     if (!x.model && c.model) x.model = c.model;   // the model the proxy's own clearing rows name
     delete x.logged;
-    // Dollars, at the session's own model's list rates: a cleared token saved a cache read; the writes after a clear
-    // and what the model read again after a cut took it out are what it cost (prices.js, rereads.js). One rule: net is
-    // cleared at the cache-read rate, less the cache writes after a clear, less the re-reads of cleared files.
+    // Dollars, at the session's own model's list rates: a cleared token saved a cache read, or a cache write on a
+    // request that found its cache gone and wrote the whole context again (cutting.js:savedAs, 2026-11-18); the write
+    // of the request that made a cut and what the model read again after a cut took it out are what it cost
+    // (prices.js, rereads.js). One rule: net is cleared at what each request would have paid for it, less the cut's
+    // own cache write, less the re-reads of cleared files.
     const price = listPrice(x.model, { config });
     // Saved is priced row by row where the proxy's log has the rows (`c.usd` over `c.pricedTokens`, each row at the
     // model that answered it), as the ledger and the Report price it and as the rewrites below are charged. What
@@ -139,8 +141,12 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     // priced at the session's own model, and a session with such a remainder and no priced model stays unpriced.
     const byRow = Math.min(c.pricedTokens || 0, x.cleared || 0), rest = (x.cleared || 0) - byRow;
     x.cost = price || (byRow > 0 && rest === 0)
-      ? { saved: (byRow > 0 ? c.usd * (byRow / c.pricedTokens) : 0) + (price ? rest * price.cacheRead / 1e6 : 0), rewrite: x.rewrite?.usd || 0, reread: price ? rereadCost(x.rereads, price) : 0, priced: true }
-      : { saved: 0, rewrite: 0, reread: 0, priced: false };
+      ? { saved: (byRow > 0 ? c.usd * (byRow / c.pricedTokens) : 0) + (price ? rest * price.cacheRead / 1e6 : 0),
+        // of `saved`, what was saved on requests that wrote their whole context again; a clear known from its
+        // record alone has no request to read that off, and is priced as reads
+        cold: byRow > 0 ? (c.coldUsd || 0) * (byRow / c.pricedTokens) : 0,
+        rewrite: x.rewrite?.usd || 0, reread: price ? rereadCost(x.rereads, price) : 0, priced: true }
+      : { saved: 0, cold: 0, rewrite: 0, reread: 0, priced: false };
     x.cost.net = x.cost.saved - x.cost.rewrite - x.cost.reread;
     // What the session's own calls cost, in dollars at list prices by token type (fresh input, cache reads, cache
     // writes by TTL, output; prices.js:costOf), the subagents each at their own model. The owner's call, 2026-11-08: a
@@ -179,8 +185,9 @@ export function clearingFor({ home = thinkerHome(), env = process.env, since = '
     // as a clear under today's policy: a reader comparing savings leaves those out rather than pooling them.
     const named = a?.policy ? a : state?.policy ? state : null;
     return { cleared, model: a?.model || state?.model || null,
-      // what the log's own rows saved, each at its own model, and how many of the cleared tokens that covers
-      usd: a?.usd || 0, pricedTokens: a?.pricedTokens || 0,
+      // what the log's own rows saved, each at its own model, and how many of the cleared tokens that covers;
+      // `coldUsd` is the part of it saved on requests that wrote their whole context again (cutting.js:wroteCold)
+      usd: a?.usd || 0, pricedTokens: a?.pricedTokens || 0, coldUsd: a?.coldUsd || 0,
       policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
   };
 }
@@ -357,7 +364,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
         reread: sum(merged, p => p.cost.reread),
         net: sum(merged, p => p.cost.net),
         costed: merged.filter(p => p.cost.priced).length,
-        basis: 'cleared at the cache-read rate, less the cache writes after a clear, less the re-reads of cleared files, at list prices',
+        basis: 'cleared at the cache-read rate (the cache-write rate on a request that wrote its whole context again), less the cache writes after a clear, less the re-reads of cleared files, at list prices',
         // what the merged pull requests cost in model calls, over the ones whose every session is priced
         spend: sum(merged.filter(p => p.cost.spendComplete), p => p.cost.spend),
         spendComplete: merged.filter(p => p.cost.spendComplete).length,
@@ -475,7 +482,7 @@ export function renderDelivery(r, { detail = false } = {}) {
   if (c && (c.saved || c.rewrite)) {
     const d = v => formatDollars(v);
     L.push('', `In dollars, at list prices${c.costed < s.merged ? ` (${c.costed} of ${s.merged} on a model with a price)` : ''}`);
-    L.push(`  saved           ${d(c.saved)} the clearing saved: cleared tokens at the cache-read rate`);
+    L.push(`  saved           ${d(c.saved)} the clearing saved: cleared tokens at the cache-read rate, or the cache-write rate where a request wrote its whole context again`);
     L.push(`  rewrites        ${d(-c.rewrite)} the calls after a clear paid to write the cache again`);
     L.push(`  re-reads        ${d(-(c.reread || 0))} ${s.rereads ? `${s.rereads} ${s.rereads === 1 ? 'file' : 'files'} read again after a clear took ${s.rereads === 1 ? 'it' : 'them'} out: written once, read on every later call` : 'no file read again after a clear took it out'}`);
     L.push(`  net             ${d(c.net)}${s.merged ? ` · ${d(s.meanNetPerMergedPr)} on the average one` : ''}`);

@@ -74,3 +74,14 @@ test('a session moving between repositories contributes each compression request
   assert.deepEqual(views[1].savings[0].cells.map(c => c.tokens), [0, 1000]);
   assert.deepEqual(mergeSavings(views, 2)[0].cells.map(c => c.tokens), [1000, 1000]);
 });
+
+// 2026-11-18: the Report prices a cleared token by what its request would have paid for it, as the delivery ledger does
+test('a cleared token is a write on a request that wrote its whole context again, and a read otherwise', () => {
+  const row = { at: '2026-10-28T10:00Z', op: 'proxy', status: 200, session: 's', model, cleared: 1000 };
+  const compression = [{ ...row, read: 90_000, write: 500, write1h: 500 }, { ...row, at: '2026-10-28T12:00Z', read: 0, write: 90_000, write1h: 90_000 }];
+  const cell = weeklySavings({ columns, now, compression, events: [{ session: 'trace-s.jsonl', t: '2026-10-20', op: 'request' }] })[0].cells[1];
+  const p = listPrice(model);
+  assert.equal(cell.tokens, 2000);
+  assert.ok(Math.abs(cell.cost - (1000 * p.cacheRead + 1000 * p.cacheWrite1h) / 1e6) < 1e-12);
+  assert.equal(p.cacheWrite1h / p.cacheRead, 40, 'forty reads to the written token on Opus 5.5');
+});
