@@ -33,6 +33,19 @@ test('a dropped connection keeps its one fresh-socket retry', () => {
   }
 });
 
+test('a network with no route, and a local address that could not be had, are retried like a host with no route', () => {
+  // Of this machine's proxy errors since 2026-11-05, EHOSTUNREACH recovered 97 of its 195 on the one
+  // fresh-socket try, while all 88 ENETUNREACH and all 5 EADDRNOTAVAIL reached the agent as a 502 with
+  // no second try: the first two were in RETRY_CODES and these two were not, though all three fail
+  // before a byte of the request is sent.
+  for (const code of ['ENETUNREACH', 'EADDRNOTAVAIL']) {
+    assert.equal(retryable(err(code)), true, code);
+    assert.deepEqual(retryPlan(err(code), 0), { retry: true, waitMs: 0, address: false }, `${code} gets the one fresh-socket try, with nothing to wait for`);
+    assert.equal(retryPlan(err(code), 1).retry, false, `${code} is not laddered: that ladder is the resolver's`);
+  }
+  assert.equal(retryable(err('ECONNREFUSED')), false, 'nothing listening is an answer, not a flap');
+});
+
 test('a TLS record that did not authenticate is retried on a socket of its own', () => {
   // Node builds the code from OpenSSL's own string. 106 rows in 12 days, 82 on a reused keep-alive
   // socket, none retried, every one a 502 the agent had to recover from.

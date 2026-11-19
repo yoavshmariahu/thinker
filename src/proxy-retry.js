@@ -33,9 +33,17 @@
 import dns from 'node:dns';
 
 // Codes worth another try when nothing of the answer has reached the agent: a dropped connection (a
-// reused keep-alive socket the API had already closed), a connect timeout, a host with no route, and
-// a name that did not resolve.
-export const RETRY_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH'];
+// reused keep-alive socket the API had already closed), a connect timeout, a host or a whole network
+// with no route, a local address that could not be had, and a name that did not resolve. Every one of
+// them fails before a byte of the request is sent, so trying again cannot repeat work the API has
+// already done or be billed twice.
+//
+// ENETUNREACH and EADDRNOTAVAIL joined the list on 2026-11-19. They had been missing while
+// EHOSTUNREACH -- the same failure one hop further out, and on a laptop usually the same cause, an
+// interface going away under a live socket -- was in it: of this machine's errors since 2026-11-05,
+// EHOSTUNREACH recovered 97 of its 195 on the one fresh-socket try, where all 88 ENETUNREACH and all
+// 5 EADDRNOTAVAIL went to the agent as a 502 with no second try at all.
+export const RETRY_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'EADDRNOTAVAIL'];
 // The resolver's own refusals, which are the ones the ladder and the address book are for.
 export const DNS_CODES = ['ENOTFOUND', 'EAI_AGAIN'];
 // A TLS record that did not authenticate. On a reused socket this is the far end having finished with
