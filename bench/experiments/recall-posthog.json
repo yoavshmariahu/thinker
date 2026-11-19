@@ -1,0 +1,22 @@
+{
+ "tag": "recall-posthog",
+ "question": "Does a session with thinker on and thinking cut when older than two turns still answer questions about its own earlier decisions as a session with no proxy does, on the two tasks that hold the most thinking?",
+ "rule": "Chosen 2026-11-18 before any run, at the owner's ask for two more recall tasks: the recall variants of TypeScript PR64108 (78k of thinking in its bare session) and PostHog PR106917 (37k), the original turns unchanged, three short decision turns inserted and two recall turns appended. Two arms, one session each: bare, and the defaults of main with cutThinking on and thinkingKeepTurns 2. The recall criteria are read by hand against each session's own earlier answers and final diff.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/posthog",
+ "ref": "a3b3c3685bcffcf273f0d27ffb6a669239200e30",
+ "tasksDir": "bench/tasks/posthog",
+ "tasks": [
+  "PR106917-recall"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 220,
+ "reps": 1,
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  }
+ }
+}

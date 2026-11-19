@@ -1,0 +1,1 @@
+One more. First answer from memory, without opening anything: which path utility does the final code use to decide that a file is inside a workspace folder, and how does it treat a case-insensitive file system? Then open your diff and say whether your answer was right.

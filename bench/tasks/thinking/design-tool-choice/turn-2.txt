@@ -1,0 +1,1 @@
+Work out two genuinely different designs for this change. Weigh them against each other properly: what each touches, what each risks, how each would be tested. Then give each a short name and reply with ONLY the name of the one you pick. No explanation; I will ask for it later if I need it.

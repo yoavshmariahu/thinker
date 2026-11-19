@@ -1,0 +1,7 @@
+Reports 4 and 5, both about entities.
+
+Report 4: a LoggedModel with status FAILED and status_message "Upload failed" loses the message when it is converted to its protobuf form: the proto's info.status_message is empty, so converting back gives a model with no message.
+
+Report 5: constructing a PromptVersion changes the dictionary the caller passed as tags. After PromptVersion(name="my_prompt", version=1, template="Hello, {{name}}!", tags=tags, model_config={"temperature": 0.7}) with tags = {"author": "alice"}, the caller's tags hold more than that one key; and a second PromptVersion built from the same dictionary without a model_config then reports a model_config it was never given, and tags other than {"author": "alice"}.
+
+Reproduce each, fix each. Reply with one line per report.

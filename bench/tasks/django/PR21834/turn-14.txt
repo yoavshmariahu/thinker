@@ -1,0 +1,1 @@
+Run the prefetch_related suite one final time. Summarize the behavior change, affected paths, exact tests executed, and remaining limitations. Leave a clean focused diff without committing.

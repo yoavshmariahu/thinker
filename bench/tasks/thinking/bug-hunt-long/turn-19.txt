@@ -1,0 +1,3 @@
+Report 10. Two things about the Trace entity. Its repr prints the id without quotes, Trace(trace_id=tr-12345), where every other entity quotes strings: it should be Trace(trace_id='tr-12345'), and a Trace with no info should print Trace(trace_id=None) and must not raise. And people keep writing trace.info.trace_id: there should be a trace.trace_id property that returns the same value.
+
+Fix both. Reply in two lines at most.

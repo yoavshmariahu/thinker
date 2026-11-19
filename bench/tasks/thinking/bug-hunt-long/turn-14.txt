@@ -1,0 +1,1 @@
+Fix report 7 for both orders and both conversions. A reply with only function calls must keep a content of None, and a reply with only text must come out as it does today. Run the single tests that cover what you changed. Reply in two lines at most.

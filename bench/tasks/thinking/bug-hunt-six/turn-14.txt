@@ -1,0 +1,1 @@
+Run `git diff --stat`, read your whole `git diff` once, and correct anything in it that a reviewer would send back. Then finish with six lines, one per report: what was wrong and what you changed.

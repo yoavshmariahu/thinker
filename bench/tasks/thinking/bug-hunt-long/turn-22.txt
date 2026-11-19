@@ -1,0 +1,1 @@
+For each of the fixes for reports 7 to 11, find the existing caller most likely to be surprised by the changed behaviour and check it properly, by reading it and where it is cheap by running something. Fix anything that is wrong. Reply with five lines: report number, the caller you checked, safe or changed.

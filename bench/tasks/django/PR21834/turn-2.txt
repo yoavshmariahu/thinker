@@ -1,0 +1,1 @@
+Trace relation descriptors. Read django/db/models/fields/related_descriptors.py in full and explain forward foreign keys, reverse one-to-one, and many-to-many behavior, noting database selection and query cloning.

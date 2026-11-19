@@ -1,0 +1,1 @@
+Revisit forward and reverse relation code and compare their hint propagation with many-to-many paths. Check for a regression in existing caches and queryset reuse. Make changes only if justified.

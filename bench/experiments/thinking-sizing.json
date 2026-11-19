@@ -1,0 +1,22 @@
+{
+ "tag": "thinking-sizing",
+ "question": "Does a task written as a design conversation (few reads asked for, one-line answers) hold enough context and enough thinking for thinking-cutting to be tested on it: does its context pass the 140k trigger, and how much thinking does it hold by then?",
+ "rule": "One task, bug-hunt-long: eleven reports of real MLflow bugs (twelve upstream fixes) given one at a time as symptoms over twenty-seven turns, short answers asked for, on the commit before the oldest fix. It is bug-hunt-six (sized 2026-11-17: 143 calls, 141k peak on the last turn, 26k of thinking, too short for a cut to matter) with five more reports and recall turns after them. Written 2026-11-17 before any run. One session with no proxy, to size it; not a comparison.",
+ "base": "/Users/yoavshmariahu/.artemis/repos/mlflow-b2",
+ "ref": "569176474",
+ "tasksDir": "bench/tasks/thinking",
+ "tasks": [
+  "bug-hunt-long"
+ ],
+ "model": "claude-opus-5-5",
+ "maxTurns": 180,
+ "reps": 1,
+ "arms": {
+  "bare": {
+   "env": {
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "THINKER_TEST": "1"
+   }
+  }
+ }
+}

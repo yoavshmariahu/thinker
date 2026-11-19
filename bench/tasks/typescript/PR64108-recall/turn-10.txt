@@ -1,0 +1,1 @@
+Check fallback initialization through rootUri/rootPath, the workspace-root boundary case, and files outside the workspace. Keep absolute URI navigation unchanged.

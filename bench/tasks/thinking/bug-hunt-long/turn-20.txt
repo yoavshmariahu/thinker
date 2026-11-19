@@ -1,0 +1,3 @@
+Report 11. With OpenAI autologging on, a streaming chat completion whose stream ends without yielding a single chunk (the server sends only the end marker) blows up inside the autologging code when the stream is consumed, for the sync and the async client alike. Consuming such a stream should give an empty list of chunks, and the trace should be recorded with status OK and no outputs on its span.
+
+Reproduce it with the mock server the tests here already use, find the cause, fix it. Reply in three lines at most.

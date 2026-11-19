@@ -1,0 +1,1 @@
+Review tsc/internal/tspath path comparison and containment utilities and the existing file-rename tests. Explain how platform case sensitivity, nested workspace roots, and files outside the workspace should be handled.

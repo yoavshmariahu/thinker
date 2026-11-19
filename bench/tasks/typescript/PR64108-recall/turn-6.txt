@@ -1,0 +1,1 @@
+A short check before the next request. Do not open files or run anything for this one. You are about to make the change. Reply with exactly three lines and nothing else: (a) the function that will compute a file node's name and detail, (b) where the workspace folders will be read from when a request arrives, (c) the existing path utility that will decide containment.

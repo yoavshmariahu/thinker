@@ -1,0 +1,1 @@
+A user on MySQL asks whether report 1 is fixed for them. First answer in one line from what you remember doing, without opening any file. Then open your change, check, and say in one more line whether your first answer was right.

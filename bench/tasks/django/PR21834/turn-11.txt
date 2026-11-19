@@ -1,0 +1,1 @@
+Read the final diff and all touched functions again. Review error paths, empty querysets, and query counts. Simplify anything unnecessary, and rerun the focused suite.

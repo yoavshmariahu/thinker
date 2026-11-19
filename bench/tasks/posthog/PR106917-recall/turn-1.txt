@@ -1,0 +1,16 @@
+This is turn 1 of a nine-turn coding and review session. The requested change is below; first map the existing behavior and do not edit until the next turn.
+
+Implement the following change in this repository. Do not install dependencies or run the test suite; make the code change (and adjust or add a test if it is natural), then summarize what you changed and why.
+
+When a team turns off change data capture (CDC) on a data warehouse source, the tables that were previously synced via CDC are marked as no longer syncing, but they keep running on their old schedules anyway. Each of these runs is still billed, so the team keeps paying for syncs of tables it expected to be stopped. Separately, when a CDC source becomes broken (for example, the replication slot was dropped because of critical lag, or the slot or publication is missing), only the change-capture process is paused. Every CDC table's own sync schedule keeps firing, and each tick records a failed or billing-blocked job until someone repairs the source. Desired behavior: disabling CDC should pause the sync schedule of every affected table so no further runs start, and marking a CDC source as broken should likewise pause the schedules of all its CDC tables so no failed or billed runs pile up while the source is broken. A table that is marked as not syncing should never continue to run on its schedule.
+
+Read each of these relevant implementation or test files in full, in sequential Read-tool chunks of at most 180 lines so results are not truncated. Do not substitute a grep-only overview. These fixed review reads are part of this long-session demonstration.
+
+products/warehouse_sources/backend/presentation/views/external_data_source/change_data_capture.py
+products/warehouse_sources/backend/temporal/data_imports/cdc/broken.py
+products/data_warehouse/backend/logic/data_load/service.py
+products/data_warehouse/backend/facade/api.py
+products/warehouse_sources/backend/temporal/data_imports/cdc/source_manager.py
+products/warehouse_sources/backend/temporal/data_imports/cdc/activities.py
+
+Summarize the current data flow and likely change boundaries in under 250 words; do not implement yet.

@@ -1,0 +1,1 @@
+Read the fourslash harness in tsc/internal/fourslash/fourslash.go and the call-hierarchy tests and existing baseline files. Explain the testing conventions, incoming/outgoing hierarchy navigation, and existing display behavior.

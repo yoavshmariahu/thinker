@@ -1,0 +1,69 @@
+{
+ "id": "PR106466-hard",
+ "pr": "106466",
+ "title": "feat(workflows): let a live broadcast go back to draft and replace its schedule on launch",
+ "source": "Artemis archive, taskset posthog-opus-demo-nine-turns-2026-11-04 (frozen 2026-11-04, before any of these runs); prompts and criteria copied unchanged",
+ "criteria": [
+  {
+   "id": "c1",
+   "behavior": "From the summary view of a launched (live) scheduled broadcast, the user can trigger an action that returns the broadcast to draft status; after it succeeds the broadcast is no longer read-only and its details can be edited in the wizard again, and the scheduled send no longer goes out while it is a draft.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c2",
+   "behavior": "The stop/return-to-draft control is only offered for a live broadcast that still has a pending scheduled send; it is not offered for a broadcast already in draft, nor for one whose send has already gone out (e.g. an immediate send, or a one-time schedule already completed).",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c3",
+   "behavior": "Launching a broadcast with a future/recurring send results in exactly one schedule that is newly created and active at the chosen time — any schedule the broadcast already had (including a paused one) is removed rather than reused or edited — so a relaunched broadcast actually sends instead of staying silently paused. Launching with immediate send likewise leaves no leftover schedule behind that could fire later.",
+   "essential": true,
+   "calibrated": true
+  },
+  {
+   "id": "c4",
+   "behavior": "During a relaunch the broadcast is only marked live after the schedule replacement has completed, so an interruption part-way through leaves the broadcast as a draft rather than live with two schedules or none.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c5",
+   "behavior": "The stop/return-to-draft control is additionally withheld when stopping would be unsafe or ambiguous: while a send run is waiting/queued/in progress, while the run history is not yet known, when the broadcast carries more than one schedule, and when the underlying workflow has been changed into a shape the wizard cannot safely edit.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c6",
+   "behavior": "Choosing to stop a live broadcast asks for explicit confirmation first, explaining that the scheduled send stops and nothing sends until it is launched again, with the option to cancel; the broadcast is only moved to draft if confirmed.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c7",
+   "behavior": "When returning a broadcast to draft, any send run that had already started is cancelled as well, and the user is told which happened: a plain success message when nothing had started, a warning that a just-started send was cancelled and already-sent emails cannot be recalled when one had, and — if the cancellation itself fails — a message that still makes clear the broadcast is now a draft.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c8",
+   "behavior": "The scheduler does not start a new send run for a broadcast that has been moved out of live status concurrently: the status is re-verified immediately before the run is created, and when it is no longer live no run is created, nothing is dispatched, and the schedule is not reported as processed.",
+   "essential": false,
+   "calibrated": true
+  },
+  {
+   "id": "c9",
+   "behavior": "When a relaunch replaces an existing schedule, any variable overrides the previous schedule carried are retained on the newly created schedule rather than being silently dropped.",
+   "essential": false,
+   "calibrated": true
+  }
+ ],
+ "goldFiles": [
+  "products/workflows/backend/api/hog_flow.py",
+  "products/workflows/frontend/Broadcasts/BroadcastSummary.tsx",
+  "products/workflows/frontend/Broadcasts/broadcastWizardLogic.ts",
+  "products/workflows/frontend/Broadcasts/broadcastsLogic.ts"
+ ],
+ "mergeCommit": "624323555554fa5233b76239195f08a6d1037b0a"
+}

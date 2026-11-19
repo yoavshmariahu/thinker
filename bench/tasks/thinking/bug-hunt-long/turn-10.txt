@@ -1,0 +1,1 @@
+Stop and look across the six reports. Some of them are the same kind of mistake made in different places. Group the six by the kind of mistake, not by the file they are in. Reply with one line per group: the kind of mistake, and the report numbers in it.

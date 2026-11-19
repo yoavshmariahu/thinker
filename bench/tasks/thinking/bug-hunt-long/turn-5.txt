@@ -1,0 +1,1 @@
+For report 2: how many separate places in the code have to change, and are the two complaints one cause or two? Reply with a number and one line.

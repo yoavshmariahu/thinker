@@ -1,0 +1,1 @@
+Fix report 2 in the smallest change that covers every search named in it. Nothing that passes a numeric value as a string today may start failing. Run the single tests that cover what you changed. Reply in two lines at most.

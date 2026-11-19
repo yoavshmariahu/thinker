@@ -1,0 +1,8 @@
+Work only from this checkout. Do not use git history, remote repositories, issue or PR pages, or answer keys. This is an interactive coding session; respond to the current request and wait for the next. Read code with ordinary tools in bounded chunks when needed, so output is not silently truncated. First map Django ORM queryset evaluation and prefetching. Read django/db/models/query.py in full and explain evaluation, caching, and prefetch entry points; do not edit yet.
+
+The final implementation will be judged against these observable success criteria after the interactive session:
+- forward_database: A custom Prefetch queryset for a forward ForeignKey with no explicit database uses the parent instance’s database through the existing router, including correct related data when default and other contain different rows.
+- reverse_database: The same parent-database behavior holds for a reverse OneToOneField custom Prefetch queryset with no explicit database.
+- explicit_database: An explicit database selected on the custom queryset with using() continues to take precedence; the fix does not force all custom querysets onto the parent database.
+- router_hints: Existing router behavior and instance hints are preserved, with routing performed at the appropriate point rather than prematurely fixing the default database.
+- prefetch_compatibility: Existing queryset reuse, cached-relation handling, empty-prefetch behavior and unaffected many-to-many paths retain their observable behavior; the patch does not bypass prefetching or add unnecessary per-object database queries.

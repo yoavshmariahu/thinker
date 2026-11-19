@@ -1,0 +1,3 @@
+Report 6. A live span accepts either an exception or a plain string in record_exception. With an exception the span's status description reads like "ValueError: bad input". With the string "Something went wrong" it should read "Exception: Something went wrong", and it does not. Whatever else record_exception does with a string today (the event it adds, the error it raises for other types) must stay as it is.
+
+Reproduce, fix. Reply in two lines at most.

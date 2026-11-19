@@ -1,0 +1,1 @@
+Add coverage for an explicit database on the custom queryset and verify that the fix preserves that selection. Run the focused tests.

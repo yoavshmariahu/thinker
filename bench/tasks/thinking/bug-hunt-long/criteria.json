@@ -1,0 +1,99 @@
+{
+ "source": "Written 2026-11-17 before any run, from the twelve merged fixes the task is built on (mlflow #26171, #26172, #26180, #26130, #26244, #26245, #26109, #26181, #26192, #26204, #26007, #26283). b1-b11 are what each fix's own tests hold and are also run by check.sh; r1-r5 are judged from the session's answers, which the diff-only judge cannot see, so they are read by hand from the transcript.",
+ "exclude": [
+  "tests/cli/test_traces.py",
+  "tests/entities/test_logged_model.py",
+  "tests/entities/test_prompt.py",
+  "tests/entities/test_trace.py",
+  "tests/gateway/providers/test_gemini.py",
+  "tests/genai/scorers/test_scorer_utils.py",
+  "tests/openai/mock_openai.py",
+  "tests/openai/test_openai_autolog.py",
+  "tests/pyfunc/test_pyfunc_schema_enforcement.py",
+  "tests/store/tracking/sqlalchemy_store/test_sqlalchemy_store_traces.py",
+  "tests/tracing/test_fluent.py",
+  "tests/utils/test_search_utils.py"
+ ],
+ "criteria": [
+  {
+   "id": "b1",
+   "behavior": "Span content is stored so that a trace.text or span.content LIKE/ILIKE filter with non-ASCII text (accents, CJK, emoji) matches on SQLite and Postgres, reading a trace back returns the original text, and SQL Server keeps storing the escaped form as before.",
+   "essential": true
+  },
+  {
+   "id": "b2",
+   "behavior": "Parsing a numeric attribute comparison returns an integer for an integer literal and a float for a fractional one, in every search parser the report names; an in-memory filter with a fractional bound is not truncated (creation_timestamp > 1.5 over models at 1 and 2 returns only the second; = 1.5 returns none), and a numeric value passed as a string still works.",
+   "essential": true
+  },
+  {
+   "id": "b3",
+   "behavior": "A scorer function is rebuilt correctly from a signature text that contains parentheses inside defaults or a return annotation, and text that is not a signature is still refused with an invalid-parameter error.",
+   "essential": true
+  },
+  {
+   "id": "b4",
+   "behavior": "LoggedModel.to_proto carries status_message, so a proto round trip keeps it.",
+   "essential": true
+  },
+  {
+   "id": "b5",
+   "behavior": "Constructing a PromptVersion does not mutate the caller's tags dictionary, and a second PromptVersion built from the same dictionary has no model_config and only the caller's tags.",
+   "essential": true
+  },
+  {
+   "id": "b6",
+   "behavior": "record_exception given a string sets the span's status description to 'Exception: <the string>', still adds the exception event, and still refuses other types.",
+   "essential": true
+  },
+  {
+   "id": "b7",
+   "behavior": "The Gemini provider's chat conversion, regular and streaming, keeps both the text and the function call of a reply that mixes them, in either order; a reply with only function calls has content None.",
+   "essential": true
+  },
+  {
+   "id": "b8",
+   "behavior": "pyfunc schema enforcement keeps the input DataFrame's index for complex-typed columns (array, object, map), named or unnamed, so predict on a sliced or label-indexed frame returns its rows unchanged; scalar-only frames behave as before.",
+   "essential": true
+  },
+  {
+   "id": "b9",
+   "behavior": "`mlflow traces delete --trace-ids` and `mlflow traces search --order-by` strip spaces around each comma-separated entry.",
+   "essential": true
+  },
+  {
+   "id": "b10",
+   "behavior": "Trace's repr quotes the id (Trace(trace_id='tr-12345')), prints Trace(trace_id=None) without raising when there is no info, and Trace has a trace_id property equal to info.trace_id.",
+   "essential": true
+  },
+  {
+   "id": "b11",
+   "behavior": "With OpenAI autologging on, consuming a streaming chat completion that yields no chunks raises nothing, sync and async; the trace is recorded with status OK and no span outputs.",
+   "essential": true
+  },
+  {
+   "id": "r1",
+   "behavior": "In the twenty-fourth answer the session states what it did for SQL Server (kept the escaped form there) and why (the column cannot hold arbitrary Unicode), consistent with its change.",
+   "essential": false
+  },
+  {
+   "id": "r2",
+   "behavior": "In the twenty-fourth answer the number of places it gives for report 2 is the number it gave in its fifth answer, and what it says about the fix matching that number is true of the diff.",
+   "essential": false
+  },
+  {
+   "id": "r3",
+   "behavior": "In the twenty-fourth answer what it says replaced the signature-misreading code is what the diff shows.",
+   "essential": false
+  },
+  {
+   "id": "r4",
+   "behavior": "In the twenty-fourth answer the group it names for report 5 is the group it put report 5 in at its tenth answer; and in the twenty-first answer the first six reports are still in the groups, under the names, of the tenth answer.",
+   "essential": false
+  },
+  {
+   "id": "r5",
+   "behavior": "In the twenty-fifth answer the first line (from memory) about MySQL agrees with what its change actually does, as its own second line then confirms.",
+   "essential": false
+  }
+ ]
+}

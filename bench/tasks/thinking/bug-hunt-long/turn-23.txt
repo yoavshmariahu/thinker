@@ -1,0 +1,1 @@
+Make sure reports 7 to 11 each have a test that fails without the fix and passes with it; add the ones that are missing, next to the existing tests for that code. Run each new test on its own. Reply with one line per report: the test's name.

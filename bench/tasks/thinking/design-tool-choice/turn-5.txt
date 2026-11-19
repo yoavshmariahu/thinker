@@ -1,0 +1,1 @@
+Two last ones. When the tool choice is omitted or automatic, the request sent to the provider must be exactly what it is today. And when the request declares no tools at all, no tool-calling configuration may be sent whatever the tool choice says. Check your pick against both. Reply "noted", or only the name of the design you now pick.

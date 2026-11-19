@@ -1,0 +1,1 @@
+Trace LSP initialization and workspace roots through tsc/internal/lsp/server.go. Read the complete file in bounded chunks and explain the state retained from initialization and its path semantics.

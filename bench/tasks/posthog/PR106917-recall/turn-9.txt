@@ -1,0 +1,1 @@
+A short check before the next request. Do not open files or run anything for this one. Reply with one line and nothing else: the requirement whose test protection was weakest, and what you added for it, or 'nothing'.

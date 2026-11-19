@@ -1,0 +1,1 @@
+Exercise a nested workspace and multiple named workspace folders. Verify most-specific containment and the folder-name prefix. Add useful regression coverage and run it.
