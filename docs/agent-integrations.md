@@ -588,7 +588,9 @@ plugin on a machine without thinker does nothing.
   and in dollars at each model's list price; a policy spec takes `inputs:on` and `thinking:piggyback`. **On by default since 2026-10-24**
   (`src/proxy-service.js`): `thinker connect` keeps the proxy running (launchd on macOS, a systemd user unit on Linux, the
   prompt hook everywhere, which starts it when nothing listens) and writes its URL for Claude Code (the settings `env`),
-  pi (`models.json`) and OpenCode (`opencode.json`); Goose, Aider, Cline, Droid, Copilot CLI with your own key, Qwen
+  pi (`models.json`), OpenCode (`opencode.json`) and Goose (a top-level `ANTHROPIC_HOST` in its `config.yaml`, since
+  2026-11-19: its Anthropic provider alone, the bare origin since Goose appends `v1/messages`, and its session named by
+  the `agent-session-id` header it sends); Aider, Cline, Droid, Copilot CLI with your own key, Qwen
   Code on an Anthropic provider and Kilo's CLI take it by hand at the keys above; Codex, Cursor, Gemini CLI, Kiro,
   Windsurf and Auggie have no Anthropic URL to point at it. `thinker proxy status|off|on`, `connect --no-proxy`.
   **The model gateways** (2026-11-10; `src/proxy-chat.js`): the cut also reaches any provider that speaks OpenAI

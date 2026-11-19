@@ -43,7 +43,7 @@ the agent can take it once you point it there; a blank means the agent gives thi
 | Devin CLI and Devin Desktop's local agent | automatic: Devin's own compactor, set to the same 140k trigger the proxy uses (Devin exposes no model endpoint, so the proxy cannot sit in front of it) | yes: on the first prompt, learned from every session through Devin's own background subagent | | |
 | Windsurf Cascade | no: Windsurf's servers | no: its hooks only record, for learning | | |
 | Auggie | no: Augment's servers | no: Auggie has no prompt hook | | |
-| Goose | by hand (`ANTHROPIC_HOST`) | no: its hooks only record, for learning | | |
+| Goose | automatic on its Anthropic provider: the proxy, through `ANTHROPIC_HOST` in its `config.yaml` | no: its hooks only record, for learning | | |
 
 The compression is the API clearing tool results the agent has finished with, through a local proxy thinker keeps
 running; it reaches any agent that speaks the Anthropic Messages API at

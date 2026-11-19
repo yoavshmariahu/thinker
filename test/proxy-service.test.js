@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'smol-toml';
 import { bedrockState } from '../src/proxy-bedrock.js';
 import { serviceState, proxyOn, proxyUrl, isOwnUrl, freePort, isListening, serviceArgs, plistText, unitText, claudeBlocker, withProxyUrl, withoutProxyUrl,
-  wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, SERVED_KEEP, urlFor, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
+  yamlScalar, withYamlScalar, GOOSE_HOST_KEY, wireAgents, enableProxyService, disableProxyService, ensureProxy, installService, uninstallService, wiredLines, appVersion, removedByHand, standDown, claudeWired, trackClaude, routeAppeared, proxyThrough, claimRestart, SERVICE_HOLDOUT, PROXY_ENV, PROXY_LABEL, replaceReason, bootOutAgent, bootstrapAgent, BOOTOUT_WAIT_MS, agentInstance, restartDue, requestRestart, restartWanted, clearRestartWanted, idleRestartWatcher, recordProxyListening, SERVED_KEEP, urlFor, RESTART_IDLE_MS, RESTART_PATIENCE_MS, RESTART_DEADLINE_MS } from '../src/proxy-service.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 // Every temporary home this file makes is remembered, and whatever proxy its service state still names is stopped when
@@ -31,7 +31,7 @@ function fakeMachine() {
   const saved = {};
   for (const [k, v] of Object.entries(env)) { saved[k] = process.env[k]; process.env[k] = v; }
   fs.mkdirSync(path.join(env.XDG_CONFIG_HOME, 'opencode'), { recursive: true });
-  const files = { claude: path.join(env.CLAUDE_CONFIG_DIR, 'settings.json'), pi: path.join(env.PI_CODING_AGENT_DIR, 'models.json'), opencode: path.join(env.XDG_CONFIG_HOME, 'opencode', 'opencode.json') };
+  const files = { claude: path.join(env.CLAUDE_CONFIG_DIR, 'settings.json'), pi: path.join(env.PI_CODING_AGENT_DIR, 'models.json'), opencode: path.join(env.XDG_CONFIG_HOME, 'opencode', 'opencode.json'), goose: path.join(env.XDG_CONFIG_HOME, 'goose', 'config.yaml') };
   const restore = () => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } fs.rmSync(root, { recursive: true, force: true }); };
   return { root, home, env, files, restore };
 }
@@ -193,7 +193,8 @@ test('enable writes the URL into every agent file and disable takes only ours ou
     const again = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
     assert.equal(again.port, p.port);
     assert.deepEqual(again.wired.changed, []);
-    assert.equal(again.wired.unchanged.length, 4);
+    assert.equal(again.wired.unchanged.length, 5, 'the four that are wired, and Goose, which is not on this machine');
+    assert.equal(fs.existsSync(m.files.goose), false, 'no Goose config is made where there is no Goose');
     assert.ok(wiredLines(p.wired, p.url).some(l => l.startsWith('Claude Code: model calls go through the proxy')));
     // the service entry text names this copy and the port
     const plist = plistText({ cli: CLI, home: m.home });
@@ -1011,4 +1012,81 @@ test('a session\'s own environment is not the machine\'s: the hook stands nothin
     assert.match(claudeBlocker({}, { home: m.home, env: { ...env, [PROXY_ENV]: 'https://gw.corp' } }), /gw\.corp in your environment/);
     assert.match(claudeBlocker({}, { home: m.home, env: { ...env, CLAUDE_CODE_USE_BEDROCK: '1' } }), /bedrock/);
   } finally { m.restore(); }
+});
+
+// 2026-11-19. Goose had thinker's hooks and nothing of the proxy: its sessions were counted and never cut.
+test('Goose: the proxy is its Anthropic host, one line of its own config, and only ours is taken out', async () => {
+  const m = fakeMachine();
+  try {
+    fs.mkdirSync(path.dirname(m.files.goose), { recursive: true });
+    // a config as Goose writes one: its provider, an extension whose own environment names the same key further in
+    const theirs = 'GOOSE_PROVIDER: anthropic\nGOOSE_MODEL: claude-sonnet-5-5\nextensions:\n  thinker:\n    type: stdio\n    cmd: node\n    envs:\n      ANTHROPIC_HOST: http://inner.example\n';
+    fs.writeFileSync(m.files.goose, theirs);
+    const p = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false });
+    assert.ok(p.wired.changed.some(c => c.agent === 'goose' && c.file === m.files.goose));
+    const wired = fs.readFileSync(m.files.goose, 'utf8');
+    assert.equal(wired, theirs + `ANTHROPIC_HOST: ${p.url}\n`, 'one line added, nothing else in the file moved');
+    assert.equal(yamlScalar(wired, GOOSE_HOST_KEY), p.url, 'the bare origin: Goose appends v1/messages itself');
+    assert.doesNotMatch(yamlScalar(wired, GOOSE_HOST_KEY), /\/v1$/);
+    assert.ok(wiredLines(p.wired, p.url).some(l => l.startsWith('Goose: model calls go through the proxy') && !/provider now/.test(l)));
+    assert.equal(isOwnUrl(yamlScalar(wired, GOOSE_HOST_KEY), m.home), true);
+    // again: nothing to do
+    assert.deepEqual((await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false })).wired.changed, []);
+    // Goose rewrites its own file: the key quoted, moved, the port an older one of ours -- still read as ours
+    fs.writeFileSync(m.files.goose, `"ANTHROPIC_HOST": "${p.url}"\nGOOSE_PROVIDER: anthropic\n`);
+    const r = disableProxyService({ home: m.home, manage: false });
+    assert.ok(r.wired.changed.some(c => c.agent === 'goose'));
+    assert.equal(fs.readFileSync(m.files.goose, 'utf8'), 'GOOSE_PROVIDER: anthropic\n', 'ours is taken out and the rest is theirs');
+    // a host of the person's own is left alone on the way in and on the way out, and named
+    fs.writeFileSync(m.files.goose, 'ANTHROPIC_HOST: https://gw.corp  # the team gateway\nGOOSE_PROVIDER: anthropic\n');
+    const own = await enableProxyService({ cli: CLI, home: m.home, env: m.env, manage: false, force: true });
+    assert.match(own.wired.skipped.find(s => s.agent === 'goose').reason, /ANTHROPIC_HOST is already https:\/\/gw\.corp/);
+    assert.ok(wiredLines(own.wired, own.url, null, { hint: false }).some(l => l === 'Goose: left as it is, ANTHROPIC_HOST is already https://gw.corp'));
+    disableProxyService({ home: m.home, manage: false });
+    assert.match(fs.readFileSync(m.files.goose, 'utf8'), /^ANTHROPIC_HOST: https:\/\/gw\.corp {2}# the team gateway$/m);
+  } finally { m.restore(); }
+});
+
+test('Goose on another provider is wired and told so; GOOSE_PATH_ROOT moves its config as Goose reads it', () => {
+  const m = fakeMachine();
+  const saved = { root: process.env.GOOSE_PATH_ROOT, provider: process.env.GOOSE_PROVIDER };
+  try {
+    fs.mkdirSync(path.dirname(m.files.goose), { recursive: true });
+    // the structured block Goose writes now, the flat key it still reads, and the environment over both
+    for (const [yaml, env, provider] of [['active_provider: openai\nproviders:\n  openai:\n    enabled: true\n', null, 'openai'], ['GOOSE_PROVIDER: databricks\n', null, 'databricks'], ['active_provider: anthropic\n', 'openrouter', 'openrouter']]) {
+      fs.writeFileSync(m.files.goose, yaml);
+      if (env) process.env.GOOSE_PROVIDER = env; else delete process.env.GOOSE_PROVIDER;
+      const w = wireAgents('http://127.0.0.1:6901', { home: m.home, env: {}, agents: ['goose'] });
+      assert.equal(w.changed.length, 1, provider);
+      assert.ok(wiredLines(w, 'http://127.0.0.1:6901', null, { hint: false })[0].endsWith(`Goose is on its ${provider} provider now, which the proxy does not carry: this takes effect once its provider is anthropic`), provider);
+      assert.equal(yamlScalar(fs.readFileSync(m.files.goose, 'utf8'), GOOSE_HOST_KEY), 'http://127.0.0.1:6901', 'the key is inert until Anthropic is the provider, and there when it is');
+    }
+    delete process.env.GOOSE_PROVIDER;
+    // an absolute GOOSE_PATH_ROOT is where Goose keeps everything: <root>/config/config.yaml
+    const root = path.join(m.root, 'goose-root');
+    fs.mkdirSync(path.join(root, 'config'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'config', 'config.yaml'), 'GOOSE_PROVIDER: anthropic\n');
+    fs.writeFileSync(m.files.goose, 'GOOSE_PROVIDER: anthropic\n');
+    process.env.GOOSE_PATH_ROOT = root;
+    const w = wireAgents('http://127.0.0.1:6901', { home: m.home, env: {}, agents: ['goose'] });
+    assert.equal(w.changed[0].file, path.join(root, 'config', 'config.yaml'));
+    assert.equal(yamlScalar(fs.readFileSync(m.files.goose, 'utf8'), GOOSE_HOST_KEY), null, 'the file Goose is not reading is not written');
+    process.env.GOOSE_PATH_ROOT = 'relative/root';   // Goose ignores a relative one, and so does this
+    assert.equal(wireAgents('http://127.0.0.1:6901', { home: m.home, env: {}, agents: ['goose'] }).changed[0].file, m.files.goose);
+  } finally {
+    for (const [k, v] of [['GOOSE_PATH_ROOT', saved.root], ['GOOSE_PROVIDER', saved.provider]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    m.restore();
+  }
+});
+
+test('a top-level YAML scalar is read and set as text, and nothing else in the file moves', () => {
+  const y = 'a: 1\nextensions:\n  x:\n    envs:\n      ANTHROPIC_HOST: http://inner\n';
+  assert.equal(yamlScalar(y, GOOSE_HOST_KEY), null, 'a key further in is not the top-level one');
+  const set = withYamlScalar(y, GOOSE_HOST_KEY, 'http://127.0.0.1:1');
+  assert.equal(set, y + 'ANTHROPIC_HOST: http://127.0.0.1:1\n');
+  assert.equal(withYamlScalar(set, GOOSE_HOST_KEY, 'http://127.0.0.1:2'), y + 'ANTHROPIC_HOST: http://127.0.0.1:2\n', 'replaced in place, not added twice');
+  assert.equal(withYamlScalar(set, GOOSE_HOST_KEY, null), y);
+  assert.equal(withYamlScalar('a: 1', GOOSE_HOST_KEY, 'u'), 'a: 1\nANTHROPIC_HOST: u\n', 'a file with no final newline gets one first');
+  assert.equal(withYamlScalar('', GOOSE_HOST_KEY, 'u'), 'ANTHROPIC_HOST: u\n');
+  for (const [text, want] of [['ANTHROPIC_HOST: "https://gw"  # mine\n', 'https://gw'], ["'ANTHROPIC_HOST': 'https://gw'\n", 'https://gw'], ['ANTHROPIC_HOST: ~\n', null], ['ANTHROPIC_HOST:\n', null], ['ANTHROPIC_HOST: null\n', null], ['  ANTHROPIC_HOST: indented\n', null]]) assert.equal(yamlScalar(text, GOOSE_HOST_KEY), want, text);
 });

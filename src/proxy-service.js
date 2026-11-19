@@ -8,7 +8,7 @@
 // Messages API at a settable base URL reads it: Claude Code's `env.ANTHROPIC_BASE_URL` in `~/.claude/settings.json` (the CLI
 // and the IDE extensions; the desktop app sets the variable itself and ignores the file), pi's
 // `providers.anthropic.baseUrl` in `~/.pi/agent/models.json`, OpenCode's `provider.anthropic.options.baseURL` in
-// `opencode.json`. A person already routing elsewhere is left alone and told: a base URL of their own, or Claude Code on
+// `opencode.json`, Goose's `ANTHROPIC_HOST` in its `config.yaml` (2026-11-19). A person already routing elsewhere is left alone and told: a base URL of their own, or Claude Code on
 // Bedrock, Vertex or Foundry (those routes do not speak the Messages format). `thinker proxy off` takes it all out,
 // `thinker proxy on` puts it back, `thinker uninstall --user` removes it with the rest of the wiring.
 // Codex joins this service by default (owner's request, 2026-10-25): --codex adds a
@@ -703,6 +703,62 @@ function opencodeFile(url, home) {
   writeJson(f, next);
   return { file: f, changed: true };
 }
+// Goose: the host its Anthropic provider calls, a top-level `ANTHROPIC_HOST` in config.yaml (2026-11-19).
+//
+// Until then Goose had thinker's hooks and its MCP server and nothing of the proxy: its sessions were counted and
+// never cut. One machine reported 46 Goose sessions in a day beside a proxy that had carried no request in thirty.
+// Goose is a Messages API client like the others here -- it posts `<host>/v1/messages` with its own cache
+// breakpoints, replays its thinking, and asks the API to drop a thinking block an edited history no longer matches
+// (`prefix_mismatch_behavior: drop_block`), so a cut is not a request the API refuses.
+//
+// The key is Goose's own: its provider reads `ANTHROPIC_HOST` through its config, the environment first and
+// config.yaml after, and appends `v1/messages` itself, so the value is the proxy's bare origin (OpenCode's takes
+// the `/v1`; this one must not). Read in Goose's source at 1.60, and the proxy's own half run with requests of
+// that shape against a stand-in for the API: every row named the session, the boundary seeded, the next request
+// was cut, and the breakpoints stayed at four. Not yet run with the Goose binary itself. The file is Goose's and
+// Goose rewrites it, so the one line is set and taken out as text and nothing else
+// in it is parsed or reordered (clients.js does the same for the MCP entry). A host of the person's own is left
+// alone and named; with no config file there is no Goose here and none is made.
+// Only the Anthropic provider is carried. Goose on another provider is wired all the same, since the key is
+// inert until Anthropic is the provider, and the line says which provider it is on now.
+const gooseConfig = () => (process.env.GOOSE_PATH_ROOT && path.isAbsolute(process.env.GOOSE_PATH_ROOT)
+  ? path.join(process.env.GOOSE_PATH_ROOT, 'config', 'config.yaml')
+  : path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'goose', 'config.yaml'));
+export const GOOSE_HOST_KEY = 'ANTHROPIC_HOST';
+const yamlTop = key => new RegExp(`^(['"]?)${key}\\1[ \\t]*:[ \\t]*(.*)$`, 'm');
+// a top-level scalar of a YAML file, or null: unquoted, a trailing comment off, and YAML's own words for nothing
+export function yamlScalar(text, key) {
+  const m = yamlTop(key).exec(String(text || ''));
+  if (!m) return null;
+  let v = m[2].replace(/\s+#.*$/, '').trim();
+  const q = /^(['"])(.*)\1$/.exec(v); if (q) v = q[2];
+  return !v || v === '~' || v === 'null' ? null : v;
+}
+// the same file with that scalar set, or taken out (null): the line alone changes
+export function withYamlScalar(text, key, value) {
+  const src = String(text || ''), re = yamlTop(key);
+  if (value == null) return src.replace(new RegExp(re.source + '\\n?', 'm'), '');
+  const line = `${key}: ${value}`;
+  if (re.test(src)) return src.replace(re, () => line);
+  return (src && !src.endsWith('\n') ? src + '\n' : src) + line + '\n';
+}
+function gooseFile(url, home) {
+  const f = gooseConfig();
+  if (isTestMode() && !process.env.XDG_CONFIG_HOME && !process.env.GOOSE_PATH_ROOT) return url ? { file: f, skipped: 'test mode and neither XDG_CONFIG_HOME nor GOOSE_PATH_ROOT is set: the real file is left alone' } : { file: f, unchanged: true };
+  let text; try { text = fs.readFileSync(f, 'utf8'); } catch { return { file: f, unchanged: true, absent: true }; }   // no Goose here: no file is made
+  const have = yamlScalar(text, GOOSE_HOST_KEY);
+  if (url) {
+    if (have && !isOwnUrl(have, home)) return { file: f, skipped: `${GOOSE_HOST_KEY} is already ${have}` };
+    if (have === url) return { file: f, unchanged: true };
+    fs.writeFileSync(f, withYamlScalar(text, GOOSE_HOST_KEY, url));
+    // which provider Goose is on, as Goose resolves it: the environment, the structured block, the flat key
+    const provider = process.env.GOOSE_PROVIDER || yamlScalar(text, 'active_provider') || yamlScalar(text, 'GOOSE_PROVIDER');
+    return { file: f, changed: true, ...(provider && provider !== 'anthropic' ? { note: `Goose is on its ${provider} provider now, which the proxy does not carry: this takes effect once its provider is anthropic` } : {}) };
+  }
+  if (!isOwnUrl(have, home)) return { file: f, unchanged: true };
+  fs.writeFileSync(f, withYamlScalar(text, GOOSE_HOST_KEY, null));
+  return { file: f, changed: true };
+}
 function claudeFile(url, home, env, repos) {
   const f = claudeSettings();
   const guard = testGuard('CLAUDE_CONFIG_DIR'); if (guard) return url ? { file: f, skipped: guard } : { file: f, unchanged: true };
@@ -797,12 +853,12 @@ export function standDown(reason, { home = thinkerHome(), manage, port } = {}) {
 
 // The URL written to (url given) or taken out of (null) every agent's file. Returns what changed and what was left
 // alone with the reason, by agent.
-export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'codex'], repos = [] } = {}) {
+export function wireAgents(url, { home = thinkerHome(), env = process.env, agents = ['claude', 'pi', 'opencode', 'goose', 'codex'], repos = [] } = {}) {
   const out = { changed: [], skipped: [], unchanged: [] };
-  const fns = { claude: () => claudeFile(url, home, env, repos), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home), codex: () => wireCodexProxy(url, { home, env }) };
+  const fns = { claude: () => claudeFile(url, home, env, repos), pi: () => piFile(url, home), opencode: () => opencodeFile(url, home), goose: () => gooseFile(url, home), codex: () => wireCodexProxy(url, { home, env }) };
   for (const a of agents) {
     let r; try { r = fns[a](); } catch (e) { r = { skipped: e.message }; }
-    if (r.changed) out.changed.push({ agent: a, file: r.file });
+    if (r.changed) out.changed.push({ agent: a, file: r.file, ...(r.note ? { note: r.note } : {}) });
     else if (r.skipped) out.skipped.push({ agent: a, file: r.file, reason: r.skipped });
     else out.unchanged.push({ agent: a, file: r.file });
   }
@@ -877,8 +933,8 @@ export function disableProxyService({ home = thinkerHome(), manage, keepState = 
 // one line per agent for the commands' output
 export function wiredLines(wired, url, upstream = null, { hint = true, home = thinkerHome(), env = process.env, repos = [] } = {}) {
   const lines = [];
-  const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode', codex: 'Codex' };
-  for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}${upstream ? ` on to ${upstream}` : ''}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}`);
+  const names = { claude: 'Claude Code', pi: 'pi', opencode: 'OpenCode', goose: 'Goose', codex: 'Codex' };
+  for (const c of wired.changed) lines.push(`${names[c.agent]}: ${url ? `model calls go through the proxy (${url}${upstream ? ` on to ${upstream}` : ''}, ${c.file})` : `the proxy's URL taken out of ${c.file}`}${url && c.note ? `. ${c.note}` : ''}`);
   for (const s of wired.skipped) lines.push(`${names[s.agent]}: left as it is, ${s.reason}`);
   // An agent left alone because it is routed somewhere of the person's own is a dead end without this: the
   // reason says what thinker saw and nothing says what to do about it (2026-10-28).
