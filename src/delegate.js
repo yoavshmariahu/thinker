@@ -187,30 +187,36 @@ export function suiteCommand(toolName, input = {}) {
 // `spent` is the handoff guard, and it is what keeps a handoff from ever becoming a loop. Once the turn's
 // exploration has been handed to the host's subagent, that subagent reads the files itself -- in the same
 // turn, and on some hosts in a child session with an id of its own -- and those reads must go through. A
-// turn hands over at most `handoffsPerTurn` reads (5), after which every read is allowed and logged as
-// `after: 'handoff'`; the suite run has a budget of its own, of one. Counted only for a real handoff, so a
-// held-out session never spends it.
+// turn hands over at most `handoffsPerTurn` reads (5), after which every read is allowed; the suite run has a
+// budget of its own, of one. Counted only for a real handoff, so a held-out session never spends it.
 // Five and not one since 2026-11-15: over 30 days of this machine's sessions the budget of one turned away
 // 42.5M read tokens, 4.5 times what the rule delegated, and the loop it stood guard over is closed by
 // `fromSubagent` before this is ever asked. What one did that five must still do is let the model through when
 // it insists: a file already handed over this turn is never denied twice (`handed`), or a lead that wants the
 // file itself would be refused it five times running.
+// `handed` says which of the two let the read through, because the two are not the same event and were logged
+// as one `after: 'handoff'` row until 2026-11-19: this very file has a report of its own, which is the lead
+// reading it anyway (and then nothing was kept out -- report-savings.js drops the saving on it), against the
+// turn's budget being spent on other files, which says nothing about this read at all.
 export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, handoff = false }) {
   const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : { prompt, reports: {}, handoffs: {} };
   if (!d.handoffs) d.handoffs = {};
   st.delegate = d;
   const spentOn = kind => handoff && (d.handoffs[kind] || 0) >= (kind === 'explore' ? cfg.handoffsPerTurn ?? 5 : 1);
+  const handedOver = key => Boolean(handoff && d.handed && d.handed[key]);
   if (suite) {
-    const spent = spentOn('verify');
-    return { fire: !spent, spent, kind: 'verify', key: 'suite:' + suite, tokens: 0 };
+    const key = 'suite:' + suite, handed = handedOver(key);
+    const spent = spentOn('verify') || handed;
+    return { fire: !spent, spent, handed, kind: 'verify', key, tokens: 0 };
   }
   if (!read || !read.tokens) return { fire: false };
   const key = read.files.join('\n');
   // `fileTokens` is the read on a host that returns a big file in chunks (OpenCode): the first chunk is sized
   // by the file asked for, since the model would read the rest anyway. Elsewhere it equals `tokens`.
   const over = Math.max(read.tokens, read.fileTokens || 0) >= cfg.threshold;
-  const spent = over && (spentOn('explore') || Boolean(handoff && d.handed && d.handed[key]));
-  return { fire: over && !spent, spent, kind: 'explore', key, tokens: read.tokens };
+  const handed = over && handedOver(key);
+  const spent = over && (spentOn('explore') || handed);
+  return { fire: over && !spent, spent, handed, kind: 'explore', key, tokens: read.tokens };
 }
 /** Record that this turn's `kind` has been handed to the host's subagent. Runs under the session's lock. */
 export function noteHandoff(st, prompt, kind, key) {
@@ -416,6 +422,19 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   if (fromSubagent(ev, client)) return null;
   const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model, verifier });
   const handoff = exec.mode === 'handoff';
+  // THE SAME READ TWICE IN ONE BATCH (2026-11-19). The host's plugin says a handoff for this very read is still
+  // running in its own process (`in_flight`, register.tsx:delegateCall), and that call will be answered with
+  // its report: the file is not landing, and there is nothing to decide here -- a second decision would hand
+  // one read to a second subagent. The row is kept, since how often a batch does this is worth knowing, and
+  // kept apart from `after: 'handoff'`, which is the lead reading a file whose report it already has.
+  if (ev.in_flight) {
+    log({
+      op: 'delegate', session, client, kind: suite ? 'verify' : 'explore', tool: ev.tool_name,
+      files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f),
+      tokens: read ? read.tokens : 0, mode: exec.mode, fired: false, after: 'in-flight',
+    });
+    return null;
+  }
   // the model the host's agent is held to by its definition: Explore.md, and the suite run's own agent where it is installed
   const pinnedTo = HOSTS[client]?.subagent?.pins && (suite ? exec.pinned : true) ? cfg.model : null;
   let d, cached, prompt;
@@ -453,9 +472,11 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
   const files = read ? read.files : [];
   const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode };
   if (held) { log(row); return null; }
-  // the turn's handoff of this kind has already been made: the call goes through, and the row says so. These
-  // rows are also the one free signal of whether the model obeyed the handoff (see AGENTS.md).
-  if (d.spent) { log({ ...row, fired: false, after: 'handoff' }); return null; }
+  // the turn's handoff of this kind has already been made: the call goes through, and the row says which one
+  // let it through. `after: 'handoff'` is this file's own report already in the lead's hands, so it is the one
+  // free signal of whether the model obeyed (see AGENTS.md); `after: 'budget'` is the turn's five spent on
+  // other files, which says nothing about the model at all and used to be counted as if it did.
+  if (d.spent) { log({ ...row, fired: false, after: d.handed ? 'handoff' : 'budget' }); return null; }
   // a host with no subagent of its own and no fallback asked for: read as before, and say why in the log
   if (exec.mode === 'none') { log({ ...row, fired: false, skipped: exec.reason }); return null; }
   ctx = ctx || lastPrompt() || {};
