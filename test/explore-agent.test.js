@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXPLORE_MODEL_DEFAULT, EXPLORE_MARK, exploreModel, exploreAgentFile, renderExploreAgent, installExploreAgent, removeExploreAgent, isThinkerExploreAgent } from '../src/explore-agent.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
+import { renderClaudeVerifier } from '../src/delegate-agents.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -78,8 +79,13 @@ test('connect at user scope writes the Explore agent under the Claude config dir
     assert.ok(fs.existsSync(file), 'Explore.md is written beside the settings');
     assert.equal(frontmatter(fs.readFileSync(file, 'utf8')).model, 'claude-sonnet-5-5');
     assert.ok(done.some(l => /exploration subagents run on claude-sonnet-5-5/.test(l)), `connect says so: ${done.join(' | ')}`);
+    // the suite run the delegation trigger hands over has an agent of its own beside it, on the trigger's model
+    const verifier = path.join(home, '.claude', 'agents', 'thinker-verify.md');
+    assert.equal(frontmatter(fs.readFileSync(verifier, 'utf8')).model, 'claude-haiku-5-5');
+    assert.ok(done.some(l => /whole-suite test run handed to a subagent runs on claude-haiku-5-5/.test(l)), `connect says so: ${done.join(' | ')}`);
     uninstallWiring({ scope: 'user' });
     assert.ok(!fs.existsSync(file), 'uninstall --user takes it out');
+    assert.ok(!fs.existsSync(verifier), 'and the suite run\'s agent with it');
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(home, { recursive: true, force: true });
@@ -95,11 +101,14 @@ test('with delegation off connect writes nothing and removes a file thinker wrot
     const file = path.join(home, '.claude', 'agents', 'Explore.md');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, renderExploreAgent('sonnet'));
+    const verifier = path.join(home, '.claude', 'agents', 'thinker-verify.md');
+    fs.writeFileSync(verifier, renderClaudeVerifier());
     const done = installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
     assert.ok(!fs.existsSync(file), 'the default removes the file thinker wrote');
+    assert.ok(!fs.existsSync(verifier), 'and the suite run\'s agent, which only the trigger names');
     assert.ok(done.some(l => /removed .*Explore\.md/.test(l)), `connect says so: ${done.join(' | ')}`);
     const again = installClient('claude', { scope: 'user', cli: CLI, mcpEntry: { command: 'node', args: [] }, hooks: true, late: true, learn: false, mcp: false });
-    assert.ok(!again.some(l => /Explore/.test(l)), 'and says nothing when there is nothing to remove');
+    assert.ok(!again.some(l => /Explore|thinker-verify/.test(l)), 'and says nothing when there is nothing to remove');
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
     fs.rmSync(home, { recursive: true, force: true });

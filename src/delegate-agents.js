@@ -5,12 +5,15 @@
 // subagent *by name*. The name has to resolve, so this is where thinker makes sure it does -- and only where
 // the host has nothing suitable of its own:
 //
-// - **Claude Code** needs nothing written. `Explore` and `general-purpose` are built in and always there.
-//   A user-scope `agents/Explore.md` overrides the built-in `Explore` and pins its model, which is what
+// - **Claude Code** needs nothing written for a read. `Explore` and `general-purpose` are built in and always
+//   there. A user-scope `agents/Explore.md` overrides the built-in `Explore` and pins its model, which is what
 //   explore-agent.js already writes; while the trigger is on, that file is written on `delegate.model`
-//   (`clients.js`, through `delegateExploreModel`) so the exploration runs on Sonnet rather than the
-//   conversation's own model. Nothing here duplicates that writer: two writers of one file is how a file
+//   (`clients.js`, through `delegateExploreModel`) so the exploration runs on the cheap model rather than the
+//   conversation's own. Nothing here duplicates that writer: two writers of one file is how a file
 //   gets removed by the other (model-agents.js).
+//   The suite run is the one thing written here for it (2026-11-19, `installClaudeVerifier`): no built-in agent
+//   has a model of its own to pin, so `general-purpose` ran the suite on the lead's model with every tool the
+//   session has, and cost more than the lead running it (delegate.js:CLAUDE_VERIFY has the figures).
 // - **OpenCode 2** has no built-in subagent at all: `subagent` resolves the name against the agents in the
 //   config, and an unknown one is "Unknown agent: x" (read out of 2.2.7's own binary, 2026-11-12). So the two
 //   agents the denial names are written here, as markdown with frontmatter, in the config directory OpenCode
@@ -33,7 +36,7 @@
 // same name is left alone and named once, as everywhere else.
 import fs from 'node:fs';
 import path from 'node:path';
-import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS, EXPLORER_FAMILIES, FAMILY_PROVIDERS, familyAgent } from './delegate.js';
+import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS, EXPLORER_FAMILIES, FAMILY_PROVIDERS, familyAgent, CLAUDE_VERIFY } from './delegate.js';
 
 export const DELEGATE_MARK = 'thinker-delegate';
 const VERSION = 1;
@@ -119,3 +122,52 @@ export function installOpencodeAgents({ configDir, on = delegateConfig().enabled
 
 /** `thinker uninstall --user`: only thinker's own files go. */
 export const removeOpencodeAgents = ({ configDir }) => installOpencodeAgents({ configDir, on: false });
+
+// ---- Claude Code: the suite run's own agent ----
+//
+// Claude Code's frontmatter: `name` is the agent's id, `model` takes a full id (Explore.md's has since
+// 2026-11-08), `tools` is the whole list it may call. A shell to run the command, the three reading tools to
+// look at a failing test, and nothing else: no editing, no subagent of its own, none of the session's MCP
+// tools, which is also what keeps its start-up context small. It starts without CLAUDE.md, as Explore does:
+// it is told one command and runs it.
+// The description is read by the lead, which sees every agent it may call: the first one written named only
+// what the agent does, and a Sonnet lead asked to run a suite called it unprompted before any trigger fired
+// (live on 2.1.329, 2026-11-19). The trigger decides what is handed over, so the description says so.
+export const claudeVerifierPath = claudeDir => path.join(claudeDir, 'agents', `${CLAUDE_VERIFY}.md`);
+export function renderClaudeVerifier(model = DELEGATE_DEFAULTS.model) {
+  return `---
+name: ${CLAUDE_VERIFY}
+description: Runs one whole-suite test command and reports the summary line verbatim with the failing tests. thinker hands a whole-suite run to this agent. Call it only when thinker asks for it, and run every other test yourself.
+model: ${model}
+tools: Bash, Read, Grep, Glob
+omitClaudeMd: true
+---
+
+<!-- ${DELEGATE_MARK} v${VERSION} kind=verify: written by thinker so a whole-suite test run its delegation trigger hands over runs on ${model} instead of the main conversation's model. thinker rewrites this file; \`delegate: false\` in thinker's config, or \`thinker uninstall --user\`, removes it. -->
+
+${VERIFIER_PROMPT}
+`;
+}
+/**
+ * Write, rewrite or remove thinker's suite-run agent under the Claude config directory: `model` null removes it.
+ * Returns { action: 'written' | 'unchanged' | 'removed' | 'absent' | 'kept', file, model }; 'kept' is a file of
+ * that name that is not thinker's, left alone.
+ */
+export function installClaudeVerifier({ claudeDir, model = delegateExploreModel() } = {}) {
+  const file = claudeVerifierPath(claudeDir);
+  let cur = null; try { cur = fs.readFileSync(file, 'utf8'); } catch {}
+  if (cur !== null && !isThinkerDelegateAgent(cur)) return { action: 'kept', file, model };
+  if (!model) {
+    if (cur === null) return { action: 'absent', file, model };
+    fs.rmSync(file, { force: true });
+    return { action: 'removed', file, model };
+  }
+  const text = renderClaudeVerifier(model);
+  if (cur === text) return { action: 'unchanged', file, model };
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, text); fs.renameSync(tmp, file);
+  return { action: 'written', file, model };
+}
+/** `thinker uninstall --user`: only thinker's own file goes. */
+export const removeClaudeVerifier = ({ claudeDir } = {}) => installClaudeVerifier({ claudeDir, model: null });
