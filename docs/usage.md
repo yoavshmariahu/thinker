@@ -311,4 +311,3 @@ sessions are held out so the saving can be measured, and the log's `delegate` ro
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
 - The threshold (a read of this many tokens or more is delegated, 8000 by default; nothing is added up across a turn): `"delegate": { "threshold": 20000 }`.
 - In Claude Code a handed-over suite run goes to an agent thinker writes for it (`~/.claude/agents/thinker-verify.md`), on the same model as the reads.
-
