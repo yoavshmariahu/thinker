@@ -233,10 +233,12 @@ export const cliOf = (settings: any): string | null => {
   }
   return null
 }
-// the call as Claude Code's PreToolUse spells it: the tool's arguments apart from what the engine reserves
-export function pretoolEvent(e: any, ctx: { session: string; cwd: string; turn: string; prompt: string }) {
+// the call as Claude Code's PreToolUse spells it: the tool's arguments apart from what the engine reserves.
+// `inFlight` is the second call of a batch for a read already being explored: the rule logs it and decides
+// nothing (delegate.js:delegateTool), since this call is answered from the handoff already out for it.
+export function pretoolEvent(e: any, ctx: { session: string; cwd: string; turn: string; prompt: string }, inFlight = false) {
   const { tool, tool_use_id, agentId, requestMeta, consent, ...input } = e
-  return { session_id: ctx.session, cwd: ctx.cwd, prompt_id: ctx.turn, user_prompt: ctx.prompt, tool_name: tool, tool_input: input, tool_use_id, host_runs: true }
+  return { session_id: ctx.session, cwd: ctx.cwd, prompt_id: ctx.turn, user_prompt: ctx.prompt, tool_name: tool, tool_input: input, tool_use_id, host_runs: true, ...(inFlight ? { in_flight: true } : {}) }
 }
 // the order out of the CLI's answer, or null: nothing fired, or it fired with nothing for the host to run
 export function orderOf(stdout: string): any | null {
@@ -266,10 +268,53 @@ async function delegateSetup($: any) {
     delegating = true
   } catch {}
 }
+// ONE HANDOFF A READ, HOWEVER MANY CALLS OF A BATCH ASK FOR IT (2026-11-19).
+// A lead that reads one file in two calls of a parallel batch sends both through this hook before it has seen
+// either answer. The first hands the read over; the second was told nothing by the rule -- a file already
+// handed over this turn is never denied twice, so that a lead can insist (delegate.js:decide, `handed`) -- and
+// so the whole file landed in the context the handoff had just kept it out of. Measured on 2026-11-19 with two
+// hooks 25 ms apart on one session: one handoff, and a 43k-token read straight through beside it.
+// A call whose own read is still being explored now waits for that report and is answered with it. The entry is
+// keyed before this function's first `await`, so two calls of one batch cannot both miss it; it is dropped as
+// soon as the report is delivered, which leaves the lead that insists a turn later exactly where it was.
+const inflight = new Map<string, Promise<string | null>>()
+// What makes two calls the same read: the file, and the range of it, because a ranged read is what the denial
+// sends the lead back for and is never delegated. A tool whose read is not keyed here is never joined.
+export function flightKey(e: any): string {
+  const what = e?.tool === 'Read' ? [e.file_path, e.offset || 0, e.limit || 0] : e?.tool === 'Bash' ? [e.command] : null
+  return what && typeof what[0] === 'string' && what[0] ? [e.tool, ...what].join('\u0000') : ''
+}
+/**
+ * `start` is the handoff; a call that finds one already out for the same read is `joined` to it and answered
+ * the same way, whatever that turns out to be -- a report, or nothing where nothing fired and the read goes
+ * through as before. Exported for the test: this is the whole of the concurrency.
+ */
+export function flight(key: string, start: () => Promise<string | null>, joined: (out: Promise<string | null>) => Promise<string | null>): Promise<string | null> {
+  const out = key ? inflight.get(key) : undefined
+  if (out) return joined(out)
+  if (!key) return start()
+  let settle: (answer: string | null) => void = () => {}
+  inflight.set(key, new Promise<string | null>(done => { settle = done }))
+  return start().then(a => { settle(a); return a }, err => { settle(null); throw err }).finally(() => { inflight.delete(key) })
+}
 async function delegateCall($: any, e: any): Promise<string | null> {
   if (!delegating || !cli || e.agentId) return null   // a subagent's own reads are its work
-  const ev = pretoolEvent(e, { session: String(await $.session.id()), cwd: String(await $.session.cwd()), turn: turn.id, prompt: turn.prompt.slice(0, 4000) })
-  const r = await $.process.run(['node', cli, 'hook', 'pretool', '--client', 'claude', '--user'], { stdin: JSON.stringify(ev), timeoutMs: 30_000 })
+  return flight(flightKey(e), () => handOff($, e), async out => {
+    const answer = await out
+    // a report to join: the row says so and the rule is not asked to decide a read it is already exploring,
+    // which would hand one read to a second subagent. Nothing fired for the first call (under the rule, held
+    // out, kept, spent): this read is then decided on its own, as it was before any of this, row and all.
+    if (!answer) return handOff($, e)
+    await pretool($, e, true).catch(() => null)
+    return answer
+  })
+}
+const pretool = async ($: any, e: any, inFlight = false) => $.process.run(
+  ['node', cli, 'hook', 'pretool', '--client', 'claude', '--user'],
+  { stdin: JSON.stringify(pretoolEvent(e, { session: String(await $.session.id()), cwd: String(await $.session.cwd()), turn: turn.id, prompt: turn.prompt.slice(0, 4000) }, inFlight)), timeoutMs: 30_000 },
+)
+async function handOff($: any, e: any): Promise<string | null> {
+  const r = await pretool($, e)
   const order = r.exitCode === 0 ? orderOf(String(r.stdout || '')) : null
   if (!order) return null
   // no model named: the agent's own definition picks it (thinker pins Explore.md), and the Agent tool refuses a full id

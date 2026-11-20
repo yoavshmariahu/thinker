@@ -2,7 +2,7 @@
 // What to clear is decided by the installed CLI (src/clear-door.js, test/clear-door.test.js); what is tested here is
 // what the mod still does itself: read the live window, hand it over, put the answer in place, count what a clear cost.
 import { test, expect } from 'claude-code/testing'
-import { ownRoute, offWords, ENABLE, liveRows, charge, chargedRewrite, usageOf, delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT, slim, applyPlan, answerOf, ASK_EVERY } from './register'
+import { ownRoute, offWords, ENABLE, liveRows, charge, chargedRewrite, usageOf, delegateOn, cliOf, pretoolEvent, orderOf, REPORT_SLOT, flight, flightKey, slim, applyPlan, answerOf, ASK_EVERY } from './register'
 
 const big = (n: number, ch = 'x') => ch.repeat(n)
 const prompt = (text: string) => ({ role: 'user' as const, text, toolUses: [], handle: 'h' })
@@ -122,6 +122,44 @@ test('delegation: on by default, off by the environment or the machine config', 
   expect(orderOf(JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny' } }))).toBe(null)
   expect(orderOf('')).toBe(null)
   expect(orderOf(JSON.stringify({ thinkerRun: { agent: 'Explore', prompt: 'b', wrap: 'no slot' } }))).toBe(null)
+  // the second call of a batch says so, and the rule then decides nothing (delegate.js: `after: 'in-flight'`)
+  expect((pretoolEvent({ tool: 'Read', file_path: '/r/core.py' }, { session: 's', cwd: '/r', turn: 't', prompt: 'p' }, true) as any).in_flight).toBe(true)
+})
+
+test('one handoff a read: the second call of a batch waits for that report instead of the file', async () => {
+  // the same file twice is one read; the range the denial sends the lead back for is its own
+  expect(flightKey({ tool: 'Read', file_path: '/r/core.py' })).toBe(flightKey({ tool: 'Read', file_path: '/r/core.py' }))
+  expect(flightKey({ tool: 'Read', file_path: '/r/core.py', offset: 20, limit: 40 })).not.toBe(flightKey({ tool: 'Read', file_path: '/r/core.py' }))
+  expect(flightKey({ tool: 'Read', file_path: '/r/more.py' })).not.toBe(flightKey({ tool: 'Read', file_path: '/r/core.py' }))
+  expect(flightKey({ tool: 'Bash', command: 'cat core.py' })).toBe(flightKey({ tool: 'Bash', command: 'cat core.py' }))
+  expect(flightKey({ tool: 'Edit', file_path: '/r/core.py' })).toBe('')   // nothing else is ever joined
+
+  const key = flightKey({ tool: 'Read', file_path: '/r/core.py' })
+  let starts = 0, joins = 0, settle: (a: string | null) => void = () => {}
+  const start = () => { starts++; return new Promise<string | null>(done => { settle = done }) }
+  const joined = async (out: Promise<string | null>) => { joins++; return out }
+
+  const first = flight(key, start, joined)
+  const second = flight(key, start, joined)
+  expect([starts, joins]).toEqual([1, 1])   // one subagent for the batch, however often the lead asked
+  settle('the report')
+  expect(await first).toBe('the report')
+  expect(await second).toBe('the report')   // the file never lands: both calls are answered from the report
+
+  // the report delivered, the entry is gone: a lead that insists afterwards is decided on its own, as before
+  const again = flight(key, start, joined)
+  expect(starts).toBe(2)
+  settle(null)
+  expect(await again).toBe(null)
+
+  // a read with no key of its own is never joined to another, and a handoff that throws leaves nothing behind
+  const loose = flight('', start, joined)
+  expect(starts).toBe(3)
+  settle(null)
+  expect(await loose).toBe(null)
+  await expect(flight(key, () => Promise.reject(new Error('spawn failed')), joined)).rejects.toThrow('spawn failed')
+  expect(await flight(key, async () => 'a later read of it', joined)).toBe('a later read of it')
+  expect(joins).toBe(1)
 })
 
 test('only the proxy service\'s own plain URL is a route /thinker-disable takes away', () => {

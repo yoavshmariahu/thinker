@@ -38,8 +38,26 @@ export async function hostRun(ctx, parentID, order, { timeoutMs = DELEGATE_DEFAU
     return (Array.isArray(last?.content) ? last.content : []).filter(p => p?.type === 'text' && typeof p.text === 'string').map(p => p.text).join('\n').trim();
   } catch { return ''; } finally { clearTimeout(timer); }
 }
-// one report a file a turn: a whole read (no range) of a file already reported gets the same report back
+// One report a file a turn, and one run however many calls ask for it: a whole read (no range) of a file already
+// reported gets the same report back, and from 2026-11-19 so does one still being reported on another call of the
+// same batch. The entry is the run itself, keyed before the first `await` below, because a batch's calls all reach
+// this hook before the lead has seen any of their answers: the rule can only tell them the file was handed over
+// already, which lets it through on purpose (a lead that insists), and the file then landed in the context the
+// handoff had just kept it out of. What `register.tsx:flight` is for Claude Code's mod, where it was measured.
 const reports = new Map();
+// `run` resolves to `{ result, keep }`: the call's result, and whether it is this file's report, which the turn
+// keeps (`keep`). Words asking the lead to run the subagent itself are answered to every call of the batch and
+// then dropped, so the lead that insists a call later is still never denied the same file twice.
+async function once(key, run) {
+  const flight = key ? reports.get(key) : null;
+  if (flight) return flight;
+  if (!key) return (await run()).result;
+  let settle = () => {};
+  reports.set(key, new Promise(done => { settle = done; }));
+  const done = (result, keep) => { settle(result || null); if (!result || !keep) reports.delete(key); };
+  try { const { result, keep } = await run(); done(result, keep); return result; }
+  catch (err) { done(null, false); throw err; }
+}
 // the person's last prompt a session, for the brief (delegate.js:preToolHook reads it as `user_prompt`)
 const prompts = new Map();
 const whole = ev => ev.tool === 'read' && ev.input && ev.input.offset == null && ev.input.limit == null;
@@ -71,31 +89,28 @@ export function opencodeV2(config, run = hookRunner(config)) {
         await ctx.tool.hook('execute.before', async ev => {
           if (!['read', 'shell', 'bash'].includes(ev.tool)) return;
           if (!delegateConfig().enabled) return;
-          // The lead's model, which neither hook event carries: `session.get({ sessionID })` answers
-          // `model: { id, providerID, variant }` (probed live on 2.2.7, 2026-11-15). The trigger reads it to
-          // hand the read to the lead's own family's cheap model on a gateway (delegate.js:EXPLORER_FAMILIES);
-          // a host that will not say gets the plain agent, as before.
-          let model = null;
-          try { const s = await ctx.session?.get?.({ sessionID: ev.sessionID }); if (s?.model?.id) model = { id: s.model.id, providerID: s.model.providerID }; } catch { /* the read is never held up for it */ }
-          // a whole read of a file this turn already has a report for: the same report, and no second run
-          const again = whole(ev) ? reports.get(reportKey(ev)) : null;
-          if (again) throw new Error(again);
-          const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent, ...(model ? { model } : {}), host_runs: canRun(ctx), ...(prompts.has(ev.sessionID) ? { user_prompt: prompts.get(ev.sessionID) } : {}) });
-          if (!text) return;
-          let reason = '', order = null;
-          try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; order = j.thinkerRun || null; } catch {}
-          if (!reason) return;
-          // The plugin runs the subagent and the report is the call's result (delegate.js:hostRunOrder). A run
-          // that fails or runs out of time lets the read through, as a failed subagent always has: the words
-          // alone are what Claude and GPT leads were seen not to follow, so falling back to them is no fallback.
-          if (order) {
+          // a whole read of a file this turn already has a report for, or is getting one for on another call of
+          // the same batch: that report, and no second run (`once`)
+          const result = await once(whole(ev) ? reportKey(ev) : '', async () => {
+            // The lead's model, which neither hook event carries: `session.get({ sessionID })` answers
+            // `model: { id, providerID, variant }` (probed live on 2.2.7, 2026-11-15). The trigger reads it to
+            // hand the read to the lead's own family's cheap model on a gateway (delegate.js:EXPLORER_FAMILIES);
+            // a host that will not say gets the plain agent, as before.
+            let model = null;
+            try { const s = await ctx.session?.get?.({ sessionID: ev.sessionID }); if (s?.model?.id) model = { id: s.model.id, providerID: s.model.providerID }; } catch { /* the read is never held up for it */ }
+            const text = await run('pretool', { session_id: ev.sessionID, cwd: cwd(), tool_name: ev.tool, tool_input: ev.input, agent: ev.agent, ...(model ? { model } : {}), host_runs: canRun(ctx), ...(prompts.has(ev.sessionID) ? { user_prompt: prompts.get(ev.sessionID) } : {}) });
+            if (!text) return { result: null };
+            let reason = '', order = null;
+            try { const j = JSON.parse(text); if (j.hookSpecificOutput?.permissionDecision === 'deny') reason = j.hookSpecificOutput.permissionDecisionReason || ''; order = j.thinkerRun || null; } catch {}
+            if (!reason) return { result: null };
+            // The plugin runs the subagent and the report is the call's result (delegate.js:hostRunOrder). A run
+            // that fails or runs out of time lets the read through, as a failed subagent always has: the words
+            // alone are what Claude and GPT leads were seen not to follow, so falling back to them is no fallback.
+            if (!order) return { result: reason };
             const report = await hostRun(ctx, ev.sessionID, order);
-            if (!report) return;
-            const result = order.wrap.replace(REPORT_SLOT, report);
-            if (whole(ev)) reports.set(reportKey(ev), result);
-            throw new Error(result);
-          }
-          throw new Error(reason);
+            return report ? { result: order.wrap.replace(REPORT_SLOT, report), keep: true } : { result: null };
+          });
+          if (result) throw new Error(result);
         });
         await ctx.session.hook('prompt', async ev => {
           for (const k of reports.keys()) if (k.startsWith(ev.sessionID + '\n')) reports.delete(k);   // a new turn

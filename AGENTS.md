@@ -329,12 +329,24 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   positive guard: a subagent's own call is never delegated (`fromSubagent` -- Claude Code's `agent_type`/`agent_id`,
   OpenCode's `agent` on every event, where anything but a primary agent fails closed). The budget of one stood
   beside it and cost reach: replayed over 30 days of this machine's sessions it turned away 42.5M read tokens, 4.5
-  times what the rule delegated (projected 1.9% of spend at one, 4.5% at three). Past the budget every read is
-  allowed and logged (`after: 'handoff'`, `fired: false`), and so is a second read of a file already handed over
-  this turn -- a lead that insists gets the file, and that row is the one free signal of whether the model obeyed.
+  times what the rule delegated (projected 1.9% of spend at one, 4.5% at three). A read the budget or the file's
+  own report lets through is allowed and logged `fired: false`, and which one says so is the row's own marker
+  (2026-11-19, three where there was one): `after: 'handoff'` is this file's report already in the lead's hands,
+  which is the lead reading it anyway and the one free signal of whether the model obeyed; `after: 'budget'` is
+  the turn's five spent on other files, which says nothing about the model; `after: 'in-flight'` is a second call
+  of one batch for a read still being explored, answered from that report and never the file.
   **Not measured live:** two paired mlflow tasks run at five never had a second big read in a turn, so whether a
   lead working from several reports a turn holds its outcome is still open; `delegated.ignored` on the session
   row (delegated.js) and the judged bench are where it will show.
+- **The same read twice in one batch is one handoff** (2026-11-19; `register.tsx:flight`, `flightKey`, and
+  `in_flight` on the pretool event). A lead that reads one file in two calls of a parallel batch sends both
+  through the hook before it has seen either answer, so the rule's "a file already handed over is never denied
+  twice" -- there so a lead can insist -- let the whole file land in the context the handoff had just kept it out
+  of. Measured on this machine on 2026-11-19: two hooks 25 ms apart on one session, one handoff, and a
+  43k-token read straight through beside it, with no model spent to reproduce it. The mod keys each read it is
+  exploring before its first `await`, so the second call waits for the same report and is answered with it; the
+  entry is dropped when the report is delivered, which leaves the lead insisting a turn later exactly as it was.
+  A ranged read is its own key, since a range is what the denial sends the lead back for and is never delegated.
 - **What each host has** (read off the installed binaries and schemas on 2026-11-12, not from memory):
   `HOSTS[client].subagent`. Claude Code 2.1.323: the **`Agent`** tool (`Task` before 2.1.63), parameter
   `subagent_type`, and `Explore` and `general-purpose` are **built in**, so a handoff there installs nothing; a
@@ -423,16 +435,25 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   `THINKER_DELEGATE_THRESHOLD`, `THINKER_DELEGATE_HOLDOUT=off` for an experiment arm, and
   `THINKER_DELEGATE_HANDOFF=off` / `THINKER_DELEGATE_FALLBACK=on` to run the old owned-subagent arm instead.
   Under `THINKER_TEST` the hook does nothing unless `THINKER_HOOKS=on`, as every user-scope hook.
-- **What is still unmeasured, and the one measurement to make.** Whether the model *obeys* a handoff. The bench
-  behind the thresholds compared an Opus lead with Sonnet subagents against Opus inline, which is what a handoff
-  now is, so the saving's shape is unchanged -- but a nudge the model may ignore was the thing the trigger was
-  built to replace, and a denial that instructs is one step weaker than a report that arrives. The measure is the
-  live one this project already uses: over a window of sessions with the trigger on, the share of `op: delegate`
-  handoff rows followed in the same turn by a subagent conversation in the host's own transcript (Claude Code
-  writes one per subagent; the Report already reads them), against the `after: 'handoff'` rows that say the lead
-  read the file itself anyway -- beside cost per exchange on the 50% holdout. Not run here: it spends model
-  tokens, which is the owner's to approve. The live smoke before any of it is one `opencode run` and one Claude
-  Code session on a 3,000-line file, checking that the named agent resolves and the report comes back.
+- **Run end to end on Claude Code, and obedience is not what it rests on** (2026-11-19, the owner's ask; four
+  `claude -p` sessions on the real binary, 2.1.329 with thinker 0.4.8, against a scratch `THINKER_HOME`, $0.56 of
+  lead spend). On a 1,621-line file (43,210 tokens) the hook fired, the mod spawned the host's own `Explore` on
+  `claude-haiku-5-5` (`parent_tool_use_id: toolu_plugin_…` in the transcript, so the harness ran it, not the
+  lead), the subagent read the file itself -- 62 KB into its own context, which is thrown away -- and the lead's
+  Read came back as a 2,394-char report it answered from, having never seen the file. So on Claude Code, as on
+  OpenCode, a handoff is not a nudge the lead can refuse; the instructing words are what is left for a run that
+  fails. The other three sessions each declined for a reason worth keeping: a file the person named in the prompt
+  (`kept: 'named'`), a ranged read under the threshold, and a session that explored with `grep` and never called
+  Read at all.
+- **What is still unmeasured.** Whether a lead working from several reports a turn does as well as one reading the
+  files (quality, not plumbing), and the obedience share on a host where the lead must call the subagent tool
+  itself -- the fallback words path, which is what every host but Claude Code and OpenCode gets. The measure for
+  the second is the live one this project already uses: over a window of sessions with the trigger on, the share
+  of `op: delegate` handoff rows followed in the same turn by a subagent conversation in the host's own transcript
+  (Claude Code writes one per subagent; the Report already reads them), against the `after: 'handoff'` rows that
+  say the lead read the file itself anyway -- beside cost per exchange on the holdout. Those rows only mean that
+  since 2026-11-19: until the markers were split they also counted a batch's second read of one file, which the
+  lead had not yet seen an answer for, so a share read off them before that date is contaminated.
 - **OpenCode 2 is the second door (2026-11-12; `opencode-v2.js`, `delegate.js:HOSTS`, `hostEvent`).** Its plugin
   registers `tool.hook('execute.before')` on `read` and `shell`, sends the call to the same `hook pretool` (the
   runner gives that one hook 300 s), and **throws the denial's reason**, which v2 makes the call's result. Checked

@@ -102,6 +102,34 @@ test('decide: a budget of one hands a turn\'s reads over once, and the suite run
   assert.equal(decide(st2, { prompt: 'p1', read: big, cfg, handoff: false }).fire, true);
 });
 
+test('a read the host is already exploring decides nothing, and the turn\'s budget is not the lead reading this file', async t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0 };
+  const st = {}; const state = { update: fn => fn(st) };
+  const rows = []; let ran = 0;
+  const run = async () => { ran++; return { report: 'NOPE' }; };
+  const call = ev => delegateTool({ ev, state, session: 'sess', cwd: d, cfg, log: r => rows.push(r), run, client: 'claude', lastPrompt: () => ({ prompt: 'what is in there' }) });
+  const ev = { tool_name: 'Read', tool_input: { file_path: big }, prompt_id: 'p1' };
+
+  // the second call of one batch, which the plugin answers from the report it is already getting (register.tsx:flight)
+  assert.equal(await call({ ...ev, in_flight: true }), null);
+  assert.equal(rows[0].after, 'in-flight'); assert.equal(rows[0].fired, false);
+  assert.deepEqual(rows[0].files, ['core.py']); assert.ok(rows[0].tokens > 0, 'the row carries what the read would have cost');
+  assert.equal(ran, 0);
+  assert.ok(await call(ev), 'an in-flight call spends no handoff of the turn and declines nothing');
+  assert.equal(rows[1].agent, 'Explore');
+
+  // the turn's five spent on other files says nothing about this read: its own marker since 2026-11-19
+  for (const n of ['a.py', 'b.py', 'c.py', 'd.py']) assert.ok(await call({ ...ev, tool_input: { file_path: bigFile(d, n) } }));
+  assert.equal(await call({ ...ev, tool_input: { file_path: bigFile(d, 'e.py') } }), null, 'the sixth read of a turn goes through');
+  assert.equal(rows.at(-1).after, 'budget'); assert.equal(rows.at(-1).fired, false);
+  assert.deepEqual(rows.at(-1).files, ['e.py']);
+
+  // a file with a report of its own stays `handoff`, which is the lead reading it anyway: report-savings.js drops that saving
+  assert.equal(await call(ev), null);
+  assert.equal(rows.at(-1).after, 'handoff');
+});
+
 test('delegateTool, handoff: denies with the handoff, spawns nothing, logs the mode and agent, and lets the rest of the turn through', async t => {
   const d = tmp(t); const big = bigFile(d, 'core.py'), other = bigFile(d, 'more.py');
   const cfg = { ...DELEGATE_DEFAULTS, holdout: 0 };
@@ -449,9 +477,20 @@ test('the OpenCode plugin: the report is the denied call\'s result, a repeat rea
   await assert.rejects(p.before(read('s1')), /core\.py:12/);
   assert.ok(p.events.length > m, 'asked again after the turn changed');
 
+  // the same whole read twice in one batch: one subagent, and both calls are answered from its report. Both
+  // reach the hook before the lead has seen either, so the rule can only say the file was handed over already.
+  const batch = await setup(fakeSession(), () => denied);
+  const two = [batch.before(read('s9')), batch.before(read('s9'))];
+  await assert.rejects(two[0], /core\.py:12 sort_commands/);
+  await assert.rejects(two[1], /core\.py:12 sort_commands/, 'the second call gets the report, never the file');
+  assert.equal(batch.events.filter(e => e[0] === 'pretool').length, 1, 'one decision, one child');
+
   // the run fails: the read goes through (no throw), since the words alone are what leads did not follow
   const bad = await setup(fakeSession({ fail: 'create' }), () => denied);
   assert.equal(await bad.before(read('s2')), undefined);
+  // and a failed run is not kept, so the next read of that file is decided again
+  assert.equal(await bad.before(read('s2')), undefined);
+  assert.equal(bad.events.filter(e => e[0] === 'pretool').length, 2);
   // the hook gave words and no order (a host that cannot run, an older CLI): the words are thrown, as before
   const old = await setup(fakeSession(), () => JSON.stringify({ hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'Call the subagent tool now' } }));
   await assert.rejects(old.before(read('s3')), /Call the subagent tool now/);

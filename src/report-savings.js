@@ -20,7 +20,10 @@ export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegat
 //
 // Which rows are firings: not held out, not declined, not failed, not a repeat answered from the turn's cache,
 // and not a handoff the model ignored -- a later `after: 'handoff'` row of the session naming the same file is
-// the lead reading it anyway, and then nothing was kept out.
+// the lead reading it anyway, and then nothing was kept out. That marker is only the lead reading it anyway
+// since 2026-11-19 (delegate.js:decide): the turn's budget spent on other files is `after: 'budget'` and a
+// batch's second call for a read still being explored is `after: 'in-flight'`, which is answered from the same
+// report and keeps the file out exactly as the firing did, so neither takes a saving away.
 const fired = e => e?.op === 'delegate' && e.session && e.tokens > 0 && !e.held && e.fired !== false
   && !e.declined && !e.skipped && !e.error && !e.cached;
 const write1h = price => price.cacheWrite1h ?? price.cacheWrite ?? 2 * price.input;
