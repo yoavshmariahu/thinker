@@ -47,7 +47,7 @@ import { HOOKS, installGitHooks } from './git-hooks.js';
 import { textOf } from './transcripts.js';
 import { installClaudeMods, removeClaudeMods, withCardDir, withoutCardDir, cardDirIn, withClearDir, withoutClearDir, clearDirIn, CARD_ENV as CARD_LABEL } from './claude-card.js';
 import { installExploreAgent, removeExploreAgent, exploreModel } from './explore-agent.js';
-import { installOpencodeAgents, removeOpencodeAgents, delegateExploreModel } from './delegate-agents.js';
+import { installOpencodeAgents, removeOpencodeAgents, delegateExploreModel, installClaudeVerifier, removeClaudeVerifier } from './delegate-agents.js';
 import { installAgents, removeAgents } from './model-agents.js';
 import { readRegistry } from './providers.js';
 
@@ -1396,7 +1396,9 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
       // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
       // spawns nothing and the hook answers in a quarter of a second (2026-11-12).
-      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
+      // The lead's own subagent calls reach the same hook only while a model is set for them
+      // (`delegate.subagentModel`, delegate.js:subagentCall; `Task` is the Agent tool's name before 2.1.63).
+      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: delegateConfig().subagentModel ? 'Read|Bash|Agent|Task' : 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
       // The harness's own subagent on a matched call (delegate.js:agentHookEntries); no rule is configured, so none is written
       entries.push(...agentHookEntries(delegateConfig()));
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and
@@ -1430,6 +1432,11 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         if (ex.action === 'written') done.push(`Claude Code: exploration subagents run on ${ex.model} (${rel(ex.file)}; THINKER_EXPLORE_MODEL=off removes it)`);
         else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
+        // the suite run the trigger hands over has an agent of its own, pinned the same way (delegate-agents.js)
+        const vf = installClaudeVerifier({ claudeDir: claudeDir(), model: delegateExploreModel() });
+        if (vf.action === 'written') done.push(`Claude Code: a whole-suite test run handed to a subagent runs on ${vf.model} (${rel(vf.file)})`);
+        else if (vf.action === 'removed') done.push(`Claude Code: removed ${rel(vf.file)}`);
+        else if (vf.action === 'kept') done.push(`Claude Code: ${rel(vf.file)} is your own and was left alone`);
         // the subagents thinker models assign wrote, on the models the registry names (model-agents.js)
         let routedAgents = {}; try { routedAgents = readRegistry().agents; } catch {}
         for (const a of installAgents({ claudeDir: claudeDir(), agents: routedAgents })) {
@@ -1704,7 +1711,7 @@ export function uninstallWiring({ scope = 'repo', repo } = {}) {
   }
   const stripHooks = (file, keepVersion) => file && stripThinkerHooks(file, { keepVersion, mcp: true });
   if (scope === 'user' && (cardDirIn(readJsonOr(claude.local, {})) || clearDirIn(readJsonOr(claude.local, {})))) mergeJson(claude.local, c => withoutClearDir(withoutCardDir(c)));
-  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); removeAgents({ claudeDir: claudeDir() }); }
+  if (scope === 'user') { removeClaudeMods(); removeExploreAgent({ claudeDir: claudeDir() }); removeClaudeVerifier({ claudeDir: claudeDir() }); removeAgents({ claudeDir: claudeDir() }); }
   for (const f of [claude.local, claude.shared, codex.hooks, gemini.settings]) stripHooks(f);
   stripHooks(cursor.hooks, true);
   for (const file of [claude.mcp, cursor.mcp]) {

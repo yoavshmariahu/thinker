@@ -34,6 +34,7 @@
 // only written into the agent's settings while it is on (connect/rewire read the same switch), since a hook that
 // exits at once is still one node process per tool call.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { readMachineConfig } from './repo-switch.js';
@@ -44,6 +45,7 @@ import { claudeCardActive } from './claude-card.js';
 import { traceFile } from './transcripts.js';
 import { shellRead } from './shell-read.js';
 import { keepPatterns, keepMatcher, namedIn } from './keep.js';
+import { isWorkerLaunch } from './session-llm.js';
 export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
@@ -66,6 +68,9 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // over once a turn and a suite run once a turn whatever this says (see `decide`)
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
   agentHooks: [],     // Claude Code's agent hooks (`agentHookEntries`): the mechanism without a rule to fire it
+  subagentModel: null, // the model the lead's own subagents start on when the lead names none (`subagentCall`,
+                      // SUBAGENT_TYPES): `delegate: { subagentModel: 'sonnet' }`. Off until the owner's call. An alias,
+                      // because Claude Code's Agent tool refuses a full id (live on 2.1.329, 2026-11-19)
   reportLines: 25,
 });
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
@@ -390,14 +395,16 @@ export function agentHookEntries(cfg = DELEGATE_DEFAULTS) {
  * `run` and `lastPrompt` are injected so the logic is testable without a subagent. Resolves to the hook's
  * stdout, or null -- and null is what every failure resolves to, because a hook may not fail a tool call.
  */
-export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client = 'claude' }) {
+export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client = 'claude', verifier = false }) {
   const read = readOf(ev.tool_name, ev.tool_input, cwd, { readCap });
   const suite = suiteCommand(ev.tool_name, ev.tool_input);
   if (!read && !suite) return null;
   // inside a subagent nothing is delegated: those reads *are* the delegation
   if (fromSubagent(ev, client)) return null;
-  const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model });
+  const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model, verifier });
   const handoff = exec.mode === 'handoff';
+  // the model the host's agent is held to by its definition: Explore.md, and the suite run's own agent where it is installed
+  const pinnedTo = HOSTS[client]?.subagent?.pins && (suite ? exec.pinned : true) ? cfg.model : null;
   let d, cached, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
   // A read the rule declined still leaves a row, because without one "the hook never ran" and "the hook
@@ -448,17 +455,18 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     // conversation at its own model). The budget is spent before the denial goes out, so a second read of the
     // turn cannot be denied even if its hook runs at the same moment as this one.
     state.update(st => { noteHandoff(st, prompt, d.kind, d.key); if (d.kind === 'explore') noteFiring(st, { t: Date.now(), tokens: d.tokens, files, agent: exec.agent }); });
-    // `model` where the host's agent is pinned to one (Claude Code's Explore.md, `pins`): the saving nets the
-    // lead's write against the same read at this model's rate (report-savings.js:delegationSavings). Where
-    // nothing is pinned the subagent runs on a model thinker does not choose, and the row names none.
-    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(exec.model ? { model: exec.model, family: exec.family } : HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? { model: cfg.model } : {}) });
+    // `model` where the host's agent is pinned to one (Claude Code's Explore.md and thinker-verify.md, `pins`):
+    // the saving nets the lead's write against the same read at this model's rate
+    // (report-savings.js:delegationSavings). Where nothing is pinned the subagent runs on a model thinker does
+    // not choose, and the row names none.
+    log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(exec.model ? { model: exec.model, family: exec.family } : pinnedTo ? { model: pinnedTo } : {}) });
     const label = handoffLabel(d.kind, files, cwd);
     const words = denial({ kind: d.kind, files, cwd, handoff: { ...exec, brief, label } });
     // A host whose plugin can run the subagent itself says so (`host_runs`, OpenCode: opencode-v2.js:hostRun), and
     // gets what it needs to do it beside the words: the agent, the model, the brief, and the sentence the report
     // comes back inside. The words stay, for the run that fails -- they are then all there is, as before.
     if (!ev.host_runs) return words;
-    return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label, pinned: HOSTS[client]?.subagent?.pins && d.kind !== 'verify' ? cfg.model : null }) });
+    return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label, pinned: pinnedTo }) });
   }
   if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });
@@ -494,6 +502,20 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
 //   providers, and on a vendor's cloud harness with the vendor's models thinker has no business naming one.
 //   `primary` lists the agents a prompt runs as there, so anything else is a subagent and never delegates.
 export const OPENCODE_EXPLORE = 'thinker-explore', OPENCODE_VERIFY = 'thinker-verify';
+// THE SUITE RUN HAS AN AGENT OF ITS OWN ON CLAUDE CODE (2026-11-19).
+//
+// A handed-over suite run went to the built-in `general-purpose`, which has no model of its own: it ran on the
+// lead's, with every tool the session has in its prompt. Read out of this machine's transcripts, ten such runs
+// were billed $0.55 each (a start-up context of about 52k tokens, written at the lead's rate); the lead running
+// the suite itself in one call comes to about $0.10 at the same prices, so the handoff was the dearer of the two.
+// So thinker writes one agent for it (delegate-agents.js:installClaudeVerifier), pinned by its full id to
+// `delegate.model` as Explore.md is, with a shell and the three reading tools and nothing else. The name is
+// handed out only while that file is there (`claudeVerifierReady`): nothing built in stands behind it, and an
+// agent that does not resolve is a failed handoff, so without the file the run goes to `general-purpose` as before.
+export const CLAUDE_VERIFY = 'thinker-verify';
+export const claudeAgentsDir = (env = process.env) => path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'agents');
+export const claudeVerifierFile = (dir = claudeAgentsDir()) => path.join(dir, `${CLAUDE_VERIFY}.md`);
+export const claudeVerifierReady = (dir = claudeAgentsDir()) => { try { return fs.statSync(claudeVerifierFile(dir)).isFile(); } catch { return false; } };
 
 // THE EXPLORER IS THE LEAD'S OWN FAMILY'S CHEAP MODEL (2026-11-15, the owner's ask: "keep the pairs within the
 // family e.g. opus/fable to haiku, astra/sol to luna").
@@ -555,7 +577,7 @@ export function explorerFor(lead) {
 export const HOSTS = Object.freeze({
   claude: {
     readCap: 0,
-    subagent: { tool: 'Agent', alias: 'Task', param: 'subagent_type', explore: 'Explore', verify: 'general-purpose', pins: true },
+    subagent: { tool: 'Agent', alias: 'Task', param: 'subagent_type', explore: 'Explore', verify: 'general-purpose', verifyPinned: CLAUDE_VERIFY, pins: true },
   },
   opencode: {
     readCap: 58000,
@@ -616,13 +638,15 @@ export function fromSubagent(ev = {}, client = 'claude') {
  * subagent, `{ mode: 'report' }` for thinker's own fallback, `{ mode: 'none', reason }` where there is neither
  * and the call goes through untouched.
  */
-export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS, { lead = null } = {}) {
+export function executionFor(client, kind, cfg = DELEGATE_DEFAULTS, { lead = null, verifier = false } = {}) {
   const sub = HOSTS[client]?.subagent;
-  const agent = sub && (kind === 'verify' ? sub.verify : sub.explore);
-  // An exploration on a gateway goes to the lead's family's cheap model (EXPLORER_FAMILIES). A suite run stays
-  // where it was: its cost is the tests' own output, and the model that summarises it was not what was measured.
+  // `verifier`: thinker's own pinned agent for the suite run is installed (Claude Code, `claudeVerifierReady`)
+  const pinned = Boolean(kind === 'verify' && verifier && sub?.verifyPinned);
+  const agent = sub && (kind === 'verify' ? (pinned ? sub.verifyPinned : sub.verify) : sub.explore);
+  // An exploration on a gateway goes to the lead's family's cheap model (EXPLORER_FAMILIES). A suite run there
+  // stays on the session's model: no pair was measured for it.
   const pair = kind !== 'verify' && sub?.families && cfg.families !== false ? explorerFor(lead) : null;
-  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, ...(sub.fields ? { fields: sub.fields } : {}), agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}) };
+  if (cfg.handoff && agent) return { mode: 'handoff', tool: sub.tool, alias: sub.alias, param: sub.param, ...(sub.fields ? { fields: sub.fields } : {}), agent: pair ? pair.agent : agent, ...(pair ? { model: pair.model, family: pair.family } : {}), ...(pinned ? { pinned: true } : {}) };
   if (cfg.fallback) return { mode: 'report' };
   return { mode: 'none', reason: agent ? 'handoff-off' : 'no-native-subagent' };
 }
@@ -636,9 +660,70 @@ export function hostEvent(client, ev) {
   return { ...ev, tool_name, tool_input };
 }
 
+// ---- the lead's own subagents, on a cheaper model (2026-11-19, the owner's ask) ----
+//
+// A subagent the lead starts itself -- a survey, a web page read, an end-to-end run -- has no model of its own
+// and runs on the lead's. Over 30 days of this machine's sessions that was 55 runs of `general-purpose`, `claude`
+// and `web-fetch` billed $156 on Opus and Fable, and the same tokens at Sonnet's list rates are $39. Nothing has to
+// be handed over, because the lead has already done the handing: the trigger is its own Agent call, and all the
+// hook does is name the model, which the harness takes as if the lead had (`updatedInput`; live on 2.1.329, a
+// `haiku` lead's call came back on Sonnet with nothing else changed). It is an alias, never a full id -- the
+// Agent tool refuses one ("an invalid value", the same run) -- so the model is the person's own `sonnet`.
+//
+// What it leaves alone, each for a reason:
+//  - a call that names a model: the lead, or the person through it, chose;
+//  - any other agent type: Explore and thinker's own agents are pinned by their definitions, a person's agent may
+//    be, and the call's model outranks a definition's (the same run: Explore.md's Haiku lost to the call's
+//    `sonnet`), so naming one there would undo a choice; a fork runs on its parent's model by design;
+//  - thinker's own queue worker (session-llm.js:isWorkerLaunch): its answers are the profile, on the model the
+//    profile was measured on;
+//  - a subagent's own Agent call: it inherits what its parent already runs on;
+//  - a lead that is not on a dearer model, or whose model the transcript does not show yet: Sonnet for a Haiku
+//    session would be the trigger raising the price.
+// Every decided call is a row (`kind: 'subagent'`), a held-out session's too, and the Report prices each
+// subagent conversation at the model it ran on, so the two sides are read off what already exists.
+export const SUBAGENT_TYPES = Object.freeze(['general-purpose', 'claude', 'web-fetch']);
+const DEARER_LEAD = /opus|fable|mythos/i;
+/** The model of the lead's newest answer, from the transcript's tail, or null. */
+export function leadModelOf(transcriptPath, tail = TRANSCRIPT_TAIL) {
+  try {
+    const size = fs.statSync(transcriptPath).size;
+    const rows = transcriptRows(transcriptPath, size, Math.min(size, tail));
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const m = rows[i].type === 'assistant' && !rows[i].isSidechain ? rows[i].message?.model : null;
+      if (typeof m === 'string' && m && !m.startsWith('<')) return m;
+    }
+  } catch {}
+  return null;
+}
+/** One Agent call of the lead's: the hook's stdout that names the model, or null when the call goes as it came. */
+export function subagentCall({ ev, session, cfg = DELEGATE_DEFAULTS, log = () => {}, leadModel = () => null, client = 'claude' }) {
+  const to = typeof cfg.subagentModel === 'string' ? cfg.subagentModel.trim() : '';
+  if (!to || fromSubagent(ev, client)) return null;
+  const input = ev.tool_input && typeof ev.tool_input === 'object' ? ev.tool_input : {};
+  const agent = String(input[HOSTS[client]?.subagent?.param || 'subagent_type'] || 'general-purpose');
+  if (!SUBAGENT_TYPES.includes(agent)) return null;
+  const row = { op: 'delegate', session, client, kind: 'subagent', tool: ev.tool_name, agent };
+  if (input.model) { log({ ...row, fired: false, declined: 'model-named', named: String(input.model).slice(0, 60) }); return null; }
+  if (isWorkerLaunch(input)) { log({ ...row, fired: false, declined: 'thinker-worker' }); return null; }
+  const lead = leadModel() || null;
+  if (!lead || !DEARER_LEAD.test(lead)) { log({ ...row, fired: false, declined: 'lead', lead }); return null; }
+  const held = heldOut(session, cfg.holdout);
+  log({ ...row, held, lead, ...(held ? {} : { model: to }) });
+  if (held) return null;
+  // no permission decision: the call is asked about, or not, exactly as it would have been
+  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, model: to } } });
+}
+
 /** The PreToolUse hook's body, over the repository's store and the session's state file. */
-export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude' }) {
+export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude', verifier = client === 'claude' && claudeVerifierReady() }) {
   if (!cfg.enabled || !HOSTS[client]) return null;
+  // The lead's own subagent call, moved to a cheaper model (`subagentCall`). No mod decides this one, so it is
+  // answered here whether or not a mod marked the session.
+  const sub = HOSTS[client].subagent;
+  if (client === 'claude' && sub && (raw.tool_name === sub.tool || raw.tool_name === sub.alias)) {
+    return subagentCall({ ev: raw, session, cfg, client, log: row => store.log(row), leadModel: () => raw.transcript_path ? leadModelOf(raw.transcript_path) : null });
+  }
   // Claude Code's mod asks for itself, from inside the harness, and runs the subagent (`host_runs`,
   // claude-clear:delegateCall). In a session it marked, the settings hook's copy of the same call stands down,
   // or one read would be decided twice.
@@ -649,7 +734,7 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   if (windowTool(client, ev.tool_name)) { state.update(st => noteSubagent(st, true)); return null; }
   if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   if (HOSTS[client].subagent?.window) { let running = false; state.update(st => { running = subagentRunning(st); }); if (running) return null; }
-  return delegateTool({ ev, state, session, cwd, cfg, run, client, readCap: HOSTS[client].readCap, log: row => store.log(row), // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
+  return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row), // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
     // (`user_prompt`, OpenCode's plugin). Without it the brief asks an explorer to report on a file for a
     // request it was never shown, and the report is a summary of whatever it read first.
     // A host with neither keeps a trace of its own through thinker's hooks (transcripts.js:recordEvent): the
