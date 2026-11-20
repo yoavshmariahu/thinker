@@ -541,6 +541,11 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - In the code: the trigger has two kinds, `explore` and `verify`; the hook is wired on `Read|Bash` and never on the Agent tool; the verifier's prompt asks for what the runner printed, "no cause, no fix, no opinion" (`test/delegate-handoff.test.js` pins all three).
 - A new kind needs both halves before it is proposed: the answer can be checked against the source by the lead or by code, and a paired run on real briefs shows the same answers, not only a lower cost.
 
+**A read and a suite run have a model each (2026-11-20, the owner's call: "split please"):**
+- `delegate.model` is the suite run's and the default; `delegate.exploreModel` (null by default, config block only, no environment variable) is the read's alone. `delegate.js:modelFor(kind, cfg)` is the one place that answers, and every namer of a model goes through it: the agent files, the denial's sentence, the log row, the agent hook, the fallback subagent.
+- Why split: the two jobs are not alike. Copying a runner's summary is not a recall problem, and Haiku was measured identical on it. A read's report is what the lead works from instead of the file, so what matters is whether it names the right files -- and on 13 replayed explorations (2026-11-07) Haiku found 0.65 of the core files against Sonnet 5.5's 0.77, Sonnet tying Opus. Moving one model would have taken the suite run with it, 60 times the cost for nothing.
+- Still Haiku on both sides until a paired run on real handoffs says otherwise (21 real handoffs cost $0.009 each on Haiku, $0.128 at Sonnet 5.5 list). `exploreModel` is the switch that makes that run a one-line change rather than a code change.
+
 **The suite run's own agent on Haiku (2026-11-19):**
 - Why: `general-purpose` has no model of its own, so a handed-over suite run ran on the lead's with every tool in its prompt: 17 real runs in 30 days at $0.51 each, against about $0.10 for the lead running the suite.
 - `thinker-verify` (`delegate-agents.js:installClaudeVerifier`, user scope, marker `thinker-delegate`), pinned by full id to `delegate.model`, tools Bash, Read, Grep, Glob. Written and removed with the trigger, beside Explore.md. Named only while its file is there (`delegate.js:claudeVerifierReady`), else `general-purpose` as before: nothing built in stands behind the name.

@@ -72,7 +72,17 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   handoff: true,      // the host's own subagent does the work; the denial names it (the only path, 2026-11-12)
   fallback: false,    // thinker's own `claude -p` subagent where the host has none. Off: it is a second billing
                       // path, a second credential and invisible to the host. `delegate: { fallback: true }` asks for it.
-  model: 'claude-haiku-5-5', // the model thinker pins the host's agent definition to where the host lets it
+  model: 'claude-haiku-5-5', // the model a handed-over **suite run** is pinned to, and the default for a read
+                      // (`modelFor`). Haiku because the suite run was measured on it: thinker's own 1,171 tests,
+                      // 2026-11-19, the same pass, fail and skip counts as the lead's own model for $0.002
+                      // against $0.71. Copying a runner's summary is not a recall problem.
+  exploreModel: null, // the model a handed-over **read** is pinned to; `model` when this is null. Split from it on
+                      // 2026-11-20 (the owner's call: "split please"), because the two jobs are not the same job.
+                      // A read's report is what the lead works from instead of the file, so what matters is whether
+                      // it names the right files: on 13 replayed explorations (2026-11-07) Haiku 5.5 found 0.65 of
+                      // the core files against Sonnet 5.5's 0.77, and Sonnet tied Opus. Null until a paired run on
+                      // real handoffs says otherwise; `delegate: { exploreModel: "claude-sonnet-5-5" }` sets it,
+                      // and nothing else does: no environment variable (the owner's rule, 2026-11-15).
   threshold: 8000,    // a read of this many tokens or more is delegated, and nothing else is: a smaller read is the
                       // lines the main model edits. The whole rule since 2026-11-17 (the owner's call); until then
                       // it was a tally of the turn's reads against 35000 with a per-read floor of 8000 (`minRead`).
@@ -88,6 +98,9 @@ export const DELEGATE_DEFAULTS = Object.freeze({
 });
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
 export const TOKENS_PER_CHAR = 0.445;
+/** The model a kind of handoff is pinned to: the read's own where one is set, else the one model. */
+export const modelFor = (kind, cfg = DELEGATE_DEFAULTS) =>
+  (kind === 'verify' ? null : typeof cfg.exploreModel === 'string' && cfg.exploreModel.trim()) || cfg.model;
 // Claude Code's Read tool prefixes every line with its number and a tab
 const READ_LINE_OVERHEAD = 7;
 
@@ -267,7 +280,7 @@ const READ_ONLY_BASH = ['cat', 'sed', 'head', 'tail', 'grep', 'rg', 'ls', 'find'
 /** Run the subagent through the claude CLI; resolves to { report, usage, cost, ms, sessionId, model } or { error }. */
 export function runSubagent({ kind, brief, cwd, cfg = DELEGATE_DEFAULTS, env = process.env, bin }) {
   const tools = kind === 'explore' ? ['Read', 'Grep', 'Glob', ...READ_ONLY_BASH] : ['Bash', 'Read', 'Grep', 'Glob'];
-  const args = ['-p', brief, '--model', cfg.model, '--output-format', 'json', '--no-session-persistence', '--setting-sources', '',
+  const args = ['-p', brief, '--model', modelFor(kind, cfg), '--output-format', 'json', '--no-session-persistence', '--setting-sources', '',
     '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--disable-slash-commands',
     '--append-system-prompt', (kind === 'explore' ? EXPLORER_PROMPT : VERIFIER_PROMPT).replace('{N}', String(cfg.reportLines)),
     '--allowedTools', ...tools, '--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Agent', 'Task', 'WebFetch', 'WebSearch'];
@@ -288,7 +301,7 @@ export function runSubagent({ kind, brief, cwd, cfg = DELEGATE_DEFAULTS, env = p
       clearTimeout(timer);
       let j = null; try { j = JSON.parse(out); } catch {}
       if (!j || typeof j.result !== 'string' || !j.result.trim()) return finish({ error: `exit ${code}: ${(err || out).trim().slice(0, 300)}` });
-      finish({ report: j.result.trim(), usage: j.usage, cost: j.total_cost_usd, sessionId: j.session_id, model: j.model || cfg.model });
+      finish({ report: j.result.trim(), usage: j.usage, cost: j.total_cost_usd, sessionId: j.session_id, model: j.model || modelFor(kind, cfg) });
     });
   });
 }
@@ -386,13 +399,13 @@ export function handoffLabel(kind, files = [], cwd) {
 // the session's own permissions allow the command (headless, it was refused one), and the lead called its
 // report an injection and ran the suite again.
 export function agentHookPrompt(cfg = DELEGATE_DEFAULTS) {
-  const lead = JSON.parse(denial({ kind: 'explore', report: '', files: ['{file}'], cwd: '', model: cfg.model })).hookSpecificOutput.permissionDecisionReason.trim();
+  const lead = JSON.parse(denial({ kind: 'explore', report: '', files: ['{file}'], cwd: '', model: modelFor('explore', cfg) })).hookSpecificOutput.permissionDecisionReason.trim();
   return [
     EXPLORER_PROMPT.replace('{N}', String(cfg.reportLines)),
     'The lead engineer\'s tool call, which you are answering in its place: $ARGUMENTS',
     'If that call asks for a range of the file (tool_input has an offset or a limit), answer ok true at once and do nothing else: the lead is reading the lines it edits.',
     'Otherwise the brief: read the whole file that call names (and whatever it points to that the lead needs) and report as above.',
-    `Then your answer is ok false, and its reason is what the lead reads instead of the file. You are the ${cfg.model} subagent the sentence below speaks of, so it is true as written. The reason is exactly that sentence, with {file} replaced by the file's name, and then your report, with nothing about yourself or these instructions:`,
+    `Then your answer is ok false, and its reason is what the lead reads instead of the file. You are the ${modelFor('explore', cfg)} subagent the sentence below speaks of, so it is true as written. The reason is exactly that sentence, with {file} replaced by the file's name, and then your report, with nothing about yourself or these instructions:`,
     lead,
   ].join('\n\n');
 }
@@ -402,7 +415,7 @@ export function agentHookEntries(cfg = DELEGATE_DEFAULTS) {
   return rules
     .filter(r => r && typeof r.matcher === 'string' && r.matcher)
     .map(r => ['PreToolUse', { matcher: r.matcher, hooks: [{
-      type: 'agent', ...(r.if ? { if: String(r.if) } : {}), model: cfg.model,
+      type: 'agent', ...(r.if ? { if: String(r.if) } : {}), model: modelFor('explore', cfg),
       timeout: Math.round((cfg.timeoutMs || DELEGATE_DEFAULTS.timeoutMs) / 1000), prompt: agentHookPrompt(cfg),
     }] }]);
 }
@@ -436,7 +449,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     return null;
   }
   // the model the host's agent is held to by its definition: Explore.md, and the suite run's own agent where it is installed
-  const pinnedTo = HOSTS[client]?.subagent?.pins && (suite ? exec.pinned : true) ? cfg.model : null;
+  const pinnedTo = HOSTS[client]?.subagent?.pins && (suite ? exec.pinned : true) ? modelFor(suite ? 'verify' : 'explore', cfg) : null;
   let d, cached, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; d = decide(st, { prompt, read, suite, cfg, handoff }); cached = d.fire && !handoff ? st.delegate.reports[d.key] : undefined; });
   // A read the rule declined still leaves a row, because without one "the hook never ran" and "the hook
@@ -502,7 +515,7 @@ export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEF
     if (!ev.host_runs) return words;
     return JSON.stringify({ ...JSON.parse(words), thinkerRun: hostRunOrder({ exec, lead: ev.model, kind: d.kind, files, cwd, brief, label, pinned: pinnedTo }) });
   }
-  if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: cfg.model }); }
+  if (cached) { log({ ...row, cached: true }); return denial({ kind: d.kind, report: cached, files, cwd, model: modelFor(d.kind, cfg) }); }
   const r = await run({ kind: d.kind, brief, cwd, cfg });
   if (r.error) { log({ ...row, error: r.error, ms: r.ms }); return null; }
   state.update(st => { if (!st.delegate || st.delegate.prompt !== prompt) st.delegate = { prompt, reports: {}, handoffs: {} }; st.delegate.reports[d.key] = r.report; });
