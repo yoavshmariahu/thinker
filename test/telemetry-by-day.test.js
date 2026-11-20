@@ -21,9 +21,11 @@ test('delegations leave the machine as counts by day: fired, held out and failed
     store.log({ ...row, fired: false, declined: 'below-threshold' });
     store.log({ ...row, held: false, fired: false, after: 'handoff' });
     const m = delegateMetrics(store, { all: false });
-    assert.equal(m.schemaVersion, 2);
-    // the lead read the file itself after the handoff (the last row), so the firings kept nothing out and saved nothing
-    assert.deepEqual(m.byDay, { [new Date().toISOString().slice(0, 10)]: { delegated: 3, cached: 1, held: 1, failed: 1, costUsd: 0.21, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 } });
+    assert.equal(m.schemaVersion, 3);
+    // The lead read the file itself after the handoff (the last row), so the firings kept nothing out and saved
+    // nothing: each is in `ignored` as well, by the rule the saving uses, so a day's count and a day's dollars
+    // are one rule and `delegated - ignored` is what the dollars are drawn from. The subagent was paid either way.
+    assert.deepEqual(m.byDay, { [new Date().toISOString().slice(0, 10)]: { delegated: 3, ignored: 3, cached: 1, held: 1, failed: 1, costUsd: 0.21, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 } });
     assert.equal(JSON.stringify(m).includes('secret'), false, 'no file leaves the machine');
     // a firing older than the window is in no day
     assert.deepEqual(delegateMetrics(store, { all: false, now: Date.now() + 40 * 86400000 }).byDay, {});
@@ -39,12 +41,16 @@ test('what delegation saved leaves the machine by day, as the savings ledger cou
     store.log({ ...row, session: 'priced', model: 'claude-sonnet-5-5', cost: 0.21 });
     store.log({ ...row, session: 'no-model' });
     store.log({ ...row, session: 'held-out', held: true });
+    // the two rows the turn's own bookkeeping leaves, which are not the lead reading a file it has a report for
+    store.log({ ...row, session: 'priced', files: ['src/other.py'], fired: false, after: 'budget' });
+    store.log({ ...row, session: 'priced', fired: false, after: 'in-flight' });
     const day = delegateMetrics(store, { all: false }).byDay[new Date().toISOString().slice(0, 10)];
     // the write Opus 5.5 never made (40k at $8 a million) less the subagent's $0.21; the held-out firing saved nothing
     assert.equal(day.savedUsd, 0.11);
     assert.equal(day.savedTokens, 80000);
     assert.equal(day.unpricedTokens, 40000);
     assert.equal(day.delegated, 2);
+    assert.equal(day.ignored, 0, 'the budget and a batch\'s second call keep the file out as the firing did');
     assert.equal(day.held, 1);
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });

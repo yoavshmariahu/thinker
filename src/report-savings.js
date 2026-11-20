@@ -65,8 +65,29 @@ function recordedSavings(events, config) {
   return { out, sessions: new Set(by.keys()) };
 }
 
+/**
+ * The handoffs the lead went on to read itself: a later `after: 'handoff'` row of the session naming the same
+ * file. Nothing was kept out of the prompt by one of those, so it is neither a saving here nor a delegation in
+ * the day's count (telemetry.js:delegateMetrics counts the same rows as `ignored`, which is what makes the two
+ * figures one rule). Only `after: 'handoff'` is the lead reading it anyway: since 2026-11-19 the turn's budget
+ * spent on other files is `after: 'budget'` and a batch's second call for the same read is `after: 'in-flight'`,
+ * which is answered from the report and keeps the file out exactly as the firing did (delegate.js:decide).
+ */
+export function readAnyway(events = []) {
+  const ignored = new Map();
+  for (const e of events) {
+    if (e?.op !== 'delegate' || e.after !== 'handoff' || !e.session) continue;
+    const k = sessionKey(e.session);
+    if (!ignored.has(k)) ignored.set(k, []);
+    ignored.get(k).push({ t: Date.parse(e.t), files: new Set(e.files || []) });
+  }
+  return (e, t = Date.parse(e?.t)) => (ignored.get(sessionKey(e?.session)) || [])
+    .some(x => x.t >= t && (e?.files || []).some(f => x.files.has(f)));
+}
+
 export function delegationSavings({ events = [], compression = [], config } = {}) {
-  const calls = new Map(), models = new Map(), ignored = new Map();
+  const calls = new Map(), models = new Map();
+  const readItself = readAnyway(events);
   const recorded = recordedSavings(events, config), out = recorded.out;
   for (const r of compression) {
     if (!isCall(r)) continue;
@@ -83,19 +104,12 @@ export function delegationSavings({ events = [], compression = [], config } = {}
     for (const r of rows) by.set(r.model, (by.get(r.model) || 0) + r.prompt);
     lead.set(k, [...by].sort((a, b) => b[1] - a[1])[0]?.[0] || null);
   }
-  for (const e of events) {
-    if (e?.op === 'session' && e.session && e.model) models.set(sessionKey(e.session), e.model);
-    if (e?.op === 'delegate' && e.after === 'handoff' && e.session) {
-      const k = sessionKey(e.session);
-      if (!ignored.has(k)) ignored.set(k, []);
-      ignored.get(k).push({ t: Date.parse(e.t), files: new Set(e.files || []) });
-    }
-  }
+  for (const e of events) if (e?.op === 'session' && e.session && e.model) models.set(sessionKey(e.session), e.model);
   for (const e of events) {
     if (!fired(e)) continue;
     const k = sessionKey(e.session), t = Date.parse(e.t), tokens = e.tokens;
     if (!Number.isFinite(t) || recorded.sessions.has(k)) continue;
-    if ((ignored.get(k) || []).some(x => x.t >= t && (e.files || []).some(f => x.files.has(f)))) continue;
+    if (readItself(e, t)) continue;
     const model = lead.get(k) || models.get(k) || null, price = listPrice(model, { config });
     const row = { session: e.session, model, estimated: true };
     // the write the lead did not make, less what the subagent paid for the same read
