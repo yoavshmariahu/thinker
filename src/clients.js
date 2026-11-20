@@ -1396,9 +1396,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
       // `PreToolUse` in setHooks's list takes the entry out again on a rewire once it is off.
       // The timeout only has to cover a subagent run while the fallback is the one running it; a handoff
       // spawns nothing and the hook answers in a quarter of a second (2026-11-12).
-      // The lead's own subagent calls reach the same hook only while a model is set for them
-      // (`delegate.subagentModel`, delegate.js:subagentCall; `Task` is the Agent tool's name before 2.1.63).
-      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: delegateConfig().subagentModel ? 'Read|Bash|Agent|Task' : 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
+      if (delegateConfig().enabled) entries.push(['PreToolUse', { matcher: 'Read|Bash', hooks: [{ type: 'command', command: cmd('pretool'), timeout: delegateConfig().fallback ? 300 : 30 }] }]);
       // The harness's own subagent on a matched call (delegate.js:agentHookEntries); no rule is configured, so none is written
       entries.push(...agentHookEntries(delegateConfig()));
       // No PostToolUse (2026-11-10): Claude Code keeps its own transcript, so the hook recorded nothing, and

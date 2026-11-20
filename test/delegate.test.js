@@ -175,13 +175,6 @@ test('wiring: Claude Code gets the PreToolUse entry on Read|Bash unless the trig
   const c = JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8'));
   assert.equal(c.hooks.PreToolUse.length, 1);
   assert.equal(c.hooks.PreToolUse[0].matcher, 'Read|Bash');
-  // the lead's own subagent calls reach the hook only while a model is set for them (delegate.js:subagentCall)
-  fs.writeFileSync(path.join(process.env.THINKER_HOME, 'config.json'), JSON.stringify({ delegate: { subagentModel: 'sonnet' } }));
-  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse[0].matcher, 'Read|Bash|Agent|Task');
-  fs.rmSync(path.join(process.env.THINKER_HOME, 'config.json'));
-  installClient('claude', { repo: dir, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
-  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, '.claude/settings.json'), 'utf8')).hooks.PreToolUse[0].matcher, 'Read|Bash');
   assert.match(c.hooks.PreToolUse[0].hooks[0].command, /hook pretool/);
   // a handoff spawns nothing, so the hook answers at once and does not need the fallback's long timeout
   assert.ok(c.hooks.PreToolUse[0].hooks[0].timeout <= 60, 'a handoff needs no room for a subagent run');

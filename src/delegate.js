@@ -26,6 +26,23 @@
 // like any other subagent, and on Claude Code thinker already prices a subagent conversation at its own
 // model in the Report (`tool-outputs.js:sessionUsage`), so the measure gets better rather than worse.
 //
+// WHAT MAY GO TO A CHEAPER MODEL, AND WHAT MAY NOT (2026-11-19, the owner's rule: "critical decisions or
+// thinking does not get routed to a cheaper model. These models should be scoped for simple tasks").
+// A cheaper model gets work whose answer is already there to be found or copied, and which the lead checks
+// against the source before acting on it: where things are in a large file (the lead reads the lines it edits
+// itself), and what a test runner printed (counts, names, messages, copied). It reports what is there. It is
+// never asked what to do or why, and nothing the lead chose to hand to a subagent of its own -- research, a
+// survey, a review, a plan, a diagnosis -- is ever moved to one: that work is the lead's thinking, on the model
+// the person chose for it. So the trigger has two kinds, `explore` and `verify`, and an Agent call of the
+// lead's goes through untouched.
+// Why the line is there: for one day (#881) a setting moved the lead's own general-purpose, claude and
+// web-fetch subagents to Sonnet, and two real briefs were run both ways. They cost far less ($0.95 on Fable 5.2
+// against $0.07; an October run's tokens at $2.76 against $0.54), and the answers were worse: asked to quote a page or say
+// "not on the page", Sonnet answered yes to a question two Fable runs called not on the page, from passages about
+// another case, having read a quarter of it; its research report skipped a page the original read and cited an
+// issue thread where the original quoted the documentation. The suite run on Haiku, run the same day against
+// the same 1,171 tests, came back with the same counts for $0.002 against $0.71.
+//
 // What it is not. It never intercepts a small read (the main model reads the lines it edits), never runs
 // anything on a held-out session (the live measure is those sessions against the others), and never spends
 // more than one subagent run per file per turn (a repeat read gets the cached report). It is on by default
@@ -45,7 +62,6 @@ import { claudeCardActive } from './claude-card.js';
 import { traceFile } from './transcripts.js';
 import { shellRead } from './shell-read.js';
 import { keepPatterns, keepMatcher, namedIn } from './keep.js';
-import { isWorkerLaunch } from './session-llm.js';
 export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
@@ -68,9 +84,6 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // over once a turn and a suite run once a turn whatever this says (see `decide`)
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
   agentHooks: [],     // Claude Code's agent hooks (`agentHookEntries`): the mechanism without a rule to fire it
-  subagentModel: null, // the model the lead's own subagents start on when the lead names none (`subagentCall`,
-                      // SUBAGENT_TYPES): `delegate: { subagentModel: 'sonnet' }`. Off until the owner's call. An alias,
-                      // because Claude Code's Agent tool refuses a full id (live on 2.1.329, 2026-11-19)
   reportLines: 25,
 });
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
@@ -222,7 +235,7 @@ export function noteFiring(st, f) {
 
 // ---- the subagent ----
 export const EXPLORER_PROMPT = `You explore a codebase for a lead engineer who will not read the files. Answer exactly the question in the brief. Report in at most {N} lines: each relevant function, class or section as \`path:line\` with one line on what it does and how it connects, and the exact lines to change if the brief asks. Quote at most 5 lines of code in total. Never paste a file or a long excerpt. Use the shell only for read-only commands. Never edit a file, never run tests.`;
-export const VERIFIER_PROMPT = `You verify work for a lead engineer. Run exactly the command in the brief, once. Report in at most 15 lines: first the final summary line exactly as the test runner printed it, copied verbatim; then for each failing test its name, the assertion message and the file:line it points at, and one line on the likely cause. If nothing ran (a collection or import error), say so in the first line. Never paste full output. Never edit a file.`;
+export const VERIFIER_PROMPT = `You verify work for a lead engineer. Run exactly the command in the brief, once. Report in at most 15 lines: first the final summary line exactly as the test runner printed it, copied verbatim; then for each failing test its name, the assertion message and the file:line it points at. Report what the runner printed and nothing else: no cause, no fix, no opinion. If nothing ran (a collection or import error), say so in the first line. Never paste full output. Never edit a file.`;
 
 // `rules` puts the kind's standing instructions into the brief itself. The fallback subagent gets them as a
 // system prompt (`runSubagent`), but a handoff goes to an agent of the host's whose system prompt thinker does
@@ -505,9 +518,9 @@ export const OPENCODE_EXPLORE = 'thinker-explore', OPENCODE_VERIFY = 'thinker-ve
 // THE SUITE RUN HAS AN AGENT OF ITS OWN ON CLAUDE CODE (2026-11-19).
 //
 // A handed-over suite run went to the built-in `general-purpose`, which has no model of its own: it ran on the
-// lead's, with every tool the session has in its prompt. Read out of this machine's transcripts, ten such runs
-// were billed $0.55 each (a start-up context of about 52k tokens, written at the lead's rate); the lead running
-// the suite itself in one call comes to about $0.10 at the same prices, so the handoff was the dearer of the two.
+// lead's, with every tool the session has in its prompt. Read out of this machine's transcripts, 17 such runs
+// in 30 days cost $0.51 each at list (a start-up context of about 52k tokens, written at the lead's rate); the
+// lead running the suite itself in one call comes to about $0.10, so the handoff was the dearer of the two.
 // So thinker writes one agent for it (delegate-agents.js:installClaudeVerifier), pinned by its full id to
 // `delegate.model` as Explore.md is, with a shell and the three reading tools and nothing else. The name is
 // handed out only while that file is there (`claudeVerifierReady`): nothing built in stands behind it, and an
@@ -660,70 +673,9 @@ export function hostEvent(client, ev) {
   return { ...ev, tool_name, tool_input };
 }
 
-// ---- the lead's own subagents, on a cheaper model (2026-11-19, the owner's ask) ----
-//
-// A subagent the lead starts itself -- a survey, a web page read, an end-to-end run -- has no model of its own
-// and runs on the lead's. Over 30 days of this machine's sessions that was 55 runs of `general-purpose`, `claude`
-// and `web-fetch` billed $156 on Opus and Fable, and the same tokens at Sonnet's list rates are $39. Nothing has to
-// be handed over, because the lead has already done the handing: the trigger is its own Agent call, and all the
-// hook does is name the model, which the harness takes as if the lead had (`updatedInput`; live on 2.1.329, a
-// `haiku` lead's call came back on Sonnet with nothing else changed). It is an alias, never a full id -- the
-// Agent tool refuses one ("an invalid value", the same run) -- so the model is the person's own `sonnet`.
-//
-// What it leaves alone, each for a reason:
-//  - a call that names a model: the lead, or the person through it, chose;
-//  - any other agent type: Explore and thinker's own agents are pinned by their definitions, a person's agent may
-//    be, and the call's model outranks a definition's (the same run: Explore.md's Haiku lost to the call's
-//    `sonnet`), so naming one there would undo a choice; a fork runs on its parent's model by design;
-//  - thinker's own queue worker (session-llm.js:isWorkerLaunch): its answers are the profile, on the model the
-//    profile was measured on;
-//  - a subagent's own Agent call: it inherits what its parent already runs on;
-//  - a lead that is not on a dearer model, or whose model the transcript does not show yet: Sonnet for a Haiku
-//    session would be the trigger raising the price.
-// Every decided call is a row (`kind: 'subagent'`), a held-out session's too, and the Report prices each
-// subagent conversation at the model it ran on, so the two sides are read off what already exists.
-export const SUBAGENT_TYPES = Object.freeze(['general-purpose', 'claude', 'web-fetch']);
-const DEARER_LEAD = /opus|fable|mythos/i;
-/** The model of the lead's newest answer, from the transcript's tail, or null. */
-export function leadModelOf(transcriptPath, tail = TRANSCRIPT_TAIL) {
-  try {
-    const size = fs.statSync(transcriptPath).size;
-    const rows = transcriptRows(transcriptPath, size, Math.min(size, tail));
-    for (let i = rows.length - 1; i >= 0; i--) {
-      const m = rows[i].type === 'assistant' && !rows[i].isSidechain ? rows[i].message?.model : null;
-      if (typeof m === 'string' && m && !m.startsWith('<')) return m;
-    }
-  } catch {}
-  return null;
-}
-/** One Agent call of the lead's: the hook's stdout that names the model, or null when the call goes as it came. */
-export function subagentCall({ ev, session, cfg = DELEGATE_DEFAULTS, log = () => {}, leadModel = () => null, client = 'claude' }) {
-  const to = typeof cfg.subagentModel === 'string' ? cfg.subagentModel.trim() : '';
-  if (!to || fromSubagent(ev, client)) return null;
-  const input = ev.tool_input && typeof ev.tool_input === 'object' ? ev.tool_input : {};
-  const agent = String(input[HOSTS[client]?.subagent?.param || 'subagent_type'] || 'general-purpose');
-  if (!SUBAGENT_TYPES.includes(agent)) return null;
-  const row = { op: 'delegate', session, client, kind: 'subagent', tool: ev.tool_name, agent };
-  if (input.model) { log({ ...row, fired: false, declined: 'model-named', named: String(input.model).slice(0, 60) }); return null; }
-  if (isWorkerLaunch(input)) { log({ ...row, fired: false, declined: 'thinker-worker' }); return null; }
-  const lead = leadModel() || null;
-  if (!lead || !DEARER_LEAD.test(lead)) { log({ ...row, fired: false, declined: 'lead', lead }); return null; }
-  const held = heldOut(session, cfg.holdout);
-  log({ ...row, held, lead, ...(held ? {} : { model: to }) });
-  if (held) return null;
-  // no permission decision: the call is asked about, or not, exactly as it would have been
-  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, model: to } } });
-}
-
 /** The PreToolUse hook's body, over the repository's store and the session's state file. */
 export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegateConfig(), run, client = 'claude', verifier = client === 'claude' && claudeVerifierReady() }) {
   if (!cfg.enabled || !HOSTS[client]) return null;
-  // The lead's own subagent call, moved to a cheaper model (`subagentCall`). No mod decides this one, so it is
-  // answered here whether or not a mod marked the session.
-  const sub = HOSTS[client].subagent;
-  if (client === 'claude' && sub && (raw.tool_name === sub.tool || raw.tool_name === sub.alias)) {
-    return subagentCall({ ev: raw, session, cfg, client, log: row => store.log(row), leadModel: () => raw.transcript_path ? leadModelOf(raw.transcript_path) : null });
-  }
   // Claude Code's mod asks for itself, from inside the harness, and runs the subagent (`host_runs`,
   // claude-clear:delegateCall). In a session it marked, the settings hook's copy of the same call stands down,
   // or one read would be decided twice.

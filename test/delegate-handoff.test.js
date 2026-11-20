@@ -9,15 +9,15 @@ import { execFileSync } from 'node:child_process';
 import {
   executionFor, fromSubagent, denial, decide, noteHandoff, delegateTool, handoffLabel, hostEvent,
   DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent, hostRunOrder, REPORT_SLOT, DELEGATE_SESSION_MARK, preToolHook,
-  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, subagentCall, leadModelOf, SUBAGENT_TYPES,
+  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, VERIFIER_PROMPT, EXPLORER_PROMPT,
 } from '../src/delegate.js';
 import { opencodeV2, hostRun, canRun } from '../src/integrations/opencode-v2.js';
+import { installClient } from '../src/clients.js';
 import {
   renderOpencodeAgent, installOpencodeAgents, removeOpencodeAgents, opencodeAgentFile,
   isThinkerDelegateAgent, delegateExploreModel, DELEGATE_MARK,
   renderClaudeVerifier, installClaudeVerifier, removeClaudeVerifier, claudeVerifierPath,
 } from '../src/delegate-agents.js';
-import { subagentPrompt } from '../src/session-llm.js';
 
 const CLI = new URL('../src/cli.js', import.meta.url).pathname;
 const tmp = t => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-handoff-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
@@ -552,7 +552,7 @@ test('Devin: a subagent that never answers does not hold the window open for goo
   assert.equal(windowTool('claude', 'Agent'), false, 'Claude Code marks its subagent\'s calls and needs no window');
 });
 
-// ---- the suite run's own agent on Claude Code, and the lead's own subagents on a cheaper model (2026-11-19) ----
+// ---- the suite run's own agent on Claude Code, and what may go to a cheaper model at all (2026-11-19) ----
 
 test('Claude Code, the suite run: thinker\'s own pinned agent where its file is there, general-purpose where it is not', async t => {
   const on = DELEGATE_DEFAULTS;
@@ -617,86 +617,48 @@ test('the suite run\'s agent file: pinned by full id, a shell and the reading to
   assert.equal(installClaudeVerifier({ claudeDir: tmp(t), model: delegateExploreModel({ env: { THINKER_DELEGATE: 'off' }, home }) }).action, 'absent');
 });
 
-const transcript = (dir, model) => { const f = path.join(dir, `t-${model || 'none'}.jsonl`); fs.writeFileSync(f, [{ type: 'user', message: { content: 'survey the repo' } }, ...(model ? [{ type: 'assistant', message: { model, content: [{ type: 'text', text: 'On it.' }] } }] : [])].map(r => JSON.stringify(r)).join('\n') + '\n'); return f; };
+test('the rule: a cheaper model reports what is there, and the lead\'s own subagents are never moved to one', async t => {
+  // the two kinds the trigger hands over, and no third: a read that is found, a run that is copied
+  const d = tmp(t); const big = bigFile(d, 'core.py'); let st = {}; const rows = [];
+  const call = ev => delegateTool({ ev, state: { update: fn => fn(st) }, session: 's', cwd: d, cfg: { ...DELEGATE_DEFAULTS, holdout: 0 }, log: r => rows.push(r), run: async () => { throw Error('must not run'); }, client: 'claude' });
+  await call({ tool_name: 'Read', tool_input: { file_path: big }, prompt_id: 'p1' });
+  await call({ tool_name: 'Bash', tool_input: { command: 'npm test' }, prompt_id: 'p1' });
+  assert.deepEqual(rows.map(r => r.kind), ['explore', 'verify']);
+  for (const tool of ['Edit', 'Write', 'Grep', 'WebFetch', 'Agent', 'Task']) assert.equal(await call({ tool_name: tool, tool_input: { file_path: big, command: 'npm test', prompt: 'x' }, prompt_id: 'p2' }), null, tool);
+  assert.equal(rows.length, 2, 'nothing else is the trigger\'s business, and nothing else leaves a row');
 
-test('subagentCall: the lead\'s own subagent starts on the cheaper model, and everything with a model or a reason of its own is left alone', t => {
-  const d = tmp(t); const rows = [];
-  const cfg = { ...DELEGATE_DEFAULTS, subagentModel: 'sonnet', holdout: 0 };
-  const input = { description: 'Survey the hooks', prompt: 'Find every hook and report.', subagent_type: 'general-purpose', run_in_background: true };
-  const call = (over = {}, opts = {}) => subagentCall({ ev: { tool_name: 'Agent', tool_input: { ...input, ...over }, ...opts.ev }, session: 'sess', cfg: opts.cfg || cfg, log: r => rows.push(r), leadModel: () => opts.lead === undefined ? 'claude-fable-5-2' : opts.lead, client: 'claude' });
+  // the lead's own subagent is the lead's thinking: its call goes through as it came, whatever the config says
+  const repo = tmp(t); const home = tmp(t);
+  execFileSync('git', ['init', '-q', repo]);
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { subagentModel: 'sonnet' } }));   // the setting #881 had for a day
+  const env = { ...process.env, THINKER_HOME: home, CLAUDE_CONFIG_DIR: tmp(t), THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_HOLDOUT: 'off' };
+  const hook = input => execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'claude', '--user'], { input: JSON.stringify(input), encoding: 'utf8', env });
+  for (const type of ['general-purpose', 'claude', 'web-fetch', 'Explore', 'Plan', undefined]) {
+    assert.equal(hook({ session_id: 'sa', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Agent', tool_input: { description: 'Survey', prompt: 'Find every hook and say which matter.', ...(type ? { subagent_type: type } : {}) } }), '', String(type));
+  }
+  assert.ok(!fs.existsSync(path.join(repo, '.thinker', 'log.jsonl')) || !fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').includes('"kind":"subagent"'));
+  assert.equal('subagentModel' in DELEGATE_DEFAULTS, false);
+  // the wiring reads the machine config, so it is given this test's home, with the old setting still in it
+  const was = { h: process.env.THINKER_HOME, d: process.env.THINKER_DELEGATE };
+  t.after(() => { for (const [k, v] of [['THINKER_HOME', was.h], ['THINKER_DELEGATE', was.d]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+  process.env.THINKER_HOME = home; delete process.env.THINKER_DELEGATE;
+  installClient('claude', { repo, cli: CLI, hooks: true, learn: false, late: false, shared: true, mcp: false });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(repo, '.claude/settings.json'), 'utf8')).hooks.PreToolUse[0].matcher, 'Read|Bash', 'the hook is never wired onto the Agent tool');
 
-  assert.deepEqual(SUBAGENT_TYPES, ['general-purpose', 'claude', 'web-fetch']);
-  const out = JSON.parse(call()).hookSpecificOutput;
-  assert.equal(out.hookEventName, 'PreToolUse');
-  assert.deepEqual(out.updatedInput, { ...input, model: 'sonnet' }, 'the whole input back, since it replaces the call\'s, with the model named');
-  assert.equal(out.permissionDecision, undefined, 'the call is asked about, or not, as it would have been');
-  assert.deepEqual(rows.at(-1), { op: 'delegate', session: 'sess', client: 'claude', kind: 'subagent', tool: 'Agent', agent: 'general-purpose', held: false, lead: 'claude-fable-5-2', model: 'sonnet' });
-  assert.equal(rows.at(-1).tokens, undefined, 'never a delegated read in the savings (report-savings.js counts rows with tokens)');
-  // no type named is general-purpose; the other two that run on the lead's model; the tool's older name
-  for (const over of [{ subagent_type: undefined }, { subagent_type: 'claude' }, { subagent_type: 'web-fetch' }]) assert.equal(JSON.parse(call(over)).hookSpecificOutput.updatedInput.model, 'sonnet');
-  assert.equal(rows.at(-3).agent, 'general-purpose');
-  assert.equal(JSON.parse(call({}, { ev: { tool_name: 'Task' } })).hookSpecificOutput.updatedInput.model, 'sonnet');
-
-  // an agent pinned by its definition, a person's own, a fork: not a word, not a row
-  let n = rows.length;
-  for (const type of ['Explore', CLAUDE_VERIFY, 'Plan', 'fork', 'my-reviewer', 'claude-code-guide']) assert.equal(call({ subagent_type: type }), null, type);
-  assert.equal(rows.length, n);
-  // a subagent's own Agent call, and the rule switched off (the default)
-  assert.equal(call({}, { ev: { agent_type: 'general-purpose', agent_id: 'a1' } }), null);
-  assert.equal(call({}, { cfg: { ...cfg, subagentModel: null } }), null);
-  assert.equal(DELEGATE_DEFAULTS.subagentModel, null, 'off until it is asked for');
-  assert.equal(rows.length, n);
-
-  // the lead named a model: its choice stands, and the row says so
-  assert.equal(call({ model: 'opus' }), null);
-  assert.equal(rows.at(-1).declined, 'model-named'); assert.equal(rows.at(-1).named, 'opus'); assert.equal(rows.at(-1).fired, false);
-  // thinker's own queue worker answers the profile's model calls: left on the session's model
-  assert.equal(call({ prompt: subagentPrompt(d, { harness: 'claude' }) }), null);
-  assert.equal(rows.at(-1).declined, 'thinker-worker');
-  // a lead that is no dearer than the subagent would be, or not known yet: nothing, or the trigger raises the price
-  for (const lead of ['claude-sonnet-5-5', 'claude-haiku-5-5', null]) { assert.equal(call({}, { lead }), null); assert.equal(rows.at(-1).declined, 'lead'); assert.equal(rows.at(-1).lead, lead); }
-  for (const lead of ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-mythos-5-2']) assert.ok(call({}, { lead }), lead);
-  // held out: the row, and the call as it came
-  assert.equal(call({}, { cfg: { ...cfg, holdout: 1 } }), null);
-  assert.equal(rows.at(-1).held, true); assert.equal(rows.at(-1).model, undefined); assert.equal(rows.at(-1).lead, 'claude-fable-5-2');
+  // and what a cheaper model is asked for: what the runner printed, where things are -- never a cause or a fix
+  assert.match(VERIFIER_PROMPT, /Report what the runner printed and nothing else: no cause, no fix, no opinion/);
+  assert.doesNotMatch(VERIFIER_PROMPT, /likely cause/);
+  assert.match(renderClaudeVerifier(), /no cause, no fix, no opinion/, 'the agent file carries the same words');
+  assert.match(EXPLORER_PROMPT, /Never edit a file, never run tests/);
 });
 
-test('leadModelOf: the model of the lead\'s newest answer, from the transcript', t => {
-  const d = tmp(t);
-  assert.equal(leadModelOf(transcript(d, 'claude-opus-5-5')), 'claude-opus-5-5');
-  assert.equal(leadModelOf(transcript(d, null)), null, 'no answer yet');
-  assert.equal(leadModelOf(path.join(d, 'missing.jsonl')), null);
-  // the newest wins (a /model change), and a harness-made row is not an answer
-  const f = path.join(d, 'two.jsonl');
-  fs.writeFileSync(f, [{ type: 'assistant', message: { model: 'claude-opus-5-5' } }, { type: 'assistant', message: { model: 'claude-fable-5-2' } }, { type: 'assistant', message: { model: '<synthetic>' } }].map(r => JSON.stringify(r)).join('\n') + '\n');
-  assert.equal(leadModelOf(f), 'claude-fable-5-2');
-});
-
-test('the hook command: an Agent call comes back with the model named, in a session a mod marked too; a suite run names the agent whose file is there', t => {
+test('the hook command: a suite run names the agent whose file is there, and general-purpose until then', t => {
   const repo = tmp(t); const home = tmp(t); const claudeDir = tmp(t);
   execFileSync('git', ['init', '-q', repo]);
-  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { subagentModel: 'sonnet' } }));
   const env = { ...process.env, THINKER_HOME: home, CLAUDE_CONFIG_DIR: claudeDir, THINKER_TEST: '1', THINKER_HOOKS: 'on', THINKER_LOG: 'local', THINKER_DELEGATE: 'on', THINKER_DELEGATE_HOLDOUT: 'off' };
   const hook = input => execFileSync('node', [CLI, 'hook', 'pretool', '--client', 'claude', '--user'], { input: JSON.stringify(input), encoding: 'utf8', env });
   const rows = () => fs.readFileSync(path.join(repo, '.thinker', 'log.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).filter(r => r.op === 'delegate');
-  const base = { session_id: 'sa', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', transcript_path: transcript(home, 'claude-opus-5-5') };
-  const agent = { ...base, tool_name: 'Agent', tool_input: { description: 'Survey', prompt: 'Find every hook.', subagent_type: 'general-purpose' } };
-
-  const j = JSON.parse(hook(agent)).hookSpecificOutput;
-  assert.deepEqual(j.updatedInput, { description: 'Survey', prompt: 'Find every hook.', subagent_type: 'general-purpose', model: 'sonnet' });
-  assert.equal(j.permissionDecision, undefined);
-  assert.equal(rows().at(-1).kind, 'subagent'); assert.equal(rows().at(-1).model, 'sonnet'); assert.equal(rows().at(-1).lead, 'claude-opus-5-5');
-  // the mod decides reads and suite runs in a session it marked; no mod decides this, so the hook still does
-  fs.mkdirSync(path.join(home, 'state', DELEGATE_SESSION_MARK), { recursive: true });
-  fs.writeFileSync(path.join(home, 'state', DELEGATE_SESSION_MARK, 'sa'), '');
-  assert.equal(JSON.parse(hook(agent)).hookSpecificOutput.updatedInput.model, 'sonnet');
-  assert.equal(hook({ ...agent, tool_input: { ...agent.tool_input, subagent_type: 'Explore' } }), '', 'Explore keeps the model its definition pins');
-  // without the setting an Agent call is not the hook's business
-  fs.writeFileSync(path.join(home, 'config.json'), '{}');
-  assert.equal(hook(agent), '');
-
-  // the suite run, in a session no mod marked: general-purpose until the agent's file is there
-  const suite = { ...base, session_id: 'sv', tool_name: 'Bash', tool_input: { command: 'npm test' } };
+  const suite = { session_id: 'sv', prompt_id: 'p1', cwd: repo, hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'npm test' } };
   assert.match(JSON.parse(hook(suite)).hookSpecificOutput.permissionDecisionReason, /subagent_type: "general-purpose"/);
   installClaudeVerifier({ claudeDir, model: 'claude-haiku-5-5' });
   assert.match(JSON.parse(hook({ ...suite, prompt_id: 'p2' })).hookSpecificOutput.permissionDecisionReason, /subagent_type: "thinker-verify"/);
