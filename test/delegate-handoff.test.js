@@ -719,12 +719,13 @@ test('modelFor: the read takes its own model where one is set, the suite run nev
   assert.equal(modelFor('explore', { ...d, exploreModel: ' claude-sonnet-5-5 ' }), 'claude-sonnet-5-5');
 });
 
-test('the config door: a read model from the machine config or the environment, and nothing else moves', t => {
+test('the config door: a read model from the machine config, and nothing else moves', t => {
   const home = tmp(t);
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { exploreModel: 'claude-sonnet-5-5' } }));
   const cfg = delegateConfig({ env: {}, home });
   assert.equal(cfg.exploreModel, 'claude-sonnet-5-5'); assert.equal(cfg.model, DELEGATE_DEFAULTS.model);
-  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE_MODEL: 'claude-opus-5' }, home }).exploreModel, 'claude-opus-5', 'the environment wins');
+  // the config block is the only door: no environment variable of its own (the owner's rule, 2026-11-15)
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE_MODEL: 'claude-opus-5' }, home }).exploreModel, 'claude-sonnet-5-5');
   // THINKER_DELEGATE=<model> still names the one model, and leaves the read's own alone
   const named = delegateConfig({ env: { THINKER_DELEGATE: 'claude-haiku-4-5' }, home: tmp(t) });
   assert.equal(named.model, 'claude-haiku-4-5'); assert.equal(named.exploreModel, null);

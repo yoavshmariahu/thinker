@@ -81,7 +81,8 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // A read's report is what the lead works from instead of the file, so what matters is whether
                       // it names the right files: on 13 replayed explorations (2026-11-07) Haiku 5.5 found 0.65 of
                       // the core files against Sonnet 5.5's 0.77, and Sonnet tied Opus. Null until a paired run on
-                      // real handoffs says otherwise; `delegate: { exploreModel: "claude-sonnet-5-5" }` sets it.
+                      // real handoffs says otherwise; `delegate: { exploreModel: "claude-sonnet-5-5" }` sets it,
+                      // and nothing else does: no environment variable (the owner's rule, 2026-11-15).
   threshold: 8000,    // a read of this many tokens or more is delegated, and nothing else is: a smaller read is the
                       // lines the main model edits. The whole rule since 2026-11-17 (the owner's call); until then
                       // it was a tally of the turn's reads against 35000 with a per-read floor of 8000 (`minRead`).
@@ -116,7 +117,6 @@ export function delegateConfig({ env = process.env, home } = {}) {
     else if (ON.test(raw)) o.enabled = true;
     else { o.enabled = true; o.model = raw.trim(); }
   }
-  if (env.THINKER_DELEGATE_EXPLORE_MODEL) o.exploreModel = env.THINKER_DELEGATE_EXPLORE_MODEL.trim();
   if (env.THINKER_DELEGATE_THRESHOLD) o.threshold = Number(env.THINKER_DELEGATE_THRESHOLD) || o.threshold;
   if (env.THINKER_DELEGATE_HOLDOUT !== undefined) o.holdout = OFF.test(env.THINKER_DELEGATE_HOLDOUT) ? 0 : Number(env.THINKER_DELEGATE_HOLDOUT);
   if (env.THINKER_DELEGATE_HANDOFF !== undefined && env.THINKER_DELEGATE_HANDOFF !== '') o.handoff = !OFF.test(env.THINKER_DELEGATE_HANDOFF);
