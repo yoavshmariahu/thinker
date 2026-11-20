@@ -311,6 +311,4 @@ sessions are held out so the saving can be measured, and the log's `delegate` ro
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
 - The threshold (a read of this many tokens or more is delegated, 8000 by default; nothing is added up across a turn): `"delegate": { "threshold": 20000 }`.
 - In Claude Code a handed-over suite run goes to an agent thinker writes for it (`~/.claude/agents/thinker-verify.md`), on the same model as the reads.
-- Subagents the main model starts itself (Claude Code's `general-purpose`, `claude` and `web-fetch`) on a cheaper model, off by default:
-  `"delegate": { "subagentModel": "sonnet" }`, then `thinker rewire`. A call that names a model is left alone, and so is a session
-  that is not on Opus or Fable. The name is one of Claude Code's own (`sonnet`, `haiku`), not a full model id.
+
