@@ -20,7 +20,7 @@ import { deliveryMetrics } from './delivery-telemetry.js';
 import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { clearingRows, compressionDir } from './compression.js';
-import { delegationSavings } from './report-savings.js';
+import { delegationSavings, readAnyway } from './report-savings.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
 import { historyEffects, promptAverageHere, readReport } from './report-snapshot.js';
@@ -717,6 +717,13 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 // subagent) is the trigger's own bookkeeping and is in no count. `costUsd` is what the subagent runs reported (`total_cost_usd`), data the provider gave, never priced here.
 // Days add up, as the proxy's and the sessions' do. Never a file, a command or a session.
 //
+// `ignored` (schema 3, 2026-11-20, the owner's ask) is the handoffs of that day the lead went on to read itself,
+// by the rule the saving uses (`report-savings.js:readAnyway`), so a day's count and a day's dollars are one
+// rule: `delegated - ignored` is what the saving is drawn from. A subset of `delegated` and never taken out of
+// it, because a field cannot change what it meant on days already sent: a client from before this reads as
+// `ignored` absent, which is not zero, and the dashboard's own cards say which. The subagent's cost stays in
+// `costUsd` either way -- the run was paid for whether or not the lead then read the file.
+//
 // And what it saved (schema 2): `savedTokens`, `savedUsd` and `unpricedTokens` are the savings ledger's own rows
 // (report-savings.js:delegationSavings, the computation behind the footer, `thinker savings` and the Report's
 // "Reads delegated"), each on the UTC day it was saved -- the write the lead never made on the day of the handoff,
@@ -726,14 +733,20 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 export function delegateMetrics(store, { all = true, now = Date.now(), home = thinkerHome(), env = process.env } = {}) {
   const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
   const byDay = {};
-  const dayOf = day => byDay[day] ||= { delegated: 0, cached: 0, held: 0, failed: 0, costUsd: 0, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 };
+  const dayOf = day => byDay[day] ||= { delegated: 0, ignored: 0, cached: 0, held: 0, failed: 0, costUsd: 0, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 };
   let events = []; try { events = readLog(store, { all }); } catch { events = []; }
+  const readItself = readAnyway(events);
   for (const e of events) {
     if (e.op !== 'delegate' || e.fired === false || typeof e.t !== 'string' || e.t < since || !Number.isFinite(Date.parse(e.t))) continue;
     const d = dayOf(e.t.slice(0, 10));
     if (e.held) d.held++;
     else if (e.error) d.failed++;
-    else { d.delegated++; if (e.cached) d.cached++; if (Number.isFinite(e.cost)) d.costUsd += e.cost; }
+    else {
+      d.delegated++;
+      if (readItself(e)) d.ignored++;
+      if (e.cached) d.cached++;
+      if (Number.isFinite(e.cost)) d.costUsd += e.cost;
+    }
   }
   try {
     let config = {}; try { config = store.config(); } catch { config = {}; }
@@ -754,7 +767,7 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
     for (const k of ['costUsd', 'savedUsd']) d[k] = Math.round(d[k] * 100) / 100;
     for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
   }
-  return { schemaVersion: 2, windowDays: SPEND_WINDOW_DAYS, byDay };
+  return { schemaVersion: 3, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
 // An agent's own compactions by UTC day (devin-compaction.js, the usage log's `op: compaction` rows). Devin's
