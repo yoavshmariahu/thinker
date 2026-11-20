@@ -36,7 +36,7 @@
 // same name is left alone and named once, as everywhere else.
 import fs from 'node:fs';
 import path from 'node:path';
-import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS, EXPLORER_FAMILIES, FAMILY_PROVIDERS, familyAgent, CLAUDE_VERIFY } from './delegate.js';
+import { OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_PROMPT, VERIFIER_PROMPT, DELEGATE_DEFAULTS, delegateConfig, HOSTS, EXPLORER_FAMILIES, FAMILY_PROVIDERS, familyAgent, CLAUDE_VERIFY, modelFor } from './delegate.js';
 
 export const DELEGATE_MARK = 'thinker-delegate';
 const VERSION = 1;
@@ -46,14 +46,15 @@ export const opencodeAgentDir = configDir => path.join(configDir, 'agent');
 export const opencodeAgentFile = (configDir, name) => path.join(opencodeAgentDir(configDir), `${name}.md`);
 
 /**
- * The model thinker pins the host's exploration agent to, or null. Only where the host lets it
- * (`HOSTS[client].subagent.pins`) and only while the trigger hands work over. Read by clients.js so
- * explore-agent.js stays the one writer of Explore.md.
+ * The model thinker pins one of the host's agents to, or null: `kind: 'explore'` for the read agent
+ * (Explore.md), `kind: 'verify'` for the suite run's own (thinker-verify.md). The two can differ
+ * (`delegate.js:modelFor`). Only where the host lets it (`HOSTS[client].subagent.pins`) and only while the
+ * trigger hands work over. Read by clients.js so explore-agent.js stays the one writer of Explore.md.
  */
-export function delegateExploreModel({ env = process.env, home, client = 'claude' } = {}) {
+export function delegateExploreModel({ env = process.env, home, client = 'claude', kind = 'explore' } = {}) {
   const cfg = delegateConfig({ env, home });
   if (!cfg.enabled || !cfg.handoff) return null;
-  return HOSTS[client]?.subagent?.pins ? cfg.model : null;
+  return HOSTS[client]?.subagent?.pins ? modelFor(kind, cfg) : null;
 }
 
 // The frontmatter is OpenCode's `Config.AgentEncoded`, and it is `additionalProperties: false` (read off the
@@ -134,7 +135,7 @@ export const removeOpencodeAgents = ({ configDir }) => installOpencodeAgents({ c
 // what the agent does, and a Sonnet lead asked to run a suite called it unprompted before any trigger fired
 // (live on 2.1.329, 2026-11-19). The trigger decides what is handed over, so the description says so.
 export const claudeVerifierPath = claudeDir => path.join(claudeDir, 'agents', `${CLAUDE_VERIFY}.md`);
-export function renderClaudeVerifier(model = DELEGATE_DEFAULTS.model) {
+export function renderClaudeVerifier(model = modelFor('verify', DELEGATE_DEFAULTS)) {
   return `---
 name: ${CLAUDE_VERIFY}
 description: Runs one whole-suite test command and reports the summary line verbatim with the failing tests. thinker hands a whole-suite run to this agent. Call it only when thinker asks for it, and run every other test yourself.
@@ -153,7 +154,7 @@ ${VERIFIER_PROMPT}
  * Returns { action: 'written' | 'unchanged' | 'removed' | 'absent' | 'kept', file, model }; 'kept' is a file of
  * that name that is not thinker's, left alone.
  */
-export function installClaudeVerifier({ claudeDir, model = delegateExploreModel() } = {}) {
+export function installClaudeVerifier({ claudeDir, model = delegateExploreModel({ kind: 'verify' }) } = {}) {
   const file = claudeVerifierPath(claudeDir);
   let cur = null; try { cur = fs.readFileSync(file, 'utf8'); } catch {}
   if (cur !== null && !isThinkerDelegateAgent(cur)) return { action: 'kept', file, model };

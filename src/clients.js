@@ -1431,7 +1431,7 @@ export function installClient(client, { scope = 'repo', repo, cli, mcpEntry, hoo
         else if (ex.action === 'removed') done.push(`Claude Code: removed ${rel(ex.file)}; exploration subagents run on the session's model again`);
         else if (ex.action === 'kept') done.push(`Claude Code: ${rel(ex.file)} is your own; exploration subagents keep its model`);
         // the suite run the trigger hands over has an agent of its own, pinned the same way (delegate-agents.js)
-        const vf = installClaudeVerifier({ claudeDir: claudeDir(), model: delegateExploreModel() });
+        const vf = installClaudeVerifier({ claudeDir: claudeDir(), model: delegateExploreModel({ kind: 'verify' }) });
         if (vf.action === 'written') done.push(`Claude Code: a whole-suite test run handed to a subagent runs on ${vf.model} (${rel(vf.file)})`);
         else if (vf.action === 'removed') done.push(`Claude Code: removed ${rel(vf.file)}`);
         else if (vf.action === 'kept') done.push(`Claude Code: ${rel(vf.file)} is your own and was left alone`);

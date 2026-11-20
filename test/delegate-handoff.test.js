@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import {
   executionFor, fromSubagent, denial, decide, noteHandoff, delegateTool, handoffLabel, hostEvent,
   DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent, hostRunOrder, REPORT_SLOT, DELEGATE_SESSION_MARK, preToolHook,
-  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, VERIFIER_PROMPT, EXPLORER_PROMPT,
+  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, VERIFIER_PROMPT, EXPLORER_PROMPT, modelFor,
 } from '../src/delegate.js';
 import { opencodeV2, hostRun, canRun } from '../src/integrations/opencode-v2.js';
 import { installClient } from '../src/clients.js';
@@ -702,4 +702,56 @@ test('the hook command: a suite run names the agent whose file is there, and gen
   installClaudeVerifier({ claudeDir, model: 'claude-haiku-5-5' });
   assert.match(JSON.parse(hook({ ...suite, prompt_id: 'p2' })).hookSpecificOutput.permissionDecisionReason, /subagent_type: "thinker-verify"/);
   assert.equal(rows().at(-1).agent, CLAUDE_VERIFY); assert.equal(rows().at(-1).model, 'claude-haiku-5-5');
+});
+
+// ---- the read and the suite run have a model each (2026-11-20, the owner's call: "split please") ----
+
+test('modelFor: the read takes its own model where one is set, the suite run never does', () => {
+  const d = DELEGATE_DEFAULTS;
+  assert.equal(d.exploreModel, null, 'one model until a read model is asked for');
+  assert.equal(modelFor('explore', d), d.model);
+  assert.equal(modelFor('verify', d), d.model);
+  const split = { ...d, exploreModel: 'claude-sonnet-5-5' };
+  assert.equal(modelFor('explore', split), 'claude-sonnet-5-5');
+  assert.equal(modelFor('verify', split), d.model, 'the suite run was measured on this one and stays on it');
+  // a read model that is blank or not a string is no read model at all
+  for (const v of ['', '   ', null, 5, {}]) assert.equal(modelFor('explore', { ...d, exploreModel: v }), d.model, JSON.stringify(v));
+  assert.equal(modelFor('explore', { ...d, exploreModel: ' claude-sonnet-5-5 ' }), 'claude-sonnet-5-5');
+});
+
+test('the config door: a read model from the machine config or the environment, and nothing else moves', t => {
+  const home = tmp(t);
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { exploreModel: 'claude-sonnet-5-5' } }));
+  const cfg = delegateConfig({ env: {}, home });
+  assert.equal(cfg.exploreModel, 'claude-sonnet-5-5'); assert.equal(cfg.model, DELEGATE_DEFAULTS.model);
+  assert.equal(delegateConfig({ env: { THINKER_DELEGATE_EXPLORE_MODEL: 'claude-opus-5' }, home }).exploreModel, 'claude-opus-5', 'the environment wins');
+  // THINKER_DELEGATE=<model> still names the one model, and leaves the read's own alone
+  const named = delegateConfig({ env: { THINKER_DELEGATE: 'claude-haiku-4-5' }, home: tmp(t) });
+  assert.equal(named.model, 'claude-haiku-4-5'); assert.equal(named.exploreModel, null);
+});
+
+test('the two agent files take their own models, and the words the lead reads name the right one', async t => {
+  const claudeDir = tmp(t), home = tmp(t);
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { exploreModel: 'claude-sonnet-5-5' } }));
+  const env = { THINKER_DELEGATE: 'on' };
+  assert.equal(delegateExploreModel({ env, home }), 'claude-sonnet-5-5', 'the read agent');
+  assert.equal(delegateExploreModel({ env, home, kind: 'verify' }), DELEGATE_DEFAULTS.model, 'the suite run\'s agent');
+  assert.equal(delegateExploreModel({ env: { THINKER_DELEGATE: 'off' }, home }), null);
+  assert.equal(delegateExploreModel({ env, home, client: 'opencode' }), null, 'OpenCode pins nothing');
+  // the file the suite run gets, by default, is still the one model's
+  assert.match(renderClaudeVerifier(), new RegExp('^model: ' + DELEGATE_DEFAULTS.model + '$', 'm'));
+  const w = installClaudeVerifier({ claudeDir, model: delegateExploreModel({ env, home, kind: 'verify' }) });
+  assert.match(fs.readFileSync(w.file, 'utf8'), new RegExp('^model: ' + DELEGATE_DEFAULTS.model + '$', 'm'));
+
+  // the denial's sentence names the model that actually read the file (a lead told the wrong name distrusts it)
+  const d = tmp(t); const big = bigFile(d, 'core.py'); let st = {}; const rows = [];
+  const cfg = { ...DELEGATE_DEFAULTS, holdout: 0, exploreModel: 'claude-sonnet-5-5' };
+  const call = ev => delegateTool({ ev, state: { update: fn => fn(st) }, session: 's', cwd: d, cfg, log: r => rows.push(r), run: async () => { throw Error('no fallback here'); }, client: 'claude', verifier: true });
+  const order = JSON.parse(await call({ tool_name: 'Read', tool_input: { file_path: big }, host_runs: true, prompt_id: 'p1' })).thinkerRun;
+  assert.match(order.wrap, /^thinker read core\.py through a claude-sonnet-5-5 subagent/);
+  assert.equal(rows.at(-1).model, 'claude-sonnet-5-5');
+  st = {};
+  const suite = JSON.parse(await call({ tool_name: 'Bash', tool_input: { command: 'npm test' }, host_runs: true, prompt_id: 'p2' })).thinkerRun;
+  assert.match(suite.wrap, new RegExp('^thinker ran this test command through a ' + DELEGATE_DEFAULTS.model + ' subagent'));
+  assert.equal(rows.at(-1).model, DELEGATE_DEFAULTS.model);
 });
