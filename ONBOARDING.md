@@ -22,10 +22,11 @@ and ranked on your machine; your configured agent writes them.
 You don't run thinker by hand:
 
 - **About once a week your agent passes on a suggestion from thinker**: a few
-  lines naming what to cut and what it would save, with a link to the page.
-  Reply with the numbers to approve, or "all", or review them on the page first.
-- **`thinker ui` opens the page** whenever you want it: Find Savings, View
-  Report and Recent activity, over every repository on the machine.
+  lines naming what to cut and what it would save.
+  Reply with the numbers to approve, or "all".
+- **`thinker ui` opens the page** whenever you want it: a chat with thinker,
+  what it did lately with what each action saved, the Factory and Recent
+  activity, over every repository on the machine.
 
 Learning, re-checking notes as the code changes, and updates run in the
 background. [docs/setup.md](docs/setup.md) has the details.

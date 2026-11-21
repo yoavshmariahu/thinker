@@ -1,4 +1,4 @@
-// A change to the team's instruction file, made by the person from the Find Savings page or `thinker instructions`:
+// A change to the team's instruction file, made by thinker or by the person (`thinker context --approve`, `thinker instructions`):
 // a section removed, or compressed (a model rewrites it shorter, keeping every rule, command and path). Nothing is
 // written until the person has seen the diff: `previewEdit` keeps the proposed file in .thinker/state, with each
 // section's old and new text, and then either `applyEdit` writes exactly that text to the working tree, uncommitted,

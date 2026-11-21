@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { topChanges, scheduleContextSuggestion, contextSuggestOffer, contextSuggestPending, offeredPicks, ensureUi, uiFile, SUGGEST } from '../src/context-suggest.js';
+import { topChanges, scheduleContextSuggestion, contextSuggestOffer, contextSuggestPending, ensureUi, uiFile, SUGGEST } from '../src/context-suggest.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 function repo() {
@@ -54,11 +54,11 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3600_000, view: view() }), null, 'not again the same day');
   const c = await scheduleContextSuggestion(store, { now: now + 86400_000, view: view() });
   assert.equal(c.length, 4); assert.equal(contextSuggestPending(store), true);
-  const said = contextSuggestOffer(store, { now: now + 86400_000, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'github.com/o/r' });
+  const said = contextSuggestOffer(store, { now: now + 86400_000, env: {} });
   assert.match(said, /^<thinker-context-suggestions>/);
-  // the link says which door sent them, and the page opens with these very changes checked (`from=suggestion`)
-  assert.match(said, /http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion/);
-  assert.match(said, /these changes come first with the actions suggested below picked/);
+  // no link: the page has no Find Savings tab to open on these changes since 2026-11-21, so the detail is the command's
+  assert.doesNotMatch(said, /127\.0\.0\.1|tab=save|thinker ui|on the page|page's address|Apply is clicked/);
+  assert.match(said, /Every part of the context with its figures is in `thinker context` \(`--cards` says what each part is and why you would change it\)/);
   // the one cost rule: what it adds to a prompt first, the window total beside it (2026-10-26)
   assert.match(said, /1\. AGENTS\.md · Releases: ~30k input tokens in every prompt \(~1\.2M over the last 30 days\); .*Suggested: Compress \(or: remove\)/);
   assert.match(said, /found 4 changes to what loads into every session: ~71k input tokens in every prompt here, ~2\.8M over those 30 days\./);
@@ -66,18 +66,18 @@ test('scheduleContextSuggestion: kept for the next prompt, at most weekly, after
   assert.doesNotMatch(said, /\$/);
   assert.match(said, /do not make any of these changes yourself/);
   // a question the agent must put to the person with its own tool, and an answer either way (2026-10-27)
-  assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), with the page's address for the detail \(http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=github\.com%2Fo%2Fr&from=suggestion\), and wait for their answer/, 'no question tool: in chat, with the link, and the line says whose question it is');
+  assert.match(said, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker, which of these changes to make \(any of them, or none\), and wait for their answer/, 'no question tool: in chat, and the line says whose question it is');
   assert.match(said, /--via session --approve <the numbers they chose/);
   assert.match(said, /If they choose none, run `thinker context --days 30 --via session --dismiss all`/, 'a no is recorded too');
-  // a built-in tool is named with the page link, never an option: switching one off takes a capability with it
+  // a built-in tool is named under the options, never one of them: its change is decided with the command, which says what it means
   assert.doesNotMatch(said, /^\d+\. Workflow tool/m);
-  assert.match(said, /including Workflow tool: a built-in tool is not switched off: a tool reference is created and the tool can still be used/);
+  assert.match(said, /\. Workflow tool: a built-in tool is not switched off: a tool reference is created and the tool can still be used, which is worth reading in full, so that one is decided with `thinker context --approve`, not here\./);
 
-  assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'said once');
+  assert.equal(contextSuggestOffer(store, { env: {} }), '', 'said once');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 3 * 86400_000, view: view() }), null, 'weekly');
   assert.equal((await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view() })).length, 4);
   fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ maintain: { contextSuggest: false } }));
-  assert.equal(contextSuggestOffer(store, { env: {}, ui: () => 'x' }), '', 'off by config');
+  assert.equal(contextSuggestOffer(store, { env: {} }), '', 'off by config');
   assert.equal(await scheduleContextSuggestion(store, { now: now + 30 * 86400_000, view: view() }), null);
 });
 
@@ -86,7 +86,7 @@ test('the question says what the changes are worth in money, and asks nothing fo
   const store = repo(), now = Date.parse('2026-10-22T10:00:00Z');
   const v = (over = {}) => ({ days: 7, sessions: 40, skills: [], tools: [], outputs: { tools: [] }, instructions: { sessions: 40, sections: [] }, ...over });
   const secs = xs => ({ instructions: { sessions: 40, sections: xs.map(([id, wasted]) => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste: 'high', usedShare: 0.1 })) } });
-  const offer = st => contextSuggestOffer(st, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', client: 'claude' });
+  const offer = st => contextSuggestOffer(st, { now, env: {}, client: 'claude' });
 
   // no report kept here: tokens alone, and no figure anybody made up
   await scheduleContextSuggestion(store, { now, view: v(secs([['Releases', 30_000], ['Ports', 9_000]])), force: true });
@@ -103,24 +103,23 @@ test('the question says what the changes are worth in money, and asks nothing fo
   assert.match(said, /worth about \$3\.12 over the last 7 days at list prices\. Make any\?/, 'and in the question itself');
   assert.match(said, /a subscription bills none of it by the token/);
 
-  // one change, or two worth a rounding error: said in a line, with the page's address, and no question at all
+  // one change, or two worth a rounding error: said in a line, with where the detail is, and no question at all
   for (const view of [v(secs([['Releases', 30_000]])), v(secs([['A', 20], ['B', 20]]))]) {
     const st = repo();
     await scheduleContextSuggestion(st, { now, view, force: true });
     const quiet = offer(st);
     assert.doesNotMatch(quiet, /ask the user/);
     assert.match(quiet, /Do not ask them about it as a question/);
-    assert.match(quiet, /#tab=save&view=all&from=suggestion/, 'the page is still named');
+    assert.match(quiet, /is in `thinker context`/, 'where the detail is, still named');
   }
   assert.deepEqual([SUGGEST.minAsk, SUGGEST.askSaving], [2, 1000]);
 });
 
-test('contextSuggestOffer: no person at an SDK session; without the page, it names thinker ui', async () => {
+test('contextSuggestOffer: no person at an SDK session', async () => {
   const store = repo();
   await scheduleContextSuggestion(store, { view: view(), force: true });
-  assert.equal(contextSuggestOffer(store, { env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' }, ui: () => 'x' }), '');
-  const said = contextSuggestOffer(store, { env: {}, ui: () => null });
-  assert.match(said, /by running `thinker ui`/);
+  assert.equal(contextSuggestOffer(store, { env: { CLAUDE_CODE_ENTRYPOINT: 'sdk-cli' } }), '');
+  assert.match(contextSuggestOffer(store, { env: {} }), /^<thinker-context-suggestions>/, 'and a person is told');
 });
 
 test('ensureUi: reuses a running page, else starts one and waits for its address', () => {
@@ -189,7 +188,7 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   const job = { pr: true, cliPath: '/x/cli.js', spawnFn: (c, a) => { spawned.push(a); return { pid: process.pid, on() {}, unref() {} }; } };
   assert.equal(contextSuggestAwaiting(store), false, 'nothing waits before a summary is passed on');
   await scheduleContextSuggestion(store, { now, view: view() });
-  const said = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
+  const said = contextSuggestOffer(store, { now, env: {}, client: 'claude' });
   // an MCP client hands the answer in through the tool, not by composing a command
   assert.match(said, /call thinker's `context` tool with choice set to the numbers they chose/);
   assert.match(said, /asked "picker"/);
@@ -205,7 +204,7 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   assert.match(await answerContextSuggestion(store, '1', { now }), /no thinker suggestion waiting/);
   // none is an answer too: every change left alone until the next summary, recorded as a dismissal
   await scheduleContextSuggestion(store, { now: now + 9 * 86400_000, view: view(), force: true });
-  contextSuggestOffer(store, { now: now + 9 * 86400_000, env: {}, ui: () => null, client: 'claude' });
+  contextSuggestOffer(store, { now: now + 9 * 86400_000, env: {}, client: 'claude' });
   const none = await answerContextSuggestion(store, 'none', { now: now + 9 * 86400_000, asked: 'chat' });
   assert.match(none, /left alone; thinker will suggest them again next week/);
   // the two still on offer: the approved one is no longer suggested, and the built-in tool was never an option
@@ -214,7 +213,7 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
   // an answer naming none of the lines leaves the question waiting
   const other = repo();
   await scheduleContextSuggestion(other, { now, view: view() });
-  contextSuggestOffer(other, { now, env: {}, ui: () => null, client: 'claude' });
+  contextSuggestOffer(other, { now, env: {}, client: 'claude' });
   assert.match(await answerContextSuggestion(other, 'the first one', { now }), /Nothing there matched/);
   assert.equal(contextSuggestAwaiting(other, { now }), true);
 });
@@ -222,37 +221,17 @@ test('the answer comes back through thinker\'s own tool: numbers from the list i
 test('an agent with a question tool of its own is told to ask with it', async () => {
   const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
   await scheduleContextSuggestion(store, { now, view: view() });
-  const asked = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'claude' });
+  const asked = contextSuggestOffer(store, { now, env: {}, client: 'claude' });
   // the question says it is thinker's, in the text and in the header, and the agent may not reword either
   // (2026-10-29, the owner's ask: this is the question that cuts what loads into every session, and it was the
   // one of the four that never said who was asking)
   assert.match(asked, /ask the user with your AskUserQuestion tool, not in prose: "thinker found these changes to what loads into every session here\. Make any\?" \(header "thinker"\), the question and the header exactly as written here so they can see thinker is asking and not you/);
   assert.match(asked, /let them choose more than one where your tool allows it/);
-  // and the question carries the page's address, since the picker is all of the block the person sees: a line is a
-  // title and two figures, and the detail -- the section's text, a compression's diff -- is on the page
-  const withPage = (() => { const st = repo(); return scheduleContextSuggestion(st, { now, view: view() }).then(() => contextSuggestOffer(st, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', repoId: 'r1', client: 'claude' })); })();
-  assert.match(await withPage, /Make any\? To see each one in full first, with its diff: http:\/\/127\.0\.0\.1:4848\/#tab=save&view=all&repo=r1&from=suggestion" \(header "thinker"\)/);
   // Codex has no question tool of its own in the table, so it asks in chat (repo-onboard.js:QUESTION_TOOLS), where
   // the line opens with thinker's signature since there is no header to carry the label
   await scheduleContextSuggestion(store, { now, view: view(), force: true });
-  const chat = contextSuggestOffer(store, { now, env: {}, ui: () => null, client: 'codex' });
+  const chat = contextSuggestOffer(store, { now, env: {}, client: 'codex' });
   assert.match(chat, /ask the user in chat, in a line opening "🧠 thinker:" so they can see the question comes from thinker/);
-});
-
-test('the page checks the rows the question numbered, with the actions it suggested, for as long as the numbers stand', async () => {
-  const store = repo(), now = Date.parse('2026-10-27T10:00:00Z');
-  assert.deepEqual(offeredPicks(store, { now }), [], 'nothing offered yet, nothing to check');
-  await scheduleContextSuggestion(store, { now, view: view() });
-  contextSuggestOffer(store, { now, env: {}, ui: () => 'http://127.0.0.1:4848/', client: 'claude' });
-  // the suggested action of each line, by the row's key as the page knows it (page.html:preselectRows); the built-in
-  // tool the question could not offer is not checked for them either
-  assert.deepEqual(offeredPicks(store, { now }), [
-    { kind: 'section', key: 'section:AGENTS.md:Releases', repo: null, act: 'compress' },
-    { kind: 'skill', key: 'claude:skill:deploy', repo: null, act: 'off' },
-    { kind: 'section', key: 'section:AGENTS.md:Ports', repo: null, act: 'compress' },
-  ]);
-  // past the answer window the numbers no longer stand for that list, and neither do the checks
-  assert.deepEqual(offeredPicks(store, { now: now + (SUGGEST.answerDays + 1) * 86400_000 }), []);
 });
 
 test('a reply to the weekly summary means the lines it showed, not the ranking as it is now', async () => {
@@ -261,7 +240,7 @@ test('a reply to the weekly summary means the lines it showed, not the ranking a
   const sec = (id, wasted) => ({ id, file: 'AGENTS.md', title: id, tokens: 2000, wasted, waste: 'high', usedShare: 0.1, prompts: 100 });
   const v = secs => ({ days: 7, sessions: 40, instructions: { sessions: 40, sections: secs }, skills: [], tools: [], outputs: { sessions: 40, tools: [] } });
   await scheduleContextSuggestion(store, { now, view: v([sec('Releases', 30_000), sec('Ports', 29_000), sec('Tests', 28_000)]) });
-  const said = contextSuggestOffer(store, { now, env: {}, ui: () => null });
+  const said = contextSuggestOffer(store, { now, env: {} });
   assert.match(said, /1\. AGENTS\.md · Releases/);
   // the summary's own list is kept for the answer window, and the numbers are its lines
   const offered = offeredChanges(store, { now });

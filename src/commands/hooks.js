@@ -7,7 +7,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { pluginYields, pruneInstalls, prunedLines, refreshWiring, stripRepoWiring, repoRunsHooks, normalizeHookEvent, hookClient, sessionOf, toolFiles, seenFiles, seenHits, searchedIdentifier, promptOutput, toolOutput, stopOutput, parkPending, takePending, agyTurnPrompt } from '../clients.js';
 import { dietConfig, dietResult, rememberTerms } from '../diet.js';
-import { Store, findRepoRoot, repoId } from '../store.js';
+import { Store, findRepoRoot } from '../store.js';
 import { isDisabledRepo } from '../repo-switch.js';
 import { maintenanceNotice, reportPruned, withinDailyCap, reportCapped } from '../maintain.js';
 import { preToolHook, windowTool, noteSubagent } from '../delegate.js';
@@ -28,7 +28,7 @@ import { proxyOffer } from '../proxy-offer.js';
 import { containersOffer } from '../containers-offer.js';
 import { errorOffer, recordError, sendErrors, errorConsent } from '../error-report.js';
 import { harnessRecall, harnessIndex, harnessOn } from '../harness.js';
-import { contextSuggestOffer, ensureUi, suggestionsUrl } from '../context-suggest.js';
+import { contextSuggestOffer } from '../context-suggest.js';
 import { snapshotCursorInventory } from '../harness-cursor.js';
 import { sectionsForEvent, sectionsConfig } from '../instruction-sections.js';
 import { retireTrimmedCopy } from '../trimmed-copy-retired.js';
@@ -240,7 +240,7 @@ async function hookCommand(ctx) {
         // prompt cache the clearing exists to spare
         let clearing = '';
         if (offersOn) { try { clearing = compressionBlock(compressionDir(), session, turn, formatTokens); } catch {} }
-        const offer = [offersOn ? (proxyOffer(store, { client }) || containersOffer(store, { client }) || errorOffer(store, { client }) || contextSuggestOffer(store, { repoId: repoId(store.repo), client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
+        const offer = [offersOn ? (proxyOffer(store, { client }) || containersOffer(store, { client }) || errorOffer(store, { client }) || contextSuggestOffer(store, { client })) : '', work, index, recall, clearing].filter(Boolean).join('\n\n');
         // a harness event delivered as a prompt (a background task finished, a subagent reported) is no request:
         // it opens its turn, so the turn costs stay apart, and is served nothing (session-state.js:isHarnessEvent)
         if (isHarnessEvent(ev.prompt)) { if (offer) emit(offer); return; }

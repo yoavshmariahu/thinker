@@ -119,16 +119,18 @@ test('a cold progressive HTTP read returns immediately, then serves the finished
   const { url } = await ui.listen(0);
   const get = async p => { const res = await fetch(url + p); assert.equal(res.status, 200); return res.json(); };
   await get('api/repos');
-  const cold = await get('api/context?repo=all&days=7&progressive=1');
+  // the kept report, which the Factory and Recent activity's pull requests read (the Context report has no route
+  // since Find Savings went, 2026-11-21)
+  const cold = await get('api/report?repo=all&weeks=6&progressive=1');
   assert.equal(cold.loading, true); assert.equal(cold.refreshing, true);
   assert.equal((await fetch(url)).status, 200, 'the page is still served while the worker runs');
   let last = cold;
   for (let i = 0; i < 100 && last.refreshing; i++) {
     await new Promise(r => setTimeout(r, 30));
-    last = await get('api/context?repo=all&days=7&progressive=1');
+    last = await get('api/report?repo=all&weeks=6&progressive=1');
   }
   assert.equal(last.refreshing, false); assert.equal(last.partial, false);
-  assert.ok(last.totals); assert.ok(readSnapshot(store, 7));
+  assert.equal(last.columns.length, 6); assert.ok(readReport(store, 6));
 });
 
 test('the browser renders partial checkpoints, avoids duplicate tables, and ignores an abandoned request', async () => {
@@ -149,14 +151,14 @@ test('the browser renders partial checkpoints, avoids duplicate tables, and igno
     scanProgress: v => progress.push(v), setTimeout: fn => fn(),
   });
   vm.runInContext(code, context);
-  await context.progressiveView('/api/context?days=7', v => drawn.push(v), () => true);
+  await context.progressiveView('/api/report?repo=all&weeks=6', v => drawn.push(v), () => true);
   assert.deepEqual(drawn.map(v => v.sessions), [1, 5]);
   assert.equal(requests.filter(url => !url.includes('stamp=1')).length, 2);
   assert.equal(progress.at(-1).refreshing, false);
   let current = true;
   context.api = async () => { current = false; return { revision: 'late' }; };
   const before = progress.length;
-  await context.progressiveView('/api/context?days=30', () => assert.fail('old window rendered'), () => current);
+  await context.progressiveView('/api/report?repo=one&weeks=6', () => assert.fail('old repository rendered'), () => current);
   assert.equal(progress.length, before, 'an abandoned request cannot update the new view’s bar');
 });
 
@@ -199,26 +201,6 @@ test('the browser handles an empty report and stops with an explicit cold-read e
   assert.equal(result.empty, true);
   context.api = async () => ({ loading: true, refreshing: false, progress: { error: 'Disk unavailable' } });
   await assert.rejects(context.progressiveView('/api/report?repo=all', () => assert.fail('rendered no data'), () => true), /Disk unavailable/);
-});
-
-// The table is paged and ranked by waste, so a row the weekly question numbered (or the installer's picker listed)
-// could sit on a page nobody had opened. The rows a door suggested come first, frozen when the door's list is resolved,
-// each on its suggested action (page.html:PRETOP, PREACT, preselectRows, sortRows).
-test('the rows a door suggested come first, on their suggested action, and the rest keep their order', async () => {
-  const { default: vm } = await import('node:vm');
-  const page = fs.readFileSync(new URL('../src/ui/page.html', import.meta.url), 'utf8');
-  const code = page.slice(page.indexOf('const PREACT = new Map()'), page.indexOf('// a button says what it is doing while it works'));
-  const context = vm.createContext({ pickKey: r => `${r.repo || ''}\t${r.key}` });
-  const api = vm.runInContext(`${code}\n({ sortRows, preselectRows, PREACT, PRETOP })`, context);
-  const row = (key, wastedWindow) => ({ key, name: key, wasted: 1, wastedWindow, window: wastedWindow, options: [['compress', 'Compress'], ['remove', 'Remove']] });
-  const rows = [row('big', 900), row('mid', 500), row('small', 20)];
-  // the rows come back from the vm's own Array, so the order is compared as text
-  const keys = () => api.sortRows(rows).map(r => r.key).join(' ');
-  assert.equal(keys(), 'big mid small', 'with nothing suggested: most wasted first');
-  api.preselectRows(rows, [{ kind: 'section', key: 'small', repo: null, act: 'remove' }, { kind: 'section', key: 'gone', repo: null, act: 'remove' }]);
-  assert.equal(keys(), 'small big mid', 'the suggested row leads, the rest keep their order');
-  assert.equal(api.PREACT.get('\tsmall'), 'remove', 'its dropdown is on the suggested action');
-  assert.equal(api.PRETOP.size, 1, 'a suggestion the table has no row for is dropped');
 });
 
 // A kept view this code made is brought up to date, not made again (2026-11-08): the worker is told when it was made

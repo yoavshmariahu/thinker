@@ -103,12 +103,8 @@ test('the report for all repositories works from a directory that is no checkout
   assert.equal(r.status, 200, r.body);
   assert.equal(JSON.parse(r.body).empty, true, 'no repository with a cache: an empty report');
   assert.equal((await call(port, '/api/repos', {})).status, 200);
-  // the report carries the suggested savings the installer's page pre-checks (context-machine.js:suggestedPicks)
-  const c = await call(port, '/api/context?repo=all&days=7', {});
-  assert.equal(c.status, 200, c.body);
-  assert.deepEqual(JSON.parse(c.body).suggested, [], 'an array, empty with nothing read');
-  // and the rows the weekly question put to the person (context-suggest.js:offeredPicks), which its link opens checked
-  assert.deepEqual(JSON.parse(c.body).offered, [], 'an array, empty where no summary was offered');
+  // the Context report has no route since Find Savings went (2026-11-21): no GET answers there
+  assert.equal((await call(port, '/api/context?repo=all&days=7', {})).status, 405);
   assert.ok(!fs.existsSync(path.join(cwd, '.thinker')), 'nothing created outside a checkout');
 });
 
@@ -141,13 +137,7 @@ test('the page serves the reports kept in the checkouts and has them made again 
   const id = (await get('/api/repos')).repos[0].id;
   const d = await get(`/api/report?repo=${encodeURIComponent(id)}`);
   assert.equal(d.asOf, oldAt); assert.equal(d.refreshing, true); assert.deepEqual(reports, [null, dir]);
-  // Save: the Context report made on the first visit; once the instruction file changes the kept one no longer holds, and
-  // is shown at once while a refresh runs behind it, instead of the transcripts being read in the request
-  const e = await get('/api/context?repo=all&days=30');
-  assert.equal(e.refreshing, false); assert.equal(contexts.length, 0);
-  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# R\n\n## Tests\n\nRun `npm test`.\n');
-  const g = await get('/api/context?repo=all&days=30');
-  assert.equal(g.asOf, e.asOf); assert.equal(g.refreshing, true); assert.deepEqual(contexts, [dir]);
+  assert.deepEqual(contexts, [], 'no Context report is made or refreshed by a visit: the page has no tab that reads one');
 });
 
 test('the page keeps the checkouts it found, reads them back, and looks again in the background when they are old', async t => {

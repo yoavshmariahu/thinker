@@ -1,4 +1,4 @@
-// The Report page (`thinker report`, the page's View Report tab; the Find Savings tab is `save`, the tab ids stay): what a prompt costs here
+// The Report (`thinker report`; the page's View Report tab until 2026-11-21, when the owner had it and Find Savings removed): what a prompt costs here
 // (since 2026-10-24, the owner's ask: a prompt is one call to the model, the unit the context is read again at; a session was the unit before), week by week, as the average
 // over the prompts of each week, by the type of token (fresh input, cache writes, cache reads, output), by the part of
 // the context the tokens went to and by the model that read them, the three tables adding up to the same whole session,
@@ -461,7 +461,7 @@ export function withEffects(history, sessionRows = [], now = Date.now()) {
   const later = e => history.filter(o => o !== e && o.key === e.key && Date.parse(o.at) > Date.parse(e.at)).map(o => effectSpan(o, now)?.from).filter(t => t != null);
   return history.map(e => { const ts = later(e); return { ...e, effect: actionEffect(e, sessionRows, now, { until: ts.length ? Math.min(...ts) : null }) }; });
 }
-// The decisions taken on the Find Savings page since `from`, newest first, each with what it saved (`effect`): the view's
+// The decisions taken since `from` (by thinker, in a session, from the command line), newest first, each with what it saved (`effect`): the view's
 // `actions`, for `thinker report --json`.
 export function reportActions(store, from, sessionRows = [], now = Date.now()) {
   return withEffects(changeHistory(store).filter(e => Date.parse(e.at) >= from), sessionRows, now).map(e => ({ ...e, repo: null }));
@@ -571,7 +571,7 @@ export function renderReport(v, { total = false, share = false } = {}) {
   const base = share ? v.sessionTotals : null;
   L.push(`${total ? 'Total' : 'Average'} cost ${total ? 'over the week\'s sessions' : 'per prompt (one call to the model)'}, by week (${v.columns.map(c => c.sessions).join(', ')} sessions, ${v.columns.map(c => c.prompts || 0).join(', ')} prompts), at list prices of ${v.pricedOn}${share ? '; each row as its share of the whole session, the totals as they are' : ''}`);
   const calNote = Object.entries(v.calibration || CALIBRATION).map(([k, f]) => `${k} ×${f}`).join(', ');
-  L.push('', `By part of the context (the four the Find Savings page measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
+  L.push('', `By part of the context (the four \`thinker context\` measures and controls, then the conversation by kind; the estimated parts in the model's own tokens: ${calNote}, the others one for one)`, headThr);
   for (const p of v.parts) L.push(line(p.name, p.cells, false, base, { key: p.key, thresholds: true }));
   // the rest of the input as one line, its kinds indented under it; the output after
   const rest = (v.others || []).filter(p => p.key !== 'output'), output = (v.others || []).find(p => p.key === 'output');

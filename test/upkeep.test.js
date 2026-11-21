@@ -152,7 +152,7 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   freshHome();
 });
 
-// a kept Context report: a costly section, a second one, a cheap one, and a tool, each as Find Savings flags them
+// a kept Context report: a costly section, a second one, a cheap one, and a tool, each as the Context report flags them
 const section = (id, title, waste, wastedWindow) => ({ id, file: 'AGENTS.md', title, tokens: 2000, wasted: 30_000, wastedWindow, waste, usedShare: 0.02, text: `About ${title}.` });
 const view = () => ({
   days: 7, sessions: 40, rate: { perToken: 5e-6 },
@@ -177,7 +177,7 @@ test('told to wait for the person\'s word, a check does nothing: what is importa
   assert.deepEqual(check.did, []); assert.equal(check.pending, 4); assert.equal(sp.calls.length, 0); assert.ok(fs.existsSync(done));
   const { pending, notes, lastCheck } = upkeepPending(r.store);
   assert.ok(lastCheck); assert.deepEqual(notes, []);
-  // the cheap section is not important: it is not held at all, it stays on Find Savings
+  // the cheap section is not important: it is not held at all, it stays in `thinker context`
   assert.deepEqual(pending.map(i => [i.id, i.kind, i.title, i.why, Boolean(i.later)]), [
     ['change:section:AGENTS.md:releases', 'pr', 'AGENTS.md · Releases', 'you asked to be asked first', false],
     ['change:section:AGENTS.md:ports', 'pr', 'AGENTS.md · Ports', 'you asked to be asked first', false],
@@ -217,13 +217,13 @@ test('on the person\'s word (the chat\'s do, leave and undo): done at once whate
   const s = await upkeepDo(r.store, 'sweep', { fns });
   assert.equal(s.said, 'Removed 1 merged worktree and 1 branch · 600 MB freed');
   assert.ok(!fs.existsSync(done));
-  // "never mind the tool": left alone in the history Find Savings reads too, and by thinker for three months
+  // "never mind the tool": left alone in the history `thinker context` reads too, and by thinker for three months
   assert.equal(upkeepDismiss(r.store, 'change:claude:builtin:Workflow', { fns }).said, 'Workflow tool: left alone for the next 90 days');
   assert.equal(changeHistory(r.store).filter(e => e.decision === 'dismissed' && e.via === VIA.thinker).length, 1);
   await upkeepCheck(r.store, { fns, now: Date.now() + 30 * DAY });
-  assert.ok(!upkeepPending(r.store, { now: Date.now() + 30 * DAY }).pending.some(i => i.id === 'change:claude:builtin:Workflow'), 'still left a month on, though Find Savings offers it again after a week');
+  assert.ok(!upkeepPending(r.store, { now: Date.now() + 30 * DAY }).pending.some(i => i.id === 'change:claude:builtin:Workflow'), 'still left a month on, though `thinker context` offers it again after a week');
   // the activity: a line an action, with what it came to: the disk a sweep freed; for a section still being made, what
-  // Find Savings expected of it, said as such
+  // the Context report expected of it, said as such
   const feed = upkeepFeed(r.store);
   assert.deepEqual(feed.map(f => [f.text, f.impactSaid, f.by]).sort(), [['Removed 1 merged worktree and 1 branch', '600 MB freed', 'you'], ['Shortening AGENTS.md · Releases', 'about −30k tokens per prompt once merged', 'you']]);
   // taking the sweep back: put back, and never swept again
@@ -259,7 +259,7 @@ test('a decision is taken back where its history is kept, its pull request close
   assert.deepEqual(closed, [[12, 'thinker/releases']]);
   const after = upkeepFeed(r.store, { now, log: [] })[0];
   assert.deepEqual([after.text, after.undone, after.url, after.impactSaid], ['PR #12 closed without merging: AGENTS.md · Releases', true, 'https://github.com/o/r/pull/12', undefined]);
-  // the section is flagged again by Find Savings (its decision was reverted), and thinker leaves it be
+  // the section is flagged again by the Context report (its decision was reverted), and thinker leaves it be
   const sp = spawned();
   const check = await upkeepCheck(r.store, { fns: { ...given(sp), findMess: none }, now: now + 10 * DAY });
   assert.deepEqual(check.did.map(d => d.id), ['change:section:AGENTS.md:ports']);
@@ -529,7 +529,7 @@ test('what is known about one line, for somebody asking about it: what it was, w
     'Workflow tool (built-in tool). It begins: "Runs a workflow script."',
     '  Why it was picked: about 2.5k of its tokens in an average prompt were going where they were not needed, 9M tokens over the 7 days before.',
     '  Measured: it cost 3k tokens a prompt before (1 session, 100 prompts) and 0 since (1 session, 70 prompts): 3k fewer a prompt, 30% of what a whole prompt cost before; 210k tokens saved over the 70 prompts since. Under five sessions on one side, so the figure is early.',
-    `How it was done: create tool reference, approved, on ${new Date(t(10)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, by the person, on Find Savings. Tool reference created.`,
+    `How it was done: create tool reference, approved, on ${new Date(t(10)).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, by the person, on the page. Tool reference created.`,
     'How the dollars a day are reckoned: the tokens off a prompt, times the 10 prompts a day this repository ran over the last week, at $5.00 a million input tokens (what input cost here, cache reads and writes as they were).',
     'It can be taken back (undo id h:a1).',
   ]);

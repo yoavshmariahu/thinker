@@ -1,14 +1,16 @@
-// `thinker ui`: a local page for the person, on this machine only. Three views: Save, where the agents' context goes in
-// a repository and what each part is worth, with the cuts (context-view.js, as `thinker context`); Report, what a
-// session costs here week by week, by part of the context and by model, in tokens or at list prices, with the
-// decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`); and Recent activity, every
-// decision taken with what came of it and what still needs the person (context-suggest.js:changeHistory, as `thinker
-// context --history`): a compression running in the background or failed, a pull request waiting to be merged. The
-// The page opens on the chat, where the person asks thinker what it did and tells it how to behave (chat.js, as `thinker
-// chat`), with what thinker did down its right side, a line an action with what it came to (upkeep.js, as `thinker
-// activity`). Nothing on that side is a button: thinker does its work itself, and is told otherwise in the chat.
-// Cache view (the usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at
-// the owner's decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
+// `thinker ui`: a local page for the person, on this machine only. It opens on the chat, where the person asks thinker
+// what it did and tells it how to behave (chat.js, as `thinker chat`), with what thinker did down its right side, a line
+// an action with what it came to (upkeep.js, as `thinker activity`). Nothing on that side is a button: thinker does its
+// work itself, and is told otherwise in the chat. Beside it: the Factory, the sessions as a pipeline (factory.js, as
+// `thinker factory`), and Recent activity, every decision taken with what came of it and what still needs the person
+// (context-suggest.js:changeHistory, as `thinker context --history`): a compression running in the background or
+// failed, a pull request waiting to be merged, and the merged pull requests with what the clearing saved on each.
+//
+// Find Savings (where the context goes, part by part, with the cuts) and View Report (what a session costs week by
+// week) were pages here until 2026-11-21, when the owner had them removed: thinker makes those decisions itself. Their
+// figures are the commands' (`thinker context`, `thinker report`), and the routes that served them (/api/context,
+// /api/explain, /api/changes/approve|dismiss|start, /api/context/switch|compression) went with them. /api/report
+// stays: the Factory and Recent activity's pull requests read the kept report.
 //
 // The page is machine-wide: it needs no repository, and a repository is named by its id (as the log
 // names it) so the page cannot be pointed at a path.
@@ -20,14 +22,10 @@
 // address; the owner dropped it: a copied address without it was a broken page, and the two checks above
 // keep the same pages out.
 import { harnessView, harnessSavings, harnessOn, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
-import { contextView, mergeViews, switchSources, setOutputCompression } from '../context-view.js';
-import { snapshotView, lastSnapshot, refreshing, dropSnapshots, REFRESH_MS } from '../context-snapshot.js';
-import { approveChanges, dismissChanges, startSectionJob, retryJob, revertDecision, pickChanges, allChanges, changeHistory, refreshPrStates, offeredPicks, VIA } from '../context-suggest.js';
+import { refreshing, dropSnapshots } from '../context-snapshot.js';
+import { retryJob, revertDecision, changeHistory, refreshPrStates } from '../context-suggest.js';
 import { mergeReports, reportActions, withEffects, mergePromptAverages, REPORT_WEEKS } from '../report.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
-import { prAvailable } from '../instruction-pr.js';
-import { describePart } from '../part-describe.js';
-import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
 import { uiScans, scanStatus } from './scans.js';
 import { upkeepView, mergeUpkeepViews, delegatedTotalSaid, UPKEEP } from '../upkeep.js';
 import { chatSend, readChat, CHAT } from '../chat.js';
@@ -87,8 +85,8 @@ export function refreshCheckouts(store, { home = thinkerHome(), transcriptsHome,
   return checkouts;
 }
 
-// The background refreshes the page starts (a Context report, the Report's figures: `thinker context --refresh`,
-// `thinker report --refresh`) run one at a time, each asked for once while it waits: over a dozen repositories the
+// The background refreshes the page starts (the kept reports: `thinker report --refresh`, and `thinker context
+// --refresh` after a decision is taken back) run one at a time, each asked for once while it waits: over a dozen repositories the
 // page started a dozen node processes at once, each reading the machine's log and its transcripts, and the machine
 // crawled while they ran. `start` spawns the process and returns it, or nothing to skip.
 export function serialSpawner() {
@@ -116,7 +114,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
   refreshReposFn ||= () => { try { const p = spawn(process.execPath, [cliPath, 'ui', '--refresh'], { cwd: store.repo, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   const background = serialSpawner();
   const child = (args, cwd) => { const p = spawn(process.execPath, [cliPath, ...args], { cwd, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); return p; };
-  // an old Context report is made again by `thinker context --refresh` in the checkout, in the background
+  // the kept Context report (what `thinker context` and thinker's own check read) is made again by `thinker context
+  // --refresh` in the checkout, in the background, after a decision is taken back
   refreshFn ||= checkout => background(`context:${checkout}`, () => child(['context', '--refresh', '--quiet', '--repo', checkout], checkout));
   // an old Report by `thinker report --refresh`: one repository's, or every repository's in one run (null)
   refreshReportFn ||= checkout => checkout ? background(`report:${checkout}`, () => child(['report', '--refresh', '--quiet', '--repo', checkout], checkout)) : background('report:all', () => child(['report', '--refresh', '--all', '--quiet'], store.repo));
@@ -154,12 +153,6 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
     const r = entry(id); return r ? [[r, open(r.checkout)]] : null;
   };
   const harnessCache = new Map();
-  const changesView = (st, d) => {
-    const s = lastSnapshot(st, d);
-    if (!s) return snapshotView(st, d).view;
-    if ((!s.current || Date.now() - s.at > REFRESH_MS) && !refreshing(st)) refreshFn(st.repo);
-    return s.view;
-  };
   const server = http.createServer(async (req, res) => {
     lastRequest = Date.now();
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -191,7 +184,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         discovering ||= scans.discover({ repo: store.repo, home, transcriptsHome }).finally(() => { discovering = null; });
         known = await discovering;
       }
-      // the Report tab (report.js:reportView, as `thinker report`): one repository, or every repository's report merged, from
+      // the kept report (report.js:reportView, as `thinker report`; the Factory and Recent activity's pull requests read it):
+      // one repository, or every repository's report merged, from
       // the report kept in each checkout (report-snapshot.js): made now only when there is none, made again in the background
       // when it is old, the page told when it was made and whether a newer one is coming; the decisions under it read live
       if (req.method === 'GET' && url.pathname === '/api/report') {
@@ -234,104 +228,9 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         harnessCache.set(k, { at: Date.now(), view });
         return json(res, 200, view);
       }
-      // where the context goes in one repository (context-view.js:contextView, as `thinker context`), from the report
-      // kept in the checkout (context-snapshot.js): made now only when there is none, made again in the background
-      // when it is old, the page told when it was made and whether a newer one is coming
-      if (req.method === 'GET' && url.pathname === '/api/context') {
-        // what each part is, in one line (part-describe.js, as Recent activity names it): "Artifact: drafts a document
-        // or page". The same call, not a second table; the rows carry it as `about` and the page prints it under the name.
-        // ...and no tool-output rows: the page has had no view for them since 2026-11-04 (the clearing compresses
-        // outputs, and nobody is asked about one), so sending every tool's row is payload nothing reads. What they
-        // cost stays in `totals.outputs`, which the Report's own call reads.
-        const describeParts = v => ({
-          ...v,
-          outputs: { sessions: v.outputs?.sessions || 0, prompts: v.outputs?.prompts || 0, tools: [] },
-          instructions: { ...v.instructions, sections: (v.instructions?.sections || []).map(x => ({ ...x, about: describePart({ kind: 'section', text: x.text }).about })) },
-          skills: (v.skills || []).map(x => ({ ...x, about: describePart({ kind: 'skill', text: x.text }).about })),
-          tools: (v.tools || []).map(x => ({ ...x, about: describePart({ kind: 'tool', name: x.name, toolKind: x.kind, builtin: x.group === 'builtin', text: x.text }).about })),
-        });
-        const d = Number(url.searchParams.get('days')) || 30;
-        // the last report kept is shown at once, even one the code or the files it rests on have outgrown, and made again
-        // behind it; the transcripts are read now only when there is none (a first visit, or after an action dropped it)
-        const read = st => {
-          if (progressive) return scans.read('context', st, d, { retry: url.searchParams.get('retry') === '1' });
-          const last = lastSnapshot(st, d);
-          if (!last) return { ...snapshotView(st, d), refreshing: false };
-          const stale = !last.current || Date.now() - last.at > REFRESH_MS;
-          if (stale && !refreshing(st)) refreshFn(st.repo);
-          return { at: last.at, view: last.view, refreshing: stale || refreshing(st) };
-        };
-        // `stamp`: when the figures were measured and whether a newer set is coming, and nothing else. The page asks
-        // this every few seconds while a refresh runs and reads the whole report only once `asOf` has moved; until
-        // 2026-10-29 that poll fetched the merged report itself (1.3 MB on this machine, a dozen times over) and threw
-        // all of it away whenever the answer was "not yet". Nothing below the stamp is worked out for one.
-        const stamp = url.searchParams.get('stamp') === '1';
-        let view, at, busy, offered, status = {};
-        // every repository on the machine, merged (context-view.js:mergeViews); a repository that fails to read is left out
-        if (want === 'all') {
-          const xs = repos().flatMap(r => { try { return [{ r, s: read(open(r.checkout)) }]; } catch { return []; } });
-          at = Math.min(...xs.map(x => x.s.at)); busy = xs.some(x => x.s.refreshing);
-          if (progressive) status = scanStatus(xs.map(x => x.s));
-          if (xs.length && !xs.some(x => x.s.view)) return json(res, 200, { loading: true, ...status });
-          if (!stamp) {
-            view = mergeViews(xs.filter(x => x.s.view).map(({ r, s }) => ({ repo: r.id, name: r.name, view: s.view })));
-            offered = xs.flatMap(({ r, s: _s }) => { try { return offeredPicks(open(r.checkout)).map(x => ({ ...x, repo: x.repo || r.id })); } catch { return []; } });
-          }
-        } else {
-          const one = storeFor(want); if (!one) return json(res, 400, { error: 'unknown repository' });
-          const s = read(one);
-          if (progressive) status = scanStatus([s]);
-          if (!s.view) return json(res, 200, { loading: true, ...status });
-          ({ view, at, refreshing: busy } = s);
-          if (!stamp) offered = offeredPicks(one);
-        }
-        if (stamp) return json(res, 200, { asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy, ...status });
-        // the suggested savings (context-machine.js:suggestedPicks, the rows the installer's terminal picker lists): the page
-        // the installer opens comes with them checked. Imported here, not at the top: context-machine.js imports this module.
-        // `offered` is what the weekly question numbered in the session (context-suggest.js:offeredPicks), which the link
-        // in that question opens checked instead of these: the rows the person was actually asked about, with the actions
-        // it suggested for them.
-        const { suggestedPicks } = await import('../context-machine.js');
-        // the ranked changes and the week-by-week timeline stay on this side: they are the kept report's, for the command
-        // and the weekly suggestion (context-suggest.js), and the page reads neither -- 411 KB of the 1.3 MB sent here
-        const { suggestions, timeline, ...shown } = view;
-        // and what each part is in full, in the words a small model wrote for it once (part-explain.js): what it is,
-        // why someone would make the change offered on it, and what they would lose by making it. The cards are those
-        // words; the numbers go around them. `explainMissing` is what has none yet, so the page can offer to write them.
-        const have = readExplains();
-        return json(res, 200, { ...attachExplains(describeParts(shown), have), suggested: suggestedPicks(view), offered, explainMissing: missingExplains(view, have).length, asOf: Number.isFinite(at) ? at : Date.now(), refreshing: !!busy, ...status });
-      }
-      // The plain-words explanation of every part (part-explain.js), which a small model writes once and the machine
-      // keeps: GET says how many are missing, POST writes them. A person asks for it by opening the cards and agreeing
-      // to the spend -- nothing here is written in the background, since it is the only thing on this page that costs.
-      if (url.pathname === '/api/explain') {
-        const one = want === 'all' ? store : storeFor(want);
-        if (!one) return json(res, 400, { error: 'unknown repository' });
-        const d = Number(url.searchParams.get('days')) || 30;
-        if (req.method === 'GET') {
-          const have = readExplains();
-          // `keys`: the words written for exactly these parts, a few hundred bytes. The cards are filled in from this
-          // while they are being written, in place, rather than by reading the whole report again every four seconds.
-          const keys = String(url.searchParams.get('keys') || '').split(',').map(k => k.trim()).filter(Boolean).slice(0, 200);
-          if (keys.length) return json(res, 200, { explains: Object.fromEntries(keys.filter(k => have[k]).map(k => [k, have[k]])) });
-          const view = want === 'all' ? null : (lastSnapshot(one, d)?.view || null);
-          return json(res, 200, { have: Object.keys(have).length, missing: view ? missingExplains(view, have).length : null });
-        }
-        if (req.method === 'POST') {
-          // the page names the parts it is showing and the ones on the page after it; a comma joins them for one
-          // argument, so a key holding one is left out rather than splitting into two that match nothing
-          const body = await readBody(req);
-          const keys = (Array.isArray(body.keys) ? body.keys : []).map(String).filter(k => k && k.length < 200 && !k.includes(',')).slice(0, 80);
-          if (!keys.length) return json(res, 400, { error: 'no parts named' });
-          const args = ['explain', '--quiet', '--repo', one.repo, '--days', String(d), '--keys', keys.join(','), ...(want === 'all' ? ['--all'] : [])];
-          // one run at a time over the whole page (serialSpawner), and the same request is never started twice
-          const started = background(`explain:${want}:${d}:${keys.join(',')}`, () => child(args, one.repo));
-          return json(res, 200, { started, keys: keys.length });
-        }
-      }
       // Recent activity (context-suggest.js:changeHistory, as `thinker context --history`): every decision taken, for one
       // repository or each of them, newest first, with what needs the person counted (`attention`: a change running or
-      // failed, a pull request to merge) for the badge on the tab; the Save page reads it too, for the pills on its rows.
+      // failed, a pull request to merge) for the badge on the tab.
       // Reads no report: the history alone, so the badge can be asked for often.
       if (req.method === 'GET' && url.pathname === '/api/activity') {
         const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
@@ -339,8 +238,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const xs = [], machine = new Map(), sessionRows = [];
         // each decision with what it saved, over the report kept in its checkout (report-snapshot.js:historyEffects), and what
         // a prompt costs on average there (promptAverageHere), the size the savings are read against
-        // a kept report that is none of this code's, or old, is made again in the background (as the Report tab does), and the
-        // answer says so (`measuring`), so the page checks back instead of showing "measuring" until the Report tab is visited
+        // a kept report that is none of this code's, or old, is made again in the background, and the answer says so
+        // (`measuring`), so the page checks back instead of showing "measuring" for good
         const avgs = [], readings = []; let measuring = false;
         for (const [r, st] of stores) { try {
           await refreshPrStates(st);
@@ -390,43 +289,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (!st) return json(res, 400, { error: 'unknown repository' });
       await scans.cancel(); // an older scan must not overwrite snapshots after this action
       let r;
-      if (url.pathname.startsWith('/api/harness/') || url.pathname.startsWith('/api/context/')) { harnessCache.clear(); dropSnapshots(st); }
-      // a decision on a row or in History keeps the report: the files it writes (config, settings, AGENTS.md) make the Context
-      // tab read a new one (context-snapshot.js)
+      if (url.pathname.startsWith('/api/harness/')) { harnessCache.clear(); dropSnapshots(st); }
+      // a decision taken back keeps the Context report: the files it writes (config, settings, AGENTS.md) make the next
+      // read a new one (context-snapshot.js)
       if (url.pathname.startsWith('/api/changes/')) harnessCache.clear();
       // the page's door to `thinker harness --off` and `--undo`: the same functions, for the repository it shows
       if (url.pathname === '/api/harness/undo') r = { said: undoHarness(st, { names: Array.isArray(b.names) ? b.names : null }) };
       else if (url.pathname === '/api/harness/off') r = Array.isArray(b.labels) && b.labels.length ? { said: switchOffNow(st, b.labels.join(','), { via: 'ui', any: true }) } : { error: 'nothing chosen' };
-      // `thinker context --approve|--dismiss <keys>` over every part of the report (context-suggest.js:allChanges; the command
-      // numbers the top five, currentChanges): a row's Apply makes the action picked in it (`acts`), Dismiss leaves it a month;
-      // a section's Apply (`start`) is a job in the background (context-suggest.js:startSectionJob): recorded at once and
-      // `thinker instructions --compress|--remove <ids> --pr` started detached, --apply where no pull request can be opened
-      // from here (instruction-pr.js:prAvailable); Recent activity follows it
       // `thinker context --revert <n>`: a decision taken back (context-suggest.js:revertDecision); `--retry <n>`: a failed
       // change run again (retryJob)
       else if (url.pathname === '/api/changes/revert') { r = await revertDecision(st, String(b.id || '')); if (!r.error && !refreshing(st)) refreshFn(st.repo); }
       else if (url.pathname === '/api/changes/retry') r = retryJob(st, String(b.id || ''), { spawnFn, cliPath });
-      else if (['/api/changes/approve', '/api/changes/dismiss', '/api/changes/start'].includes(url.pathname)) {
-        const keys = (Array.isArray(b.keys) ? b.keys : [b.key]).map(k => String(k || '')).filter(Boolean);
-        const picked = pickChanges(allChanges(changesView(st, Number(b.days) || 7)), keys, b.acts && typeof b.acts === 'object' ? b.acts : {});
-        if (!picked.length) r = { error: 'that part is no longer in the report; reload the page' };
-        else if (url.pathname.endsWith('/approve')) r = { said: (await approveChanges(st, picked, { via: VIA.page })).join(' ') };
-        else if (url.pathname.endsWith('/dismiss')) r = { said: dismissChanges(st, picked, { via: VIA.page }).join(' ') };
-        else {
-          // one job per action among the picked sections (the rows' dropdowns may differ); a part that is no section is refused
-          const secs = picked.filter(c => c.kind === 'section');
-          if (secs.length !== picked.length) r = { error: 'only a section is changed this way' };
-          else {
-            const said = [], pr = prAvailable(st.repo).ok;
-            for (const action of ['compress', 'remove']) { const xs = secs.filter(c => (c.chosen || c.default?.act) === action); if (!xs.length) continue; const j = startSectionJob(st, xs, action, { pr, spawnFn, cliPath, via: VIA.page }); said.push(j.said || j.error); }
-            r = said.length ? { said: said.join(' ') } : { error: 'no action picked' };
-          }
-        }
-        if (!url.pathname.endsWith('/dismiss') && !refreshing(st)) refreshFn(st.repo);
-      }
-      // `thinker context --switch-off <labels> [--builtin]` / `--switch-on <keys>` and `--output-compression <tools> --level`
-      else if (url.pathname === '/api/context/switch') r = { said: switchSources(st, { labels: Array.isArray(b.labels) ? b.labels : [], keys: Array.isArray(b.keys) ? b.keys : [], on: !!b.on, builtin: !!b.builtin }) };
-      else if (url.pathname === '/api/context/compression') r = { said: setOutputCompression(st, Array.isArray(b.tools) ? b.tools : [], ['high', 'moderate'].includes(b.level) ? b.level : 'off') };
       else if (url.pathname === '/api/harness/settings') { const v = k => typeof b[k] === 'boolean' ? b[k] : undefined; r = { said: JSON.stringify(setHarnessSettings(st, { recall: v('recall') })) }; }
       else return json(res, 404, { error: 'not found' });
       if (r?.error) return json(res, 400, { error: r.error });

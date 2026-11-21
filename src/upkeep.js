@@ -11,9 +11,9 @@
 //
 // What a check looks for (CHORES):
 //   sweep     worktrees and branches whose work is merged (upkeep-sweep.js)
-//   context   the context changes Find Savings ranks highest (context-suggest.js:currentChanges): a section of an
+//   context   the context changes `thinker context` ranks highest (context-suggest.js:currentChanges): a section of an
 //             instruction file nobody needs becomes a pull request, a tool nobody calls is switched off or made a
-//             reference. One computation with the page: the decision is kept in the same history, by the door `thinker`.
+//             reference. One computation with the command: the decision is kept in the same history, by the door `thinker`.
 //   rules     a section of the instruction file that sessions keep breaking, from the verdicts on real sessions
 //             (instruction-value.js). Something worth knowing, which thinker says when it is asked: what to do about a
 //             rule nobody follows is the person's.
@@ -23,7 +23,7 @@
 // only for important things and not too frequently"):
 //   - It acts by itself (`level: 'auto'`). `ask` has it wait for the person's word in the chat; `off` stops the checks.
 //   - Only on what is important: a part the Context report flags high waste (5% of its kind's cost or more spent
-//     where it was not needed), a sweep of three things or 500 MB. What is not important stays on Find Savings.
+//     where it was not needed), a sweep of three things or 500 MB. What is not important stays in `thinker context`.
 //   - Not often: one pull request a repository a week and never while one is open, one a day over the whole
 //     machine; one tool a day over the machine; one sweep a repository a day. What has to wait its turn is done at
 //     a later check.
@@ -441,7 +441,7 @@ export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns =
   return { said: [r.said, impactSaid(r.impact)].filter(Boolean).join(' · '), done: entry.id, title: it.title };
 }
 // Leave a thing alone, as the person said in the chat: thinker does not come back to it for UPKEEP.dismissDays (a
-// context change is also left alone in its own history, as on Find Savings).
+// context change is also left alone in its own history, as in `thinker context`).
 export function upkeepDismiss(store, ref, { now = Date.now(), fns = {} } = {}) {
   const it = itemOf(store, ref, now);
   if (!it) return { error: `nothing is waiting under ${ref}` };
@@ -489,7 +489,7 @@ const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String
 // What a line came to, in a few words (the owner's ask, 2026-11-21: "one line summary of the action and its impact,
 // e.g. -10k tokens per prompt, $45/day"). Tokens off every prompt are the decision's own measured effect once the
 // sessions since can say (report.js:actionEffect: the thing's cost a prompt before against after), and until then what
-// Find Savings expected of it, said as "about". A day's dollars are those tokens over the prompts a day here at what an
+// the Context report expected of it, said as "about". A day's dollars are those tokens over the prompts a day here at what an
 // input token costs here (report-snapshot.js:inputRateHere, the Report's rate), and are left out where nothing is priced.
 export function impactSaid(i) {
   if (!i) return '';
@@ -600,7 +600,7 @@ export function upkeepDelegated(store, { now = Date.now(), days = UPKEEP.feedDay
 // how the dollars are reckoned, where its pull request is, and whether it can be taken back. Read from what is kept;
 // nothing is measured here.
 const dateSaid = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-const DOORS = { page: 'by the person, on Find Savings', session: 'by the person, answering the weekly question in a session', command: 'by the person, from the command line', setup: 'by the person, while installing' };
+const DOORS = { page: 'by the person, on the page', session: 'by the person, answering the weekly question in a session', command: 'by the person, from the command line', setup: 'by the person, while installing' };
 export function upkeepDetail(store, id, { now = Date.now(), log, report, compression, home = thinkerHome() } = {}) {
   const out = [];
   id = String(id || '');

@@ -4,7 +4,7 @@
 // and the page reads that: `thinker report` and `thinker report --refresh` write it (`--all` for every repository the
 // page lists, in one process so the log is parsed once), and the page starts that in the background when what it
 // read is older than REFRESH_MS or was made by other code. The decisions under the tables are not kept: the server
-// reads them live (report.js:reportActions), so one taken on Find Savings a moment ago is in the window at once.
+// reads them live (report.js:reportActions), so one taken a moment ago is in the window at once.
 // One file per repository (`.thinker/state/report.json`, every window asked for under `views`): a linked worktree
 // keeps its cache in the main checkout's .thinker and the sessions are gathered over every checkout, so every
 // checkout reads and refreshes the same report (the owner's decision, 2026-10-24: worktrees are not a dimension).
