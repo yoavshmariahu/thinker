@@ -559,6 +559,45 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 - What stays true of the harness: a settings hook can rewrite an Agent call's input; the Agent tool's `model` takes an alias and refuses a full id; the call's model outranks an agent definition's.
 - Also not built, on the same replay: build, fix-loop and commit/PR handoffs (70% of build runs are 1-4 calls, nothing at the first edit predicts a long one); browser runs (a hook sees the call, not what the run is to check).
 
+**The same file, read again: the model is pointed at the copy it already has (2026-11-20, the owner's call after
+Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
+- The measurement that asked for it, free, off this machine's own transcripts (14 days, 1,035 of them, 10,938
+  reads): **36% of every tool result a model was handed was a byte-identical repeat of a result already in that
+  same context**, 44% of the read bytes, 87% of it within five calls of the first copy. Under the rule below the
+  fortnight would have kept 24M tokens out of the context (39% of what reads put in), a billion cache-read
+  tokens, about **$390 at list** -- against the clearing's measured $4-7 a week and the handoff's $13-17. Repeats
+  of **shell** output are 6% of shell bytes and JSON and log squeezing (Headroom's own big numbers) are 0.1-0.3%
+  of this machine's result bytes, so neither is built: the saving here is reads, and it is repetition.
+- **The rule.** A Read, or a shell line that prints a file, whose bytes the model already has is denied, and the
+  denial says where its own copy is (`denial({ kind: 'repeat' })`). No model is asked anything, nothing is
+  summarised, and nothing is taken away -- the bytes are in the context already. It fires below the handoff's
+  threshold, which is the point: reads of 35k tokens and over are 2% of the result mass, 2k-8k is half of it.
+- **The guards are the rule.** The earlier copy must have landed in the context (a read the handoff answered
+  never did, so the next read of that file is the model's first sight of it); the file must be byte-identical
+  now (`contentHash`, so a changed file is always read again and no staleness policy is needed); the same range;
+  a compaction drops the memory (`compactions.js:compactionsSince`, moved there from `profile.js` so neither
+  hook pulls the other's module graph); once per file per turn (`pointed`), so a model that insists gets the
+  bytes and a deterministic denial can never loop; `repeatMin` 2,000 tokens (98% of the value, a fifth fewer
+  firings than a floor of 500); and the keep list's patterns, so the person's own files are never answered for.
+  The keep list's other half -- a file named in this turn's prompt -- is not applied: it exists so the model is
+  never handed a summary of the file it was told to read, and its own copy is not a summary.
+- **Both doors.** The settings hook denies as it does for a handoff. The mod is the door in every session it
+  marks, and it read only subagent orders until now: `register.tsx:reasonOf` returns a denial that carries no
+  order, which is this pointer (and the fallback subagent's report, dropped there until the same day).
+  OpenCode's plugin already threw a denial with no order as the call's result. The pointer rides the handoff's
+  hook, so `delegate: false` switches both off and `delegate: { repeats: false }` only this one.
+- **Measured from day one**, like the handoff: a row per firing (`op: repeat`: tool, files, tokens, `held`,
+  `fired`, `declined` for `below-floor`, `pointed`, `compacted`), **half the sessions held out** by a hash of
+  their own (`repeat#<session>`, so no session is on the quiet side of both triggers), and the session's own
+  figure at the end of the turn -- `st.repeated` through `delegated.js:delegatedOf`, the same arithmetic as a
+  handoff's saving (the write once, the read on every later call, nothing where the lead read the file whole
+  anyway) under `repeated` on the `op: session` row, never added into the handoff's figure.
+- **Live, on Opus 5 through the settings hook (2026-11-20):** the second whole-file read was denied, the lead
+  answered from the first copy ("200 functions, f7 returns x + 7"), said the hook had stopped the read and why,
+  and did not route around it. The mod's branch is held by a test that runs the mod's own `reasonOf`; a headless
+  `claude -p` session would not activate the mod against a redirected `THINKER_HOME`, cause unknown, so that
+  door's live check waits for a real session on a released build.
+
 **Claude Code's agent hook: the harness runs the subagent, no rule fires it yet (2026-11-15, the owner's call):**
 - A PreToolUse handler of `type: "agent"` makes Claude Code spawn its own subagent on a matched call; its `ok: false` reason is the denied call's result. The lead has no say and thinker spawns nothing.
 - `delegate.js:agentHookEntries`, `agentHookPrompt`; reads only. Rules are `delegate: { agentHooks: [{ matcher, if? }] }`, **empty by default, so nothing is written**. When to fire is a separate decision.

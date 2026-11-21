@@ -12,7 +12,7 @@ import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 import { noteCompression, compressionDir, readCompression } from '../src/compression.js';
 import { pointer, POINTER_OPENS } from '../src/tool-stubs.js';
 import { clearAnswer, clearPays, desktopPolicy, HOLD_GROWTH } from '../src/clear-door.js';
-import { REPORT_SLOT, DELEGATE_SESSION_MARK, DELEGATE_DEFAULTS } from '../src/delegate.js';
+import { REPORT_SLOT, DELEGATE_SESSION_MARK, DELEGATE_DEFAULTS, denial } from '../src/delegate.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'src', 'cli.js');
@@ -23,6 +23,14 @@ const MOD_SRC = path.join('src', 'integrations', 'claude-clear', 'hooks', 'regis
 const src = () => fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
 // the value of an `export const NAME = <expr>` in the mod, so a constant written as `65 * 60 * 1000` compares
 const modLet = (s, name) => { const m = s.match(new RegExp(`\nlet ${name} = ([^\n/]+)`)); return m ? new Function(`return ${m[1]}`)() : undefined; };
+// a function of the mod's, run here: the signature's type annotations stripped and nothing else, so what is
+// tested is the mod's own code and not a copy of it
+const modFn = (s, name) => {
+  const at = s.indexOf(`export function ${name}(`);
+  const end = s.indexOf('\n}', at);
+  const src = s.slice(at, end + 2).replace(`export function ${name}`, 'function ' + name).replace(/\)\s*:[^{]+\{/, ') {').replace(/(\w+): string \| undefined|(\w+): string|(\w+): any/g, '$1$2$3');
+  return new Function(`${src}; return ${name};`)();
+};
 const modConst = (s, name) => {
   const m = s.match(new RegExp(`export const ${name} = (.+)\\n`));
   return m ? new Function(`return ${m[1]}`)() : undefined;
@@ -290,4 +298,22 @@ test('the mod\'s delegation hook shares the report slot, the session mark and th
   assert.match(s, /'hook', 'pretool', '--client', 'claude', '--user'/, 'one copy of the rule: the CLI\'s');
   assert.match(s, /host_runs: true/);
   assert.match(s, /for \(const tool of \['Read', 'Bash'\]\) on\('tool\.call'/);
+  // A denial with no order is the answer itself -- the pointer at a copy the model already has
+  // (delegate.js:denial, kind `repeat`). The mod is the door in every session it marks, so it must return those
+  // words; it read only orders until 2026-11-20 and dropped them.
+  assert.match(s, /export function reasonOf/);
+  assert.match(s, /const words = reasonOf\(answer\)\n\s*if \(words\) return words/);
+  assert.match(s, /!j\?\.thinkerRun && h\?\.permissionDecision === 'deny'/);
+  // and the branch itself, run: a denial with no order is the words, an order is not, and nothing else is either
+  const reasonOf = modFn(s, 'reasonOf');
+  const deny = r => JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: r } });
+  assert.equal(reasonOf(denial({ kind: 'repeat', files: ['/r/a.js'], cwd: '/r' })).startsWith('thinker stopped this call'), true);
+  assert.equal(reasonOf(deny('words')), 'words');
+  assert.equal(reasonOf(JSON.stringify({ ...JSON.parse(deny('words')), thinkerRun: { agent: 'x' } })), null, 'an order is the host\'s to run');
+  assert.equal(reasonOf(''), null);
+  assert.equal(reasonOf('{}'), null);
+  assert.equal(reasonOf(deny('')), null);
+  // and the rule's own name is the CLI's: `repeats` off in the machine config switches the pointer off, the
+  // hook entry and this branch alike
+  assert.equal(DELEGATE_DEFAULTS.repeats, true);
 });

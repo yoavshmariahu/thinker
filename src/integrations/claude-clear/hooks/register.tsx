@@ -240,6 +240,18 @@ export function pretoolEvent(e: any, ctx: { session: string; cwd: string; turn: 
   const { tool, tool_use_id, agentId, requestMeta, consent, ...input } = e
   return { session_id: ctx.session, cwd: ctx.cwd, prompt_id: ctx.turn, user_prompt: ctx.prompt, tool_name: tool, tool_input: input, tool_use_id, host_runs: true, ...(inFlight ? { in_flight: true } : {}) }
 }
+// A denial the CLI answers with and no order to run (delegate.js:denial): the pointer at a copy of a file the
+// model already has in its context, and the fallback subagent's report where that is switched on. The words are
+// the whole answer -- nothing is spawned and nothing is waited for -- so this door returns them as they are.
+// Without this branch the mod dropped them and the read went through, and the mod is the door in every session
+// it marks (delegate.js:preToolHook stands the settings hook down there).
+export function reasonOf(stdout: string): string | null {
+  try {
+    const j = JSON.parse(stdout), h = j?.hookSpecificOutput
+    return !j?.thinkerRun && h?.permissionDecision === 'deny' && typeof h.permissionDecisionReason === 'string' && h.permissionDecisionReason
+      ? h.permissionDecisionReason : null
+  } catch { return null }
+}
 // the order out of the CLI's answer, or null: nothing fired, or it fired with nothing for the host to run
 export function orderOf(stdout: string): any | null {
   try { const j = JSON.parse(stdout); const o = j?.thinkerRun; return o && o.agent && o.prompt && String(o.wrap || '').includes(REPORT_SLOT) ? o : null } catch { return null }
@@ -315,7 +327,11 @@ const pretool = async ($: any, e: any, inFlight = false) => $.process.run(
 )
 async function handOff($: any, e: any): Promise<string | null> {
   const r = await pretool($, e)
-  const order = r.exitCode === 0 ? orderOf(String(r.stdout || '')) : null
+  if (r.exitCode !== 0) return null
+  const answer = String(r.stdout || '')
+  const words = reasonOf(answer)
+  if (words) return words
+  const order = orderOf(answer)
   if (!order) return null
   // no model named: the agent's own definition picks it (thinker pins Explore.md), and the Agent tool refuses a full id
   const s = await $.agent.spawn({ subagentType: order.agent, prompt: order.prompt, description: order.title })
