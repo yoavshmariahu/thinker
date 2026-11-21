@@ -11,6 +11,7 @@ import { parseTranscript, recordEvent, traceFile, toolName, toolInput, hydrate, 
 import { enqueueJob, recentAppSession, runSessionWork } from '../session-work.js';
 import { isWorkerPrompt } from '../session-llm.js';
 import { profileSession, exchanges } from '../profile.js';
+import { passSections, recordPassVerdicts } from '../instruction-value.js';
 
 async function learnCommand(ctx) {
   const { flags } = ctx;
@@ -131,7 +132,12 @@ export async function distillFile(ctx, file, { dry, quiet, incremental, batch, f
     else {
       if (dry) { out(JSON.stringify({ exchanges: exchanges(events).length, fromLine }, null, 2)); return; }
       if (phase !== 'init' && !withinDailyCap(store).ok) throw new Error('daily learning token cap reached; session will retry');
-      const r = await profileSession(store, events, { session: session || path.basename(file).replace(/\.jsonl?$/, ''), client: fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt, repoHint: repo, fromLine, lineCount, accounting: { phase, transcript: path.basename(file) }, completeFn });
+      const id = session || path.basename(file).replace(/\.jsonl?$/, ''), client = fmt === 'agy' ? 'gemini' : fmt === 'events' ? 'trace' : fmt;
+      // the sections of the instruction file that could bear on this session ride the same read (instruction-value.js);
+      // never a reason to lose the session's reading
+      let rules = []; try { rules = passSections(store, events, { session: id, client }); } catch {}
+      const r = await profileSession(store, events, { session: id, client, repoHint: repo, fromLine, lineCount, accounting: { phase, transcript: path.basename(file) }, completeFn, rules });
+      if (rules.length) { try { recordPassVerdicts(store, file, { session: id, client, verdicts: r.rules, shown: rules.length }); } catch {} }
       if (!quiet) { for (const o of r.observations) out(`observed ${o.outcome.padEnd(10)}${o.interrupts ? ' [interrupted]' : ''} ${o.request}`); out(`read ${r.exchanges} exchanges → ${r.observations.length} observations${r.compiled ? '; profile compiled' : ''}${r.tokens ? `; ~${formatTokens(r.tokens)} tokens` : ''}`); }
     }
     if (incremental && !dry) { fs.mkdirSync(stateDir, { recursive: true }); fs.writeFileSync(stateFile, JSON.stringify({ ...state, line: lineCount, at: new Date().toISOString() })); }
