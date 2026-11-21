@@ -1,7 +1,7 @@
 // Background maintenance: what a user would otherwise have to remember to run. Since the knowledge notes went
 // (2026-11-08) it spends no tokens of its own: it prunes state files no session will read again, reads the
 // repository's pull requests so `thinker prs` knows what the sessions delivered, looks for a container thinker is
-// not in, and schedules the weekly context suggestion. It starts from the catch-up learning run (at most every ten
+// not in, schedules the weekly context suggestion, and runs upkeep (upkeep.js). It starts from the catch-up learning run (at most every ten
 // minutes, from the prompt hooks) and from the git post-commit hook, and runs at most once every four hours, on the
 // next activity after it is due. The daily token cap it keeps is what the profile's reads of sessions are bounded
 // by (learn.js, profile.js): tokens, not dollars, since the agents run on subscriptions as often as on metered keys.
@@ -165,6 +165,19 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.contextSuggest !== false && !dry) {
       try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
     }
+    // 5. upkeep (upkeep.js): what the agents left behind here, and what is important enough for thinker to do by itself
+    // -- remove merged worktrees and branches, put up a pull request -- within how often it may. No model call. What it
+    // did is said once at the end of a turn (maintenanceNotice), and kept under Recent activity.
+    if (!dry) {
+      try {
+        const { upkeepCheck } = await (fns.upkeep ? { upkeepCheck: fns.upkeep } : import('./upkeep.js'));
+        const k = await upkeepCheck(store, { now });
+        if (!k.skipped) {
+          r.upkeepFound = k.found;
+          if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => d.kind === 'pr' ? 'started a pull request for a section nobody needs (Recent activity has it)' : `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}`)])].slice(-4) }; }
+        }
+      } catch (e) { failed('upkeep', e); }
+    }
     const u = state.unreported || {};
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
@@ -210,6 +223,8 @@ export function maintenanceNotice(store, { now = new Date() } = {}) {
     try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
   }
   if (u.gaveUp?.length) parts.push(...u.gaveUp);
+  // what thinker did by itself since the person last heard: said once, the detail is under Recent activity
+  if (u.did?.length) parts.push(...u.did);
   if (!parts.length) return '';
   delete state.unreported;
   try { fs.writeFileSync(stateFile(store), JSON.stringify(state)); } catch {}
@@ -236,6 +251,8 @@ export function renderMaintain(r) {
   if (r.prSynced) bits.push(`${r.prSynced} pull ${r.prSynced === 1 ? 'request' : 'requests'} read`);
   if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
   if (r.contextSuggested) bits.push(`${r.contextSuggested} context ${r.contextSuggested === 1 ? 'change' : 'changes'} suggested`);
+  if (r.upkeepDid) bits.push(`${r.upkeepDid} ${r.upkeepDid === 1 ? 'thing' : 'things'} done on its own`);
+  if (r.upkeepFound) bits.push(`${r.upkeepFound} ${r.upkeepFound === 1 ? 'thing needs' : 'things need'} you (\`thinker activity\`)`);
   return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
 }
 

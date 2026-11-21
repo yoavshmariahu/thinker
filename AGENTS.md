@@ -10,6 +10,9 @@ agent session ──► prompts + answers ──► extract ──► .thinker/l
 proxy / desktop mod ──► clears finished tool results ──► savings ledger                  first prompt ◄──┘
 ```
 
+Between sessions thinker also looks after the repositories by itself (upkeep) and can be talked to (the chat); see
+"Upkeep and the chat" below.
+
 The knowledge notes (distilled per session, served per prompt, verified against the code) were removed on
 2026-11-08 in favour of the session profile; see "Knowledge notes, removed" below for what went and why.
 
@@ -718,6 +721,29 @@ agents' context goes, read from their transcripts (`context-machine.js`): on a t
 to cut first in the browser or there (`setup/context-ask.js`), in the browser the page opens on All with the same
 suggestions checked. The old cache build (`--build`, `--prs`, `--areas`, `--no-seed` and the rest) is accepted and
 ignored; its history is in git before 2026-11-08.
+
+## Upkeep and the chat (2026-11-21, the owner's direction)
+
+The owner: thinker is an agent of its own. It "should take actions on its own and put up PRs as needed, but only for important things and not too frequently", people "chat with thinker about changing its behavior on that", and Recent activity shows the rest.
+
+- **Upkeep** (`src/upkeep.js`): a check, what needs the person, what was done. `thinker activity` ↔ Recent activity's first view (*What thinker did*), one view (`upkeepView`; `mergeUpkeepViews` for All repositories).
+- **A check spends no model tokens.** It reads what was measured already: by code, or by the one pass each session gets when it ends. Nothing is replayed, nothing judged twice.
+- **When**: with maintenance (`maintain.js`, every 4 h on the next activity) and `thinker activity run`. The page only ever starts a look (`--look`, `act: false`): a visit never has thinker act.
+- **Chores** (`CHORES`): `sweep` merged worktrees and branches (`upkeep-sweep.js`); `context` the changes Find Savings ranks highest (`currentChanges`; a section is a pull request, a tool a switch; through `approveChanges`/`dismissChanges` by the door `VIA.thinker`); `rules` a section sessions broke `UPKEEP.ruleBroken` (3) times in 30 days, a heads-up; `waiting` a pull request to merge, a failed change to retry.
+- **It acts by itself, on important things only, and not often** (`BEHAVIOR`, `mayAct`):
+  - Important: a section the Context report flags high waste; a sweep of 3 things or 500 MB. What is not important is not listed either; it stays on Find Savings.
+  - Rate: one pull request a repository a week and never while one is open, one a day over the machine (`<THINKER_HOME>/state/upkeep.json`), one sweep a repository a day. A find waiting its turn is counted (`later`), not listed.
+  - A pull request is the only way it changes a repository's files; where none can be opened the section waits for the person.
+  - It does not switch tools by itself (`tools: false`): that changes what an agent can call. An important one is listed under *Needs you*.
+  - What it did is said once at the end of a turn (`maintenanceNotice`) and kept under Recent activity with its undo.
+- **Settings**: `upkeep: { level: auto|ask|off, sweep, prs, tools, important, prEveryDays, prsPerDay, sweepEveryDays, sweepMin, sweepMinMb }` in `<THINKER_HOME>/config.json` (machine) and `.thinker/config.json` (one repository, which wins); `upkeep: false` is off. Read through `SETTINGS`, which refuses a key or a value it does not know. No environment variable.
+- **Merged means**: the tip is an ancestor of the default branch, or a merged pull request in the delivery journal has this exact commit as its head (a squash merge). No call to GitHub from the sweep.
+- **Never swept**, each kept with its reason: the main checkout, a worktree a process sits in (`lsof -d cwd`; unknown means busy), uncommitted or untracked files, ignored files nothing regenerates (`REGENERABLE` is what does not count), detached, locked, changed in the last day, the default branch and its relatives. Removal is `git worktree remove` without `--force` and `update-ref -d <ref> <sha>`; the undo is the branch name and its commit.
+- **The chat** (`src/chat.js`): `thinker chat "…"` ↔ the page's chat window, one function (`chatSend`), one conversation for the machine (`<THINKER_HOME>/state/chat.json`).
+  - One model call a message, through the person's own login (`completeProfile`, else another agent's CLI). Shown the settings, what needs the person and what was done (`chatContext`).
+  - It returns a reply and actions from a fixed set: `set` (a setting, machine or one repository), `do`, `leave`, `undo`, `look`. The code carries them out and says what happened in its own words (`did`); an unknown setting, repository or item is refused.
+  - Desktop app with no CLI login: the message is queued for the app's session (`session-work.js`, `thinker chat --answer`); the window shows it waiting.
+- **State**: `.thinker/state/upkeep.json` (last check, kept items, dismissals held 7 days, the last 200 actions with their undo). Log rows `op: upkeep`, `upkeep-do`, `upkeep-dismiss`, `upkeep-undo`, `upkeep-set`, `chat`: counts, kinds and setting names, never the words.
 
 ## Pull requests delivered (`thinker prs`, 2026-10-29)
 

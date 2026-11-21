@@ -4,6 +4,8 @@
 // decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`); and Recent activity, every
 // decision taken with what came of it and what still needs the person (context-suggest.js:changeHistory, as `thinker
 // context --history`): a compression running in the background or failed, a pull request waiting to be merged. The
+// Recent activity opens on what thinker did and what needs the person (upkeep.js, as `thinker activity`), and every tab
+// has the chat window, where the person asks thinker what it did and tells it how to behave (chat.js, as `thinker chat`).
 // Cache view (the usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at
 // the owner's decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
 //
@@ -26,6 +28,8 @@ import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
 import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
 import { uiScans, scanStatus } from './scans.js';
+import { upkeepView, mergeUpkeepViews, upkeepCheck, upkeepDo, upkeepDismiss, upkeepUndo, UPKEEP } from '../upkeep.js';
+import { chatSend, readChat, CHAT } from '../chat.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -106,7 +110,8 @@ const readBody = req => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
 });
 
-export function createUiServer(store, { home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReportFn, refreshReposFn, spawnFn = spawn } = {}) {
+// `chatFn`: the model the chat answers through, given by tests; else the person's own login (chat.js)
+export function createUiServer(store, { home = thinkerHome(), transcriptsHome, cliPath = path.join(HERE, '..', 'cli.js'), refreshFn, refreshReportFn, refreshReposFn, spawnFn = spawn, chatFn = null } = {}) {
   refreshReposFn ||= () => { try { const p = spawn(process.execPath, [cliPath, 'ui', '--refresh'], { cwd: store.repo, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); } catch {} };
   const background = serialSpawner();
   const child = (args, cwd) => { const p = spawn(process.execPath, [cliPath, ...args], { cwd, stdio: 'ignore', detached: true }); p.on('error', () => {}); p.unref(); return p; };
@@ -114,6 +119,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
   refreshFn ||= checkout => background(`context:${checkout}`, () => child(['context', '--refresh', '--quiet', '--repo', checkout], checkout));
   // an old Report by `thinker report --refresh`: one repository's, or every repository's in one run (null)
   refreshReportFn ||= checkout => checkout ? background(`report:${checkout}`, () => child(['report', '--refresh', '--quiet', '--repo', checkout], checkout)) : background('report:all', () => child(['report', '--refresh', '--all', '--quiet'], store.repo));
+  // A repository thinker has not looked at lately is looked at by `thinker activity run --look` in the background (no
+  // model call), one at a time with the other refreshes, and asked for at most every LOOK_ASK_MS so a look that fails is
+  // not started again by every poll of the page. `--look`: a visit to the page never has thinker act; that is
+  // maintenance's clock and the person's own `thinker activity run`. (`looking` in the answer counts the repositories
+  // asked for in the last LOOK_WAIT_MS: after that the page stops waiting.)
+  const lookAsked = new Map(), LOOK_ASK_MS = 10 * 60_000, LOOK_WAIT_MS = 2 * 60_000;
+  const lookFn = checkout => {
+    if (Date.now() - (lookAsked.get(checkout) || 0) < LOOK_ASK_MS) return false;
+    lookAsked.set(checkout, Date.now());
+    return background(`upkeep:${checkout}`, () => child(['activity', 'run', '--look', '--quiet', '--repo', checkout], checkout));
+  };
   const scans = uiScans();
   let discovering;
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
@@ -338,8 +354,56 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // `scan`: how far the report read behind `measuring` has got, for the page's banner (scanProgress)
         return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, scan: readings.length ? scanStatus(readings) : null, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
+      // What thinker did and what needs the person (upkeep.js:upkeepView, as `thinker activity`), for one repository or every
+      // one merged (mergeUpkeepViews), read from what the last check kept. Nothing is looked for on a visit: a repository
+      // whose last check is old gets a look in the background (`looking`), and the page checks back.
+      if (req.method === 'GET' && url.pathname === '/api/upkeep') {
+        const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
+        const pairs = []; let looking = 0;
+        for (const [r, st] of stores) { try {
+          const view = upkeepView(st, { home });
+          if (view.level !== 'off' && url.searchParams.get('look') !== '0' && (!view.lastCheck || Date.now() - Date.parse(view.lastCheck) > UPKEEP.staleMs)) { lookFn(st.repo); if (Date.now() - (lookAsked.get(st.repo) || 0) < LOOK_WAIT_MS) looking++; }
+          pairs.push({ repo: r.id, name: r.name, view });
+        } catch {} }
+        return json(res, 200, { ...mergeUpkeepViews(pairs), repos: pairs.length, looking });
+      }
+      // the conversation with thinker (chat.js:readChat, as `thinker chat`): the machine's one, whatever tab is open
+      if (req.method === 'GET' && url.pathname === '/api/chat') return json(res, 200, { messages: readChat({ home }).slice(-CHAT.shown) });
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
+      // a message to thinker (chat.js:chatSend): one model call through the person's own login, or queued for an app's
+      // session where no model can be called from here; shown every repository, told which one the person is looking at
+      if (url.pathname === '/api/chat') {
+        const all = (storesFor('all') || []).map(([r, st]) => ({ id: r.id, name: r.name, store: st }));
+        const about = all.some(r => r.id === String(b.repo || '')) ? String(b.repo) : null;
+        const r = await chatSend(String(b.message || ''), { repos: all, about, home, ...(chatFn ? { completeFn: chatFn } : {}), fns: { spawn: spawnFn } });
+        if (r.error) return json(res, 400, { error: r.error });
+        harnessCache.clear();
+        return json(res, 200, { ok: true, messages: r.messages, pending: Boolean(r.pending) });
+      }
+      // `thinker activity run --look` from the page: this repository now, or every repository's in the background
+      if (url.pathname === '/api/upkeep/look' && String(b.repo || '') === 'all') {
+        const stores = storesFor('all') || [];
+        for (const [, st] of stores) { lookAsked.delete(st.repo); lookFn(st.repo); }
+        return json(res, 200, { ok: true, said: `Looking at ${stores.length} repositor${stores.length === 1 ? 'y' : 'ies'} again.`, looking: stores.length });
+      }
+      if (url.pathname.startsWith('/api/upkeep/')) {
+        const st = storeFor(String(b.repo || ''));
+        if (!st) return json(res, 400, { error: 'unknown repository' });
+        const id = String(b.id || '');
+        // a context change decided here is the same decision as on Find Savings: the kept report is made again
+        const context = id.startsWith('change:');
+        if (context) { await scans.cancel(); harnessCache.clear(); }
+        let r;
+        if (url.pathname === '/api/upkeep/look') { const x = await upkeepCheck(st, { act: false, home }); r = x.skipped ? { error: 'thinker is switched off in this repository' } : { said: x.found ? `Looked again: ${x.found} thing${x.found === 1 ? '' : 's'} for you.` : 'Looked again: nothing needs you.' }; }
+        else if (url.pathname === '/api/upkeep/do') r = await upkeepDo(st, id, { fns: { spawn: spawnFn }, home });
+        else if (url.pathname === '/api/upkeep/leave') r = upkeepDismiss(st, id, { home });
+        else if (url.pathname === '/api/upkeep/undo') r = upkeepUndo(st, id);
+        else return json(res, 404, { error: 'not found' });
+        if (r.error) return json(res, 400, { error: r.error });
+        if (context && url.pathname === '/api/upkeep/do' && !refreshing(st)) refreshFn(st.repo);
+        return json(res, 200, { ok: true, said: r.said });
+      }
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       await scans.cancel(); // an older scan must not overwrite snapshots after this action
