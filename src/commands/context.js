@@ -1,7 +1,7 @@
 // `thinker context`: where the agents' context goes here, part by part, and what each part is worth
 // (context-view.js): the instruction file's sections, the skills, the other tools loaded into every session.
 // The report changes nothing; --judge n spends model calls on the newest sessions not judged yet, so the
-// sections' verdicts fill in without waiting for the sampled check. The controls are the commands they name:
+// sections' verdicts fill in for sessions read before the pass judged them (instruction-value.js). The controls are the commands they name:
 // `thinker instructions --compress|--remove` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
 // the report for the page (context-snapshot.js), which starts it in the background. --machine is the report over
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the

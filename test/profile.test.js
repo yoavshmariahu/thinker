@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileDir, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM } from '../src/profile.js';
+import { PROFILE, SECTIONS, profileDir, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM, OBSERVATION_SCHEMA, RULE_VERDICTS, checkedRule, extractObservations } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
+import { passSections, readValueState } from '../src/instruction-value.js';
 import { Store } from '../src/store.js';
 
 const DAY = 86400_000;
@@ -227,6 +228,58 @@ test('distillFile reads the session into the ledger; a turn-end batch waits for 
   assert.equal(state.line, 8, 'the transcript\'s lines are marked read, as for a distillation');
   await distillFile(ctx, file, { minExplore: 1, quiet: true, incremental: true, session: 's9', completeFn });
   assert.equal(calls, 1, 'nothing new in the transcript, no call');
+});
+
+// The sections of the repository's instruction file are judged in the same read (2026-11-21, the owner's call: "each
+// session gets one pass"), where a second model call on a sample once did it and, from 2026-11-08, nothing did.
+test('the one read of a session also says what it did with the repository\'s rules, each held to its quote', async () => {
+  const rules = [{ id: 'pull-requests', title: 'AGENTS.md · Pull requests', text: '## Pull requests\n\nNever push main.\n' }, { id: 'tests', title: 'AGENTS.md · Tests', text: '## Tests\n\nRun the tests.' }];
+  let asked = null;
+  const r = await extractObservations(session, { rules, have: ['claude'], completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [fakeObs()], rules: [
+    { id: 'pull-requests', verdict: 'followed', evidence: 'Opened PR #12.' },
+    { id: 'tests', verdict: 'violated', evidence: 'the agent never ran pytest' },
+    { id: 'made-up', verdict: 'violated', evidence: 'Opened PR #12.' },
+    { id: 'pull-requests', verdict: 'violated', evidence: 'Opened PR #12.' },
+  ] }, model: 'fake-opus' }; } });
+  assert.match(asked, /THE REPOSITORY'S RULES \(2 sections of the instruction file that could bear on this session\):\n\[pull-requests\] AGENTS\.md · Pull requests\n## Pull requests\n\nNever push main\.\n\n\[tests\] /);
+  assert.match(asked, /a `rules` entry for each section of the repository's rules that bore on the session/);
+  assert.ok(asked.indexOf("THE REPOSITORY'S RULES") < asked.indexOf('EXCHANGES ('), 'the rules stand before the session, as the profile lines do');
+  // a section never shown is dropped, the first verdict per section stands, and a quote that is not in the session
+  // leaves only what the code can vouch for: the section came up
+  assert.deepEqual(r.rules, [
+    { id: 'pull-requests', verdict: 'followed', evidence: 'Opened PR #12.' },
+    { id: 'tests', verdict: 'applicable', evidence: 'the agent never ran pytest', unsupported: 'evidence', claimed: 'violated' },
+  ]);
+  assert.equal(r.observations.length, 1, 'the observations are read as before');
+  // given no rules, the read says nothing of them and keeps none it was not asked for
+  const none = await extractObservations(session, { have: ['claude'], completeFn: async ({ prompt }) => { asked = prompt; return { json: { observations: [], rules: [{ id: 'pull-requests', verdict: 'followed', evidence: 'Opened PR #12.' }] }, model: 'fake-opus' }; } });
+  assert.doesNotMatch(asked, /THE REPOSITORY'S RULES|`rules` entry/); assert.deepEqual(none.rules, []);
+  assert.match(EXTRACT_SYSTEM, /Judging the repository's own rules:/);
+  assert.deepEqual(OBSERVATION_SCHEMA.properties.rules.items.properties.verdict.enum, RULE_VERDICTS);
+  assert.deepEqual(checkedRule({ id: 'x', verdict: 'applicable', evidence: 'anything' }, ''), { id: 'x', verdict: 'applicable', evidence: 'anything' });
+});
+
+test('distillFile shows the read the sections the session could bear on and keeps what it said beside the report\'s other figures', async t => {
+  const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
+  const prev = process.env.THINKER_INSTRUCTION_JUDGE; process.env.THINKER_INSTRUCTION_JUDGE = 'on';
+  t.after(() => { if (prev === undefined) delete process.env.THINKER_INSTRUCTION_JUDGE; else process.env.THINKER_INSTRUCTION_JUDGE = prev; });
+  const file = path.join(dir, 'session.jsonl');
+  // the session as before, with the command its last answer speaks of: that is what fires the section's trigger
+  const ran = [...session.slice(0, -1), { t: 'tool', name: 'Bash', input: { command: 'gh pr create --fill' }, result: 'https://github.com/o/r/pull/12' }, session.at(-1)];
+  fs.writeFileSync(file, ran.map(e => JSON.stringify(e)).join('\n') + '\n');
+  assert.deepEqual(passSections(store, session, { session: 's9', client: 'trace' }), [], 'a session that ran nothing the section is about is shown nothing');
+  const shown = passSections(store, ran, { session: 's9', client: 'trace' }).map(s => s.id);
+  assert.deepEqual(shown, ['pull-requests'], 'the fixture\'s one section is what the read will be shown');
+  let asked = null;
+  const completeFn = async opts => { if (!opts.schema?.properties?.observations) return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; asked = opts.prompt; return { json: { observations: [fakeObs()], rules: [{ id: 'pull-requests', verdict: 'followed', evidence: 'Opened PR #12.' }] }, model: 'fake-opus' }; };
+  await distillFile({ repo: dir, store, out: () => {} }, file, { quiet: true, incremental: true, session: 's9', completeFn });
+  assert.match(asked, /\[pull-requests\] AGENTS\.md · Pull requests/);
+  assert.equal(readLedger(store).length, 1);
+  const kept = readValueState(store).sessions.s9.judged;
+  assert.equal(kept.by, 'pass'); assert.deepEqual(kept.verdicts, { 'pull-requests': { verdict: 'followed', evidence: 'Opened PR #12.' } });
+  const log = fs.readFileSync(path.join(dir, '.thinker', 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse);
+  assert.deepEqual([log.find(e => e.op === 'profile').rules, log.find(e => e.op === 'profile').rulesBore], [1, 1]);
+  assert.equal(log.filter(e => e.op === 'instruction-value' && e.pass).length, 1);
 });
 
 test('a backlog is compiled in steps, each shown the profile so far and the observations it cites', async t => {

@@ -41,9 +41,10 @@ section, skill and tool beside:
 - *Used*: how often the sessions acted on it. A section is *applied* when a session touched its
   files, ran its command or read the code it names, free, from the transcript. *Relevant* and
   *followed* come from a model reading one session against the sections and saying which bore on
-  the work and whether the agent followed them; that costs a model call, so it runs on a 25% sample of
-  sessions as they end (`instructions: { value: { judge: false } }` in `.thinker/config.json` turns it
-  off, `share` changes the sample). Once five sessions
+  the work and whether the agent followed them. It is the same read every session gets when it
+  ends, for the profile, shown the sections that could bear on the session, so it costs no call of its
+  own (`instructions: { value: { judge: false } }` in `.thinker/config.json` turns it off, `share`
+  shows the sections to a share of sessions instead of all). Once five sessions
   are judged the share shown is the judged sessions that followed the section. The column header's
   hover says how each kind is counted. A skill is *read* when a session opened it,
   and the sampled outcome check says whether sessions that read it kept its rules, and how often one

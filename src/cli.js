@@ -124,7 +124,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
-                                 calls); a 25% sample is judged as sessions end (instructions: { value: { judge: false, share } } in .thinker/config.json)
+                                 calls); every session is judged in the one read it gets when it ends (instructions: { value: { judge: false } } in .thinker/config.json)
                                  --cards says what each part is, why you would change it and what you would lose, as the page's
                                  cards do, in the same order (\`thinker explain\` writes those words; this view spends nothing)
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)

@@ -64,6 +64,9 @@ export const OUTCOMES = ['accepted', 'corrected', 'redirected', 'unknown'];
 // What a session did with a line of the profile it was shown. `na` is the honest default: most lines have no
 // bearing on most sessions, and counting those as `ignored` would make every line look dead.
 export const LINE_VERDICTS = ['followed', 'ignored', 'contradicted', 'na'];
+// What a session did with a section of the repository's instruction file (instruction-value.js keeps them): a section
+// that did not come up is not listed at all.
+export const RULE_VERDICTS = ['followed', 'violated', 'applicable'];
 
 // On by default since 2026-11-08 (the owner's call; the knowledge notes it replaced went the same day): `learn: {
 // profile: false }` in .thinker/config.json turns it off for a repository, and THINKER_PROFILE=on|off wins over the
@@ -284,7 +287,14 @@ Judging the profile the session was shown:
 Recurrence -- the person saying again what they have said before:
 - You may be given SAID BEFORE: things this person stated or corrected in earlier sessions, each with an id. Some are lines of the profile; most are single earlier statements. For each observation, repeats lists the ids it says again: a pref that restates one, a lesson or a correction that corrects the same thing, a request that re-asks for the same way of working. The same thing in other words is a repeat; a different thing on the same topic is not.
 - This is the profile's own score. The profile exists so that the person never has to say the same thing twice, and every repeat is one time they did. Be exact: a repeat you invent charges the profile with a failure it did not make, and one you miss hides one it did.
-- Whether the agent was shown the profile changes nothing here. The question is only whether the person said it again.`;
+- Whether the agent was shown the profile changes nothing here. The question is only whether the person said it again.
+Judging the repository's own rules:
+- You may be given THE REPOSITORY'S RULES: sections of the instruction file every session here reads, each with an id. They are the team's standing rules, in the file whether or not anybody keeps them, and this is the measure of which ones agents actually keep. In \`rules\`, list a section only when it bore on what this session did; leave out every section that did not come up. Most sessions touch a few, and an empty list is a valid answer.
+  - followed: the session did what the section asks, in a way you can quote: a TOOLS entry it requires (the worktree made, the tests run) or the agent's own words doing it.
+  - violated: the session went against the section: it ran what the section forbids, skipped a step the section requires for exactly this work, or the person had to say the rule themselves. Quote what shows it.
+  - applicable: the section bore on the work and the session shows neither. When in doubt between followed and applicable, say applicable.
+- evidence: words copied exactly from a USER, AGENT or TOOLS line. The code checks it: a followed or violated verdict whose evidence is not in the session is kept as applicable. Judge by the section's own words, never by general good practice. You see no code and no command output, so a rule about how code is written is applicable at most.
+- This is apart from the profile's lines above: a rule may stand in both, and each list is judged on its own.`;
 
 export const OBSERVATION_SCHEMA = {
   type: 'object',
@@ -301,6 +311,21 @@ export const OBSERVATION_SCHEMA = {
           verdict: { type: 'string', enum: LINE_VERDICTS },
           clause: { type: 'string', description: 'for followed, ignored or contradicted: the words of the line the verdict is about, copied exactly; empty for na' },
           evidence: { type: 'string', description: 'for followed, ignored or contradicted: the shortest exact quote from a USER, AGENT or TOOLS line that shows it, about the clause; empty for na' },
+        },
+        required: ['id', 'verdict'],
+        additionalProperties: false,
+      },
+    },
+    // What the session did with the repository's own instruction file, for the sections it was shown and that came up.
+    rules: {
+      type: 'array',
+      description: 'one entry per section of THE REPOSITORY\'S RULES that bore on this session; omit entirely when no rules were given or none came up',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', description: 'the section id exactly as given' },
+          verdict: { type: 'string', enum: RULE_VERDICTS },
+          evidence: { type: 'string', description: 'the shortest exact quote from a USER, AGENT or TOOLS line that shows it' },
         },
         required: ['id', 'verdict'],
         additionalProperties: false,
@@ -388,9 +413,18 @@ export function checkedVerdict(l, shown, sessionText) {
   return why ? { ...v, verdict: 'na', unsupported: why, claimed: l.verdict } : v;
 }
 
-export async function extractObservations(events, { repoHint = '', ended = true, shown = [], prior = [], accounting, completeFn, have, config } = {}) {
+// A verdict on a section, held to the session: a followed or a violated whose quote is not in the text is kept as
+// applicable -- the section came up, and what the session did with it was not shown.
+export function checkedRule(r, sessionText) {
+  const v = { id: r.id, verdict: r.verdict, evidence: String(r.evidence || '').slice(0, 300) };
+  if (v.verdict === 'applicable') return v;
+  const ev = pieces(v.evidence), text = bare(sessionText);
+  return ev.length && ev.every(x => text.includes(x)) ? v : { ...v, verdict: 'applicable', unsupported: 'evidence', claimed: r.verdict };
+}
+
+export async function extractObservations(events, { repoHint = '', ended = true, shown = [], prior = [], rules = [], accounting, completeFn, have, config } = {}) {
   const xs = exchanges(events);
-  if (!xs.length) return { observations: [], lines: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
+  if (!xs.length) return { observations: [], lines: [], rules: [], exchanges: 0, tokens: null, cost: null, chars: 0 };
   const input = extractionInput(xs);
   // What this person has said before, so the same call can mark what they said again (`repeats`). Against the
   // ledger and not the profile alone: a profile that learned nothing would otherwise score perfectly, since the
@@ -400,7 +434,10 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   // One call, not two: the extractor already has the whole session in front of it, and a second call would
   // double what a session costs to read for a signal that rides along for a few hundred tokens.
   const block = shown.length ? `\nTHE PROFILE THIS SESSION WAS SHOWN (${shown.length} lines):\n${shown.map(l => `[${l.id}] (${KIND[l.section] || KIND.howWeWork}) ${l.text}`).join('\n')}\n` : '';
-  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${said}${block}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}${prior.length ? ', each observation\'s `repeats` naming the SAID BEFORE ids it says again' : ''}.`;
+  // The sections of the repository's instruction file that could bear on this session (instruction-value.js:
+  // passSections), for the same reason: the read is already here, and a call of its own for them was dropped once.
+  const ruleBlock = rules.length ? `\nTHE REPOSITORY'S RULES (${rules.length} section${rules.length === 1 ? '' : 's'} of the instruction file that could bear on this session):\n${rules.map(r => `[${r.id}] ${r.title}\n${String(r.text).trim()}`).join('\n\n')}\n` : '';
+  const prompt = `Repository: ${repoHint || '(unknown)'}\n${ended ? 'The session ended after the last exchange.' : 'The session may still be going on after the last exchange.'}\n${said}${block}${ruleBlock}\nEXCHANGES (${xs.length}):\n\n${input}\n\nReturn the observations JSON${shown.length ? ', with one `lines` entry per profile line above' : ''}${rules.length ? ', a `rules` entry for each section of the repository\'s rules that bore on the session' : ''}${prior.length ? ', each observation\'s `repeats` naming the SAID BEFORE ids it says again' : ''}.`;
   const res = await completeProfile({ system: EXTRACT_SYSTEM, prompt, schema: OBSERVATION_SCHEMA, maxTokens: 6000, thinkingTokens: 0, structuredRetries: 1, timeoutMs: 600_000, accounting }, { have, config, completeFn });
   // a repeat names only an id that was offered, and the row keeps which kind it was: a profile line (the serving
   // failed) or a single earlier statement (the compile never learned it)
@@ -416,7 +453,10 @@ export async function extractObservations(events, { repoHint = '', ended = true,
   // only ids that were actually shown, once each: a verdict on a line this session never saw is not evidence
   const lines = (res.json?.lines || []).filter(l => l && ok.has(l.id) && LINE_VERDICTS.includes(l.verdict) && !seen.has(l.id) && seen.add(l.id))
     .map(l => checkedVerdict(l, ok.get(l.id), input));
-  return { observations, lines, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
+  // only sections that were shown, once each, and each held to its quote
+  const given = new Set(rules.map(r => r.id)), named = new Set();
+  const judged = (res.json?.rules || []).filter(r => r && given.has(r.id) && RULE_VERDICTS.includes(r.verdict) && !named.has(r.id) && named.add(r.id)).map(r => checkedRule(r, input));
+  return { observations, lines, rules: judged, exchanges: xs.length, tokens: tokensOf(res), cost: res.cost ?? null, chars: input.length, model: res.model };
 }
 
 // --- ledger ---------------------------------------------------------------
@@ -1125,7 +1165,7 @@ export function syncKeep(store, { now = Date.now(), dir } = {}) {
 // --- a session, end to end ------------------------------------------------
 // Extract a session's observations into the ledger, then compile when due. The caller has parsed the transcript
 // and decided the session is done with (the end hook, or the catch-up over quiet sessions).
-export async function profileSession(store, events, { session, client, repoHint, ended = true, fromLine = 0, lineCount = 0, accounting = {}, completeFn, have, config, compile = true, now = Date.now() } = {}) {
+export async function profileSession(store, events, { session, client, repoHint, ended = true, fromLine = 0, lineCount = 0, accounting = {}, completeFn, have, config, compile = true, rules = [], now = Date.now() } = {}) {
   // the lines this session was shown, with the text it saw, so the same call can say what was done with each
   const prof = readProfile(store);
   const seen = new Set(shownLines(store, session));
@@ -1135,7 +1175,7 @@ export async function profileSession(store, events, { session, client, repoHint,
     ? SECTIONS.flatMap(sec => (prof.sections[sec] || []).filter(e => e.id && seen.has(e.id) && (e.rev || 1) === (revs[e.id] || 1)).map(e => ({ id: e.id, section: sec, rev: e.rev || 1, text: line(sec, e) })))
     : [];
   const prior = priorStatements(store, { session, profile: prof, now });
-  const r = await extractObservations(events, { repoHint, ended, shown, prior, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
+  const r = await extractObservations(events, { repoHint, ended, shown, prior, rules, accounting: { ...accounting, store, purpose: 'profile-extract', session }, completeFn, have, config });
   const dirs = sessionDirs(events, store.repo);
   const arm = profileArmOf(store, session);
   const rows = appendObservations(store, r.observations.map(o => arm ? { ...o, arm } : o), { session, client, dirs, model: r.model, now });
@@ -1143,11 +1183,11 @@ export async function profileSession(store, events, { session, client, repoHint,
   if (session) markExtracted(store, session, { line: lineCount, observations: rows.length });
   try { syncKeep(store, { now }); } catch { /* the keep file is a convenience of the cut's, never a reason to lose a session's reading */ }
   const rec = recurrence(rows);
-  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, repeats: rec.recurrences || undefined, repeatsServed: rec.served || undefined, repeatsUnlearned: rec.unlearned || undefined, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
+  store.log({ op: 'profile', session, client, exchanges: r.exchanges, observations: rows.length, repeats: rec.recurrences || undefined, repeatsServed: rec.served || undefined, repeatsUnlearned: rec.unlearned || undefined, lines: verdicts.length || undefined, followed: verdicts.filter(v => v.verdict === 'followed').length || undefined, ignored: verdicts.filter(v => v.verdict === 'ignored').length || undefined, contradicted: verdicts.filter(v => v.verdict === 'contradicted').length || undefined, rules: rules.length || undefined, rulesBore: r.rules.length || undefined, rulesViolated: r.rules.filter(v => v.verdict === 'violated').length || undefined, outcomes: Object.fromEntries(OUTCOMES.map(o => [o, rows.filter(x => x.outcome === o).length]).filter(([, n]) => n)), chars: r.chars, tokens: r.tokens, cost: r.cost, model: r.model || null, fromLine });
   let compiled = null;
   if (compile && compileDue(store, { now })) {
     const c = await compileProfile(store, { now, accounting: { ...accounting, store, purpose: 'profile-compile' }, completeFn, have, config });
     if (c.profile) compiled = c;
   }
-  return { observations: rows, lines: verdicts, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
+  return { observations: rows, lines: verdicts, rules: r.rules, exchanges: r.exchanges, tokens: (r.tokens || 0) + (compiled?.tokens || 0), compiled: compiled?.profile || null };
 }
