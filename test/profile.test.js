@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM } from '../src/profile.js';
+import { PROFILE, SECTIONS, profileDir, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -740,4 +740,39 @@ test('the caps: four workstreams, sixteen ways of working of one rule each, said
   assert.match(COMPILE_SYSTEM, /workingOn \(4\)/); assert.match(COMPILE_SYSTEM, /howWeWork \(16\)/);
   assert.match(COMPILE_SYSTEM, /One rule, under 120 characters/);
   assert.match(EXTRACT_SYSTEM, /\(work in progress\) line and a \(skill\) line are context, not rules/);
+});
+
+// A line reworded at each compile is always early in a fresh tally (`rev`), so the current wording's figures can
+// never show that no wording of a subject was ever followed. Measured on this repository 2026-11-21: h13 ("say
+// what a finding means in plain words") had three wordings, 12 applied sessions and 0 followed, and the table
+// showed "applied 2, followed 0" -- under any floor, so nothing acted on it, while the recovery line for the same
+// subject was followed in 7 of 7. The compile is shown both tallies and told which one to drop a subject on.
+test('a subject no wording was ever followed reaches the compile as one to drop', async t => {
+  const { store } = tmpRepo(t);
+  const now = Date.now();
+  appendObservations(store, [{ turn: 1, request: 'what the finding means', outcome: 'corrected', prefs: ['say it plainly'], topics: ['answers'] }], { session: 's1', client: 'claude', at: iso(now, 3), now });
+  fs.writeFileSync(path.join(profileDir(store), 'profile.json'), JSON.stringify({
+    version: 4, compiledAt: new Date(now - 2 * DAY).toISOString(), rebasedAt: new Date(now - DAY).toISOString(),
+    window: { days: PROFILE.ledgerDays }, ids: { workingOn: 1, howWeWork: 14, skills: 1 },
+    sections: { workingOn: [], skills: [], howWeWork: [
+      { id: 'h13', text: 'Say what a finding means in plain words', rev: 3, count: 3, obs: ['x'] },
+      { id: 'h14', text: "When the person says 'what', redo it in two plain lines", rev: 1, count: 2, obs: ['y'] },
+    ] },
+  }));
+  // four sessions the subject bore on, over three wordings, followed by none; the recovery line followed in both of its
+  appendLineVerdicts(store, [{ id: 'h13', verdict: 'ignored', evidence: 'a table of figures' }], { session: 'v1', now });
+  appendLineVerdicts(store, [{ id: 'h13', verdict: 'ignored', rev: 2, evidence: 'again' }], { session: 'v2', now });
+  appendLineVerdicts(store, [{ id: 'h13', verdict: 'ignored', rev: 3, evidence: 'and again' }, { id: 'h14', verdict: 'followed', evidence: 'redid it in two lines' }], { session: 'v3', now });
+  appendLineVerdicts(store, [{ id: 'h13', verdict: 'ignored', rev: 3, evidence: 'once more' }, { id: 'h14', verdict: 'followed', evidence: 'two lines again' }], { session: 'v4', now });
+  const rep = lineReport(store);
+  const cur = rep.lines.find(l => l.id === 'h13');
+  assert.deepEqual([cur.applied, cur.followed], [2, 0], 'the current wording is judged on its own sessions, as before');
+  assert.deepEqual(rep.lineage.h13, { revisions: 3, applied: 4, followed: 0 }, 'the wordings together are what show the subject');
+  assert.deepEqual(rep.lineage.h14, { revisions: 1, applied: 2, followed: 2 });
+  let asked = null;
+  await compileProfile(store, { now, have: ['claude'], completeFn: async ({ prompt }) => { asked = prompt; return { json: { keep: ['h13', 'h14'], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; } });
+  assert.match(asked, /"allWordings":\{"wordings":3,"applied":4,"followed":0\}/, 'the compile sees what every wording of the subject came to');
+  assert.equal((asked.match(/allWordings/g) || []).length, 1, 'and only for a line that has been reworded');
+  assert.match(COMPILE_SYSTEM, new RegExp(`Applied in ${PROFILE.unfollowedApplied} or more of them and followed in none`), 'the rule names the floor');
+  assert.match(COMPILE_SYSTEM, /drop it rather than word it again/);
 });

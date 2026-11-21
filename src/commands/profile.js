@@ -75,6 +75,16 @@ async function profileCommand(ctx) {
     out('');
     const unsupported = rep.lines.reduce((n, l) => n + (l.unsupported || 0), 0);
     if (unsupported) out(`${unsupported} verdicts named no clause of their line or quoted nothing in the session: counted as no bearing.`);
+    // A line reworded at each compile is always early in a fresh tally, so the table above can never show that no
+    // wording of it was ever followed. That is the compile's cue to drop the subject (`PROFILE.unfollowedApplied`).
+    const unfollowed = Object.entries(rep.lineage || {})
+      .filter(([, g]) => g.revisions > 1 && !g.followed && g.applied >= PROFILE.unfollowedApplied)
+      .sort((a, b) => b[1].applied - a[1].applied);
+    if (unfollowed.length) {
+      out(`${unfollowed.length} line${unfollowed.length > 1 ? 's' : ''} reworded and never followed by any wording, which the next compile is told to drop:`);
+      for (const [id, g] of unfollowed) out(`  ${id}: ${g.wordings || g.revisions} wordings, applied in ${g.applied} sessions, followed in none`);
+      out('');
+    }
     out('applied is the sessions the line had any bearing on; a rate of – means it has never come up, which is an');
     out(`untested line and not a failing one. Worst first: a line often applied and seldom followed is the one to cut.`);
     out(`A line shown to ${PROFILE.retireShown} sessions that bore on none is retired by the code: kept on the profile, out of the served block.`);
