@@ -44,6 +44,13 @@ export const PROFILE = {
   ruleChars: 120,       // a how-we-work line is one rule this long at most: the line that packed four was followed in 10 of 20 sessions
   textChars: 240,
   retireShown: 15,      // a line judged in this many sessions and found to bear on none leaves the served block (the owner's call, 2026-11-12)
+  // Applied sessions a line's wordings must reach, with none of them followed, before the compile is told to drop
+  // the subject rather than word it again (2026-11-21). A reword restarts the tally by design, so the current
+  // revision's figures can never show a line that keeps being reworded and keeps not being followed: on this
+  // repository h13 ("say what a finding means in plain words, leave out file names and flags") had three wordings,
+  // 12 applied sessions and 0 followed, while the recovery line for the same subject ("when the person says 'what',
+  // redo it in two plain lines") was followed in 7 of 7. At 0 followed over 4 applied sessions it is not the words.
+  unfollowedApplied: 4,
 };
 // Three sections (2026-11-08, the owner's call, after reading this repository's own profile). `whatFails` went:
 // it was the howWeWork rule in negative form, and the compile wrote both, so the top three rules were each paid
@@ -506,6 +513,17 @@ export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(),
   // a verdict is about the wording the session was shown (`rev`): a reworded line starts its tally again, so a
   // rewrite is judged on its own sessions and never carries what the old words came to
   const rows = all.filter(r => !text.has(r.id) || (r.rev || 1) === text.get(r.id).rev);
+  // What every wording of a line has come to, beside what this one has. The current revision's tally is the right
+  // judge of words, and the wrong judge of a subject: a line reworded at each compile is always early in a fresh
+  // tally, so "applied and never followed" can only be seen across the wordings (`unfollowedApplied`).
+  const lineage = {};
+  for (const r of all) {
+    const g = lineage[r.id] || (lineage[r.id] = { revisions: 0, applied: 0, followed: 0, revs: new Set() });
+    g.revs.add(r.rev || 1);
+    if (r.verdict !== 'na') g.applied++;
+    if (r.verdict === 'followed') g.followed++;
+  }
+  for (const g of Object.values(lineage)) { g.revisions = g.revs.size; delete g.revs; }
   const by = new Map();
   for (const r of rows) {
     if (!by.has(r.id)) by.set(r.id, { id: r.id, shown: 0, followed: 0, ignored: 0, contradicted: 0, na: 0, unsupported: 0, evidence: [] });
@@ -522,7 +540,7 @@ export function lineReport(store, { days = PROFILE.ledgerDays, now = Date.now(),
   // worst first: a line that was shown often, applied, and not followed is the one to cut or reword
   out.sort((a, b) => (a.followRate ?? 2) - (b.followRate ?? 2) || b.applied - a.applied);
   const applied = out.reduce((a, e) => a + e.applied, 0), followed = out.reduce((a, e) => a + e.followed, 0);
-  return { lines: out, sessions: new Set(rows.map(r => r.session)).size, verdicts: rows.length, applied, followed, followRate: applied ? followed / applied : null };
+  return { lines: out, lineage, sessions: new Set(rows.map(r => r.session)).size, verdicts: rows.length, applied, followed, followRate: applied ? followed / applied : null };
 }
 
 // Observations are appended with their session and the session's directories; the file is cut to the window
@@ -594,7 +612,7 @@ Rules:
 - Every entry cites the observation ids it rests on (obs): up to 10, the most telling, newest first. An entry you cannot cite does not exist. Counts and dates are computed from the citations; do not write them into the text.
 - approach is the agent's own account. An observation with outcome unknown can support workingOn and skills, and howWeWork through its prefs alone. An interrupted observation (the person stopped the agent) is a correction whatever its outcome says.
 - Fill a section to its cap when the observations support that many lines; the code drops a line with too little evidence, so there is no need to ration. An empty patch is the right answer for observations that change nothing.
-- Each entry of the profile so far carries use, measured in the sessions it was shown to: shown, applied (the sessions it had any bearing on), followed, ignored, contradicted. This is what the lines you write come to. An entry shown to five or more sessions and applied in a fifth of them or fewer is too narrow: reword it as the general rule it was a case of, move it to workingOn if it is a product decision, or drop it. An entry contradicted more than followed is worded so the agent misreads it: reword it. An entry of the profile so far that holds more than one rule is split: update it to the rule most of its observations are about, and add the others as their own lines with the observations that are about each. A reworded entry's use starts again from nothing, so reword only where the words are the fault. The code retires an entry that bore on none of ${PROFILE.retireShown} sessions; do not leave one to that.
+- Each entry of the profile so far carries use, measured in the sessions it was shown to: shown, applied (the sessions it had any bearing on), followed, ignored, contradicted. This is what the lines you write come to. An entry shown to five or more sessions and applied in a fifth of them or fewer is too narrow: reword it as the general rule it was a case of, move it to workingOn if it is a product decision, or drop it. An entry contradicted more than followed is worded so the agent misreads it: reword it. An entry of the profile so far that holds more than one rule is split: update it to the rule most of its observations are about, and add the others as their own lines with the observations that are about each. A reworded entry's use starts again from nothing, so reword only where the words are the fault. An entry reworded before also carries allWordings: the sessions every wording of it was applied in, and followed in. Applied in ${PROFILE.unfollowedApplied} or more of them and followed in none means the agent does not act on this subject however it is put: drop it rather than word it again, and where another entry says what to do when that subject has already gone wrong, keep that one instead. The code retires an entry that bore on none of ${PROFILE.retireShown} sessions; do not leave one to that.
 - A RETIRED list names lines that were shown to many sessions and bore on none: the code took them out of the served block. Never add a line that says what a retired one says, in any words; an update rewords a retired line but leaves it retired; a drop removes it for good.
 - Lines are plain and under 200 characters (a howWeWork line under ${PROFILE.ruleChars}). No narrative of sessions, no praise, no "the agent", no file contents, no secrets.`;
 
@@ -809,6 +827,12 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   // what the sessions did with each line: the compile's own feedback, so a narrow line is reworded or dropped at
   // the next patch, not left to the retire rule fifteen sessions on
   const use = new Map((lr?.lines || []).filter(l => l.shown).map(l => [l.id, { shown: l.shown, applied: l.applied, followed: l.followed, ignored: l.ignored, contradicted: l.contradicted }]));
+  // and what the line's earlier wordings came to, for the entries that have had more than one: a reworded line's
+  // own tally starts at nothing, so without this the compile rewords the same subject again at every patch and
+  // never sees that no wording of it was ever followed (`PROFILE.unfollowedApplied`).
+  for (const [id, g] of Object.entries(lr?.lineage || {})) {
+    if (g.revisions > 1) use.set(id, { shown: 0, applied: 0, followed: 0, ignored: 0, contradicted: 0, ...(use.get(id) || {}), allWordings: { wordings: g.revisions, applied: g.applied, followed: g.followed } });
+  }
   const cited = relatedCited(previous, batch, rows);
   // the observations that ran a skill, so a skills line can cite them: few (18 of 116 sessions here), and otherwise
   // out of the step's sight once they are past the batch
