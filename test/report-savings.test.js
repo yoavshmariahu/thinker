@@ -7,8 +7,32 @@ const columns = [{ t: Date.parse('2026-10-19T00:00Z'), prompts: 10, pricedPrompt
 const now = Date.parse('2026-10-30T00:00Z');
 const model = 'claude-opus-5-5';
 
-test('two series: the clearing, and the reads the delegation trigger kept out', () => {
-  assert.deepEqual(SAVINGS_SERIES.map(([k]) => k), ['compression', 'delegation']);
+test('three series: the clearing, the reads handed over, and the reads already in the context', () => {
+  assert.deepEqual(SAVINGS_SERIES.map(([k]) => k), ['compression', 'delegation', 'repeat']);
+});
+
+test("a pointed-at read saves the lead its write and every later read of it, and nothing is netted off", () => {
+  const price = listPrice(model);
+  // the session's own post-processed figure, cumulative as the Stop hook writes it each turn (delegated.js)
+  const row = (t, tokens, laterTokens, extra = {}) => ({ op: 'session', session: 's', model, t, repeated: { reads: 1, tokens, laterTokens, ignored: 0, agents: [] }, ...extra });
+  const of = events => weeklySavings({ columns, now, compression: [], events })[2].cells[1];
+  const one = of([row('2026-10-27T10:00Z', 40000, 80000)]);
+  assert.equal(one.tokens, 120000, 'the write once and the reads of it after');
+  assert.ok(Math.abs(one.cost - (40000 * price.cacheWrite1h + 80000 * price.cacheRead) / 1e6) < 1e-9);
+  assert.equal(one.estimatedTokens, one.tokens, 'sized from the file on disk, never measured');
+  // no subagent ran, so nothing comes off: a session's own subagents are not this trigger's cost
+  assert.equal(of([row('2026-10-27T10:00Z', 40000, 80000, { subagents: [{ agent: 'a1', model: 'claude-haiku-5-5', inputTokens: 5000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 40000, cacheWrite1hTokens: 40000 }] })]).cost, one.cost);
+  // the figure grows with the session: each row accounts only what it added to the one before
+  const grew = of([row('2026-10-27T10:00Z', 40000, 40000), row('2026-10-27T11:00Z', 60000, 150000)]);
+  assert.equal(grew.tokens, 210000);
+  assert.equal(grew.events, 2);
+  // a session with no pointer, and one whose model has no price
+  assert.equal(of([{ op: 'session', session: 's', model, t: '2026-10-27T10:00Z' }]).events, 0);
+  const unpriced = of([row('2026-10-27T10:00Z', 40000, 0, { model: 'nobody-prices-this' })]);
+  assert.equal(unpriced.unpricedTokens, 40000); assert.equal(unpriced.pricedEvents, 0);
+  // and the other two series are untouched by it
+  const all = weeklySavings({ columns, now, compression: [], events: [row('2026-10-27T10:00Z', 40000, 80000)] });
+  assert.equal(all[0].cells[1].tokens, 0); assert.equal(all[1].cells[1].tokens, 0);
 });
 
 test('a delegated read saves the lead its write, netted against the subagent, and its read on every later call', () => {

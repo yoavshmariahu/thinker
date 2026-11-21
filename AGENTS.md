@@ -607,6 +607,17 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
   figure at the end of the turn -- `st.repeated` through `delegated.js:delegatedOf`, the same arithmetic as a
   handoff's saving (the write once, the read on every later call, nothing where the lead read the file whole
   anyway) under `repeated` on the `op: session` row, never added into the handoff's figure.
+- **Counted where every other saving is (2026-11-21, the owner's ask):** a third savings series beside the
+  clearing's and the handoff's -- `repeat`, "Reads already in context" (`report-savings.js:repeatSavings`, read
+  from the sessions' own `repeated` figure, priced at the write the lead never made plus the read of it avoided
+  on each later call, **netted against nothing** because nothing ran). It is in `thinker report`, the Report
+  page's Savings table (its own dot), the footer and `thinker savings` ("reads already in context"), and leaves
+  the machine by day in `repeat` of the telemetry payload (`telemetry.js:repeatMetrics`, schema 1: `pointed`,
+  `held`, `again`, `ignored`, `savedTokens`, `savedUsd`, `unpricedTokens`). Never added into the handoff's
+  figure: two policies, two series, as the clearing and the handoff are. `again` and `ignored` are the quality
+  counts -- a read asked for twice in a turn, and a pointed-at file the lead went on to read whole -- so the
+  day's count and the day's dollars are one rule here too (`pointed - ignored` is what the saving is drawn from).
+  Sessions only, no row-based fallback: the trigger ships with the figure and has no history to price.
 - **Live, on Opus 5 through the settings hook (2026-11-20):** the second whole-file read was denied, the lead
   answered from the first copy ("200 functions, f7 returns x + 7"), said the hook had stopped the read and why,
   and did not route around it. The mod's branch is held by a test that runs the mod's own `reasonOf`; a headless

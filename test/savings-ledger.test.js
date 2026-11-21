@@ -232,3 +232,19 @@ test('a delegated read is in the footer total, beside the clearing and named in 
   // a ledger an older copy wrote has no such cell and still words
   assert.equal(savingsDetail({ cleared: { cost: 1, tokens: 10 } }), `context cleared ${formatDollars(1)} (10 tokens)`);
 });
+
+test('a read answered with the copy the model already had is a row of its own in the footer', t => {
+  const now = Date.now();
+  const { store } = machine(t, { now, cleared: [{ at: now - 60_000, tokens: 100_000 }] });
+  const before = computeSavings(store, { now });
+  assert.equal(before.lifetime.repeated.tokens, 0);
+  assert.ok(!savingsDetail(before.lifetime).includes('already in context'), 'no row where nothing was pointed at');
+  // the session's own figure for its pointers, as the Stop hook writes it (delegate.js, delegated.js)
+  store.log({ op: 'session', t: new Date(now - 30_000).toISOString(), session: 'p', model: 'claude-opus-5-5', repeated: { reads: 1, tokens: 40_000, laterTokens: 120_000, ignored: 0, agents: [] } });
+  const l = computeSavings(store, { now });
+  assert.equal(l.today.repeated.tokens, 160_000);
+  assert.ok(l.today.repeated.cost > 0);
+  assert.equal(l.today.delegated.tokens, 0, 'and it is not the handoff\'s figure');
+  assert.ok(Math.abs(l.today.cost - (l.today.cleared.cost + l.today.repeated.cost)) < 1e-9, 'the total is the rows');
+  assert.match(savingsDetail(l.lifetime), /context cleared .* · reads already in context /);
+});

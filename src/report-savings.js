@@ -10,7 +10,13 @@ const empty = () => ({ tokens: 0, cost: 0, events: 0, pricedEvents: 0, unpricedT
 // lead's context, so the clearing can never clear it and no figure anywhere said it had saved anything -- the
 // better delegation worked, the lower the footer read. The two series act on the same kind of token but never
 // on the same token (a delegated read is not there to be cleared), which is why the footer may add them.
-export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated']];
+// `repeat` since 2026-11-21 (the owner's ask, "we need to be able to count the savings we get from this"): a read
+// the pointer answered with the copy the model already had never entered the context a second time, so -- as with
+// a delegated read -- the clearing can never clear it and no figure said it had saved anything. Three series now,
+// and the same rule holds between them: they act on the same kind of token, never on the same token (a read that
+// was pointed at is not there to be cleared, and a pointer and a handoff never answer one call: `noteDecided`),
+// which is why the footer may add them.
+export const SAVINGS_SERIES = [['compression', 'Context compression'], ['delegation', 'Reads delegated'], ['repeat', 'Reads already in context']];
 
 // What one delegated read saved, in one rule: the lead did not write it into its cache, and did not read it
 // back on any later call. The write is netted against what the subagent paid for the same read -- its own
@@ -37,10 +43,13 @@ const isCall = r => r?.op === 'proxy' && !r.recorded && r.session && typeof r.ou
 // cumulative, so each one accounts what it added to the one before, dated when it was written. Such a session is
 // counted from its rows alone; the rule below it is for sessions from before the rows carried this.
 const subUsage = a => ({ input: a.inputTokens, cacheRead: a.cacheReadTokens, cacheWrite: a.cacheWriteTokens, cacheWrite1h: a.cacheWrite1hTokens, output: a.outputTokens });
-function recordedSavings(events, config) {
+// `field` is which of the session's two post-processed figures this is walking, and `netted` whether a subagent
+// was paid for it: a handoff's saving is netted against the run that did the reading, and a pointer's is not --
+// nothing ran, the bytes were already in the context (delegate.js, "the same file, read again").
+function recordedSavings(events, config, { field = 'delegated', netted = true } = {}) {
   const by = new Map(), own = new Map(), out = [];
   for (const e of events) {
-    if (e?.op === 'session' && e.session && e.delegated) { const k = sessionKey(e.session); if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
+    if (e?.op === 'session' && e.session && e[field]) { const k = sessionKey(e.session); if (!by.has(k)) by.set(k, []); by.get(k).push(e); }
     // thinker's own fallback subagent is no subagent of the host's: what it cost is on the firing's row
     if (fired(e) && Number.isFinite(e.cost)) { const k = sessionKey(e.session); if (!own.has(k)) own.set(k, []); own.get(k).push({ t: Date.parse(e.t), cost: e.cost }); }
   }
@@ -48,15 +57,19 @@ function recordedSavings(events, config) {
     rows.sort((a, b) => Date.parse(a.t) - Date.parse(b.t));
     let tokens = 0, cost = 0;
     for (const e of rows) {
-      const d = e.delegated, t = Date.parse(e.t), price = listPrice(e.model, { config });
+      const d = e[field], t = Date.parse(e.t), price = listPrice(e.model, { config });
       if (!Number.isFinite(t)) continue;
       const nowTokens = (d.tokens || 0) + (d.laterTokens || 0);
       let nowCost = null;
       if (price) {
-        const ids = new Set(d.agents || []);
-        const subs = (e.subagents || []).filter(a => ids.has(a.agent)).map(a => costOf(subUsage(a), listPrice(a.model, { config })));
-        const fallback = (own.get(k) || []).filter(x => x.t <= t).reduce((a, x) => a + x.cost, 0);
-        if (subs.every(v => v != null)) nowCost = ((d.tokens || 0) * write1h(price) + (d.laterTokens || 0) * price.cacheRead) / 1e6 - subs.reduce((a, v) => a + v, 0) - fallback;
+        const gross = ((d.tokens || 0) * write1h(price) + (d.laterTokens || 0) * price.cacheRead) / 1e6;
+        if (!netted) nowCost = gross;
+        else {
+          const ids = new Set(d.agents || []);
+          const subs = (e.subagents || []).filter(a => ids.has(a.agent)).map(a => costOf(subUsage(a), listPrice(a.model, { config })));
+          const fallback = (own.get(k) || []).filter(x => x.t <= t).reduce((a, x) => a + x.cost, 0);
+          if (subs.every(v => v != null)) nowCost = gross - subs.reduce((a, v) => a + v, 0) - fallback;
+        }
       }
       if (nowTokens !== tokens || (nowCost != null && nowCost !== cost)) out.push({ session: e.session, model: e.model, estimated: true, at: t, tokens: nowTokens - tokens, cost: nowCost == null ? null : nowCost - cost });
       tokens = nowTokens; if (nowCost != null) cost = nowCost;
@@ -134,6 +147,19 @@ export function delegationSavings({ events = [], compression = [], config } = {}
   }
   return out;
 }
+/**
+ * What the pointers of a session kept out, from the session's own row (`repeated`, delegate.js and delegated.js:
+ * the write it never made and the read of it avoided on every later call of the lead, counted as zero where the
+ * lead went on to read the file whole anyway, and stopped where a cut or a compaction would have taken the first
+ * copy out regardless). Nothing is netted: no subagent ran, no model was called, and the pointer is a sentence.
+ *
+ * Session rows only, and deliberately: this trigger has no history to price from rows (it ships with the
+ * figure), and a saving read twice would be a figure nobody could check.
+ */
+export function repeatSavings({ events = [], config } = {}) {
+  return recordedSavings(events, config, { field: 'repeated', netted: false }).out;
+}
+
 export function weeklySavings({ columns, now, config, events = [], compression = [], sessions = [], origin, ownership = [] }) {
   const series = SAVINGS_SERIES.map(([key, name]) => ({ key, name, cells: columns.map(empty) }));
   const at = t => columns.findIndex((c, i) => t >= c.t && t < (columns[i + 1]?.t ?? Infinity) && t <= now);
@@ -180,6 +206,8 @@ export function weeklySavings({ columns, now, config, events = [], compression =
   // `events` is already the repository's own where a repository asked (report.js reads its log), so a firing
   // needs no owner: it is counted where its hook logged it, with the session's later calls wherever they went.
   for (const d of delegationSavings({ events, compression, config })) account(1, d, d.tokens, d.cost);
+  // the pointers, from the sessions' own rows, counted where their hook logged them as the handoffs are
+  for (const r of repeatSavings({ events, config })) account(2, r, r.tokens, r.cost);
   return series;
 }
 
