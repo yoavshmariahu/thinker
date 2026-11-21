@@ -1,4 +1,4 @@
-// `thinker chat "…"`: the page's chat window in the terminal (chat.js:chatSend, one function). The person asks what
+// `thinker chat "…"`: the page's chat in the terminal (chat.js:chatSend, one function). The person asks what
 // thinker did, or tells it how to behave; it answers, and what it changed is printed under the answer in the code's
 // own words. With no message the conversation so far is printed. `--answer` is the queued half: a desktop app's own
 // session answering the messages that waited for it (session-work.js), never typed by hand.
@@ -14,7 +14,7 @@ async function chatCommand({ pos, flags, store, repo, out }) {
   if (!text) {
     const messages = readChat().slice(-CHAT.shown);
     if (flags.json) { out(JSON.stringify(messages, null, 2)); return; }
-    out(messages.length ? renderChat(messages).join('\n') : 'Nothing said yet. `thinker chat "what have you done lately?"` starts it; so does the chat window on the page (`thinker ui`).');
+    out(messages.length ? renderChat(messages).join('\n') : 'Nothing said yet. `thinker chat "what have you done lately?"` starts it; so does the page (`thinker ui`).');
     return;
   }
   const r = await chatSend(text, { repos: here, about: here[0]?.id || null });

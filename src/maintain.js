@@ -166,15 +166,15 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
       try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
     }
     // 5. upkeep (upkeep.js): what the agents left behind here, and what is important enough for thinker to do by itself
-    // -- remove merged worktrees and branches, put up a pull request -- within how often it may. No model call. What it
+    // -- remove merged worktrees and branches, put up a pull request, switch off a tool -- within how often it may. No model call. What it
     // did is said once at the end of a turn (maintenanceNotice), and kept under Recent activity.
     if (!dry) {
       try {
         const { upkeepCheck } = await (fns.upkeep ? { upkeepCheck: fns.upkeep } : import('./upkeep.js'));
         const k = await upkeepCheck(store, { now });
         if (!k.skipped) {
-          r.upkeepFound = k.found;
-          if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => d.kind === 'pr' ? 'started a pull request for a section nobody needs (Recent activity has it)' : `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}`)])].slice(-4) }; }
+          if (k.pending) r.upkeepPending = k.pending;
+          if (k.did?.length) { r.upkeepDid = k.did.length; state.unreported = { ...(state.unreported || {}), did: [...new Set([...(state.unreported?.did || []), ...k.did.map(d => d.kind === 'pr' ? 'started a pull request for a section nobody needs (Recent activity has its link)' : `${d.said.charAt(0).toLowerCase()}${d.said.slice(1)}`)])].slice(-4) }; }
         }
       } catch (e) { failed('upkeep', e); }
     }
@@ -252,7 +252,7 @@ export function renderMaintain(r) {
   if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
   if (r.contextSuggested) bits.push(`${r.contextSuggested} context ${r.contextSuggested === 1 ? 'change' : 'changes'} suggested`);
   if (r.upkeepDid) bits.push(`${r.upkeepDid} ${r.upkeepDid === 1 ? 'thing' : 'things'} done on its own`);
-  if (r.upkeepFound) bits.push(`${r.upkeepFound} ${r.upkeepFound === 1 ? 'thing needs' : 'things need'} you (\`thinker activity\`)`);
+  if (r.upkeepPending) bits.push(`${r.upkeepPending} waiting ${r.upkeepPending === 1 ? 'its' : 'their'} turn`);
   return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
 }
 

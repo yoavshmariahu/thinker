@@ -1,14 +1,16 @@
-// The chat: where the person talks to thinker (the page's chat window and `thinker chat`, one function: chatSend).
-// They ask what it did, and tell it how to behave: how freely it acts by itself, how often it puts up a pull
-// request, what counts as important (upkeep.js:BEHAVIOR). That is the only place those settings are meant to be
-// changed; nobody should have to find a config key to tell thinker to stop.
+// The chat: where the person talks to thinker (the page it opens on and `thinker chat`, one function: chatSend).
+// They ask what it did, tell it how to behave -- how freely it acts by itself, how often it puts up a pull request,
+// what counts as important (upkeep.js:BEHAVIOR) -- and have it do, leave or take back a thing. It is the only place
+// any of that is done: the page has no button for it and the command no flag, and nobody should have to find a config
+// key to tell thinker to stop.
 //
-// One model call a message. The call is shown thinker's settings, what needs the person and what was done (the same
-// view Recent activity reads, upkeepView), the conversation so far, and what was just said; it returns what to say
-// and a list of actions from a short fixed set:
+// One model call a message. The call is shown thinker's settings, what it did (the lines Recent activity shows, with
+// each pull request's link), what it has found and not done with why, and what is worth knowing (upkeepView), the
+// conversation so far, and what was just said; it returns what to say and a list of actions from a short fixed set:
 //   set    one setting, for the machine or one repository (upkeep.js:setBehavior, which checks the key and the value)
-//   do     what an item under "needs you" offers; leave: leave it a week
-//   undo   something thinker did, by the id the activity carries
+//   do     a thing it is holding back, now; leave: never mind it (for three months)
+//   undo   something that was done, by the id the activity carries: a sweep put back, a tool turned back on, an open
+//          pull request closed
 //   look   check a repository again now, without acting
 // The code carries the actions out after the reply and says what happened in its own words (`did`), so the person
 // never has only the model's word that a thing was changed. Nothing else can be done from here: an action that names
@@ -17,7 +19,7 @@
 // Through the person's own login, as every model call thinker makes (profile.js:completeProfile; llm.js for another
 // agent's CLI). In a desktop app with no agent CLI signed in there is no model to call from here, so the message is
 // queued for the app's own session (session-work.js) and answered by `thinker chat --answer` the next time an agent
-// is active in that repository; the window shows it waiting and picks the answer up.
+// is active in that repository; the page shows it waiting and picks the answer up.
 //
 // The conversation is kept on this machine alone (<THINKER_HOME>/state/chat.json, the last CHAT.keep messages).
 // The log row carries counts, never the words.
@@ -27,14 +29,14 @@ import { randomBytes } from 'node:crypto';
 import { thinkerHome } from './update.js';
 import { complete, available } from './llm.js';
 import { completeProfile } from './profile.js';
-import { upkeepView, behaviorOf, setBehavior, behaviorSaid, upkeepDo, upkeepDismiss, upkeepUndo, upkeepCheck, SETTINGS, ago } from './upkeep.js';
+import { upkeepView, behaviorOf, setBehavior, behaviorSaid, upkeepDo, upkeepDismiss, upkeepUndo, upkeepCheck, SETTINGS, UPKEEP, ago } from './upkeep.js';
 import { enqueueJob } from './session-work.js';
 
 export const CHAT = {
   keep: 200,     // messages kept
   shown: 60,     // messages the window and the command read
   context: 12,   // earlier messages the model is shown
-  items: 14,     // things needing the person it is shown
+  items: 14,     // things it is holding back that it is shown
   feed: 18,      // lines of what was done
   chars: 4000,   // a message longer than this is cut
   actions: 8,    // what one answer may change
@@ -56,9 +58,13 @@ const cut = (s, n) => { s = String(s || '').trim(); return s.length > n ? `${s.s
 const ACTIONS = ['set', 'do', 'leave', 'undo', 'look'];
 export const CHAT_SYSTEM = `You are thinker, talking with the person whose coding agents you look after. Between their sessions you learn how they work, keep their agents' context lean, and clean up what the agents leave behind in their repositories. You act on your own for important things, and where a repository's files should change you put up a pull request. This conversation is where they ask what you did and tell you how to behave.
 
+You do the work yourself and you have a view about what is worth doing. You do not hand the person a list of things to do, ask them to press anything, or ask permission for what your settings already let you do. You say what you did, and why when asked.
+
 How to answer:
 - Plain words and short: one to three sentences unless they ask for more. First person. No headings, no tables, no file paths or setting names unless they ask for them.
-- Answer only from what is given below: your settings, what needs them, what you did. If the answer is not there, say you do not know. Never invent an action, a number or a pull request.
+- Answer only from what is given below: your settings, what you did, what you are holding back, what is worth knowing. If the answer is not there, say you do not know. Never invent an action, a number or a pull request.
+- A pull request is reviewed by their team and may be in review for days. Whenever you speak of one, give its link exactly as it stands below, and say where it stands (in review, merged, closed).
+- What an action came to stands in square brackets after it (tokens off every prompt, dollars a day, disk freed). Give that figure when you speak of the action; "about" means it is what was expected, not yet measured.
 - You change things only through \`actions\`. The code carries them out after your reply and shows the person what happened, so say what you are doing ("I'll stop putting up pull requests here"), never that it is already done.
 - Change only what they asked for. A question changes nothing: return an empty \`actions\`. When what they want is unclear (which repository, how often), ask one short question and change nothing.
 - A wish about one repository is set for that repository (give its \`repo\`). A wish that names no repository is for the whole machine (leave \`repo\` out), unless they are looking at one repository and say "here".
@@ -69,8 +75,8 @@ ${Object.entries(SETTINGS).map(([k, s]) => `- ${k}: ${s.about}`).join('\n')}
 "Stop", "pause" or "leave my repositories alone" is level off. "Ask me first" or "don't do anything without asking" is level ask. "Go ahead" or "do it yourself" is level auto. "Fewer pull requests" raises prEveryDays; "no pull requests" is prs false.
 
 The other actions:
-- \`do\`: do what an item under NEEDS THE PERSON offers. \`leave\`: leave that item alone for a week. Both take the item's \`repo\` and \`id\`.
-- \`undo\`: take back something under WHAT YOU DID that carries an undo id. Takes its \`repo\` and that \`id\`.
+- \`do\`: do now a thing under HOLDING BACK, when they tell you to go ahead with it. \`leave\`: never mind that thing; you will not come back to it for ${UPKEEP.dismissDays} days. Both take its \`repo\` and \`id\`.
+- \`undo\`: take back something under WHAT YOU DID that carries an undo id: a sweep is put back, a tool turned back on, an open pull request closed. Takes its \`repo\` and that \`id\`. What they take back you do not do again.
 - \`look\`: check a repository again now, without acting. Takes its \`repo\`.
 
 What you never do, whatever is asked: change a repository's files outside a pull request, remove work that is not merged, or act on anything that is not listed below. Say so plainly when asked for one of these.`;
@@ -89,7 +95,7 @@ export const CHAT_SCHEMA = {
           repo: { type: 'string', description: 'the repository, by the short name in brackets (r1, r2, …); left out for a setting of the whole machine' },
           key: { type: 'string', description: 'for set: the setting' },
           value: { type: 'string', description: 'for set: its new value, as text (true, false, a number, or a word)' },
-          id: { type: 'string', description: 'for do and leave: the item id; for undo: the undo id' },
+          id: { type: 'string', description: 'for do and leave: the id of the thing held back; for undo: the undo id' },
         },
         required: ['type'],
         additionalProperties: false,
@@ -114,7 +120,7 @@ export function chatContext(repos, { about = null, now = Date.now(), home = thin
     views.push({ ref, r, view });
   });
   // the repository being looked at first, then the ones with something to say; the rest are named so they can be chosen
-  const rank = x => (x.r.id === about ? 0 : 1) * 1e6 - ((x.view?.items.length || 0) * 100 + (x.view?.feed.length || 0));
+  const rank = x => (x.r.id === about ? 0 : 1) * 1e6 - ((x.view?.pending.length || 0) * 100 + (x.view?.feed.length || 0));
   views.sort((a, b) => rank(a) - rank(b));
   lines.push(`REPOSITORIES (${views.length}):`);
   for (const { ref, r, view } of views) {
@@ -122,22 +128,26 @@ export function chatContext(repos, { about = null, now = Date.now(), home = thin
     lines.push(`- [${ref}] ${r.name}${r.id === about ? ' (the one they are looking at)' : ''}: ${view ? `last looked ${ago(view.lastCheck, now)}; ${view.summary}` : 'not read'}${own.length ? ` Its own settings: ${own.map(([k, v]) => `${k} ${onOff(v)}`).join('; ')}.` : ''}`);
   }
   if (!views.length) lines.push('- none yet: thinker has not seen an agent work in a repository on this machine');
-  // a tool is switched for the whole machine, so the same tool found in several repositories is one thing (the costliest,
-  // as Recent activity lists it): the count the model gives is the count the page shows
+  // a tool is switched for the whole machine, so the same tool found in several repositories is one thing (the costliest)
   const tools = new Map(), listed = [];
-  for (const { ref, r, view } of views) for (const it of view?.items || []) {
+  for (const { ref, r, view } of views) for (const it of view?.pending || []) {
     if (!it.machine) { listed.push({ ref, r, it }); continue; }
     const had = tools.get(it.id);
     if (!had) { const x = { ref, r, it, n: 1 }; tools.set(it.id, x); listed.push(x); } else { had.n++; if ((it.rank || 0) > (had.it.rank || 0)) Object.assign(had, { ref, r, it }); }
   }
   const items = listed.slice(0, CHAT.items);
-  lines.push('', `NEEDS THE PERSON (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
-  for (const { ref, r, it, n } of items) lines.push(`- repo ${ref}, id ${it.id} · ${n > 1 ? `${n} repositories` : r.name} · ${cut(it.title, 140)}${it.detail ? ` — ${cut(it.detail, 220)}` : ''}${it.action ? ` (do: ${it.action.label})` : ' (nothing to do from here; leave puts it away)'}`);
+  lines.push('', `HOLDING BACK: found, important, not done yet (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
+  for (const { ref, r, it, n } of items) lines.push(`- repo ${ref}, id ${it.id} · ${n > 1 ? `${n} repositories` : r.name} · ${cut(it.title, 140)}${it.detail ? ` — ${cut(it.detail, 220)}` : ''} · why not yet: ${it.why}`);
   if (!items.length) lines.push('- nothing');
+  const notes = views.flatMap(({ r, view }) => (view?.notes || []).map(it => ({ r, it }))).slice(0, 6);
+  if (notes.length) {
+    lines.push('', `WORTH KNOWING (${notes.length}): things you noticed and cannot fix yourself. Say them when asked what is going on.`);
+    for (const { r, it } of notes) lines.push(`- ${r.name} · ${cut(it.title, 140)} — ${cut(it.detail, 220)}${it.lines?.length ? ` For example: ${it.lines.slice(0, 2).map(l => `"${cut(l, 120)}"`).join('; ')}` : ''}`);
+  }
   const feed = views.flatMap(({ ref, r, view }) => (view?.feed || []).map(f => ({ ref, r, f }))).sort((a, b) => String(b.f.at).localeCompare(String(a.f.at)));
   const seen = new Set(), shown = feed.filter(({ f }) => !f.shared || (!seen.has(f.shared) && seen.add(f.shared))).slice(0, CHAT.feed);
   lines.push('', `WHAT YOU DID, newest first (${shown.length}):`);
-  for (const { ref, r, f } of shown) lines.push(`- ${ago(f.at, now)} · ${f.shared ? 'every repository' : r.name} · ${cut(f.text, 200)}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? ' (on your own)' : f.by === 'you' ? ' (they asked for it)' : ''}${f.undone ? ' (taken back)' : ''}${f.undo ? ` · undo: repo ${ref}, id ${f.undo}` : ''}`);
+  for (const { ref, r, f } of shown) lines.push(`- ${ago(f.at, now)} · ${f.shared ? 'every repository' : r.name} · ${cut(f.text, 200)}${f.url ? ` · link: ${f.url}` : ''}${f.impactSaid ? ` [${f.impactSaid}]` : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? ' (on your own)' : f.by === 'you' ? ' (they asked for it)' : ''}${f.undone ? ' (taken back)' : ''}${f.undo ? ` · undo: repo ${ref}, id ${f.undo}` : ''}`);
   if (!shown.length) lines.push('- nothing in the last two weeks');
   return { text: lines.join('\n'), refs };
 }
@@ -153,9 +163,9 @@ async function carryOut(a, { refs, about, repos, home, now, fns }) {
     return r.error ? { ok: false, text: r.error } : { ok: true, text: `${r.key} is now ${onOff(r.value)} ${named ? `in ${named.name}` : 'on this machine'}` };
   }
   if (!here) return { ok: false, text: `which repository? ${a.type} needs one` };
-  if (a.type === 'look') { const r = await upkeepCheck(here.store, { now, act: false, home, fns }); return r.skipped ? { ok: false, text: `thinker is switched off in ${here.name}` } : { ok: true, text: `looked at ${here.name} again: ${r.found ? `${r.found} thing${r.found === 1 ? '' : 's'} for you` : 'nothing needs you'}` }; }
+  if (a.type === 'look') { const r = await upkeepCheck(here.store, { now, act: false, home, fns }); return r.skipped ? { ok: false, text: `thinker is switched off in ${here.name}` } : { ok: true, text: `looked at ${here.name} again: ${r.pending ? `${r.pending} thing${r.pending === 1 ? '' : 's'} waiting` : 'nothing is waiting'}` }; }
   if (!a.id) return { ok: false, text: `${a.type} needs an item` };
-  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns, home }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns, home }) : upkeepUndo(here.store, a.id, { now });
+  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns }) : await upkeepUndo(here.store, a.id, { now, fns });
   return r.error ? { ok: false, text: r.error } : { ok: true, text: r.said };
 }
 

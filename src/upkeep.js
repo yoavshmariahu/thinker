@@ -1,57 +1,61 @@
 // Upkeep: what thinker does by itself between sessions, beside learning. It looks at what the coding agents left
-// behind in a repository, does what is important enough to do without asking, and keeps the rest as a short list
-// for the person. Recent activity shows both (the page and `thinker activity`, one view: upkeepView), and the
-// person changes how it behaves by talking to it (chat.js).
+// behind in a repository and does what is important, without asking and without anybody pressing anything. Recent
+// activity says what it did, a line an action with what it came to, beside the chat on the page and as `thinker
+// activity` (one view: upkeepView). The person changes how it behaves, and takes a thing back, by talking to it
+// (chat.js). There is no list of things for the person to do and no button to do them with (the owner, 2026-11-21:
+// "no more manual action please. thinker does its work for you. its opinionated").
 //
-// A check runs on maintenance's clock (maintain.js, every four hours on the next activity) and on `thinker
-// activity run`. It spends no model tokens: everything it reads was measured already, by code or by the one pass
-// each session gets when it ends (profile.js). Nothing is replayed and nothing is judged twice.
+// A check runs on maintenance's clock (maintain.js, every four hours on the next activity). It spends no model
+// tokens: everything it reads was measured already, by code or by the one pass each session gets when it ends
+// (profile.js). Nothing is replayed and nothing is judged twice.
 //
 // What a check looks for (CHORES):
 //   sweep     worktrees and branches whose work is merged (upkeep-sweep.js)
 //   context   the context changes Find Savings ranks highest (context-suggest.js:currentChanges): a section of an
-//             instruction file nobody needs becomes a pull request, a tool nobody calls is switched. One
-//             computation with the page: the decision is kept in the same history, by the door `thinker`.
+//             instruction file nobody needs becomes a pull request, a tool nobody calls is switched off or made a
+//             reference. One computation with the page: the decision is kept in the same history, by the door `thinker`.
 //   rules     a section of the instruction file that sessions keep breaking, from the verdicts on real sessions
-//             (instruction-value.js). A heads-up: what to do about a rule nobody follows is the person's.
-//   waiting   what an earlier action still needs: a pull request to merge, a failed change to try again
+//             (instruction-value.js). Something worth knowing, which thinker says when it is asked: what to do about a
+//             rule nobody follows is the person's.
+//   waiting   a change of its own that failed, tried again
 //
 // How it behaves (BEHAVIOR; the owner's rule, 2026-11-21: "take actions on its own and put up PRs as needed, but
 // only for important things and not too frequently"):
-//   - It acts by itself (`level: 'auto'`). `ask` only lists what it found; `off` stops the checks.
-//   - Only on what is important: a section flagged high waste by the Context report (5% of its file's cost or
-//     more spent where it was not needed), a sweep of three things or 500 MB. What is not important is not
-//     listed either: it stays on Find Savings, where the person goes when they want to look.
+//   - It acts by itself (`level: 'auto'`). `ask` has it wait for the person's word in the chat; `off` stops the checks.
+//   - Only on what is important: a part the Context report flags high waste (5% of its kind's cost or more spent
+//     where it was not needed), a sweep of three things or 500 MB. What is not important stays on Find Savings.
 //   - Not often: one pull request a repository a week and never while one is open, one a day over the whole
-//     machine, one sweep a repository a day. A find that has to wait its turn is done at a later check.
-//   - A pull request is the only way it changes a repository's files. A section is never rewritten in the
-//     working tree without the person.
-//   - It does not switch tools by itself (`tools: false`): that changes what an agent can call. An important one
-//     is listed for the person, who can also tell it to go ahead from then on.
+//     machine; one tool a day over the machine; one sweep a repository a day. What has to wait its turn is done at
+//     a later check.
+//   - A pull request is the only way it changes a repository's files, and it is the team's to review: the line about
+//     it carries its link while it is in review and after. A section is never rewritten in the working tree.
 // The settings are `upkeep: { … }` in <THINKER_HOME>/config.json for the machine and in .thinker/config.json for
 // one repository (which wins); `upkeep: false` is `level: off`. The chat writes them (setBehavior).
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { findMess, sweep, unsweep, SWEEP } from './upkeep-sweep.js';
-import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, VIA, SUGGEST } from './context-suggest.js';
+import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, revertDecision, VIA, SUGGEST } from './context-suggest.js';
 import { lastSnapshot } from './context-snapshot.js';
 import { rateOf } from './context-view.js';
 import { prAvailable } from './instruction-pr.js';
 import { instructionFiles, sections, sectionId, readValueState } from './instruction-value.js';
 import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
+import { keptRows, inputRateHere } from './report-snapshot.js';
+import { withEffects } from './report.js';
 import { thinkerHome } from './update.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
 import { formatDollars } from './prices.js';
 
 export const UPKEEP = {
-  dismissDays: 7,   // "leave it" holds this long, then the item may come back
+  dismissDays: 90,  // a thing the person told it to leave alone stays left this long
+  retries: 3,       // times a change of its own that failed is tried before it is given up on
   keepDone: 200,    // actions remembered, newest kept
   feedDays: 14,     // how far back the activity reads
   feedMax: 60,
   ruleDays: 30,     // the window a broken rule is counted over
-  ruleBroken: 3,    // sessions that broke a rule before it is worth a heads-up
+  ruleBroken: 3,    // sessions that broke a rule before it is worth knowing
   staleMs: 24 * 3600_000, // the page asks for a look when the last check is older than this
 };
 const DAY = 86_400_000;
@@ -62,20 +66,21 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 // --- how it behaves ------------------------------------------------------------------------------------------
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
-  level: 'auto', sweep: true, prs: true, tools: false,
-  important: 'high', prEveryDays: 7, prsPerDay: 1, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
+  level: 'auto', sweep: true, prs: true, tools: true,
+  important: 'high', prEveryDays: 7, prsPerDay: 1, toolsPerDay: 1, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
 };
 const num = (min, max) => v => { const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined; };
 const bool = v => v === true || /^(true|on|yes)$/i.test(String(v)) ? true : v === false || /^(false|off|no)$/i.test(String(v)) ? false : undefined;
 const oneOf = (...xs) => v => xs.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : undefined;
 export const SETTINGS = {
-  level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: do what is important by itself; ask: only list what it found; off: stop looking' },
+  level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: do what is important by itself; ask: do nothing until told to in the chat; off: stop looking' },
   sweep: { read: bool, about: 'whether it may remove merged worktrees and branches by itself' },
   prs: { read: bool, about: 'whether it may put up a pull request by itself' },
   tools: { read: bool, about: 'whether it may switch off or reference an unused tool by itself' },
   important: { read: oneOf('high', 'medium'), about: 'how costly a thing must be to act on: high (5% of its kind\'s cost wasted) or medium (2%)' },
   prEveryDays: { read: num(1, 90), about: 'days between pull requests in one repository' },
   prsPerDay: { read: num(1, 20), about: 'pull requests a day over the whole machine' },
+  toolsPerDay: { read: num(1, 20), about: 'tools switched a day over the whole machine' },
   sweepEveryDays: { read: num(1, 90), about: 'days between sweeps in one repository' },
   sweepMin: { read: num(1, 100), about: 'how many merged worktrees and branches make a sweep worth doing by itself' },
   sweepMinMb: { read: num(1, 100_000), about: 'or how many megabytes they hold' },
@@ -112,16 +117,16 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
 // The behaviour in a sentence or two, for the page, the command and the chat.
 export function behaviorSaid(b) {
   if (b.level === 'off') return 'Thinker is not looking after this repository (upkeep is off).';
-  if (b.level === 'ask') return 'Thinker only lists what it finds here; nothing is done until you say so.';
-  const does = [b.sweep ? 'removes merged worktrees and branches' : '', b.prs ? `puts up a pull request for a costly section nobody needs, at most one every ${plural(b.prEveryDays, 'day')}` : '', b.tools ? 'switches off tools nobody calls' : ''].filter(Boolean);
+  if (b.level === 'ask') return 'Thinker does nothing here until you tell it to.';
+  const does = [b.sweep ? 'removes merged worktrees and branches' : '', b.prs ? `puts up a pull request for a costly section nobody needs, at most one every ${plural(b.prEveryDays, 'day')}` : '', b.tools ? 'switches off costly tools nobody calls' : ''].filter(Boolean);
   return does.length ? `Thinker acts on its own here, for important things only: it ${does.join(', ')}.` : 'Thinker may act on its own here, but every kind of action is switched off.';
 }
 
 // --- what it remembers ---------------------------------------------------------------------------------------
 const stateFile = store => path.join(store.dir, 'state', 'upkeep.json');
 export function readUpkeep(store) {
-  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [] }; }
-  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [] }; }
+  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], kept: j.kept || null }; }
+  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], kept: null }; }
 }
 function writeJson(f, v) {
   const tmp = `${f}.${process.pid}.${randomBytes(3).toString('hex')}`;
@@ -130,15 +135,16 @@ function writeJson(f, v) {
   fs.renameSync(tmp, f);
 }
 function writeUpkeep(store, st) { st.done = (st.done || []).slice(-UPKEEP.keepDone); writeJson(stateFile(store), st); }
-// the pull requests thinker put up by itself, over every repository, for the machine's daily limit
+// what thinker did by itself over every repository, by kind (`prs`, `tools`), for the machine's daily limits
 const machineFile = home => path.join(home, 'state', 'upkeep.json');
-const machinePrs = home => { try { return (JSON.parse(fs.readFileSync(machineFile(home), 'utf8')).prs || []).filter(t => Number.isFinite(Date.parse(t))); } catch { return []; } };
-function notePr(home, now) { try { writeJson(machineFile(home), { prs: [...machinePrs(home).filter(t => now - Date.parse(t) < 7 * DAY), new Date(now).toISOString()] }); } catch {} }
+const machineState = home => { try { return JSON.parse(fs.readFileSync(machineFile(home), 'utf8')) || {}; } catch { return {}; } };
+const machineTimes = (home, kind) => (machineState(home)[kind] || []).filter(t => Number.isFinite(Date.parse(t)));
+function noteMachine(home, kind, now) { try { writeJson(machineFile(home), { ...machineState(home), [kind]: [...machineTimes(home, kind).filter(t => now - Date.parse(t) < 7 * DAY), new Date(now).toISOString()] }); } catch {} }
 
 // --- the chores ----------------------------------------------------------------------------------------------
 // Each: `find` (a check's look, kept), `live` (read fresh every time, cheap, never kept), `still` (whether a kept
-// item is still true), `act`, and where it differs from forgetting for a week, `dismiss`. An item says whether it
-// is `important` (worth doing without asking) and which setting lets thinker do it by itself (`allow`).
+// item is still true), `act`, and where leaving a thing alone is more than forgetting it, `dismiss`. An item says
+// whether it is `important` (worth doing) and which setting lets thinker do it (`allow`).
 const messLines = mess => {
   const rows = [...mess.worktrees.map(w => `${path.basename(w.path)} · worktree on ${w.branch} · ${w.why}${w.kb ? ` · ${size(w.kb)}` : ''}`), ...mess.branches.map(b => `${b.name} · branch · ${b.why}`)];
   return rows.length > SWEEP.listed ? [...rows.slice(0, SWEEP.listed), `and ${rows.length - SWEEP.listed} more`] : rows;
@@ -152,7 +158,9 @@ const messTitle = mess => {
 const sweepChore = {
   id: 'sweep',
   find(store, opts) {
-    const mess = (opts.fns?.findMess || findMess)(store, { now: opts.now });
+    const found = (opts.fns?.findMess || findMess)(store, { now: opts.now }), kept = readUpkeep(store).kept;
+    // what the person had put back after a sweep is theirs to keep
+    const mess = { worktrees: found.worktrees.filter(w => !kept?.worktrees?.includes(w.path) && !kept?.branches?.includes(w.branch)), branches: found.branches.filter(b => !kept?.branches?.includes(b.name)) };
     const n = mess.worktrees.length + mess.branches.length;
     if (!n) return [];
     const b = opts.behavior;
@@ -172,7 +180,7 @@ const sweepChore = {
     const w = r.worktrees.length, b = r.branches.length;
     if (!w && !b) return { error: `nothing could be removed: ${r.skipped[0]?.why || 'everything changed since the last check'}` };
     const left = r.skipped.length ? `; ${plural(r.skipped.length, 'thing')} left where ${r.skipped.length === 1 ? 'it was' : 'they were'} (${short(r.skipped[0].why, 60)})` : '';
-    return { said: `Removed ${[w ? plural(w, 'merged worktree') : '', b ? plural(b, w ? 'branch' : 'merged branch', w ? 'branches' : 'merged branches') : ''].filter(Boolean).join(' and ')}${r.kb ? `, ${size(r.kb)} back` : ''}${left}`, undo: { kind: 'sweep', branches: r.branches, worktrees: r.worktrees } };
+    return { said: `Removed ${[w ? plural(w, 'merged worktree') : '', b ? plural(b, w ? 'branch' : 'merged branch', w ? 'branches' : 'merged branches') : ''].filter(Boolean).join(' and ')}${left}`, ...(r.kb ? { impact: { kb: r.kb } } : {}), undo: { kind: 'sweep', branches: r.branches, worktrees: r.worktrees } };
   },
   undo(store, undo) {
     const r = unsweep(store, undo);
@@ -190,14 +198,14 @@ const contextChore = {
     const view = opts.fns?.view ? opts.fns.view(store) : viewOf(store);
     if (!view) return []; // no report kept yet: the next check has one (learn.js keeps it after maintenance)
     const rate = rateOf(view), canPr = (opts.fns?.prAvailable || prAvailable)(store.repo).ok, level = opts.behavior.important;
-    return currentChanges(store, view, { now: opts.now }).filter(c => c.default).map(c => {
+    // a section is changed only as a pull request, which the team reviews: where none can be opened from here it is
+    // not thinker's to change at all, by itself or on anybody's word
+    return currentChanges(store, view, { now: opts.now }).filter(c => c.default && (c.kind !== 'section' || canPr)).map(c => {
       const sec = c.kind === 'section';
       const worth = !c.total ? '' : rate == null ? ` About ${formatTokens(c.total)} tokens went on it unused over the last ${c.days} days.` : ` About ${formatDollars(c.total * rate)} went on it unused over the last ${c.days} days.`;
-      const label = !sec ? c.default.text : `${canPr ? 'Put up a PR' : 'Change the file'} to ${c.default.act === 'remove' ? 'remove' : 'shorten'} it`;
-      // A section is done by itself only as a pull request, which the team reviews: where none can be opened from
-      // here it waits for the person (`allow: null`). `rank`: what it is worth, so the costliest comes first;
-      // `machine`: a tool is switched for every repository at once.
-      return { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? (canPr ? 'prs' : null) : 'tools', important: c.waste === 'high' || (level === 'medium' && c.waste === 'medium'), rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key } };
+      const label = !sec ? c.default.text : `Put up a PR to ${c.default.act === 'remove' ? 'remove' : 'shorten'} it`;
+      // `rank`: what it is worth, so the costliest comes first; `machine`: a tool is switched for every repository at once
+      return { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? 'prs' : 'tools', important: c.waste === 'high' || (level === 'medium' && c.waste === 'medium'), rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key } };
     });
   },
   // a change decided through any door since the check (the page, the session's question, the command) is no longer open
@@ -206,10 +214,11 @@ const contextChore = {
   async act(store, item, opts) {
     const picked = this.pick(store, item, opts);
     if (!picked.length) return { error: 'that part is no longer in the report; it is looked for again at the next check' };
-    // By itself thinker changes a section only as a pull request: asked again now, since the check that found it may be
-    // hours old, and never left to fall back on writing the file in the working tree (which is the person's own Apply).
+    // A section is changed only as a pull request: asked again now, since the check that found it may be hours old,
+    // and never left to fall back on writing the file in the working tree (which is the person's own Apply, on Find
+    // Savings).
     let pr = opts.pr;
-    if (opts.by === 'thinker' && item.kind === 'pr') {
+    if (item.kind === 'pr') {
       if (!(opts.fns?.prAvailable || prAvailable)(store.repo).ok) return { error: 'no pull request can be opened from here now' };
       pr = true;
     }
@@ -252,28 +261,26 @@ const rulesChore = {
     // a section that has left the file is nobody's rule any more
     return broken.filter(([id]) => titles.has(id)).sort((a, b) => b[1].broken - a[1].broken).map(([id, g]) => ({
       id: `rule:${id}`, chore: 'rules', kind: 'note', allow: null, important: true, title: `Agents keep breaking a rule: ${titles.get(id)}`,
-      detail: `Broken in ${g.broken} of the ${plural(g.bore, 'session')} it came up in over the last ${UPKEEP.ruleDays} days. It is in the file and still missed, so more words there will not fix it: make it a check, or say it where the work happens.`,
+      detail: `Broken in ${g.broken} of the ${plural(g.bore, 'session')} it came up in over the last ${UPKEEP.ruleDays} days. It is in the file and still missed, so more words there will not fix it.`,
       lines: g.evidence.sort((a, b) => b.at - a.at).slice(0, 3).map(e => short(e.text, 200)), action: null, data: { section: id, broken: g.broken, bore: g.bore },
     }));
   },
 };
 
-// What an earlier action still needs, read from the decisions' own history each time (never kept): one item a pull
-// request, however many sections it carries.
+// A change of thinker's own that did not go through, read from the decisions' history each time (never kept): tried
+// again a day later, UPKEEP.retries times in all. A pull request waiting on its review is not here: that is the
+// team's, and the line about it in the activity carries its link.
 const waitingChore = {
   id: 'waiting',
   live(store, { now }) {
-    const out = [], prs = new Set();
+    const out = [];
     for (const e of changeHistory(store, { now })) {
-      if (e.revertedAt || !e.attention) continue;
-      if (e.attention === 'pr' && e.pr?.number && !prs.has(e.pr.number)) {
-        prs.add(e.pr.number);
-        out.push({ id: `wait:pr:${e.pr.number}`, chore: 'waiting', kind: 'wait', allow: null, important: true, title: `PR #${e.pr.number} is waiting for you to merge it`, detail: e.title, link: e.pr.url ? { url: e.pr.url, text: `Open #${e.pr.number}` } : null, action: null, found: e.pr.at || e.at, data: { history: e.id } });
-      } else if (e.attention === 'failed') {
-        out.push({ id: `wait:job:${e.group || e.id}`, chore: 'waiting', kind: 'do', allow: null, important: true, title: `A change did not go through: ${e.title}`, detail: short(e.job?.error || 'it failed', 200), action: { label: 'Try again' }, found: e.job?.finishedAt || e.at, data: { history: e.id } });
-      }
+      if (e.revertedAt || e.attention !== 'failed' || e.via !== VIA.thinker) continue;
+      const id = `wait:job:${e.group || e.id}`;
+      if (out.some(x => x.id === id)) continue;
+      out.push({ id, chore: 'waiting', kind: 'do', allow: 'prs', important: true, title: `Trying again: ${e.title}`, detail: short(e.job?.error || 'it failed', 200), action: { label: 'Try again' }, found: e.job?.finishedAt || e.at, data: { history: e.id, tries: e.job?.tries || 1, failedAt: e.job?.finishedAt || e.at } });
     }
-    return out.filter((x, i) => out.findIndex(y => y.id === x.id) === i);
+    return out;
   },
   act(store, item, opts) {
     const r = retryJob(store, item.data.history, { now: opts.now, ...(opts.fns?.spawn ? { spawnFn: opts.fns.spawn } : {}) });
@@ -284,24 +291,30 @@ export const CHORES = [waitingChore, sweepChore, contextChore, rulesChore];
 const choreOf = id => CHORES.find(c => c.id === id);
 
 // --- acting by itself ----------------------------------------------------------------------------------------
-// Whether thinker may do an item now without asking, and if not, whether it is only waiting its turn (`later`):
-// the setting for its kind, then how lately it did the same. A person's own Do it is never held to any of this.
+// Whether thinker may do an item now, and if not, why (`why`), and whether it is only waiting its turn (`later`):
+// the level, the setting for its kind, then how lately it did the same. What the person tells it to do in the chat
+// is held to none of this.
 export function mayAct(store, item, b, { now = Date.now(), home = thinkerHome(), prOpen = false } = {}) {
-  if (b.level !== 'auto' || !item.important || !item.action || !item.allow || !b[item.allow]) return { ok: false };
+  if (!item.important || !item.action || !item.allow) return { ok: false };
+  if (b.level !== 'auto') return { ok: false, why: 'you asked to be asked first' };
+  if (!b[item.allow]) return { ok: false, why: `you told it not to (${item.allow} is off)` };
   const mine = readUpkeep(store).done.filter(d => d.by === 'thinker' && !d.undoneAt);
-  const last = chore => Math.max(0, ...mine.filter(d => d.chore === chore && (chore !== 'context' || d.kind === item.kind)).map(d => Date.parse(d.at)));
+  const last = (chore, kind) => Math.max(0, ...mine.filter(d => d.chore === chore && (!kind || d.kind === kind)).map(d => Date.parse(d.at)));
+  const wait = why => ({ ok: false, later: true, why });
+  if (item.chore === 'waiting') return item.data.tries >= UPKEEP.retries ? { ok: false, why: `it failed ${item.data.tries} times` } : now - Date.parse(item.data.failedAt) < DAY ? wait('it is tried again a day after it failed') : { ok: true };
   if (item.allow === 'prs') {
-    if (prOpen) return { ok: false, later: 'a pull request is still open here' };
-    if (now - last('context') < b.prEveryDays * DAY) return { ok: false, later: `one pull request every ${plural(b.prEveryDays, 'day')} here` };
-    if (machinePrs(home).filter(t => now - Date.parse(t) < DAY).length >= b.prsPerDay) return { ok: false, later: `${plural(b.prsPerDay, 'pull request')} a day over the machine` };
+    if (prOpen) return wait('a pull request is still open here');
+    if (now - last('context', 'pr') < b.prEveryDays * DAY) return wait(`one pull request every ${plural(b.prEveryDays, 'day')} here`);
+    if (machineTimes(home, 'prs').filter(t => now - Date.parse(t) < DAY).length >= b.prsPerDay) return wait(`${plural(b.prsPerDay, 'pull request')} a day over the machine`);
   }
-  if (item.allow === 'sweep' && now - last('sweep') < b.sweepEveryDays * DAY) return { ok: false, later: `one sweep every ${plural(b.sweepEveryDays, 'day')} here` };
+  if (item.allow === 'tools' && machineTimes(home, 'tools').filter(t => now - Date.parse(t) < DAY).length >= b.toolsPerDay) return wait(`${plural(b.toolsPerDay, 'tool')} a day over the machine`);
+  if (item.allow === 'sweep' && now - last('sweep') < b.sweepEveryDays * DAY) return wait(`one sweep every ${plural(b.sweepEveryDays, 'day')} here`);
   return { ok: true };
 }
 
 // --- a check -------------------------------------------------------------------------------------------------
-// One look at everything, kept for the command and the page; then what thinker may do by itself (`act: false` only
-// looks, which is all a visit to the page ever starts). Returns what it found and did.
+// One look at everything, kept; then what thinker may do, done (`act: false` only looks, which is all a visit to
+// the page ever starts). Returns what it did and how much is waiting.
 export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = true, home = thinkerHome() } = {}) {
   const b = behaviorOf(store, { home });
   if (b.level === 'off') return { skipped: 'off' };
@@ -320,28 +333,28 @@ export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = tru
   if (act && b.level === 'auto') {
     // never a second pull request while one is open or being made: a team is handed one at a time
     let prOpen = changeHistory(store, { now }).some(e => !e.revertedAt && (e.attention === 'pr' || e.attention === 'running'));
-    for (const it of openItems(store, { now, all: true })) {
-      const may = mayAct(store, it, b, { now, home, prOpen });
-      if (!may.ok) continue;
-      const r = await upkeepDo(store, it.id, { now, by: 'thinker', fns, all: true, home });
+    for (const it of openItems(store, { now })) {
+      if (!mayAct(store, it, b, { now, home, prOpen }).ok) continue;
+      const r = await upkeepDo(store, it.id, { now, by: 'thinker', fns });
       if (r.error) continue;
       did.push({ id: it.id, kind: it.kind, said: r.said });
-      if (it.allow === 'prs') { prOpen = true; notePr(home, now); }
+      if (it.allow === 'prs') { prOpen = true; if (it.chore === 'context') noteMachine(home, 'prs', now); }
+      if (it.allow === 'tools') noteMachine(home, 'tools', now);
     }
   }
-  const { items: open, later } = upkeepInbox(store, { now, home });
-  store.log({ op: 'upkeep', found: open.length, did: did.length, later: later || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, open.filter(i => i.chore === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
-  return { found: open.length, did, later, errors };
+  const { pending } = upkeepPending(store, { now, home });
+  store.log({ op: 'upkeep', did: did.length, pending: pending.length || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, did.filter(d => choreOfItem(d.id) === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
+  return { did, pending: pending.length, errors };
 }
+const choreOfItem = id => id === 'sweep' ? 'sweep' : id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
 
-// --- what needs the person -----------------------------------------------------------------------------------
-const ORDER = { wait: 0, pr: 1, do: 2, note: 3 };
-// what waits on the person first, then proposals, cleanups and heads-ups; within a kind the chores in their own order
-// (a sweep before a switch), then the costliest, then the newest
+// --- what is not done yet ------------------------------------------------------------------------------------
+const ORDER = { pr: 1, do: 2, note: 3 };
+// pull requests first, then the rest; within a kind the chores in their own order, then the costliest, then the newest
 const choreAt = it => { const i = CHORES.findIndex(c => c.id === it.chore); return i < 0 ? CHORES.length : i; };
 const byOrder = (a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9) || choreAt(a) - choreAt(b) || (b.rank || 0) - (a.rank || 0) || String(b.found || '').localeCompare(String(a.found || ''));
-// Everything the last check found that still holds and was not left alone (`all`), in the order it matters.
-function openItems(store, { now = Date.now(), all = false } = {}) {
+// Everything important the last check found that still holds and was not left alone, in the order it matters.
+function openItems(store, { now = Date.now() } = {}) {
   const st = readUpkeep(store);
   let decided = new Set(); try { decided = decidedKeys(store, { now }); } catch {}
   const items = [];
@@ -351,65 +364,80 @@ function openItems(store, { now = Date.now(), all = false } = {}) {
     let cur = it; try { if (c.still) cur = c.still(store, it, { decided, now }); } catch { cur = it; }
     if (cur) items.push(cur);
   }
-  const open = items.filter(it => !st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY);
-  return (all ? open : open.filter(it => it.important)).sort(byOrder);
+  return items.filter(it => it.important && (!st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY)).sort(byOrder);
 }
-// What needs the person: the important finds thinker will not do by itself -- it is not allowed to, or it only asks
-// here. What it will do at a later check is not listed, and neither is what is not important. Numbered, as the
-// command names them.
-export function upkeepInbox(store, { now = Date.now(), home = thinkerHome() } = {}) {
-  const st = readUpkeep(store), b = behaviorOf(store, { home }), mine = [];
-  let later = 0;
-  // `later`: what thinker will do by itself at a coming check, counted and not listed
-  for (const it of openItems(store, { now })) { const may = mayAct(store, it, b, { now, home }); if (may.ok || may.later) later++; else mine.push(it); }
-  return { lastCheck: st.lastCheck, later, items: mine.map((it, i) => ({ ...it, n: i + 1 })) };
+// What thinker found and has not done, each with why (`pending`: it waits its turn, or the person's word, or a
+// setting says no), and what is worth knowing (`notes`: a rule sessions keep breaking). Neither is a list for the
+// person to work through: the page shows only how much is waiting, and the chat is shown both, so thinker can say
+// what it is holding and be told to go ahead.
+export function upkeepPending(store, { now = Date.now(), home = thinkerHome() } = {}) {
+  const st = readUpkeep(store), b = behaviorOf(store, { home }), pending = [], notes = [];
+  for (const it of openItems(store, { now })) {
+    if (!it.action) { notes.push(it); continue; }
+    const may = mayAct(store, it, b, { now, home });
+    pending.push({ ...it, why: may.ok ? 'at its next check' : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}) });
+  }
+  return { lastCheck: st.lastCheck, pending, notes };
 }
-// an item by its number among what needs the person, or by its id (`all`: among everything found)
-function itemOf(store, ref, now, all = false, home = thinkerHome()) {
-  const items = all ? openItems(store, { now, all: true }) : upkeepInbox(store, { now, home }).items;
-  return items.find(it => it.id === ref || String(it.n) === String(ref)) || (all ? null : openItems(store, { now, all: true }).find(it => it.id === ref)) || null;
-}
+const itemOf = (store, ref, now) => openItems(store, { now }).find(it => it.id === ref) || null;
 const forget = (st, id) => { st.items = st.items.filter(it => it.id !== id); };
 
-// Do what an item offers. `by`: the person (`you`) or a check acting by itself (`thinker`). What was done is kept
-// for the activity with its undo, except where the chore keeps the decision itself (a context change: its history).
-export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns = {}, pr, all = false, home = thinkerHome() } = {}) {
-  const it = itemOf(store, ref, now, all, home);
-  if (!it) return { error: `nothing that needs you is ${ref}; \`thinker activity\` lists it` };
+// Do what an item offers, by its id. `by`: a check (`thinker`), or the person saying so in the chat (`you`), who is
+// held to no limit. What was done is kept for the activity with its undo.
+export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns = {}, pr } = {}) {
+  const it = itemOf(store, ref, now);
+  if (!it) return { error: `nothing is waiting under ${ref}` };
   const c = choreOf(it.chore);
-  if (!it.action || !c?.act) return { error: `${it.title}: there is nothing to do about it from here${it.link ? ` (${it.link.url})` : ''}` };
+  if (!it.action || !c?.act) return { error: `${it.title}: there is nothing thinker can do about it` };
   let r; try { r = await c.act(store, it, { now, fns, pr, by }); } catch (e) { r = { error: short(e.message || e, 200) }; }
   if (r.error) return { error: r.error, item: it.id };
   const st = readUpkeep(store);
   forget(st, it.id);
-  const entry = { id: randomBytes(5).toString('hex'), at: new Date(now).toISOString(), item: it.id, chore: it.chore, kind: it.kind, title: it.title, said: r.said, by, ...(r.undo ? { undo: r.undo } : {}), ...(r.kept ? { kept: true } : {}) };
+  const entry = { id: randomBytes(5).toString('hex'), at: new Date(now).toISOString(), item: it.id, chore: it.chore, kind: it.kind, title: it.title, said: r.said, by, ...(r.impact ? { impact: r.impact } : {}), ...(r.undo ? { undo: r.undo } : {}), ...(r.kept ? { kept: true } : {}) };
   st.done.push(entry);
   writeUpkeep(store, st);
   store.log({ op: 'upkeep-do', chore: it.chore, kind: it.kind, by });
-  return { said: r.said, done: entry.id, title: it.title };
+  return { said: [r.said, impactSaid(r.impact)].filter(Boolean).join(' · '), done: entry.id, title: it.title };
 }
-// Leave an item alone: it stays away a week (a context change is left alone in its own history, as on Find Savings).
-export function upkeepDismiss(store, ref, { now = Date.now(), fns = {}, home = thinkerHome() } = {}) {
-  const it = itemOf(store, ref, now, false, home);
-  if (!it) return { error: `nothing that needs you is ${ref}; \`thinker activity\` lists it` };
+// Leave a thing alone, as the person said in the chat: thinker does not come back to it for UPKEEP.dismissDays (a
+// context change is also left alone in its own history, as on Find Savings).
+export function upkeepDismiss(store, ref, { now = Date.now(), fns = {} } = {}) {
+  const it = itemOf(store, ref, now);
+  if (!it) return { error: `nothing is waiting under ${ref}` };
   const c = choreOf(it.chore), st = readUpkeep(store);
   let kept = false; try { kept = Boolean(c?.dismiss?.(store, it, { now, fns })?.kept); } catch {}
   st.dismissed[it.id] = new Date(now).toISOString();
   if (kept) forget(st, it.id);
   writeUpkeep(store, st);
   store.log({ op: 'upkeep-dismiss', chore: it.chore, kind: it.kind });
-  return { said: `${it.title}: left alone${it.kind === 'wait' ? '' : `; it may come back in ${plural(UPKEEP.dismissDays, 'day')}`}` };
+  return { said: `${it.title}: left alone for the next ${plural(UPKEEP.dismissDays, 'day')}` };
 }
-// Take back something that was done, by the id the activity carries.
-export function upkeepUndo(store, id, { now = Date.now() } = {}) {
+// Take back something that was done, by the id the activity carries: a sweep is put back (`<id>`), a decision is
+// reverted where its history is kept (`h:<id>`, context-suggest.js:revertDecision -- a tool turned back on, an open
+// pull request closed).
+export async function upkeepUndo(store, id, { now = Date.now(), fns = {} } = {}) {
+  if (String(id).startsWith('h:')) {
+    const hid = String(id).slice(2), e = changeHistory(store, { now }).find(h => h.id === hid);
+    const r = await revertDecision(store, hid, { now, ...(fns.prs ? { prs: fns.prs } : {}) });
+    if (r.error) return { error: r.error };
+    // what the person took back is not done again: its change is left alone as if they had said so
+    const st = readUpkeep(store);
+    for (const k of e ? e.keys || [e.key] : []) st.dismissed[`change:${k}`] = new Date(now).toISOString();
+    writeUpkeep(store, st);
+    store.log({ op: 'upkeep-undo', chore: 'context' });
+    // (the decision's own words end "suggested again": not by thinker, which now leaves it alone)
+    return { said: String(r.said || 'Taken back').replace(/; suggested again.*$/, '') };
+  }
   const st = readUpkeep(store), e = st.done.find(d => d.id === id);
   if (!e) return { error: 'no such action' };
   if (e.undoneAt) return { error: 'already taken back' };
   const c = choreOf(e.chore);
-  if (!e.undo || !c?.undo) return { error: e.kept ? 'this one is taken back from its row under Action savings (`thinker context --revert`)' : 'this one cannot be taken back' };
+  if (!e.undo || !c?.undo) return { error: 'this one cannot be taken back' };
   let r; try { r = c.undo(store, e.undo); } catch (err) { r = { error: short(err.message || err, 200) }; }
   if (r.error) return { error: r.error };
   e.undoneAt = new Date(now).toISOString();
+  // ... and what was put back stays: those branches and worktrees are never swept again
+  if (e.undo.kind === 'sweep') st.kept = { branches: [...new Set([...(st.kept?.branches || []), ...(e.undo.branches || []).map(b => b.name)])], worktrees: [...new Set([...(st.kept?.worktrees || []), ...(e.undo.worktrees || []).map(w => w.path)])] };
   writeUpkeep(store, st);
   store.log({ op: 'upkeep-undo', chore: e.chore });
   return { said: r.said };
@@ -417,89 +445,133 @@ export function upkeepUndo(store, id, { now = Date.now() } = {}) {
 
 // --- what was done -------------------------------------------------------------------------------------------
 const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-// Newest first, in plain words: what thinker did here and what the person did through it, the pull requests that
-// followed, and the offline work of each day (the sessions read, the profile updated, the state cleared).
-export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, log } = {}) {
+// What a line came to, in a few words (the owner's ask, 2026-11-21: "one line summary of the action and its impact,
+// e.g. -10k tokens per prompt, $45/day"). Tokens off every prompt are the decision's own measured effect once the
+// sessions since can say (report.js:actionEffect: the thing's cost a prompt before against after), and until then what
+// Find Savings expected of it, said as "about". A day's dollars are those tokens over the prompts a day here at what an
+// input token costs here (report-snapshot.js:inputRateHere, the Report's rate), and are left out where nothing is priced.
+export function impactSaid(i) {
+  if (!i) return '';
+  if (i.kb) return `${size(i.kb)} freed`;
+  if (!i.perPrompt) return '';
+  const saved = i.perPrompt > 0, day = i.perDay != null && Math.abs(i.perDay) >= 0.005 ? ` · ${formatDollars(Math.abs(i.perDay))}/day${saved ? '' : ' more'}` : '';
+  return `${i.measured ? '' : 'about '}${saved ? '−' : '+'}${formatTokens(Math.abs(Math.round(i.perPrompt)))} tokens per prompt${day}${i.pending ? ' once merged' : ''}`;
+}
+const profileSaid = (p, where = '') => `Updated your profile${where}: ${[p.added ? `${plural(p.added, 'line')} added` : '', p.reworded ? `${p.reworded} reworded` : '', p.dropped ? `${p.dropped} dropped` : ''].filter(Boolean).join(', ')}`;
+// a decision as the thing that was done, in one line
+function didSaid(e, what) {
+  if (e.kind === 'section') {
+    const gone = e.act === 'remove';
+    if (e.running) return `${gone ? 'Removing' : 'Shortening'} ${what}`;
+    if (e.failed) return `Could not ${gone ? 'remove' : 'shorten'} ${what}`;
+    if (e.pr) return e.pr.state === 'merged' ? `PR #${e.pr.number} merged: ${gone ? 'removed' : 'shortened'} ${what}` : e.pr.state === 'closed' ? `PR #${e.pr.number} closed without merging: ${what}` : `PR #${e.pr.number} in review: ${gone ? 'removes' : 'shortens'} ${what}`;
+    return `${gone ? 'Removed' : 'Shortened'} ${what} in the working tree`;
+  }
+  if (e.kind === 'tool' || e.kind === 'skill') return e.act === 'on' ? `Turned ${what} back on` : /reference/i.test(e.action || '') ? `Made ${what} a tool reference` : `Switched off ${what}`;
+  return `${what}: ${e.result || e.decision}`;
+}
+// Newest first, a line an action with what it came to: what thinker did here and what the person did through it, the
+// pull requests that followed, and the profile as it was updated. Not its own housekeeping: the sessions it read and
+// the state files it cleared are how it works, not something done for the person (the owner, 2026-11-21).
+// `report`: the kept report's session rows and input rate, given by tests ({ rows, rate }); read from the file otherwise.
+export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, log, report } = {}) {
   const since = now - days * DAY, out = [];
-  for (const d of readUpkeep(store).done) {
+  const line = (x, impact) => ({ ...x, ...(impact ? { impact, impactSaid: impactSaid(impact) } : {}) });
+  const done = readUpkeep(store).done;
+  for (const d of done) {
     if (Date.parse(d.at) < since || d.kept) continue;
-    out.push({ at: d.at, kind: 'did', text: d.said, by: d.by, ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) });
+    out.push(line({ at: d.at, kind: 'did', text: d.said, by: d.by, ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
   }
   let history = []; try { history = changeHistory(store, { now }); } catch {}
-  const groups = new Set();
-  for (const e of history) {
-    if (e.decision === 'dismissed') continue;
-    // several sections changed together are one job and one pull request: one line
-    const g = e.group && (e.job || e.pr) ? e.group : null;
-    if (g) { if (groups.has(g)) continue; groups.add(g); }
-    const n = g ? history.filter(h => h.group === g).length : 1, what = n > 1 ? `${e.title} and ${plural(n - 1, 'more section')}` : e.title;
-    const at = e.pr?.at || e.job?.finishedAt || e.at;
-    if (Date.parse(at) < since) continue;
-    const mine = readUpkeep(store).done.find(d => d.kept && d.by === 'thinker' && d.item === `change:${e.key || (e.keys || [])[0]}`);
-    const line = e.running ? `Working on it now: ${what}` : e.failed ? `Could not change ${what}: ${short(e.job?.error, 100)}`
-      : e.pr ? `${e.pr.state === 'merged' ? `PR #${e.pr.number} merged` : e.pr.state === 'closed' ? `PR #${e.pr.number} was closed without merging` : `Put up PR #${e.pr.number}`}: ${what}`
-      : `${what}: ${e.result || e.decision}`;
-    // `shared`: a decision for the whole machine is in every repository's history, and is one line when they are read together
-    out.push({ at, kind: e.pr ? 'pr' : 'change', text: line, by: mine ? 'thinker' : 'you', ...(e.pr?.url ? { url: e.pr.url } : {}), ...(e.revertedAt ? { undone: true } : {}), ...(e.scope === 'machine' ? { shared: e.id } : {}) });
+  if (history.length) {
+    // each decision with its measured effect, from the report kept here (a file read; nothing is measured now), and
+    // this repository's pace: the prompts a day over the last week
+    let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
+    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
+    const groups = new Set();
+    for (const e of history) {
+      if (e.decision === 'dismissed') continue;
+      // several sections changed together are one job and one pull request: one line, their savings added
+      const g = e.group && (e.job || e.pr) ? e.group : null;
+      if (g) { if (groups.has(g)) continue; groups.add(g); }
+      // one line: a long section title is cut, the rest of it is under Recent activity's Action savings
+      const of = g ? history.filter(h => h.group === g) : [e], what = of.length > 1 ? `${short(e.title, 60)} and ${plural(of.length - 1, 'more section')}` : short(e.title, 80);
+      const at = e.pr?.at || e.job?.finishedAt || e.at;
+      if (Date.parse(at) < since) continue;
+      const waiting = e.running || e.pr?.state === 'open', nothing = e.failed || e.revertedAt || e.pr?.state === 'closed';
+      const measured = !waiting && of.every(h => h.effect), perPrompt = nothing ? 0 : of.reduce((a, h) => a + (measured ? h.effect.delta : h.saving || 0), 0);
+      const impact = perPrompt ? { perPrompt, perDay: rate != null && perDay ? perPrompt * perDay * rate : null, promptsPerDay: perDay, measured, ...(waiting ? { pending: true } : {}) } : null;
+      const mine = done.find(d => d.kept && d.by === 'thinker' && d.item === `change:${e.key || (e.keys || [])[0]}`);
+      // `shared`: a decision for the whole machine is in every repository's history, and is one line when they are read together
+      // a pull request's line always carries its link (`url`): it may be in review for days, and the line is how the
+      // person gets to it. `undo`: what the chat names to take the decision back (upkeepUndo).
+      out.push(line({ at, kind: e.pr ? 'pr' : 'change', text: didSaid(e, what), by: mine ? 'thinker' : 'you', ...(e.pr?.url ? { url: e.pr.url } : {}), ...(e.pr ? { pr: { number: e.pr.number, state: e.pr.state } } : {}), ...(e.revertedAt ? { undone: true } : e.revertible ? { undo: `h:${e.id}` } : {}), ...(e.scope === 'machine' ? { shared: e.id } : {}) }, impact));
+    }
   }
-  // the offline work, a line a day of each kind: nobody wants a row per session
-  const daily = new Map();
-  const add = (t, kind, fn) => { const k = `${dayKey(t)} ${kind}`; if (!daily.has(k)) daily.set(k, { at: t, kind, n: 0, a: 0, b: 0, c: 0 }); const g = daily.get(k); if (t > g.at) g.at = t; fn(g); };
+  // the profile as it was last updated: one line, the newest, since a line a day would crowd out what was done
+  let last = null;
   for (const e of log || readLog(store)) {
-    if (!e.t || Date.parse(e.t) < since) continue;
-    if (e.op === 'profile') add(e.t, 'read', g => { g.n++; g.a += e.observations || 0; });
-    else if (e.op === 'profile-compile' && e.changes) add(e.t, 'profile', g => { g.n++; g.a += e.changes.added || 0; g.b += e.changes.updated || 0; g.c += e.changes.dropped || 0; });
-    else if (e.op === 'maintain' && e.pruned) add(e.t, 'pruned', g => { g.n += e.pruned; });
+    if (e.op !== 'profile-compile' || !e.changes || !e.t || Date.parse(e.t) < since) continue;
+    const c = e.changes, n = (c.added || 0) + (c.updated || 0) + (c.dropped || 0);
+    if (n && (!last || e.t > last.at)) last = { at: e.t, kind: 'profile', by: 'thinker', profile: { added: c.added || 0, reworded: c.updated || 0, dropped: c.dropped || 0 } };
   }
-  for (const g of daily.values()) {
-    if (g.kind === 'read') out.push({ at: g.at, kind: 'read', text: `Read ${plural(g.n, 'session')}${g.a ? ` and noted ${plural(g.a, 'thing')} about how you work` : '; nothing new to note'}`, by: 'thinker' });
-    else if (g.kind === 'profile' && g.a + g.b + g.c) out.push({ at: g.at, kind: 'profile', text: `Updated your profile: ${[g.a ? `${plural(g.a, 'line')} added` : '', g.b ? `${g.b} reworded` : '', g.c ? `${g.c} dropped` : ''].filter(Boolean).join(', ')}`, by: 'thinker' });
-    else if (g.kind === 'pruned') out.push({ at: g.at, kind: 'pruned', text: `Cleared ${plural(g.n, 'stale state file')}`, by: 'thinker' });
-  }
+  if (last) out.push({ ...last, text: profileSaid(last.profile) });
   return out.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.feedMax);
 }
 
 // --- what both doors read ------------------------------------------------------------------------------------
 // One line on how things stand.
-export function summary({ level, lastCheck, items, later }) {
+export function summary({ level, lastCheck, later, held }) {
   if (level === 'off') return 'Thinker is not looking after this repository.';
-  const mine = items.filter(i => i.kind !== 'note').length, notes = items.length - mine;
-  const wait = later ? `${plural(later, 'more change')} waiting ${later === 1 ? 'its' : 'their'} turn` : '';
-  if (!lastCheck && !items.length) return 'Thinker has not looked here yet.';
-  if (!items.length) return ['Nothing needs you', wait].filter(Boolean).join('; ') + '.';
-  return [mine ? `${plural(mine, 'thing')} need${mine === 1 ? 's' : ''} you` : '', notes ? plural(notes, 'heads-up') : '', wait].filter(Boolean).join(', ') + '.';
+  if (!lastCheck) return 'Thinker has not looked here yet.';
+  const said = [later ? `${plural(later, 'change')} waiting ${later === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
+  return said.length ? `${said.join(', ')}.` : 'Up to date.';
 }
-export function upkeepView(store, { now = Date.now(), log, home = thinkerHome() } = {}) {
+// `pending` and `notes` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
+export function upkeepView(store, { now = Date.now(), log, report, home = thinkerHome() } = {}) {
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
-  const inbox = on ? upkeepInbox(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, later: 0, items: [] };
+  const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: inbox.lastCheck, later: inbox.later, items: inbox.items, feed: upkeepFeed(store, { now, log }), attention: inbox.items.filter(i => i.kind !== 'note' && i.chore !== 'waiting').length };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, feed: upkeepFeed(store, { now, log, report }) };
   return { ...v, summary: summary(v) };
 }
-// Every repository's view as one (the page's All repositories): each item and line says whose it is, what needs the
-// person is numbered again, and the last check is the oldest one, since that is how stale the list can be.
+// Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is
+// the oldest one, since that is how stale the list can be.
 export function mergeUpkeepViews(pairs) {
-  const items = [], feed = [], checks = [], shared = new Map(), said = new Set();
-  let later = 0;
+  const pending = [], notes = [], feed = [], checks = [], profiles = [], shared = new Map(), said = new Map();
   for (const { repo, name, view } of pairs) {
     if (!view) continue;
-    later += view.later || 0;
-    for (const i of view.items) {
-      // a tool is switched for the whole machine, so the same tool found in three repositories is one item: the
-      // costliest of them, said once, and doing it from any one of them does it for all (context-suggest.js)
+    for (const i of view.pending || []) {
+      // a tool is switched for the whole machine, so the same tool found in three repositories is one thing: the
+      // costliest of them, and doing it from any one of them does it for all (context-suggest.js)
       if (i.machine) { const g = shared.get(i.id) || { n: 0, top: null }; g.n++; if (!g.top || (i.rank || 0) > (g.top.rank || 0)) g.top = { ...i, repo, repoName: name }; shared.set(i.id, g); }
-      else items.push({ ...i, repo, repoName: name });
+      else pending.push({ ...i, repo, repoName: name });
     }
-    for (const f of view.feed) { if (f.shared) { if (said.has(f.shared)) continue; said.add(f.shared); feed.push({ ...f, repo, repoName: 'All repositories' }); } else feed.push({ ...f, repo, repoName: name }); }
+    notes.push(...(view.notes || []).map(i => ({ ...i, repo, repoName: name })));
+    for (const f of view.feed) {
+      // the profiles of several repositories are one line, the newest update's time and their changes added
+      if (f.kind === 'profile' && f.profile) { profiles.push({ ...f, repo, repoName: name }); continue; }
+      if (!f.shared) { feed.push({ ...f, repo, repoName: name }); continue; }
+      // a decision for the whole machine: one line, what it saves a day added over the repositories, and the tokens a
+      // prompt the average over their prompts
+      const had = said.get(f.shared);
+      if (!had) { const x = { ...f, repo, repoName: 'All repositories' }; said.set(f.shared, x); feed.push(x); continue; }
+      if (!f.impact || !had.impact) { if (f.impact && !had.impact) Object.assign(had, { impact: f.impact, impactSaid: f.impactSaid }); continue; }
+      const a = had.impact, b = f.impact, n = (a.promptsPerDay || 0) + (b.promptsPerDay || 0);
+      had.impact = { perPrompt: n ? (a.perPrompt * (a.promptsPerDay || 0) + b.perPrompt * (b.promptsPerDay || 0)) / n : a.perPrompt, perDay: a.perDay == null && b.perDay == null ? null : (a.perDay || 0) + (b.perDay || 0), promptsPerDay: n, measured: a.measured && b.measured, ...(a.pending || b.pending ? { pending: true } : {}) };
+      had.impactSaid = impactSaid(had.impact);
+    }
     if (view.level !== 'off') checks.push(view.lastCheck);
   }
-  for (const g of shared.values()) items.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories`, detail: `${g.top.detail} The figure is the costliest of the ${g.n} repositories it is loaded in.` } : g.top);
-  items.sort(byOrder);
+  for (const g of shared.values()) pending.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories` } : g.top);
+  pending.sort(byOrder);
+  if (profiles.length === 1) feed.push(profiles[0]);
+  else if (profiles.length) { const sum = k => profiles.reduce((a, f) => a + f.profile[k], 0), p = { added: sum('added'), reworded: sum('reworded'), dropped: sum('dropped') }; feed.push({ at: profiles.map(f => f.at).sort().at(-1), kind: 'profile', by: 'thinker', profile: p, text: profileSaid(p, ` in ${profiles.length} repositories`), repoName: '' }); }
   feed.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const on = pairs.filter(p => p.view && p.view.level !== 'off'), levels = [...new Set(on.map(p => p.view.level))];
   const level = !on.length ? 'off' : levels.length === 1 ? levels[0] : 'mixed', lastCheck = checks.length && checks.every(Boolean) ? checks.sort()[0] : null;
   const first = on[0]?.view;
-  const v = { level, behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here; pick one to see how.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later, items: items.map((i, n) => ({ ...i, n: n + 1 })), feed: feed.slice(0, UPKEEP.feedMax), attention: items.filter(i => i.kind !== 'note' && i.chore !== 'waiting').length };
+  const v = { level, behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax) };
   return { ...v, summary: summary(v) };
 }
 
@@ -507,21 +579,10 @@ export function mergeUpkeepViews(pairs) {
 export const ago = (t, now = Date.now()) => { if (!t) return 'never'; const m = Math.max(0, Math.round((now - Date.parse(t)) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`; };
 const when = (t, now) => { const d = new Date(t), today = dayKey(now) === dayKey(t), time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return today ? `today ${time}` : dayKey(now - DAY) === dayKey(t) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
 export function renderUpkeep(v, { now = Date.now(), feed = 12 } = {}) {
-  const out = [`Recent activity · thinker last looked ${ago(v.lastCheck, now)}`, `  ${v.summary}`, `  ${v.behaviorSaid}`, ''];
-  if (v.items.length) {
-    out.push(`Needs you (${v.items.length})`);
-    for (const it of v.items) {
-      out.push(`  ${String(it.n).padStart(2)}  ${it.title}${it.repoName ? ` · ${it.repoName}` : ''}`);
-      if (it.detail) out.push(`      ${it.detail}`);
-      for (const l of it.lines || []) out.push(`        - ${l}`);
-      out.push(`      ${it.action ? `thinker activity do ${it.n}   (${it.action.label})` : it.link ? it.link.url : 'a heads-up: nothing to run'}   ·   thinker activity leave ${it.n}`);
-    }
-    out.push('');
-  }
-  if (v.feed.length) {
-    out.push('What thinker did');
-    for (const f of v.feed.slice(0, feed)) out.push(`  ${when(f.at, now).padEnd(15)}  ${f.text}${f.by === 'thinker' && (f.kind === 'did' || f.kind === 'pr' || f.kind === 'change') ? ' (on its own)' : ''}${f.undone ? ' (taken back)' : ''}${f.undo ? `   · thinker activity undo ${f.undo}` : ''}${f.repoName ? ` · ${f.repoName}` : ''}`);
-    if (v.feed.length > feed) out.push(`  and ${v.feed.length - feed} more (--all)`);
-  }
+  const out = [`Recent activity · thinker last looked ${ago(v.lastCheck, now)}`, `  ${v.summary} ${v.behaviorSaid}`, ''];
+  if (!v.feed.length) out.push('  Nothing yet. What thinker does for you is listed here with what it saved.');
+  // a line an action: what was done, what it came to, and for a pull request where to read it
+  for (const f of v.feed.slice(0, feed)) out.push(`  ${when(f.at, now).padEnd(15)}  ${f.text}${f.impactSaid ? `  ${f.impactSaid}` : ''}${f.by === 'thinker' && (f.kind === 'did' || f.kind === 'pr' || f.kind === 'change') ? ' (on its own)' : ''}${f.undone ? ' (taken back)' : ''}${f.url ? `  ${f.url}` : ''}${f.repoName ? ` · ${f.repoName}` : ''}`);
+  if (v.feed.length > feed) out.push(`  and ${v.feed.length - feed} more (--all)`);
   return out;
 }

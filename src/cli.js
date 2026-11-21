@@ -165,20 +165,21 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
                                  requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every
                                  figure by a feature's two sides, the sessions it reached against the ones held out from it
-  activity [run [--look] | do <n> | leave <n> | undo <id>] [--all] [--json]
-                                 Recent activity in the terminal: what needs you here, and what thinker did. Between sessions
-                                 thinker looks at what the coding agents left behind and does what is important by itself --
-                                 removes merged worktrees and branches, puts up a pull request for a costly section of the
-                                 instruction file nobody needs -- at most one pull request a repository a week, one a day over
-                                 the machine. What it will not do by itself is listed for you: an unused tool to switch, a rule
-                                 sessions keep breaking, a pull request waiting on your merge. It checks with maintenance, every
-                                 four hours; run checks now (no model call; --look only looks), do <n> does what an item offers
-                                 (several, or all), leave <n> leaves it a week, undo <id> takes an action back. How it behaves is
-                                 changed by talking to it (\`thinker chat\`); \`thinker ui --tab activity\` is the page
-  chat [message] [--json]        talk to thinker: ask what it did, or tell it how to behave ("ask me before putting up pull
-                                 requests", "one pull request a month at most", "leave this repository alone"). One model call a
-                                 message, through your agent's own login; what it changed is printed under its answer. With no
-                                 message, the conversation so far. The page has the same conversation in its chat window
+  activity [run [--look]] [--all] [--json]
+                                 Recent activity in the terminal, as it runs down the right of the page's chat: a line an action
+                                 with what it came to (-10k tokens per prompt, $45/day; disk freed), and for a pull request its
+                                 link while it is in review and after. Thinker does its work itself: between sessions it looks at
+                                 what the coding agents left behind and does what is important -- removes merged worktrees and
+                                 branches, puts up a pull request for a costly section of the instruction file nobody needs,
+                                 switches off a costly tool nobody calls -- at most one pull request a repository a week, one
+                                 pull request and one tool a day over the machine. Nothing is listed for you to do. It checks
+                                 with maintenance, every four hours; run is that check (no model call; --look only looks). How it
+                                 behaves, and taking a thing back, is said to it (\`thinker chat\`)
+  chat [message] [--json]        talk to thinker, as on the page it opens on: ask what it did, tell it how to behave ("ask me
+                                 before putting up pull requests", "one pull request a month at most", "leave this repository
+                                 alone"), or have it take a thing back ("turn that tool back on"). One model call a message,
+                                 through your agent's own login; what it changed is printed under its answer. With no message,
+                                 the conversation so far
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]
@@ -198,9 +199,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the four-hour update job. First run starts tracking, without backfilling.
                                  --dry lists eligible recorded PRs without syncing or posting. Set prComments:
                                  false in the machine or repository config to disable automatic comments
-  ui [--port n] [--no-open] [--tab save|report|factory|activity] [--here] [--refresh]
+  ui [--port n] [--no-open] [--tab chat|save|report|factory|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
-                                 checkout alone), on Find Savings (--tab save): where the agents' context goes in each
+                                 checkout alone), on the chat with thinker and what it did lately (--tab chat); Find Savings (--tab save): where the agents' context goes in each
                                  repository and what each part is worth, with the cuts (thinker context); then View Report (--tab report), what a
                                  session costs here week by week, by part and by model, in tokens or at list prices (thinker report);
                                  127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the

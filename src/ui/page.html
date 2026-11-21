@@ -62,58 +62,56 @@
     .nav-link .badge { display: inline-block; min-width: 1.25rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700; text-align: center; line-height: 1.3; vertical-align: 1px; }
     .nav-link .badge.quiet { background: #e5e7eb; color: #374151; }
     /* what needs the person, at the top of Recent activity */
-    /* Recent activity's first view (upkeep.js): what needs the person as cards, one action each, and what thinker did as a
-       quiet list under them. The status line keeps its height whether it says anything or not, so a refresh moves nothing. */
-    .up-status { min-height: 1.4rem; font-size: 0.86rem; color: #6b7280; margin: 0 0 0.9rem; }
-    .up-status b { color: #111; font-weight: 600; }
-    .up-how { display: flex; gap: 0.8rem; align-items: center; justify-content: space-between; flex-wrap: wrap; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 1.6rem; font-size: 0.86rem; line-height: 1.5; color: #444; }
-    .up-how span { flex: 1; min-width: 16rem; }
-    .up-how .btn { white-space: nowrap; }
-    .up-list { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 2rem; }
-    .up-item { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; background: #fafafa; border: 1px solid #e5e7eb; border-left: 3px solid #111; border-radius: 8px; padding: 0.85rem 1rem; }
-    .up-item.up-wait { border-left-color: #dc2626; }
-    .up-item.up-pr { border-left-color: #2563eb; }
-    .up-item.up-note { border-left-color: #d4d4d8; background: #fff; }
-    .up-main { min-width: 0; flex: 1; }
-    .up-tag { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.25rem; }
-    .up-title { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; overflow-wrap: anywhere; }
-    .up-detail { font-size: 0.86rem; color: #444; line-height: 1.5; margin-top: 0.25rem; max-width: 720px; }
-    .up-lines { margin: 0.45rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: #6b7280; line-height: 1.55; overflow-wrap: anywhere; }
-    .up-acts { display: flex; flex-direction: column; gap: 0.4rem; align-items: stretch; flex-shrink: 0; min-width: 11.5rem; }
-    .up-acts .btn { white-space: nowrap; text-align: center; text-decoration: none; }
-    .up-clear { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 2rem; font-size: 0.9rem; }
-    .up-feed { list-style: none; border-top: 1px solid #f0f0f0; }
-    .up-feed li { display: flex; gap: 0.9rem; align-items: baseline; padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.86rem; line-height: 1.45; }
-    .up-when { flex: 0 0 7.5rem; color: #6b7280; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
-    .up-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-    .up-text a { color: #111; }
-    .up-undone .up-text { text-decoration: line-through; color: #6b7280; }
-    .up-by { font-size: 0.72rem; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.05rem 0.5rem; white-space: nowrap; }
-    .up-undo { background: transparent; border: 0; color: #111; font-size: 0.8rem; text-decoration: underline; cursor: pointer; padding: 0; }
-    @media (max-width: 640px) { .up-item { flex-direction: column; } .up-acts { flex-direction: row; min-width: 0; } .up-when { flex-basis: 5.5rem; } }
-    /* The chat window (chat.js): a panel over the lower right of every tab, above the FAQ button, opened from the nav. */
-    .chat-win { position: fixed; right: 1.25rem; bottom: 4.6rem; z-index: 30; width: min(26rem, calc(100vw - 2rem)); height: min(34rem, calc(100vh - 8rem)); display: flex; flex-direction: column; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.14); overflow: hidden; }
-    .chat-win[hidden] { display: none; }
-    .chat-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.6rem 0.7rem 0.9rem; border-bottom: 1px solid #f0f0f0; }
-    .chat-head b { font-weight: 700; letter-spacing: -0.04em; }
-    .chat-sub { color: #6b7280; font-size: 0.78rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .chat-log { flex: 1; overflow-y: auto; padding: 0.9rem; display: flex; flex-direction: column; gap: 0.55rem; }
-    .chat-msg { max-width: 88%; padding: 0.5rem 0.7rem; border-radius: 12px; font-size: 0.88rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+    /* Chat, the page thinker opens on (chat.js): the conversation fills the window under the nav, and Recent activity runs
+       down its right side as a line an action with what it came to (upkeep.js). The two scroll apart; nothing in either
+       changes height on a refresh. */
+    main:has(> #tab-chat:not([hidden])) { max-width: none; padding: 0; }
+    .home { display: grid; grid-template-columns: minmax(0, 1fr) 25rem; height: calc(100vh - var(--nav-h, 64px)); }
+    .home-chat { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+    .home-col { width: 100%; max-width: 50rem; margin: 0 auto; padding: 0 1.5rem; }
+    .home-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1.1rem; padding-bottom: 0.4rem; }
+    .home-head .chat-sub { color: #6b7280; font-size: 0.84rem; }
+    .chat-log { flex: 1; min-height: 0; overflow-y: auto; }
+    .chat-log .home-col { display: flex; flex-direction: column; gap: 0.7rem; padding-top: 1rem; padding-bottom: 1.2rem; min-height: 100%; }
+    .chat-msg { max-width: 82%; padding: 0.6rem 0.85rem; border-radius: 14px; font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
     .chat-msg.you { align-self: flex-end; background: #111; color: #fff; border-bottom-right-radius: 4px; }
     .chat-msg.thinker { align-self: flex-start; background: #f4f4f5; color: #111; border-bottom-left-radius: 4px; }
     .chat-msg.wait { color: #6b7280; }
     .chat-msg.bad { background: #fef2f2; color: #991b1b; }
-    .chat-did { list-style: none; margin: 0.4rem 0 0; padding: 0.35rem 0 0; border-top: 1px solid #e5e7eb; font-size: 0.78rem; color: #444; white-space: normal; }
+    .chat-did { list-style: none; margin: 0.45rem 0 0; padding: 0.4rem 0 0; border-top: 1px solid #e5e7eb; font-size: 0.82rem; color: #444; white-space: normal; }
     .chat-did li.no { color: #b91c1c; }
-    .chat-empty { margin: auto 0; text-align: center; color: #6b7280; font-size: 0.86rem; line-height: 1.5; padding: 0 0.6rem; }
-    .chat-hints { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0 0.9rem 0.6rem; }
+    .chat-empty { margin: auto 0; text-align: center; color: #6b7280; padding: 0 1rem; }
+    .chat-empty h1 { font-size: 1.7rem; letter-spacing: -0.04em; color: #111; margin-bottom: 0.5rem; }
+    .chat-empty p { font-size: 0.95rem; line-height: 1.55; max-width: 30rem; margin: 0 auto; }
+    .chat-hints { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; padding-bottom: 0.7rem; }
     .chat-hints:empty { display: none; }
-    .chat-hint { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; padding: 0.25rem 0.65rem; font-size: 0.78rem; color: #111; cursor: pointer; }
+    .chat-hint { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.84rem; color: #111; cursor: pointer; }
     .chat-hint:hover { border-color: #111; }
-    .chat-form { display: flex; gap: 0.5rem; padding: 0.7rem; border-top: 1px solid #f0f0f0; align-items: flex-end; }
-    .chat-form textarea { flex: 1; resize: none; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.5rem 0.6rem; font-size: 0.88rem; line-height: 1.4; }
+    .chat-form { display: flex; gap: 0.6rem; align-items: flex-end; padding-bottom: 1.4rem; }
+    .chat-form textarea { flex: 1; resize: none; border: 1px solid #d4d4d8; border-radius: 12px; padding: 0.7rem 0.85rem; font-size: 0.95rem; line-height: 1.45; }
     .chat-form textarea:focus { outline: none; border-color: #111; }
-    .nav-link.chat-on { color: #000; background: #f5f5f5; }
+    .chat-form .btn { padding: 0.7rem 1.1rem; border-radius: 12px; }
+    .home-side { border-left: 1px solid #f0f0f0; background: #fcfcfc; overflow-y: auto; padding: 1.1rem 1.2rem 5rem; min-width: 0; }
+    .side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+    .side-head b { font-size: 0.95rem; letter-spacing: -0.02em; }
+    .side-link { background: transparent; border: 0; padding: 0; color: #6b7280; font-size: 0.78rem; text-decoration: underline; cursor: pointer; }
+    .side-link:hover { color: #111; }
+    .side-status { min-height: 1.2rem; font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin: 0.25rem 0 0.8rem; }
+
+    .side-feed { list-style: none; }
+    .side-feed li { padding: 0.55rem 0; border-bottom: 1px solid #f0f0f0; }
+    .side-text { font-size: 0.84rem; line-height: 1.4; overflow-wrap: anywhere; }
+    .side-text a { color: #111; }
+    .up-undone .side-text { text-decoration: line-through; color: #6b7280; }
+    .side-impact { font-size: 0.84rem; font-weight: 600; color: #15803d; font-variant-numeric: tabular-nums; margin-top: 0.1rem; }
+    .side-impact.soft { color: #6b7280; font-weight: 500; }
+    .side-impact.worse { color: #b91c1c; }
+    .side-meta { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.72rem; color: #6b7280; margin-top: 0.15rem; }
+    .up-by { border: 1px solid #e5e7eb; border-radius: 999px; padding: 0 0.45rem; white-space: nowrap; }
+    .side-meta a { color: #6b7280; }
+    .chat-msg a { color: inherit; }
+    .side-empty { font-size: 0.84rem; color: #6b7280; line-height: 1.5; padding: 0.6rem 0; }
+    @media (max-width: 900px) { .home { grid-template-columns: 1fr; height: auto; } .home-chat { min-height: 75vh; } .home-side { border-left: 0; border-top: 1px solid #f0f0f0; } }
     .attn { display: flex; flex-direction: column; gap: 0.3rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
     .attn.ok { background: #f0fdf4; border-color: #bbf7d0; }
     .attn.wait { background: #fefce8; border-color: #fde68a; } .attn.wait code { background: #fef3c7; padding: 0 0.25rem; border-radius: 3px; }
@@ -499,14 +497,14 @@
 </head>
 <body>
   <nav>
-    <div class="brand"><span class="wordmark">thinker</span><span class="brand-sub">local</span></div>
+    <div class="brand"><span class="wordmark" id="brand-home" role="link" tabindex="0" style="cursor:pointer" title="Chat with thinker">thinker</span><span class="brand-sub">local</span></div>
     <div class="nav-right">
+      <button class="nav-link" data-tab="chat" title="Talk to thinker, with what it did lately beside the conversation">Chat</button>
       <button class="nav-link" data-tab="save">Find Savings</button>
       <button class="nav-link" data-tab="report">View Report</button>
       <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
-      <button class="nav-link" data-tab="activity" title="What thinker did, every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
-      <button class="nav-link" id="chat-open" type="button" aria-haspopup="dialog" aria-controls="chat-win" title="Ask thinker what it did, or tell it how to behave">Chat</button>
+      <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
     </div>
   </nav>
   <div id="scan-progress" class="scan-progress" hidden>
@@ -515,6 +513,25 @@
   </div>
 
   <main>
+    <!-- Chat: the page thinker opens on. The conversation with thinker (chat.js:chatSend, as `thinker chat`), and down its
+         right side Recent activity: what needs the person, and a line an action with what it came to (upkeep.js:upkeepView,
+         as `thinker activity`) -->
+    <section id="tab-chat" hidden>
+      <div class="home">
+        <div class="home-chat">
+          <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span><select class="sel" id="h-repo" aria-label="Repository"></select></div>
+          <div class="chat-log" id="chat-log" aria-live="polite"><div class="home-col" id="chat-msgs"></div></div>
+          <div class="home-col"><div class="chat-hints" id="chat-hints"></div>
+          <form class="chat-form" id="chat-form"><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea><button class="btn" id="chat-send" type="submit">Send</button></form></div>
+        </div>
+        <aside class="home-side" aria-label="Recent activity">
+          <div class="side-head"><b>Recent activity</b><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests">All decisions</button></div>
+          <div class="side-status" id="side-status" role="status"></div>
+          <div id="side-body"><div class="side-empty"><span class="spinner"></span>Reading…</div></div>
+        </aside>
+      </div>
+    </section>
+
     <!-- Save: where the agents' context goes in one repository, what each part is worth, and the cuts (context-view.js, as `thinker context`) -->
     <section id="tab-save" hidden>
       <div class="ctx-top"><div class="ctx-head"><h1>Find Savings</h1><span class="muted" id="c-asof"></span></div>
@@ -563,27 +580,18 @@
          as `thinker context --history`) -->
     <section id="tab-activity" hidden>
       <div class="ctx-top"><div><h1>Recent activity</h1>
-      <p class="lede">What thinker did, what still needs you, and what the actions and merged pull requests saved</p></div>
+      <p class="lede">Savings from actions and merged pull requests, and what still needs you</p></div>
       <div class="controls">
         <select class="sel" id="a-repo" aria-label="Repository"></select>
       </div></div>
       <div class="vtabs" id="a-view" role="tablist" aria-label="Savings">
-        <button role="tab" data-view="thinker" class="on" aria-selected="true" aria-controls="activity-thinker"><span class="vt-name">What thinker did</span></button>
-        <button role="tab" data-view="actions" aria-selected="false" aria-controls="activity-body"><span class="vt-name">Action savings</span></button>
+        <button role="tab" data-view="actions" class="on" aria-selected="true" aria-controls="activity-body"><span class="vt-name">Action savings</span></button>
         <button role="tab" data-view="prs" aria-selected="false" aria-controls="activity-prs"><span class="vt-name">PR savings</span></button>
       </div>
       <div id="activity-prs" class="section" hidden></div>
-      <div id="activity-thinker" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
-      <div id="activity-body" class="section" hidden><div class="empty"><span class="spinner"></span>Reading…</div></div>
+      <div id="activity-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
     </section>
   </main>
-  <!-- The chat window: the person and thinker (chat.js:chatSend, as `thinker chat`), over whichever tab is open -->
-  <div class="chat-win" id="chat-win" role="dialog" aria-label="Chat with thinker" hidden>
-    <div class="chat-head"><b>thinker</b><span class="chat-sub" id="chat-about"></span><button class="btn-close" id="chat-close" type="button" aria-label="Close the chat">&times;</button></div>
-    <div class="chat-log" id="chat-log" aria-live="polite"></div>
-    <div class="chat-hints" id="chat-hints"></div>
-    <form class="chat-form" id="chat-form"><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea><button class="btn" id="chat-send" type="submit">Send</button></form>
-  </div>
   <div class="toast" id="toast"></div>
   <div class="hint" id="hint" role="status">Open this dashboard with <code>thinker ui</code></div>
   <button class="faq-fab" id="faq-fab" type="button" aria-haspopup="dialog">FAQ</button>
@@ -660,7 +668,7 @@ const H = () => new URLSearchParams(location.hash.slice(1));
 const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
 // and which tab, normalized as show() does (an old name, an unknown one and no tab at all are Save), so `repo=`
 // reaches the tab that opens
-const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity'].includes(t) ? t : 'save'; };
+const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity', 'chat'].includes(t) ? t : t ? 'save' : 'chat'; };
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
 let REPOS = [], REPO = ['report', 'factory'].includes(hashTab()) ? hashRepo() : 'all';
 // Which door sent the person (context-suggest.js:suggestionsUrl): `setup` the installer, which also gets a hint in
@@ -705,6 +713,7 @@ function confirmDialog({ title, body, ok = 'Confirm' }) {
 
 // tabs
 document.querySelectorAll('.nav-link[data-tab]').forEach(b => b.onclick = () => show(b.dataset.tab));
+$('#brand-home').onclick = () => show('chat');
 function show(tab) {
   // the Context tab is Find Savings (`save`) and the Cache tab is View Report (`report`) since 2026-10-22, and Save's History view is
   // the Recent activity page (`activity`) since 2026-10-24; an old link (context, changes, cache, view=history) and any tab the page
@@ -712,14 +721,13 @@ function show(tab) {
   if (tab === 'changes') tab = 'save';
   if (tab === 'cache') tab = 'report';
   if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
-  if (!['report', 'factory', 'activity'].includes(tab)) tab = 'save';
+  if (!['report', 'factory', 'activity', 'chat'].includes(tab)) tab = 'save';
   document.querySelectorAll('.nav-link[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  for (const k of ['save', 'report', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
+  for (const k of ['chat', 'save', 'report', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else loadActivity();
-  chatAboutLine();
+  if (tab === 'chat') loadHome(); else if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 function card(kicker, num, label, rows, gain) {
@@ -1261,15 +1269,12 @@ function wireHistory(root, hs, reload, rerender) {
 // Every decision kept, for one repository or all (the default: the page is the machine's), with what still needs the person
 // at the top; the badge on the tab counts those, asked for every ACT_POLL_MS, and every ACT_FAST_MS while a change runs,
 // so a row's pill moves from under way to pending or failed without a reload.
-let AVIEW = 'thinker', APR = null, APR_FOR = null, APRPOLL = null, APR_ALL = false;
-// what thinker did and what needs the person (/api/upkeep), the view the tab opens on; UPK_ATTN is every repository's count for the badge
-let UPK = null, UPK_FOR = null, UPK_ATTN = 0;
+let AVIEW = 'actions', APR = null, APR_FOR = null, APRPOLL = null, APR_ALL = false;
 let AREPO = hashTab() === 'activity' ? hashRepo() : 'all', ACT = null, APOLL = null;
 const ACT_POLL_MS = 30_000, ACT_FAST_MS = 5_000;
 document.querySelectorAll('#a-view button').forEach(b => b.onclick = () => {
   AVIEW = b.dataset.view;
   document.querySelectorAll('#a-view button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-selected', String(x === b)); });
-  $('#activity-thinker').hidden = AVIEW !== 'thinker';
   $('#activity-body').hidden = AVIEW !== 'actions';
   $('#activity-prs').hidden = AVIEW !== 'prs';
   loadActivity();
@@ -1282,7 +1287,7 @@ let ACT_FOR = null, ALOAD = 0;
 // --history` hides them without --reverted)
 let SHOW_REVERTED = (() => { try { return localStorage.getItem('thinker-show-reverted') === '1'; } catch { return false; } })();
 async function loadActivity() {
-  const prs = AVIEW === 'prs', up = AVIEW === 'thinker', el = $(prs ? '#activity-prs' : up ? '#activity-thinker' : '#activity-body'), seq = ++ALOAD, inPlace = prs ? Boolean(APR) && APR_FOR === AREPO : up ? Boolean(UPK) && UPK_FOR === AREPO : Boolean(ACT) && ACT_FOR === AREPO;
+  const prs = AVIEW === 'prs', el = $(prs ? '#activity-prs' : '#activity-body'), seq = ++ALOAD, inPlace = prs ? Boolean(APR) && APR_FOR === AREPO : Boolean(ACT) && ACT_FOR === AREPO;
   clearTimeout(APRPOLL);
   if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
   try {
@@ -1296,11 +1301,6 @@ async function loadActivity() {
       await progressiveView(`/api/report?repo=${encodeURIComponent(AREPO)}&weeks=6`, d => {
         APR_FOR = want; renderActivityPrs({ ...d, refreshing: false });
       }, () => seq === ALOAD && want === AREPO && TAB === 'activity' && AVIEW === 'prs');
-    } else if (up) {
-      scanProgress(null);
-      const d = await api(`/api/upkeep?repo=${encodeURIComponent(AREPO)}`);
-      if (seq !== ALOAD || want !== AREPO) return;
-      UPK_FOR = want; renderThinker(d);
     } else {
       scanProgress(null);
       const d = await api(`/api/activity?repo=${encodeURIComponent(AREPO)}&progressive=1`);
@@ -1371,24 +1371,13 @@ function renderActivityPrs(v) {
 }
 // the badge on the Recent activity tab: what needs the person over every repository, red; grey while something only runs
 function badge(d) {
-  LAST_ATTN = d;
-  const b = $('#act-badge'), n = (d.attention || 0) + UPK_ATTN;
+  const b = $('#act-badge'), n = d.attention || 0;
   b.hidden = !n; b.textContent = n; b.classList.toggle('quiet', !(n - (d.running || 0)));
-  b.title = n ? `${n} thing${n === 1 ? '' : 's'} not complete: a change under way or failed, a pull request to merge, or something thinker found that needs you` : '';
+  b.title = n ? `${n} decision${n === 1 ? '' : 's'} not complete: a change under way or failed, or a pull request to merge` : '';
 }
-let LAST_ATTN = { attention: 0, running: 0 };
 async function pollActivity() {
   clearTimeout(APOLL);
-  // what thinker found over every repository, without starting a look: its count joins the badge, and the view shown is
-  // drawn again when its list moved (or while a look it asked for is still out)
-  let u = null; try { u = await api('/api/upkeep?repo=all&look=0'); } catch {}
-  if (u) {
-    UPK_ATTN = u.attention || 0;
-    const mine = x => AREPO === 'all' || x.repo === AREPO, usig = v => JSON.stringify([(v.items || []).filter(mine).map(i => [i.id, i.title]), (v.feed || []).filter(mine).slice(0, 5).map(f => [f.at, f.text, f.undone])]);
-    if (TAB === 'activity' && AVIEW === 'thinker' && UPK && (usig(UPK) !== usig(u) || UPK.looking)) loadActivity();
-  }
   let d = null; try { d = await api('/api/activity?repo=all&progressive=1&measure=0'); } catch {}
-  if (!d && u) badge(LAST_ATTN);
   if (d) {
     badge(d);
     // what the open page shows follows: Recent activity is drawn again, and a Save row's pill, when a change finished
@@ -1398,99 +1387,107 @@ async function pollActivity() {
     if (TAB === 'activity' && AVIEW === 'actions' && ACT && sig(ACT.history, AREPO) !== sig(d.history, AREPO)) loadActivity();
     if (TAB === 'save' && CHIST && sig(CHIST.history, CREPO) !== sig(d.history, CREPO)) loadContext();
   }
-  APOLL = setTimeout(pollActivity, d?.running || (TAB === 'activity' && AVIEW === 'thinker' && UPK?.looking) ? ACT_FAST_MS : ACT_POLL_MS);
+  APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
 // ---- the repositories with a cache on this machine ----
-// ---- What thinker did (/api/upkeep: upkeep.js:upkeepView, as `thinker activity`) ----
-// Recent activity's first view: what needs the person, a card each with the one thing to do about it and a way to leave
-// it, and under them what was done lately, by thinker and by the offline work. Nothing is looked for when the page is
-// read: the answer is what the last check kept, and a repository whose check is old is looked at in the background
-// (`looking`), which the poll picks up. A look from the page never has thinker act. As everywhere, a refresh rebuilds
-// in place (swapBody).
-const UP_TAG = { wait: 'Waiting on you', pr: 'Pull request', do: 'To do', note: 'Heads-up' };
-const upWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
-function renderThinker(d) {
-  UPK = d;
-  const el = $('#activity-thinker'), many = AREPO === 'all';
-  const whose = x => many && x.repoName ? ` <span class="muted">· ${esc(x.repoName)}</span>` : '';
-  const status = `<div class="up-status" role="status"><b>${esc(d.summary)}</b>${d.level !== 'off' ? ` · thinker last looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}</div>`;
-  const how = `<div class="up-how"><span>${esc(d.behaviorSaid)}</span><button class="btn ghost" type="button" data-chat>Tell thinker how to behave</button><button class="btn ghost" type="button" data-look title="Look again at what the agents left behind. No model call, and nothing is done by a look.">Look again</button></div>`;
-  const item = (it, i) => `<article class="up-item up-${esc(it.kind)}"><div class="up-main">
-      <div class="up-tag">${esc(UP_TAG[it.kind] || 'Found')}</div>
-      <div class="up-title">${esc(it.title)}${whose(it)}</div>
-      ${it.detail ? `<div class="up-detail">${esc(it.detail)}</div>` : ''}
-      ${it.lines?.length ? `<ul class="up-lines">${it.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
-    </div><div class="up-acts">
-      ${it.action ? `<button class="btn" type="button" data-do="${i}">${esc(it.action.label)}</button>` : ''}
-      ${it.link ? `<a class="btn${it.action ? ' ghost' : ''}" href="${esc(it.link.url)}" target="_blank" rel="noopener">${esc(it.link.text)}</a>` : ''}
-      <button class="btn ghost" type="button" data-leave="${i}">${it.kind === 'note' ? 'Got it' : 'Leave it'}</button>
-    </div></article>`;
-  const needs = d.items.length ? `<div class="kicker">Needs you · ${d.items.length}</div><div class="up-list">${d.items.map(item).join('')}</div>`
-    : `<div class="up-clear">${esc(d.level === 'off' ? 'Thinker is switched off here.' : d.lastCheck ? 'Nothing needs you.' : 'Thinker has not looked here yet. It is on its way.')}</div>`;
-  const line = (f, i) => `<li class="${f.undone ? 'up-undone' : ''}"><span class="up-when">${esc(upWhen(f.at))}</span><span class="up-text">${f.url ? esc(f.text).replace(/#(\d+)/, `<a href="${esc(f.url)}" target="_blank" rel="noopener">#$1</a>`) : esc(f.text)}${whose(f)}</span>${f.undone ? '<span class="up-by">taken back</span>' : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="up-by">on its own</span>' : ''}${f.undo ? `<button class="up-undo" type="button" data-undo="${i}">Undo</button>` : ''}</li>`;
-  const feed = `<div class="kicker">What thinker did</div>${d.feed.length ? `<ol class="up-feed">${d.feed.map(line).join('')}</ol>` : '<div class="empty">Nothing yet. What thinker does, here and while you are away, is listed here.</div>'}`;
-  swapBody(el, status + how + needs + feed);
-  const act = (sel, path, key, doing, pick) => el.querySelectorAll(`[${sel}]`).forEach(b => b.onclick = async () => {
-    const x = pick(Number(b.getAttribute(sel))); busy(b, doing);
-    try { toast((await api(path, { repo: x.repo || (AREPO === 'all' ? '' : AREPO), id: x[key] })).said, false, 4200); await loadActivity(); pollActivity(); } catch (err) { toast(err.message, true, 5000); idle(b); }
-  });
-  act('data-do', '/api/upkeep/do', 'id', 'On it…', i => d.items[i]);
-  act('data-leave', '/api/upkeep/leave', 'id', 'Leaving…', i => d.items[i]);
-  act('data-undo', '/api/upkeep/undo', 'undo', 'Putting back…', i => d.feed[i]);
-  el.querySelector('[data-chat]').onclick = () => openChat();
-  el.querySelector('[data-look]').onclick = async e => {
-    const b = e.currentTarget; busy(b, 'Looking…');
-    try { const r = await api('/api/upkeep/look', { repo: AREPO }); toast(r.said); if (UPK && r.looking) UPK.looking = r.looking; await loadActivity(); pollActivity(); } catch (err) { toast(err.message, true); idle(b); }
-  };
-  if (AREPO === 'all') { UPK_ATTN = d.attention || 0; badge(LAST_ATTN); }
-}
-
-// ---- Chat (/api/chat: chat.js:chatSend, as `thinker chat`) ----
-// The window where the person talks to thinker, over whichever tab is open: they ask what it did, and tell it how to
-// behave. One conversation for the machine; a message says which repository the person is looking at. What thinker
-// changed is listed under its answer in the server's own words (`did`), and the tab behind is drawn again. A message
-// that had to be queued for an app's own session shows as waiting, and the window checks back for the answer.
-let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_POLL = null;
+// ---- Chat, the page thinker opens on ----
+// The conversation with thinker fills the page (/api/chat: chat.js:chatSend, as `thinker chat`): the person asks what it
+// did, and tells it how to behave. One conversation for the machine; a message says which repository is picked above
+// it. What thinker changed is listed under its answer in the server's own words (`did`). A message that had to be
+// queued for an app's own session shows as waiting, and the page checks back for the answer.
+// Down the right, Recent activity (/api/upkeep: upkeep.js:upkeepView, as `thinker activity`): a line an action with what
+// it came to, and for a pull request its link, since it may be in review for days. Nothing there is a button: thinker
+// does its work itself (the owner, 2026-11-21: "no more manual action please"), and doing, leaving or taking back a
+// thing is said to it in the chat. Nothing is looked for when the page is read: the answer is what the last check
+// kept, and a repository whose check is old is looked at in the background (`looking`), which the poll picks up. A
+// look never has thinker act. As everywhere, a refresh rebuilds in place (swapBody).
+let HREPO = hashTab() === 'chat' ? hashRepo() : 'all', UPK = null, UPK_FOR = null, HLOAD = 0, HPOLL = null;
+let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_POLL = null, CHAT_READ = false;
+const HOME_POLL_MS = 30_000, HOME_FAST_MS = 4_000;
 const CHAT_HINTS = ['What have you done lately?', 'Ask me before you put up a pull request', 'How do you decide what is important?'];
-const chatAbout = () => { const r = TAB === 'activity' ? AREPO : TAB === 'save' ? CREPO : REPO; return r && r !== 'all' ? r : ''; };
-function chatAboutLine() { const r = REPOS.find(x => x.id === chatAbout()); $('#chat-about').textContent = r ? `about ${r.name}` : 'about every repository'; }
+const chatAbout = () => HREPO && HREPO !== 'all' ? HREPO : '';
+const upWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
+$('#h-repo').onchange = e => { HREPO = e.target.value; e.target.blur(); loadHome(); };
+$('#side-more').onclick = () => show('activity');
+async function loadHome() {
+  try { if (!REPOS.length) await fetchRepos(); } catch {}
+  if (!HREPO) HREPO = REPOS.find(r => r.current)?.id || 'all';
+  else if (HREPO !== 'all' && !REPOS.some(r => r.id === HREPO)) HREPO = 'all';
+  $('#h-repo').innerHTML = `<option value="all"${HREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === HREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+  const r = REPOS.find(x => x.id === chatAbout());
+  $('#chat-about').textContent = r ? `Talking about ${r.name}` : 'Talking about every repository';
+  loadSide();
+  if (!CHAT_READ) { await loadChat(); CHAT_READ = true; } else renderChat();
+  $('#chat-input').focus();
+}
+async function loadSide() {
+  const seq = ++HLOAD, want = HREPO, inPlace = Boolean(UPK) && UPK_FOR === HREPO;
+  if (!inPlace) $('#side-body').innerHTML = '<div class="side-empty"><span class="spinner"></span>Reading…</div>';
+  try {
+    const d = await api(`/api/upkeep?repo=${encodeURIComponent(HREPO)}`);
+    if (seq !== HLOAD || want !== HREPO) return;
+    UPK_FOR = want; renderSide(d);
+  } catch (e) { if (seq !== HLOAD) return; if (inPlace) toast(`Could not read the activity: ${e.message}`, true); else $('#side-body').innerHTML = `<div class="side-empty">Could not read the activity: ${esc(e.message)}</div>`; }
+}
+function renderSide(d) {
+  UPK = d;
+  const el = $('#side-body'), many = HREPO === 'all';
+  const whose = x => many && x.repoName ? `<span>${esc(x.repoName)}</span>` : '';
+  // one line on how thinker behaves here (the whole sentence on hover; it is changed by telling it, in the chat)
+  const how = { auto: 'Acting on its own for important things', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
+  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${d.later ? ` · ${d.later} waiting ${d.later === 1 ? 'its' : 'their'} turn` : ''}${d.held ? ` · ${d.held} held back until you say` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
+  // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, red
+  // where it measured as costing more, grey while it is only expected), then when, where and by whom
+  const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? '' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? '' : ' soft'}">${esc(f.impactSaid)}</div>`;
+  const text = f => f.url ? esc(f.text).replace(/PR #(\d+)/, `<a href="${esc(f.url)}" target="_blank" rel="noopener">PR #$1</a>`) : esc(f.text);
+  const line = f => `<li class="${f.undone ? 'up-undone' : ''}"><div class="side-text">${text(f)}</div>${f.undone ? '' : impact(f)}<div class="side-meta"><span>${esc(upWhen(f.at))}</span>${whose(f)}${f.undone ? '<span class="up-by">taken back</span>' : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="up-by">on its own</span>' : ''}${f.url && f.pr?.state === 'open' ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">open the review</a>` : ''}</div></li>`;
+  swapBody(el, d.feed.length ? `<ol class="side-feed">${d.feed.map(line).join('')}</ol>`
+    : `<div class="side-empty">${esc(d.level === 'off' ? 'Thinker is switched off here.' : 'Nothing yet. What thinker does for you, here and while you are away, is listed here with what it saved.')}</div>`);
+}
+// the side is drawn again when what thinker did has moved (a check ran, a pull request merged), or while a look the
+// page asked for is still out; nothing is read while another tab is shown
+async function pollHome() {
+  clearTimeout(HPOLL);
+  if (TAB === 'chat' && UPK) {
+    let d = null; try { d = await api(`/api/upkeep?repo=${encodeURIComponent(HREPO)}&look=0`); } catch {}
+    const sig = v => JSON.stringify([v.later, v.level, (v.feed || []).slice(0, 8).map(f => [f.at, f.text, f.impactSaid, f.undone])]);
+    if (d && (sig(UPK) !== sig(d) || UPK.looking)) loadSide();
+  }
+  HPOLL = setTimeout(pollHome, TAB === 'chat' && UPK?.looking ? HOME_FAST_MS : HOME_POLL_MS);
+}
+// thinker's words with the links it gives made into links (a pull request in review is how the person gets to it)
+const chatText = t => esc(t).replace(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
 function renderChat() {
   const log = $('#chat-log');
   const bubble = m => m.role === 'you' ? `<div class="chat-msg you">${esc(m.text)}</div>`
     : m.pending ? `<div class="chat-msg thinker wait"><span class="spinner"></span>Waiting to answer through your agent's own session${m.via ? ` in ${esc(m.via)}` : ''}: the next time it is active there.</div>`
     : m.failed ? `<div class="chat-msg thinker bad">Could not answer: ${esc(m.failed)}</div>`
-    : `<div class="chat-msg thinker">${esc(m.text)}${m.did?.length ? `<ul class="chat-did">${m.did.map(x => `<li class="${x.ok ? '' : 'no'}">${x.ok ? '✓' : '✗'} ${esc(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
-  log.innerHTML = (CHAT_MSGS.length || CHAT_WAIT ? CHAT_MSGS.map(bubble).join('') : '<div class="chat-empty">Ask thinker what it has been doing, or tell it how you want it to behave. It acts on what you say here.</div>')
+    : `<div class="chat-msg thinker">${chatText(m.text)}${m.did?.length ? `<ul class="chat-did">${m.did.map(x => `<li class="${x.ok ? '' : 'no'}">${x.ok ? '✓' : '✗'} ${chatText(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
+  const empty = !CHAT_MSGS.length && !CHAT_WAIT;
+  $('#chat-msgs').innerHTML = (empty ? '<div class="chat-empty"><h1>thinker</h1><p>Ask what it has been doing, or tell it how you want it to behave. It acts on what you say here.</p></div>' : CHAT_MSGS.map(bubble).join(''))
     + (CHAT_WAIT ? `<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
-  $('#chat-hints').innerHTML = CHAT_MSGS.length || CHAT_WAIT ? '' : CHAT_HINTS.map((h, i) => `<button class="chat-hint" type="button" data-hint="${i}">${esc(h)}</button>`).join('');
+  $('#chat-hints').innerHTML = empty ? CHAT_HINTS.map((h, i) => `<button class="chat-hint" type="button" data-hint="${i}">${esc(h)}</button>`).join('') : '';
   $('#chat-hints').querySelectorAll('[data-hint]').forEach(b => b.onclick = () => sendChat(CHAT_HINTS[Number(b.dataset.hint)]));
   log.scrollTop = log.scrollHeight;
   // a queued answer is picked up when the app's session has given it
   clearTimeout(CHAT_POLL);
-  if (!$('#chat-win').hidden && CHAT_MSGS.some(m => m.pending)) CHAT_POLL = setTimeout(loadChat, 5000);
+  if (TAB === 'chat' && CHAT_MSGS.some(m => m.pending)) CHAT_POLL = setTimeout(loadChat, 5000);
 }
 async function loadChat() { try { CHAT_MSGS = (await api('/api/chat')).messages || []; } catch {} renderChat(); }
-async function openChat() {
-  $('#chat-win').hidden = false; $('#chat-open').classList.add('chat-on'); $('#chat-open').setAttribute('aria-expanded', 'true');
-  chatAboutLine(); await loadChat(); $('#chat-input').focus();
-}
-function closeChat() { $('#chat-win').hidden = true; $('#chat-open').classList.remove('chat-on'); $('#chat-open').setAttribute('aria-expanded', 'false'); clearTimeout(CHAT_POLL); $('#chat-open').focus(); }
 async function sendChat(text) {
   text = String(text || '').trim(); if (!text || CHAT_WAIT) return;
   CHAT_WAIT = text; $('#chat-send').disabled = true; renderChat();
   try {
     const r = await api('/api/chat', { message: text, repo: chatAbout() });
     CHAT_MSGS = r.messages || CHAT_MSGS;
-    // what it changed shows behind the window at once: how thinker behaves, what needs the person, a tool switched
-    if (CHAT_MSGS.at(-1)?.did?.length) { if (TAB === 'activity') loadActivity(); else if (TAB === 'save') loadContext(); pollActivity(); }
+    // what it changed shows beside the conversation at once: how thinker behaves, what needs the person, what was done
+    if (CHAT_MSGS.at(-1)?.did?.length) { loadSide(); pollActivity(); }
   } catch (err) { toast(`Could not send that: ${err.message}`, true, 5000); $('#chat-input').value = text; }
-  CHAT_WAIT = null; $('#chat-send').disabled = false; renderChat();
+  CHAT_WAIT = null; $('#chat-send').disabled = false; renderChat(); $('#chat-input').focus();
 }
-$('#chat-open').onclick = () => $('#chat-win').hidden ? openChat() : closeChat();
-$('#chat-close').onclick = closeChat;
 $('#chat-form').onsubmit = e => { e.preventDefault(); const t = $('#chat-input').value; $('#chat-input').value = ''; sendChat(t); };
-// Enter sends, Shift+Enter is a new line; Escape closes the window
-$('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); } else if (e.key === 'Escape') closeChat(); });
+// Enter sends, Shift+Enter is a new line
+$('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); } });
 async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
@@ -1965,8 +1962,9 @@ const navHeight = () => document.documentElement.style.setProperty('--nav-h', `$
 // and the column headers stick under the view tabs, so a long table never leaves its numbers unlabelled: the tabs'
 // own height is measured the same way, after each render and on resize (it wraps at narrow widths)
 navHeight(); addEventListener('resize', () => { navHeight(); });
-show(H().get('tab') || 'save');
+show(H().get('tab') || 'chat');
 pollActivity();
+pollHome();
 </script>
 </body>
 </html>
