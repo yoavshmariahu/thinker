@@ -599,7 +599,10 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
   threshold, which is the point: reads of 35k tokens and over are 2% of the result mass, 2k-8k is half of it.
 - **The guards are the rule.** The earlier copy must have landed in the context (a read the handoff answered
   never did, so the next read of that file is the model's first sight of it); the file must be byte-identical
-  now (`contentHash`, so a changed file is always read again and no staleness policy is needed); the same range;
+  now (`contentHash`, so a changed file is always read again and no staleness policy is needed); **the same part
+  of it** (`rangeKey`: the Read tool's `offset` and `limit`, and for a shell line its own command text, since
+  only `shellRead` can read a range out of a command and two ranges of one length are different lines -- a
+  whole-file `cat` keeps the common key, so a `cat` after a `Read` of the same file is still answered);
   a compaction drops the memory (`compactions.js:compactionsSince`, moved there from `profile.js` so neither
   hook pulls the other's module graph); once per file per turn (`pointed`), so a model that insists gets the
   bytes and a deterministic denial can never loop; `repeatMin` 2,000 tokens (98% of the value, a fifth fewer

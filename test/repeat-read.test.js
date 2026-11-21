@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { delegateTool, denial, readMemo, contentHash, repeatOf, noteLanded, notePointed, forgetReads, DELEGATE_DEFAULTS } from '../src/delegate.js';
+import { delegateTool, denial, readMemo, rangeKey, contentHash, repeatOf, noteLanded, notePointed, forgetReads, DELEGATE_DEFAULTS } from '../src/delegate.js';
 
 const tmp = t => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-repeat-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
 // ~4,100 tokens by default: over `repeatMin` (2,000) and under the handoff's `threshold` (8,000), so a read of
@@ -126,6 +126,28 @@ test("the person's own files are never answered for", async t => {
   await h.call({ file_path: notes });
   assert.equal(await h.call({ file_path: notes }), null);
   assert.equal(h.repeats().length, 0);
+});
+
+test('a shell read of part of a file is never a copy of the whole one', async t => {
+  const d = tmp(t); const big = file(d, 'big.py', 3000);
+  const h = harness(d, { handoff: false, fallback: false, threshold: 1e9 });
+  // fifty lines through the shell, then the whole file: the model has fifty lines, so it reads it
+  assert.equal(await h.call({ command: `sed -n '1,50p' ${big}` }, { tool: 'Bash' }), null);
+  assert.equal(await h.call({ command: `cat ${big}` }, { tool: 'Bash' }), null, 'it has not seen the file');
+  assert.equal(h.repeats().length, 0);
+  // now it has: the same whole-file read again is answered, and so is a Read of it, which is the same bytes
+  assert.ok(await h.call({ command: `cat ${big}` }, { tool: 'Bash' }));
+  assert.ok(await h.call({ file_path: big }, { prompt: 'p2' }), 'a cat and a whole Read are one copy');
+  // and the same shell range twice is a repeat of itself
+  const again = harness(d);
+  assert.equal(await again.call({ command: `sed -n '1,900p' ${big}` }, { tool: 'Bash' }), null);
+  assert.ok(await again.call({ command: `sed -n '1,900p' ${big}` }, { tool: 'Bash' }));
+  // the keys behind it: a whole-file shell read is the whole file, a ranged one is its own command
+  assert.equal(rangeKey({ command: 'cat x.py' }), '0|0');
+  assert.equal(rangeKey({ file_path: 'x.py' }), '0|0');
+  assert.equal(rangeKey({ command: "sed -n '1,50p'  x.py" }), "cmd:sed -n '1,50p' x.py");
+  assert.notEqual(rangeKey({ command: "sed -n '1,50p' x.py" }), rangeKey({ command: "sed -n '60,109p' x.py" }), 'fifty lines are not fifty other lines');
+  assert.equal(rangeKey({ offset: 1, limit: 50 }), '1|50');
 });
 
 test('a range is its own read: the same range repeats, another range goes through', async t => {

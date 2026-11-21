@@ -253,10 +253,29 @@ export const READS_KEPT = 40; // reads remembered per session: the newest, since
 /** What this call would read, as the memory keys it: the files, the range, and the bytes they hold now. */
 export function readMemo(ev, read, { cfg = DELEGATE_DEFAULTS } = {}) {
   if (!cfg.repeats || !read || !read.files?.length) return null;
-  const i = ev.tool_input || {};
   const hash = contentHash(read.files);
   if (!hash) return null;
-  return { key: [read.files.join('\u0000'), Number(i.offset) || 0, Number(i.limit) || 0].join('|'), hash, tokens: read.tokens, files: read.files };
+  return { key: [read.files.join('\u0000'), rangeKey(ev.tool_input || {})].join('|'), hash, tokens: read.tokens, files: read.files };
+}
+/**
+ * Which part of the file a call asks for, as the memory tells two reads apart. The Read tool says so in the
+ * call (`offset`, `limit`); a shell line says it in the command, and only `shellRead` knows how to read it --
+ * so a shell read of PART of a file is keyed by its own command text and shares a key with nothing else.
+ *
+ * Until 2026-11-21 every shell read keyed as `0|0`, the whole file's key: after a `sed -n '1,50p' core.py` a
+ * later `cat core.py` was answered "you already have core.py", and the model had fifty lines of it. A command
+ * cannot be keyed by the range it names either -- two `sed` ranges of one length are a different fifty lines,
+ * and the hash is of the file, not of what the call returns. A whole-file shell read (`cat`, `sed -n '1,$p'`,
+ * a `head` past the file) is the whole file whoever asked for it, so it keeps the common key and a `cat`
+ * after a `Read` of the same file is still answered. Two spellings of one range miss each other; a miss costs
+ * a read, and this is the half of the trade that may not be wrong.
+ */
+export function rangeKey(input = {}) {
+  if (typeof input.command === 'string' && input.command.trim()) {
+    const r = shellRead(input.command);
+    return r && !r.lines ? '0|0' : 'cmd:' + input.command.trim().replace(/\s+/g, ' ');
+  }
+  return `${Number(input.offset) || 0}|${Number(input.limit) || 0}`;
 }
 // A file past this is not hashed and never pointed at: every read of every size goes through this hook, and
 // reading a very large file into memory to answer a question about a repeat is not a trade worth making
