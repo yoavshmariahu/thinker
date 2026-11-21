@@ -309,6 +309,6 @@ sessions are held out so the saving can be measured, and the log's `delegate` ro
 - Off: `"delegate": false` in `~/.thinker/config.json` (or `THINKER_DELEGATE=off`), then `thinker rewire`;
   OpenCode reads it when it starts. The held-out share: `"delegate": { "holdout": 0.25 }`.
 - Another model: `THINKER_DELEGATE=claude-haiku-5-5`, or `"delegate": { "model": "..." }`.
-- The threshold (a read of this many tokens or more is delegated, 8000 by default; nothing is added up across a turn): `"delegate": { "threshold": 20000 }`.
+- The threshold (a read of this many tokens or more is delegated, 4000 by default; nothing is added up across a turn): `"delegate": { "threshold": 20000 }`.
 - In Claude Code a handed-over suite run goes to an agent thinker writes for it (`~/.claude/agents/thinker-verify.md`), on the same model.
 - A different model for the reads alone, leaving test runs where they are: `"delegate": { "exploreModel": "claude-sonnet-5-5" }` in `~/.thinker/config.json`, then `thinker rewire`.

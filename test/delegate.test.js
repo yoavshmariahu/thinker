@@ -49,15 +49,15 @@ test('suiteCommand: whole-suite runs only', () => {
 });
 
 test('decide: a read of the threshold or more fires, and nothing is added up across a turn', () => {
-  assert.equal(DELEGATE_DEFAULTS.threshold, 8000);
+  assert.equal(DELEGATE_DEFAULTS.threshold, 4000);
   assert.equal('minRead' in DELEGATE_DEFAULTS, false, 'one number, not two');
   const cfg = { ...DELEGATE_DEFAULTS };
   const st = {};
   // the size of the read alone decides
-  assert.equal(decide(st, { prompt: 'p1', read: { tokens: 8000, files: ['a'] }, cfg }).fire, true);
-  assert.equal(decide(st, { prompt: 'p1', read: { tokens: 7999, files: ['b'] }, cfg }).fire, false);
+  assert.equal(decide(st, { prompt: 'p1', read: { tokens: 4000, files: ['a'] }, cfg }).fire, true);
+  assert.equal(decide(st, { prompt: 'p1', read: { tokens: 3999, files: ['b'] }, cfg }).fire, false);
   // many small reads in one turn never make a later small read fire
-  for (let i = 0; i < 30; i++) assert.equal(decide(st, { prompt: 'p1', read: { tokens: 7000, files: ['s' + i] }, cfg }).fire, false);
+  for (let i = 0; i < 30; i++) assert.equal(decide(st, { prompt: 'p1', read: { tokens: 3000, files: ['s' + i] }, cfg }).fire, false);
   assert.equal('readTokens' in st.delegate, false, 'no tally is kept');
   // a threshold set higher is still one comparison: big reads earlier in the turn do not lower it
   const hi = { ...DELEGATE_DEFAULTS, threshold: 35000, minRead: 8000 }, st2 = {};
@@ -113,7 +113,7 @@ test('delegateConfig: defaults, the machine config, and the environment', t => {
   assert.equal(delegateConfig({ env: {}, home }).holdout, 0.25);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'off' }, home }).enabled, false);
   assert.equal(delegateConfig({ env: { THINKER_DELEGATE: 'on' }, home }).enabled, true);
-  assert.equal(delegateConfig({ env: {}, home }).threshold, 8000);
+  assert.equal(delegateConfig({ env: {}, home }).threshold, 4000);
   fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ delegate: { enabled: true, threshold: 20000, model: 'claude-haiku-5-5' } }));
   const c = delegateConfig({ env: {}, home });
   assert.equal(c.threshold, 20000); assert.equal(c.model, 'claude-haiku-5-5'); assert.equal(c.enabled, true);
@@ -146,7 +146,7 @@ test('the hook command: a small read passes in silence, a big read is denied wit
   // silence, and on 2026-11-14 a whole PostHog pair could not be read for exactly that reason.
   assert.equal(log.length, 2);
   assert.equal(log[0].fired, false); assert.equal(log[0].declined, 'below-threshold');
-  assert.deepEqual(log[0].files, ['x.py']); assert.equal(log[0].threshold, 8000); assert.equal('turnTokens' in log[0], false);
+  assert.deepEqual(log[0].files, ['x.py']); assert.equal(log[0].threshold, 4000); assert.equal('turnTokens' in log[0], false);
   assert.equal(log[1].cost, 0.02); assert.equal(log[1].subagent, 'sub1'); assert.deepEqual(log[1].files, ['core.py']);
   // the same read again: the cached report, no second log row with a cost
   assert.match(JSON.parse(hook(ev(big))).hookSpecificOutput.permissionDecisionReason, /def f0/);
