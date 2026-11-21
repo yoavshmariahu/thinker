@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileDir, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM } from '../src/profile.js';
+import { PROFILE, SECTIONS, profileDir, observationSkills, ledgerText, skillTallyText, applyPatch, relatedCited, profileArm, profileTurn, profileArmOf, holdoutReport, exchanges, extractionInput, sessionDirs, tidyObservation, observationTimes, profileModels, completeProfile, appendObservations, readLedger, settle, compileDue, compileProfile, renderProfile, profileBlock, profileSession, readProfile, profileConfig, clean, compare, compareRates, recurrence, priorStatements, perExchange, ratioInterval, fitProfile, shownLines, lineReport, readLineVerdicts, appendLineVerdicts, LINE_VERDICTS, profileHoldoutRate, idCounters, isCorrection, checkedVerdict, toolLabels, shownRevs, COMPILE_SYSTEM, EXTRACT_SYSTEM, answerStyle, pinnedStyleLines, ANSWER_WORDS } from '../src/profile.js';
 import { distillFile } from '../src/commands/learn.js';
 import { Store } from '../src/store.js';
 
@@ -775,4 +775,61 @@ test('a subject no wording was ever followed reaches the compile as one to drop'
   assert.equal((asked.match(/allWordings/g) || []).length, 1, 'and only for a line that has been reworded');
   assert.match(COMPILE_SYSTEM, new RegExp(`Applied in ${PROFILE.unfollowedApplied} or more of them and followed in none`), 'the rule names the floor');
   assert.match(COMPILE_SYSTEM, /drop it rather than word it again/);
+});
+
+// How long an answer should be is the person's setting, not a line the compile writes. Measured 2026-11-21 on 20
+// real prompts of this machine's owner that had drawn a bare "what", each re-answered from identical material:
+// no number gave a median of 164 words and a table in a quarter of answers, "under 120 words, and no table unless
+// asked" gave 126 and none, "under 60" gave 68. So the number is a dial (about 1.1x what is asked for), and the
+// wording is pinned because the compile's own wordings of this subject were followed in none of 12 applied
+// sessions and every rewrite moved the answer the wrong way (#889, reverted by #892).
+test('the answer-length setting: repository over machine, bounded, and rendered as one pinned wording', t => {
+  const { store } = tmpRepo(t, { style: { answerWords: 75 } });
+  assert.equal(answerStyle(store).words, 75, 'the repository\'s setting wins');
+  assert.deepEqual(pinnedStyleLines({ words: 75 }),
+    ['Answer in under 75 words, and do not use a table unless the person asks for one.'],
+    'one wording, carrying the number and the table rule');
+  assert.deepEqual(pinnedStyleLines({ words: null }), [], 'nothing pinned when it is unset');
+  assert.deepEqual(pinnedStyleLines(null), [], 'and nothing when there is no setting at all');
+  const { store: bad } = tmpRepo(t, { style: { answerWords: ANSWER_WORDS.max + 1 } });
+  assert.equal(answerStyle(bad).words, null, 'a number out of range is no setting, not a silly line');
+  const { store: nan } = tmpRepo(t, { style: { answerWords: 'lots' } });
+  assert.equal(answerStyle(nan).words, null, 'and neither is a word');
+});
+
+test('the pinned line goes first in how-we-work, outlasts the trim, and stands alone before the first compile', () => {
+  const pinned = pinnedStyleLines({ words: 60 });
+  const profile = { window: { sessions: 9 }, sections: {
+    workingOn: [{ id: 'w1', text: 'Something in progress' }],
+    howWeWork: [{ id: 'h1', text: 'Work in a worktree off current origin/main' }, { id: 'h2', text: 'Check merge state before saying it landed' }],
+    skills: [] } };
+  const lines = fitProfile(profile, { pinned }).text.split('\n');
+  const hw = lines.indexOf('## How this person works');
+  assert.equal(lines[hw + 1], '- ' + pinned[0], 'the person\'s own rule is the first way of working, ahead of the compiled ones');
+  assert.ok(lines.includes('- Work in a worktree off current origin/main'), 'and the compiled lines are still there');
+  // the trim loop takes compiled entries down to its floors; it may never reach the person's own setting
+  const tight = fitProfile(profile, { pinned, maxChars: 150 });
+  assert.ok(tight.text.includes(pinned[0]), 'a block too small to fit keeps the pinned line');
+  assert.ok(!tight.ids.includes('p1') && !tight.ids.some(id => id.startsWith('p')),
+    'the pinned line carries no id: the compile did not write it, so no verdict is kept against it');
+  const fresh = fitProfile(null, { pinned });
+  assert.match(fresh.text, /^## How this person works\n- Answer in under 60 words/, 'before any compile the setting is served alone');
+  assert.equal(fitProfile(null, { pinned: [] }).text, '', 'and with no setting and no profile there is still nothing to say');
+});
+
+test('the compile is told the answer-length subject is the person\'s, and only while it is set', async t => {
+  const seen = [];
+  const run = async store => {
+    appendObservations(store, [fakeObs()], { session: 's1', now: Date.now() });
+    await compileProfile(store, { completeFn: async opts => { seen.push(opts.prompt); return { json: { keep: [], update: [], drop: [], add: { workingOn: [], howWeWork: [], skills: [] } }, model: 'fake-opus' }; }, have: ['claude'] });
+  };
+  const { store: on } = tmpRepo(t, { style: { answerWords: 120 } });
+  await run(on);
+  assert.match(seen[0], /THE PERSON'S OWN ANSWER RULE/, 'the compile sees that the subject is taken');
+  assert.match(seen[0], /Write no howWeWork line about how long an answer should be/, 'and is told not to write its own');
+  assert.match(seen[0], /Answer in under 120 words/, 'with the wording actually being served');
+  const { store: off } = tmpRepo(t);
+  await run(off);
+  assert.ok(!/THE PERSON'S OWN ANSWER RULE/.test(seen[1]),
+    'with no setting the compile is free to write about answer length as before, so nobody loses the line by upgrading');
 });
