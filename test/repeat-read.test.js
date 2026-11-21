@@ -38,7 +38,7 @@ test('the pointer fires on the identical second read, and says where the copy is
   assert.match(reason(out), /offset and limit/);
   assert.match(reason(out), /Nothing has gone wrong/);
   const [row] = h.repeats();
-  assert.equal(row.fired, true); assert.equal(row.held, false);
+  assert.equal(row.fired, true); assert.equal(row.held, false); assert.equal(row.via, 'settings');
   assert.deepEqual(row.files, ['core.py']);
   assert.ok(row.tokens > 2000, String(row.tokens));
   // the firing is kept for the end of the turn, apart from the handoffs
@@ -84,6 +84,16 @@ test('a read the handoff denied never landed, so no copy of it is ever pointed a
   // the model has never seen these bytes, so the read after it is the handoff's business again and never the pointer's
   assert.match(reason(await h.call({ file_path: big }, { prompt: 'p2' })), /through a claude-haiku-5-5 subagent/);
   assert.equal(h.repeats().length, 0);
+});
+
+test('a file the lead insisted on and read whole itself is pointed at the next time', async t => {
+  const d = tmp(t); const big = file(d, 'big.py', 3000);
+  const h = harness(d, { handoff: true });
+  assert.match(reason(await h.call({ file_path: big })), /goes to your own Explore subagent/);
+  // the handoff never denies the same file twice in a turn, so the lead that insists reads it (decide: `handed`)
+  assert.equal(await h.call({ file_path: big }), null, 'the lead gets the file it insisted on');
+  // and now it has the bytes: the read after that is answered with its own copy
+  assert.match(reason(await h.call({ file_path: big })), /already have big\.py in your context/);
 });
 
 test('a held-out session logs the pointer it would have sent and reads as before', async t => {

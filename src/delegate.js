@@ -566,7 +566,9 @@ export async function delegateTool(opts) {
 function pointAtCopy({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, client = 'claude', read, memo, compactions = null }) {
   // the person's own files are never answered for, as they are never handed over (keep.js)
   if (read.files.some(keepMatcher(cfg.keepPatterns || keepPatterns()))) return null;
-  const row = { op: 'repeat', session, client, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: read.tokens };
+  // `via` as the handoff's rows carry it (#887): which of Claude Code's two doors answered this call. One
+  // decision a call is `preToolHook`'s guard, above, and it covers the pointer with everything else.
+  const row = { op: 'repeat', session, client, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: read.tokens, via: ev.host_runs ? 'mod' : 'settings' };
   let r, prompt;
   state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; r = repeatOf(st, { ...memo, prompt, cfg }); });
   if (!r.fire) { if (r.declined) log({ ...row, fired: false, declined: r.declined }); return null; }
@@ -587,6 +589,9 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
   if (fromSubagent(ev, client)) return null;
   const exec = executionFor(client, suite ? 'verify' : 'explore', cfg, { lead: ev.model, verifier });
   const handoff = exec.mode === 'handoff';
+  // which door decided this call: the host's own (the mod, which runs the subagent) or the settings hook. Two
+  // of them ask about one call, and before `noteDecided` the pair was two rows a reader could not tell apart.
+  const via = ev.host_runs ? 'mod' : 'settings';
   // THE SAME READ TWICE IN ONE BATCH (2026-11-19). The host's plugin says a handoff for this very read is still
   // running in its own process (`in_flight`, register.tsx:delegateCall), and that call will be answered with
   // its report: the file is not landing, and there is nothing to decide here -- a second decision would hand
@@ -596,7 +601,7 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
     log({
       op: 'delegate', session, client, kind: suite ? 'verify' : 'explore', tool: ev.tool_name,
       files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f),
-      tokens: read ? read.tokens : 0, mode: exec.mode, fired: false, after: 'in-flight',
+      tokens: read ? read.tokens : 0, mode: exec.mode, fired: false, after: 'in-flight', via,
     });
     return null;
   }
@@ -615,7 +620,7 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
       op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name,
       files: (read ? read.files : []).map(f => path.relative(cwd || '', f) || f),
       tokens: d.tokens, threshold: cfg.threshold,
-      mode: exec.mode, fired: false, declined: 'below-threshold',
+      mode: exec.mode, fired: false, declined: 'below-threshold', via,
     });
     return null;
   }
@@ -629,13 +634,13 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
     let why = read.files.some(match) ? 'pattern' : null;
     if (!why) { ctx = lastPrompt() || {}; if (read.files.some(namedIn([ctx.prompt || '']))) why = 'named'; }
     if (why) {
-      log({ op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, threshold: cfg.threshold, mode: exec.mode, fired: false, declined: 'kept', kept: why });
+      log({ op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, threshold: cfg.threshold, mode: exec.mode, fired: false, declined: 'kept', kept: why, via });
       return null;
     }
   }
   const held = heldOut(session, cfg.holdout);
   const files = read ? read.files : [];
-  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode };
+  const row = { op: 'delegate', session, client, kind: d.kind, tool: ev.tool_name, files: (read ? read.files : [suite]).map(f => path.relative(cwd || '', f) || f), tokens: d.tokens, held, mode: exec.mode, via };
   if (held) { log(row); return null; }
   // the turn's handoff of this kind has already been made: the call goes through, and the row says which one
   // let it through. `after: 'handoff'` is this file's own report already in the lead's hands, so it is the one
@@ -814,6 +819,34 @@ export function noteSubagent(st, open, now = Date.now()) {
   if (open) w.at = now;
   st.delegateWindow = w;
 }
+
+// ONE DECISION A TOOL CALL, HOWEVER MANY DOORS ASK FOR IT (2026-11-20).
+// Claude Code has two doors on the same call: the mod's `tool.call`, which runs the subagent itself
+// (`host_runs`, claude-clear:delegateCall), and the settings hook. The mod marks the session so the settings
+// hook stands down (`DELEGATE_SESSION_MARK`, preToolHook), but that mark is a file written at session start,
+// and a session without one decides every read twice: the mod loaded after the session began, a reload, a
+// resumed session, a mark pruned under the 100-mark cap while the session was still alive. Measured on this
+// machine 2026-11-15..20: the sessions that had a mark logged 1 duplicate in 44 rows, the sessions that had
+// none logged 54 in 139.
+// The expensive half was already safe -- a handoff is recorded under the session's lock, so the second door
+// reads `spent` and fires nothing, and no pair of the 68 ever ran two subagents -- so what the duplicate cost
+// was the log's meaning (a reader counting rows reads twice the reads that happened) and one node process a
+// tool call. `tool_use_id` is the one fact both doors hold about the same call: Claude Code puts it in the
+// PreToolUse payload and the mod forwards it (claude-clear:pretoolEvent). Whichever door gets there first
+// decides, under the session's lock; the other stands down before a row is written. A call with no id is
+// decided as before, since the mark still covers the ordinary session, and only Claude Code is deduped this
+// way -- it is the one host with two doors, and the one whose id is the API's own, unique to a call.
+export const DECIDED_KEEP = 200;
+/** Has this exact tool call already been decided by the other door? Records it if not. Runs under the lock. */
+export function noteDecided(st, id, keep = DECIDED_KEEP) {
+  if (!id) return false;
+  if (!Array.isArray(st.delegateCalls)) st.delegateCalls = [];
+  if (st.delegateCalls.includes(id)) return true;
+  st.delegateCalls.push(id);
+  if (st.delegateCalls.length > keep) st.delegateCalls = st.delegateCalls.slice(-keep);
+  return false;
+}
+
 /** Is this the subagent tool of a host whose subagent calls are told apart by the window alone? */
 export const windowTool = (client, toolName) => Boolean(HOSTS[client]?.subagent?.window && toolName === HOSTS[client].subagent.tool);
 
@@ -872,6 +905,11 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   if (windowTool(client, ev.tool_name)) { state.update(st => noteSubagent(st, true)); return null; }
   if (!['Read', 'Bash'].includes(ev.tool_name)) return null;
   if (HOSTS[client].subagent?.window) { let running = false; state.update(st => { running = subagentRunning(st); }); if (running) return null; }
+  // The other door has already decided this very call (`noteDecided`): nothing to decide, and no second row.
+  // Claude Code only, because it is the only host with two doors on one call, and because its id is the API's
+  // own `toolu_*`, one to a call. Devin's is not: its CLI 3000.11.234 sent `read:0#99f0` for every read of a
+  // session (test/delegate-handoff.test.js), so there an id says nothing about which call this is.
+  if (client === 'claude' && ev.tool_use_id) { let decided = false; state.update(st => { decided = noteDecided(st, ev.tool_use_id); }); if (decided) return null; }
   return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row),
     // where the context starts again (compactions.js): a copy from before a compaction is no longer in the
     // model's context, so nothing may be pointed at it. Only read when a pointer is about to go out, and only

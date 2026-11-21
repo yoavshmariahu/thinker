@@ -410,6 +410,18 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   by whether the model re-reads what the explorer summarised (the model-profile's re-read share is the figure).
   The live smoke (2026-11-12): an Opus session told to read core.py (3,681 lines) in full had the Read denied, the
   explorer ran 24 s for $0.21, and Opus answered with the right line numbers from the report, saying so.
+- **One decision a tool call, and the row names the door (2026-11-20; `delegate.js:noteDecided`, `via`).** Claude
+  Code has two doors on one call -- the mod's `tool.call`, which runs the subagent itself, and the settings hook --
+  and the mark below (`state/claude-delegate/<session>`) is a file written at session start, so a session without
+  one decided every read twice and wrote two rows nothing could tell apart. Measured on this machine
+  2026-11-15..20: marked sessions 1 duplicate in 44 rows, unmarked 54 in 139. The expensive half was never at
+  risk -- a handoff is recorded under the session's lock, so the second door reads `spent` and fires nothing, and
+  none of the 68 pairs ran two subagents -- so what it cost was the log's meaning (a reader counting rows counts
+  each read twice) and a node process a call. `tool_use_id`, which both doors hold for the same call, is now
+  recorded under the lock by whichever gets there first, and the other stands down before a row is written; every
+  row carries `via: 'mod' | 'settings'`. Claude Code only: it is the one host with two doors, and the one whose id
+  is the API's own (Devin's CLI sends `read:0#99f0` for every read of a session). Rows before this read no `via`,
+  and duplicates in them pair on session + tool + files + tokens within a few seconds.
 - **A structural outline is not what answers a delegated read (2026-11-12, the owner's call: "no I'm convinced
   this won't work well"; the fourth AST attempt here, closed unmerged as #766, the code on branch
   `agent/ast-outline`).** A dependency-free line scanner was built and measured against this hook: 0.09 ms a file
@@ -529,7 +541,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
 **On Claude Code the mod runs the delegated subagent, on thinker's rule, on the fly (2026-11-15, the owner's call):**
 - `claude-clear/hooks/register.tsx:delegateCall`: a `tool.call` hook on Read and Bash, inside the harness. It asks `hook pretool` with `host_runs` (the size, the holdout, the log row: one copy of the rule, the CLI's), and when it fires spawns the harness's own subagent (`$.agent.spawn`, the order's `Explore`) and answers the call with the report in `denial`'s sentence. What `opencode-v2.js:hostRun` is for OpenCode. Works in the terminal and the desktop app.
 - A settings hook cannot do this: it can deny, never spawn, and nothing fires after its denial; a redirect to a stub with an agent hook after the read was called an injection 3 times in 3.
-- The mod marks the session (`state/claude-delegate/<session>`) and the settings hook's copy of the call stands down there (`preToolHook`); the settings hook stays for a Claude Code too old for mods, with the handoff's words.
+- The mod marks the session (`state/claude-delegate/<session>`) and the settings hook's copy of the call stands down there (`preToolHook`); the settings hook stays for a Claude Code too old for mods, with the handoff's words. A session whose mark never arrived is held by `noteDecided` instead, on the call's own `tool_use_id` (above).
 - No model is named to the spawn (the Agent tool refuses a full id); Explore.md's pin picks it. A spawn that fails or passes 240 s lets the call through. The wait is spent in `$` calls, which a hook's time budget does not count.
 - Live on 2.1.325, Sonnet lead, three runs: fired every time, the subagent 10 s for $0.005 on Haiku 5.5, a small read untouched (0.7 s for the rule). The lead went straight on in one and checked the report with a grep or a short range first in two; none re-read the file.
 - **On by default, a quarter of the sessions held out (2026-11-16, the owner's call; `DELEGATE_DEFAULTS.enabled`, `holdout` 0.25).** `delegate: false` or `THINKER_DELEGATE=off` switches it off; read at the session's start.
@@ -586,6 +598,9 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
   order, which is this pointer (and the fallback subagent's report, dropped there until the same day).
   OpenCode's plugin already threw a denial with no order as the call's result. The pointer rides the handoff's
   hook, so `delegate: false` switches both off and `delegate: { repeats: false }` only this one.
+- **One decision a call covers it** (#887): the pointer is decided inside the same `preToolHook` guard, so a
+  Claude Code call that one door answered is not pointed at by the other, and the row carries the same `via`.
+  A file the lead insisted on and then read whole itself (`decide`'s `handed`) is pointed at the time after.
 - **Measured from day one**, like the handoff: a row per firing (`op: repeat`: tool, files, tokens, `held`,
   `fired`, `declined` for `below-floor`, `pointed`, `compacted`), **half the sessions held out** by a hash of
   their own (`repeat#<session>`, so no session is on the quiet side of both triggers), and the session's own

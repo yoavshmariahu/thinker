@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import {
   executionFor, fromSubagent, denial, decide, noteHandoff, delegateTool, handoffLabel, hostEvent,
   DELEGATE_DEFAULTS, delegateConfig, HOSTS, OPENCODE_EXPLORE, OPENCODE_VERIFY, EXPLORER_FAMILIES, explorerFor, familyAgent, hostRunOrder, REPORT_SLOT, DELEGATE_SESSION_MARK, preToolHook,
-  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, VERIFIER_PROMPT, EXPLORER_PROMPT, modelFor,
+  CLAUDE_VERIFY, claudeVerifierReady, claudeVerifierFile, VERIFIER_PROMPT, EXPLORER_PROMPT, modelFor, noteDecided,
 } from '../src/delegate.js';
 import { opencodeV2, hostRun, canRun } from '../src/integrations/opencode-v2.js';
 import { installClient } from '../src/clients.js';
@@ -526,6 +526,63 @@ test('Claude Code, the mod runs the subagent: the order names the host\'s Explor
   // the mod's own asking carries `host_runs` and is decided; so is a session no mod marked (an older Claude Code)
   await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big }, host_runs: true }, store, session: 'sess-1', cwd: d, cfg, client: 'claude' }));
   await assert.rejects(preToolHook({ ev: { tool_name: 'Read', tool_input: { file_path: big } }, store, session: 'sess-2', cwd: d, cfg, client: 'claude' }));
+});
+
+// ONE DECISION A TOOL CALL, HOWEVER MANY DOORS ASK FOR IT (2026-11-20). The mark above is a file written at
+// session start, and a session that has none -- the mod loaded after it began, a reload, a resumed session, a
+// mark pruned under the 100-mark cap while the session still ran -- sent every call through both doors and got
+// two rows a reader could not tell apart (54 duplicates in 139 rows on this machine's unmarked sessions,
+// 2026-11-15..20). `tool_use_id` is the one fact both doors hold about the same call.
+test('a call one door decided is not decided again by the other, and every row names the door that decided it', async t => {
+  const d = tmp(t); const big = bigFile(d, 'core.py');
+  const was = process.env.THINKER_HOME; t.after(() => { if (was === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = was; });
+  process.env.THINKER_HOME = path.join(d, 'home');   // no mark: the settings hook does not stand down on it
+  const rows = [];
+  const store = { dir: path.join(d, 'store'), log: r => rows.push(r) };
+  // the pointer is off here: this test is about which door decides a call, and a file read twice would also be
+  // answered with its own copy (delegate.js, "the same file, read again"; test/repeat-read.test.js has that case)
+  const cfg = { ...DELEGATE_DEFAULTS, enabled: true, holdout: 0, repeats: false };
+  const ev = { tool_name: 'Read', tool_input: { file_path: big }, tool_use_id: 'toolu_01', prompt_id: 'p1' };
+
+  // the mod's door gets there first: it decides, and the row says so
+  assert.ok(await preToolHook({ ev: { ...ev, host_runs: true }, store, session: 'sess', cwd: d, cfg, client: 'claude' }));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].via, 'mod');
+  assert.equal(rows[0].agent, 'Explore');
+
+  // the settings hook's copy of that same call decides nothing and leaves no second row
+  assert.equal(await preToolHook({ ev, store, session: 'sess', cwd: d, cfg, client: 'claude' }), null);
+  assert.equal(rows.length, 1, 'one tool call, one row');
+
+  // a different call is decided as before, and names the door it came through
+  await preToolHook({ ev: { ...ev, tool_use_id: 'toolu_02' }, store, session: 'sess', cwd: d, cfg, client: 'claude' });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[1].via, 'settings');
+
+  // the id is the call's, not the file's: another session decides the same read again
+  await preToolHook({ ev, store, session: 'other', cwd: d, cfg, client: 'claude' });
+  assert.equal(rows.length, 3);
+  assert.equal(rows[2].session, 'other');
+
+  // a host that sends no id is decided as it was: the mark still covers the ordinary session
+  const { tool_use_id, ...noId } = ev;
+  await preToolHook({ ev: noId, store, session: 'sess', cwd: d, cfg, client: 'claude' });
+  await preToolHook({ ev: noId, store, session: 'sess', cwd: d, cfg, client: 'claude' });
+  assert.equal(rows.length, 5);
+  // Only Claude Code is deduped on the id: Devin's CLI sends one id for every read of a session
+  // (`read:0#99f0`), and that host's own test below reads twice under it and is decided both times.
+});
+
+test('noteDecided: the first call of an id is new, a repeat is not, and the list stays bounded', () => {
+  const st = {};
+  assert.equal(noteDecided(st, 'a'), false);
+  assert.equal(noteDecided(st, 'a'), true);
+  assert.equal(noteDecided(st, 'b'), false);
+  assert.equal(noteDecided(st, ''), false, 'no id: decided as before, and nothing recorded');
+  assert.deepEqual(st.delegateCalls, ['a', 'b']);
+  for (let i = 0; i < 10; i++) noteDecided(st, `x${i}`, 4);
+  assert.equal(st.delegateCalls.length, 4);
+  assert.deepEqual(st.delegateCalls, ['x6', 'x7', 'x8', 'x9']);
 });
 
 // Devin, from the payloads its CLI 3000.11.234 sent on 2026-11-16 (two live probes, swe-2-high and swe-2-medium).
