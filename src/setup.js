@@ -75,6 +75,13 @@ export async function runSetup({
   // Where the agents' context goes in this repository, from its sessions so far: the report the installer runs
   // over the machine (context-machine.js), here for the one repository, kept for the page. Nothing to build and
   // no model call; nothing is printed where no session ran yet. On a terminal it is the installer's question
+  // How much the person wants in an answer, asked once per machine and then never inferred (setup/length-ask.js).
+  // Ahead of the context report because it is one keystroke and the report is the long part of setup.
+  try {
+    const { askAnswerLength } = await import('./setup/length-ask.js');
+    await askAnswerLength({ store, out });
+  } catch (e) { out(`  ${c.yellow('○')} Answer length not asked: ${String(e.message).split('\n')[0].slice(0, 120)}`); }
+
   // (setup/context-ask.js): the page in the browser, or the suggestions here as a list to pick from and apply.
   let contextAsked = null;
   try {

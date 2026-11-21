@@ -24,6 +24,7 @@ import { areaOf } from './areas.js';
 import { sessionState, locked, holdoutRate } from './session-state.js';
 import { sourcePattern, writeKeep } from './keep.js';
 import { compactionsSince } from './compactions.js';
+import { readMachineConfig } from './repo-switch.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -847,6 +848,13 @@ async function compileStep(store, previous, batch, rows, { now, accounting, comp
   const input = [
     `Repository: ${path.basename(store.repo)}\nToday: ${dateOf(now)}`,
     `INSTRUCTION FILE HEADINGS (do not repeat what these cover):\n${headings.map(h => '- ' + h).join('\n') || '(none)'}`,
+    // The person set how long an answer should be, so that subject is theirs and not this step's. Without this the
+    // compile writes its own line about answer length beside the pinned one and the rule is served twice in
+    // different words -- and its wording of this subject is the one thing measured to move answers the wrong way
+    // (#889, reverted by #892; `pinnedStyleLines`).
+    ...(pinnedStyleLines(answerStyle(store)).length
+      ? [`THE PERSON'S OWN ANSWER RULE (set by them, served already, not yours to write or reword):\n${pinnedStyleLines(answerStyle(store)).map(l => '- ' + l).join('\n')}\nWrite no howWeWork line about how long an answer should be, how much detail it carries, or whether to use a table; drop any entry of the profile so far that says one.`]
+      : []),
     `PROFILE SO FAR (compiled ${previous?.compiledAt?.slice(0, 10) || 'never'}):\n${shown ? JSON.stringify(shown) : '(none: every entry is an add)'}`,
     retired.length ? `RETIRED (${retired.length}; shown to ${PROFILE.retireShown} or more sessions and bore on none, out of the served block):\n${retired.join('\n')}` : null,
     cited.length ? `OBSERVATIONS BEHIND THE ENTRIES THESE MIGHT TOUCH (${cited.length}):\n\n${ledgerText(cited)}` : null,
@@ -913,25 +921,65 @@ const TRIM = [['workingOn', 3], ['skills', 3], ['howWeWork', 4]];
 // what makes the block measurable per line (`lines.jsonl`, `assessLines`): a line trimmed out of a session's block
 // was never shown there and must not be judged on it. One function does the fitting so the text and the ids can
 // never disagree; `renderProfile` is the text alone, which is what every older caller wants.
-export function fitProfile(profile, { maxChars = PROFILE.renderChars } = {}) {
-  if (!profile?.sections) return { text: '', ids: [] };
+// --- how long an answer should be: the person's own setting, not the compile's line -------------------------
+// Measured 2026-11-21 on 20 of this machine's real prompts that had drawn a bare "what" from the person, each
+// re-answered from identical material under each wording (160 single-turn Opus calls, judged by code):
+//   no number (the compiled line, "two or three plain lines; detail only if asked") -> median 164 words, a table
+//     in 25% of answers;  "under 120 words, and no table unless asked" -> 126 words, no tables;  "under 60 words,
+//     and no table unless asked" -> 68 words. So the number is a dial: ask for N and get about 1.1 N.
+// Two reasons this is a setting and not something the compile writes:
+//  - It is the person's to state, and a stated preference is the one kind of evidence the profile trusts outright.
+//  - The compile cannot hold a wording still. On this repository its line about answers had three wordings and
+//    was followed in none of 12 applied sessions, and every rewrite measured here moved the answer's shape by up
+//    to 2x in the wrong direction (#889, reverted by #892). A wording this sensitive has to be pinned.
+// What may NOT be inferred from the above: that a rule the agent cannot check while writing will be obeyed. Told
+// its answer broke the rule, the agent removed a table in 5 of 5 cases and still missed the word count in 16 of
+// 20, landing ~12 words over. The count is an anchor; only the table half is enforceable.
+export const ANSWER_WORDS = Object.freeze({ min: 20, max: 2000 });
+/** The person's answer-length setting: the repository's `style.answerWords`, else the machine's. Null when unset. */
+export function answerStyle(store) {
+  const pick = c => {
+    const n = Number(c?.style?.answerWords);
+    return Number.isFinite(n) && n >= ANSWER_WORDS.min && n <= ANSWER_WORDS.max ? Math.round(n) : null;
+  };
+  let repo = null, machine = null;
+  try { repo = pick(store.config()); } catch {}
+  try { machine = pick(readMachineConfig()); } catch {}
+  return { words: repo ?? machine };
+}
+/** The pinned lines the block carries ahead of the compiled ones. One wording, measured; never reworded. */
+export function pinnedStyleLines(style) {
+  return style?.words
+    ? [`Answer in under ${style.words} words, and do not use a table unless the person asks for one.`]
+    : [];
+}
+export function fitProfile(profile, { maxChars = PROFILE.renderChars, pinned = [] } = {}) {
+  // Before the first compile there is no profile, and the person's own setting is still theirs to be followed:
+  // serve it alone rather than nothing, with no session count to claim.
+  if (!profile?.sections) return pinned.length
+    ? { text: `## ${TITLES.howWeWork}\n${pinned.map(l => '- ' + l).join('\n')}`, ids: [] }
+    : { text: '', ids: [] };
   const kept = Object.fromEntries(SECTIONS.map(s => [s, (profile.sections[s] || []).filter(e => e && !e.retired)]));
   const w = profile.window || {};
   const head = `About the person here, from ${plural(w.sessions || 0, 'session')} in this repository. Follow how they work; the rest is context.`;
-  const text = () => [head, ...SECTIONS.filter(s => kept[s].length).map(s => `## ${TITLES[s]}\n${kept[s].map(e => line(s, e)).join('\n')}`)].join('\n\n');
+  // a pinned line is the person's own setting (`pinnedStyleLines`): it goes first in how-we-work, carries no id
+  // because the compile neither wrote it nor may reword it, and the trim loop below never reaches it
+  const body = s => (s === 'howWeWork' ? [...pinned, ...kept[s].map(e => line(s, e))] : kept[s].map(e => line(s, e)));
+  const has = s => body(s).length > 0;
+  const text = () => [head, ...SECTIONS.filter(has).map(s => `## ${TITLES[s]}\n${body(s).map(l => l.startsWith('- ') ? l : '- ' + l).join('\n')}`)].join('\n\n');
   while (text().length > maxChars) {
     const s = TRIM.find(([s, floor]) => kept[s].length > floor)?.[0] || SECTIONS.filter(s => kept[s].length).sort((a, b) => kept[b].length - kept[a].length)[0];
     if (!s) break;
     kept[s].pop();
   }
-  if (!SECTIONS.some(s => kept[s].length)) return { text: '', ids: [] };
+  if (!SECTIONS.some(s => body(s).length)) return { text: '', ids: [] };
   return { text: text(), ids: SECTIONS.flatMap(s => kept[s].map(e => e.id).filter(Boolean)), revs: Object.fromEntries(SECTIONS.flatMap(s => kept[s].filter(e => e.id && e.rev > 1).map(e => [e.id, e.rev]))) };
 }
 export function renderProfile(profile, opts = {}) { return fitProfile(profile, opts).text; }
 export function profileBlock(store) {
   // the retire rule applied live: a line whose fifteenth `na` landed since the last compile is out today
   const profile = readProfile(store);
-  const { text, ids, revs = {} } = fitProfile(profile ? retire(profile, lineReport(store, { profile })) : null);
+  const { text, ids, revs = {} } = fitProfile(profile ? retire(profile, lineReport(store, { profile })) : null, { pinned: pinnedStyleLines(answerStyle(store)) });
   return { text: text ? `<thinker-profile>\n${text}\n</thinker-profile>` : '', ids, revs };
 }
 

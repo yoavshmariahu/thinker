@@ -4,7 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, lineReport, observationSkills, writeLedger, skillTallyText } from '../profile.js';
+import { PROFILE, SECTIONS, profileConfig, readProfile, readLedger, renderProfile, extracted, compileProfile, compileDue, profileSession, exchanges, profileModels, lineReport, observationSkills, writeLedger, skillTallyText, answerStyle, pinnedStyleLines, ANSWER_WORDS } from '../profile.js';
+import { updateMachineConfig } from '../repo-switch.js';
 import { holdoutFromLog } from '../profile-metric.js';
 import { parseTranscript, hydrate, findSessions, traceFile } from '../transcripts.js';
 import { withinDailyCap, reportCapped } from '../maintain.js';
@@ -54,6 +55,34 @@ async function profileCommand(ctx) {
     if (flags.json) { out(JSON.stringify(rows, null, 2)); return; }
     for (const r of rows) out(`${r.at.slice(0, 10)} ${r.id} ${r.outcome.padEnd(10)}${r.interrupts ? ' [interrupted]' : ''} ${r.request}${r.lesson ? `\n    lesson: ${r.lesson}` : ''}${r.reaction ? `\n    reaction: "${r.reaction}"` : ''}`);
     out(`${rows.length} observations from ${new Set(rows.map(r => r.session)).size} sessions in the last ${Number(flags.days) || PROFILE.ledgerDays} days`);
+    return;
+  }
+  // How long an answer should be: the person's own setting, served ahead of the compiled lines and never
+  // reworded by the compile (`profile.js:pinnedStyleLines`). A number, because the number is a dial: measured on
+  // 20 of this machine's real prompts, "under 120 words" produced a median of 126 and "under 60" produced 68,
+  // against 164 with no number at all. Set on the machine, so it follows the person into every repository.
+  if (sub === 'style') {
+    const cur = answerStyle(store);
+    if (flags.off) {
+      updateMachineConfig(undefined, c => { if (c.style) delete c.style.answerWords; return c; });
+      out('answer length: no setting; the compile writes its own line about it again');
+      return;
+    }
+    if (flags.words === undefined) {
+      if (flags.json) { out(JSON.stringify({ ...cur, line: pinnedStyleLines(cur)[0] || null }, null, 2)); return; }
+      out(cur.words
+        ? `answers here: under ${cur.words} words, no table unless asked\n  served as: ${pinnedStyleLines(cur)[0]}\n  expect about ${Math.round(cur.words * 1.1)} words: asking for a number lands roughly a tenth over it`
+        : `answer length: not set. thinker profile style --words <${ANSWER_WORDS.min}-${ANSWER_WORDS.max}> pins it; ask for the length you want and expect about a tenth more`);
+      return;
+    }
+    const n = Math.round(Number(flags.words));
+    if (!Number.isFinite(n) || n < ANSWER_WORDS.min || n > ANSWER_WORDS.max) {
+      out(`--words takes a number between ${ANSWER_WORDS.min} and ${ANSWER_WORDS.max}`);
+      return;
+    }
+    updateMachineConfig(undefined, c => ({ ...c, style: { ...(c.style || {}), answerWords: n } }));
+    const now = answerStyle(store);
+    out(`answers here: under ${n} words, no table unless asked\n  served as: ${pinnedStyleLines(now)[0]}\n  expect about ${Math.round(n * 1.1)} words, and the table half is the part that holds: told it broke the rule the agent removed a table in 5 of 5 cases and still missed the word count in 16 of 20`);
     return;
   }
   if (sub === 'lines') {
@@ -205,7 +234,7 @@ async function profileCommand(ctx) {
     }
     return;
   }
-  out(`thinker profile [show [--why]|ledger|holdout|compile [--full]|extract <transcript>|rebuild|backfill [--dry]] (sections: ${SECTIONS.join(', ')})`);
+  out(`thinker profile [show [--why]|style [--words n|--off]|ledger|holdout|compile [--full]|extract <transcript>|rebuild|backfill [--dry]] (sections: ${SECTIONS.join(', ')})`);
   process.exitCode = 2;
 }
 
