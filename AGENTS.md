@@ -29,6 +29,10 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - Every `PROXY_DEFAULTS` key honored by `clear-door.js:desktopPolicy` or exempted with reason in `DESKTOP_POLICY` (`test/claude-clear.test.js`).
 - `cut` is honoured there, not exempt (2026-11-19): with the cutting off the desktop door clears nothing either. It is where most of this machine's clearing happened, so a switch one door kept would have left the measurement as unreadable as it was.
 - Policy change is judged live on cache writes against 15% holdout, not replays.
+- A change to `register.tsx` is only tested by `claude plugin test src/integrations/claude-clear` (its
+  `hooks/clear.test.tsx` is a bun test and `npm test` never reaches it). Run it. `npm test` holds the cheap
+  half: `test/claude-clear.test.js` transpiles the file and fails where it would not load at all -- what the
+  other assertions there, each extracting one function from the source as text, cannot see (#888).
 
 **Codex and Claude use the same cut policy (MANDATORY):**
 - `src/proxy-responses.js` → `src/cutting.js:decideCut` (Messages).
