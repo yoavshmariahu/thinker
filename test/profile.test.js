@@ -171,6 +171,22 @@ test('a patch is merged into the profile as it stands: silence keeps, update add
   assert.deepEqual(relatedCited(previous, [rows[2]], rows).map(r => r.id), ['a'], 'the evidence shown is what shares a topic or directory with the new rows');
 });
 
+// A rule must name a moment and an act, never a quality to keep up. On this machine the two communication lines
+// were the profile's most-violated: h1 ("keep the whole reply to the bottom line in two or three plain lines")
+// went 46% -> 21% -> 0% followed over three rewordings and h13 stayed at 0% over two, while every line that
+// named a moment ("before pushing", "before saying it landed", "when starting work") sat at 92-100%. The compile
+// already knew to reword a line contradicted more than followed; it had no idea what shape to reword it into,
+// and its one example was an action rule, so a rule about answers had no good form to copy.
+test('the compile is told what a followable rule looks like: a moment and an act, with an example for answers', () => {
+  assert.match(COMPILE_SYSTEM, /names the moment it is checked at and the act there, never a quality to keep up/);
+  assert.match(COMPILE_SYSTEM, /A rule whose moment is every sentence of every answer cannot be judged/);
+  const example = COMPILE_SYSTEM.match(/"(Before sending an answer[^"]+)"/);
+  assert.ok(example, 'a rule about how answers are written has an example to imitate, not only an action rule');
+  assert.ok(example[1].length <= PROFILE.ruleChars, `the example obeys the cap it teaches (${example[1].length} of ${PROFILE.ruleChars} chars): the model copies its shape and its length`);
+  assert.match(COMPILE_SYSTEM, /reworded once and contradicted or ignored again is not a wording problem but a form one/,
+    'a line that already failed a rewording gets its form changed or dropped, rather than new words and a fresh tally');
+});
+
 test('a session end to end: observations into the ledger, a compile when due, the previous profile to history, and the block', async t => {
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   assert.equal(profileConfig(store).enabled, true);
