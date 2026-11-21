@@ -252,7 +252,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
   assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
   for (const d of [/REPO = \['report', 'factory'\]\.includes\(hashTab\(\)\) \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\] \[--here\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|factory\|activity\|janitor\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
@@ -543,7 +543,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /data-tab="report">View Report</);
   assert.match(read('ui/page.html'), /if \(tab === 'cache'\) tab = 'report';/);
   assert.doesNotMatch(read('ui/page.html'), /renderTrend|tr-stack|api\/cache|api\/behaviors|api\/usage/);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|factory\|activity\|janitor\]/);
   assert.match(read('ui/page.html'), /if \(tab === 'save' && H\(\)\.get\('view'\) === 'history'\) tab = 'activity';/);
 });
 
@@ -790,6 +790,44 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
   assert.match(read('cli.js'), /--diff profile\|compression/);
   // the two doors say the attribution rule in the same words
   for (const f of ['factory.js', 'ui/page.html']) assert.match(read(f), /A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think\./);
+});
+
+test('the Janitor tab and `thinker janitor` read one view, and the page\'s buttons are the command\'s verbs', async t => {
+  // one computation (janitor.js:janitorView): the command prints it, the page reads it merged over the repositories
+  assert.match(read('commands/janitor.js'), /const v = janitorView\(store\);/);
+  assert.match(read('ui/server.js'), /mergeJanitorViews\(pairs\)/);
+  // every button on the tab is a verb of the command, through the same function
+  for (const [route, fn] of [['/api/janitor/run', 'janitorRound'], ['/api/janitor/do', 'janitorDo'], ['/api/janitor/leave', 'janitorDismiss'], ['/api/janitor/undo', 'janitorUndo']]) {
+    assert.match(read('ui/page.html'), new RegExp(`'${route}'`), `the page calls ${route}`);
+    assert.match(read('ui/server.js'), new RegExp(`'${route}'[^\\n]*${fn}\\(`), `${route} is ${fn}`);
+    assert.match(read('commands/janitor.js'), new RegExp(`${fn}\\(store`), `the command calls ${fn}`);
+  }
+  assert.match(read('cli.js'), /janitor \[run \| do <n> \| leave <n> \| undo <id> \| auto on\|off\] \[--all\] \[--json\]/, 'the flags are in help');
+  assert.match(read('cli.js'), /--tab save\|report\|factory\|activity\|janitor/);
+  assert.match(read('ui/page.html'), /data-tab="janitor"/);
+  // acting by itself is off unless the person turns it on, and both doors say how
+  const { janitorConfig, janitorView, JANITOR } = await import('../src/janitor.js');
+  const dir = repo(t), st = new Store(dir).init();
+  assert.deepEqual(janitorConfig(st), { enabled: true, auto: false });
+  assert.match(read('cli.js'), /auto on\|off lets a round sweep and put up pull requests by/); assert.match(read('ui/page.html'), /thinker janitor auto on/);
+  // a visit to the page looks for nothing: it reads what the last round kept, and starts one in the background when old
+  assert.match(read('ui/server.js'), /JANITOR\.staleMs\)\) \{ roundFn\(st\.repo\)/);
+  // on the wire: a rule three sessions broke is a heads-up on the page exactly as the command lists it
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# Rules\n\n## Worktrees\nAlways work in a worktree.\n');
+  const broke = text => ({ judged: { at: new Date().toISOString(), verdicts: { worktrees: { verdict: 'violated', evidence: text } } } });
+  fs.mkdirSync(path.join(st.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(st.dir, 'state', 'instruction-value.json'), JSON.stringify({ sessions: { a: broke('edited in the main checkout'), b: broke('committed on main'), c: broke('no worktree') } }));
+  const ui = await page(t, dir).start();
+  assert.equal((await ui.post('/api/janitor/run', { repo: '' })).said, 'Round done: 1 thing in the inbox.');
+  const now = Date.now(), shown = await ui.get('/api/janitor?repo=&round=0'), printed = janitorView(st, { now });
+  assert.equal(JANITOR.ruleBroken, 3);
+  assert.deepEqual(shown.items.map(i => [i.n, i.kind, i.title, i.detail, i.lines]), printed.items.map(i => [i.n, i.kind, i.title, i.detail, i.lines]));
+  assert.equal(shown.items[0].title, 'Agents keep breaking a rule: AGENTS.md · Worktrees');
+  assert.equal(shown.mood, printed.mood); assert.equal(shown.lastRound, printed.lastRound); assert.equal(shown.attention, 0);
+  // Got it on the page is `thinker janitor leave 1`
+  assert.match((await ui.post('/api/janitor/leave', { repo: '', id: shown.items[0].id })).said, /left alone/);
+  assert.deepEqual(janitorView(st).items, []);
+  assert.equal((await ui.post('/api/janitor/do', { repo: '', id: 'sweep' })).status, 400);
 });
 
 test('models from other providers are the command line\'s alone: the page has no door to a key, and every flag is in help', () => {

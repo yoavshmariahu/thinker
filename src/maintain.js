@@ -1,7 +1,7 @@
 // Background maintenance: what a user would otherwise have to remember to run. Since the knowledge notes went
 // (2026-11-08) it spends no tokens of its own: it prunes state files no session will read again, reads the
 // repository's pull requests so `thinker prs` knows what the sessions delivered, looks for a container thinker is
-// not in, and schedules the weekly context suggestion. It starts from the catch-up learning run (at most every ten
+// not in, schedules the weekly context suggestion, and sends the janitor round (janitor.js). It starts from the catch-up learning run (at most every ten
 // minutes, from the prompt hooks) and from the git post-commit hook, and runs at most once every four hours, on the
 // next activity after it is due. The daily token cap it keeps is what the profile's reads of sessions are bounded
 // by (learn.js, profile.js): tokens, not dollars, since the agents run on subscriptions as often as on metered keys.
@@ -165,6 +165,11 @@ export async function maintain(store, repo, { dry = false, fns = {}, now = Date.
     if (cfg.contextSuggest !== false && !dry) {
       try { const { scheduleContextSuggestion } = await (fns.contextSuggest ? { scheduleContextSuggestion: fns.contextSuggest } : import('./context-suggest.js')); const c = await scheduleContextSuggestion(store, { now }); if (c) r.contextSuggested = c.length; } catch (e) { failed('context-suggest', e); }
     }
+    // 5. the janitor's round (janitor.js): what the agents left behind here, kept for its inbox; where the person has
+    // let it (`janitor: { auto: true }`) it sweeps and puts up a pull request by itself. No model call.
+    if (!dry) {
+      try { const { janitorRound } = await (fns.janitor ? { janitorRound: fns.janitor } : import('./janitor.js')); const j = await janitorRound(store, { now }); if (!j.skipped) { r.janitorFound = j.found; if (j.did?.length) r.janitorDid = j.did.length; } } catch (e) { failed('janitor', e); }
+    }
     const u = state.unreported || {};
     state.unreported = u; state.at = new Date().toISOString(); state.last = r;
     if (!dry) fs.writeFileSync(stateFile(store), JSON.stringify(state));
@@ -236,6 +241,8 @@ export function renderMaintain(r) {
   if (r.prSynced) bits.push(`${r.prSynced} pull ${r.prSynced === 1 ? 'request' : 'requests'} read`);
   if (r.containerFound) bits.push(`a container found (${r.containerFound})`);
   if (r.contextSuggested) bits.push(`${r.contextSuggested} context ${r.contextSuggested === 1 ? 'change' : 'changes'} suggested`);
+  if (r.janitorDid) bits.push(`the janitor did ${r.janitorDid} ${r.janitorDid === 1 ? 'thing' : 'things'} on its own`);
+  if (r.janitorFound) bits.push(`${r.janitorFound} in the janitor's inbox (\`thinker janitor\`)`);
   return `maintained: ${bits.join(', ') || 'nothing to do'}${r.errors ? `; ${r.errors} failed${renderFailures(r.errorList)}` : ''}`;
 }
 

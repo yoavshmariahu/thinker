@@ -10,6 +10,9 @@ agent session ──► prompts + answers ──► extract ──► .thinker/l
 proxy / desktop mod ──► clears finished tool results ──► savings ledger                  first prompt ◄──┘
 ```
 
+The janitor (`thinker janitor`, the page's Janitor tab) goes round on maintenance's clock and keeps what the agents left
+behind as an inbox, with what was done about it; see "The janitor" below.
+
 The knowledge notes (distilled per session, served per prompt, verified against the code) were removed on
 2026-11-08 in favour of the session profile; see "Knowledge notes, removed" below for what went and why.
 
@@ -718,6 +721,18 @@ agents' context goes, read from their transcripts (`context-machine.js`): on a t
 to cut first in the browser or there (`setup/context-ask.js`), in the browser the page opens on All with the same
 suggestions checked. The old cache build (`--build`, `--prs`, `--areas`, `--no-seed` and the rest) is accepted and
 ignored; its history is in git before 2026-11-08.
+
+## The janitor (2026-11-21, the owner's framing: "your coding agent janitor which cleans up the mess made by other agents")
+
+- **What it is** (`src/janitor.js`): a round, an inbox, a feed. `thinker janitor` ↔ the page's Janitor tab, one view (`janitorView`; `mergeJanitorViews` for All repositories).
+- **A round spends no model tokens.** It reads what was measured already: by code, or by the one pass each session gets when it ends. Nothing is replayed, nothing judged twice.
+- **Rounds**: with maintenance (`maintain.js`, every 4 h on the next activity), `thinker janitor run`, and the page for a repository whose last round is over a day old (`JANITOR.staleMs`, in the background). The page never looks for anything on a visit.
+- **Chores** (`CHORES`): `sweep` merged worktrees and branches (`janitor-sweep.js`); `context` the changes Find Savings ranks highest (`currentChanges`; a section is a pull request, a tool a switch; decided through `approveChanges`/`dismissChanges` by the door `VIA.janitor`, so Recent activity and the telemetry count them); `rules` a section of the instruction file that sessions broke `JANITOR.ruleBroken` (3) times in 30 days, a heads-up with the evidence and no action; `waiting` a pull request to merge, a failed change to retry.
+- **Merged means**: the tip is an ancestor of the default branch, or a merged pull request in the delivery journal has this exact commit as its head (a squash merge). No call to GitHub is made from the sweep.
+- **Never swept**, each kept with its reason: the main checkout, a worktree a process sits in (`lsof -d cwd`; unknown means busy), uncommitted or untracked files, ignored files nothing regenerates (`REGENERABLE` is what does not count), detached, locked, changed in the last day, the default branch and its relatives. Removal is `git worktree remove` without `--force` and `update-ref -d <ref> <sha>`; the undo is the branch name and its commit.
+- **Two tiers, by what can be lost**: `janitor: { auto: true }` (`thinker janitor auto on`) lets a round sweep and put up **one** pull request at a time by itself. Off by default. A switch that changes what an agent can call is always the person's, and a section is never changed in the working tree without them.
+- **Off**: `janitor: false` or `janitor: { enabled: false }` in `.thinker/config.json`.
+- **State**: `.thinker/state/janitor.json` (last round, kept items, dismissals held `JANITOR.dismissDays` 7, the last 200 actions with their undo). Log rows `op: janitor`, `janitor-do`, `janitor-dismiss`, `janitor-undo`: counts and kinds, no names.
 
 ## Pull requests delivered (`thinker prs`, 2026-10-29)
 

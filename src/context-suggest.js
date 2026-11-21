@@ -245,7 +245,8 @@ const undoOf = (store, e) => e.decision === 'dismissed' ? { kind: 'dismissed' } 
 // (the command the offer text tells the agent to run), `page` is Find Savings, `setup` the install's multi-select, and
 // `command` someone typing `thinker context --approve` themselves. VIA.session is what says whether a suggestion
 // converted; `page` is what says a person went to the dashboard and acted there.
-export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command' };
+// `janitor`: the janitor's inbox (janitor.js), by the person's Do it or by a round acting on its own
+export const VIA = { session: 'session', page: 'page', setup: 'setup', command: 'command', janitor: 'janitor' };
 const viaOf = v => VIA[String(v)] || VIA.command;
 const entryOf = (store, c, decision, result, now, undo, { group = null, tokens = null, via = null } = {}) => {
   const id = (c.scope === 'machine' ? 'machine-' : '') + randomBytes(6).toString('hex');
@@ -267,14 +268,18 @@ const entriesOf = (store, changes, decision, result, now, undo) => {
 // what the page, the session's summary
 // and `thinker context` offer
 export function currentChanges(store, view, { now = Date.now(), max = SUGGEST.max } = {}) {
+  const decided = decidedKeys(store, { now });
+  return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
+}
+// The keys of the changes lately decided, through any door: what is no longer open (the janitor's inbox reads it too).
+export function decidedKeys(store, { now = Date.now() } = {}) {
   // a dismissal taken back makes its change a suggestion again, and so does a pull request closed without merging:
   // nothing was followed through on
   // a job that failed decided nothing either
   // A change left alone is offered again in the next weekly summary (`SUGGEST.dismissedDays`); one that was acted on
   // waits a month, since what was done to it has to have time to show in the figures.
   const held = h => (h.decision === 'dismissed' ? SUGGEST.dismissedDays : DECIDED_DAYS) * DAY;
-  const decided = new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < held(h) && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
-  return (view.suggestions || topChanges(view, { max: 20 })).filter(c => !decided.has(c.key)).slice(0, max);
+  return new Set(changeHistory(store, { now }).filter(h => now - Date.parse(h.at) < held(h) && !(h.decision === 'dismissed' && h.revertedAt) && !h.rejected && !h.failed).flatMap(h => h.keys || [h.key]));
 }
 export function dismissChanges(store, changes, { now = Date.now(), via = VIA.command } = {}) {
   record(store, changes.map(c => entryOf(store, c, 'dismissed', null, now, null, { via: viaOf(via) })));

@@ -62,6 +62,34 @@
     .nav-link .badge { display: inline-block; min-width: 1.25rem; padding: 0.05rem 0.4rem; margin-left: 0.4rem; border-radius: 999px; background: #dc2626; color: #fff; font-size: 0.7rem; font-weight: 700; text-align: center; line-height: 1.3; vertical-align: 1px; }
     .nav-link .badge.quiet { background: #e5e7eb; color: #374151; }
     /* what needs the person, at the top of Recent activity */
+    /* Janitor (janitor.js): the inbox as cards, one action each, and what was done as a quiet list under it. The status
+       line under the header keeps its height whether it says anything or not, so a refresh moves nothing (#j-status). */
+    .jan-status { min-height: 1.4rem; font-size: 0.86rem; color: #6b7280; margin: -0.3rem 0 0.2rem; }
+    .jan-status b { color: #111; font-weight: 600; }
+    .jan-inbox { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 2rem; }
+    .jan-item { display: flex; gap: 1rem; justify-content: space-between; align-items: flex-start; background: #fafafa; border: 1px solid #e5e7eb; border-left: 3px solid #111; border-radius: 8px; padding: 0.85rem 1rem; }
+    .jan-item.jan-wait { border-left-color: #dc2626; }
+    .jan-item.jan-pr { border-left-color: #2563eb; }
+    .jan-item.jan-note { border-left-color: #d4d4d8; background: #fff; }
+    .jan-main { min-width: 0; flex: 1; }
+    .jan-tag { display: inline-block; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; margin-bottom: 0.25rem; }
+    .jan-title { font-size: 0.95rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; overflow-wrap: anywhere; }
+    .jan-detail { font-size: 0.86rem; color: #444; line-height: 1.5; margin-top: 0.25rem; max-width: 720px; }
+    .jan-lines { margin: 0.45rem 0 0; padding-left: 1.1rem; font-size: 0.8rem; color: #6b7280; line-height: 1.55; overflow-wrap: anywhere; }
+    .jan-acts { display: flex; flex-direction: column; gap: 0.4rem; align-items: stretch; flex-shrink: 0; min-width: 11.5rem; }
+    .jan-acts .btn { white-space: nowrap; text-align: center; text-decoration: none; }
+    .jan-clean { display: flex; align-items: center; gap: 0.7rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.9rem 1rem; margin-bottom: 2rem; font-size: 0.92rem; }
+    .jan-clean .jan-broom { font-size: 1.4rem; }
+    .jan-feed { list-style: none; border-top: 1px solid #f0f0f0; }
+    .jan-feed li { display: flex; gap: 0.9rem; align-items: baseline; padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.86rem; line-height: 1.45; }
+    .jan-when { flex: 0 0 7.5rem; color: #6b7280; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+    .jan-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .jan-text a { color: #111; }
+    .jan-undone .jan-text { text-decoration: line-through; color: #6b7280; }
+    .jan-by { font-size: 0.72rem; color: #6b7280; border: 1px solid #e5e7eb; border-radius: 999px; padding: 0.05rem 0.5rem; white-space: nowrap; }
+    .jan-undo { background: transparent; border: 0; color: #111; font-size: 0.8rem; text-decoration: underline; cursor: pointer; padding: 0; }
+    .jan-foot { margin-top: 1.2rem; font-size: 0.8rem; color: #6b7280; line-height: 1.5; }
+    @media (max-width: 640px) { .jan-item { flex-direction: column; } .jan-acts { flex-direction: row; min-width: 0; } .jan-when { flex-basis: 5.5rem; } }
     .attn { display: flex; flex-direction: column; gap: 0.3rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.7rem 0.9rem; margin: 0 0 0.8rem; }
     .attn.ok { background: #f0fdf4; border-color: #bbf7d0; }
     .attn.wait { background: #fefce8; border-color: #fde68a; } .attn.wait code { background: #fef3c7; padding: 0 0.25rem; border-radius: 3px; }
@@ -454,6 +482,7 @@
       <button class="nav-link" data-tab="factory" title="The sessions as a pipeline: what each stage cost, the loops detected, the first-pass yield">Factory</button>
       <span class="nav-sep" aria-hidden="true"></span>
       <button class="nav-link" data-tab="activity" title="Every decision taken here, and what still needs you">Recent activity<span class="badge" id="act-badge" hidden></span></button>
+      <button class="nav-link" data-tab="janitor" title="What your coding agents left behind, and what was done about it">Janitor<span class="badge" id="jan-badge" hidden></span></button>
     </div>
   </nav>
   <div id="scan-progress" class="scan-progress" hidden>
@@ -520,6 +549,19 @@
       </div>
       <div id="activity-prs" class="section" hidden></div>
       <div id="activity-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
+    </section>
+
+    <!-- Janitor: what the coding agents left behind and needs the person (the inbox), and what was done about it and by the
+         offline work (the feed): janitor.js:janitorView, as `thinker janitor` -->
+    <section id="tab-janitor" hidden>
+      <div class="ctx-top"><div><h1>The janitor</h1>
+      <p class="lede">Cleans up after your coding agents: what it found that needs you, and what it has done</p></div>
+      <div class="controls">
+        <select class="sel" id="j-repo" aria-label="Repository"></select>
+        <button class="btn ghost" id="j-run" type="button" title="A round now: it looks again at what the agents left behind. No model call.">Send it round</button>
+      </div></div>
+      <div class="jan-status" id="j-status" role="status"></div>
+      <div id="janitor-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
     </section>
   </main>
   <div class="toast" id="toast"></div>
@@ -598,7 +640,7 @@ const H = () => new URLSearchParams(location.hash.slice(1));
 const hashRepo = () => { const r = H().get('repo'); return r === 'here' ? '' : r || 'all'; };
 // and which tab, normalized as show() does (an old name, an unknown one and no tab at all are Save), so `repo=`
 // reaches the tab that opens
-const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity'].includes(t) ? t : 'save'; };
+const hashTab = () => { let t = H().get('tab'); if (t === 'changes') t = 'save'; if (t === 'cache') t = 'report'; if (t === 'save' && H().get('view') === 'history') t = 'activity'; return ['report', 'factory', 'activity', 'janitor'].includes(t) ? t : 'save'; };
 // the repositories with a cache (/api/repos); REPO is the one picked for Report, CREPO for Save
 let REPOS = [], REPO = ['report', 'factory'].includes(hashTab()) ? hashRepo() : 'all';
 // Which door sent the person (context-suggest.js:suggestionsUrl): `setup` the installer, which also gets a hint in
@@ -650,13 +692,13 @@ function show(tab) {
   if (tab === 'changes') tab = 'save';
   if (tab === 'cache') tab = 'report';
   if (tab === 'save' && H().get('view') === 'history') tab = 'activity';
-  if (!['report', 'factory', 'activity'].includes(tab)) tab = 'save';
+  if (!['report', 'factory', 'activity', 'janitor'].includes(tab)) tab = 'save';
   document.querySelectorAll('.nav-link').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  for (const k of ['save', 'report', 'factory', 'activity']) $(`#tab-${k}`).hidden = tab !== k;
+  for (const k of ['save', 'report', 'factory', 'activity', 'janitor']) $(`#tab-${k}`).hidden = tab !== k;
   TAB = tab;
   scanProgress(null);
   history.replaceState(null, '', `#tab=${tab}`);
-  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else loadActivity();
+  if (tab === 'save') loadContext(); else if (tab === 'report') loadReport(); else if (tab === 'factory') loadFactory(); else if (tab === 'janitor') loadJanitor(); else loadActivity();
 }
 function segOn(sel, on) { document.querySelectorAll(sel + ' button').forEach(b => b.classList.toggle('on', b === on)); }
 function card(kicker, num, label, rows, gain) {
@@ -1319,6 +1361,85 @@ async function pollActivity() {
   APOLL = setTimeout(pollActivity, d?.running ? ACT_FAST_MS : ACT_POLL_MS);
 }
 // ---- the repositories with a cache on this machine ----
+// ---- Janitor (/api/janitor: janitor.js:janitorView, as `thinker janitor`) ----
+// The inbox: what the agents left behind and needs the person, a card each with the one thing to do about it and a way
+// to leave it. Under it what was done lately, by the janitor and by the offline work. One repository or all (the
+// default); the badge on the tab counts what needs the person over every repository. Nothing is looked for when the
+// page is read: the answer is what the last round kept, and a repository whose round is old gets one in the
+// background (`rounding`), which the poll picks up. As the other tabs, a refresh rebuilds in place (swapBody).
+let JREPO = hashTab() === 'janitor' ? hashRepo() : 'all', JAN = null, JAN_FOR = null, JLOAD = 0, JPOLL = null;
+const JAN_POLL_MS = 30_000, JAN_FAST_MS = 4_000;
+const JAN_TAG = { wait: 'Waiting on you', pr: 'Pull request', do: 'Cleanup', note: 'Heads-up' };
+$('#j-repo').onchange = e => { JREPO = e.target.value; e.target.blur(); loadJanitor(); };
+$('#j-run').onclick = async e => {
+  const b = e.currentTarget; busy(b, 'Going round…');
+  try { const r = await api('/api/janitor/run', { repo: JREPO }); toast(r.said); if (JAN && r.rounding) JAN.rounding = r.rounding; await loadJanitor(); pollJanitor(); } catch (err) { toast(err.message, true); }
+  idle(b);
+};
+async function loadJanitor() {
+  const el = $('#janitor-body'), seq = ++JLOAD, inPlace = Boolean(JAN) && JAN_FOR === JREPO;
+  if (!inPlace) el.innerHTML = '<div class="empty"><span class="spinner"></span>Reading…</div>';
+  try {
+    if (!REPOS.length) await fetchRepos();
+    if (!JREPO) JREPO = REPOS.find(r => r.current)?.id || 'all';
+    else if (JREPO !== 'all' && !REPOS.some(r => r.id === JREPO)) JREPO = 'all';
+    $('#j-repo').innerHTML = `<option value="all"${JREPO === 'all' ? ' selected' : ''}>All repositories</option>` + REPOS.map(r => `<option value="${esc(r.id)}"${r.id === JREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+    const want = JREPO, d = await api(`/api/janitor?repo=${encodeURIComponent(JREPO)}`);
+    if (seq !== JLOAD || want !== JREPO) return;
+    JAN_FOR = want; renderJanitor(d);
+  } catch (e) { if (seq !== JLOAD) return; if (inPlace) toast(`Could not read the janitor's list: ${e.message}`, true); else el.innerHTML = `<div class="empty">Could not read the janitor's list: ${esc(e.message)}</div>`; }
+}
+const janWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
+function janitorStatus(d) {
+  $('#j-status').innerHTML = `<b>${esc(d.mood)}</b>${d.enabled ? ` · last round ${esc(d.lastRound ? sinceMeasured(Date.parse(d.lastRound)) : 'not yet')}` : ''}${d.rounding ? ' · <span class="spinner"></span>going round…' : ''}`;
+}
+function renderJanitor(d) {
+  JAN = d;
+  const el = $('#janitor-body'), many = JREPO === 'all';
+  const whose = x => many && x.repoName ? ` <span class="muted">· ${esc(x.repoName)}</span>` : '';
+  const item = (it, i) => `<article class="jan-item jan-${esc(it.kind)}"><div class="jan-main">
+      <div class="jan-tag">${esc(JAN_TAG[it.kind] || 'Found')}</div>
+      <div class="jan-title">${esc(it.title)}${whose(it)}</div>
+      ${it.detail ? `<div class="jan-detail">${esc(it.detail)}</div>` : ''}
+      ${it.lines?.length ? `<ul class="jan-lines">${it.lines.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+    </div><div class="jan-acts">
+      ${it.action ? `<button class="btn" type="button" data-do="${i}">${esc(it.action.label)}</button>` : ''}
+      ${it.link ? `<a class="btn${it.action ? ' ghost' : ''}" href="${esc(it.link.url)}" target="_blank" rel="noopener">${esc(it.link.text)}</a>` : ''}
+      <button class="btn ghost" type="button" data-leave="${i}">${it.kind === 'note' ? 'Got it' : 'Leave it'}</button>
+    </div></article>`;
+  const inbox = d.items.length ? `<div class="kicker">For you · ${d.items.length}</div><div class="jan-inbox">${d.items.map(item).join('')}</div>`
+    : `<div class="jan-clean"><span class="jan-broom" aria-hidden="true">🧹</span><span>${esc(d.enabled ? (d.lastRound ? 'All clean. Nothing needs you.' : 'Not been round yet. It is on its way.') : 'The janitor is switched off here.')}</span></div>`;
+  const line = (f, i) => `<li class="${f.undone ? 'jan-undone' : ''}"><span class="jan-when">${esc(janWhen(f.at))}</span><span class="jan-text">${f.url ? esc(f.text).replace(/#(\d+)/, `<a href="${esc(f.url)}" target="_blank" rel="noopener">#$1</a>`) : esc(f.text)}${whose(f)}</span>${f.undone ? '<span class="jan-by">taken back</span>' : ''}${f.by === 'janitor' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="jan-by">on its own</span>' : ''}${f.undo ? `<button class="jan-undo" type="button" data-undo="${i}">Undo</button>` : ''}</li>`;
+  const feed = `<div class="kicker">Done lately</div>${d.feed.length ? `<ol class="jan-feed">${d.feed.map(line).join('')}</ol>` : '<div class="empty">Nothing yet. What the janitor does, and what the offline work does while you are away, is listed here.</div>'}`;
+  const foot = !d.enabled ? '' : `<p class="jan-foot">${d.auto ? 'The janitor acts on its own here: a round sweeps merged worktrees and branches, and puts up one pull request at a time. <code>thinker janitor auto off</code> makes it ask first.' : 'The janitor only proposes: nothing is swept and no pull request is put up until you say so. <code>thinker janitor auto on</code> in a repository lets it do both by itself.'} A round makes no model call.</p>`;
+  swapBody(el, inbox + feed + foot);
+  janitorStatus(d);
+  const act = (sel, path, key, doing, pick) => el.querySelectorAll(`[${sel}]`).forEach(b => b.onclick = async () => {
+    const x = pick(Number(b.getAttribute(sel))); busy(b, doing);
+    try { toast((await api(path, { repo: x.repo || (JREPO === 'all' ? '' : JREPO), id: x[key] })).said, false, 4200); await loadJanitor(); pollJanitor(); pollActivity(); } catch (err) { toast(err.message, true, 5000); idle(b); }
+  });
+  act('data-do', '/api/janitor/do', 'id', 'On it…', i => d.items[i]);
+  act('data-leave', '/api/janitor/leave', 'id', 'Leaving…', i => d.items[i]);
+  act('data-undo', '/api/janitor/undo', 'undo', 'Putting back…', i => d.feed[i]);
+  janBadge(d);
+}
+// the badge on the Janitor tab: what needs the person over every repository (a heads-up is not counted)
+function janBadge(d) {
+  const b = $('#jan-badge'), n = d.attention || 0;
+  b.hidden = !n; b.textContent = n; b.classList.add('quiet');
+  b.title = n ? `${n} thing${n === 1 ? '' : 's'} the janitor found that need${n === 1 ? 's' : ''} you` : '';
+}
+// every repository's list for the badge, without starting a round; the tab shown is drawn again when its list moved
+async function pollJanitor() {
+  clearTimeout(JPOLL);
+  let d = null; try { d = await api('/api/janitor?repo=all&round=0'); } catch {}
+  if (d) {
+    if (JREPO === 'all' || TAB !== 'janitor') janBadge(d);
+    const mine = x => JREPO === 'all' || x.repo === JREPO, sig = v => JSON.stringify([(v.items || []).filter(mine).map(i => [i.id, i.title]), (v.feed || []).filter(mine).slice(0, 5).map(f => [f.at, f.text, f.undone])]);
+    if (TAB === 'janitor' && JAN && (sig(JAN) !== sig(d) || JAN.rounding)) loadJanitor();
+  }
+  JPOLL = setTimeout(pollJanitor, TAB === 'janitor' && JAN?.rounding ? JAN_FAST_MS : JAN_POLL_MS);
+}
 async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;
@@ -1795,6 +1916,7 @@ const navHeight = () => document.documentElement.style.setProperty('--nav-h', `$
 navHeight(); addEventListener('resize', () => { navHeight(); });
 show(H().get('tab') || 'save');
 pollActivity();
+pollJanitor();
 </script>
 </body>
 </html>

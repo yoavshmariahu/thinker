@@ -4,6 +4,7 @@
 // decisions taken on Save and the cache's numbers under it (report.js, as `thinker report`); and Recent activity, every
 // decision taken with what came of it and what still needs the person (context-suggest.js:changeHistory, as `thinker
 // context --history`): a compression running in the background or failed, a pull request waiting to be merged. The
+// And Janitor (janitor.js, as `thinker janitor`): what the agents left behind and needs the person, and what was done.
 // Cache view (the usage cards, the repositories, the notes and the behaviors) was replaced by Report on 2026-10-22, at
 // the owner's decision; the notes and behaviors are the CLI's (`thinker list`, `show`, `archive`, `system`).
 //
@@ -26,6 +27,7 @@ import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
 import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
 import { uiScans, scanStatus } from './scans.js';
+import { janitorView, mergeJanitorViews, janitorRound, janitorDo, janitorDismiss, janitorUndo, JANITOR } from '../janitor.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -114,6 +116,16 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
   refreshFn ||= checkout => background(`context:${checkout}`, () => child(['context', '--refresh', '--quiet', '--repo', checkout], checkout));
   // an old Report by `thinker report --refresh`: one repository's, or every repository's in one run (null)
   refreshReportFn ||= checkout => checkout ? background(`report:${checkout}`, () => child(['report', '--refresh', '--quiet', '--repo', checkout], checkout)) : background('report:all', () => child(['report', '--refresh', '--all', '--quiet'], store.repo));
+  // a repository the janitor has not been round lately is visited by `thinker janitor run` in the background (no model
+  // call), one at a time with the other refreshes, and asked for at most every ROUND_ASK_MS so a round that fails is
+  // not started again by every poll of the page
+  // (`rounding` in the answer counts the ones asked for in the last ROUND_WAIT_MS: after that the page stops waiting)
+  const roundAsked = new Map(), ROUND_ASK_MS = 10 * 60_000, ROUND_WAIT_MS = 2 * 60_000;
+  const roundFn = checkout => {
+    if (Date.now() - (roundAsked.get(checkout) || 0) < ROUND_ASK_MS) return false;
+    roundAsked.set(checkout, Date.now());
+    return background(`janitor:${checkout}`, () => child(['janitor', 'run', '--quiet', '--repo', checkout], checkout));
+  };
   const scans = uiScans();
   let discovering;
   const page = fs.readFileSync(path.join(HERE, 'page.html'), 'utf8');
@@ -338,8 +350,44 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // `scan`: how far the report read behind `measuring` has got, for the page's banner (scanProgress)
         return json(res, 200, { history, promptAvg: mergePromptAverages(avgs), measuring, scan: readings.length ? scanStatus(readings) : null, attention: history.filter(h => h.attention).length, running: history.filter(h => h.running).length });
       }
+      // Janitor (janitor.js:janitorView, as `thinker janitor`): the inbox and what was done, for one repository or every one
+      // merged (mergeJanitorViews), read from what the last round kept. Nothing is looked for on a visit: a repository whose
+      // last round is old gets one in the background (`rounding`), and the page checks back.
+      if (req.method === 'GET' && url.pathname === '/api/janitor') {
+        const stores = storesFor(want); if (!stores) return json(res, 400, { error: 'unknown repository' });
+        const pairs = []; let rounding = 0;
+        for (const [r, st] of stores) { try {
+          const view = janitorView(st);
+          if (view.enabled && url.searchParams.get('round') !== '0' && (!view.lastRound || Date.now() - Date.parse(view.lastRound) > JANITOR.staleMs)) { roundFn(st.repo); if (Date.now() - (roundAsked.get(st.repo) || 0) < ROUND_WAIT_MS) rounding++; }
+          pairs.push({ repo: r.id, name: r.name, view });
+        } catch {} }
+        return json(res, 200, { ...mergeJanitorViews(pairs), repos: pairs.length, rounding });
+      }
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
+      // `thinker janitor run` from the page: this repository's round now, or every repository's in the background
+      if (url.pathname === '/api/janitor/run' && String(b.repo || '') === 'all') {
+        const stores = storesFor('all') || [];
+        for (const [, st] of stores) { roundAsked.delete(st.repo); roundFn(st.repo); }
+        return json(res, 200, { ok: true, said: `The janitor is going round ${stores.length} repositor${stores.length === 1 ? 'y' : 'ies'}.`, rounding: stores.length });
+      }
+      if (url.pathname.startsWith('/api/janitor/')) {
+        const st = storeFor(String(b.repo || ''));
+        if (!st) return json(res, 400, { error: 'unknown repository' });
+        const id = String(b.id || '');
+        // a context change decided from the inbox is the same decision as on Find Savings: the kept report is made again
+        const context = id.startsWith('change:');
+        if (context) { await scans.cancel(); harnessCache.clear(); }
+        let r;
+        if (url.pathname === '/api/janitor/run') { const x = await janitorRound(st); r = x.skipped ? { error: 'the janitor is off in this repository' } : { said: x.found ? `Round done: ${x.found} thing${x.found === 1 ? '' : 's'} in the inbox.` : 'Round done: all clean.' }; }
+        else if (url.pathname === '/api/janitor/do') r = await janitorDo(st, id, { fns: { spawn: spawnFn } });
+        else if (url.pathname === '/api/janitor/leave') r = janitorDismiss(st, id);
+        else if (url.pathname === '/api/janitor/undo') r = janitorUndo(st, id);
+        else return json(res, 404, { error: 'not found' });
+        if (r.error) return json(res, 400, { error: r.error });
+        if (context && url.pathname === '/api/janitor/do' && !refreshing(st)) refreshFn(st.repo);
+        return json(res, 200, { ok: true, said: r.said });
+      }
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
       await scans.cancel(); // an older scan must not overwrite snapshots after this action
