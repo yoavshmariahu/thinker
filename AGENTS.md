@@ -302,7 +302,7 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   call before it runs. A read past the rule (below) or a whole-suite test run is **denied**, and the denial's reason
   tells the model to hand the work to **its own named native subagent**, with a brief thinker has already written
   (`handoff` mode, `executionFor`). The rule stays thinker's -- `decide`, the thresholds, the holdout, the `op:
-  delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under the 8k `threshold`) is
+  delegate` row -- and the execution is the host's. A ranged Read (`offset`/`limit`, under the 4k `threshold`) is
   never delegated, so the model still reads the lines it edits. The hook answers in ~0.25 s either way, because it
   starts nothing: the settings entry's timeout is 30 s, and only 300 s while the fallback below is on.
   The brief carries the **person's own request**, read from the transcript (`lastPromptOf`, #777): the last 400 KB
@@ -375,15 +375,24 @@ call; `src/delegate.js`, the `hook pretool` subcommand, Claude Code's PreToolUse
   second later call, stop at the first cut, and a subagent the lead started unprompted is neither charged nor
   credited. On two bench sessions of 2026-11-14: $0.53 on a $3.15 mlflow session (one 45k read), $0.13 on a $7.12
   PostHog session (three firings, one ignored).
-- The rule (`decide`) is one comparison: **a read of `threshold` tokens (8k) or more fires, and no other read
+- The rule (`decide`) is one comparison: **a read of `threshold` tokens (4k) or more fires, and no other read
   does** (the owner's call, 2026-11-17: "I just wanted if read >= 8k"). Nothing is added up across a turn; the
   turn, keyed on Claude Code's `prompt_id`, only bounds the handoff budget. Until then the rule was a tally of
   the turn's reads against the threshold (35k until 2026-11-16) with a per-read floor (`minRead` 8k), which is
   what the bench runs of 2026-11-15/16 and the website's delegation pages ran under; `minRead` is gone and a
-  config that still names it is ignored. Why 8k: the explorer is
-  Haiku now, under a cent a run on this machine's 30 latest, against ~$0.08-0.14 for an 8k read kept in an Opus
-  session, so the dollars no longer set the floor; what is judged on the holdout is the re-read share and the
-  wait. Reads are sized from the file
+  config that still names it is ignored. **4k since 2026-11-20** (the owner's call, "for everyone", on the 75%
+  the holdout does not hold back): 8k was set while the explorer was Sonnet and never revisited after #787 pinned
+  it to Haiku. Priced through `prices.js`, three real Haiku explorations off this machine's session rows (95-167k
+  tokens each, 4-6 turns) cost $0.0057, $0.0070 and $0.0099 -- mean $0.0076, against $0.141 for the same work on
+  Sonnet -- while a read the lead keeps costs it $0.0125-$0.0185 a thousand tokens (the 1h cache write at $10/M,
+  then $0.50/M read back on each of the 5-17 later calls it rides on), so cost break-even is around 400-600
+  tokens and the dollars have not set this floor for some time. What does set it is substitution: below some size
+  the 25-line report is the worse answer, because the model wanted those lines to edit and reads the file anyway.
+  Where that size is has never been measured -- the 40 bench sessions of 2026-11-16 found no correctness loss
+  where it fires, and where it fired was 8k and up -- so the holdout is what says, on the share of handoffs the
+  lead reads anyway (`after: 'handoff'`, 0 of 30 firings at 8k), on the re-read share and on the wait. The prize:
+  over 247 explorations of 2026-11-17/20 the floor at 8k fired on 13% of reads and carried 51% of the read
+  tokens, and 4k adds 50 reads and 288k tokens, 48% more handed away. Reads are sized from the file
   on disk at `TOKENS_PER_CHAR` (0.445, the proxy's result rate) plus the Read tool's line-number prefix; a `cat`,
   `sed -n` or large `head` of a file counts, anything piped into grep/head/tail/wc does not (the model trimming for
   itself). A shell line that names a range (`sed -n 10,60p`, `head -n 40`, `sedLines`) is sized by the lines it asks

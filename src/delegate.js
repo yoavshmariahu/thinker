@@ -85,10 +85,25 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // the core files against Sonnet 5.5's 0.77, and Sonnet tied Opus. Null until a paired run on
                       // real handoffs says otherwise; `delegate: { exploreModel: "claude-sonnet-5-5" }` sets it,
                       // and nothing else does: no environment variable (the owner's rule, 2026-11-15).
-  threshold: 8000,    // a read of this many tokens or more is delegated, and nothing else is: a smaller read is the
-                      // lines the main model edits. The whole rule since 2026-11-17 (the owner's call); until then
+  threshold: 4000,    // a read of this many tokens or more is delegated, and nothing else is: a smaller read is the
+                      // lines the main model edits. One comparison since 2026-11-17 (the owner's call); until then
                       // it was a tally of the turn's reads against 35000 with a per-read floor of 8000 (`minRead`).
-                      // A Haiku explorer costs under a cent, so a read of 8k pays for it on the cache write alone
+                      // 4000 since 2026-11-20, on every session the holdout does not hold back (the owner's call,
+                      // "for everyone"): 8000 was set while the explorer was Sonnet and was never revisited after
+                      // #787 pinned it to Haiku, and it sits nowhere near where the money turns. Priced through
+                      // `prices.js`: three real Haiku explorations off this machine's session rows (95-167k tokens
+                      // each, 4-6 turns) cost $0.0057, $0.0070 and $0.0099 -- mean $0.0076, against $0.141 for the
+                      // same work on Sonnet -- while a read the lead keeps costs it $0.0125 to $0.0185 a thousand
+                      // tokens (Opus: the 1h cache write at $10/M, then $0.50/M read back on each of the 5 to 17
+                      // later calls it rides on). Cost break-even is around 400 to 600 tokens, so the money is not
+                      // what holds the floor up: below some size the 25-line report is the worse answer, because
+                      // the model wanted those lines to edit and reads the file anyway (`after: 'handoff'`, whose
+                      // saving report-savings.js drops). Where that size is has never been measured -- the 40
+                      // bench sessions of 2026-11-16 found no correctness loss where it fires, and where it fired
+                      // was 8000 and up -- so the holdout below is what says, on the share of handoffs the lead
+                      // reads anyway (0 of 30 at 8000) and on cost per exchange. Over this machine's 247
+                      // explorations of 2026-11-17/20 the floor at 8000 fired on 13% of the reads and carried 51%
+                      // of the read tokens; 4000 adds 50 reads and 288k tokens, 48% more handed away.
   holdout: 0.25,      // share of sessions left alone, by hash of the session id (proxy.js:heldOut); 0.5 until 2026-11-16
   families: true,     // on a host whose models come from a gateway, the explorer is the lead's own family's cheap
                       // model (EXPLORER_FAMILIES); `delegate: { families: false }` keeps it on the session's model
