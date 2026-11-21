@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { Store } from '../src/store.js';
-import { compactionMetrics, delegateMetrics, proxyMetrics } from '../src/telemetry.js';
+import { compactionMetrics, delegateMetrics, proxyMetrics, repeatMetrics } from '../src/telemetry.js';
 import { sessionsOf } from '../src/delivery.js';
 import { repoId } from '../src/store.js';
 
@@ -29,6 +29,29 @@ test('delegations leave the machine as counts by day: fired, held out and failed
     assert.equal(JSON.stringify(m).includes('secret'), false, 'no file leaves the machine');
     // a firing older than the window is in no day
     assert.deepEqual(delegateMetrics(store, { all: false, now: Date.now() + 40 * 86400000 }).byDay, {});
+  } finally { fs.rmSync(repo, { recursive: true, force: true }); }
+});
+
+test('pointers leave the machine as counts by day, with what they saved and the two ways the model can refuse one', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-repeat-'));
+  try {
+    const store = new Store(repo).init();
+    const day = new Date().toISOString().slice(0, 10);
+    const row = { op: 'repeat', session: 's1', client: 'claude', tool: 'Read', files: ['src/secret-file.py'], tokens: 9000, via: 'settings' };
+    store.log({ ...row, held: false, fired: true });
+    store.log({ ...row, held: false, fired: true });
+    store.log({ ...row, held: true, fired: false });
+    store.log({ ...row, fired: false, declined: 'pointed' });       // asked for again in the same turn
+    store.log({ ...row, fired: false, declined: 'below-floor' });    // the rule's own bookkeeping
+    store.log({ ...row, fired: false, declined: 'compacted' });
+    // the session's own figure, where one pointed-at file was read whole by the lead anyway
+    store.log({ op: 'session', session: 's1', model: 'claude-opus-5-5', repeated: { reads: 2, tokens: 18000, laterTokens: 36000, ignored: 1, agents: [] } });
+    const m = repeatMetrics(store, { all: false });
+    assert.equal(m.schemaVersion, 1);
+    const d = m.byDay[day];
+    assert.deepEqual({ ...d, savedUsd: d.savedUsd > 0 }, { pointed: 2, held: 1, again: 1, ignored: 1, savedTokens: 54000, savedUsd: true, unpricedTokens: 0 });
+    assert.equal(JSON.stringify(m).includes('secret'), false, 'no file leaves the machine');
+    assert.deepEqual(repeatMetrics(store, { all: false, now: Date.now() + 40 * 86400000 }).byDay, {});
   } finally { fs.rmSync(repo, { recursive: true, force: true }); }
 });
 

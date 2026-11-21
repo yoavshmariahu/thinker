@@ -1769,7 +1769,9 @@ function renderReport(v) {
   const mtitle = m => (c, w) => `${fmt(c.prompts || 0)} prompts in ${c.sessions} session${c.sessions === 1 ? '' : 's'} on ${m.model} this week${c.prompts ? `, ${c.pricedPrompts ? money(c.cost / c.pricedPrompts) : '–'} per prompt of its own` : ''}`;
   const models = `<figure class="ctx-figure"><figcaption><b>By model</b> <span class="ctx-sub">each model's share of the ${sum ? 'week' : 'average prompt'}, its provider's subtotal above its models</span></figcaption>
     <table class="ctx-table rep-table">${head('Provider · model')}<tbody>${v.providers.map(p => row(`<button class="rep-fold" data-fold="${esc(p.name)}" aria-expanded="${!fold(p.name)}">${fold(p.name) ? '▸' : '▾'}</button> ${esc(p.name)}`, p.cells, { cls: 'rep-sub', sub: `${modelsOf(p.name).length} model${modelsOf(p.name).length === 1 ? '' : 's'}` }) + (fold(p.name) ? '' : modelsOf(p.name).map(m => row(`<span class="rep-indent">${esc(m.model)}</span>`, m.cells, { cls: m.priced ? '' : 'ctx-off', sub: m.priced ? '' : 'no list price', titles: mtitle(m) })).join(''))).join('')}${row('Total (the whole session)', v.sessionTotals, { cls: 'rep-total', total: true })}</tbody></table></figure>`;
-  const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: s.key === 'compression' ? '#6366f1' : '#07866c', values: s.cells.map((c, w) => {
+  // a dot a series, in the order they were added; a new series with no colour of its own takes the last
+  const DOTS = { compression: '#6366f1', delegation: '#07866c', repeat: '#b45309' };
+  const series = (v.savings || []).slice().sort((a, b) => Number(b.key === 'compression') - Number(a.key === 'compression')).map(s => ({ ...s, color: DOTS[s.key] || '#07866c', values: s.cells.map((c, w) => {
     if (!c.pricedEvents) return null;
     const col = v.columns[w], total = v.sessionTotals[w];
     const denominator = share ? total?.cost : sum ? 1 : col.pricedPrompts;

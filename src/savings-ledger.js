@@ -49,7 +49,7 @@ export const dayKey = (now = Date.now()) => {
 };
 export const dayStart = (now = Date.now()) => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); };
 
-const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 }, delegated: { cost: 0, tokens: 0 } });
+const emptyCell = () => ({ cost: 0, tokens: 0, unpricedTokens: 0, cleared: { cost: 0, tokens: 0 }, delegated: { cost: 0, tokens: 0 }, repeated: { cost: 0, tokens: 0 } });
 
 // One window's row: the clearing, with the tokens behind the dollars. A row with observations but no price adds its
 // tokens to `unpricedTokens` rather than nothing, so an unpriced model is a gap the output can name, not a silent zero.
@@ -60,6 +60,7 @@ function cellOf(series) {
     if (!c) continue;
     if (key === 'compression') { out.cleared.cost = c.cost; out.cleared.tokens = c.tokens; }
     if (key === 'delegation') { out.delegated.cost = c.cost; out.delegated.tokens = c.tokens; }
+    if (key === 'repeat') { out.repeated.cost = c.cost; out.repeated.tokens = c.tokens; }
     out.cost += c.cost; out.tokens += c.tokens; out.unpricedTokens += c.unpricedTokens || 0;
   }
   return out;
@@ -173,7 +174,9 @@ export function savingsStatus(ledger, { now = Date.now() } = {}) {
 export function savingsDetail(cell) {
   if (!cell) return '';
   const row = (name, c) => `${name} ${formatDollars(c.cost)} (${formatTokens(c.tokens)} tokens)`;
-  // the delegated row only where there is one: most machines run without the trigger, and a ledger written
-  // before the series existed has no such cell
-  return [row('context cleared', cell.cleared), ...(cell.delegated?.tokens ? [row('reads delegated', cell.delegated)] : [])].join(' · ');
+  // the delegated and pointed rows only where there is one: most machines run without the trigger, and a ledger
+  // written before a series existed has no such cell
+  return [row('context cleared', cell.cleared),
+    ...(cell.delegated?.tokens ? [row('reads delegated', cell.delegated)] : []),
+    ...(cell.repeated?.tokens ? [row('reads already in context', cell.repeated)] : [])].join(' · ');
 }

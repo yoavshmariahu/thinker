@@ -20,7 +20,7 @@ import { deliveryMetrics } from './delivery-telemetry.js';
 import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { clearingRows, compressionDir } from './compression.js';
-import { delegationSavings, readAnyway } from './report-savings.js';
+import { delegationSavings, readAnyway, repeatSavings } from './report-savings.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
 import { historyEffects, promptAverageHere, readReport } from './report-snapshot.js';
@@ -666,6 +666,10 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
     // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
     delegate: delegateMetrics(store, { all, home }),
 
+    // the pointer by day: reads answered with the copy the model already had, held out, asked for again, and
+    // what that saved (repeatMetrics). Beside the delegation block, never added into it: two policies.
+    repeat: repeatMetrics(store, { all }),
+
     // an agent's own compactor that thinker steers and measures, by day: Devin's, the one agent whose model
     // calls no proxy of ours can carry (compactionMetrics). The daily dashboard counts them beside the proxy's cuts.
     compactions: compactionMetrics(store, { all }),
@@ -768,6 +772,58 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
     for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
   }
   return { schemaVersion: 3, windowDays: SPEND_WINDOW_DAYS, byDay };
+}
+
+// The pointer by UTC day (delegate.js, "the same file, read again"; the usage log's `op: repeat` rows): how often
+// a read was answered with the copy the model already had. `pointed` is a call answered that way, `held` one in a
+// held-out session, where the read went through. Two quality counts ride beside the dollars, because a pointer can
+// only fail in one way -- the model wanting the bytes anyway -- and both ways it can say so are free to count:
+// `again` is a read asked for a second time in the same turn after a pointer (the loop guard let it through, a row
+// of its own, `declined: 'pointed'`), and `ignored` the files a lead went on to read whole after one, taken from
+// the sessions' own post-processed figure, which is also what the saving excludes (delegated.js). So the day's
+// count and the day's dollars are one rule here too: `pointed - ignored` is what the saving is drawn from.
+//
+// `savedTokens`, `savedUsd` and `unpricedTokens` are the ledger's own rows (report-savings.js:repeatSavings): the
+// write the lead never made, and the read of it avoided on each later call, on the UTC day it was saved. Nothing is
+// netted off -- no subagent ran. A session whose model has no list price is in `unpricedTokens` and in no dollar
+// figure. Counts alone: no file, no session, no repository.
+export function repeatMetrics(store, { all = true, now = Date.now() } = {}) {
+  const since = new Date(now - SPEND_WINDOW_DAYS * DAY_MS).toISOString();
+  const byDay = {};
+  const dayOf = day => byDay[day] ||= { pointed: 0, held: 0, again: 0, ignored: 0, savedTokens: 0, savedUsd: 0, unpricedTokens: 0 };
+  let events = []; try { events = readLog(store, { all }); } catch { events = []; }
+  for (const e of events) {
+    if (e.op !== 'repeat' || typeof e.t !== 'string' || e.t < since || !Number.isFinite(Date.parse(e.t))) continue;
+    const d = dayOf(e.t.slice(0, 10));
+    if (e.declined === 'pointed') d.again++;
+    else if (e.declined) continue;                 // the floor and the compaction are the rule's own bookkeeping
+    else if (e.held) d.held++;
+    else if (e.fired !== false) d.pointed++;
+  }
+  // the lead reading a pointed-at file whole anyway, from the newest row of each session (the figure is cumulative)
+  const last = new Map();
+  for (const e of events) {
+    if (e.op !== 'session' || !e.session || !e.repeated || typeof e.t !== 'string' || e.t < since) continue;
+    const prev = last.get(e.session);
+    if (!prev || prev.t < e.t) last.set(e.session, { t: e.t, ignored: e.repeated.ignored || 0 });
+  }
+  for (const v of last.values()) if (v.ignored) dayOf(v.t.slice(0, 10)).ignored += v.ignored;
+  try {
+    let config = {}; try { config = store.config(); } catch { config = {}; }
+    for (const r of repeatSavings({ events, config })) {
+      if (!Number.isFinite(r.at) || r.at > now) continue;
+      const at = new Date(r.at).toISOString();
+      if (at < since) continue;
+      const d = dayOf(at.slice(0, 10));
+      d.savedTokens += r.tokens || 0;
+      if (r.cost == null) d.unpricedTokens += r.tokens || 0; else d.savedUsd += r.cost;
+    }
+  } catch { /* the counts above still leave */ }
+  for (const d of Object.values(byDay)) {
+    d.savedUsd = Math.round(d.savedUsd * 100) / 100;
+    for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
+  }
+  return { schemaVersion: 1, windowDays: SPEND_WINDOW_DAYS, byDay };
 }
 
 // An agent's own compactions by UTC day (devin-compaction.js, the usage log's `op: compaction` rows). Devin's
