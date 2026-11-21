@@ -171,6 +171,26 @@ test('a patch is merged into the profile as it stands: silence keeps, update add
   assert.deepEqual(relatedCited(previous, [rows[2]], rows).map(r => r.id), ['a'], 'the evidence shown is what shares a topic or directory with the new rows');
 });
 
+// A rule asks for a definite act, never a degree. Measured over this machine's own 526 verdicts: grouping the 13
+// lines with three or more applied verdicts by whether the act is a degree ("brief", "plain", "only what was
+// asked") or definite, the definite ones were followed in 73 of 79 sessions they bore on (92%) and the degrees in
+// 29 of 70 (41%). A temporal trigger on its own predicted nothing (63% with, 77% without), so the form that
+// matters is binary-versus-degree, not moment-versus-always. Worst case is both: h1 ("keep the whole reply to the
+// bottom line in two or three plain lines") went 46% -> 21% -> 0% over three rewordings, h13 stayed at 0% over
+// two. The compile already knew to reword a line contradicted more than followed and had no idea what shape to
+// reword it into, its one example being an action rule, so a rule about answers had no good form to copy.
+// Caveat kept honest: 13 lines, and the degree lines here are mostly the ones about communication, so form and
+// subject are not fully separable in this sample.
+test('the compile is told what a followable rule looks like: a definite act, with an example for answers', () => {
+  assert.match(COMPILE_SYSTEM, /asks for an act the agent either did or did not do, never a quality held to a degree/);
+  assert.match(COMPILE_SYSTEM, /an agent can always read its own answer as brief enough/);
+  const example = COMPILE_SYSTEM.match(/"(Before sending an answer[^"]+)"/);
+  assert.ok(example, 'a rule about how answers are written has an example to imitate, not only an action rule');
+  assert.ok(example[1].length <= PROFILE.ruleChars, `the example obeys the cap it teaches (${example[1].length} of ${PROFILE.ruleChars} chars): the model copies its shape and its length`);
+  assert.match(COMPILE_SYSTEM, /reworded once and contradicted or ignored again is not a wording problem but a form one/,
+    'a line that already failed a rewording gets its form changed or dropped, rather than new words and a fresh tally');
+});
+
 test('a session end to end: observations into the ledger, a compile when due, the previous profile to history, and the block', async t => {
   const { dir, store } = tmpRepo(t, { learn: { mode: 'profile' } });
   assert.equal(profileConfig(store).enabled, true);
