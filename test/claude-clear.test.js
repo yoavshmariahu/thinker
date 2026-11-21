@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { CARD_ENV, claudeClearDir, withClearDir, withoutClearDir, clearDirIn, claudeCardDir } from '../src/claude-card.js';
 import { installClient, uninstallWiring } from '../src/clients.js';
@@ -67,6 +68,20 @@ test('the clearing mod ships beside the CLI, with a manifest and one hooks modul
   const manifest = JSON.parse(fs.readFileSync(path.join(MOD, '.claude-plugin', 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'thinker-clear');
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(MOD, 'hooks', 'hooks.json'), 'utf8')).modules, ['./register.tsx']);
+});
+
+// THE WHOLE FILE MUST PARSE (2026-11-20). Every other test here reads register.tsx as text and runs one
+// function of it (`modFn` extracts the lines and compiles those alone), which is blind to the file as a file:
+// #888 left two `const answer` in one function, the engine refused the module, the mod did nothing in any
+// session -- and the suite was green, because the one test that loads it (`hooks/clear.test.tsx`, run by
+// `claude plugin test`) is not a node test and `npm test` never reaches it. This is the cheap half of that
+// test: the mod transpiled by the runtime the host uses, which is the step that rejects a redeclaration.
+// Skipped where bun is not installed, so the check never costs a contributor who has no mod to run.
+const bun = ['bun', path.join(os.homedir(), '.bun', 'bin', 'bun')]
+  .find(b => spawnSync(b, ['--version'], { encoding: 'utf8' }).status === 0);
+test('the clearing mod is a file the engine can load', { skip: bun ? false : 'bun is not installed' }, () => {
+  const r = spawnSync(bun, ['build', '--no-bundle', MOD_SRC], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(r.status, 0, `the mod does not parse:\n${r.stderr}`);
 });
 
 test('every key of the proxy\'s clearing policy reaches the desktop door, or says why it cannot', () => {
@@ -302,7 +317,7 @@ test('the mod\'s delegation hook shares the report slot, the session mark and th
   // (delegate.js:denial, kind `repeat`). The mod is the door in every session it marks, so it must return those
   // words; it read only orders until 2026-11-20 and dropped them.
   assert.match(s, /export function reasonOf/);
-  assert.match(s, /const words = reasonOf\(answer\)\n\s*if \(words\) return words/);
+  assert.match(s, /const words = reasonOf\(\w+\)\n\s*if \(words\) return words/);
   assert.match(s, /!j\?\.thinkerRun && h\?\.permissionDecision === 'deny'/);
   // and the branch itself, run: a denial with no order is the words, an order is not, and nothing else is either
   const reasonOf = modFn(s, 'reasonOf');

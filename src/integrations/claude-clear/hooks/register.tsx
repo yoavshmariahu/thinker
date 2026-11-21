@@ -328,10 +328,10 @@ const pretool = async ($: any, e: any, inFlight = false) => $.process.run(
 async function handOff($: any, e: any): Promise<string | null> {
   const r = await pretool($, e)
   if (r.exitCode !== 0) return null
-  const answer = String(r.stdout || '')
-  const words = reasonOf(answer)
+  const stdout = String(r.stdout || '')
+  const words = reasonOf(stdout)
   if (words) return words
-  const order = orderOf(answer)
+  const order = orderOf(stdout)
   if (!order) return null
   // no model named: the agent's own definition picks it (thinker pins Explore.md), and the Agent tool refuses a full id
   const s = await $.agent.spawn({ subagentType: order.agent, prompt: order.prompt, description: order.title })
