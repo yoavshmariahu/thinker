@@ -11,7 +11,7 @@ for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: '
 delete process.env.THINKER_LLM;
 
 const { Store } = await import('../src/store.js');
-const { chatSend, chatReply, chatContext, chatAnswerPending, readChat, renderChat, canAnswer, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
+const { chatSend, chatReply, chatContext, chatAnswerPending, readChat, renderChat, canAnswer, refOf, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
 const { behaviorOf, upkeepCheck, upkeepPending, upkeepFeed, SETTINGS } = await import('../src/upkeep.js');
 const { findMess, sweep } = await import('../src/upkeep-sweep.js');
 
@@ -146,13 +146,56 @@ test('a pull request is spoken of with its link and where it stands; a rule sess
   fs.writeFileSync(path.join(api.store.dir, 'state', 'instruction-value.json'), JSON.stringify({ sessions: { a: broke('edited in the main checkout'), b: broke('committed on main'), c: broke('no worktree') } }));
   await upkeepCheck(api.store, { fns: { view: () => null, findMess: () => ({ worktrees: [], branches: [], kept: [] }) }, home, act: false });
   const text = chatContext(repos, { about: api.id, home }).text;
-  assert.match(text, /- 24 h ago · acme\/api · PR #12 in review: shortens AGENTS\.md · Releases · link: https:\/\/github\.com\/acme\/api\/pull\/12 \[about −1\.2k tokens per prompt once merged\][^\n]* · undo: repo r1, id h:p1/);
+  assert.match(text, /- \[prs\] 24 h ago · acme\/api · PR #12 in review: shortens AGENTS\.md · Releases · link: https:\/\/github\.com\/acme\/api\/pull\/12 \[about −1\.2k tokens per prompt once merged\][^\n]* · undo: repo r1, id h:p1/);
   assert.match(text, /WORTH KNOWING \(1\): things you noticed and cannot fix yourself\. Say them when asked what is going on\.\n- acme\/api · Agents keep breaking a rule: AGENTS\.md · Worktrees — Broken in 3 of the 3 sessions/);
   // "close that PR": the undo the line carries, with no network in the test
   const closed = [];
   const r = await chatReply('close that pull request', { repos, about: api.id, home, fns: { prs: { closePr: (dir, n) => { closed.push(n); return {}; } } }, completeFn: model({ reply: "I'll close it: https://github.com/acme/api/pull/12", actions: [{ type: 'undo', repo: 'r1', id: 'h:p1' }] }) });
   assert.deepEqual(r.did, [{ type: 'undo', ok: true, text: 'AGENTS.md · Releases: pull request #12 closed' }]);
   assert.deepEqual(closed, [12]);
+});
+
+test('"Chat about this": the card goes with the message, the model is told which line "this" is, and more or less like it is steered by its kind', async () => {
+  const { home, repos } = machine(['api']);
+  const [api] = repos;
+  const at = new Date(Date.now() - 86_400_000).toISOString();
+  fs.mkdirSync(path.join(api.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(api.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [
+    { id: 'p1', at, key: 'section:AGENTS.md:releases', kind: 'section', title: 'AGENTS.md · Releases', saving: 1200, act: 'compress', decision: 'pull request', via: 'thinker', pr: { number: 12, state: 'open', url: 'https://github.com/acme/api/pull/12', branch: 'thinker/releases', at } },
+  ] }));
+  // the card as the page sends it: the side's line, as the server worded it, and nothing the page could not know
+  const [line] = upkeepFeed(api.store, { log: [] });
+  const card = { kind: 'action', id: line.id, text: line.text, impactSaid: line.impactSaid, at: line.at, repo: api.id, repoName: api.name, url: line.url, steer: 'prs', junk: { a: 1 } };
+  assert.equal(refOf({ text: 'x', id: 'h:../../etc' }).id, undefined);
+  assert.deepEqual(refOf(card), { kind: 'action', id: 'h:p1', text: 'PR #12 in review: shortens AGENTS.md · Releases', impactSaid: 'about −1.2k tokens per prompt once merged', at: line.at, repo: api.id, repoName: 'acme/api', url: 'https://github.com/acme/api/pull/12' });
+  assert.equal(refOf({ text: 'x', url: 'javascript:alert(1)' }).url, undefined); assert.equal(refOf({ impactSaid: 'no words' }), null); assert.equal(refOf('a string'), null);
+  const fn = model({ reply: "I'll put these up half as often here.", actions: [{ type: 'steer', repo: 'r1', kind: 'prs', direction: 'less' }] }, { reply: 'It shortens the Releases section; it is in review: https://github.com/acme/api/pull/12', actions: [] });
+  const r = await chatSend('less like this', { repos, about: api.id, ref: card, home, completeFn: fn });
+  // told which line "this" is in the very words, kind and ids it is shown that line under
+  assert.match(fn.asked[0].prompt, /THE PERSON ATTACHED THIS LINE OF WHAT YOU DID TO THEIR MESSAGE; "this" and "it" in what they say mean it:\n- \[prs\] 24 h ago · acme\/api · PR #12 in review: shortens AGENTS\.md · Releases · link: https:\/\/github\.com\/acme\/api\/pull\/12 \[about −1\.2k tokens per prompt once merged\][^\n]* · undo: repo r1, id h:p1\nWHAT YOU KNOW ABOUT IT:\n- AGENTS\.md · Releases[^\n]*\n {2}Why it was picked: about 1\.2k of its tokens in an average prompt were going where they were not needed\.\n {2}Not measured yet: it is not in effect until its pull request merges\. The figure given is what was expected when it was picked\.\n- How it was done: pull request, on [A-Z][a-z]+ \d+, by thinker, on the person's word in the chat\.\n- Its pull request: #12, in review since [A-Z][a-z]+ \d+, https:\/\/github\.com\/acme\/api\/pull\/12\. It is the team's to review and merge; the change is not in effect until then\.\n- It can be taken back \(undo id h:p1\)\.\n\nTHE PERSON NOW SAYS:\nless like this\n/);
+  // so the answer can be about the thing: the model is told to say what it was, why, how it measured and what is next,
+  // and not to lead with what it cannot tell
+  assert.match(CHAT_SYSTEM, /tell them the thing itself: what it was, why you picked it \(the evidence you acted on\), what it came to and how that was measured/);
+  assert.match(CHAT_SYSTEM, /Lead with what you know\. Do not open with, or dwell on, what you cannot tell them/);
+  // steered by the code, one step, and said with what it was; the line itself is not taken back
+  assert.deepEqual(r.messages.at(-1).did, [{ type: 'steer', ok: true, text: 'a pull request at most every 14 days now in acme/api (it was every 7)' }]);
+  assert.equal(behaviorOf(api.store, { home }).prEveryDays, 14);
+  assert.equal(upkeepFeed(api.store, { log: [] })[0].undone, undefined);
+  // the card stays on the message: the page draws it over the words, the command names it, and the next turn is told
+  assert.deepEqual(r.messages.at(-2).ref, refOf(card));
+  assert.match(renderChat(r.messages).join('\n'), /^ {2}\[about: PR #12 in review: shortens AGENTS\.md · Releases {2}about −1\.2k tokens per prompt once merged\]\nyou: less like this\nthinker: I'll put these up half as often here\.\n {2}✓ a pull request at most every 14 days now in acme\/api \(it was every 7\)$/);
+  await chatSend('what was it for?', { repos, about: api.id, home, completeFn: fn });
+  assert.match(fn.asked[1].prompt, /THE PERSON: \(about this line: PR #12 in review: shortens AGENTS\.md · Releases\) less like this\n/);
+  assert.doesNotMatch(fn.asked[1].prompt, /THE PERSON ATTACHED THIS LINE/, 'a message with no card has none');
+  // a card whose line has left the activity is said in its own words, and as one that cannot be taken back
+  const stale = model({ reply: 'That one is no longer in my list.', actions: [] });
+  await chatReply('undo this', { repos, about: api.id, ref: { kind: 'action', text: 'Removed 9 merged branches', impactSaid: '1.0 GB freed', at: '2026-01-01T00:00:00.000Z', repoName: 'acme/api' }, home, completeFn: stale });
+  assert.match(stale.asked[0].prompt, /mean it:\n- acme\/api · Removed 9 merged branches \[1\.0 GB freed\] \(no longer in the list above: it cannot be taken back from here\)\n/);
+  // work handed to cheaper agents is steered the same way, for the machine; a kind that does not exist is refused
+  const more = await chatReply('more like this', { repos, about: api.id, home, completeFn: model({ reply: "I'll hand over smaller reads too.", actions: [{ type: 'steer', repo: 'r1', kind: 'delegation', direction: 'more' }, { type: 'steer', kind: 'vibes', direction: 'more' }] }) });
+  assert.deepEqual(more.did, [{ type: 'steer', ok: true, text: 'a read is now handed to a cheaper agent from 2k tokens on this machine (it was 4k)' }, { type: 'steer', ok: false, text: 'there is no kind of thing called vibes' }]);
+  assert.match(CHAT_SYSTEM, /The code moves how often or how readily you do that kind by one step and says the new setting; never set those numbers yourself for this\./);
+  assert.deepEqual(CHAT_SCHEMA.properties.actions.items.properties.kind.enum, ['prs', 'tools', 'sweep', 'delegation']);
 });
 
 test('with no model to call from here the message waits for the app\'s own session, and is answered when it runs', async () => {

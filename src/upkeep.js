@@ -43,6 +43,12 @@ import { instructionFiles, sections, sectionId, readValueState } from './instruc
 import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
 import { keptRows, inputRateHere } from './report-snapshot.js';
 import { withEffects } from './report.js';
+import { delegationBySession, delegationDetail } from './report-savings.js';
+import { readProfile } from './profile.js';
+import { clearingRows, compressionDir } from './compression.js';
+import { proxyLogFile } from './proxy-service.js';
+import { sessionKey } from './usage.js';
+import { delegateConfig } from './delegate.js';
 import { thinkerHome } from './update.js';
 import { readLog } from './usage.js';
 import { formatTokens } from './model-usage.js';
@@ -54,6 +60,7 @@ export const UPKEEP = {
   keepDone: 200,    // actions remembered, newest kept
   feedDays: 14,     // how far back the activity reads
   feedMax: 60,
+  sessionsMax: 30,  // sessions with delegated work the view carries, newest first
   ruleDays: 30,     // the window a broken rule is counted over
   ruleBroken: 3,    // sessions that broke a rule before it is worth knowing
   staleMs: 24 * 3600_000, // the page asks for a look when the last check is older than this
@@ -67,7 +74,7 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
   level: 'auto', sweep: true, prs: true, tools: true,
-  important: 'high', prEveryDays: 7, prsPerDay: 1, toolsPerDay: 1, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
+  important: 'high', prEveryDays: 7, prsPerDay: 1, toolEveryDays: 1, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
 };
 const num = (min, max) => v => { const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined; };
 const bool = v => v === true || /^(true|on|yes)$/i.test(String(v)) ? true : v === false || /^(false|off|no)$/i.test(String(v)) ? false : undefined;
@@ -80,7 +87,7 @@ export const SETTINGS = {
   important: { read: oneOf('high', 'medium'), about: 'how costly a thing must be to act on: high (5% of its kind\'s cost wasted) or medium (2%)' },
   prEveryDays: { read: num(1, 90), about: 'days between pull requests in one repository' },
   prsPerDay: { read: num(1, 20), about: 'pull requests a day over the whole machine' },
-  toolsPerDay: { read: num(1, 20), about: 'tools switched a day over the whole machine' },
+  toolEveryDays: { read: num(1, 90), about: 'days between tools switched, over the whole machine' },
   sweepEveryDays: { read: num(1, 90), about: 'days between sweeps in one repository' },
   sweepMin: { read: num(1, 100), about: 'how many merged worktrees and branches make a sweep worth doing by itself' },
   sweepMinMb: { read: num(1, 100_000), about: 'or how many megabytes they hold' },
@@ -113,6 +120,40 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
   } else updateMachineConfig(home, cfg => ({ ...cfg, upkeep: merge(cfg.upkeep) }));
   try { store?.log({ op: 'upkeep-set', key, scope }); } catch {}
   return { key, value: v, scope, said: `${key} is now ${v} ${scope === 'repo' ? 'in this repository' : 'on this machine'}` };
+}
+// "More like this" and "less like this" (the owner, 2026-11-21: a person "can steer future decisions about things like
+// that"): how readily thinker does one kind of thing, moved one step. A step halves or doubles how often -- the days
+// between pull requests or tools, the size a sweep must be -- so two words from the person are a definite change they
+// are told the size of, and never a number the model picked. `delegation` is the delegation trigger's own setting
+// (delegate.js: the size a read must be to be handed to a cheaper agent), which is the machine's alone.
+export const STEER = { kinds: ['prs', 'tools', 'sweep', 'delegation'], delegation: { min: 2000, max: 64_000 } };
+const half = (n, min) => Math.max(min, Math.round(n / 2)), twice = (n, max) => Math.min(max, n * 2);
+export function steerBehavior(store, kind, direction, { scope = 'machine', home = thinkerHome() } = {}) {
+  const more = direction === 'more';
+  if (!STEER.kinds.includes(kind)) return { error: `there is no kind of thing called ${kind}` };
+  if (!more && direction !== 'less') return { error: 'more or less' };
+  const where = scope === 'repo' ? 'in this repository' : 'on this machine';
+  if (kind === 'delegation') {
+    const cur = delegateConfig({ home }).threshold, next = more ? half(cur, STEER.delegation.min) : twice(cur, STEER.delegation.max);
+    if (next === cur) return { error: `reads are already handed over ${more ? 'as readily' : 'as rarely'} as thinker will go (from ${formatTokens(cur)} tokens)` };
+    updateMachineConfig(home, cfg => ({ ...cfg, delegate: { ...(cfg.delegate && typeof cfg.delegate === 'object' ? cfg.delegate : {}), threshold: next } }));
+    try { store?.log({ op: 'upkeep-set', key: 'delegate.threshold', scope: 'machine' }); } catch {}
+    return { said: `a read is now handed to a cheaper agent from ${formatTokens(next)} tokens on this machine (it was ${formatTokens(cur)})` };
+  }
+  const b = behaviorOf(scope === 'repo' ? store : null, { home });
+  const set = (key, value) => setBehavior(store, key, value, { scope, home });
+  if (!b[kind]) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set(kind, true); return r.error ? r : { said: `thinker does that again ${where}` }; }
+  if (kind === 'sweep') {
+    const n = more ? half(b.sweepMin, 1) : twice(b.sweepMin, 100), mb = more ? half(b.sweepMinMb, 50) : twice(b.sweepMinMb, 100_000);
+    if (n === b.sweepMin && mb === b.sweepMinMb) return { error: `a sweep is already ${more ? 'as ready' : 'as rare'} as thinker will go` };
+    const r = [set('sweepMin', n), set('sweepMinMb', mb)].find(x => x.error);
+    return r || { said: `merged worktrees and branches are now removed from ${plural(n, 'thing')} or ${mb} MB ${where} (it was ${b.sweepMin} or ${b.sweepMinMb} MB)` };
+  }
+  const key = kind === 'prs' ? 'prEveryDays' : 'toolEveryDays', what = kind === 'prs' ? 'a pull request' : 'a tool';
+  const next = more ? half(b[key], 1) : twice(b[key], 90);
+  if (next === b[key]) return { error: `${what} is already ${more ? 'as often' : 'as seldom'} as thinker will go (every ${plural(b[key], 'day')})` };
+  const r = set(key, next);
+  return r.error ? r : { said: `${what} at most every ${plural(next, 'day')} now ${where} (it was every ${b[key]})` };
 }
 // The behaviour in a sentence or two, for the page, the command and the chat.
 export function behaviorSaid(b) {
@@ -307,7 +348,7 @@ export function mayAct(store, item, b, { now = Date.now(), home = thinkerHome(),
     if (now - last('context', 'pr') < b.prEveryDays * DAY) return wait(`one pull request every ${plural(b.prEveryDays, 'day')} here`);
     if (machineTimes(home, 'prs').filter(t => now - Date.parse(t) < DAY).length >= b.prsPerDay) return wait(`${plural(b.prsPerDay, 'pull request')} a day over the machine`);
   }
-  if (item.allow === 'tools' && machineTimes(home, 'tools').filter(t => now - Date.parse(t) < DAY).length >= b.toolsPerDay) return wait(`${plural(b.toolsPerDay, 'tool')} a day over the machine`);
+  if (item.allow === 'tools' && machineTimes(home, 'tools').some(t => now - Date.parse(t) < b.toolEveryDays * DAY)) return wait(`one tool every ${plural(b.toolEveryDays, 'day')} over the machine`);
   if (item.allow === 'sweep' && now - last('sweep') < b.sweepEveryDays * DAY) return wait(`one sweep every ${plural(b.sweepEveryDays, 'day')} here`);
   return { ok: true };
 }
@@ -480,7 +521,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
   const done = readUpkeep(store).done;
   for (const d of done) {
     if (Date.parse(d.at) < since || d.kept) continue;
-    out.push(line({ at: d.at, kind: 'did', text: d.said, by: d.by, ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
+    out.push(line({ id: `d:${d.id}`, at: d.at, kind: 'did', ...(d.chore === 'sweep' ? { steer: 'sweep' } : {}), text: d.said, by: d.by, ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
   }
   let history = []; try { history = changeHistory(store, { now }); } catch {}
   if (history.length) {
@@ -505,7 +546,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
       // `shared`: a decision for the whole machine is in every repository's history, and is one line when they are read together
       // a pull request's line always carries its link (`url`): it may be in review for days, and the line is how the
       // person gets to it. `undo`: what the chat names to take the decision back (upkeepUndo).
-      out.push(line({ at, kind: e.pr ? 'pr' : 'change', text: didSaid(e, what), by: mine ? 'thinker' : 'you', ...(e.pr?.url ? { url: e.pr.url } : {}), ...(e.pr ? { pr: { number: e.pr.number, state: e.pr.state } } : {}), ...(e.revertedAt ? { undone: true } : e.revertible ? { undo: `h:${e.id}` } : {}), ...(e.scope === 'machine' ? { shared: e.id } : {}) }, impact));
+      out.push(line({ id: `h:${e.id}`, at, kind: e.pr ? 'pr' : 'change', ...(e.kind === 'section' ? { steer: 'prs' } : e.kind === 'tool' || e.kind === 'skill' ? { steer: 'tools' } : {}), text: didSaid(e, what), by: mine ? 'thinker' : 'you', ...(e.pr?.url ? { url: e.pr.url } : {}), ...(e.pr ? { pr: { number: e.pr.number, state: e.pr.state } } : {}), ...(e.revertedAt ? { undone: true } : e.revertible ? { undo: `h:${e.id}` } : {}), ...(e.scope === 'machine' ? { shared: e.id } : {}) }, impact));
     }
   }
   // the profile as it was last updated: one line, the newest, since a line a day would crowd out what was done
@@ -513,10 +554,110 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
   for (const e of log || readLog(store)) {
     if (e.op !== 'profile-compile' || !e.changes || !e.t || Date.parse(e.t) < since) continue;
     const c = e.changes, n = (c.added || 0) + (c.updated || 0) + (c.dropped || 0);
-    if (n && (!last || e.t > last.at)) last = { at: e.t, kind: 'profile', by: 'thinker', profile: { added: c.added || 0, reworded: c.updated || 0, dropped: c.dropped || 0 } };
+    if (n && (!last || e.t > last.at)) last = { id: 'profile', at: e.t, kind: 'profile', by: 'thinker', profile: { added: c.added || 0, reworded: c.updated || 0, dropped: c.dropped || 0 } };
   }
   if (last) out.push({ ...last, text: profileSaid(last.profile) });
   return out.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.feedMax);
+}
+
+// --- what was handed to cheaper agents -----------------------------------------------------------------------
+// Per session: how much of its reading and test running went to a cheaper agent, and what that saved (the owner's
+// ask, 2026-11-21). The figures are the Report's own (report-savings.js:delegationBySession over the "Reads
+// delegated" series), read from the log and the proxy's records as the savings ledger reads them: nothing is
+// measured here. Kept a minute a repository in this process, since the page asks every half minute.
+const handedCache = new Map();
+const cutTitle = t => short(String(t || '').replace(/<[^>]{1,40}>[\s\S]*?<\/[^>]{1,40}>/g, ' '), 70);
+export function delegatedSaid(d) {
+  const what = [d.reads ? plural(d.reads, 'read') : '', d.runs ? plural(d.runs, 'test run') : ''].filter(Boolean).join(' and ');
+  const worth = [d.handed ? `${formatTokens(d.handed)} tokens handed over` : '', d.saved == null || Math.abs(d.saved) < 0.005 ? '' : d.saved > 0 ? `${formatDollars(d.saved)} saved` : `cost ${formatDollars(-d.saved)} more`].filter(Boolean).join(' · ');
+  return { text: `Handed ${what} to ${d.models?.length === 1 ? d.models[0] : 'cheaper agents'}`, impactSaid: worth };
+}
+// the dollars are over the sessions that can be priced; one whose lead model is not known to the log, or has no list
+// price, is counted (`unpriced`) and left out of them, never added at zero
+const handedTotal = sessions => ({ sessions: sessions.length, reads: sessions.reduce((a, d) => a + d.reads, 0), runs: sessions.reduce((a, d) => a + d.runs, 0), handed: sessions.reduce((a, d) => a + d.handed, 0), saved: sessions.reduce((a, d) => a + (d.saved || 0), 0), unpriced: sessions.filter(d => d.saved == null).length });
+export function upkeepDelegated(store, { now = Date.now(), days = UPKEEP.feedDays, log, compression, home = thinkerHome() } = {}) {
+  const key = `${store.repo}\t${home}`, had = handedCache.get(key);
+  if (!log && !compression && had && now - had.at >= 0 && now - had.at < 60_000) return had.value;
+  let sessions = [];
+  try {
+    const events = log || readLog(store);
+    // the proxy's rows and the recorded clears, as the ledger reads them (savings-ledger.js:computeSavings); a test
+    // with no home and no log of its own has none
+    const rows = compression || (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(home), compressionDir(home), { events, key: sessionKey }));
+    let config = {}; try { config = store.config(); } catch {}
+    sessions = delegationBySession({ events, compression: rows, config, since: now - days * DAY }).map(d => ({ id: `s:${d.session}`, at: new Date(d.at).toISOString(), title: cutTitle(d.title), reads: d.reads, runs: d.runs, handed: d.handed, models: d.models, saved: d.saved, steer: 'delegation', ...delegatedSaid(d) }));
+  } catch {}
+  const value = { days, total: handedTotal(sessions), sessions: sessions.slice(0, UPKEEP.sessionsMax) };
+  if (!log && !compression) handedCache.set(key, { at: now, value });
+  return value;
+}
+
+// --- what is known about one line ----------------------------------------------------------------------------
+// Everything thinker can say about one line of the activity, as plain facts, for somebody asking about it in the chat
+// (the owner, 2026-11-21, of an answer that had only the line to go on: "the answers should be more meaningful").
+// `id` is the line's own (`h:` a decision, `d:` something done here, `s:` a session's delegated work, `profile`).
+// What the thing was, why it was picked, how it was done and by whom, what it measured as and over how many sessions,
+// how the dollars are reckoned, where its pull request is, and whether it can be taken back. Read from what is kept;
+// nothing is measured here.
+const dateSaid = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+const DOORS = { page: 'by the person, on Find Savings', session: 'by the person, answering the weekly question in a session', command: 'by the person, from the command line', setup: 'by the person, while installing' };
+export function upkeepDetail(store, id, { now = Date.now(), log, report, compression, home = thinkerHome() } = {}) {
+  const out = [];
+  id = String(id || '');
+  if (id.startsWith('h:')) {
+    let history = []; try { history = changeHistory(store, { now }); } catch {}
+    let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
+    const e = history.find(h => h.id === id.slice(2));
+    if (!e) return out;
+    const done = readUpkeep(store).done.find(d => d.kept && d.item === `change:${e.key || (e.keys || [])[0]}`);
+    for (const h of e.group && (e.job || e.pr) ? history.filter(x => x.group === e.group) : [e]) {
+      out.push(`${h.title}${h.what ? ` (${String(h.what).toLowerCase()})` : ''}${h.about ? `. It begins: "${short(h.about, 240)}"` : ''}`);
+      if (h.tokens?.before != null) out.push(`  Its size: ${formatTokens(h.tokens.before)} tokens before the change, ${formatTokens(h.tokens.after || 0)} after. It is read again by every model call of every session that loads the file.`);
+      if (h.saving) out.push(`  Why it was picked: about ${formatTokens(h.saving)} of its tokens in an average prompt were going where they were not needed${h.total && h.days ? `, ${formatTokens(h.total)} tokens over the ${h.days} days before` : ''}.`);
+      const fx = h.effect;
+      if (fx) out.push(`  Measured: it cost ${formatTokens(fx.before.perPrompt)} tokens a prompt before (${plural(fx.before.sessions, 'session')}, ${fx.before.prompts} prompts) and ${formatTokens(fx.after.perPrompt)} since (${plural(fx.after.sessions, 'session')}, ${fx.after.prompts} prompts): ${formatTokens(Math.abs(fx.delta))} ${fx.delta >= 0 ? 'fewer' : 'more'} a prompt${fx.share != null ? `, ${Math.round(1000 * Math.abs(fx.share)) / 10}% of what a whole prompt cost before` : ''}${fx.since?.prompts ? `; ${formatTokens(Math.abs(fx.window))} tokens ${fx.window >= 0 ? 'saved' : 'more'} over the ${fx.since.prompts} prompts since` : ''}${fx.few ? '. Under five sessions on one side, so the figure is early' : ''}.`);
+      else out.push(`  Not measured yet: ${h.pr?.state === 'open' || h.job?.state === 'running' ? 'it is not in effect until its pull request merges' : 'it needs sessions on both sides of the change'}. The figure given is what was expected when it was picked.`);
+    }
+    out.push(`How it was done: ${e.action ? `${e.action.toLowerCase()}, ` : ''}${e.decision}, on ${dateSaid(e.at)}, ${e.via === VIA.thinker ? (done?.by === 'thinker' ? 'by thinker itself at one of its checks' : 'by thinker, on the person\'s word in the chat') : DOORS[e.via] || 'by the person'}${e.result ? `. ${e.result}` : ''}.`);
+    if (e.pr) out.push(`Its pull request: #${e.pr.number}, ${e.pr.state === 'open' ? 'in review' : e.pr.state}${e.pr.at ? ` since ${dateSaid(e.pr.at)}` : ''}${e.pr.url ? `, ${e.pr.url}` : ''}.${e.pr.state === 'open' ? ' It is the team\'s to review and merge; the change is not in effect until then.' : ''}`);
+    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
+    if (rate != null && perDay) out.push(`How the dollars a day are reckoned: the tokens off a prompt, times the ${Math.round(perDay)} prompts a day this repository ran over the last week, at $${(rate * 1e6).toFixed(2)} a million input tokens (what input cost here, cache reads and writes as they were).`);
+    out.push(e.revertedAt ? 'It was taken back.' : e.revertible ? `It can be taken back (undo id h:${e.id}).` : 'It cannot be taken back from here.');
+  } else if (id.startsWith('d:')) {
+    const d = readUpkeep(store).done.find(x => x.id === id.slice(2));
+    if (!d) return out;
+    out.push(`${d.said}, on ${dateSaid(d.at)}, ${d.by === 'thinker' ? 'by thinker itself at one of its checks' : 'on the person\'s word in the chat'}.`);
+    for (const w of d.undo?.worktrees || []) out.push(`  A worktree: ${path.basename(w.path)}, on the branch ${w.branch}.`);
+    const bare = (d.undo?.branches || []).filter(b => !(d.undo.worktrees || []).some(w => w.branch === b.name));
+    if (bare.length) out.push(`  Branches with no worktree: ${bare.map(b => b.name).slice(0, 20).join(', ')}.`);
+    if (d.chore === 'sweep') out.push('Why: each one\'s work was already on the default branch, by its history or by a merged pull request with that exact commit, it had no uncommitted or untracked files, nobody was working in it, and it had not changed in a day.');
+    if (d.impact?.kb) out.push(`What it freed: ${size(d.impact.kb)} of disk.`);
+    out.push(d.undoneAt ? 'It was put back, and those are never removed again.' : d.undo ? `It can be put back: each branch at its commit, and the worktrees on them (undo id ${d.id}).` : 'It cannot be taken back from here.');
+  } else if (id.startsWith('s:')) {
+    let d = null;
+    try {
+      const events = log || readLog(store);
+      const rows = compression || (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(home), compressionDir(home), { events, key: sessionKey }));
+      let config = {}; try { config = store.config(); } catch {}
+      d = delegationDetail({ events, compression: rows, config, session: id.slice(2) });
+    } catch {}
+    if (!d?.handoffs.length) return out;
+    if (d.title) out.push(`The session began: "${cutTitle(d.title)}"${d.lead ? `. Its own model was ${d.lead}` : ''}.`);
+    for (const h of d.handoffs.slice(0, 12)) out.push(`  A ${h.kind} handed over on ${dateSaid(h.at)}: ${h.files.map(f => String(f).split('/').slice(-2).join('/')).join(', ') || 'unnamed'}${h.tokens ? `, ${formatTokens(h.tokens)} tokens` : ''}${h.to ? `, to ${h.to}` : ''}.`);
+    if (d.handoffs.length > 12) out.push(`  And ${d.handoffs.length - 12} more.`);
+    if (d.ignored) out.push(`${plural(d.ignored, 'more handoff')} the lead went on to read itself anyway: nothing was kept out by ${d.ignored === 1 ? 'that one' : 'those'}, so ${d.ignored === 1 ? 'it is' : 'they are'} counted nowhere.`);
+    out.push('Why it is handed over: a large read is only needed for what it says, so a cheaper agent reads the file and reports back, and the lead works from the report. The file never enters the lead\'s context.');
+    out.push(d.saved == null ? 'The saving in dollars is not known: no price is known for the session\'s own model.' : Math.abs(d.saved) < 0.005 ? 'No saving is counted: a test run handed over carries none, only reads do.' : `The saving, ${formatDollars(d.saved)}: the lead did not write those tokens into its cache at its own rate, less what the cheaper agent paid for the same reading, and did not read them back on its later calls (${formatTokens(d.tokens)} tokens not paid for in all). It is an estimate, the same one the Report's "Reads delegated" shows.`);
+  } else if (id === 'profile') {
+    let prof = null; try { prof = readProfile(store); } catch {}
+    const lines = sec => (prof?.sections?.[sec] || []).filter(e => !e.retired).map(e => e.text).filter(Boolean);
+    const how = lines('howWeWork'), work = lines('workingOn');
+    if (!how.length && !work.length) return out;
+    out.push('The profile is what thinker has learned from the person\'s own prompts and reactions in this repository; every new session is shown it at its start.');
+    if (how.length) out.push(`How this person works, as it stands now (${how.length}): ${how.slice(0, 10).map(t => `"${short(t, 140)}"`).join('; ')}${how.length > 10 ? '; and more' : ''}.`);
+    if (work.length) out.push(`What they are working on: ${work.slice(0, 4).map(t => `"${short(t, 140)}"`).join('; ')}.`);
+  }
+  return out;
 }
 
 // --- what both doors read ------------------------------------------------------------------------------------
@@ -528,19 +669,20 @@ export function summary({ level, lastCheck, later, held }) {
   return said.length ? `${said.join(', ')}.` : 'Up to date.';
 }
 // `pending` and `notes` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
-export function upkeepView(store, { now = Date.now(), log, report, home = thinkerHome() } = {}) {
+export function upkeepView(store, { now = Date.now(), log, report, compression, home = thinkerHome() } = {}) {
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
   const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, feed: upkeepFeed(store, { now, log, report }) };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
   return { ...v, summary: summary(v) };
 }
 // Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is
 // the oldest one, since that is how stale the list can be.
 export function mergeUpkeepViews(pairs) {
-  const pending = [], notes = [], feed = [], checks = [], profiles = [], shared = new Map(), said = new Map();
+  const pending = [], notes = [], feed = [], checks = [], profiles = [], sessions = [], totals = [], shared = new Map(), said = new Map();
   for (const { repo, name, view } of pairs) {
     if (!view) continue;
+    if (view.delegated) { sessions.push(...view.delegated.sessions.map(d => ({ ...d, repo, repoName: name }))); totals.push(view.delegated.total); }
     for (const i of view.pending || []) {
       // a tool is switched for the whole machine, so the same tool found in three repositories is one thing: the
       // costliest of them, and doing it from any one of them does it for all (context-suggest.js)
@@ -571,8 +713,16 @@ export function mergeUpkeepViews(pairs) {
   const on = pairs.filter(p => p.view && p.view.level !== 'off'), levels = [...new Set(on.map(p => p.view.level))];
   const level = !on.length ? 'off' : levels.length === 1 ? levels[0] : 'mixed', lastCheck = checks.length && checks.every(Boolean) ? checks.sort()[0] : null;
   const first = on[0]?.view;
-  const v = { level, behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax) };
+  const v = { level, behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
+    // the sessions of every repository newest first, and their totals added
+    delegated: { days: UPKEEP.feedDays, total: Object.fromEntries(['sessions', 'reads', 'runs', 'handed', 'saved', 'unpriced'].map(k => [k, totals.reduce((a, t) => a + (t[k] || 0), 0)])), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
   return { ...v, summary: summary(v) };
+}
+// The window's delegated work in one line, for both doors.
+export function delegatedTotalSaid(d) {
+  const t = d?.total;
+  if (!t?.sessions) return '';
+  return `${plural(t.sessions, 'session')} over ${plural(d.days, 'day')}: ${[t.reads ? plural(t.reads, 'read') : '', t.runs ? plural(t.runs, 'test run') : ''].filter(Boolean).join(' and ')} handed to cheaper agents${t.handed ? `, ${formatTokens(t.handed)} tokens` : ''}${Math.abs(t.saved || 0) < 0.005 ? '' : t.saved > 0 ? ` · ${formatDollars(t.saved)} saved` : ` · cost ${formatDollars(-t.saved)} more`}${t.unpriced ? ` (${plural(t.unpriced, 'session')} left out: no price known for ${t.unpriced === 1 ? 'its' : 'their'} model)` : ''}`;
 }
 
 // --- the command's page --------------------------------------------------------------------------------------
@@ -584,5 +734,12 @@ export function renderUpkeep(v, { now = Date.now(), feed = 12 } = {}) {
   // a line an action: what was done, what it came to, and for a pull request where to read it
   for (const f of v.feed.slice(0, feed)) out.push(`  ${when(f.at, now).padEnd(15)}  ${f.text}${f.impactSaid ? `  ${f.impactSaid}` : ''}${f.by === 'thinker' && (f.kind === 'did' || f.kind === 'pr' || f.kind === 'change') ? ' (on its own)' : ''}${f.undone ? ' (taken back)' : ''}${f.url ? `  ${f.url}` : ''}${f.repoName ? ` · ${f.repoName}` : ''}`);
   if (v.feed.length > feed) out.push(`  and ${v.feed.length - feed} more (--all)`);
+  // a line a session: what it handed to cheaper agents and what that saved
+  if (v.delegated?.total.sessions) {
+    out.push('', `Delegated to cheaper agents · ${delegatedTotalSaid(v.delegated)}`);
+    const shown = v.delegated.sessions.slice(0, feed);
+    for (const d of shown) out.push(`  ${when(d.at, now).padEnd(15)}  ${d.text}${d.impactSaid ? `  ${d.impactSaid}` : ''}${d.title ? `  “${d.title}”` : ''}${d.repoName ? ` · ${d.repoName}` : ''}`);
+    if (v.delegated.total.sessions > shown.length) out.push(`  and ${v.delegated.total.sessions - shown.length} more sessions`);
+  }
   return out;
 }

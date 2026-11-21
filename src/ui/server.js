@@ -29,7 +29,7 @@ import { prAvailable } from '../instruction-pr.js';
 import { describePart } from '../part-describe.js';
 import { attachExplains, readExplains, missingExplains } from '../part-explain.js';
 import { uiScans, scanStatus } from './scans.js';
-import { upkeepView, mergeUpkeepViews, UPKEEP } from '../upkeep.js';
+import { upkeepView, mergeUpkeepViews, delegatedTotalSaid, UPKEEP } from '../upkeep.js';
 import { chatSend, readChat, CHAT } from '../chat.js';
 import http from 'node:http';
 import fs from 'node:fs';
@@ -368,7 +368,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         } catch {} }
         // what it holds back and what is worth knowing are the chat's to say (chat.js:chatContext), not a list on the page
         const { pending, notes, ...shown } = mergeUpkeepViews(pairs);
-        return json(res, 200, { ...shown, repos: pairs.length, looking });
+        // the window's delegated work in the one line both doors print (upkeep.js:delegatedTotalSaid)
+        return json(res, 200, { ...shown, delegated: { ...shown.delegated, said: delegatedTotalSaid(shown.delegated) }, repos: pairs.length, looking });
       }
       // the conversation with thinker (chat.js:readChat, as `thinker chat`): the machine's one, whatever tab is open
       if (req.method === 'GET' && url.pathname === '/api/chat') return json(res, 200, { messages: readChat({ home }).slice(-CHAT.shown) });
@@ -379,7 +380,8 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       if (url.pathname === '/api/chat') {
         const all = (storesFor('all') || []).map(([r, st]) => ({ id: r.id, name: r.name, store: st }));
         const about = all.some(r => r.id === String(b.repo || '')) ? String(b.repo) : null;
-        const r = await chatSend(String(b.message || ''), { repos: all, about, home, ...(chatFn ? { completeFn: chatFn } : {}), fns: { spawn: spawnFn } });
+        // `about`: the line of Recent activity the person attached with "Chat about this", if any (chat.js:refOf cuts it to size)
+        const r = await chatSend(String(b.message || ''), { repos: all, about, ref: b.about && typeof b.about === 'object' ? b.about : null, home, ...(chatFn ? { completeFn: chatFn } : {}), fns: { spawn: spawnFn } });
         if (r.error) return json(res, 400, { error: r.error });
         harnessCache.clear();
         return json(res, 200, { ok: true, messages: r.messages, pending: Boolean(r.pending) });

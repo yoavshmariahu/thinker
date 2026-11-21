@@ -148,6 +148,60 @@ export function delegationSavings({ events = [], compression = [], config } = {}
   return out;
 }
 /**
+ * What each session handed to cheaper agents, and what that saved (the owner's ask, 2026-11-21: "show per session how
+ * much work has been delegated to cheaper agents and resulted in savings"). The saving is the "Reads delegated"
+ * series itself (delegationSavings), its rows added by session instead of by week, so a session's figure can never
+ * disagree with the Report's. Beside it, how much was handed over: the handoffs that were made and kept (a read the
+ * lead went on to make itself is not one, as in the series), by kind, the tokens of the reads, and the models they
+ * went to where the row names one. `saved` is null where any part of the session's saving has no list price: a
+ * partial dollar figure is never shown. `title` is the session's first request as the log keeps it (its first 200
+ * characters), so a person can tell which session a line is.
+ */
+const handed = e => e?.op === 'delegate' && e.session && !e.held && e.fired !== false && !e.declined && !e.skipped && !e.error && !e.cached;
+export function delegationBySession({ events = [], compression = [], config, since = 0 } = {}) {
+  const by = new Map();
+  const of = s => { const k = sessionKey(s); if (!by.has(k)) by.set(k, { session: s, at: 0, reads: 0, runs: 0, handed: 0, models: new Set(), tokens: 0, saved: 0, unpriced: false, title: '' }); return by.get(k); };
+  for (const r of delegationSavings({ events, compression, config })) {
+    const g = of(r.session);
+    g.tokens += r.tokens || 0;
+    if (r.cost == null) g.unpriced = true; else g.saved += r.cost;
+  }
+  const readItself = readAnyway(events), titles = new Map();
+  for (const e of events) {
+    if (e?.op === 'request' && e.session && e.task && !titles.has(sessionKey(e.session))) titles.set(sessionKey(e.session), String(e.task));
+    if (!handed(e)) continue;
+    const t = Date.parse(e.t);
+    if (!Number.isFinite(t) || readItself(e, t)) continue;
+    const g = of(e.session);
+    if (e.kind === 'verify') g.runs++; else { g.reads++; g.handed += e.tokens || 0; }
+    if (e.model) g.models.add(e.model);
+    if (t > g.at) g.at = t;
+  }
+  return [...by.entries()].filter(([, g]) => g.reads + g.runs > 0 && g.at >= since)
+    .map(([k, g]) => ({ session: g.session, at: g.at, reads: g.reads, runs: g.runs, handed: g.handed, models: [...g.models].sort(), tokens: g.tokens, saved: g.unpriced ? null : g.saved, title: titles.get(k) || '' }))
+    .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * One session's handoffs in full, for somebody asking about it (chat.js): each read or test run that was handed over
+ * and kept, with its files, its size and where it went; how many more the lead read itself anyway; the lead's model;
+ * and the saving with the tokens it is counted over. The same rows and the same rule as delegationBySession.
+ */
+export function delegationDetail({ events = [], compression = [], config, session } = {}) {
+  const key = sessionKey(session), readItself = readAnyway(events);
+  const mine = events.filter(e => e?.session && sessionKey(e.session) === key);
+  const handoffs = [], lead = mine.filter(e => e.op === 'session' && e.model).at(-1)?.model || null;
+  let ignored = 0;
+  for (const e of mine) {
+    if (!handed(e)) continue;
+    if (readItself(e, Date.parse(e.t))) { ignored++; continue; }
+    handoffs.push({ at: e.t, kind: e.kind === 'verify' ? 'test run' : 'read', files: (e.files || []).slice(0, 6), tokens: e.tokens || 0, to: e.model || e.agent || null });
+  }
+  const rows = delegationSavings({ events, compression, config }).filter(r => sessionKey(r.session) === key);
+  return { handoffs, ignored, lead: rows.find(r => r.model)?.model || lead, tokens: rows.reduce((a, r) => a + (r.tokens || 0), 0), saved: rows.some(r => r.cost == null) ? null : rows.reduce((a, r) => a + r.cost, 0), counted: rows.length, title: mine.find(e => e.op === 'request' && e.task)?.task || '' };
+}
+
+/**
  * What the pointers of a session kept out, from the session's own row (`repeated`, delegate.js and delegated.js:
  * the write it never made and the read of it avoided on every later call of the lead, counted as zero where the
  * lead went on to read the file whole anyway, and stopped where a cut or a compaction would have taken the first

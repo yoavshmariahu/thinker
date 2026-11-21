@@ -815,14 +815,25 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(read('cli.js'), /activity \[run \[--look\]\] \[--all\] \[--json\]/, 'the flags are in help');
   assert.match(read('cli.js'), /chat \[message\] \[--json\]/);
   // doing, leaving and taking back a thing, and how thinker behaves, are said to it: the chat is the one door to them
-  for (const fn of ['setBehavior(', 'upkeepDo(', 'upkeepDismiss(', 'upkeepUndo(']) assert.ok(read('chat.js').includes(fn), `the chat calls ${fn}`);
+  for (const fn of ['setBehavior(', 'steerBehavior(', 'upkeepDo(', 'upkeepDismiss(', 'upkeepUndo(']) assert.ok(read('chat.js').includes(fn), `the chat calls ${fn}`);
+  // "Chat about this" on a line of the side: the line goes into the prompt box as a card and with the message as `about`;
+  // the card is only that -- no button on it says or sends anything ("users can just chat about it, no fixed buttons")
+  assert.match(html, /<button class="side-about" type="button" data-about="a:\$\{i\}">Chat about this<\/button>/); assert.match(html, /data-about="s:\$\{i\}">Chat about this/);
+  assert.match(html, /<div class="chat-box"><div class="chat-attach" id="chat-attach"><\/div><textarea id="chat-input"/, 'the card sits inside the prompt box, over the words');
+  assert.match(html, /\.\.\.\(ref \? \{ about: ref \} : \{\}\)/); assert.match(read('ui/server.js'), /ref: b\.about && typeof b\.about === 'object' \? b\.about : null/);
+  assert.doesNotMatch(html, /More like this|Less like this|data-ref-say/);
+  // the card names its line (`id`), so the chat can be given what thinker knows behind it and answer about the thing
+  assert.match(html, /CHAT_REF = \{ kind, id: x\.id \|\| '', text: x\.text,/); assert.match(read('chat.js'), /known = upkeepDetail\(whose\.store, card\.id, \{ now, home \}\)/);
+  // per session, what was handed to cheaper agents and what that saved: the Report's delegation figure, one rule, both doors
+  assert.match(read('upkeep.js'), /delegationBySession\(\{ events, compression: rows, config,/); assert.match(read('report-savings.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
+  assert.match(html, /Delegated to cheaper agents<\/div><div class="side-total">\$\{esc\(g\.said\)\}/); assert.match(read('upkeep.js'), /`Delegated to cheaper agents · \$\{delegatedTotalSaid\(v\.delegated\)\}`/);
   assert.match(read('commands/chat.js'), /chatSend\(text, /); assert.match(read('ui/server.js'), /chatSend\(String\(b\.message/);
   // A visit to the page never has thinker act: the page's own check only looks. Acting is maintenance's clock.
   assert.match(read('ui/server.js'), /child\(\['activity', 'run', '--look', '--quiet', '--repo', checkout\], checkout\)/);
   assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
   const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
   // by itself, for important things, not often: the defaults both doors describe
-  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.important, BEHAVIOR.prEveryDays, BEHAVIOR.prsPerDay, BEHAVIOR.toolsPerDay], ['auto', true, true, true, 'high', 7, 1, 1]);
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.important, BEHAVIOR.prEveryDays, BEHAVIOR.prsPerDay, BEHAVIOR.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1]);
   assert.match(read('cli.js'), /at most one pull request a repository a week, one\s+pull request and one tool a day over the machine/);
 
   // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
@@ -852,6 +863,10 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.equal((await ui.get('/api/upkeep?repo=&look=0')).behaviorSaid, 'Thinker does nothing here until you tell it to.');
   assert.equal((await ui.get('/api/chat')).messages.length, 2);
   assert.equal((await ui.post('/api/chat', { message: '  ', repo: '' })).status, 400);
+  // a message sent with a card keeps it, cut to what a line is
+  const withCard = await ui.post('/api/chat', { message: 'what is this for?', repo: '', about: { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', url: 'https://github.com/o/r/pull/12', at, extra: 'dropped' } });
+  assert.deepEqual(withCard.messages.at(-2).ref, { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', at, url: 'https://github.com/o/r/pull/12' });
+  assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0 }, sessions: [], said: '' });
 });
 
 test('models from other providers are the command line\'s alone: the page has no door to a key, and every flag is in help', () => {

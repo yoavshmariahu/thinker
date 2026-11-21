@@ -88,8 +88,11 @@
     .chat-hint { border: 1px solid #e5e7eb; background: #fff; border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.84rem; color: #111; cursor: pointer; }
     .chat-hint:hover { border-color: #111; }
     .chat-form { display: flex; gap: 0.6rem; align-items: flex-end; padding-bottom: 1.4rem; }
-    .chat-form textarea { flex: 1; resize: none; border: 1px solid #d4d4d8; border-radius: 12px; padding: 0.7rem 0.85rem; font-size: 0.95rem; line-height: 1.45; }
-    .chat-form textarea:focus { outline: none; border-color: #111; }
+    /* the prompt box: one bordered box holding the card a message is about, when there is one, and the words under it */
+    .chat-box { flex: 1; min-width: 0; border: 1px solid #d4d4d8; border-radius: 12px; background: #fff; }
+    .chat-box:focus-within { border-color: #111; }
+    .chat-form textarea { display: block; width: 100%; resize: none; border: 0; border-radius: 12px; background: transparent; padding: 0.7rem 0.85rem; font-size: 0.95rem; line-height: 1.45; }
+    .chat-form textarea:focus { outline: none; }
     .chat-form .btn { padding: 0.7rem 1.1rem; border-radius: 12px; }
     .home-side { border-left: 1px solid #f0f0f0; background: #fcfcfc; overflow-y: auto; padding: 1.1rem 1.2rem 5rem; min-width: 0; }
     .side-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
@@ -98,8 +101,21 @@
     .side-link:hover { color: #111; }
     .side-status { min-height: 1.2rem; font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin: 0.25rem 0 0.8rem; }
 
+    .side-sub { font-size: 0.95rem; font-weight: 700; letter-spacing: -0.02em; margin: 1.6rem 0 0.2rem; }
+    .side-total { font-size: 0.78rem; color: #6b7280; line-height: 1.45; margin-bottom: 0.3rem; }
     .side-feed { list-style: none; }
-    .side-feed li { padding: 0.55rem 0; border-bottom: 1px solid #f0f0f0; }
+    .side-feed li { padding: 0.55rem 0; border-bottom: 1px solid #f0f0f0; position: relative; }
+    /* "Chat about this" comes up on a line under the pointer (or the keyboard's focus): it pins the line as a card over the
+       prompt box, and what is typed under it is about that line. The card is only that: the person says what they want of
+       it in their own words (the owner, 2026-11-21: "users can just chat about it, no fixed buttons or anything") */
+    .side-about { position: absolute; right: 0; top: 0.45rem; opacity: 0; pointer-events: none; border: 1px solid #111; background: #111; color: #fff; border-radius: 999px; padding: 0.18rem 0.65rem; font-size: 0.72rem; font-weight: 500; cursor: pointer; box-shadow: 0 0 0 4px #fcfcfc; transition: opacity 0.12s ease; }
+    .side-feed li:hover .side-about, .side-about:focus-visible { opacity: 1; pointer-events: auto; }
+    .chat-attach:empty { display: none; }
+    .chat-attach { padding: 0.55rem 0.55rem 0; }
+    .chat-ref { position: relative; border: 1px solid #e5e7eb; border-left: 3px solid #111; border-radius: 10px; background: #fafafa; padding: 0.55rem 2rem 0.55rem 0.75rem; }
+    .chat-ref.sent { align-self: flex-end; max-width: 82%; background: #fff; padding-right: 0.75rem; }
+    .chat-ref-x { position: absolute; top: 0.15rem; right: 0.3rem; background: transparent; border: 0; font-size: 1.15rem; line-height: 1; color: #6b7280; cursor: pointer; padding: 0.2rem 0.35rem; border-radius: 4px; }
+    .chat-ref-x:hover { color: #000; background: #f0f0f0; }
     .side-text { font-size: 0.84rem; line-height: 1.4; overflow-wrap: anywhere; }
     .side-text a { color: #111; }
     .up-undone .side-text { text-decoration: line-through; color: #6b7280; }
@@ -522,7 +538,7 @@
           <div class="home-col home-head"><span class="chat-sub" id="chat-about"></span><select class="sel" id="h-repo" aria-label="Repository"></select></div>
           <div class="chat-log" id="chat-log" aria-live="polite"><div class="home-col" id="chat-msgs"></div></div>
           <div class="home-col"><div class="chat-hints" id="chat-hints"></div>
-          <form class="chat-form" id="chat-form"><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea><button class="btn" id="chat-send" type="submit">Send</button></form></div>
+          <form class="chat-form" id="chat-form"><div class="chat-box"><div class="chat-attach" id="chat-attach"></div><textarea id="chat-input" rows="2" aria-label="Message to thinker" placeholder="Ask what it did, or tell it how to behave"></textarea></div><button class="btn" id="chat-send" type="submit">Send</button></form></div>
         </div>
         <aside class="home-side" aria-label="Recent activity">
           <div class="side-head"><b>Recent activity</b><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests">All decisions</button></div>
@@ -1402,8 +1418,8 @@ async function pollActivity() {
 // kept, and a repository whose check is old is looked at in the background (`looking`), which the poll picks up. A
 // look never has thinker act. As everywhere, a refresh rebuilds in place (swapBody).
 let HREPO = hashTab() === 'chat' ? hashRepo() : 'all', UPK = null, UPK_FOR = null, HLOAD = 0, HPOLL = null;
-let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_POLL = null, CHAT_READ = false;
-const HOME_POLL_MS = 30_000, HOME_FAST_MS = 4_000;
+let CHAT_MSGS = [], CHAT_WAIT = null, CHAT_WAIT_REF = null, CHAT_POLL = null, CHAT_READ = false;
+const HOME_POLL_MS = 30_000, HOME_FAST_MS = 4_000, SIDE_SESSIONS = 8;
 const CHAT_HINTS = ['What have you done lately?', 'Ask me before you put up a pull request', 'How do you decide what is important?'];
 const chatAbout = () => HREPO && HREPO !== 'all' ? HREPO : '';
 const upWhen = t => { const d = new Date(t), now = new Date(), day = x => x.toDateString(), time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); return day(d) === day(now) ? `today ${time}` : day(d) === day(new Date(now - 864e5)) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
@@ -1440,9 +1456,34 @@ function renderSide(d) {
   // where it measured as costing more, grey while it is only expected), then when, where and by whom
   const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? '' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? '' : ' soft'}">${esc(f.impactSaid)}</div>`;
   const text = f => f.url ? esc(f.text).replace(/PR #(\d+)/, `<a href="${esc(f.url)}" target="_blank" rel="noopener">PR #$1</a>`) : esc(f.text);
-  const line = f => `<li class="${f.undone ? 'up-undone' : ''}"><div class="side-text">${text(f)}</div>${f.undone ? '' : impact(f)}<div class="side-meta"><span>${esc(upWhen(f.at))}</span>${whose(f)}${f.undone ? '<span class="up-by">taken back</span>' : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="up-by">on its own</span>' : ''}${f.url && f.pr?.state === 'open' ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">open the review</a>` : ''}</div></li>`;
-  swapBody(el, d.feed.length ? `<ol class="side-feed">${d.feed.map(line).join('')}</ol>`
-    : `<div class="side-empty">${esc(d.level === 'off' ? 'Thinker is switched off here.' : 'Nothing yet. What thinker does for you, here and while you are away, is listed here with what it saved.')}</div>`);
+  const line = (f, i) => `<li class="${f.undone ? 'up-undone' : ''}"><div class="side-text">${text(f)}</div>${f.undone ? '' : impact(f)}<div class="side-meta"><span>${esc(upWhen(f.at))}</span>${whose(f)}${f.undone ? '<span class="up-by">taken back</span>' : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="up-by">on its own</span>' : ''}${f.url && f.pr?.state === 'open' ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">open the review</a>` : ''}</div><button class="side-about" type="button" data-about="a:${i}">Chat about this</button></li>`;
+  // under it, a line a session: what it handed to cheaper agents and what that saved, with how the session began so it
+  // can be told from the next (upkeep.js:upkeepDelegated, the Report's own delegation figure by session)
+  const g = d.delegated, shown = (g?.sessions || []).slice(0, SIDE_SESSIONS);
+  const sess = (x, i) => `<li><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact${x.saved > 0 ? '' : x.saved < 0 ? ' worse' : ' soft'}">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta"><span>${esc(upWhen(x.at))}</span>${whose(x)}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}</div><button class="side-about" type="button" data-about="s:${i}">Chat about this</button></li>`;
+  const handed = g?.total.sessions ? `<div class="side-sub">Delegated to cheaper agents</div><div class="side-total">${esc(g.said)}</div><ol class="side-feed">${shown.map(sess).join('')}</ol>${g.total.sessions > shown.length ? `<div class="side-empty">and ${g.total.sessions - shown.length} more sessions</div>` : ''}` : '';
+  swapBody(el, (d.feed.length ? `<ol class="side-feed">${d.feed.map(line).join('')}</ol>`
+    : `<div class="side-empty">${esc(d.level === 'off' ? 'Thinker is switched off here.' : 'Nothing yet. What thinker does for you, here and while you are away, is listed here with what it saved.')}</div>`) + handed);
+  // "Chat about this": the line becomes a card over the prompt box (attachCard), and the next message is about it
+  el.querySelectorAll('[data-about]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.about.split(':'); attachCard(k === 's' ? 'session' : 'action', k === 's' ? shown[Number(i)] : d.feed[Number(i)]); });
+}
+// The card a message is about: one line of the side, as the server worded it, set inside the prompt box over the words.
+// Nothing on it is a button to press for an answer: the person asks about it, or says they want more or less of that
+// kind of thing, in their own words (chat.js reads the card with the message). It comes off with its corner cross,
+// Escape, or Backspace in an empty box.
+let CHAT_REF = null;
+const refCard = (x, sent) => `<div class="chat-ref${sent ? ' sent' : ''}"><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact soft">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta">${x.at ? `<span>${esc(upWhen(x.at))}</span>` : ''}${x.repoName ? `<span>${esc(x.repoName)}</span>` : ''}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">open the pull request</a>` : ''}</div>${sent ? '' : '<button class="chat-ref-x" type="button" data-ref-x aria-label="Take the card off">&times;</button>'}</div>`;
+function renderAttach() {
+  const el = $('#chat-attach');
+  el.innerHTML = CHAT_REF ? refCard(CHAT_REF, false) : '';
+  el.querySelector('[data-ref-x]')?.addEventListener('click', dropCard);
+  $('#chat-input').placeholder = CHAT_REF ? 'Ask about this, or say you want more or less like it' : 'Ask what it did, or tell it how to behave';
+}
+function dropCard() { CHAT_REF = null; renderAttach(); $('#chat-input').focus(); }
+function attachCard(kind, x) {
+  if (!x) return;
+  CHAT_REF = { kind, id: x.id || '', text: x.text, impactSaid: x.impactSaid || '', at: x.at, repo: x.repo || (HREPO === 'all' ? '' : HREPO), repoName: x.repoName || '', url: x.url || '', title: x.title || '' };
+  renderAttach(); $('#chat-input').focus();
 }
 // the side is drawn again when what thinker did has moved (a check ran, a pull request merged), or while a look the
 // page asked for is still out; nothing is read while another tab is shown
@@ -1450,7 +1491,7 @@ async function pollHome() {
   clearTimeout(HPOLL);
   if (TAB === 'chat' && UPK) {
     let d = null; try { d = await api(`/api/upkeep?repo=${encodeURIComponent(HREPO)}&look=0`); } catch {}
-    const sig = v => JSON.stringify([v.later, v.level, (v.feed || []).slice(0, 8).map(f => [f.at, f.text, f.impactSaid, f.undone])]);
+    const sig = v => JSON.stringify([v.later, v.level, (v.feed || []).slice(0, 8).map(f => [f.at, f.text, f.impactSaid, f.undone]), v.delegated?.said, (v.delegated?.sessions || []).slice(0, SIDE_SESSIONS).map(x => [x.at, x.impactSaid])]);
     if (d && (sig(UPK) !== sig(d) || UPK.looking)) loadSide();
   }
   HPOLL = setTimeout(pollHome, TAB === 'chat' && UPK?.looking ? HOME_FAST_MS : HOME_POLL_MS);
@@ -1459,13 +1500,13 @@ async function pollHome() {
 const chatText = t => esc(t).replace(/https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)]/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
 function renderChat() {
   const log = $('#chat-log');
-  const bubble = m => m.role === 'you' ? `<div class="chat-msg you">${esc(m.text)}</div>`
+  const bubble = m => m.role === 'you' ? `${m.ref ? refCard(m.ref, true) : ''}<div class="chat-msg you">${esc(m.text)}</div>`
     : m.pending ? `<div class="chat-msg thinker wait"><span class="spinner"></span>Waiting to answer through your agent's own session${m.via ? ` in ${esc(m.via)}` : ''}: the next time it is active there.</div>`
     : m.failed ? `<div class="chat-msg thinker bad">Could not answer: ${esc(m.failed)}</div>`
     : `<div class="chat-msg thinker">${chatText(m.text)}${m.did?.length ? `<ul class="chat-did">${m.did.map(x => `<li class="${x.ok ? '' : 'no'}">${x.ok ? '✓' : '✗'} ${chatText(x.text)}</li>`).join('')}</ul>` : ''}</div>`;
   const empty = !CHAT_MSGS.length && !CHAT_WAIT;
   $('#chat-msgs').innerHTML = (empty ? '<div class="chat-empty"><h1>thinker</h1><p>Ask what it has been doing, or tell it how you want it to behave. It acts on what you say here.</p></div>' : CHAT_MSGS.map(bubble).join(''))
-    + (CHAT_WAIT ? `<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
+    + (CHAT_WAIT ? `${CHAT_WAIT_REF ? refCard(CHAT_WAIT_REF, true) : ''}<div class="chat-msg you">${esc(CHAT_WAIT)}</div><div class="chat-msg thinker wait"><span class="spinner"></span>Thinking…</div>` : '');
   $('#chat-hints').innerHTML = empty ? CHAT_HINTS.map((h, i) => `<button class="chat-hint" type="button" data-hint="${i}">${esc(h)}</button>`).join('') : '';
   $('#chat-hints').querySelectorAll('[data-hint]').forEach(b => b.onclick = () => sendChat(CHAT_HINTS[Number(b.dataset.hint)]));
   log.scrollTop = log.scrollHeight;
@@ -1476,18 +1517,23 @@ function renderChat() {
 async function loadChat() { try { CHAT_MSGS = (await api('/api/chat')).messages || []; } catch {} renderChat(); }
 async function sendChat(text) {
   text = String(text || '').trim(); if (!text || CHAT_WAIT) return;
-  CHAT_WAIT = text; $('#chat-send').disabled = true; renderChat();
+  // the card goes with this message and comes off the prompt box
+  const ref = CHAT_REF; CHAT_REF = null; renderAttach();
+  CHAT_WAIT = text; CHAT_WAIT_REF = ref; $('#chat-send').disabled = true; renderChat();
   try {
-    const r = await api('/api/chat', { message: text, repo: chatAbout() });
+    const r = await api('/api/chat', { message: text, repo: chatAbout(), ...(ref ? { about: ref } : {}) });
     CHAT_MSGS = r.messages || CHAT_MSGS;
     // what it changed shows beside the conversation at once: how thinker behaves, what needs the person, what was done
     if (CHAT_MSGS.at(-1)?.did?.length) { loadSide(); pollActivity(); }
-  } catch (err) { toast(`Could not send that: ${err.message}`, true, 5000); $('#chat-input').value = text; }
-  CHAT_WAIT = null; $('#chat-send').disabled = false; renderChat(); $('#chat-input').focus();
+  } catch (err) { toast(`Could not send that: ${err.message}`, true, 5000); $('#chat-input').value = text; CHAT_REF = ref; renderAttach(); }
+  CHAT_WAIT = null; CHAT_WAIT_REF = null; $('#chat-send').disabled = false; renderChat(); $('#chat-input').focus();
 }
 $('#chat-form').onsubmit = e => { e.preventDefault(); const t = $('#chat-input').value; $('#chat-input').value = ''; sendChat(t); };
-// Enter sends, Shift+Enter is a new line
-$('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); } });
+// Enter sends, Shift+Enter is a new line; Escape, or Backspace in an empty box, takes the card off
+$('#chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); }
+  else if (CHAT_REF && (e.key === 'Escape' || (e.key === 'Backspace' && !e.target.value))) { e.preventDefault(); dropCard(); }
+});
 async function fetchRepos() {
   const r = await api('/api/repos');
   REPOS = r.repos;

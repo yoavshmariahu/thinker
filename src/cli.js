@@ -168,7 +168,8 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
   activity [run [--look]] [--all] [--json]
                                  Recent activity in the terminal, as it runs down the right of the page's chat: a line an action
                                  with what it came to (-10k tokens per prompt, $45/day; disk freed), and for a pull request its
-                                 link while it is in review and after. Thinker does its work itself: between sessions it looks at
+                                 link while it is in review and after; under them a line a session, what it handed to cheaper
+                                 agents and what that saved. Thinker does its work itself: between sessions it looks at
                                  what the coding agents left behind and does what is important -- removes merged worktrees and
                                  branches, puts up a pull request for a costly section of the instruction file nobody needs,
                                  switches off a costly tool nobody calls -- at most one pull request a repository a week, one
@@ -177,7 +178,8 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  behaves, and taking a thing back, is said to it (\`thinker chat\`)
   chat [message] [--json]        talk to thinker, as on the page it opens on: ask what it did, tell it how to behave ("ask me
                                  before putting up pull requests", "one pull request a month at most", "leave this repository
-                                 alone"), or have it take a thing back ("turn that tool back on"). One model call a message,
+                                 alone"), steer it ("fewer pull requests like that one", "hand more reads to cheaper agents"), or
+                                 have it take a thing back ("turn that tool back on"). One model call a message,
                                  through your agent's own login; what it changed is printed under its answer. With no message,
                                  the conversation so far
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
