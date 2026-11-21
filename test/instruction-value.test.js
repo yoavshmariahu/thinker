@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Store } from '../src/store.js';
-import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, coversCode, IDLE_MS, sections, changedAtOf } from '../src/instruction-value.js';
+import { instructionFile, valueSections, sessionActivity, appliedSections, instructionValue, judgeSessionFile, judgeRecent, valueOf, readValueState, coversCode, IDLE_MS, sections, changedAtOf, passSections, recordPassVerdicts, valueConfig, VALUE } from '../src/instruction-value.js';
 import { setDiskCache } from '../src/disk-cache.js';
 import { contextView, skillOutcomes } from '../src/context-view.js';
 import { retireTrimmedCopy } from '../src/trimmed-copy-retired.js';
@@ -143,6 +143,59 @@ test('the judge keeps verdicts for known sections only, once a session, and the 
   assert.equal(v.sections.find(x => x.id === 'history').bore, 0);
   const line = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse).find(e => e.op === 'instruction-value');
   assert.equal(line?.sections?.['commits-and-pull-requests'], 'violated');
+});
+
+// Since 2026-11-21 the sections are judged in the one read every session gets when it ends (profile.js), not by a
+// call of their own: these two are what that read is shown, and where what it said is kept.
+const ON = { THINKER_INSTRUCTION_JUDGE: 'on' }; // the suite's own default is off, as for every model-backed path
+test('the pass is shown the sections a session fired and the ones no trigger speaks for, never one the code ruled out', t => {
+  const { repo, store } = fixture(t);
+  const events = [{ t: 'prompt', text: 'commit it' }, { t: 'tool', name: 'Bash', input: { command: 'git commit -m "fix: views"' }, result: '' }, { t: 'say', text: 'done' }];
+  const shown = passSections(store, events, { session: 's1', client: 'claude', env: ON });
+  // api-views names files this session never touched: its trigger says it did not come up, so nobody is asked
+  assert.deepEqual(shown.map(s => s.id), ['commits-and-pull-requests', 'history'], 'the fired section first, then the one with no trigger');
+  assert.equal(shown[0].title, 'AGENTS.md · Commits and pull requests');
+  assert.match(shown[0].text, /Use conventional commits\./);
+  assert.deepEqual(passSections(store, [{ t: 'prompt', text: 'x' }, { t: 'tool', name: 'Read', input: { file_path: path.join(repo, 'src/api/views.js') }, result: '' }], { session: 's1', env: ON }).map(s => s.id), ['api-views', 'history']);
+  // every session, unless the repository says a share of them, or none
+  assert.equal(VALUE.share, 1); assert.equal(valueConfig(store, ON).share, 1);
+  assert.deepEqual(passSections(store, events, { session: 's1', env: { THINKER_TEST: '1' } }), [], 'nothing in a test that did not ask for it');
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ instructions: { value: { share: 0 } } }));
+  assert.deepEqual(passSections(store, events, { session: 's1', env: ON }), []);
+  fs.writeFileSync(path.join(store.dir, 'config.json'), JSON.stringify({ instructions: { value: { judge: false } } }));
+  assert.deepEqual(passSections(store, events, { session: 's1', env: {} }), []);
+  // whole sections only, up to the cap: one too long for what is left is passed over, a shorter one after it still fits
+  const big = fixture(t, { agents: `# Repo\n\n## History\n\n${'We tried many things. '.repeat(1400)}\n\n## Ethos\n\nBe kind.\n` });
+  assert.ok(valueSections(big.store).find(s => s.id === 'history').text.length > VALUE.passChars);
+  assert.deepEqual(passSections(big.store, events, { session: 's1', env: ON }).map(s => s.id), ['ethos']);
+  assert.deepEqual(passSections(fixture(t, { agents: null }).store, events, { session: 's1', env: ON }), [], 'no instruction file, nothing to show');
+});
+
+test('what the pass said is kept on the session where the report reads it, and a later read keeps the worst verdict', t => {
+  const { store } = fixture(t);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ivalue-tr-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const s1 = transcript(dir, 's1', [['Bash', { command: 'git commit -m x' }]]), s2 = transcript(dir, 's2', [['Bash', { command: 'ls' }]]);
+  const first = recordPassVerdicts(store, s1.file, { session: 's1', client: 'claude', shown: 2, verdicts: [
+    { id: 'commits-and-pull-requests', verdict: 'violated', evidence: 'git commit -m x' },
+    { id: 'no-such-section', verdict: 'followed', evidence: 'x' }, { id: 'history', verdict: 'nonsense', evidence: 'x' },
+  ] });
+  assert.deepEqual(first.verdicts, { 'commits-and-pull-requests': { verdict: 'violated', evidence: 'git commit -m x' } });
+  // the session went on and was read again: it kept the rule this time, and another section came up
+  recordPassVerdicts(store, s1.file, { session: 's1', client: 'claude', shown: 2, verdicts: [{ id: 'commits-and-pull-requests', verdict: 'followed', evidence: 'fix: views' }, { id: 'api-views', verdict: 'applicable', evidence: '' }] });
+  const kept = readValueState(store).sessions.s1.judged;
+  assert.equal(kept.by, 'pass');
+  assert.deepEqual(Object.fromEntries(Object.entries(kept.verdicts).map(([k, v]) => [k, v.verdict])), { 'commits-and-pull-requests': 'violated', 'api-views': 'applicable' }, 'a rule broken earlier is not mended by being kept later');
+  // shown the sections and none came up: the session was judged, and nothing bore on it
+  assert.deepEqual(recordPassVerdicts(store, s2.file, { session: 's2', client: 'claude', shown: 2, verdicts: [] }).verdicts, {});
+  // shown nothing: not judged at all
+  assert.equal(recordPassVerdicts(store, s2.file, { session: 's3', client: 'claude', shown: 0, verdicts: [] }), null);
+  const v = instructionValue(store, { sessions: [s1, s2] });
+  const commits = v.sections.find(x => x.id === 'commits-and-pull-requests');
+  assert.deepEqual([v.judged, commits.judged, commits.violated, commits.followed, commits.bore], [2, 2, 1, 0, 1]);
+  // the read's tokens are the profile's: the row here carries what was said, marked as the pass's, and no cost
+  const rows = fs.readFileSync(path.join(store.dir, 'log.jsonl'), 'utf8').split('\n').filter(Boolean).map(JSON.parse).filter(e => e.op === 'instruction-value');
+  assert.equal(rows.length, 3); assert.ok(rows.every(e => e.pass === true && e.tokens === undefined && e.shown === 2));
+  assert.equal(rows[0].sections['commits-and-pull-requests'], 'violated');
 });
 
 test('judging recent sessions skips one still being written and those judged', async t => {

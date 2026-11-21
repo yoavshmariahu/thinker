@@ -30,6 +30,8 @@ import { commands as proxyCommands } from './commands/proxy.js';
 import { commands as containerCommands } from './commands/containers.js';
 import { commands as errorCommands } from './commands/errors.js';
 import { commands as fleetCommands } from './commands/fleet.js';
+import { commands as activityCommands } from './commands/activity.js';
+import { commands as chatCommands } from './commands/chat.js';
 import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -124,7 +126,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  where the agents' context goes here and what each part is worth: every section of AGENTS.md (its
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
-                                 calls); a 25% sample is judged as sessions end (instructions: { value: { judge: false, share } } in .thinker/config.json)
+                                 calls); every session is judged in the one read it gets when it ends (instructions: { value: { judge: false } } in .thinker/config.json)
                                  --cards says what each part is, why you would change it and what you would lose, as the page's
                                  cards do, in the same order (\`thinker explain\` writes those words; this view spends nothing)
                                  --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
@@ -163,6 +165,23 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  pull request changed after it was opened, a file read again), and the first-pass yield of the merged pull
                                  requests; it reads the report kept for the page, --refresh makes it again first; --diff splits every
                                  figure by a feature's two sides, the sessions it reached against the ones held out from it
+  activity [run [--look]] [--all] [--json]
+                                 Recent activity in the terminal, as it runs down the right of the page's chat: a line an action
+                                 with what it came to (-10k tokens per prompt, $45/day; disk freed), and for a pull request its
+                                 link while it is in review and after; under them a line a session, what it handed to cheaper
+                                 agents and what that saved. Thinker does its work itself: between sessions it looks at
+                                 what the coding agents left behind and does what is important -- removes merged worktrees and
+                                 branches, puts up a pull request for a costly section of the instruction file nobody needs,
+                                 switches off a costly tool nobody calls -- at most one pull request a repository a week, one
+                                 pull request and one tool a day over the machine. Nothing is listed for you to do. It checks
+                                 with maintenance, every four hours; run is that check (no model call; --look only looks). How it
+                                 behaves, and taking a thing back, is said to it (\`thinker chat\`)
+  chat [message] [--json]        talk to thinker, as on the page it opens on: ask what it did, tell it how to behave ("ask me
+                                 before putting up pull requests", "one pull request a month at most", "leave this repository
+                                 alone"), steer it ("fewer pull requests like that one", "hand more reads to cheaper agents"), or
+                                 have it take a thing back ("turn that tool back on"). One model call a message,
+                                 through your agent's own login; what it changed is printed under its answer. With no message,
+                                 the conversation so far
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]
@@ -182,9 +201,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the four-hour update job. First run starts tracking, without backfilling.
                                  --dry lists eligible recorded PRs without syncing or posting. Set prComments:
                                  false in the machine or repository config to disable automatic comments
-  ui [--port n] [--no-open] [--tab save|report|activity] [--here] [--refresh]
+  ui [--port n] [--no-open] [--tab chat|save|report|factory|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
-                                 checkout alone), on Find Savings (--tab save): where the agents' context goes in each
+                                 checkout alone), on the chat with thinker and what it did lately (--tab chat); Find Savings (--tab save): where the agents' context goes in each
                                  repository and what each part is worth, with the cuts (thinker context); then View Report (--tab report), what a
                                  session costs here week by week, by part and by model, in tokens or at list prices (thinker report);
                                  127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the
@@ -293,10 +312,10 @@ function unknownFlags(c, given, help = HELP) {
 
 // Commands that read or maintain a cache, and so need a git checkout to keep it in. Not `setup`, `record`,
 // `distill`: those start one. Not `hook` (quiet outside a checkout) and not `ui`, the machine-wide page.
-const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory'];
+const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory', 'activity'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands };
+const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands, ...activityCommands, ...chatCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
 const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', 'config', 'status', 'fleet-report', undefined];

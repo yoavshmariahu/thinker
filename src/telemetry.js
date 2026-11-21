@@ -478,7 +478,7 @@ function collectDecisions(store, { all = true, now = Date.now() } = {}) {
 
 // the door a decision came through (context-suggest.js:VIA); a log line from before it was recorded says nothing,
 // and counts as the command
-const via = e => ['session', 'page', 'setup', 'command'].includes(e.via) ? e.via : 'command';
+const via = e => ['session', 'page', 'setup', 'command', 'thinker'].includes(e.via) ? e.via : 'command';
 const bump = (map, key, add) => { if (!map.has(key)) map.set(key, {}); const row = map.get(key); for (const [k, v] of Object.entries(add)) row[k] = (row[k] || 0) + v; return row; };
 
 // The two blocks built from one walk of the repositories: `actions` (what was suggested, offered and decided,
@@ -501,6 +501,10 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
     // anything was chosen. An offer with no answer here was never put to the person, or they never replied.
     answers: { picker: 0, chat: 0, some: 0, none: 0 },
     jobsStarted: 0, jobsRetried: 0, jobsFailed: 0, sectionEdits: 0, sectionPrs: 0,
+    // upkeep (upkeep.js): thinker's checks, how many did anything, and what was done by chore -- by thinker itself, or on
+    // the person's word in the chat -- left alone, taken back, and the settings people changed.
+    // Counts, chore ids and setting names, nothing named.
+    upkeep: { checks: 0, checksWithFinds: 0, done: {}, doneOnItsOwn: 0, left: {}, undone: 0, settings: {}, chats: 0, chatActions: 0 },
     harnessOffers: 0, harnessOfferedSources: 0, harnessOfferedTokens: 0,
     harnessAnswers: {}, harnessOffs: 0, harnessSwitchedOff: 0, harnessUndos: 0, harnessUndoneSources: 0,
     // what the output compression (diet.js) actually cut, in characters, as it records them (~4 to a token);
@@ -533,6 +537,12 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
         else if (e.state === 'retried') a.jobsRetried++;
         else if (e.state === 'failed') a.jobsFailed++;
         break;
+      case 'upkeep': if (e.acted !== false) a.upkeep.checks++; if (e.did) a.upkeep.checksWithFinds++; break;
+      case 'upkeep-do': { const c = String(e.chore || 'unknown'); a.upkeep.done[c] = (a.upkeep.done[c] || 0) + 1; if (e.by === 'thinker') a.upkeep.doneOnItsOwn++; break; }
+      case 'upkeep-dismiss': { const c = String(e.chore || 'unknown'); a.upkeep.left[c] = (a.upkeep.left[c] || 0) + 1; break; }
+      case 'upkeep-undo': a.upkeep.undone++; break;
+      case 'upkeep-set': { const k = String(e.key || 'unknown'); a.upkeep.settings[k] = (a.upkeep.settings[k] || 0) + 1; break; }
+      case 'chat': a.upkeep.chats++; a.upkeep.chatActions += e.actions || 0; break;
       case 'instruction-edit': a.sectionEdits++; break;
       case 'instruction-pr': a.sectionPrs++; break;
       case 'harness-offer': a.harnessOffers++; a.harnessOfferedSources += e.sources || 0; a.harnessOfferedTokens += e.tokens || 0; break;
