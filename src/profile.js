@@ -23,6 +23,7 @@ import { tokensOf } from './model-usage.js';
 import { areaOf } from './areas.js';
 import { sessionState, locked, holdoutRate } from './session-state.js';
 import { sourcePattern, writeKeep } from './keep.js';
+import { compactionsSince } from './compactions.js';
 
 export const PROFILE = {
   ledgerDays: 60,       // an observation older than this leaves the window and the file
@@ -922,16 +923,6 @@ export function profileArm(store, session) {
   if (rate <= 0) return 'shown';
   const h = parseInt(createHash('sha1').update(`profile#${session}`).digest('hex').slice(0, 8), 16) / 0x100000000;
   return h < rate ? 'holdout' : 'shown';
-}
-// Compaction boundaries written to a Claude Code transcript since `offset` bytes, and the file's size now.
-export function compactionsSince(file, offset = 0) {
-  try {
-    const size = fs.statSync(file).size;
-    if (size <= offset) return { count: 0, offset: size };
-    const fd = fs.openSync(file, 'r');
-    try { const buf = Buffer.alloc(size - offset); fs.readSync(fd, buf, 0, buf.length, offset); return { count: (buf.toString('utf8').match(/"subtype":"compact_boundary"/g) || []).length, offset: size }; }
-    finally { fs.closeSync(fd); }
-  } catch { return { count: 0, offset }; }
 }
 // What the prompt hook puts in: the block on the first prompt of a shown session and after a compaction, else ''.
 // Logged `op: profile-served` once per injection with the arm and whether a compaction brought it; a held-out

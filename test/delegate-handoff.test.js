@@ -539,7 +539,9 @@ test('a call one door decided is not decided again by the other, and every row n
   process.env.THINKER_HOME = path.join(d, 'home');   // no mark: the settings hook does not stand down on it
   const rows = [];
   const store = { dir: path.join(d, 'store'), log: r => rows.push(r) };
-  const cfg = { ...DELEGATE_DEFAULTS, enabled: true, holdout: 0 };
+  // the pointer is off here: this test is about which door decides a call, and a file read twice would also be
+  // answered with its own copy (delegate.js, "the same file, read again"; test/repeat-read.test.js has that case)
+  const cfg = { ...DELEGATE_DEFAULTS, enabled: true, holdout: 0, repeats: false };
   const ev = { tool_name: 'Read', tool_input: { file_path: big }, tool_use_id: 'toolu_01', prompt_id: 'p1' };
 
   // the mod's door gets there first: it decides, and the row says so

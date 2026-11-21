@@ -357,15 +357,18 @@ async function hookCommand(ctx) {
         const subs = client === 'claude' ? subagentStats(sessionSource, session) : [];
         // what the model read again after a cut took it out (rereads.js), from the transcript and the session's cut
         // times; the netted saving takes it off (delivery.js). Only where the session was cut, and never a failed turn.
-        let rereads = null, delegated = null;
+        let rereads = null, delegated = null, repeated = null;
         try {
           const where = { session, proxyLog: proxyLogFile(), dir: compressionDir() };
           const cuts = cutTimesFor(where);
           // what the delegation trigger kept out, from the same transcript and the same cut times (delegated.js)
           try { const firings = sessionState(store, session).st.delegated; delegated = firings?.length ? delegatedOf(p, firings, { cuts, subagents: subs }) : null; } catch { delegated = null; }
+          // and what the pointers kept out (delegate.js: a read whose bytes the model already had). The same
+          // arithmetic, from the same transcript, and a figure of its own: two policies are never one saving.
+          try { const pointed = sessionState(store, session).st.repeated; repeated = pointed?.length ? delegatedOf(p, pointed, { cuts }) : null; } catch { repeated = null; }
           rereads = cuts.length ? rereadsOf(p, cuts) : null;
         } catch { rereads = null; }
-        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined, delegated: delegated || undefined };
+        const record = { op: 'session', session, turn: t.turn || undefined, client, model: p.model || ev.modelName || undefined, profile: profileArmOf(store, session) || undefined, ...gitContext(repo), ...(p.stats || {}), subagents: subs.length ? subs : undefined, rereads: rereads?.reads ? rereads : undefined, delegated: delegated || undefined, repeated: repeated || undefined };
         store.log(record);
       } catch {}
       // and out to the sink, where this machine has one (events.js). The same session, priced by the one

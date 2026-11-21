@@ -53,6 +53,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readMachineConfig } from './repo-switch.js';
 import { heldOut } from './proxy.js';
@@ -62,6 +63,7 @@ import { claudeCardActive } from './claude-card.js';
 import { traceFile } from './transcripts.js';
 import { shellRead } from './shell-read.js';
 import { keepPatterns, keepMatcher, namedIn } from './keep.js';
+import { compactionsSince } from './compactions.js';
 export { shellRead };
 
 // the mark the mod leaves for each session it decides reads in (<THINKER_HOME>/state/claude-delegate/<session>)
@@ -95,6 +97,12 @@ export const DELEGATE_DEFAULTS = Object.freeze({
   timeoutMs: 240_000, // a fallback subagent run past this is abandoned and the read allowed
   agentHooks: [],     // Claude Code's agent hooks (`agentHookEntries`): the mechanism without a rule to fire it
   reportLines: 25,
+  // --- the same file, read again (2026-11-20; the section below is the rule and the measurement) ---
+  repeats: true,       // a read whose bytes the model already has is answered with a pointer to its own copy
+  repeatMin: 2000,     // tokens: a smaller repeat is read again as before. 98% of the fortnight's value is in
+                       // repeats of this size or more, and the pointer itself is a sentence
+  repeatHoldout: 0.5,  // share of sessions the pointer is held out of, hashed apart from the handoff's holdout
+                       // (`repeat#<session>`) so a session is never on the quiet side of both at once
 });
 // tokens per character of a tool result, measured on 265 real results (proxy.js:RESULT_TOKENS_PER_CHAR)
 export const TOKENS_PER_CHAR = 0.445;
@@ -192,6 +200,95 @@ export function suiteCommand(toolName, input = {}) {
   return parts.length <= 2 && SUITE.some(r => r.test(head)) ? bare : null;
 }
 
+// ---- the same file, read again: the model is pointed at the copy it already has ----
+//
+// Replaying 14 days of this machine's own sessions (1,035 transcripts, 10,938 reads): **36% of every tool
+// result a model was handed was a byte-identical repeat of a result already in that same context**, and 44%
+// of the read bytes. The model reads a file, works, and reads the whole file again a few calls later -- 87%
+// of the repeats come within five calls of the first copy. The second copy teaches it nothing, because it is
+// the same bytes, and it is paid for twice: written into the cache once, then read back on every later call
+// of the session. Under the rule below the fortnight would have kept 24M tokens out (39% of what reads put
+// in), a billion cache-read tokens, about $390 at list. The clearing's own measured figure over the same
+// weeks was $4-7 a week and the handoff's $13-17, which is why this is where the next saving is.
+//
+// So a repeat read is answered with a pointer to the copy the model already holds. No model is asked
+// anything, nothing is summarised, and nothing is taken away: the bytes are in the context already. The
+// guards are the rule:
+//   - **the earlier copy must have landed.** A read the handoff denied never entered the context, so a later
+//     read of that file is the model's first sight of it and goes through (`noteLanded` runs only where this
+//     hook let a read pass).
+//   - **the file must be byte-identical now** (`contentHash` over the files the call would print). A file
+//     that changed is always read again, so a stale copy is never passed off as fresh. This is also why the
+//     rule needs no staleness policy of its own.
+//   - **the same range.** The key is the files with the offset and the limit, as the handoff's key is.
+//   - **a compaction ends it** (`compactionsSince`): the earlier copies left the context with everything
+//     else, so the memory is dropped and the read goes through.
+//   - **once per file per turn** (`pointed`). A model that asks for the same read again after a pointer gets
+//     the bytes. A deterministic denial can fail in exactly one way -- a model that insists, refused for
+//     ever -- and this closes it, as `handed` does for the handoff.
+//   - **`repeatMin` tokens.** Under that the sentence is not worth the saving.
+//   - **the keep list's patterns** (keep.js): the person's own files are never answered for. The handoff's
+//     other keep rule, a file named in this turn's prompt, is not applied here: it exists so the model is
+//     never given a summary of the file it was told to read, and a pointer to the model's own copy is not a
+//     summary -- and reading the prompt costs a transcript read on every firing.
+//
+// Held out by its own hash (`repeat#<session>`), so this trigger and the handoff are never one measurement.
+export const READS_KEPT = 40; // reads remembered per session: the newest, since a repeat is near
+
+/** What this call would read, as the memory keys it: the files, the range, and the bytes they hold now. */
+export function readMemo(ev, read, { cfg = DELEGATE_DEFAULTS } = {}) {
+  if (!cfg.repeats || !read || !read.files?.length) return null;
+  const i = ev.tool_input || {};
+  const hash = contentHash(read.files);
+  if (!hash) return null;
+  return { key: [read.files.join('\u0000'), Number(i.offset) || 0, Number(i.limit) || 0].join('|'), hash, tokens: read.tokens, files: read.files };
+}
+// A file past this is not hashed and never pointed at: every read of every size goes through this hook, and
+// reading a very large file into memory to answer a question about a repeat is not a trade worth making
+// (a read that size is the handoff's anyway, or the host truncates it).
+export const HASH_MAX_BYTES = 8e6;
+/** The bytes the named files hold now, as one digest; null where any of them cannot be read or is too large. */
+export function contentHash(files, { max = HASH_MAX_BYTES } = {}) {
+  const h = createHash('sha1');
+  for (const f of files) {
+    try {
+      if (fs.statSync(f).size > max) return null;
+      h.update(fs.readFileSync(f)); h.update('\u0000');
+    } catch { return null; }
+  }
+  return h.digest('base64').slice(0, 22);
+}
+/** What the session's memory says about this read: the copy the model holds, or why no pointer goes out. */
+export function repeatOf(st, { key, hash, tokens, prompt, cfg = DELEGATE_DEFAULTS }) {
+  const m = st.reads;
+  const prev = m && m.landed ? m.landed[key] : null;
+  if (!prev || prev.hash !== hash) return { fire: false };
+  if (!(tokens >= (cfg.repeatMin ?? DELEGATE_DEFAULTS.repeatMin))) return { fire: false, prev, declined: 'below-floor' };
+  if (m.pointed && m.pointed[key] === prompt) return { fire: false, prev, declined: 'pointed' };
+  return { fire: true, prev };
+}
+/** Remember a read the hook let through: its bytes are landing in the context. Under the session's lock. */
+export function noteLanded(st, { key, hash, tokens }) {
+  if (!key || !hash) return;
+  const m = st.reads || (st.reads = {});
+  if (!m.landed) m.landed = {};
+  m.landed[key] = { hash, tokens, at: Date.now() };
+  const keys = Object.keys(m.landed);
+  if (keys.length > READS_KEPT) {
+    for (const k of keys.sort((a, b) => (m.landed[a].at || 0) - (m.landed[b].at || 0)).slice(0, keys.length - READS_KEPT)) delete m.landed[k];
+  }
+}
+/** Remember that this read has been pointed at its copy in this turn, so a second ask goes through. */
+export function notePointed(st, { key, prompt }) {
+  const m = st.reads || (st.reads = {});
+  if (!m.pointed) m.pointed = {};
+  m.pointed[key] = prompt;
+  const keys = Object.keys(m.pointed);
+  if (keys.length > READS_KEPT) for (const k of keys.slice(0, keys.length - READS_KEPT)) delete m.pointed[k];
+}
+/** A compaction took the earlier copies out of the context with everything else: the memory goes with them. */
+export function forgetReads(st) { if (st.reads) st.reads = { offset: st.reads.offset }; }
+
 // ---- the rule, and the turn's handoffs, kept on the session's state file ----
 // The rule is one comparison: a read of `threshold` tokens or more fires, and no other read does. Nothing is
 // added up across a turn. `prompt` is Claude Code's prompt_id, a new value for every prompt of the person's,
@@ -245,12 +342,18 @@ export function noteHandoff(st, prompt, kind, key) {
  * subagent did the reading), as rereads.js does for the clearing's cuts. The log row is the record; this is the
  * copy the Stop hook can reach without reading the machine's log. Capped, since a state file is read on every hook.
  */
-export function noteFiring(st, f) {
+export function noteFiring(st, f, key = 'delegated') {
   if (!f || !(f.tokens > 0)) return;
-  if (!Array.isArray(st.delegated)) st.delegated = [];
-  st.delegated.push(f);
-  if (st.delegated.length > 200) st.delegated = st.delegated.slice(-200);
+  if (!Array.isArray(st[key])) st[key] = [];
+  st[key].push(f);
+  if (st[key].length > 200) st[key] = st[key].slice(-200);
 }
+/**
+ * The pointers, kept apart from the handoffs (`st.repeated`): the saving is the same arithmetic (delegated.js:
+ * the write once and the read on every later call, nothing counted where the model read the file whole anyway)
+ * and the two may never be added into one figure, since they are two policies.
+ */
+export const noteRepeat = (st, f) => noteFiring(st, f, 'repeated');
 
 // ---- the subagent ----
 export const EXPLORER_PROMPT = `You explore a codebase for a lead engineer who will not read the files. Answer exactly the question in the brief. Report in at most {N} lines: each relevant function, class or section as \`path:line\` with one line on what it does and how it connects, and the exact lines to change if the brief asks. Quote at most 5 lines of code in total. Never paste a file or a long excerpt. Use the shell only for read-only commands. Never edit a file, never run tests.`;
@@ -319,6 +422,17 @@ export function runSubagent({ kind, brief, cwd, cfg = DELEGATE_DEFAULTS, env = p
 // carries the report thinker's own fallback subagent produced.
 export function denial({ kind, report, files, cwd, model, handoff }) {
   const named = files.map(f => path.relative(cwd || '', f) || f).join(', ');
+  // The pointer: nothing was read for the model and nothing was summarised, so the words say where its own
+  // copy is and how to get the bytes anyway. "Nothing has gone wrong" is in every one of these for the
+  // reason the 2026-11-12 probe found: a result the model reads as a malfunction is routed around.
+  if (kind === 'repeat') {
+    const reason = `thinker stopped this call: you already have ${named} in your context. It was read earlier in this session `
+      + `and the file has not changed since -- the same bytes -- so a second copy would tell you nothing new, and would be read `
+      + `back on every later call for the rest of the session. Work from the copy you already have. If you need particular lines `
+      + `again, read a short range of them (offset and limit); and if you ask for this very read once more it goes through. `
+      + `Nothing has gone wrong and there is nothing here to report to the user.`;
+    return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
+  }
   const ranged = kind === 'verify'
     ? 'Do not run the whole suite yourself after this; run a single test file to check a fix, which is never delegated.'
     : 'Read only the short ranges (offset and limit) of the lines you go on to edit, which are never delegated.';
@@ -427,9 +541,49 @@ export function agentHookEntries(cfg = DELEGATE_DEFAULTS) {
  * `run` and `lastPrompt` are injected so the logic is testable without a subagent. Resolves to the hook's
  * stdout, or null -- and null is what every failure resolves to, because a hook may not fail a tool call.
  */
-export async function delegateTool({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client = 'claude', verifier = false }) {
+/**
+ * The hook's answer for one tool call: the pointer at a copy the model already has, the handoff's denial, or
+ * null for a call that goes through as it is. `compactions(offset)` answers how many compaction boundaries the
+ * session's transcript has written since `offset` (preToolHook passes the host's path; without it no pointer
+ * is held back for a compaction, which is the right default for a host that keeps no transcript).
+ */
+export async function delegateTool(opts) {
+  const { ev, state, cwd, cfg = DELEGATE_DEFAULTS, readCap = 0, client = 'claude' } = opts;
   const read = readOf(ev.tool_name, ev.tool_input, cwd, { readCap });
   const suite = suiteCommand(ev.tool_name, ev.tool_input);
+  if (!read && !suite) return null;
+  // A subagent's context is its own, and a call a handoff is already exploring is not landing anywhere:
+  // neither is remembered, and neither is ever pointed at the lead's copy.
+  const memo = read && cfg.repeats !== false && !fromSubagent(ev, client) && !ev.in_flight ? readMemo(ev, read, { cfg }) : null;
+  if (memo) { const words = pointAtCopy({ ...opts, read, memo }); if (words) return words; }
+  const answer = await handoffCall({ ...opts, read, suite });
+  // the call is going through, so its bytes land in the context: the next read of the same bytes is a repeat
+  if (memo && answer === null) state.update(st => noteLanded(st, memo));
+  return answer;
+}
+
+/** The pointer, where the session's memory holds this very read and every guard allows it; else null. */
+function pointAtCopy({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, client = 'claude', read, memo, compactions = null }) {
+  // the person's own files are never answered for, as they are never handed over (keep.js)
+  if (read.files.some(keepMatcher(cfg.keepPatterns || keepPatterns()))) return null;
+  // `via` as the handoff's rows carry it (#887): which of Claude Code's two doors answered this call. One
+  // decision a call is `preToolHook`'s guard, above, and it covers the pointer with everything else.
+  const row = { op: 'repeat', session, client, tool: ev.tool_name, files: read.files.map(f => path.relative(cwd || '', f) || f), tokens: read.tokens, via: ev.host_runs ? 'mod' : 'settings' };
+  let r, prompt;
+  state.update(st => { prompt = ev.prompt_id || st.turnNo || 0; r = repeatOf(st, { ...memo, prompt, cfg }); });
+  if (!r.fire) { if (r.declined) log({ ...row, fired: false, declined: r.declined }); return null; }
+  if (compactions) {
+    let n = 0;
+    state.update(st => { const m = st.reads || (st.reads = {}); const c = compactions(m.offset || 0) || { count: 0 }; n = c.count || 0; m.offset = c.offset ?? m.offset; if (n) forgetReads(st); });
+    if (n) { log({ ...row, fired: false, declined: 'compacted' }); return null; }
+  }
+  const held = heldOut(`repeat#${session}`, cfg.repeatHoldout);
+  state.update(st => { notePointed(st, { key: memo.key, prompt }); if (!held) noteRepeat(st, { t: Date.now(), tokens: read.tokens, files: read.files }); });
+  log({ ...row, held, fired: !held });
+  return held ? null : denial({ kind: 'repeat', files: read.files, cwd });
+}
+
+async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, log = () => {}, run = runSubagent, lastPrompt = () => ({}), readCap = 0, client = 'claude', verifier = false, read, suite }) {
   if (!read && !suite) return null;
   // inside a subagent nothing is delegated: those reads *are* the delegation
   if (fromSubagent(ev, client)) return null;
@@ -756,7 +910,12 @@ export async function preToolHook({ ev: raw, store, session, cwd, cfg = delegate
   // own `toolu_*`, one to a call. Devin's is not: its CLI 3000.11.234 sent `read:0#99f0` for every read of a
   // session (test/delegate-handoff.test.js), so there an id says nothing about which call this is.
   if (client === 'claude' && ev.tool_use_id) { let decided = false; state.update(st => { decided = noteDecided(st, ev.tool_use_id); }); if (decided) return null; }
-  return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row), // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
+  return delegateTool({ ev, state, session, cwd, cfg, run, client, verifier, readCap: HOSTS[client].readCap, log: row => store.log(row),
+    // where the context starts again (compactions.js): a copy from before a compaction is no longer in the
+    // model's context, so nothing may be pointed at it. Only read when a pointer is about to go out, and only
+    // the bytes the transcript has grown by since the last look.
+    compactions: ev.transcript_path ? offset => compactionsSince(ev.transcript_path, offset) : null,
+    // what the person asked: Claude Code's transcript holds it; a host with no transcript to read says it itself
     // (`user_prompt`, OpenCode's plugin). Without it the brief asks an explorer to report on a file for a
     // request it was never shown, and the report is a summary of whatever it read first.
     // A host with neither keeps a trace of its own through thinker's hooks (transcripts.js:recordEvent): the
