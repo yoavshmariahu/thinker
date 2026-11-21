@@ -78,13 +78,13 @@ function repo(t) {
 }
 
 // The page's server over a transcripts home that names the repository, with the build spawn captured.
-function page(t, dir) {
+function page(t, dir, opts = {}) {
   const home = tmp('thinker-sync-home-'), th = tmp('thinker-sync-th-');
   const claude = path.join(th, '.claude', 'projects', dir.replace(/[/.]/g, '-')); fs.mkdirSync(claude, { recursive: true });
   fs.writeFileSync(path.join(claude, 's1.jsonl'), JSON.stringify({ type: 'user', cwd: dir, message: 'hi' }) + '\n');
   const spawned = [];
   const spawnFn = (cmd, args, opts) => { const c = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' }); spawned.push({ args, opts, pid: c.pid }); return c; };
-  const ui = createUiServer(new Store(dir), { home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn });
+  const ui = createUiServer(new Store(dir), { home, transcriptsHome: th, cliPath: '/x/cli.js', spawnFn, ...opts });
   const call = (port, p, body) => new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port, path: p, method: body ? 'POST' : 'GET', headers: { host: `127.0.0.1:${port}`, ...(body ? { 'content-type': 'application/json' } : {}) } }, res => {
       let s = ''; res.on('data', d => s += d); res.on('end', () => resolve({ status: res.statusCode, body: s }));
@@ -92,7 +92,7 @@ function page(t, dir) {
     req.on('error', reject); if (body) req.write(JSON.stringify(body)); req.end();
   });
   return {
-    spawned,
+    spawned, home,
     async start() {
       const { port } = await ui.listen(0);
       t.after(async () => { await ui.close(); for (const s of spawned) { try { process.kill(s.pid, 'SIGKILL'); } catch {} } });
@@ -252,7 +252,7 @@ test('the Save tab and `thinker context` show one report, and its controls are t
   assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
   assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
   for (const d of [/REPO = \['report', 'factory'\]\.includes\(hashTab\(\)\) \? hashRepo\(\)/, /CREPO = hashTab\(\) === 'save' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\] \[--here\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|save\|report\|factory\|activity\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
@@ -543,7 +543,7 @@ test('the Report tab and `thinker report` show one report: the same weeks, parts
   assert.match(read('ui/page.html'), /data-tab="report">View Report</);
   assert.match(read('ui/page.html'), /if \(tab === 'cache'\) tab = 'report';/);
   assert.doesNotMatch(read('ui/page.html'), /renderTrend|tr-stack|api\/cache|api\/behaviors|api\/usage/);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab save\|report\|activity\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|save\|report\|factory\|activity\]/);
   assert.match(read('ui/page.html'), /if \(tab === 'save' && H\(\)\.get\('view'\) === 'history'\) tab = 'activity';/);
 });
 
@@ -790,6 +790,83 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
   assert.match(read('cli.js'), /--diff profile\|compression/);
   // the two doors say the attribution rule in the same words
   for (const f of ['factory.js', 'ui/page.html']) assert.match(read(f), /A call's tokens go to the stage of the tool it called; the first call after a prompt is Prompts; a call with no tool is Think\./);
+});
+
+test('the page opens on the chat with Recent activity beside it: `thinker chat` and `thinker activity` are the same function and view, and nothing on either is for the person to do', async t => {
+  // 2026-11-21, the owner's calls: the chat is the page, Recent activity runs down its right side as a line an action
+  // with what it came to, and there is "no more manual action": thinker does its work itself
+  const html = read('ui/page.html');
+  assert.match(html, /show\(H\(\)\.get\('tab'\) \|\| 'chat'\);/, 'no tab named: the chat');
+  assert.match(html, /<button class="nav-link" data-tab="chat"/); assert.match(html, /<section id="tab-chat" hidden>/);
+  assert.match(html, /<aside class="home-side" aria-label="Recent activity">/);
+  assert.match(html, /esc\(f\.impactSaid\)/, 'the page prints the impact the server worded, as the command does');
+  assert.match(read('upkeep.js'), /\$\{f\.impactSaid \? ` {2}\$\{f\.impactSaid\}` : ''\}/);
+  // a pull request may be in review for days: its line carries its link through both doors
+  assert.match(html, /<a href="\$\{esc\(f\.url\)\}" target="_blank" rel="noopener">PR #\$1<\/a>/); assert.match(read('upkeep.js'), /\$\{f\.url \? ` {2}\$\{f\.url\}` : ''\}/);
+  // thinker's own housekeeping is not activity: neither door has a line for a session read or a state file cleared
+  for (const f of ['upkeep.js', 'ui/page.html']) assert.doesNotMatch(read(f), /stale state file|Read \$\{plural\(g\.n, 'session'\)/);
+  // one computation (upkeep.js:upkeepView): the command prints it, the page reads it merged over the repositories
+  assert.match(read('commands/activity.js'), /const v = upkeepView\(store\);/);
+  assert.match(read('ui/server.js'), /mergeUpkeepViews\(pairs\)/);
+  // no manual action through either door: no route and no button to do, leave, undo or look, and no verb for them
+  assert.doesNotMatch(read('ui/server.js'), /\/api\/upkeep\/|upkeepDo\(|upkeepDismiss\(|upkeepUndo\(|upkeepCheck\(/);
+  assert.doesNotMatch(html, /\/api\/upkeep\/|data-do|data-leave|data-undo|Leave it|Look again/);
+  assert.doesNotMatch(read('commands/activity.js'), /upkeepDo|upkeepDismiss|upkeepUndo|setBehavior/);
+  assert.match(read('cli.js'), /activity \[run \[--look\]\] \[--all\] \[--json\]/, 'the flags are in help');
+  assert.match(read('cli.js'), /chat \[message\] \[--json\]/);
+  // doing, leaving and taking back a thing, and how thinker behaves, are said to it: the chat is the one door to them
+  for (const fn of ['setBehavior(', 'steerBehavior(', 'upkeepDo(', 'upkeepDismiss(', 'upkeepUndo(']) assert.ok(read('chat.js').includes(fn), `the chat calls ${fn}`);
+  // "Chat about this" on a line of the side: the line goes into the prompt box as a card and with the message as `about`;
+  // the card is only that -- no button on it says or sends anything ("users can just chat about it, no fixed buttons")
+  assert.match(html, /<button class="side-about" type="button" data-about="a:\$\{i\}">Chat about this<\/button>/); assert.match(html, /data-about="s:\$\{i\}">Chat about this/);
+  assert.match(html, /<div class="chat-box"><div class="chat-attach" id="chat-attach"><\/div><textarea id="chat-input"/, 'the card sits inside the prompt box, over the words');
+  assert.match(html, /\.\.\.\(ref \? \{ about: ref \} : \{\}\)/); assert.match(read('ui/server.js'), /ref: b\.about && typeof b\.about === 'object' \? b\.about : null/);
+  assert.doesNotMatch(html, /More like this|Less like this|data-ref-say/);
+  // the card names its line (`id`), so the chat can be given what thinker knows behind it and answer about the thing
+  assert.match(html, /CHAT_REF = \{ kind, id: x\.id \|\| '', text: x\.text,/); assert.match(read('chat.js'), /known = upkeepDetail\(whose\.store, card\.id, \{ now, home \}\)/);
+  // per session, what was handed to cheaper agents and what that saved: the Report's delegation figure, one rule, both doors
+  assert.match(read('upkeep.js'), /delegationBySession\(\{ events, compression: rows, config,/); assert.match(read('report-savings.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
+  assert.match(html, /Delegated to cheaper agents<\/div><div class="side-total">\$\{esc\(g\.said\)\}/); assert.match(read('upkeep.js'), /`Delegated to cheaper agents · \$\{delegatedTotalSaid\(v\.delegated\)\}`/);
+  assert.match(read('commands/chat.js'), /chatSend\(text, /); assert.match(read('ui/server.js'), /chatSend\(String\(b\.message/);
+  // A visit to the page never has thinker act: the page's own check only looks. Acting is maintenance's clock.
+  assert.match(read('ui/server.js'), /child\(\['activity', 'run', '--look', '--quiet', '--repo', checkout\], checkout\)/);
+  assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
+  const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
+  // by itself, for important things, not often: the defaults both doors describe
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.important, BEHAVIOR.prEveryDays, BEHAVIOR.prsPerDay, BEHAVIOR.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1]);
+  assert.match(read('cli.js'), /at most one pull request a repository a week, one\s+pull request and one tool a day over the machine/);
+
+  // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
+  // save, exactly as the command prints it; what thinker holds back is not on the page at all
+  const dir = repo(t), st = new Store(dir).init();
+  const at = new Date(Date.now() - 3600_000).toISOString();
+  fs.mkdirSync(path.join(st.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(st.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [
+    { id: 'p1', at, key: 'section:AGENTS.md:releases', kind: 'section', title: 'AGENTS.md · Releases', saving: 1200, act: 'compress', decision: 'pull request', via: 'thinker', pr: { number: 12, state: 'open', url: 'https://github.com/o/r/pull/12', at } },
+  ] }));
+  const p = page(t, dir, { chatFn: async () => ({ json: { reply: "I'll wait for your word from now on.", actions: [{ type: 'set', key: 'level', value: 'ask' }] }, model: 'fake' }) });
+  const ui = await p.start();
+  await upkeepCheck(st, { act: false, home: p.home, fns: { view: () => null, findMess: () => ({ worktrees: [], branches: [], kept: [] }) } });
+  const now = Date.now(), shown = await ui.get('/api/upkeep?repo=&look=0'), printed = upkeepView(st, { now, home: p.home });
+  const lines = v => v.feed.filter(f => f.kind === 'pr').map(f => [f.text, f.impactSaid, f.url, f.pr]);
+  assert.deepEqual(lines(shown), [['PR #12 in review: shortens AGENTS.md · Releases', 'about −1.2k tokens per prompt once merged', 'https://github.com/o/r/pull/12', { number: 12, state: 'open' }]]);
+  assert.deepEqual(lines(shown), lines(printed));
+  assert.deepEqual([shown.summary, shown.lastCheck, shown.behaviorSaid, shown.level, shown.later, shown.held], [printed.summary, printed.lastCheck, printed.behaviorSaid, 'auto', 0, 0]);
+  assert.deepEqual([shown.pending, shown.notes, shown.items], [undefined, undefined, undefined], 'nothing listed for the person to work through');
+  for (const route of ['do', 'leave', 'undo', 'look']) assert.equal((await ui.post(`/api/upkeep/${route}`, { repo: '', id: 'sweep' })).status, 404);
+  // the chat: the message is answered, what it changed is said by the server, and the side says the same
+  assert.deepEqual((await ui.get('/api/chat')).messages, []);
+  const said = await ui.post('/api/chat', { message: 'ask me before you do anything', repo: '' });
+  assert.deepEqual(said.messages.map(m => [m.role, m.text]), [['you', 'ask me before you do anything'], ['thinker', "I'll wait for your word from now on."]]);
+  assert.deepEqual(said.messages[1].did, [{ type: 'set', ok: true, text: 'level is now ask on this machine' }]);
+  assert.equal(behaviorOf(st, { home: p.home }).level, 'ask');
+  assert.equal((await ui.get('/api/upkeep?repo=&look=0')).behaviorSaid, 'Thinker does nothing here until you tell it to.');
+  assert.equal((await ui.get('/api/chat')).messages.length, 2);
+  assert.equal((await ui.post('/api/chat', { message: '  ', repo: '' })).status, 400);
+  // a message sent with a card keeps it, cut to what a line is
+  const withCard = await ui.post('/api/chat', { message: 'what is this for?', repo: '', about: { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', url: 'https://github.com/o/r/pull/12', at, extra: 'dropped' } });
+  assert.deepEqual(withCard.messages.at(-2).ref, { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', at, url: 'https://github.com/o/r/pull/12' });
+  assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0 }, sessions: [], said: '' });
 });
 
 test('models from other providers are the command line\'s alone: the page has no door to a key, and every flag is in help', () => {

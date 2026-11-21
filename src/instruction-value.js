@@ -8,13 +8,16 @@
 //             the section's area, ran the command it is about (a commit, a pull request), or read code it names.
 //             Replayed from the transcript's tool events. A section with no trigger is never "applied": the
 //             judge alone says anything about it.
-//   judged    a model call on a 25% sample of sessions as they end (VALUE.share; `instructions: { value: { judge:
-//             false, share } }` in .thinker/config.json turns it off or changes the share; `thinker context --judge n`
-//             judges n more by hand): shown the sections, what the session asked, the
-//             commands it ran, the files it read and edited and its change, it names the sections that bore on
-//             the session and says of each whether the agent followed it, went against it, or neither showed.
-//             Through llm.js:complete, so a desktop app's session answers it (session-llm.js), within the daily
-//             token cap. Logged as op "instruction-value".
+//   judged    in the one pass every session gets when it ends (profile.js:extractObservations, since 2026-11-21, the
+//             owner's call: "each session gets one pass"): the read that takes the session's observations is also
+//             shown the sections that could bear on it (passSections: the ones its tool calls fired, then the ones
+//             with no trigger, up to VALUE.passChars) and says of each that came up whether the agent followed it,
+//             went against it, or neither showed, with a quote the code checks against the session. No call of its
+//             own: until 2026-11-08 a second model call on a 25% sample did this, and from then until this nothing
+//             did -- its caller went with the knowledge notes and the verdicts stopped. `instructions: { value: {
+//             judge: false } }` in .thinker/config.json turns it off, `share` shows the sections to a share of
+//             sessions instead of all. `thinker context --judge n` still judges n sessions by hand, with a call
+//             each, shown the commands, the files and the change (judgeSessionFile). Logged as op "instruction-value".
 //
 // Kept per session in .thinker/state/instruction-value.json (this checkout's, never shared), by the transcript's
 // size so a session that grew is read again.
@@ -50,7 +53,9 @@ export function sections(text) {
   return all;
 }
 
-export const VALUE = { share: 0.25, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60 };
+// `share`: the sessions whose pass is shown the sections (all of them); `passChars`: how much of the instruction files
+// one pass is shown, about 6k tokens on a call that already reads the whole session
+export const VALUE = { share: 1, keepSessions: 500, diffChars: 30_000, sectionsChars: 60_000, commands: 60, passChars: 24_000 };
 // a section bearing on fewer than this share of the sessions that read it, with enough sessions to say so
 export const RARE = { share: 0.1, minSessions: 5 };
 
@@ -342,11 +347,52 @@ export async function judgeSessionFile(store, file, { session, client = null, ph
   return { verdicts: r.verdicts, tokens: r.tokens };
 }
 
-// The end-of-session path (commands/learn.js:distillFile): on a share of sessions by their id, when the switch is on.
-export async function instructionValueCheck(store, file, { session, phase, completeFn = complete, env = process.env } = {}) {
+// --- the session's one pass ----------------------------------------------------------------------------------
+// The sections one session's pass is shown (commands/learn.js:distillFile, profile.js:extractObservations): of the
+// files the session read, the sections its tool calls fired -- by code they bore on the work, and the pass says
+// whether they were kept -- then the ones with no trigger at all, which only a reader can speak for. A section whose
+// trigger did not fire is left out: the code already says it did not come up. Cut at VALUE.passChars, whole sections
+// only, the fired ones first. Empty where the switch is off or the session is outside the share.
+export function passSections(store, events, { session = '', client = null, env = process.env } = {}) {
   const cfg = valueConfig(store, env);
-  if (!cfg.judge || !outcomeSampled(session || file, cfg.share)) return null;
-  return judgeSessionFile(store, file, { session, phase, completeFn });
+  if (!cfg.judge || !outcomeSampled(session, cfg.share)) return [];
+  const files = instructionFiles(store.repo);
+  if (!files.length) return [];
+  const activity = sessionActivity(store.repo, events), touched = touchedFiles(activity);
+  const loaded = new Set(files.filter(f => fileLoaded(f, client, touched)).map(f => f.file));
+  const mine = valueSections(store, files).filter(s => loaded.has(s.file));
+  const fired = appliedSections(mine, activity);
+  const out = []; let used = 0;
+  for (const s of [...mine.filter(s => fired[s.id]), ...mine.filter(s => !s.triggered)]) {
+    if (used + s.text.length > VALUE.passChars) continue;
+    used += s.text.length;
+    out.push({ id: s.id, file: s.file, title: `${s.file} · ${s.parent ? `${s.parent}: ` : ''}${s.title}`, text: s.text });
+  }
+  return out;
+}
+// What the pass said, kept on the session's record where the report reads it (instructionValue: `judged`). A session
+// read in several steps (a long one, read again after it went on) keeps the worst verdict a section got: a rule
+// broken in the morning is not mended by being followed in the afternoon. A pass that was shown sections and named
+// none is recorded too: the session was judged, and nothing bore on it.
+const WORSE = { applicable: 0, followed: 1, violated: 2 };
+export function recordPassVerdicts(store, file, { session, client = null, verdicts = [], shown = 0, now = Date.now() } = {}) {
+  const files = instructionFiles(store.repo);
+  if (!files.length || !shown) return null;
+  const all = valueSections(store, files), srcHash = sha(files.map(f => f.file + f.text).join('\0')), st = readValueState(store);
+  let mtime = now; try { mtime = fs.statSync(file).mtimeMs; } catch {}
+  const id = session || path.basename(file).replace(/\.jsonl?$/, '');
+  const rec = sessionRecord(store, st, { file, session: id, client, mtime }, all, srcHash, files);
+  if (!rec) return null;
+  const ids = new Set(all.map(s => s.id)), merged = { ...(rec.judged?.verdicts || {}) };
+  for (const v of verdicts) {
+    if (!v || !ids.has(v.id) || !(v.verdict in WORSE)) continue;
+    if (!merged[v.id] || WORSE[v.verdict] >= WORSE[merged[v.id].verdict]) merged[v.id] = { verdict: v.verdict, evidence: String(v.evidence || '').slice(0, 300) };
+  }
+  rec.judged = { at: new Date(now).toISOString(), verdicts: merged, by: 'pass' };
+  writeValueState(store, st);
+  // no tokens of its own: they are the profile read's (op "profile")
+  store.log({ op: 'instruction-value', session: id, file: files[0].file, sections: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, v.verdict])), pass: true, shown });
+  return { verdicts: merged };
 }
 
 // Judge `n` sessions not judged yet, sampled over the window (`thinker context --judge n`, the page's button).
