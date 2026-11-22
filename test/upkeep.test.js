@@ -16,7 +16,7 @@ for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: '
 const { Store } = await import('../src/store.js');
 const { appendDelivery } = await import('../src/delivery-journal.js');
 const { findMess, sweep, unsweep, listWorktrees } = await import('../src/upkeep-sweep.js');
-const { upkeepCheck, upkeepPending, upkeepDo, upkeepDismiss, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, upkeepDelegated, delegatedTotalSaid, mergeUpkeepViews, renderUpkeep, behaviorOf, setBehavior, steerBehavior, behaviorSaid, mayAct, readUpkeep, impactSaid, BEHAVIOR, UPKEEP } = await import('../src/upkeep.js');
+const { upkeepCheck, upkeepPending, upkeepDo, upkeepDismiss, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, upkeepDelegated, delegatedTotalSaid, mergeUpkeepViews, renderUpkeep, behaviorOf, setBehavior, steerBehavior, behaviorSaid, mayAct, batchOf, readUpkeep, impactSaid, BEHAVIOR, UPKEEP } = await import('../src/upkeep.js');
 const { delegationBySession } = await import('../src/report-savings.js');
 const { delegateConfig, DELEGATE_DEFAULTS } = await import('../src/delegate.js');
 const { changeHistory, VIA } = await import('../src/context-suggest.js');
@@ -132,36 +132,51 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   const r = repo();
   const { set, ...b } = behaviorOf(r.store);
   assert.deepEqual(b, BEHAVIOR);
-  assert.deepEqual([b.level, b.sweep, b.prs, b.tools, b.important, b.prEveryDays, b.prsPerDay, b.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1], 'on its own, for important things, and not often');
-  assert.equal(behaviorSaid(b), 'Thinker acts on its own here, for important things only: it removes merged worktrees and branches, puts up a pull request for a costly section nobody needs, at most one every 7 days, switches off costly tools nobody calls.');
+  // the owner's answers, 2026-11-21: $1 a day is clear value, a batch once enough has piled up and at most weekly,
+  // sections shortened or removed and tools switched, skills left alone
+  assert.deepEqual([b.level, b.sweep, b.prs, b.remove, b.tools, b.skills, b.minPerDay, b.batchPerDay, b.batchEveryDays, b.followUp, b.followUpDays], ['auto', true, true, true, true, false, 1, 5, 7, true, 7]);
+  assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it removes merged worktrees and branches; shortens or removes instruction sections nobody needs in a pull request and switches off tools nobody calls, but only what saves $1.00 a day or more, together in one batch once that comes to $5.00 a day, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
+  assert.doesNotMatch(behaviorSaid({ ...b, followUp: false }), /takes back what did not pay/);
+  assert.match(behaviorSaid({ ...b, remove: false, tools: false, skills: true }), /it removes merged worktrees and branches; shortens instruction sections nobody needs in a pull request and switches off skills nobody calls, but only/);
   // the machine's wish, then one repository's over it
-  assert.equal(setBehavior(r.store, 'prEveryDays', '30').said, 'prEveryDays is now 30 on this machine');
+  assert.equal(setBehavior(r.store, 'batchEveryDays', '30').said, 'batchEveryDays is now 30 on this machine');
   assert.equal(setBehavior(r.store, 'prs', 'off', { scope: 'repo' }).said, 'prs is now false in this repository');
   const other = repo();
-  assert.deepEqual([behaviorOf(r.store).prs, behaviorOf(r.store).prEveryDays, behaviorOf(other.store).prs, behaviorOf(other.store).prEveryDays], [false, 30, true, 30]);
-  assert.deepEqual(behaviorOf(r.store).set, { machine: { prEveryDays: 30 }, repo: { prs: false } });
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(HOME, 'config.json'), 'utf8')).upkeep, { prEveryDays: 30 });
+  assert.deepEqual([behaviorOf(r.store).prs, behaviorOf(r.store).batchEveryDays, behaviorOf(other.store).prs, behaviorOf(other.store).batchEveryDays], [false, 30, true, 30]);
+  assert.deepEqual(behaviorOf(r.store).set, { machine: { batchEveryDays: 30 }, repo: { prs: false } });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(HOME, 'config.json'), 'utf8')).upkeep, { batchEveryDays: 30 });
+  // dollars are read as a person writes them, to the cent
+  assert.deepEqual([setBehavior(other.store, 'minPerDay', '$2.50', { scope: 'repo' }).value, setBehavior(other.store, 'batchPerDay', 12.345, { scope: 'repo' }).value], [2.5, 12.35]);
   // nothing unknown is written, and a hand-edited file is read the same way
   assert.match(setBehavior(r.store, 'recklessness', 'max').error, /there is no setting called recklessness/);
   assert.match(setBehavior(r.store, 'level', 'yolo').error, /level cannot be "yolo"/);
-  assert.match(setBehavior(r.store, 'prEveryDays', 0).error, /prEveryDays cannot be 0/);
-  assert.equal(behaviorOf(repo({ upkeep: { level: 'yolo', prsPerDay: 'many', tools: false } }).store).level, 'auto');
+  assert.match(setBehavior(r.store, 'batchEveryDays', 0).error, /batchEveryDays cannot be 0/);
+  assert.match(setBehavior(r.store, 'minPerDay', 'lots').error, /minPerDay cannot be "lots"/);
+  assert.equal(behaviorOf(repo({ upkeep: { level: 'yolo', batchPerDay: 'many', tools: false } }).store).level, 'auto');
   assert.equal(behaviorOf(repo({ upkeep: { tools: false } }).store).tools, false);
+  // a setting of the rules before 2026-11-21 (one pull request a week, the high-waste share) is read as nothing
+  assert.deepEqual(behaviorOf(repo({ upkeep: { important: 'medium', prEveryDays: 30 } }).store).set.repo, {});
   assert.equal(behaviorOf(repo({ upkeep: false }).store).level, 'off');
   assert.equal(behaviorSaid(behaviorOf(repo({ upkeep: { level: 'ask' } }).store)), 'Thinker does nothing here until you tell it to.');
   freshHome();
 });
 
-// a kept Context report: a costly section, a second one, a cheap one, and a tool, each as the Context report flags them
-const section = (id, title, waste, wastedWindow) => ({ id, file: 'AGENTS.md', title, tokens: 2000, wasted: 30_000, wastedWindow, waste, usedShare: 0.02, text: `About ${title}.` });
+// A kept Context report, each part by what it wasted over the week at $5 a million tokens: Releases $2.86 a day,
+// Ports $1.43, Style $0.64 (under the $1 a day that is worth acting on), and the Workflow tool $1.50.
+const section = (id, title, waste, wastedWindow, usedShare = 0.02) => ({ id, file: 'AGENTS.md', title, tokens: 2000, wasted: 30_000, wastedWindow, waste, usedShare, text: `About ${title}.` });
 const view = () => ({
   days: 7, sessions: 40, rate: { perToken: 5e-6 },
   instructions: { sessions: 40, sections: [section('releases', 'Releases', 'high', 4_000_000), section('ports', 'Ports', 'high', 2_000_000), section('style', 'Style', 'medium', 900_000)] },
   skills: [], outputs: { tools: [] },
-  tools: [{ name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', used: 0, loaded: 40, tokens: 3000, wasted: 20_000, wastedWindow: 1_000_000, waste: 'high' }],
+  tools: [{ name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', used: 0, loaded: 40, tokens: 3000, wasted: 20_000, wastedWindow: 2_100_000, waste: 'high' }],
 });
 // the same report with no tool in it: a tool switch writes the agent's own settings, which no test here does
 const sectionsOnly = () => ({ ...view(), tools: [] });
+// its two sections worth acting on come to $4.29 a day, under the $5 a batch goes at; with a third that no prompt
+// needed at all ($1.25 a day) enough has piled up: $5.54
+const withSections = (...more) => ({ ...sectionsOnly(), instructions: { sessions: 40, sections: [...sectionsOnly().instructions.sections, ...more] } });
+const piled = () => withSections(section('legacy', 'Legacy', 'high', 1_750_000, 0));
+const WAITS = 'the changes worth making come to $4.29 a day together so far, and a batch goes at $5.00';
 const spawned = () => { const calls = []; return { calls, spawn: (cmd, args) => { calls.push(args); return { pid: process.pid, on() {}, unref() {} }; } }; };
 // the functions a check is given in place of the machine: the report, whether a pull request can be opened, the sweep
 const given = (sp, { canPr = true, kb = 3 * 1024 * 1024, report = sectionsOnly } = {}) => ({ view: report, prAvailable: () => ({ ok: canPr }), spawn: sp.spawn, findMess: s => findMess(s, { now: LATER(), cwds: [], sizeOf: () => kb }), sweep: (s, m) => sweep(s, m, { now: LATER(), cwds: [] }) });
@@ -177,14 +192,14 @@ test('told to wait for the person\'s word, a check does nothing: what is importa
   assert.deepEqual(check.did, []); assert.equal(check.pending, 4); assert.equal(sp.calls.length, 0); assert.ok(fs.existsSync(done));
   const { pending, notes, lastCheck } = upkeepPending(r.store);
   assert.ok(lastCheck); assert.deepEqual(notes, []);
-  // the cheap section is not important: it is not held at all, it stays in `thinker context`
+  // the cheap section is under the bar: it is not held at all, it stays in `thinker context`
   assert.deepEqual(pending.map(i => [i.id, i.kind, i.title, i.why, Boolean(i.later)]), [
     ['change:section:AGENTS.md:releases', 'pr', 'AGENTS.md · Releases', 'you asked to be asked first', false],
     ['change:section:AGENTS.md:ports', 'pr', 'AGENTS.md · Ports', 'you asked to be asked first', false],
     ['sweep', 'do', '1 merged worktree and 1 branch can go · 3.0 GB', 'you asked to be asked first', false],
     ['change:claude:builtin:Workflow', 'do', 'Workflow tool', 'you asked to be asked first', false],
   ]);
-  assert.match(pending[0].detail, /^Needed in 2% of prompts; ~2k tokens in every model call\. About \$20\.0 went on it unused over the last 7 days\.$/);
+  assert.match(pending[0].detail, /^Needed in 2% of prompts; ~2k tokens in every model call\. About \$20\.0 went on it unused over the last 7 days, \$2\.86 a day\.$/);
   // neither door lists these as things to do: both say how much is held, and what was done
   const v = upkeepView(r.store);
   assert.deepEqual([v.summary, v.later, v.held, v.level], ['4 held back until you say.', 0, 4, 'ask']);
@@ -194,7 +209,7 @@ test('told to wait for the person\'s word, a check does nothing: what is importa
   // a kind switched off is held for that reason; the rest go ahead
   const q = repo({ upkeep: { prs: false } });
   await upkeepCheck(q.store, { fns: { ...given(spawned()), findMess: none }, act: false });
-  assert.deepEqual(upkeepPending(q.store).pending.map(i => i.why), ['you told it not to (prs is off)', 'you told it not to (prs is off)']);
+  assert.deepEqual(upkeepPending(q.store).pending.map(i => i.why), ['pull requests are switched off here', 'pull requests are switched off here']);
 });
 
 test('on the person\'s word (the chat\'s do, leave and undo): done at once whatever the limits, left for three months, and what is taken back stays back', async () => {
@@ -262,11 +277,12 @@ test('a decision is taken back where its history is kept, its pull request close
   // the section is flagged again by the Context report (its decision was reverted), and thinker leaves it be
   const sp = spawned();
   const check = await upkeepCheck(r.store, { fns: { ...given(sp), findMess: none }, now: now + 10 * DAY });
-  assert.deepEqual(check.did.map(d => d.id), ['change:section:AGENTS.md:ports']);
+  assert.deepEqual(check.did, []);
+  assert.deepEqual(upkeepPending(r.store, { now: now + 10 * DAY }).pending.map(i => [i.id, i.why]), [['change:section:AGENTS.md:ports', 'the changes worth making come to $1.43 a day together so far, and a batch goes at $5.00']], 'what was taken back is not counted towards the next batch');
   assert.match((await upkeepUndo(r.store, 'h:nope')).error, /no such decision/);
 });
 
-test('by itself: the important things, one pull request at a time and not often, and a look does nothing', async () => {
+test('by itself: only what clearly pays, together as one batch and one pull request once enough has piled up, at most weekly, and a look does nothing', async () => {
   freshHome();
   const r = repo();
   const done = tree(r, 'done'); r.commit('done.txt', done); mergeIn(r, 'agent/done');
@@ -275,49 +291,178 @@ test('by itself: the important things, one pull request at a time and not often,
   // a look (all a visit to the page starts) finds and keeps, and does nothing
   const look = await upkeepCheck(r.store, { fns, act: false, now });
   assert.deepEqual(look.did, []); assert.equal(sp.calls.length, 0); assert.ok(fs.existsSync(done));
-  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => [i.id, i.why, i.later]), [['change:section:AGENTS.md:releases', 'at its next check', true], ['change:section:AGENTS.md:ports', 'at its next check', true], ['sweep', 'at its next check', true]]);
-  assert.equal(upkeepView(r.store, { now }).summary, '3 changes waiting their turn.');
-  // a check: the costliest section as a pull request, the sweep, and nothing else
+  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => [i.id, i.why, i.later]), [['change:section:AGENTS.md:releases', WAITS, true], ['change:section:AGENTS.md:ports', WAITS, true], ['sweep', 'at its next check', true]]);
+  assert.deepEqual(upkeepPending(r.store, { now }).batch, { changes: 2, perDay: 30 / 7, ok: false, later: true, why: WAITS });
+  assert.equal(upkeepView(r.store, { now }).summary, '2 changes worth $4.29 a day waiting for the next batch, 1 more waiting its turn.');
+  // a check: the sweep goes on its own turn; the sections wait for more to pile up, and no pull request is opened
   const check = await upkeepCheck(r.store, { fns, now });
-  assert.deepEqual(check.did.map(d => d.id), ['change:section:AGENTS.md:releases', 'sweep']);
-  assert.equal(check.pending, 1);
-  assert.deepEqual(sp.calls.map(c => c.slice(1, 5)), [['instructions', '--compress', 'releases', '--pr']], 'the second section waits: one pull request at a time');
-  assert.ok(!fs.existsSync(done));
-  assert.equal(changeHistory(r.store)[0].via, VIA.thinker);
-  assert.deepEqual(upkeepFeed(r.store, { now }).filter(f => ['did', 'change'].includes(f.kind)).map(f => f.by), ['thinker', 'thinker']);
+  assert.deepEqual(check.did.map(d => d.id), ['sweep']);
+  assert.equal(check.pending, 2); assert.equal(sp.calls.length, 0); assert.ok(!fs.existsSync(done));
   assert.match(renderUpkeep(upkeepView(r.store, { now }), { now }).join('\n'), /Removed 1 merged worktree and 1 branch {2}3\.0 GB freed \(on its own\)/);
-  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => [i.id, i.why]), [['change:section:AGENTS.md:ports', 'one pull request every 7 days here']]);
-  // the same day, the next week with the first still open, and a week on with it merged
-  const merged = () => { const f = path.join(r.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(f, 'utf8')); for (const e of st.history) { e.job = { ...e.job, state: 'done' }; e.pr = { number: 5, state: 'merged', at: new Date(now).toISOString(), pulledAt: new Date(now).toISOString() }; } fs.writeFileSync(f, JSON.stringify(st)); };
-  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now + 3600_000 })).did, []);
-  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now + 8 * DAY })).did, [], 'never a second pull request while one is open or being made');
-  merged();
-  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now + 3 * DAY })).did, [], 'nor inside the week');
-  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now + 8 * DAY })).did.map(d => d.id), ['change:section:AGENTS.md:ports']);
-  assert.equal(sp.calls.length, 2);
-  assert.equal(upkeepView(r.store, { now: now + 8 * DAY }).summary, 'Up to date.');
-  assert.deepEqual(mayAct(r.store, { important: false, action: {}, allow: 'sweep', kind: 'do', chore: 'sweep' }, BEHAVIOR), { ok: false }, 'what is not important is never done');
+  // a third section crosses the bar and enough has piled up: everything worth making goes at once, as one job and
+  // one pull request -- the section no prompt needed at all removed, the others shortened
+  const batch = await upkeepCheck(r.store, { fns: { ...fns, view: piled }, now: now + DAY });
+  assert.deepEqual(batch.did.map(d => [d.id, d.kind, d.said]), [['batch', 'batch', 'Sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1']]);
+  assert.deepEqual(sp.calls.map(c => c.slice(1)), [['instructions', '--compress', 'releases,ports', '--remove', 'legacy', '--pr', '--job', changeHistory(r.store)[0].group]]);
+  const h = changeHistory(r.store);
+  assert.deepEqual(h.map(e => [e.section, e.act, e.job.action, e.via]).sort(), [['legacy', 'remove', 'remove', VIA.thinker], ['ports', 'compress', 'compress', VIA.thinker], ['releases', 'compress', 'compress', VIA.thinker]]);
+  assert.equal(new Set(h.map(e => e.group)).size, 1); assert.equal(new Set(h.map(e => e.batch)).size, 1); assert.ok(h[0].batch);
+  assert.deepEqual(upkeepPending(r.store, { now: now + DAY }).pending, []);
+  // ... and one line of the activity for all of it: what it is doing, and what was expected of it until it merges
+  const lines = upkeepFeed(r.store, { now: now + DAY });
+  assert.deepEqual(lines.map(f => [f.text, f.impactSaid, f.by, f.steer]), [['Batch of 3: shortening 2 sections and removing 1', 'about −90k tokens per prompt once merged', 'thinker', 'changes'], ['Removed 1 merged worktree and 1 branch', '3.0 GB freed', 'thinker', 'sweep']]);
+  assert.equal(lines[0].id, `b:${h[0].batch}`); assert.deepEqual(lines[0].batch, { changes: 3, sections: 3, tools: 0 });
+  // More piles up. While the first is still being made nothing is started; then the batch waits its week, and not
+  // for the first one's pull request: with #5 still in review a week on, another is opened ("open another")
+  const next = { ...fns, view: () => withSections(section('deploy', 'Deploy', 'high', 5_000_000), section('oncall', 'On call', 'high', 3_000_000)) };
+  assert.deepEqual((await upkeepCheck(r.store, { fns: next, now: now + DAY + 3600_000 })).did, []);
+  assert.deepEqual([...new Set(upkeepPending(r.store, { now: now + DAY + 3600_000 }).pending.map(i => i.why))], ['a change is still being made here']);
+  const opened = () => { const f = path.join(r.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(f, 'utf8')); for (const e of st.history) { e.job = { ...e.job, state: 'done' }; e.decision = 'pull request'; e.pr = { number: 5, state: 'open', url: 'https://github.com/o/r/pull/5', branch: 'thinker/context-1', openedAt: new Date(now + DAY).toISOString() }; } fs.writeFileSync(f, JSON.stringify(st)); };
+  opened();
+  assert.deepEqual((await upkeepCheck(r.store, { fns: next, now: now + 3 * DAY })).did, [], 'inside the week');
+  assert.deepEqual([...new Set(upkeepPending(r.store, { now: now + 3 * DAY }).pending.map(i => i.why))], ['one batch every 7 days here, and the last went 2 days ago']);
+  const second = await upkeepCheck(r.store, { fns: next, now: now + 9 * DAY });
+  assert.deepEqual(second.did.map(d => d.said), ['Sent a batch of 2 changes worth about $5.71 a day: a pull request that shortens 2 sections']);
+  assert.deepEqual(sp.calls[1].slice(1, 5), ['instructions', '--compress', 'deploy,oncall', '--pr']);
+  assert.equal(upkeepView(r.store, { now: now + 9 * DAY }).summary, 'Up to date.');
+  // the line of the first batch now says where its pull request stands, and carries its link and the id that takes it back
+  const first = upkeepFeed(r.store, { now: now + 9 * DAY }).find(f => f.id === `b:${h[0].batch}`);
+  assert.deepEqual([first.text, first.url, first.pr, first.impactSaid, first.undo, first.kind], ['Batch of 3: PR #5 in review shortens 2 sections and removes 1', 'https://github.com/o/r/pull/5', { number: 5, state: 'open' }, 'about −90k tokens per prompt once merged', `b:${h[0].batch}`, 'pr']);
+  assert.deepEqual(mayAct(r.store, { important: false, action: {}, allow: 'sweep', kind: 'do', chore: 'sweep' }, BEHAVIOR), { ok: false }, 'what is not worth doing is never done');
 });
 
-test('by itself, over the machine: a tool a day and a pull request a day however many repositories, a small sweep waits, and its own failure is tried again', async () => {
+test('what a batch may hold: sections shortened or removed and tools, never a skill unless told, and each kind as its setting says', async () => {
   freshHome();
-  const a = repo(), b = repo(), sp = spawned(), now = Date.now();
-  assert.equal((await upkeepCheck(a.store, { fns: { ...given(sp), findMess: none }, now })).did.length, 1);
-  const second = await upkeepCheck(b.store, { fns: { ...given(sp), findMess: none }, now: now + 3600_000 });
-  assert.deepEqual(second.did, [], 'the machine has had its pull request for the day');
-  assert.deepEqual(upkeepPending(b.store, { now: now + 3600_000 }).pending.map(i => i.why), ['1 pull request a day over the machine', '1 pull request a day over the machine']);
-  assert.equal((await upkeepCheck(b.store, { fns: { ...given(sp), findMess: none }, now: now + DAY + 3600_000 })).did.length, 1);
-  // a tool is thinker's to switch too, one a day over the machine (asked of mayAct: doing it would write the agent's settings)
-  const tool = { id: 'change:claude:builtin:Workflow', important: true, action: {}, allow: 'tools', kind: 'do', chore: 'context' };
-  assert.deepEqual(mayAct(a.store, tool, BEHAVIOR, { now }), { ok: true });
-  fs.writeFileSync(path.join(HOME, 'state', 'upkeep.json'), JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(HOME, 'state', 'upkeep.json'), 'utf8')), tools: [new Date(now).toISOString()] }));
-  assert.deepEqual(mayAct(b.store, tool, BEHAVIOR, { now: now + 3600_000 }), { ok: false, later: true, why: 'one tool every 1 day over the machine' });
-  assert.equal(mayAct(b.store, tool, { ...BEHAVIOR, toolEveryDays: 4 }, { now: now + 3 * DAY }).ok, false, 'steered to less: one every four days');
-  assert.deepEqual(mayAct(b.store, tool, BEHAVIOR, { now: now + DAY + 3600_000 }), { ok: true });
-  assert.deepEqual(mayAct(a.store, tool, { ...BEHAVIOR, tools: false }, { now }), { ok: false, why: 'you told it not to (tools is off)' });
+  const q = repo(), now = Date.now();
+  const item = (allow, perDay) => ({ id: `change:x:${allow}`, chore: 'context', kind: allow === 'prs' || allow === 'remove' ? 'pr' : 'do', allow, important: true, perDay, action: {}, data: { key: `x:${allow}` } });
+  const items = [item('prs', 3), item('remove', 2), item('tools', 2), item('skills', 9)];
+  const of = b => { const x = batchOf(q.store, b, { now, items }); return [x.items.map(i => i.allow), x.perDay, x.ok]; };
+  assert.deepEqual(of(BEHAVIOR), [['prs', 'remove', 'tools'], 7, true], 'skills are left alone (the owner\'s answer)');
+  assert.deepEqual(of({ ...BEHAVIOR, skills: true, remove: false, tools: false }), [['prs', 'skills'], 12, true]);
+  assert.deepEqual(of({ ...BEHAVIOR, prs: false }), [['tools'], 2, false], 'a removal is a pull request too');
+  assert.equal(batchOf(q.store, { ...BEHAVIOR, batchPerDay: 10 }, { now, items }).why, 'the changes worth making come to $7.00 a day together so far, and a batch goes at $10.0');
+  assert.deepEqual(batchOf(q.store, { ...BEHAVIOR, level: 'ask' }, { now, items }).why, 'you asked to be asked first');
+  // asked of one item: its kind's setting first, then the batch it would go with
+  assert.deepEqual(mayAct(q.store, items[3], BEHAVIOR, { now }), { ok: false, why: 'skills are left alone unless you say otherwise' });
+  assert.deepEqual(mayAct(q.store, items[2], { ...BEHAVIOR, tools: false }, { now }), { ok: false, why: 'switching tools is switched off here' });
+  assert.deepEqual(mayAct(q.store, items[1], { ...BEHAVIOR, remove: false }, { now }), { ok: false, why: 'it may shorten a section here but not remove one' });
+  assert.deepEqual(mayAct(q.store, items[0], BEHAVIOR, { now, batch: batchOf(q.store, BEHAVIOR, { now, items }) }), { ok: true });
+  // the tool of the report goes with the sections where they pile up together ($2.86 + $1.43 + $1.50): held as one batch
+  await upkeepCheck(q.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
+  assert.deepEqual(upkeepPending(q.store, { now }).batch, { changes: 3, perDay: (4_000_000 + 2_000_000 + 2_100_000) * 5e-6 / 7, ok: true });
+  assert.equal(upkeepView(q.store, { now }).summary, '3 changes worth $5.79 a day going out in the next batch.');
+  // over all repositories the tool is one change (it is switched for the machine), worth what it wastes in each
+  const q2 = repo();
+  await upkeepCheck(q2.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
+  const both = mergeUpkeepViews([{ repo: 'a', name: 'o/a', view: upkeepView(q.store, { now }) }, { repo: 'b', name: 'o/b', view: upkeepView(q2.store, { now }) }]);
+  assert.deepEqual([both.batch.changes, Math.round(both.batch.perDay * 100) / 100, both.summary], [5, 11.57, '5 changes worth $11.6 a day going out in the next batch.']);
+  // a change kept by a check from before the bar was dollars has no figure: it is not held, and the next check prices it
+  const old = repo();
+  fs.mkdirSync(path.join(old.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(old.store.dir, 'state', 'upkeep.json'), JSON.stringify({ lastCheck: new Date(now).toISOString(), items: [{ id: 'change:section:AGENTS.md:releases', chore: 'context', kind: 'pr', allow: 'prs', important: true, title: 'AGENTS.md · Releases', action: { label: 'x' }, data: { key: 'section:AGENTS.md:releases' } }] }));
+  assert.deepEqual([upkeepPending(old.store, { now }).pending, upkeepView(old.store, { now }).summary], [[], 'Up to date.']);
+  // where a section was needed at all, or by too few sessions to say, it is shortened, never removed
+  const few = repo(), sp = spawned();
+  await upkeepCheck(few.store, { fns: { ...given(sp, { report: () => ({ ...piled(), sessions: 4, instructions: { ...piled().instructions, sessions: 4 } }) }), findMess: none }, now });
+  assert.deepEqual(sp.calls[0].slice(1, 5), ['instructions', '--compress', 'releases,ports,legacy', '--pr']);
+});
+
+test('a pull request of thinker\'s own closed without merging is a no: its sections are left alone for three months', async () => {
+  freshHome();
+  const r = repo(), now = Date.now(), at = new Date(now - 10 * DAY).toISOString();
+  fs.mkdirSync(path.join(r.store.dir, 'state'), { recursive: true });
+  const closed = (id, key, via) => ({ id, at, key, kind: 'section', title: `AGENTS.md · ${id}`, saving: 1200, act: 'compress', decision: 'pull request', via, pr: { number: 12, state: 'closed', at } });
+  fs.writeFileSync(path.join(r.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [closed('p1', 'section:AGENTS.md:releases', 'thinker'), closed('p2', 'section:AGENTS.md:legacy', 'command')] }));
+  const sp = spawned(), fns = { ...given(sp, { report: piled }), findMess: none };
+  // Releases was thinker's and was turned down; Legacy was the person's own pull request, which is theirs to try again
+  assert.deepEqual((await upkeepCheck(r.store, { fns, now })).did, []);
+  assert.deepEqual(upkeepPending(r.store, { now }).pending.map(i => i.id), ['change:section:AGENTS.md:ports', 'change:section:AGENTS.md:legacy']);
+  assert.equal(upkeepPending(r.store, { now }).batch.why, 'the changes worth making come to $2.68 a day together so far, and a batch goes at $5.00');
+  // three months after it was closed it may be put up again
+  const later = now + 81 * DAY;
+  assert.deepEqual((await upkeepCheck(r.store, { fns, now: later })).did.map(d => d.said), ['Sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1']);
+});
+
+test('a week on, each change of a batch is checked once: what paid is kept, what backfired is taken back, said, and not tried again', async () => {
+  freshHome();
+  const r = repo(), now = Date.now(), at = new Date(now - 9 * DAY).toISOString(), mergedAt = new Date(now - 8 * DAY).toISOString();
+  const dir = path.join(r.store.dir, 'state');
+  fs.mkdirSync(dir, { recursive: true });
+  // a batch of thinker's own, nine days ago: two sections shortened by a pull request that merged a day later, three
+  // tools made references at once
+  const sec = (id, title) => ({ id, group: 'g1', batch: 'b1', at, via: 'thinker', key: `section:AGENTS.md:${title.toLowerCase()}`, kind: 'section', title: `AGENTS.md · ${title}`, file: 'AGENTS.md', section: title.toLowerCase(), saving: 20_000, act: 'compress', decision: 'pull request', job: { state: 'done', action: 'compress', pr: true }, pr: { number: 12, state: 'merged', url: 'https://github.com/o/r/pull/12', at: mergedAt, mergeCommit: 'abc', pulledAt: mergedAt } });
+  const tool = (id, name) => ({ id, batch: 'b1', at, via: 'thinker', key: `claude:builtin:${name}`, kind: 'tool', title: `${name} tool`, saving: 3000, act: 'off', action: 'Create tool reference', decision: 'approved' });
+  fs.writeFileSync(path.join(dir, 'context-suggest.json'), JSON.stringify({ history: [sec('p1', 'Releases'), sec('p2', 'Ports'), tool('t1', 'Workflow'), tool('t2', 'Agent'), tool('t3', 'Canva')] }));
+  fs.writeFileSync(path.join(dir, 'upkeep.json'), JSON.stringify({ done: [{ id: 'b1', at, item: 'batch', chore: 'context', kind: 'batch', title: 'A batch of 5 changes', said: 'Sent a batch of 5 changes', by: 'thinker', kept: true, batch: { keys: [], perDay: 9 } }] }));
+  // since then: sessions kept breaking the Releases rule, which they had not before; Ports came up and was followed
+  const judged = (d, verdicts) => ({ judged: { at: new Date(now - d * DAY).toISOString(), verdicts } }), v = (id, verdict) => ({ [id]: { verdict, evidence: 'x' } });
+  fs.writeFileSync(path.join(dir, 'instruction-value.json'), JSON.stringify({ sessions: {
+    a1: judged(1, v('releases', 'violated')), a2: judged(2, v('releases', 'violated')), a3: judged(3, { ...v('releases', 'violated'), ...v('ports', 'followed') }), a4: judged(4, v('Releases', 'violated')), a5: judged(5, v('releases', 'followed')),
+    b1: judged(10, v('releases', 'followed')), b2: judged(11, v('releases', 'followed')), b3: judged(12, v('releases', 'violated')),
+  } }));
+  // the sessions on both sides, five each: the Workflow tool's definition is gone from a prompt since; Canva's costs
+  // what it did; the Agent tool was still called in 14% of prompts over the report's week
+  const row = (d, sources) => ({ t: now - d * DAY, input: 1_000_000, prompts: 100, sources });
+  const rows = [...[14, 13, 12, 11, 10].map(d => row(d, { 'claude:builtin:Workflow': 300_000, 'claude:builtin:Canva': 300_000 })), ...[5, 4, 3, 2, 1].map(d => row(d, { 'claude:builtin:Canva': 300_000 }))];
+  const report = () => ({ ...sectionsOnly(), instructions: { sessions: 40, sections: [] }, tools: [{ name: 'Agent', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Agent', label: 'Agent tool', off: true, usedShare: 0.14, tokens: 100 }, { name: 'Workflow', kind: 'tool', group: 'builtin', client: 'claude', key: 'builtin:Workflow', label: 'Workflow tool', off: true, usedShare: 0.01, tokens: 100 }] });
+  const calls = [], fns = { view: report, findMess: none, prAvailable: () => ({ ok: true }), report: () => ({ rows }),
+    revert: async (store, id) => { calls.push(['revert', id]); return id === 't3' ? { error: 'the settings file changed since' } : { said: 'turned back on' }; },
+    restore: async (store, id, o) => { calls.push(['restore', id, o.why]); return { said: 'opened', pr: { number: 31, url: 'https://github.com/o/r/pull/31' } }; } };
+  // inside the week nothing is looked at
+  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now - 3 * DAY })).did, []);
+  assert.deepEqual(readUpkeep(r.store).followed, {});
+  const check = await upkeepCheck(r.store, { fns, now });
+  assert.deepEqual(check.did.map(d => d.said), [
+    'Opened PR #31 to put AGENTS.md · Releases back as it was: agents broke it in 4 of the 5 sessions it came up in since it was shortened (1 of 3 over as long before)',
+    'Turned Agent tool back on: it was still called in 14% of prompts after it was made a reference',
+  ]);
+  assert.deepEqual(calls, [['restore', 'p1', 'agents broke it in 4 of the 5 sessions it came up in since it was shortened (1 of 3 over as long before)'], ['revert', 't2'], ['revert', 't3']]);
+  const f = readUpkeep(r.store).followed;
+  assert.deepEqual(Object.fromEntries(Object.entries(f).map(([k, x]) => [k, [x.verdict, x.why]])), {
+    p1: ['undone', 'agents broke it in 4 of the 5 sessions it came up in since it was shortened (1 of 3 over as long before)'],
+    t1: ['kept', 'it saves 3k tokens a prompt, over 5 sessions since'],
+    t2: ['undone', 'it was still called in 14% of prompts after it was made a reference'],
+    t3: ['retry', 'it saved nothing: it cost 3k tokens a prompt before and 3k since'],
+  }, 'Ports is not judged yet: nothing has measured it, and it is looked at again');
+  // what was taken back is not put up again, and each is a line of the activity with its link
+  assert.deepEqual(Object.keys(readUpkeep(r.store).dismissed).sort(), ['change:claude:builtin:Agent', 'change:section:AGENTS.md:releases']);
+  const lines = upkeepFeed(r.store, { now, log: [], report: { rows, rate: 5e-6 } }).filter(l => l.kind === 'did');
+  assert.deepEqual(lines.map(l => [l.text.split(':')[0], l.url, l.by, l.steer]).sort(), [['Opened PR #31 to put AGENTS.md · Releases back as it was', 'https://github.com/o/r/pull/31', 'thinker', 'changes'], ['Turned Agent tool back on', undefined, 'thinker', 'changes']]);
+  // the next checks: nothing is judged twice; the undo that failed is tried again, three times in all, then held
+  calls.length = 0;
+  assert.deepEqual((await upkeepCheck(r.store, { fns, now: now + 3600_000 })).did, []);
+  await upkeepCheck(r.store, { fns, now: now + 2 * 3600_000 });
+  assert.deepEqual(calls, [['revert', 't3'], ['revert', 't3']]);
+  assert.deepEqual([readUpkeep(r.store).followed.t3.verdict, readUpkeep(r.store).followed.t3.error], ['held', 'the settings file changed since']);
+  await upkeepCheck(r.store, { fns, now: now + 3 * 3600_000 });
+  assert.equal(calls.length, 2);
+  // a month on with nothing to measure it by, Ports is left as it is
+  await upkeepCheck(r.store, { fns, now: now + 21 * DAY });
+  assert.deepEqual([readUpkeep(r.store).followed.p2.verdict, readUpkeep(r.store).followed.p2.why], ['kept', 'no session since could measure it']);
+  // what the chat is given about the batch says what each check found
+  const facts = upkeepDetail(r.store, 'b:b1', { now, log: [], report: { rows, rate: 5e-6 } }).join('\n');
+  assert.match(facts, /Workflow tool[^\n]*\n(?: {2}[^\n]*\n)* {2}Checked on [A-Z][a-z]+ \d+: kept: it saves 3k tokens a prompt, over 5 sessions since\./);
+  assert.match(facts, /Agent tool[^\n]*\n(?: {2}[^\n]*\n)* {2}Checked on [A-Z][a-z]+ \d+: taken back, because it was still called in 14% of prompts after it was made a reference\./);
+  // told not to, thinker checks nothing; and a change the person asked for by name is never taken back by it
+  const q = repo({ upkeep: { followUp: false } });
+  fs.mkdirSync(path.join(q.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(q.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [tool('t2', 'Agent')] }));
+  fs.writeFileSync(path.join(q.store.dir, 'state', 'upkeep.json'), JSON.stringify({ done: [{ id: 'b1', at, item: 'batch', chore: 'context', kind: 'batch', said: 'x', by: 'thinker', kept: true }] }));
+  calls.length = 0;
+  await upkeepCheck(q.store, { fns, now });
+  setBehavior(q.store, 'followUp', true, { scope: 'repo' });
+  fs.writeFileSync(path.join(q.store.dir, 'state', 'upkeep.json'), JSON.stringify({ done: [{ id: 'b1', at, item: 'batch', chore: 'context', kind: 'batch', said: 'x', by: 'you', kept: true }] }));
+  await upkeepCheck(q.store, { fns, now });
+  assert.deepEqual(calls, []);
+  freshHome();
+});
+
+test('by itself: no pull request, no section; a small sweep waits; and its own failure is tried again', async () => {
+  freshHome();
+  const now = Date.now();
   // where no pull request can be opened a section is not thinker's to change at all: not done, not held
   const c = repo(), sp2 = spawned();
-  assert.deepEqual((await upkeepCheck(c.store, { fns: { ...given(sp2, { canPr: false }), findMess: none }, now: now + 3 * DAY })).did, []);
+  assert.deepEqual((await upkeepCheck(c.store, { fns: { ...given(sp2, { canPr: false, report: piled }), findMess: none }, now: now + 3 * DAY })).did, []);
   assert.equal(sp2.calls.length, 0); assert.deepEqual(upkeepPending(c.store, { now: now + 3 * DAY }).pending, []);
   // a single stray branch is not worth acting on; told that it is, thinker removes it
   const e = repo(); e.git(['branch', 'left-over', 'main']);
@@ -326,16 +471,17 @@ test('by itself, over the machine: a tool a day and a pull request a day however
   assert.deepEqual(upkeepPending(e.store, { now }).pending, []);
   setBehavior(e.store, 'sweepMin', 1, { scope: 'repo' });
   assert.deepEqual((await upkeepCheck(e.store, { fns: small, now })).did.map(x => x.said), ['Removed 1 merged branch']);
-  // a change of its own that failed is tried again a day later, three times in all, with nobody asked
+  // a batch of its own that failed is tried again a day later, three times in all, with nobody asked: the same
+  // sections by the same actions
   const f = repo(), sp3 = spawned(), fail = () => { const file = path.join(f.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(file, 'utf8')); for (const x of st.history) x.job = { ...x.job, state: 'failed', error: 'the model timed out', finishedAt: new Date(now + 20 * DAY).toISOString() }; fs.writeFileSync(file, JSON.stringify(st)); };
-  const once = { ...given(sp3), findMess: none };
+  const once = { ...given(sp3, { report: piled }), findMess: none };
   await upkeepCheck(f.store, { fns: once, now: now + 20 * DAY });
   assert.equal(sp3.calls.length, 1); fail();
   assert.deepEqual((await upkeepCheck(f.store, { fns: once, now: now + 20 * DAY + 3600_000 })).did, [], 'not within the day');
   assert.deepEqual(upkeepPending(f.store, { now: now + 20 * DAY + 3600_000 }).pending.filter(i => i.chore === 'waiting').map(i => [i.title, i.why]), [['Trying again: AGENTS.md · Releases', 'it is tried again a day after it failed']]);
   const again = await upkeepCheck(f.store, { fns: once, now: now + 21 * DAY + 3600_000 });
   assert.deepEqual(again.did.map(d => d.id.replace(/:[0-9a-f]+$/, '')), ['wait:job']);
-  assert.deepEqual(sp3.calls[1].slice(1, 5), ['instructions', '--compress', 'releases', '--pr']);
+  assert.deepEqual(sp3.calls[1].slice(1, 7), ['instructions', '--compress', 'releases,ports', '--remove', 'legacy', '--pr']);
   freshHome();
 });
 
@@ -429,20 +575,71 @@ test('the activity is a line an action with what it came to, never thinker\'s ow
   assert.equal(mergeUpkeepViews([{ repo: 'one', name: 'One', view: { ...a, feed: [prof(t(2), 2)] } }]).feed[0].repoName, 'One');
 });
 
+test('a batch in the activity: one line with what all of it came to and the part still waiting on its pull request, one line over all repositories, its facts for the chat, and taken back whole', async () => {
+  freshHome();
+  const a = repo(), b = repo(), now = Date.now(), at = new Date(now - 3 * DAY).toISOString();
+  const state = s => path.join(s.dir, 'state', 'context-suggest.json');
+  const sec = (batch, id, title, saving, act) => ({ id, group: `g-${batch}`, batch, at, via: 'thinker', key: `section:AGENTS.md:${id}`, kind: 'section', title: `AGENTS.md · ${title}`, file: 'AGENTS.md', section: id, saving, act, decision: 'pull request', job: { state: 'done', action: act, pr: true }, pr: { number: 12, state: 'open', url: 'https://github.com/o/r/pull/12', branch: 'thinker/context-1', at } });
+  fs.mkdirSync(path.dirname(state(a.store)), { recursive: true });
+  fs.writeFileSync(state(a.store), JSON.stringify({ history: [sec('b1', 'p1', 'Releases', 20_000, 'compress'), sec('b1', 'p2', 'Legacy', 5_000, 'remove')] }));
+  // the batch's tool was made a reference for the whole machine: every repository's history has it
+  fs.mkdirSync(path.join(HOME, 'state', 'machine-actions'), { recursive: true });
+  fs.writeFileSync(path.join(HOME, 'state', 'machine-actions', 'context-suggest.json'), JSON.stringify({ history: [{ id: 'machine-t1', scope: 'machine', batch: 'b1', at, via: 'thinker', key: 'claude:builtin:Workflow', kind: 'tool', title: 'Workflow tool', saving: 3_000, act: 'off', action: 'Create tool reference', decision: 'approved' }] }));
+  // 100 prompts a day here at $5 a million tokens: 28k tokens off a prompt is $14 a day, $12.50 of it the sections'
+  const report = { rows: [{ t: now - DAY, input: 1_000_000, prompts: 700, sources: {} }], rate: 5e-6 };
+  const [line, ...rest] = upkeepFeed(a.store, { now, log: [], report });
+  assert.deepEqual(rest, []);
+  assert.deepEqual([line.id, line.kind, line.steer, line.by, line.text, line.impactSaid, line.url, line.pr, line.undo, line.batch, line.sharedIn],
+    ['b:b1', 'pr', 'changes', 'thinker', 'Batch of 3: PR #12 in review shortens 1 section and removes 1; 1 tool made a reference', 'about −28k tokens per prompt · $14.0/day ($12.5/day of it once PR #12 merges)', 'https://github.com/o/r/pull/12', { number: 12, state: 'open' }, 'b:b1', { changes: 3, sections: 2, tools: 1 }, ['machine-t1']]);
+  assert.match(renderUpkeep(upkeepView(a.store, { now, log: [], report }), { now }).join('\n'), /Batch of 3: PR #12 in review shortens 1 section and removes 1; 1 tool made a reference {2}about −28k tokens per prompt · \$14\.0\/day \(\$12\.5\/day of it once PR #12 merges\) \(on its own\) {2}https:\/\/github\.com\/o\/r\/pull\/12/);
+  // the other repository sees the tool alone, under the same batch; read together they are one line, the fuller one,
+  // with what the tool saves there added (the tokens a prompt are then the average over both repositories' prompts)
+  const there = upkeepFeed(b.store, { now, log: [], report })[0];
+  assert.deepEqual([there.id, there.text, there.impactSaid], ['b:b1', 'Batch of 1: 1 tool made a reference', 'about −3k tokens per prompt · $1.50/day']);
+  const all = mergeUpkeepViews([{ repo: 'b', name: 'o/b', view: upkeepView(b.store, { now, log: [], report }) }, { repo: 'a', name: 'o/a', view: upkeepView(a.store, { now, log: [], report }) }]);
+  assert.deepEqual(all.feed.map(f => [f.id, f.repoName, f.text, f.impactSaid]), [['b:b1', 'o/a', 'Batch of 3: PR #12 in review shortens 1 section and removes 1; 1 tool made a reference', 'about −16k tokens per prompt · $15.5/day ($12.5/day of it once PR #12 merges)']]);
+  // what the chat is given about it: why these went together, each change with its own undo, the pull request
+  const facts = upkeepDetail(a.store, 'b:b1', { now, log: [], report }).join('\n');
+  assert.match(facts, /^A batch of 3 changes made together on [A-Z][a-z]+ \d+, by thinker itself at one of its checks\./);
+  assert.match(facts, /Why a batch: thinker makes a change only when it saves \$1\.00 a day or more by itself, and sends the ones that do together once they come to \$5\.00 a day between them, at most every 7 days\./);
+  assert.match(facts, /AGENTS\.md · Releases[^\n]*\n {2}Why it was picked: about 20k of its tokens[^\n]*\n {2}Not measured yet: it is not in effect until its pull request merges\.[^\n]*\n {2}It can be taken back by itself \(undo id h:p1\), which takes the rest of the pull request back with it\./);
+  assert.match(facts, /Workflow tool[\s\S]*It can be taken back by itself \(undo id h:machine-t1\)\./);
+  assert.match(facts, /Its pull request: #12, in review since [^\n]*https:\/\/github\.com\/o\/r\/pull\/12\./);
+  assert.match(facts, /The whole batch can be taken back at once \(undo id b:b1\)\.$/);
+  // once it merges nothing waits; a closed pull request counts for nothing and leaves the tool's saving
+  const setPr = st => { const j = JSON.parse(fs.readFileSync(state(a.store), 'utf8')); for (const e of j.history) e.pr = { ...e.pr, state: st }; fs.writeFileSync(state(a.store), JSON.stringify(j)); };
+  setPr('merged');
+  assert.deepEqual([upkeepFeed(a.store, { now, log: [], report })[0].text, upkeepFeed(a.store, { now, log: [], report })[0].impactSaid], ['Batch of 3: PR #12 merged, which shortened 1 section and removed 1; 1 tool made a reference', 'about −28k tokens per prompt · $14.0/day']);
+  setPr('closed');
+  assert.deepEqual([upkeepFeed(a.store, { now, log: [], report })[0].text, upkeepFeed(a.store, { now, log: [], report })[0].impactSaid], ['Batch of 3: PR #12 closed without merging (2 sections); 1 tool made a reference', 'about −3k tokens per prompt · $1.50/day']);
+  // taken back whole: a batch of sections alone, its pull request closed once for both, and neither is put up again
+  const c = repo(), closed = [];
+  fs.mkdirSync(path.dirname(state(c.store)), { recursive: true });
+  fs.writeFileSync(state(c.store), JSON.stringify({ history: [sec('b2', 'q1', 'Releases', 20_000, 'compress'), sec('b2', 'q2', 'Ports', 5_000, 'compress')] }));
+  const took = await upkeepUndo(c.store, 'b:b2', { now, fns: { prs: { closePr: (dir, n, o) => { closed.push([n, o.branch]); return {}; } } } });
+  assert.equal(took.said, 'AGENTS.md · Releases: pull request #12 closed');
+  assert.deepEqual(closed, [[12, 'thinker/context-1']]);
+  const gone = upkeepFeed(c.store, { now, log: [] })[0];
+  assert.deepEqual([gone.text, gone.undone, gone.undo, gone.impactSaid], ['Batch of 2: its pull request #12 was taken back', true, undefined, undefined]);
+  assert.deepEqual(Object.keys(readUpkeep(c.store).dismissed).sort(), ['change:section:AGENTS.md:q1', 'change:section:AGENTS.md:q2']);
+  assert.equal((await upkeepUndo(c.store, 'b:b2', { now })).error, 'already taken back');
+  assert.equal((await upkeepUndo(c.store, 'b:nope', { now })).error, 'no such batch');
+  freshHome();
+});
+
 test('"more like this" and "less like this": one kind of thing moved one step, for a repository or the machine, and said with what it was', () => {
   freshHome();
   const r = repo();
-  // pull requests: half as often, then half again, in this repository alone
-  assert.equal(steerBehavior(r.store, 'prs', 'less', { scope: 'repo' }).said, 'a pull request at most every 14 days now in this repository (it was every 7)');
-  assert.equal(steerBehavior(r.store, 'prs', 'less', { scope: 'repo' }).said, 'a pull request at most every 28 days now in this repository (it was every 14)');
-  assert.deepEqual([behaviorOf(r.store).prEveryDays, behaviorOf(repo().store).prEveryDays], [28, 7]);
-  // more, on the machine: twice as often, down to every day and no further
-  assert.equal(steerBehavior(r.store, 'prs', 'more').said, 'a pull request at most every 4 days now on this machine (it was every 7)');
-  assert.equal(steerBehavior(null, 'prs', 'more').said, 'a pull request at most every 2 days now on this machine (it was every 4)');
-  steerBehavior(null, 'prs', 'more');
-  assert.match(steerBehavior(null, 'prs', 'more').error, /a pull request is already as often as thinker will go \(every 1 day\)/);
-  // tools and sweeps the same way; a kind that was switched off comes back on "more", and "less" of it is nothing to do
-  assert.equal(steerBehavior(null, 'tools', 'less').said, 'a tool at most every 2 days now on this machine (it was every 1)');
+  // changes to what loads into a prompt (a batch, a pull request, a tool, all one bar): what a change must save a
+  // day, doubled for fewer of them, in this repository alone
+  assert.equal(steerBehavior(r.store, 'changes', 'less', { scope: 'repo' }).said, 'a change must now save $2.00 a day before thinker makes it in this repository (it was $1.00)');
+  assert.equal(steerBehavior(r.store, 'prs', 'less', { scope: 'repo' }).said, 'a change must now save $4.00 a day before thinker makes it in this repository (it was $2.00)');
+  assert.deepEqual([behaviorOf(r.store).minPerDay, behaviorOf(repo().store).minPerDay], [4, 1]);
+  // more, on the machine: halved, down to a quarter a day and no further
+  assert.equal(steerBehavior(r.store, 'changes', 'more').said, 'a change must now save $0.50 a day before thinker makes it on this machine (it was $1.00)');
+  assert.equal(steerBehavior(null, 'tools', 'more').said, 'a change must now save $0.25 a day before thinker makes it on this machine (it was $0.50)');
+  assert.match(steerBehavior(null, 'changes', 'more').error, /the bar is already as low as thinker will go \(\$0\.25 a day\)/);
+  // sweeps by their size; a kind that was switched off comes back on "more", and "less" of it is nothing to do
   assert.equal(steerBehavior(null, 'sweep', 'less').said, 'merged worktrees and branches are now removed from 6 things or 1000 MB on this machine (it was 3 or 500 MB)');
   assert.equal(steerBehavior(null, 'sweep', 'more').said, 'merged worktrees and branches are now removed from 3 things or 500 MB on this machine (it was 6 or 1000 MB)');
   setBehavior(r.store, 'tools', false);
@@ -569,16 +766,16 @@ test('what is known about one line, for somebody asking about it: what it was, w
 test('maintenance runs the check, says once what thinker did by itself, and `upkeep: false` stops it', async () => {
   freshHome();
   const r = repo();
-  const fns = { syncPrs: async () => ({ synced: 0 }), containers: () => null, contextSuggest: async () => null };
+  const fns = { syncPrs: async () => ({ synced: 0 }), containers: () => null };
   const m = await maintain(r.store, r.dir, { fns });
   assert.equal(m.errors, 0); assert.equal(m.upkeepDid, undefined);
   assert.ok(readUpkeep(r.store).lastCheck, 'the check was kept');
   assert.match(renderMaintain({ upkeepDid: 1, upkeepPending: 2, errors: 0 }), /1 thing done on its own, 2 waiting their turn/);
   // what it did is said at the end of the next turn, once
   const q = repo();
-  const did = await maintain(q.store, q.dir, { fns: { ...fns, upkeep: async () => ({ did: [{ id: 'sweep', kind: 'do', said: 'Removed 3 merged worktrees · 1.2 GB freed' }, { id: 'change:x', kind: 'pr', said: 'Compressing 1 section in the background…' }], pending: 0, errors: [] }) } });
+  const did = await maintain(q.store, q.dir, { fns: { ...fns, upkeep: async () => ({ did: [{ id: 'sweep', kind: 'do', said: 'Removed 3 merged worktrees · 1.2 GB freed' }, { id: 'batch', kind: 'batch', said: 'Sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1' }], pending: 0, errors: [] }) } });
   assert.equal(did.upkeepDid, 2);
-  assert.equal(maintenanceNotice(q.store), '🧠 thinker: removed 3 merged worktrees · 1.2 GB freed; started a pull request for a section nobody needs (Recent activity has its link)');
+  assert.equal(maintenanceNotice(q.store), '🧠 thinker: removed 3 merged worktrees · 1.2 GB freed; sent a batch of 3 changes worth about $5.54 a day: a pull request that shortens 2 sections and removes 1 (Recent activity has its link)');
   assert.equal(maintenanceNotice(q.store), '');
   const off = repo({ upkeep: false });
   assert.deepEqual(await upkeepCheck(off.store), { skipped: 'off' });

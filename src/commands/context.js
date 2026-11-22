@@ -17,7 +17,7 @@ import { formatTokens } from '../model-usage.js';
 import { formatDollars } from '../prices.js';
 import { refreshSnapshots, writeSnapshot, contextSources } from '../context-snapshot.js';
 import { machineContext, recommendations, renderMachineReport, MACHINE_REPOS, MACHINE_TOP } from '../context-machine.js';
-import { approveChanges, dismissChanges, revertDecision, retryJob, pickChanges, currentChanges, changeHistory, refreshPrStates, offeredChanges } from '../context-suggest.js';
+import { approveChanges, dismissChanges, revertDecision, retryJob, pickChanges, currentChanges, changeHistory, refreshPrStates } from '../context-suggest.js';
 
 const pct = x => x == null ? '   -' : `${String(Math.round(100 * x)).padStart(3)}%`;
 const pad = (s, n) => String(s).padStart(n);
@@ -76,13 +76,10 @@ async function contextCommand({ store, flags, out }) {
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
   // as Recent activity lists them
   const top = currentChanges(store, v);
-  // --via names where the decision came from (context-suggest.js:VIA): the weekly suggestion's own command says
-  // `session`, so a suggestion that converted in the conversation is not counted as someone typing the command.
+  // --via names where the decision came from (context-suggest.js:VIA); the numbers are the five this command just
+  // printed, which is what someone typing it has in front of them. A key names a change either way (pickChanges).
   const via = typeof flags.via === 'string' ? flags.via : 'command';
-  // and it says which list the numbers belong to. `session`: the person is answering the weekly summary, so they are
-  // the lines that summary showed (offeredChanges), whatever the ranking is now. Anything else: the five this command
-  // just printed, which is what someone typing it has in front of them. A key names a change either way (pickChanges).
-  const basis = (via === 'session' && offeredChanges(store)) || top;
+  const basis = top;
   for (const [flag, fn] of [['approve', approveChanges], ['dismiss', dismissChanges]]) {
     if (flags[flag] === undefined) continue;
     const picked = pickChanges(basis, flags[flag] === true ? '' : flags[flag]);

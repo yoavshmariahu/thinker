@@ -33,14 +33,12 @@ With no terminal, the report is printed.
 
 There are two ways in, and neither is a command to remember.
 
-**The weekly suggestion.** About once a week, once a repository has ten sessions to read, your agent opens
-its next reply with a short message from thinker: one line per change worth making (an instruction section to
-shorten, a skill or MCP server your sessions never use, a tool whose output to compress), what each would have
-saved over the last days, and the suggested action. Reply with the numbers to approve
-(or "all") and the agent applies them and tells you what changed (an instruction change approved this way is
-written to your working tree, uncommitted, for `git diff`); or ignore
-it and carry on. Nothing changes until you say so. `maintain: { contextSuggest: false }` in
-`.thinker/config.json` turns it off for a repository.
+**Thinker itself.** It makes the changes that clearly pay without being asked: an instruction section nobody
+needs is shortened or removed in a pull request (never in your working tree), a tool or MCP server nobody
+calls is switched off. A change has to save $1 a day or more, the ones that do go out together as one batch
+once they come to $5 a day, and a week later each is checked and taken back if it did not pay. Your next
+session says once what it did, `thinker activity` lists it, and `thinker chat` is where you tell it to do
+more, less or nothing (`upkeep: false` in `.thinker/config.json` stops it for a repository).
 
 **The page.** `thinker ui`, from any directory, opens it in your browser:
 

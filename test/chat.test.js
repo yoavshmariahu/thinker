@@ -11,7 +11,7 @@ for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: '
 delete process.env.THINKER_LLM;
 
 const { Store } = await import('../src/store.js');
-const { chatSend, chatReply, chatContext, chatAnswerPending, readChat, renderChat, canAnswer, refOf, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
+const { chatSend, chatReply, chatContext, chatAnswerPending, chatView, chatList, readChat, renderChat, renderChats, canAnswer, refOf, CHAT_SYSTEM, CHAT_SCHEMA, CHAT } = await import('../src/chat.js');
 const { behaviorOf, upkeepCheck, upkeepPending, upkeepFeed, SETTINGS } = await import('../src/upkeep.js');
 const { findMess, sweep } = await import('../src/upkeep-sweep.js');
 
@@ -35,19 +35,19 @@ const rows = store => { try { return fs.readFileSync(path.join(store.dir, 'log.j
 test('a wish becomes a setting: for the machine, or for the one repository named, and the answer says what the code did', async () => {
   const { home, repos } = machine(['api', 'web']);
   const [api, web] = repos;
-  const fn = model({ reply: "I'll stop putting up pull requests in web, and keep it to one a month everywhere else.", actions: [{ type: 'set', repo: 'r2', key: 'prs', value: 'false' }, { type: 'set', key: 'prEveryDays', value: '30' }] }, { reply: 'To stop pull requests in web and slow them down elsewhere.', actions: [] });
+  const fn = model({ reply: "I'll stop putting up pull requests in web, and keep it to one batch a month everywhere else.", actions: [{ type: 'set', repo: 'r2', key: 'prs', value: 'false' }, { type: 'set', key: 'batchEveryDays', value: '30' }] }, { reply: 'To stop pull requests in web and slow them down elsewhere.', actions: [] });
   const r = await chatSend('no more PRs in web, and once a month elsewhere', { repos, about: api.id, home, completeFn: fn });
   const [mine, answer] = r.messages;
   assert.deepEqual([mine.role, mine.text, mine.about], ['you', 'no more PRs in web, and once a month elsewhere', api.id]);
   assert.equal(answer.role, 'thinker'); assert.match(answer.text, /^I'll stop putting up pull requests in web/);
   // said by the code, from what was actually written, never from the model's word
-  assert.deepEqual(answer.did, [{ type: 'set', ok: true, text: 'prs is now off in acme/web' }, { type: 'set', ok: true, text: 'prEveryDays is now 30 on this machine' }]);
-  assert.deepEqual([behaviorOf(web.store, { home }).prs, behaviorOf(api.store, { home }).prs, behaviorOf(api.store, { home }).prEveryDays, behaviorOf(web.store, { home }).prEveryDays], [false, true, 30, 30]);
+  assert.deepEqual(answer.did, [{ type: 'set', ok: true, text: 'prs is now off in acme/web' }, { type: 'set', ok: true, text: 'batchEveryDays is now 30 on this machine' }]);
+  assert.deepEqual([behaviorOf(web.store, { home }).prs, behaviorOf(api.store, { home }).prs, behaviorOf(api.store, { home }).batchEveryDays, behaviorOf(web.store, { home }).batchEveryDays], [false, true, 30, 30]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(web.store.dir, 'config.json'), 'utf8')).upkeep, { prs: false });
   // what the model was shown: its settings, the repositories by short names, which one the person is looking at
   const { system, prompt, schema } = fn.asked[0];
   assert.equal(system, CHAT_SYSTEM); assert.equal(schema, CHAT_SCHEMA);
-  assert.match(prompt, /YOUR SETTINGS FOR THE WHOLE MACHINE: level auto; sweep on; prs on; tools on; important high; prEveryDays 7; /);
+  assert.match(prompt, /YOUR SETTINGS FOR THE WHOLE MACHINE: level auto; sweep on; prs on; remove on; tools on; skills off; minPerDay 1; batchPerDay 5; batchEveryDays 7; /);
   assert.match(prompt, /REPOSITORIES \(2\):\n- \[r1\] acme\/api \(the one they are looking at\): /);
   assert.match(prompt, /\n- \[r2\] acme\/web: /);
   assert.match(prompt, /THE PERSON IS LOOKING AT: acme\/api\n/);
@@ -55,8 +55,8 @@ test('a wish becomes a setting: for the machine, or for the one repository named
   for (const k of Object.keys(SETTINGS)) assert.match(system, new RegExp(`\\n- ${k}: `), `the model is told what ${k} is`);
   // the next message is shown the conversation, with what was carried out, and the settings as they now are
   await chatSend('what did I just ask you?', { repos, about: api.id, home, completeFn: fn });
-  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\nTHE PERSON: no more PRs in web, and once a month elsewhere\nYOU: I'll stop putting up pull requests in web[^\n]*\n\(carried out: done: prs is now off in acme\/web; done: prEveryDays is now 30 on this machine\)/);
-  assert.match(fn.asked[1].prompt, /prEveryDays 30; /); assert.match(fn.asked[1].prompt, /\[r2\] acme\/web: [^\n]* Its own settings: prs off\./);
+  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\nTHE PERSON: no more PRs in web, and once a month elsewhere\nYOU: I'll stop putting up pull requests in web[^\n]*\n\(carried out: done: prs is now off in acme\/web; done: batchEveryDays is now 30 on this machine\)/);
+  assert.match(fn.asked[1].prompt, /batchEveryDays 30; /); assert.match(fn.asked[1].prompt, /\[r2\] acme\/web: [^\n]* Its own settings: prs off\./);
   assert.equal(readChat({ home }).length, 4);
   // the log carries counts, never the words
   const log = rows(api.store).filter(e => e.op === 'chat');
@@ -81,7 +81,7 @@ test('a question changes nothing, and what the model may not do is refused and s
   ] });
   const r = await chatSend('go wild', { repos, home, completeFn: fn });
   assert.deepEqual(r.messages.at(-1).did.map(d => [d.ok, d.text]), [
-    [false, 'there is no setting called recklessness'], [false, 'level cannot be "yolo" (auto: do what is important by itself; ask: do nothing until told to in the chat; off: stop looking)'], [false, 'no repository is called r9'],
+    [false, 'there is no setting called recklessness'], [false, 'level cannot be "yolo" (auto: make the changes worth making by itself; ask: do nothing until told to in the chat; off: stop looking)'], [false, 'no repository is called r9'],
     [false, 'there is no action called delete'], [false, 'nothing is waiting under sweep'], [false, 'no such action'], [false, 'do needs an item'], [true, 'level is now ask on this machine'],
   ]);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).upkeep, { level: 'ask' });
@@ -108,7 +108,7 @@ test('it is shown what it did and what it is holding back, and does, leaves and 
   await upkeepCheck(api.store, { fns, home });
   assert.deepEqual(upkeepPending(api.store, { home }).pending.map(i => i.id), ['sweep']);
   const ctx = chatContext(repos, { about: api.id, home });
-  assert.match(ctx.text, /HOLDING BACK: found, important, not done yet \(1\):\n- repo r1, id sweep · acme\/api · 3 merged branches can go — Their work is on the default branch already[^\n]* · why not yet: you asked to be asked first/);
+  assert.match(ctx.text, /HOLDING BACK: found, worth doing, not done yet \(1\):\n- repo r1, id sweep · acme\/api · 3 merged branches can go — Their work is on the default branch already[^\n]* · why not yet: you asked to be asked first/);
   assert.match(ctx.text, /WHAT YOU DID, newest first \(0\):\n- nothing in the last two weeks/);
   assert.doesNotMatch(ctx.text, /WORTH KNOWING/);
   assert.equal(ctx.refs.get('r1').id, api.id);
@@ -169,7 +169,7 @@ test('"Chat about this": the card goes with the message, the model is told which
   assert.equal(refOf({ text: 'x', id: 'h:../../etc' }).id, undefined);
   assert.deepEqual(refOf(card), { kind: 'action', id: 'h:p1', text: 'PR #12 in review: shortens AGENTS.md · Releases', impactSaid: 'about −1.2k tokens per prompt once merged', at: line.at, repo: api.id, repoName: 'acme/api', url: 'https://github.com/acme/api/pull/12' });
   assert.equal(refOf({ text: 'x', url: 'javascript:alert(1)' }).url, undefined); assert.equal(refOf({ impactSaid: 'no words' }), null); assert.equal(refOf('a string'), null);
-  const fn = model({ reply: "I'll put these up half as often here.", actions: [{ type: 'steer', repo: 'r1', kind: 'prs', direction: 'less' }] }, { reply: 'It shortens the Releases section; it is in review: https://github.com/acme/api/pull/12', actions: [] });
+  const fn = model({ reply: "I'll be pickier about these here.", actions: [{ type: 'steer', repo: 'r1', kind: 'prs', direction: 'less' }] }, { reply: 'It shortens the Releases section; it is in review: https://github.com/acme/api/pull/12', actions: [] });
   const r = await chatSend('less like this', { repos, about: api.id, ref: card, home, completeFn: fn });
   // told which line "this" is in the very words, kind and ids it is shown that line under
   assert.match(fn.asked[0].prompt, /THE PERSON ATTACHED THIS LINE OF WHAT YOU DID TO THEIR MESSAGE; "this" and "it" in what they say mean it:\n- \[prs\] 24 h ago · acme\/api · PR #12 in review: shortens AGENTS\.md · Releases · link: https:\/\/github\.com\/acme\/api\/pull\/12 \[about −1\.2k tokens per prompt once merged\][^\n]* · undo: repo r1, id h:p1\nWHAT YOU KNOW ABOUT IT:\n- AGENTS\.md · Releases[^\n]*\n {2}Why it was picked: about 1\.2k of its tokens in an average prompt were going where they were not needed\.\n {2}Not measured yet: it is not in effect until its pull request merges\. The figure given is what was expected when it was picked\.\n- How it was done: pull request, on [A-Z][a-z]+ \d+, by thinker, on the person's word in the chat\.\n- Its pull request: #12, in review since [A-Z][a-z]+ \d+, https:\/\/github\.com\/acme\/api\/pull\/12\. It is the team's to review and merge; the change is not in effect until then\.\n- It can be taken back \(undo id h:p1\)\.\n\nTHE PERSON NOW SAYS:\nless like this\n/);
@@ -178,12 +178,12 @@ test('"Chat about this": the card goes with the message, the model is told which
   assert.match(CHAT_SYSTEM, /tell them the thing itself: what it was, why you picked it \(the evidence you acted on\), what it came to and how that was measured/);
   assert.match(CHAT_SYSTEM, /Lead with what you know\. Do not open with, or dwell on, what you cannot tell them/);
   // steered by the code, one step, and said with what it was; the line itself is not taken back
-  assert.deepEqual(r.messages.at(-1).did, [{ type: 'steer', ok: true, text: 'a pull request at most every 14 days now in acme/api (it was every 7)' }]);
-  assert.equal(behaviorOf(api.store, { home }).prEveryDays, 14);
+  assert.deepEqual(r.messages.at(-1).did, [{ type: 'steer', ok: true, text: 'a change must now save $2.00 a day before thinker makes it in acme/api (it was $1.00)' }]);
+  assert.equal(behaviorOf(api.store, { home }).minPerDay, 2);
   assert.equal(upkeepFeed(api.store, { log: [] })[0].undone, undefined);
   // the card stays on the message: the page draws it over the words, the command names it, and the next turn is told
   assert.deepEqual(r.messages.at(-2).ref, refOf(card));
-  assert.match(renderChat(r.messages).join('\n'), /^ {2}\[about: PR #12 in review: shortens AGENTS\.md · Releases {2}about −1\.2k tokens per prompt once merged\]\nyou: less like this\nthinker: I'll put these up half as often here\.\n {2}✓ a pull request at most every 14 days now in acme\/api \(it was every 7\)$/);
+  assert.match(renderChat(r.messages).join('\n'), /^ {2}\[about: PR #12 in review: shortens AGENTS\.md · Releases {2}about −1\.2k tokens per prompt once merged\]\nyou: less like this\nthinker: I'll be pickier about these here\.\n {2}✓ a change must now save \$2\.00 a day before thinker makes it in acme\/api \(it was \$1\.00\)$/);
   await chatSend('what was it for?', { repos, about: api.id, home, completeFn: fn });
   assert.match(fn.asked[1].prompt, /THE PERSON: \(about this line: PR #12 in review: shortens AGENTS\.md · Releases\) less like this\n/);
   assert.doesNotMatch(fn.asked[1].prompt, /THE PERSON ATTACHED THIS LINE/, 'a message with no card has none');
@@ -194,8 +194,38 @@ test('"Chat about this": the card goes with the message, the model is told which
   // work handed to cheaper agents is steered the same way, for the machine; a kind that does not exist is refused
   const more = await chatReply('more like this', { repos, about: api.id, home, completeFn: model({ reply: "I'll hand over smaller reads too.", actions: [{ type: 'steer', repo: 'r1', kind: 'delegation', direction: 'more' }, { type: 'steer', kind: 'vibes', direction: 'more' }] }) });
   assert.deepEqual(more.did, [{ type: 'steer', ok: true, text: 'a read is now handed to a cheaper agent from 2k tokens on this machine (it was 4k)' }, { type: 'steer', ok: false, text: 'there is no kind of thing called vibes' }]);
-  assert.match(CHAT_SYSTEM, /The code moves how often or how readily you do that kind by one step and says the new setting; never set those numbers yourself for this\./);
-  assert.deepEqual(CHAT_SCHEMA.properties.actions.items.properties.kind.enum, ['prs', 'tools', 'sweep', 'delegation']);
+  assert.match(CHAT_SYSTEM, /The code moves the bar for that kind by one step \(for changes: the dollars a day one must save, halved or doubled\) and says the new setting; never set those numbers yourself for this\./);
+  assert.deepEqual(CHAT_SCHEMA.properties.actions.items.properties.kind.enum, ['changes', 'prs', 'tools', 'sweep', 'delegation']);
+});
+
+test('the next batch is shown with what it holds and why it waits; told to send it, thinker sends it whole, and its one line is what the chat then speaks of', async () => {
+  const { home, repos } = machine(['api']);
+  const [api] = repos;
+  // two sections worth acting on, $2.86 and $1.43 a day: under the $5 a batch goes at by itself
+  const sec = (id, title, wastedWindow) => ({ id, file: 'AGENTS.md', title, tokens: 2000, wasted: 30_000, wastedWindow, waste: 'high', usedShare: 0.02, text: `About ${title}.` });
+  const view = () => ({ days: 7, sessions: 40, rate: { perToken: 5e-6 }, instructions: { sessions: 40, sections: [sec('releases', 'Releases', 4_000_000), sec('ports', 'Ports', 2_000_000)] }, skills: [], tools: [], outputs: { tools: [] } });
+  const calls = [], fns = { view, findMess: () => ({ worktrees: [], branches: [], kept: [] }), prAvailable: () => ({ ok: true }), spawn: (cmd, args) => { calls.push(args); return { pid: process.pid, on() {}, unref() {} }; } };
+  assert.deepEqual((await upkeepCheck(api.store, { fns, home })).did, []);
+  assert.equal(calls.length, 0);
+  const ctx = chatContext(repos, { about: api.id, home });
+  assert.match(ctx.text, /THE NEXT BATCH, by repository \(the changes below that go together\):\n- repo r1, id batch · acme\/api · 2 changes wasting about \$4\.29 a day together · why not yet: the changes worth making come to \$4\.29 a day together so far, and a batch goes at \$5\.00\n/);
+  assert.match(ctx.text, /HOLDING BACK: found, worth doing, not done yet \(2\):\n- repo r1, id change:section:AGENTS\.md:releases · acme\/api · AGENTS\.md · Releases — [^\n]*\$2\.86 a day\. · why not yet: the changes worth making come to \$4\.29/);
+  // "send it now": the whole batch, by the code, as one pull request, whatever it comes to
+  const fn = model({ reply: "I'll send those two now as one pull request.", actions: [{ type: 'do', repo: 'r1', id: 'batch' }] });
+  const r = await chatSend('just send it now', { repos, about: api.id, home, completeFn: fn, fns });
+  assert.deepEqual(r.messages.at(-1).did, [{ type: 'do', ok: true, text: 'Sent a batch of 2 changes worth about $4.29 a day: a pull request that shortens 2 sections' }]);
+  assert.deepEqual(calls.map(c => c.slice(1, 5)), [['instructions', '--compress', 'releases,ports', '--pr']]);
+  // one line for it, on the person's word, which a card can name and the chat is shown by its kind
+  const [line, ...rest] = upkeepFeed(api.store, { log: [] });
+  assert.deepEqual([line.text, line.by, /^b:[0-9a-f]+$/.test(line.id), rest.length], ['Batch of 2: shortening 2 sections', 'you', true, 0]);
+  assert.equal(refOf({ text: line.text, id: line.id }).id, line.id);
+  const after = chatContext(repos, { about: api.id, home });
+  assert.match(after.text, /WHAT YOU DID, newest first \(1\):\n- \[changes\] just now · acme\/api · Batch of 2: shortening 2 sections \[about −60k tokens per prompt once merged\] \(they asked for it\)/);
+  assert.doesNotMatch(after.text, /THE NEXT BATCH/);
+  // the model is told what a batch is, how to send one and how to take one back
+  assert.match(CHAT_SYSTEM, /the ones that do go out together as a batch, not one at a time/);
+  assert.match(CHAT_SYSTEM, /The id `batch` sends a repository's next batch now/);
+  assert.match(CHAT_SYSTEM, /A batch's undo id \(b:…\) takes back all of it/);
 });
 
 test('with no model to call from here the message waits for the app\'s own session, and is answered when it runs', async () => {
@@ -270,4 +300,61 @@ test('a stage of the Factory attached to a message: the model is told which stag
   await chatSend('where is it worst?', { repos, ref: { ...card, repo: '', repoName: 'All repositories' }, home, completeFn: fn });
   assert.match(fn.asked[2].prompt, /mean it:\n- Verify, over every repository\nWHAT YOU KNOW ABOUT IT:\n[^\n]*\n- Over the last 42 days, 20 sessions: it cost \$60\.0 at list prices, 33% of \$180 in all, in 20 model calls\.\n- Rework: \$22\.0 of that, 37%, /);
   assert.match(fn.asked[2].prompt, /\n- By repository, the most rework first \(2\): acme\/api \$20\.0 of \$40\.0, 50%; acme\/web \$2\.00 of \$20\.0, 10%\.\n/);
+});
+
+test('conversations: a message goes on in the one last spoken in, a new one starts with its first message, and the history lists them newest first', async () => {
+  const { home, repos } = machine(['api']);
+  const fn = model({ reply: 'Nothing lately.', actions: [] }, { reply: 'I will ask first.', actions: [] }, { reply: 'Two things.', actions: [] }, { reply: 'Yes.', actions: [] });
+  const t0 = Date.parse('2026-11-18T09:00:00Z');
+  // what was said before there were several conversations (no `chat` on the message) is one of them
+  fs.mkdirSync(path.join(home, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'state', 'chat.json'), JSON.stringify({ messages: [{ id: 'a', at: new Date(t0 - 3 * DAY).toISOString(), role: 'you', text: 'hello   there\nthinker' }, { id: 'b', at: new Date(t0 - 3 * DAY).toISOString(), role: 'thinker', text: 'Hello.' }] }));
+  assert.deepEqual(chatView({ home }).chats.map(c => [c.id, c.title, c.messages]), [['first', 'hello there thinker', 2]]);
+  // no conversation named: the one last spoken in, shown what was said in it
+  const a = await chatSend('what have you done lately?', { repos, home, completeFn: fn, now: t0 });
+  assert.equal(a.chat, 'first'); assert.equal(a.messages.length, 4);
+  assert.match(fn.asked[0].prompt, /THE CONVERSATION SO FAR:\nTHE PERSON: hello {3}there\nthinker\nYOU: Hello\./);
+  // `new` starts another: named by the answer, and the model is shown that conversation alone
+  const b = await chatSend('ask me before you put up a pull request', { chat: 'new', repos, home, completeFn: fn, now: t0 + 60_000 });
+  assert.match(b.chat, /^[0-9a-f]{10}$/); assert.deepEqual(b.messages.map(m => [m.role, m.text, m.chat]), [['you', 'ask me before you put up a pull request', b.chat], ['thinker', 'I will ask first.', b.chat]]);
+  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)/);
+  // one named is gone on with, whichever was spoken in last; one that is not kept starts a new one
+  const c = await chatSend('and what else?', { chat: 'first', repos, home, completeFn: fn, now: t0 + 120_000 });
+  assert.equal(c.chat, 'first'); assert.equal(c.messages.length, 6);
+  assert.doesNotMatch(fn.asked[2].prompt, /ask me before you put up a pull request/);
+  const gone = await chatSend('still there?', { chat: 'nosuchchat', repos, home, completeFn: fn, now: t0 + 180_000 });
+  assert.notEqual(gone.chat, 'nosuchchat'); assert.equal(gone.messages.length, 2);
+  // the history: a row a conversation by the first thing the person said in it, newest first by when it was last spoken in
+  assert.deepEqual(gone.chats, chatList(readChat({ home })));
+  assert.deepEqual(gone.chats.map(x => [x.id, x.title, x.messages, x.at]), [[gone.chat, 'still there?', 2, new Date(t0 + 180_000).toISOString()], ['first', 'hello there thinker', 6, new Date(t0 + 120_000).toISOString()], [b.chat, 'ask me before you put up a pull request', 2, new Date(t0 + 60_000).toISOString()]]);
+  assert.deepEqual([chatView({ home }).chat, chatView({ home, chat: b.chat }).messages.length, chatView({ home, chat: 'new' }).chat, chatView({ home, chat: 'new' }).messages.length], [gone.chat, 2, null, 0]);
+  // as the command prints it: when, the title, how much was said, and the id `--chat` takes; the open one is marked
+  const printed = renderChats(gone.chats, { now: t0 + DAY, open: 'first' });
+  assert.equal(printed.length, 3); assert.match(printed[1], /^▸ .+ {2}hello there thinker {2}· 6 messages · first$/); assert.match(printed[0], new RegExp(`^  .+ {2}still there\\? {2}· 2 messages · ${gone.chat}$`));
+  // nothing said in a new one is nothing kept
+  assert.equal((await chatSend('  ', { chat: 'new', repos, home, completeFn: fn })).error, 'nothing was said'); assert.equal(chatList(readChat({ home })).length, 3);
+});
+
+test('a message that waited is answered in its own conversation, and only the conversations last spoken in are kept', async () => {
+  const { home, repos } = machine(['api']);
+  const enqueue = () => {};
+  const one = await chatSend('first question', { chat: 'new', repos, home, have: [], enqueue, now: 1_000 });
+  const two = await chatSend('second question', { chat: 'new', repos, home, have: [], enqueue, now: 2_000 });
+  assert.deepEqual([one.messages.length, two.messages.length, one.pending, two.pending], [2, 2, true, true]);
+  const fn = model({ reply: 'First answer.', actions: [] }, { reply: 'Second answer.', actions: [] });
+  assert.equal(await chatAnswerPending({ repos, home, completeFn: fn, now: 3_000 }), 2);
+  assert.match(fn.asked[0].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)\n\nTHE PERSON NOW SAYS:\nfirst question\n/);
+  assert.match(fn.asked[1].prompt, /THE CONVERSATION SO FAR:\n\(this is its start\)\n\nTHE PERSON NOW SAYS:\nsecond question\n/);
+  assert.deepEqual(chatView({ home, chat: one.chat }).messages.map(m => m.text), ['first question', 'First answer.']);
+  assert.deepEqual(chatView({ home, chat: two.chat }).messages.map(m => m.text), ['second question', 'Second answer.']);
+  // CHAT.chats conversations are kept, the ones last spoken in; a conversation keeps its last CHAT.keep messages
+  const say = model({ reply: 'ok', actions: [] });
+  for (let i = 0; i < CHAT.chats; i++) await chatSend(`chat ${i}`, { chat: 'new', repos: [], home, completeFn: say, now: 10_000 + i });
+  const kept = chatList(readChat({ home }));
+  assert.equal(kept.length, CHAT.chats); assert.equal(kept[0].title, `chat ${CHAT.chats - 1}`); assert.ok(!kept.some(c => c.id === one.chat || c.id === two.chat), 'the two oldest went');
+  const long = Array.from({ length: CHAT.keep + 10 }, (_, i) => ({ id: `m${i}`, at: new Date(20_000 + i).toISOString(), role: i % 2 ? 'thinker' : 'you', text: `line ${i}`, chat: 'long' }));
+  fs.writeFileSync(path.join(home, 'state', 'chat.json'), JSON.stringify({ messages: long }));
+  await chatSend('one more', { chat: 'long', repos: [], home, completeFn: say, now: 30_000 });
+  const after = readChat({ home });
+  assert.equal(after.length, CHAT.keep); assert.equal(after.at(-1).text, 'ok'); assert.equal(after[0].text, 'line 12');
 });

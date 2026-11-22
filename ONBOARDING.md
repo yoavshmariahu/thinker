@@ -21,9 +21,10 @@ and ranked on your machine; your configured agent writes them.
 
 You don't run thinker by hand:
 
-- **About once a week your agent passes on a suggestion from thinker**: a few
-  lines naming what to cut and what it would save.
-  Reply with the numbers to approve, or "all".
+- **Thinker cuts what your agents load and never use, by itself**: a change
+  has to save $1 a day or more, and the ones that do go out together as one
+  batch, with one pull request for your instruction files that a person merges.
+  A week later it checks each change and takes back what did not pay.
 - **`thinker ui` opens the page** whenever you want it: a chat with thinker,
   what it did lately with what each action saved, the Factory and Recent
   activity, over every repository on the machine.

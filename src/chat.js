@@ -33,8 +33,14 @@
 // queued for the app's own session (session-work.js) and answered by `thinker chat --answer` the next time an agent
 // is active in that repository; the page shows it waiting and picks the answer up.
 //
-// The conversation is kept on this machine alone (<THINKER_HOME>/state/chat.json, the last CHAT.keep messages).
-// The log row carries counts, never the words.
+// Conversations (2026-11-21, the owner's call: the page's left side lists the chat history, "separate chats"). A
+// message says which conversation it is in (`chat`), a new one starts with the first thing said in it (`chat: 'new'`
+// from either door), and the model is shown what was said in that one alone. With none named, a door opens the
+// conversation last spoken in. chatList is the history both doors print: a row a conversation, by the first thing
+// the person said in it, newest first. What was said before there were several is one conversation (FIRST).
+//
+// The conversations are kept on this machine alone (<THINKER_HOME>/state/chat.json: the CHAT.chats last spoken in,
+// each to its last CHAT.keep messages). The log row carries counts, never the words.
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
@@ -45,10 +51,13 @@ import { upkeepView, upkeepDetail, behaviorOf, setBehavior, steerBehavior, behav
 import { enqueueJob } from './session-work.js';
 import { STAGES, stageDetail, mergeFactory } from './factory.js';
 import { readReport } from './report-snapshot.js';
+import { formatDollars } from './prices.js';
 
 export const CHAT = {
-  keep: 200,     // messages kept
-  shown: 60,     // messages the window and the command read
+  keep: 200,     // messages kept of one conversation
+  chats: 50,     // conversations kept, the ones last spoken in
+  shown: 60,     // messages of a conversation the window and the command read
+  title: 80,     // a conversation is listed by this much of the first thing said in it
   context: 12,   // earlier messages the model is shown
   items: 14,     // things it is holding back that it is shown
   feed: 18,      // lines of what was done
@@ -61,17 +70,42 @@ const file = home => path.join(home, 'state', 'chat.json');
 export function readChat({ home = thinkerHome() } = {}) {
   try { const j = JSON.parse(fs.readFileSync(file(home), 'utf8')); return Array.isArray(j.messages) ? j.messages : []; } catch { return []; }
 }
+const FIRST = 'first';
+const chatId = m => m.chat || FIRST;
+const cut = (s, n) => { s = String(s || '').trim(); return s.length > n ? `${s.slice(0, n)}…` : s; };
+export const chatOf = (messages, id) => messages.filter(m => chatId(m) === id);
+// The history as both doors list it (the page's Chat history, `thinker chat --history`): a row a conversation, newest
+// first by when it was last spoken in, titled by the first thing the person said in it.
+export function chatList(messages) {
+  const by = new Map();
+  messages.forEach((m, i) => {
+    const id = chatId(m); let c = by.get(id);
+    if (!c) by.set(id, c = { id, title: '', at: m.at, started: m.at, messages: 0, last: i });
+    c.messages++; c.last = i; if (m.at > c.at) c.at = m.at;
+    if (!c.title && m.role === 'you') c.title = cut(String(m.text).replace(/\s+/g, ' '), CHAT.title);
+  });
+  return [...by.values()].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : b.last - a.last)).map(({ last, ...c }) => c);
+}
+// One conversation as a door shows it, with the history beside it. `chat`: its id; none named is the one last spoken
+// in; `new`, or one that is no longer kept, is a conversation not yet started (`chat: null`, nothing said).
+export function chatView({ home = thinkerHome(), chat = null } = {}) {
+  const all = readChat({ home }), chats = chatList(all);
+  const id = chat ? (chats.some(c => c.id === chat) ? chat : null) : chats[0]?.id || null;
+  return { chat: id, messages: id ? chatOf(all, id).slice(-CHAT.shown) : [], chats };
+}
 function writeChat(home, messages) {
   const f = file(home), tmp = `${f}.${process.pid}.${randomBytes(3).toString('hex')}`;
+  const kept = new Set(chatList(messages).slice(0, CHAT.chats).map(c => c.id)), left = new Map();
+  for (const m of messages) left.set(chatId(m), (left.get(chatId(m)) || 0) + 1);
+  const keep = messages.filter(m => { const id = chatId(m), n = left.get(id); left.set(id, n - 1); return kept.has(id) && n <= CHAT.keep; });
   fs.mkdirSync(path.dirname(f), { recursive: true });
-  fs.writeFileSync(tmp, JSON.stringify({ messages: messages.slice(-CHAT.keep) }) + '\n', { mode: 0o600 });
+  fs.writeFileSync(tmp, JSON.stringify({ messages: keep }) + '\n', { mode: 0o600 });
   fs.renameSync(tmp, f);
 }
 const message = (role, text, extra = {}) => ({ id: randomBytes(5).toString('hex'), at: new Date(extra.now || Date.now()).toISOString(), role, text, ...Object.fromEntries(Object.entries(extra).filter(([k, v]) => k !== 'now' && v !== undefined)) });
-const cut = (s, n) => { s = String(s || '').trim(); return s.length > n ? `${s.slice(0, n)}…` : s; };
 
 const ACTIONS = ['set', 'steer', 'do', 'leave', 'undo', 'look'];
-export const CHAT_SYSTEM = `You are thinker, talking with the person whose coding agents you look after. Between their sessions you learn how they work, keep their agents' context lean, and clean up what the agents leave behind in their repositories. You act on your own for important things, and where a repository's files should change you put up a pull request. This conversation is where they ask what you did and tell you how to behave.
+export const CHAT_SYSTEM = `You are thinker, talking with the person whose coding agents you look after. Between their sessions you learn how they work, keep their agents' context lean, and clean up what the agents leave behind in their repositories. You act on your own. A change to what loads into every prompt (an instruction section nobody needs shortened or removed, a tool or an MCP server nobody calls switched off) you make yourself when it clearly pays: it has to save real money every day, and the ones that do go out together as a batch, not one at a time. Where a repository's files should change you put up a pull request, one for a batch, and leave it for a person to merge. This conversation is where they ask what you did and tell you how to behave.
 
 You do the work yourself and you have a view about what is worth doing. You do not hand the person a list of things to do, ask them to press anything, or ask permission for what your settings already let you do. You say what you did, and why when asked.
 
@@ -92,13 +126,13 @@ How to answer:
 
 The settings (action \`set\`, with \`key\` and \`value\`):
 ${Object.entries(SETTINGS).map(([k, s]) => `- ${k}: ${s.about}`).join('\n')}
-"Stop", "pause" or "leave my repositories alone" is level off. "Ask me first" or "don't do anything without asking" is level ask. "Go ahead" or "do it yourself" is level auto. "Fewer pull requests" raises prEveryDays; "no pull requests" is prs false.
+"Stop", "pause" or "leave my repositories alone" is level off. "Ask me first" or "don't do anything without asking" is level ask. "Go ahead" or "do it yourself" is level auto. "Only the big ones" or "be pickier" raises minPerDay; "don't wait so long" or "smaller batches" lowers batchPerDay; "not so often" raises batchEveryDays; "no pull requests" is prs false; "shorten but never remove" is remove false; "skills too" is skills true. A dollar amount is a plain number (2, 0.5). When they give no number for one of these, steer instead (below) or ask.
 
-Steering (action \`steer\`, with \`kind\` and \`direction\`): when they say they want more or less of a kind of thing you do ("more like this", "less of these", "do this more often", "you do this too much"), most often about a line they attached. \`kind\` is what the line is, given in brackets at its start: prs (a pull request), tools (a tool switched), sweep (worktrees and branches removed), delegation (work a session handed to cheaper agents). \`direction\` is more or less. The code moves how often or how readily you do that kind by one step and says the new setting; never set those numbers yourself for this. Steering is about what you do from now on: it does not take the line itself back. A line with no kind in brackets cannot be steered: say so.
+Steering (action \`steer\`, with \`kind\` and \`direction\`): when they say they want more or less of a kind of thing you do ("more like this", "less of these", "do this more often", "you do this too much"), most often about a line they attached. \`kind\` is what the line is, given in brackets at its start: changes (a batch of changes to what loads into every prompt; prs and tools are the same thing on a line that is one pull request or one tool), sweep (worktrees and branches removed), delegation (work a session handed to cheaper agents). \`direction\` is more or less. The code moves the bar for that kind by one step (for changes: the dollars a day one must save, halved or doubled) and says the new setting; never set those numbers yourself for this. Steering is about what you do from now on: it does not take the line itself back. A line with no kind in brackets cannot be steered: say so.
 
 The other actions:
-- \`do\`: do now a thing under HOLDING BACK, when they tell you to go ahead with it. \`leave\`: never mind that thing; you will not come back to it for ${UPKEEP.dismissDays} days. Both take its \`repo\` and \`id\`.
-- \`undo\`: take back something under WHAT YOU DID that carries an undo id: a sweep is put back, a tool turned back on, an open pull request closed. Takes its \`repo\` and that \`id\`. What they take back you do not do again.
+- \`do\`: do now a thing under HOLDING BACK, when they tell you to go ahead with it. The id \`batch\` sends a repository's next batch now, whatever it comes to and however lately the last one went. \`leave\`: never mind that thing; you will not come back to it for ${UPKEEP.dismissDays} days. Both take its \`repo\` and \`id\`.
+- \`undo\`: take back something under WHAT YOU DID that carries an undo id: a sweep is put back, a tool turned back on, an open pull request closed, a merged one reverted by a new pull request. A batch's undo id (b:…) takes back all of it; one change of a batch has its own id, given under WHAT YOU KNOW ABOUT IT when the line is attached. Takes its \`repo\` and that \`id\`. What they take back you do not do again.
 - \`look\`: check a repository again now, without acting. Takes its \`repo\`.
 
 What you never do, whatever is asked: change a repository's files outside a pull request, remove work that is not merged, or act on anything that is not listed below. Say so plainly when asked for one of these.`;
@@ -160,7 +194,13 @@ export function chatContext(repos, { about = null, now = Date.now(), home = thin
     if (!had) { const x = { ref, r, it, n: 1 }; tools.set(it.id, x); listed.push(x); } else { had.n++; if ((it.rank || 0) > (had.it.rank || 0)) Object.assign(had, { ref, r, it }); }
   }
   const items = listed.slice(0, CHAT.items);
-  lines.push('', `HOLDING BACK: found, important, not done yet (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
+  // each repository's next batch: what it holds, what that wastes a day, and why it has not gone
+  const next = views.filter(v => v.view?.batch?.changes);
+  if (next.length) {
+    lines.push('', 'THE NEXT BATCH, by repository (the changes below that go together):');
+    for (const { ref, r, view } of next) lines.push(`- repo ${ref}, id batch · ${r.name} · ${view.batch.changes} change${view.batch.changes === 1 ? '' : 's'} wasting about ${formatDollars(view.batch.perDay)} a day together · ${view.batch.ok ? 'goes at your next check' : `why not yet: ${view.batch.why || 'not now'}`}`);
+  }
+  lines.push('', `HOLDING BACK: found, worth doing, not done yet (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
   for (const { ref, r, it, n } of items) lines.push(`- repo ${ref}, id ${it.id} · ${n > 1 ? `${n} repositories` : r.name} · ${cut(it.title, 140)}${it.detail ? ` — ${cut(it.detail, 220)}` : ''} · why not yet: ${it.why}`);
   if (!items.length) lines.push('- nothing');
   const notes = views.flatMap(({ r, view }) => (view?.notes || []).map(it => ({ r, it }))).slice(0, 6);
@@ -200,7 +240,7 @@ export function refOf(x) {
     return Object.fromEntries(Object.entries({ kind: 'stage', id: x.id, text: str(x.text, 300), impactSaid: str(x.impactSaid, 160), repo: str(x.repo, 200), repoName: str(x.repoName, 120) }).filter(([, v]) => v !== undefined));
   }
   // `id`: which line it is, as the activity names it (upkeep.js:upkeepDetail looks its facts up by it)
-  const r = { kind: x.kind === 'session' ? 'session' : 'action', id: /^((h|d|s):[\w.:-]{1,80}|profile)$/.test(String(x.id || '')) ? String(x.id) : undefined, text: str(x.text, 300), impactSaid: str(x.impactSaid, 120), at: str(x.at, 40), repo: str(x.repo, 200), repoName: str(x.repoName, 120), url: /^https:\/\/[^\s"'<>]+$/.test(String(x.url || '')) ? str(x.url, 300) : undefined, title: str(x.title, 120) };
+  const r = { kind: x.kind === 'session' ? 'session' : 'action', id: /^((h|d|s|b):[\w.:-]{1,80}|profile)$/.test(String(x.id || '')) ? String(x.id) : undefined, text: str(x.text, 300), impactSaid: str(x.impactSaid, 120), at: str(x.at, 40), repo: str(x.repo, 200), repoName: str(x.repoName, 120), url: /^https:\/\/[^\s"'<>]+$/.test(String(x.url || '')) ? str(x.url, 300) : undefined, title: str(x.title, 120) };
   return Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined));
 }
 
@@ -236,7 +276,7 @@ async function carryOut(a, { refs, about, repos, home, now, fns }) {
   if (!here) return { ok: false, text: `which repository? ${a.type} needs one` };
   if (a.type === 'look') { const r = await upkeepCheck(here.store, { now, act: false, home, fns }); return r.skipped ? { ok: false, text: `thinker is switched off in ${here.name}` } : { ok: true, text: `looked at ${here.name} again: ${r.pending ? `${r.pending} thing${r.pending === 1 ? '' : 's'} waiting` : 'nothing is waiting'}` }; }
   if (!a.id) return { ok: false, text: `${a.type} needs an item` };
-  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns }) : await upkeepUndo(here.store, a.id, { now, fns });
+  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns, home }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns, home }) : await upkeepUndo(here.store, a.id, { now, fns });
   return r.error ? { ok: false, text: r.error } : { ok: true, text: r.said };
 }
 
@@ -274,43 +314,47 @@ export const canAnswer = ({ have = available() } = {}) => Boolean(process.env.TH
 
 // A message from the person: kept, answered now where a model can be called from here, else queued for an app's own
 // session (`queue`: the repository whose session will answer; the one being looked at, else the first). Returns the
-// conversation as it now stands.
-export async function chatSend(text, { repos = [], about = null, ref = null, home = thinkerHome(), now = Date.now(), completeFn, have, fns = {}, enqueue = enqueueJob } = {}) {
+// conversation as it now stands (chatView). `chat`: the conversation it is said in -- its id, `new` for one that
+// starts with this message, and with none named the one last spoken in.
+export async function chatSend(text, { chat = null, repos = [], about = null, ref = null, home = thinkerHome(), now = Date.now(), completeFn, have, fns = {}, enqueue = enqueueJob } = {}) {
   text = cut(text, CHAT.chars);
-  if (!text) return { messages: readChat({ home }).slice(-CHAT.shown), error: 'nothing was said' };
-  const history = readChat({ home });
+  const open = chatView({ home, chat });
+  if (!text) return { ...open, error: 'nothing was said' };
+  const id = open.chat || randomBytes(5).toString('hex');
+  const history = chatOf(readChat({ home }), id);
   const card = refOf(ref);
-  const mine = message('you', text, { now, about: about || undefined, ref: card || undefined });
+  const mine = message('you', text, { now, chat: id, about: about || undefined, ref: card || undefined });
   if (completeFn || canAnswer({ have })) {
     let answer;
-    try { const r = await chatReply(text, { repos, about, ref: card, history, home, now, completeFn, have, fns }); answer = message('thinker', r.reply, { now, did: r.did.length ? r.did : undefined }); }
-    catch (e) { answer = message('thinker', '', { now, failed: String(e.message || e).split('\n')[0].slice(0, 200) }); }
-    // read again before writing: another window may have added to the conversation while the model answered
+    try { const r = await chatReply(text, { repos, about, ref: card, history, home, now, completeFn, have, fns }); answer = message('thinker', r.reply, { now, chat: id, did: r.did.length ? r.did : undefined }); }
+    catch (e) { answer = message('thinker', '', { now, chat: id, failed: String(e.message || e).split('\n')[0].slice(0, 200) }); }
+    // read again before writing: another window may have added to the conversations while the model answered
     writeChat(home, [...readChat({ home }), mine, answer]);
-    return { messages: readChat({ home }).slice(-CHAT.shown) };
+    return chatView({ home, chat: id });
   }
   const via = repos.find(r => r.id === about) || repos[0] || null;
-  const waiting = message('thinker', '', via ? { now, pending: true, via: via.name } : { now, failed: 'thinker has not seen an agent work in a repository on this machine yet, so there is no session to answer through' });
-  writeChat(home, [...history, mine, waiting]);
+  const waiting = message('thinker', '', via ? { now, chat: id, pending: true, via: via.name } : { now, chat: id, failed: 'thinker has not seen an agent work in a repository on this machine yet, so there is no session to answer through' });
+  writeChat(home, [...readChat({ home }), mine, waiting]);
   if (via) enqueue(via.store, 'chat', ['chat', '--answer', '--repo', via.store.repo]);
-  return { messages: readChat({ home }).slice(-CHAT.shown), pending: Boolean(via) };
+  return { ...chatView({ home, chat: id }), pending: Boolean(via) };
 }
 
 // The queued half (`thinker chat --answer`, run by an app session's own model): every message still waiting is
-// answered, in order, each shown the conversation up to it.
+// answered, in order, each shown its own conversation up to it.
 export async function chatAnswerPending({ repos = [], home = thinkerHome(), now = Date.now(), completeFn, have, fns = {} } = {}) {
   let answered = 0;
   for (;;) {
-    const all = readChat({ home }), i = all.findIndex(m => m.role === 'thinker' && m.pending);
-    if (i < 0) break;
-    const asked = all.slice(0, i).reverse().find(m => m.role === 'you');
+    const all = readChat({ home }), wait = all.find(m => m.role === 'thinker' && m.pending);
+    if (!wait) break;
+    const mine = chatOf(all, chatId(wait)), i = mine.indexOf(wait);
+    const asked = mine.slice(0, i).reverse().find(m => m.role === 'you');
     let patch;
     if (!asked) patch = { pending: undefined, failed: 'the message this answers is gone' };
     else {
-      try { const r = await chatReply(asked.text, { repos, about: asked.about || null, ref: asked.ref || null, history: all.slice(0, Math.max(0, i - 1)), home, now, completeFn, have, fns }); patch = { text: r.reply, did: r.did.length ? r.did : undefined, pending: undefined }; }
+      try { const r = await chatReply(asked.text, { repos, about: asked.about || null, ref: asked.ref || null, history: mine.slice(0, Math.max(0, i - 1)), home, now, completeFn, have, fns }); patch = { text: r.reply, did: r.did.length ? r.did : undefined, pending: undefined }; }
       catch (e) { patch = { pending: undefined, failed: String(e.message || e).split('\n')[0].slice(0, 200) }; }
     }
-    const cur = readChat({ home }), at = cur.findIndex(m => m.id === all[i].id);
+    const cur = readChat({ home }), at = cur.findIndex(m => m.id === wait.id);
     if (at < 0) break;
     cur[at] = Object.fromEntries(Object.entries({ ...cur[at], ...patch, at: new Date(now).toISOString() }).filter(([, v]) => v !== undefined));
     writeChat(home, cur);
@@ -319,7 +363,11 @@ export async function chatAnswerPending({ repos = [], home = thinkerHome(), now 
   return answered;
 }
 
-// The conversation as the command prints it.
+// The history as the command prints it: a row a conversation, with the id `--chat` takes.
+const when = (t, now) => { const d = new Date(t), day = x => new Date(x).toDateString(), time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; return day(t) === day(now) ? `today ${time}` : day(t) === day(now - 86_400_000) ? `yesterday ${time}` : `${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${time}`; };
+export const renderChats = (chats, { now = Date.now(), open = null } = {}) => chats.map(c => `${c.id === open ? '▸' : ' '} ${when(c.at, now).padEnd(15)}  ${c.title || '(nothing said yet)'}  · ${c.messages} message${c.messages === 1 ? '' : 's'} · ${c.id}`);
+
+// A conversation as the command prints it.
 export function renderChat(messages, { last = 10 } = {}) {
   const out = [];
   for (const m of messages.slice(-last)) {

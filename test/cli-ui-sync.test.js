@@ -212,18 +212,19 @@ test('Recent activity is `thinker context --history|--revert|--retry`, a decisio
   // request can be opened: instruction-pr.js:prAvailable), which finishes the recorded decision (runSectionJob); nothing to wait
   // at (the owner's ask, 2026-10-24): Recent activity follows it
   const cs = read('context-suggest.js');
-  // every door records which one a decision came through (context-suggest.js:VIA), so the funnel can tell a change
-  // thinker made from one accepted in the session after the weekly suggestion
+  // every door records which one a decision came through (context-suggest.js:VIA), so a change thinker made by
+  // itself can be told from one a person typed
   assert.match(read('commands/context.js'), /fn\(store, picked, \{ via \}\)/);
-  assert.match(read('context-suggest.js'), /const cmd = `thinker context --days \$\{p\.days\} --via session`/);
-  assert.match(read('context-suggest.js'), /\$\{cmd\} --approve/);
-  // the answer comes back through thinker's own MCP tool where the client speaks MCP, the command being the fallback
-  assert.match(read('context-suggest.js'), /tool with choice set to the numbers they chose/);
-  // the weekly suggestion is a question the agent puts to the person with its own tool, and a no is recorded too.
-  // Every question thinker has an agent ask is built with askThrough (or askInChat where there is no such tool), so
-  // it carries thinker's name in the question and in the header and no offer can hand-write one that does not
-  // (2026-10-29, the owner's ask). A new question goes through the same helper.
-  for (const f of ['context-suggest.js', 'proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
+  assert.match(read('upkeep.js'), /approveChanges\(store, picked, \{ via: VIA\.thinker, now, pr: true, batch: id, made/);
+  // the weekly question that put these changes to the person in their session is retired (2026-11-21): nothing
+  // schedules it, the prompt hook does not offer it, and no MCP tool answers it
+  assert.doesNotMatch(read('maintain.js'), /scheduleContextSuggestion/);
+  assert.doesNotMatch(read('commands/hooks.js'), /contextSuggestOffer/);
+  assert.doesNotMatch(read('mcp-server.js'), /registerTool\('context'/);
+  // Every question thinker still has an agent ask is built with askThrough (or askInChat where there is no such
+  // tool), so it carries thinker's name in the question and in the header and no offer can hand-write one that does
+  // not (2026-10-29, the owner's ask). A new question goes through the same helper.
+  for (const f of ['proxy-offer.js', 'error-report.js', 'containers-offer.js']) {
     const src = read(f);
     assert.match(src, /askThrough\(tool, /, `${f} asks through the labelled clause`);
     assert.match(src, /askInChat\(/, `${f} labels its chat fallback too`);
@@ -233,17 +234,18 @@ test('Recent activity is `thinker context --history|--revert|--retry`, a decisio
   // offer passes it to askThrough, which tells the agent to put it unchanged. A change here is deliberate.
   // one question a turn: the container offer takes its place in the hook's single chain, never beside another
   assert.match(read('commands/hooks.js'), /proxyOffer\(store, \{ client \}\) \|\| containersOffer\(store, \{ client \}\) \|\|/);
-  assert.match(read('context-suggest.js'), /\$\{cmd\} --dismiss all/);
-  assert.match(cs, /\[cliPath, 'instructions', `--\$\{action\}`, ids\.join\(','\), pr \? '--pr' : '--apply', '--job', group\]/);
-  // and so does every other door, since 2026-10-29: the weekly suggestion answered in the session (the MCP `context`
-  // tool), `thinker context --approve` and the installer's picks all approve through approveChanges, which sends a
+  // the command a job is: each list by its action, so a batch of thinker's own that shortens some sections and
+  // removes others is one run and one pull request
+  assert.match(cs, /const jobArgs = \(cliPath, ids, pr, group\) => \[cliPath, 'instructions', \.\.\.SECTION_ACTS\.flatMap\(a => \(ids\[a\]\?\.length \? \[`--\$\{a\}`, ids\[a\]\.join\(','\)\] : \[\]\)\), pr \? '--pr' : '--apply', '--job', group\];/);
+  // and so does every other door, since 2026-10-29: thinker's own batch, `thinker context --approve` and the
+  // installer's picks all approve through approveChanges, which sends a
   // section to the same job rather than compressing it inline, so no door holds a person's session through the model
   // call or writes the file without a pull request. Only a switch-off or a compression level is made where it is asked.
   assert.match(cs, /const secs = changes\.filter\(c => act\(c\)\);/);
-  assert.match(cs, /const j = startSectionJob\(store, xs, action, \{ pr: open, now, spawnFn, cliPath, via \}\);/);
+  assert.match(cs, /const j = startSectionJob\(store, xs, action, \{ pr: open, now, spawnFn, cliPath, via, batch \}\);/);
   assert.match(cs, /const open = pr \?\? prAvailable\(store\.repo\)\.ok;/);
   assert.doesNotMatch(cs.split('export async function approveChanges')[1].split('\n}')[0], /previewEdit|applyEdit/);
-  assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids, action, pr: Boolean\(flags\.pr\) \}\)/);
+  assert.match(read('commands/instructions.js'), /runSectionJob\(store, \{ group: flags\.job, ids: given\.flatMap\(idsOf\), action: given\.length > 1 \? 'each' : given\[0\], pr: Boolean\(flags\.pr\) \}\)/);
   assert.match(read('cli.js'), /instructions \[--remove <id> \| --compress <id> \[--pr \| --apply\] \[--job <id>\]\]/);
   const page = read('ui/page.html');
   assert.doesNotMatch(page, /edit-overlay|openEditModal|previewSections|api\/context\/edit|api\/context\/apply/);
@@ -461,21 +463,14 @@ test('Recent activity rows and `thinker context --history` say what the part is 
   for (const kind of ['section', 'skill', 'tool']) assert.match(read('context-suggest.js'), new RegExp(`describePart\\(\\{ kind: '${kind}'`));
 });
 
-test('the weekly question interrupts only when it is worth it, and both doors price a saving the same way (2026-11-04)', async () => {
-  const { SUGGEST } = await import('../src/context-suggest.js');
-  // a thin list is a line, never a picker: two changes and 1k input tokens a prompt together
-  // before thinker stops anyone in the middle of their own work
-  assert.deepEqual([SUGGEST.minAsk, SUGGEST.askSaving], [2, 1000]);
-  const suggest = read('context-suggest.js');
-  assert.match(suggest, /const thin = asked\.length < SUGGEST\.minAsk \|\| asked\.reduce\(\(a, c\) => a \+ \(c\.saving \|\| 0\), 0\) < SUGGEST\.askSaving/);
-  assert.match(suggest, /if \(thin\) return `<thinker-context-suggestions>/);
-  // and what a change is worth is said in money, from one rate: the dollars an input token cost here, off the kept
-  // report (report.js:inputRate), in the session's question and in `thinker context`'s Top changes alike
+test('what a change is worth is said in money, from one rate, by the command and by thinker itself', async () => {
+  // the dollars an input token cost here, off the kept report (report.js:inputRate): `thinker context`'s Top changes,
+  // and what a line of the activity says an action saves a day
   assert.match(read('report.js'), /export const inputRate = view => view\?\.inputRate \?\? null;/);
   assert.match(read('report.js'), /inputRate: pricedInput > 0 && pricedInputCost > 0 \? pricedInputCost \/ pricedInput : null,/, 'measured over the priced sessions alone');
   assert.match(read('report-snapshot.js'), /export function inputRateHere\(store/);
-  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store\)|inputRateHere\(store\)\)/, f);
-  for (const f of ['context-suggest.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
+  for (const f of ['upkeep.js', 'commands/context.js']) assert.match(read(f), /inputRateHere\(store/, f);
+  for (const f of ['upkeep.js', 'commands/context.js']) assert.match(read(f), /formatDollars\(/, f);
 });
 
 test('`thinker prs` is one door, and its help says what the figures are (2026-10-29)', async () => {
@@ -672,12 +667,13 @@ test('the Factory tab and `thinker factory` read one computation, kept with the 
 });
 
 test('the page opens on the chat with Recent activity beside it: `thinker chat` and `thinker activity` are the same function and view, and nothing on either is for the person to do', async t => {
-  // 2026-11-21, the owner's calls: the chat is the page, Recent activity runs down its right side as a line an action
-  // with what it came to, and there is "no more manual action": thinker does its work itself
+  // 2026-11-21, the owner's calls: the chat is the page, Recent activity runs down its left side as a line an action
+  // with what it came to, under a toggle to the chat history, and there is "no more manual action": thinker does its
+  // work itself
   const html = read('ui/page.html');
   assert.match(html, /show\(H\(\)\.get\('tab'\) \|\| 'chat'\);/, 'no tab named: the chat');
   assert.match(html, /<button class="nav-link" data-tab="chat"/); assert.match(html, /<section id="tab-chat" hidden>/);
-  assert.match(html, /<aside class="home-side" aria-label="Recent activity">/);
+  assert.match(html, /<aside class="home-side" aria-label="Recent activity and chat history">/);
   assert.match(html, /esc\(f\.impactSaid\)/, 'the page prints the impact the server worded, as the command does');
   assert.match(read('upkeep.js'), /\$\{f\.impactSaid \? ` {2}\$\{f\.impactSaid\}` : ''\}/);
   // a pull request may be in review for days: its line carries its link through both doors
@@ -692,7 +688,12 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.doesNotMatch(html, /\/api\/upkeep\/|data-do|data-leave|data-undo|Leave it|Look again/);
   assert.doesNotMatch(read('commands/activity.js'), /upkeepDo|upkeepDismiss|upkeepUndo|setBehavior/);
   assert.match(read('cli.js'), /activity \[run \[--look\]\] \[--all\] \[--json\]/, 'the flags are in help');
-  assert.match(read('cli.js'), /chat \[message\] \[--json\]/);
+  assert.match(read('cli.js'), /chat \[message\] \[--new\] \[--chat id\] \[--history\] \[--json\]/);
+  // the chat history is one list (chat.js:chatList, through chatView): the page's side draws it, the command prints it,
+  // and both open on the conversation last spoken in where none is named and start another on the same word, `new`
+  assert.match(read('ui/server.js'), /chatView\(\{ home, chat: url\.searchParams\.get\('chat'\) \|\| null \}\)/); assert.match(read('commands/chat.js'), /const open = chatView\(\{ chat \}\);/);
+  assert.match(html, /CHATS = r\.chats \|\| \[\]/); assert.match(read('commands/chat.js'), /renderChats\(open\.chats, \{ open: open\.chat \}\)/);
+  assert.match(html, /chat: into \|\| 'new'/); assert.match(read('commands/chat.js'), /const chat = flags\.new \? 'new' : /);
   // doing, leaving and taking back a thing, and how thinker behaves, are said to it: the chat is the one door to them
   for (const fn of ['setBehavior(', 'steerBehavior(', 'upkeepDo(', 'upkeepDismiss(', 'upkeepUndo(']) assert.ok(read('chat.js').includes(fn), `the chat calls ${fn}`);
   // "Chat about this" on a line of the side: the line goes into the prompt box as a card and with the message as `about`;
@@ -715,9 +716,9 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(read('ui/server.js'), /child\(\['activity', 'run', '--look', '--quiet', '--repo', checkout\], checkout\)/);
   assert.match(read('commands/activity.js'), /upkeepCheck\(store, \{ act: !flags\.look \}\)/);
   const { behaviorOf, upkeepView, upkeepCheck, BEHAVIOR } = await import('../src/upkeep.js');
-  // by itself, for important things, not often: the defaults both doors describe
-  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.important, BEHAVIOR.prEveryDays, BEHAVIOR.prsPerDay, BEHAVIOR.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1]);
-  assert.match(read('cli.js'), /at most one pull request a repository a week, one\s+pull request and one tool a day over the machine/);
+  // by itself, only what clearly pays, in batches: the defaults both doors describe (the owner's answers, 2026-11-21)
+  assert.deepEqual([BEHAVIOR.level, BEHAVIOR.prs, BEHAVIOR.remove, BEHAVIOR.sweep, BEHAVIOR.tools, BEHAVIOR.skills, BEHAVIOR.minPerDay, BEHAVIOR.batchPerDay, BEHAVIOR.batchEveryDays], ['auto', true, true, true, true, false, 1, 5, 7]);
+  assert.match(read('cli.js'), /worth \$1 a day or more, together in one batch once they come to \$5 a day, at most one\s+batch a repository a week/);
 
   // on the wire, over a home of its own: a pull request in review is a line with its link and what it is expected to
   // save, exactly as the command prints it; what thinker holds back is not on the page at all
@@ -738,7 +739,7 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.deepEqual([shown.pending, shown.notes, shown.items], [undefined, undefined, undefined], 'nothing listed for the person to work through');
   for (const route of ['do', 'leave', 'undo', 'look']) assert.equal((await ui.post(`/api/upkeep/${route}`, { repo: '', id: 'sweep' })).status, 404);
   // the chat: the message is answered, what it changed is said by the server, and the side says the same
-  assert.deepEqual((await ui.get('/api/chat')).messages, []);
+  assert.deepEqual(await ui.get('/api/chat'), { chat: null, messages: [], chats: [] });
   const said = await ui.post('/api/chat', { message: 'ask me before you do anything', repo: '' });
   assert.deepEqual(said.messages.map(m => [m.role, m.text]), [['you', 'ask me before you do anything'], ['thinker', "I'll wait for your word from now on."]]);
   assert.deepEqual(said.messages[1].did, [{ type: 'set', ok: true, text: 'level is now ask on this machine' }]);
@@ -749,6 +750,17 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   // a message sent with a card keeps it, cut to what a line is
   const withCard = await ui.post('/api/chat', { message: 'what is this for?', repo: '', about: { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', url: 'https://github.com/o/r/pull/12', at, extra: 'dropped' } });
   assert.deepEqual(withCard.messages.at(-2).ref, { kind: 'action', text: 'PR #12 in review: shortens AGENTS.md · Releases', at, url: 'https://github.com/o/r/pull/12' });
+  // the chat history: a message with no conversation named went on in the one open, New chat starts another, and the
+  // rows the page lists are the rows `thinker chat --history` prints (chatList), newest first
+  assert.equal(withCard.chat, said.chat); assert.equal(withCard.messages.length, 4);
+  const fresh = await ui.post('/api/chat', { message: 'what did you do today?', repo: '', chat: 'new' });
+  assert.notEqual(fresh.chat, said.chat); assert.deepEqual(fresh.messages.map(m => m.text), ['what did you do today?', "I'll wait for your word from now on."]);
+  const { chatView } = await import('../src/chat.js');
+  assert.deepEqual(fresh.chats, chatView({ home: p.home }).chats);
+  assert.deepEqual(fresh.chats.map(c => [c.id, c.title, c.messages]), [[fresh.chat, 'what did you do today?', 2], [said.chat, 'ask me before you do anything', 4]]);
+  assert.equal((await ui.get('/api/chat')).chat, fresh.chat, 'no conversation named: the one last spoken in');
+  assert.equal((await ui.get(`/api/chat?chat=${said.chat}`)).messages.length, 4);
+  assert.deepEqual([(await ui.get('/api/chat?chat=new')).chat, (await ui.get('/api/chat?chat=new')).messages.length, (await ui.get('/api/chat?chat=new')).chats.length], [null, 0, 2]);
   assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0 }, sessions: [], said: '' });
 });
 

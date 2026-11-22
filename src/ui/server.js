@@ -1,5 +1,5 @@
 // `thinker ui`: a local page for the person, on this machine only. It opens on the chat, where the person asks thinker
-// what it did and tells it how to behave (chat.js, as `thinker chat`), with what thinker did down its right side, a line
+// what it did and tells it how to behave (chat.js, as `thinker chat`), with what thinker did down its left side, a line
 // an action with what it came to (upkeep.js, as `thinker activity`). Nothing on that side is a button: thinker does its
 // work itself, and is told otherwise in the chat. Beside it: the Factory, the sessions as a pipeline (factory.js, as
 // `thinker factory`), and Recent activity, every decision taken with what came of it and what still needs the person
@@ -28,7 +28,7 @@ import { mergeReports, reportActions, withEffects, mergePromptAverages, REPORT_W
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { uiScans, scanStatus } from './scans.js';
 import { upkeepView, mergeUpkeepViews, delegatedTotalSaid, UPKEEP } from '../upkeep.js';
-import { chatSend, readChat, CHAT } from '../chat.js';
+import { chatSend, chatView } from '../chat.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -270,8 +270,9 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         // the window's delegated work in the one line both doors print (upkeep.js:delegatedTotalSaid)
         return json(res, 200, { ...shown, delegated: { ...shown.delegated, said: delegatedTotalSaid(shown.delegated) }, repos: pairs.length, looking });
       }
-      // the conversation with thinker (chat.js:readChat, as `thinker chat`): the machine's one, whatever tab is open
-      if (req.method === 'GET' && url.pathname === '/api/chat') return json(res, 200, { messages: readChat({ home }).slice(-CHAT.shown) });
+      // a conversation with thinker and the history beside it (chat.js:chatView, as `thinker chat` and its --history):
+      // the one named (`chat`), `new` for one not yet started, else the one last spoken in
+      if (req.method === 'GET' && url.pathname === '/api/chat') return json(res, 200, chatView({ home, chat: url.searchParams.get('chat') || null }));
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
       // a message to thinker (chat.js:chatSend): one model call through the person's own login, or queued for an app's
@@ -280,10 +281,10 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         const all = (storesFor('all') || []).map(([r, st]) => ({ id: r.id, name: r.name, store: st }));
         const about = all.some(r => r.id === String(b.repo || '')) ? String(b.repo) : null;
         // `about`: the line of Recent activity the person attached with "Chat about this", if any (chat.js:refOf cuts it to size)
-        const r = await chatSend(String(b.message || ''), { repos: all, about, ref: b.about && typeof b.about === 'object' ? b.about : null, home, ...(chatFn ? { completeFn: chatFn } : {}), fns: { spawn: spawnFn } });
+        const r = await chatSend(String(b.message || ''), { chat: typeof b.chat === 'string' && b.chat ? b.chat : null, repos: all, about, ref: b.about && typeof b.about === 'object' ? b.about : null, home, ...(chatFn ? { completeFn: chatFn } : {}), fns: { spawn: spawnFn } });
         if (r.error) return json(res, 400, { error: r.error });
         harnessCache.clear();
-        return json(res, 200, { ok: true, messages: r.messages, pending: Boolean(r.pending) });
+        return json(res, 200, { ok: true, chat: r.chat, messages: r.messages, chats: r.chats, pending: Boolean(r.pending) });
       }
       const st = storeFor(String(b.repo || ''));
       if (!st) return json(res, 400, { error: 'unknown repository' });
