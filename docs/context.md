@@ -10,10 +10,11 @@ an action with what it saved, beside the chat on the page (`thinker ui`) and in 
 the chat to do more, less or nothing; every action has an undo.
 
 The measurement is yours to read whenever you want it: `thinker context` prints it for the repository you are
-in, and `thinker context --machine` over the repositories your agents worked in lately. About once a week your
-agent also passes on a few lines from thinker naming the changes worth making, and you can approve them there
-by number. (Until 2026-11-21 this was a page, Find Savings; thinker now makes the decisions that page asked
-you to make.)
+in, and `thinker context --machine` over the repositories your agents worked in lately. Thinker makes the changes
+that clearly pay itself: each has to save $1 a day or more, they go out together as one batch once they come
+to $5 a day (at most one batch a week in a repository), and a week later each is checked and taken back if it
+did not pay. Skills it leaves alone unless you say otherwise. (Until 2026-11-21 this was a page, Find Savings,
+and a weekly question in your session; thinker now makes the decisions they asked you to make.)
 
 ## What it shows
 

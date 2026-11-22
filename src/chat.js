@@ -45,6 +45,7 @@ import { complete, available } from './llm.js';
 import { completeProfile } from './profile.js';
 import { upkeepView, upkeepDetail, behaviorOf, setBehavior, steerBehavior, behaviorSaid, upkeepDo, upkeepDismiss, upkeepUndo, upkeepCheck, delegatedTotalSaid, SETTINGS, STEER, UPKEEP, ago } from './upkeep.js';
 import { enqueueJob } from './session-work.js';
+import { formatDollars } from './prices.js';
 
 export const CHAT = {
   keep: 200,     // messages kept of one conversation
@@ -98,7 +99,7 @@ function writeChat(home, messages) {
 const message = (role, text, extra = {}) => ({ id: randomBytes(5).toString('hex'), at: new Date(extra.now || Date.now()).toISOString(), role, text, ...Object.fromEntries(Object.entries(extra).filter(([k, v]) => k !== 'now' && v !== undefined)) });
 
 const ACTIONS = ['set', 'steer', 'do', 'leave', 'undo', 'look'];
-export const CHAT_SYSTEM = `You are thinker, talking with the person whose coding agents you look after. Between their sessions you learn how they work, keep their agents' context lean, and clean up what the agents leave behind in their repositories. You act on your own for important things, and where a repository's files should change you put up a pull request. This conversation is where they ask what you did and tell you how to behave.
+export const CHAT_SYSTEM = `You are thinker, talking with the person whose coding agents you look after. Between their sessions you learn how they work, keep their agents' context lean, and clean up what the agents leave behind in their repositories. You act on your own. A change to what loads into every prompt (an instruction section nobody needs shortened or removed, a tool or an MCP server nobody calls switched off) you make yourself when it clearly pays: it has to save real money every day, and the ones that do go out together as a batch, not one at a time. Where a repository's files should change you put up a pull request, one for a batch, and leave it for a person to merge. This conversation is where they ask what you did and tell you how to behave.
 
 You do the work yourself and you have a view about what is worth doing. You do not hand the person a list of things to do, ask them to press anything, or ask permission for what your settings already let you do. You say what you did, and why when asked.
 
@@ -118,13 +119,13 @@ How to answer:
 
 The settings (action \`set\`, with \`key\` and \`value\`):
 ${Object.entries(SETTINGS).map(([k, s]) => `- ${k}: ${s.about}`).join('\n')}
-"Stop", "pause" or "leave my repositories alone" is level off. "Ask me first" or "don't do anything without asking" is level ask. "Go ahead" or "do it yourself" is level auto. "Fewer pull requests" raises prEveryDays; "no pull requests" is prs false.
+"Stop", "pause" or "leave my repositories alone" is level off. "Ask me first" or "don't do anything without asking" is level ask. "Go ahead" or "do it yourself" is level auto. "Only the big ones" or "be pickier" raises minPerDay; "don't wait so long" or "smaller batches" lowers batchPerDay; "not so often" raises batchEveryDays; "no pull requests" is prs false; "shorten but never remove" is remove false; "skills too" is skills true. A dollar amount is a plain number (2, 0.5). When they give no number for one of these, steer instead (below) or ask.
 
-Steering (action \`steer\`, with \`kind\` and \`direction\`): when they say they want more or less of a kind of thing you do ("more like this", "less of these", "do this more often", "you do this too much"), most often about a line they attached. \`kind\` is what the line is, given in brackets at its start: prs (a pull request), tools (a tool switched), sweep (worktrees and branches removed), delegation (work a session handed to cheaper agents). \`direction\` is more or less. The code moves how often or how readily you do that kind by one step and says the new setting; never set those numbers yourself for this. Steering is about what you do from now on: it does not take the line itself back. A line with no kind in brackets cannot be steered: say so.
+Steering (action \`steer\`, with \`kind\` and \`direction\`): when they say they want more or less of a kind of thing you do ("more like this", "less of these", "do this more often", "you do this too much"), most often about a line they attached. \`kind\` is what the line is, given in brackets at its start: changes (a batch of changes to what loads into every prompt; prs and tools are the same thing on a line that is one pull request or one tool), sweep (worktrees and branches removed), delegation (work a session handed to cheaper agents). \`direction\` is more or less. The code moves the bar for that kind by one step (for changes: the dollars a day one must save, halved or doubled) and says the new setting; never set those numbers yourself for this. Steering is about what you do from now on: it does not take the line itself back. A line with no kind in brackets cannot be steered: say so.
 
 The other actions:
-- \`do\`: do now a thing under HOLDING BACK, when they tell you to go ahead with it. \`leave\`: never mind that thing; you will not come back to it for ${UPKEEP.dismissDays} days. Both take its \`repo\` and \`id\`.
-- \`undo\`: take back something under WHAT YOU DID that carries an undo id: a sweep is put back, a tool turned back on, an open pull request closed. Takes its \`repo\` and that \`id\`. What they take back you do not do again.
+- \`do\`: do now a thing under HOLDING BACK, when they tell you to go ahead with it. The id \`batch\` sends a repository's next batch now, whatever it comes to and however lately the last one went. \`leave\`: never mind that thing; you will not come back to it for ${UPKEEP.dismissDays} days. Both take its \`repo\` and \`id\`.
+- \`undo\`: take back something under WHAT YOU DID that carries an undo id: a sweep is put back, a tool turned back on, an open pull request closed, a merged one reverted by a new pull request. A batch's undo id (b:…) takes back all of it; one change of a batch has its own id, given under WHAT YOU KNOW ABOUT IT when the line is attached. Takes its \`repo\` and that \`id\`. What they take back you do not do again.
 - \`look\`: check a repository again now, without acting. Takes its \`repo\`.
 
 What you never do, whatever is asked: change a repository's files outside a pull request, remove work that is not merged, or act on anything that is not listed below. Say so plainly when asked for one of these.`;
@@ -186,7 +187,13 @@ export function chatContext(repos, { about = null, now = Date.now(), home = thin
     if (!had) { const x = { ref, r, it, n: 1 }; tools.set(it.id, x); listed.push(x); } else { had.n++; if ((it.rank || 0) > (had.it.rank || 0)) Object.assign(had, { ref, r, it }); }
   }
   const items = listed.slice(0, CHAT.items);
-  lines.push('', `HOLDING BACK: found, important, not done yet (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
+  // each repository's next batch: what it holds, what that wastes a day, and why it has not gone
+  const next = views.filter(v => v.view?.batch?.changes);
+  if (next.length) {
+    lines.push('', 'THE NEXT BATCH, by repository (the changes below that go together):');
+    for (const { ref, r, view } of next) lines.push(`- repo ${ref}, id batch · ${r.name} · ${view.batch.changes} change${view.batch.changes === 1 ? '' : 's'} wasting about ${formatDollars(view.batch.perDay)} a day together · ${view.batch.ok ? 'goes at your next check' : `why not yet: ${view.batch.why || 'not now'}`}`);
+  }
+  lines.push('', `HOLDING BACK: found, worth doing, not done yet (${listed.length}${listed.length > items.length ? `, the first ${items.length} shown` : ''}):`);
   for (const { ref, r, it, n } of items) lines.push(`- repo ${ref}, id ${it.id} · ${n > 1 ? `${n} repositories` : r.name} · ${cut(it.title, 140)}${it.detail ? ` — ${cut(it.detail, 220)}` : ''} · why not yet: ${it.why}`);
   if (!items.length) lines.push('- nothing');
   const notes = views.flatMap(({ r, view }) => (view?.notes || []).map(it => ({ r, it }))).slice(0, 6);
@@ -220,7 +227,7 @@ export function refOf(x) {
   if (!x || typeof x !== 'object' || !x.text) return null;
   const str = (v, n) => typeof v === 'string' && v ? cut(v, n) : undefined;
   // `id`: which line it is, as the activity names it (upkeep.js:upkeepDetail looks its facts up by it)
-  const r = { kind: x.kind === 'session' ? 'session' : 'action', id: /^((h|d|s):[\w.:-]{1,80}|profile)$/.test(String(x.id || '')) ? String(x.id) : undefined, text: str(x.text, 300), impactSaid: str(x.impactSaid, 120), at: str(x.at, 40), repo: str(x.repo, 200), repoName: str(x.repoName, 120), url: /^https:\/\/[^\s"'<>]+$/.test(String(x.url || '')) ? str(x.url, 300) : undefined, title: str(x.title, 120) };
+  const r = { kind: x.kind === 'session' ? 'session' : 'action', id: /^((h|d|s|b):[\w.:-]{1,80}|profile)$/.test(String(x.id || '')) ? String(x.id) : undefined, text: str(x.text, 300), impactSaid: str(x.impactSaid, 120), at: str(x.at, 40), repo: str(x.repo, 200), repoName: str(x.repoName, 120), url: /^https:\/\/[^\s"'<>]+$/.test(String(x.url || '')) ? str(x.url, 300) : undefined, title: str(x.title, 120) };
   return Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined));
 }
 
@@ -243,7 +250,7 @@ async function carryOut(a, { refs, about, repos, home, now, fns }) {
   if (!here) return { ok: false, text: `which repository? ${a.type} needs one` };
   if (a.type === 'look') { const r = await upkeepCheck(here.store, { now, act: false, home, fns }); return r.skipped ? { ok: false, text: `thinker is switched off in ${here.name}` } : { ok: true, text: `looked at ${here.name} again: ${r.pending ? `${r.pending} thing${r.pending === 1 ? '' : 's'} waiting` : 'nothing is waiting'}` }; }
   if (!a.id) return { ok: false, text: `${a.type} needs an item` };
-  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns }) : await upkeepUndo(here.store, a.id, { now, fns });
+  const r = a.type === 'do' ? await upkeepDo(here.store, a.id, { now, by: 'you', fns, home }) : a.type === 'leave' ? upkeepDismiss(here.store, a.id, { now, fns, home }) : await upkeepUndo(here.store, a.id, { now, fns });
   return r.error ? { ok: false, text: r.error } : { ok: true, text: r.said };
 }
 

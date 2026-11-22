@@ -140,9 +140,9 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
                                  --dismiss 2, --history lists the decisions (a change under way, failed, or a pull request to merge
                                  is said so; reverted ones only with --reverted), --revert <n> takes one back, --retry <n> runs a
-                                 failed change again; Recent activity on the page (thinker ui) lists the decisions with what
-                                 needs you. Once a week the next prompt passes the five on as a question
-                                 (maintain.contextSuggest in .thinker/config.json; false turns it off)
+                                 failed change again; Recent activity on the page (thinker ui) lists the decisions. Thinker
+                                 makes the changes that save $1 a day or more itself, in batches (thinker activity says
+                                 what it did; thinker chat changes how it behaves)
   explain [--days n] [--limit n] [--keys <k1,k2>] [--all] [--model m] [--json]
                                  writes what each part of the context is and why you would change it, in plain words a person who
                                  has never thought about an agent's prompt can read: one small-model call per six parts, kept for
@@ -169,16 +169,19 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  with what it came to (-10k tokens per prompt, $45/day; disk freed), and for a pull request its
                                  link while it is in review and after; under them a line a session, what it handed to cheaper
                                  agents and what that saved. Thinker does its work itself: between sessions it looks at
-                                 what the coding agents left behind and does what is important -- removes merged worktrees and
-                                 branches, puts up a pull request for a costly section of the instruction file nobody needs,
-                                 switches off a costly tool nobody calls -- at most one pull request a repository a week, one
-                                 pull request and one tool a day over the machine. Nothing is listed for you to do. It checks
-                                 with maintenance, every four hours; run is that check (no model call; --look only looks). How it
-                                 behaves, and taking a thing back, is said to it (\`thinker chat\`)
+                                 what the coding agents left behind, removes merged worktrees and branches, and makes the
+                                 changes \`thinker context\` lists that clearly pay -- a section of the instruction file
+                                 nobody needs shortened or removed, a tool or MCP server nobody calls switched off -- each
+                                 worth $1 a day or more, together in one batch once they come to $5 a day, at most one
+                                 batch a repository a week. A batch is one line here and one pull request, left for a person
+                                 to merge. Nothing is listed for you to do. It checks with maintenance, every four hours; run
+                                 is that check (no model call; --look only looks). How it behaves, and taking a thing back,
+                                 is said to it (\`thinker chat\`)
   chat [message] [--new] [--chat id] [--history] [--json]
                                  talk to thinker, as on the page it opens on: ask what it did, tell it how to behave ("ask me
-                                 before putting up pull requests", "one pull request a month at most", "leave this repository
-                                 alone"), steer it ("fewer pull requests like that one", "hand more reads to cheaper agents"), or
+                                 before putting up pull requests", "only changes worth $3 a day", "a batch a month at most",
+                                 "never remove a section, only shorten", "leave this repository alone"), steer it ("fewer
+                                 like that one", "hand more reads to cheaper agents"), have it send the next batch now, or
                                  have it take a thing back ("turn that tool back on"). One model call a message,
                                  through your agent's own login; what it changed is printed under its answer. With no message,
                                  the conversation so far. A message goes on with the conversation last spoken in; --new starts

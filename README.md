@@ -59,10 +59,11 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   same two figures with thinker's end-of-turn card. `thinker savings` prints them with the split: the reading the cache
   replaced, and the context the proxy cleared. They are API-list-price equivalents of context nobody
   had to read, at the providers' published rates, not a bill.
-- **A suggestion in your session.** About once a week, once a repository has ten sessions to read, your
-  agent opens its reply with a short message from thinker: one line per change worth making (what it is,
-  the tokens it would have saved, the suggested action). Reply with the numbers to approve, or "all", and
-  the agent applies them; or ignore it and keep working.
+- **Context cuts, made for you.** Thinker measures what every prompt carries and never uses, and makes the
+  changes that clearly pay itself: each has to save $1 a day or more, and they go out together as one batch
+  (one pull request for the instruction sections it shortens or removes, left for a person to merge; unused
+  tools switched off). A week later it checks each change and takes back what did not pay. Your next
+  session says once what it did.
 - **The page.** `thinker ui` opens a chat with thinker in your browser, over every repository on the
   machine: ask what it did, and tell it how to behave. Beside the conversation is what it did lately, a line
   an action with what it saved. thinker makes the clearest context cuts itself: an instruction edit opens as

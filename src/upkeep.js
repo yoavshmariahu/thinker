@@ -11,31 +11,39 @@
 //
 // What a check looks for (CHORES):
 //   sweep     worktrees and branches whose work is merged (upkeep-sweep.js)
-//   context   the context changes `thinker context` ranks highest (context-suggest.js:currentChanges): a section of an
-//             instruction file nobody needs becomes a pull request, a tool nobody calls is switched off or made a
-//             reference. One computation with the command: the decision is kept in the same history, by the door `thinker`.
+//   context   the context changes `thinker context` lists (context-suggest.js:currentChanges): a section of an
+//             instruction file nobody needs is shortened or removed in a pull request, a tool or an MCP server nobody
+//             calls is switched off or made a reference. One computation with the command: every decision is kept in
+//             the same history, by the door `thinker`. These go in batches (below), never one at a time.
 //   rules     a section of the instruction file that sessions keep breaking, from the verdicts on real sessions
 //             (instruction-value.js). Something worth knowing, which thinker says when it is asked: what to do about a
 //             rule nobody follows is the person's.
 //   waiting   a change of its own that failed, tried again
 //
-// How it behaves (BEHAVIOR; the owner's rule, 2026-11-21: "take actions on its own and put up PRs as needed, but
-// only for important things and not too frequently"):
+// How it behaves (BEHAVIOR). The owner's rule, 2026-11-21: thinker is "responsible to finding and making those
+// decisions... This should happen in batches and only on actions that have clear value", and then their answers, one
+// by one, to how that should work:
 //   - It acts by itself (`level: 'auto'`). `ask` has it wait for the person's word in the chat; `off` stops the checks.
-//   - Only on what is important: a part the Context report flags high waste (5% of its kind's cost or more spent
-//     where it was not needed), a sweep of three things or 500 MB. What is not important stays in `thinker context`.
-//   - Not often: one pull request a repository a week and never while one is open, one a day over the whole
-//     machine; one tool a day over the machine; one sweep a repository a day. What has to wait its turn is done at
-//     a later check.
-//   - A pull request is the only way it changes a repository's files, and it is the team's to review: the line about
-//     it carries its link while it is in review and after. A section is never rewritten in the working tree.
+//   - Clear value is dollars: a change is worth making when what it wastes comes to `minPerDay` ($1) a day or more
+//     here -- the tokens that went on it unused over the report's window, at what an input token costs here, a day.
+//     A change nothing can price is not made. What is under the bar stays in `thinker context`.
+//   - Batches: the changes worth making go together, once they come to `batchPerDay` ($5) a day between them and
+//     `batchEveryDays` (7) have passed since the last batch here. A batch is one line of the activity.
+//   - What it may do: shorten a section (`prs`), remove one (`remove`), switch off or reference a tool or an MCP
+//     server (`tools`). Not a skill (`skills`, off) unless the person says so.
+//   - A pull request is the only way it changes a repository's files: one for a batch, whatever it shortens and
+//     removes, left for a person to merge (thinker never merges its own), and opened even while an earlier one is
+//     still in review. The line about it carries its link. A section is never rewritten in the working tree.
+//   - A week into its effect (`followUpDays`) each change of a batch is checked, and what backfired is taken back
+//     and not tried again (`followUp`): a tool switched back on, a section put back by a pull request of its own.
+//   - A sweep of three things or 500 MB, at most one a repository a day, as before.
 // The settings are `upkeep: { … }` in <THINKER_HOME>/config.json for the machine and in .thinker/config.json for
 // one repository (which wins); `upkeep: false` is `level: off`. The chat writes them (setBehavior).
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { findMess, sweep, unsweep, SWEEP } from './upkeep-sweep.js';
-import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, revertDecision, VIA, SUGGEST } from './context-suggest.js';
+import { currentChanges, decidedKeys, allChanges, pickChanges, approveChanges, dismissChanges, changeHistory, retryJob, revertDecision, restoreSection, VIA, SUGGEST } from './context-suggest.js';
 import { lastSnapshot } from './context-snapshot.js';
 import { rateOf } from './context-view.js';
 import { prAvailable } from './instruction-pr.js';
@@ -64,6 +72,11 @@ export const UPKEEP = {
   ruleDays: 30,     // the window a broken rule is counted over
   ruleBroken: 3,    // sessions that broke a rule before it is worth knowing
   staleMs: 24 * 3600_000, // the page asks for a look when the last check is older than this
+  batchMax: 20,     // changes one batch may hold (what the report lists)
+  removeSessions: 10, // sessions a section must have gone unneeded through before thinker removes it, not shortens it
+  needShare: 0.1,   // a tool made a reference and still called in this share of prompts was needed after all
+  followGiveUpDays: 28, // a change nothing could measure in this long is left as it is
+  followedDays: 180, // how long a change's check is remembered
 };
 const DAY = 86_400_000;
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -73,21 +86,26 @@ const short = (s, n = 160) => { s = String(s || '').replace(/\s+/g, ' ').trim();
 // --- how it behaves ------------------------------------------------------------------------------------------
 // Each setting with what it may be, and the words the chat and the command say it in.
 export const BEHAVIOR = {
-  level: 'auto', sweep: true, prs: true, tools: true,
-  important: 'high', prEveryDays: 7, prsPerDay: 1, toolEveryDays: 1, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
+  level: 'auto', sweep: true, prs: true, remove: true, tools: true, skills: false,
+  minPerDay: 1, batchPerDay: 5, batchEveryDays: 7, followUp: true, followUpDays: 7, sweepEveryDays: 1, sweepMin: 3, sweepMinMb: 500,
 };
 const num = (min, max) => v => { const n = Number(v); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n) : undefined; };
+// dollars, to the cent ("$2", "0.50")
+const money = (min, max) => v => { const n = Number(String(v).trim().replace(/^\$/, '')); return Number.isFinite(n) && n >= min && n <= max ? Math.round(n * 100) / 100 : undefined; };
 const bool = v => v === true || /^(true|on|yes)$/i.test(String(v)) ? true : v === false || /^(false|off|no)$/i.test(String(v)) ? false : undefined;
 const oneOf = (...xs) => v => xs.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : undefined;
 export const SETTINGS = {
-  level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: do what is important by itself; ask: do nothing until told to in the chat; off: stop looking' },
+  level: { read: oneOf('auto', 'ask', 'off'), about: 'auto: make the changes worth making by itself; ask: do nothing until told to in the chat; off: stop looking' },
   sweep: { read: bool, about: 'whether it may remove merged worktrees and branches by itself' },
-  prs: { read: bool, about: 'whether it may put up a pull request by itself' },
-  tools: { read: bool, about: 'whether it may switch off or reference an unused tool by itself' },
-  important: { read: oneOf('high', 'medium'), about: 'how costly a thing must be to act on: high (5% of its kind\'s cost wasted) or medium (2%)' },
-  prEveryDays: { read: num(1, 90), about: 'days between pull requests in one repository' },
-  prsPerDay: { read: num(1, 20), about: 'pull requests a day over the whole machine' },
-  toolEveryDays: { read: num(1, 90), about: 'days between tools switched, over the whole machine' },
+  prs: { read: bool, about: 'whether it may put up a pull request that shortens or removes a section of an instruction file' },
+  remove: { read: bool, about: 'whether such a pull request may remove a section outright; off, it only shortens' },
+  tools: { read: bool, about: 'whether it may switch off, or make a reference of, a tool or an MCP server nobody calls' },
+  skills: { read: bool, about: 'whether it may switch off a skill nobody calls (off unless they say so)' },
+  minPerDay: { read: money(0.05, 1000), about: 'dollars a day a change must save here to be worth making' },
+  batchPerDay: { read: money(0.05, 10_000), about: 'dollars a day the changes worth making must come to together before a batch of them goes' },
+  batchEveryDays: { read: num(1, 90), about: 'least days between batches in one repository' },
+  followUp: { read: bool, about: 'whether it checks each change once it has been in effect a while, and takes back by itself what did not pay' },
+  followUpDays: { read: num(1, 90), about: 'days a change is in effect before that check' },
   sweepEveryDays: { read: num(1, 90), about: 'days between sweeps in one repository' },
   sweepMin: { read: num(1, 100), about: 'how many merged worktrees and branches make a sweep worth doing by itself' },
   sweepMinMb: { read: num(1, 100_000), about: 'or how many megabytes they hold' },
@@ -122,11 +140,13 @@ export function setBehavior(store, key, value, { scope = 'machine', home = think
   return { key, value: v, scope, said: `${key} is now ${v} ${scope === 'repo' ? 'in this repository' : 'on this machine'}` };
 }
 // "More like this" and "less like this" (the owner, 2026-11-21: a person "can steer future decisions about things like
-// that"): how readily thinker does one kind of thing, moved one step. A step halves or doubles how often -- the days
-// between pull requests or tools, the size a sweep must be -- so two words from the person are a definite change they
-// are told the size of, and never a number the model picked. `delegation` is the delegation trigger's own setting
-// (delegate.js: the size a read must be to be handed to a cheaper agent), which is the machine's alone.
-export const STEER = { kinds: ['prs', 'tools', 'sweep', 'delegation'], delegation: { min: 2000, max: 64_000 } };
+// that"): how readily thinker does one kind of thing, moved one step. A step halves or doubles the bar -- the dollars
+// a day a change must save, the size a sweep must be -- so two words from the person are a definite change they are
+// told the size of, and never a number the model picked. `changes` is every change to what loads into a prompt (a
+// batch, a pull request, a tool: `prs` and `tools` are the same bar by the names single lines carry). `delegation` is
+// the delegation trigger's own setting (delegate.js: the size a read must be to be handed to a cheaper agent), which
+// is the machine's alone.
+export const STEER = { kinds: ['changes', 'prs', 'tools', 'sweep', 'delegation'], delegation: { min: 2000, max: 64_000 }, minPerDay: { min: 0.25, max: 64 } };
 const half = (n, min) => Math.max(min, Math.round(n / 2)), twice = (n, max) => Math.min(max, n * 2);
 export function steerBehavior(store, kind, direction, { scope = 'machine', home = thinkerHome() } = {}) {
   const more = direction === 'more';
@@ -142,32 +162,34 @@ export function steerBehavior(store, kind, direction, { scope = 'machine', home 
   }
   const b = behaviorOf(scope === 'repo' ? store : null, { home });
   const set = (key, value) => setBehavior(store, key, value, { scope, home });
-  if (!b[kind]) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set(kind, true); return r.error ? r : { said: `thinker does that again ${where}` }; }
   if (kind === 'sweep') {
+    if (!b.sweep) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set('sweep', true); return r.error ? r : { said: `thinker does that again ${where}` }; }
     const n = more ? half(b.sweepMin, 1) : twice(b.sweepMin, 100), mb = more ? half(b.sweepMinMb, 50) : twice(b.sweepMinMb, 100_000);
     if (n === b.sweepMin && mb === b.sweepMinMb) return { error: `a sweep is already ${more ? 'as ready' : 'as rare'} as thinker will go` };
     const r = [set('sweepMin', n), set('sweepMinMb', mb)].find(x => x.error);
     return r || { said: `merged worktrees and branches are now removed from ${plural(n, 'thing')} or ${mb} MB ${where} (it was ${b.sweepMin} or ${b.sweepMinMb} MB)` };
   }
-  const key = kind === 'prs' ? 'prEveryDays' : 'toolEveryDays', what = kind === 'prs' ? 'a pull request' : 'a tool';
-  const next = more ? half(b[key], 1) : twice(b[key], 90);
-  if (next === b[key]) return { error: `${what} is already ${more ? 'as often' : 'as seldom'} as thinker will go (every ${plural(b[key], 'day')})` };
-  const r = set(key, next);
-  return r.error ? r : { said: `${what} at most every ${plural(next, 'day')} now ${where} (it was every ${b[key]})` };
+  if ((kind === 'prs' || kind === 'tools') && !b[kind]) { if (!more) return { error: `thinker already does none of that ${where}` }; const r = set(kind, true); return r.error ? r : { said: `thinker does that again ${where}` }; }
+  // changes, prs, tools: the dollars a day a change must save, halved for more of them and doubled for fewer
+  const next = more ? Math.max(STEER.minPerDay.min, Math.round(b.minPerDay * 50) / 100) : Math.min(STEER.minPerDay.max, b.minPerDay * 2);
+  if (next === b.minPerDay) return { error: `the bar is already ${more ? 'as low' : 'as high'} as thinker will go (${formatDollars(b.minPerDay)} a day)` };
+  const r = set('minPerDay', next);
+  return r.error ? r : { said: `a change must now save ${formatDollars(next)} a day before thinker makes it ${where} (it was ${formatDollars(b.minPerDay)})` };
 }
 // The behaviour in a sentence or two, for the page, the command and the chat.
 export function behaviorSaid(b) {
   if (b.level === 'off') return 'Thinker is not looking after this repository (upkeep is off).';
   if (b.level === 'ask') return 'Thinker does nothing here until you tell it to.';
-  const does = [b.sweep ? 'removes merged worktrees and branches' : '', b.prs ? `puts up a pull request for a costly section nobody needs, at most one every ${plural(b.prEveryDays, 'day')}` : '', b.tools ? 'switches off costly tools nobody calls' : ''].filter(Boolean);
-  return does.length ? `Thinker acts on its own here, for important things only: it ${does.join(', ')}.` : 'Thinker may act on its own here, but every kind of action is switched off.';
+  const cuts = [b.prs ? (b.remove ? 'shortens or removes instruction sections nobody needs in a pull request' : 'shortens instruction sections nobody needs in a pull request') : '', b.tools ? 'switches off tools nobody calls' : '', b.skills ? 'switches off skills nobody calls' : ''].filter(Boolean);
+  const does = [b.sweep ? 'removes merged worktrees and branches' : '', cuts.length ? `${cuts.join(' and ')}, but only what saves ${formatDollars(b.minPerDay)} a day or more, together in one batch once that comes to ${formatDollars(b.batchPerDay)} a day, at most every ${plural(b.batchEveryDays, 'day')}` : ''].filter(Boolean);
+  return does.length ? `Thinker acts on its own here: it ${does.join('; ')}.${cuts.length && b.followUp ? ` ${plural(b.followUpDays, 'day')} after a change takes effect it checks it, and takes back what did not pay.` : ''}` : 'Thinker may act on its own here, but every kind of action is switched off.';
 }
 
 // --- what it remembers ---------------------------------------------------------------------------------------
 const stateFile = store => path.join(store.dir, 'state', 'upkeep.json');
 export function readUpkeep(store) {
-  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], kept: j.kept || null }; }
-  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], kept: null }; }
+  try { const j = JSON.parse(fs.readFileSync(stateFile(store), 'utf8')); return { lastCheck: j.lastCheck || null, items: j.items || [], seen: j.seen || {}, dismissed: j.dismissed || {}, done: j.done || [], kept: j.kept || null, followed: j.followed || {} }; }
+  catch { return { lastCheck: null, items: [], seen: {}, dismissed: {}, done: [], kept: null, followed: {} }; }
 }
 function writeJson(f, v) {
   const tmp = `${f}.${process.pid}.${randomBytes(3).toString('hex')}`;
@@ -175,13 +197,13 @@ function writeJson(f, v) {
   fs.writeFileSync(tmp, JSON.stringify(v) + '\n');
   fs.renameSync(tmp, f);
 }
-function writeUpkeep(store, st) { st.done = (st.done || []).slice(-UPKEEP.keepDone); writeJson(stateFile(store), st); }
-// what thinker did by itself over every repository, by kind (`prs`, `tools`), for the machine's daily limits
-const machineFile = home => path.join(home, 'state', 'upkeep.json');
-const machineState = home => { try { return JSON.parse(fs.readFileSync(machineFile(home), 'utf8')) || {}; } catch { return {}; } };
-const machineTimes = (home, kind) => (machineState(home)[kind] || []).filter(t => Number.isFinite(Date.parse(t)));
-function noteMachine(home, kind, now) { try { writeJson(machineFile(home), { ...machineState(home), [kind]: [...machineTimes(home, kind).filter(t => now - Date.parse(t) < 7 * DAY), new Date(now).toISOString()] }); } catch {} }
-
+function writeUpkeep(store, st) {
+  st.done = (st.done || []).slice(-UPKEEP.keepDone);
+  // a change's check is forgotten long after it could matter
+  const old = Date.now() - UPKEEP.followedDays * 86_400_000;
+  for (const [id, f] of Object.entries(st.followed || {})) if (Date.parse(f.at) < old) delete st.followed[id];
+  writeJson(stateFile(store), st);
+}
 // --- the chores ----------------------------------------------------------------------------------------------
 // Each: `find` (a check's look, kept), `live` (read fresh every time, cheap, never kept), `still` (whether a kept
 // item is still true), `act`, and where leaving a thing alone is more than forgetting it, `dismiss`. An item says
@@ -233,31 +255,41 @@ const sweepChore = {
 function packed(repo, name) { try { return fs.readFileSync(path.join(repo, '.git', 'packed-refs'), 'utf8').includes(` refs/heads/${name}\n`); } catch { return false; } }
 
 const viewOf = store => lastSnapshot(store, SUGGEST.days)?.view || null;
+// What a change wastes a day here, in dollars: the tokens that went on it unused over the report's window, at what an
+// input token cost here (context-view.js:rateOf, the Report's rule), a day of that window. null where nothing is priced.
+const perDayOf = (c, rate) => (rate == null || !c.total || !c.days ? null : (c.total * rate) / c.days);
+// What thinker does to a section by itself: removes it where no prompt of the window needed it at all, over enough
+// sessions to say so, and it may; shortens it otherwise (the report's own suggestion is always to shorten).
+const sectionAct = (c, b) => (b.remove && c.usedShare === 0 && (c.sessions || 0) >= UPKEEP.removeSessions && c.options?.some(o => o.act === 'remove') ? 'remove' : c.default.act);
 const contextChore = {
   id: 'context',
   find(store, opts) {
     const view = opts.fns?.view ? opts.fns.view(store) : viewOf(store);
     if (!view) return []; // no report kept yet: the next check has one (learn.js keeps it after maintenance)
-    const rate = rateOf(view), canPr = (opts.fns?.prAvailable || prAvailable)(store.repo).ok, level = opts.behavior.important;
+    const rate = rateOf(view), canPr = (opts.fns?.prAvailable || prAvailable)(store.repo).ok;
     // a section is changed only as a pull request, which the team reviews: where none can be opened from here it is
     // not thinker's to change at all, by itself or on anybody's word
-    return currentChanges(store, view, { now: opts.now }).filter(c => c.default && (c.kind !== 'section' || canPr)).map(c => {
-      const sec = c.kind === 'section';
-      const worth = !c.total ? '' : rate == null ? ` About ${formatTokens(c.total)} tokens went on it unused over the last ${c.days} days.` : ` About ${formatDollars(c.total * rate)} went on it unused over the last ${c.days} days.`;
-      const label = !sec ? c.default.text : `Put up a PR to ${c.default.act === 'remove' ? 'remove' : 'shorten'} it`;
-      // `rank`: what it is worth, so the costliest comes first; `machine`: a tool is switched for every repository at once
-      return { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? 'prs' : 'tools', important: c.waste === 'high' || (level === 'medium' && c.waste === 'medium'), rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key } };
+    return currentChanges(store, view, { now: opts.now, max: UPKEEP.batchMax }).filter(c => c.default && (c.kind !== 'section' || canPr)).map(c => {
+      const sec = c.kind === 'section', perDay = perDayOf(c, rate), act = sec ? sectionAct(c, opts.behavior) : c.default.act;
+      const worth = !c.total ? '' : perDay == null ? ` About ${formatTokens(c.total)} tokens went on it unused over the last ${c.days} days.` : ` About ${formatDollars(c.total * rate)} went on it unused over the last ${c.days} days, ${formatDollars(perDay)} a day.`;
+      const label = !sec ? c.default.text : `Put up a PR to ${act === 'remove' ? 'remove' : 'shorten'} it`;
+      // `perDay`: what it is worth, which is what makes it `important` (openItems reads it against the bar in force);
+      // `rank`: the costliest first; `machine`: a tool is switched for every repository at once
+      // `allow`: the setting that lets thinker make it by itself -- a section shortened, one removed, a tool, a skill
+      return { id: `change:${c.key}`, chore: 'context', kind: sec ? 'pr' : 'do', allow: sec ? (act === 'remove' ? 'remove' : 'prs') : c.kind === 'skill' ? 'skills' : 'tools', important: perDay != null && perDay >= opts.behavior.minPerDay, perDay, rank: c.total || 0, ...(c.kind === 'tool' ? { machine: true } : {}), title: c.title, detail: `${c.why.charAt(0).toUpperCase()}${c.why.slice(1)}.${worth}`, action: { label }, data: { key: c.key, act } };
     });
   },
-  // a change decided through any door since the check (the page, the session's question, the command) is no longer open
-  still(store, item, ctx) { return ctx.decided.has(item.data?.key) ? null : item; },
-  pick(store, item, opts) { const view = opts.fns?.view ? opts.fns.view(store) : viewOf(store); return view ? pickChanges(allChanges(view), [item.data.key]) : []; },
+  // a change decided through any door since the check (the command, a batch) is no longer open; nor is one whose
+  // pull request of thinker's own somebody closed without merging, which is a no (`refused`, below)
+  still(store, item, ctx) { return ctx.decided.has(item.data?.key) || ctx.refused?.has(item.data?.key) ? null : item; },
+  // each change with the action thinker settled on for it (`chosen`, where that is not the report's suggestion)
+  pick(store, items, opts) { const view = opts.fns?.view ? opts.fns.view(store) : viewOf(store); return view ? pickChanges(allChanges(view), items.map(it => it.data.key), Object.fromEntries(items.filter(it => it.data.act).map(it => [it.data.key, it.data.act]))) : []; },
+  // one change, on the person's word in the chat: made by itself, outside any batch
   async act(store, item, opts) {
-    const picked = this.pick(store, item, opts);
+    const picked = this.pick(store, [item], opts);
     if (!picked.length) return { error: 'that part is no longer in the report; it is looked for again at the next check' };
     // A section is changed only as a pull request: asked again now, since the check that found it may be hours old,
-    // and never left to fall back on writing the file in the working tree (which is the person's own Apply, on Find
-    // Savings).
+    // and never left to fall back on writing the file in the working tree.
     let pr = opts.pr;
     if (item.kind === 'pr') {
       if (!(opts.fns?.prAvailable || prAvailable)(store.repo).ok) return { error: 'no pull request can be opened from here now' };
@@ -268,7 +300,7 @@ const contextChore = {
     return { said: said.join(' '), kept: true };
   },
   dismiss(store, item, opts) {
-    const picked = this.pick(store, item, opts);
+    const picked = this.pick(store, [item], opts);
     if (picked.length) dismissChanges(store, picked, { via: VIA.thinker, now: opts.now });
     return { kept: true };
   },
@@ -332,25 +364,154 @@ export const CHORES = [waitingChore, sweepChore, contextChore, rulesChore];
 const choreOf = id => CHORES.find(c => c.id === id);
 
 // --- acting by itself ----------------------------------------------------------------------------------------
+const OFF_WHY = { sweep: 'sweeps are switched off here', prs: 'pull requests are switched off here', remove: 'it may shorten a section here but not remove one', tools: 'switching tools is switched off here', skills: 'skills are left alone unless you say otherwise' };
+// whether the settings let thinker do an item by itself at all (a removal is a pull request too)
+const allowed = (b, it) => Boolean(b[it.allow]) && (it.allow !== 'remove' || Boolean(b.prs));
+const lastBatch = store => Math.max(0, ...readUpkeep(store).done.filter(d => d.kind === 'batch').map(d => Date.parse(d.at)));
+
+// The batch: every change worth making that thinker may make here, what they waste a day between them, and whether
+// it goes now (`ok`); else why not (`why`) and whether it is only waiting (`later`). The owner's answers, 2026-11-21:
+// a batch goes "when enough has piled up" and never more than one a week; one still being made is not doubled; a
+// pull request of an earlier batch still in review holds nothing up ("open another").
+export function batchOf(store, b, { now = Date.now(), items } = {}) {
+  const may = (items || openItems(store, { now, b })).filter(it => it.chore === 'context' && it.action && allowed(b, it));
+  const perDay = may.reduce((a, it) => a + (it.perDay || 0), 0), r = { items: may, perDay };
+  if (!may.length) return { ...r, ok: false };
+  if (b.level !== 'auto') return { ...r, ok: false, why: 'you asked to be asked first' };
+  const wait = why => ({ ...r, ok: false, later: true, why });
+  let making = false; try { making = changeHistory(store, { now }).some(e => !e.revertedAt && e.attention === 'running'); } catch {}
+  if (making) return wait('a change is still being made here');
+  const last = lastBatch(store);
+  if (last && now - last < b.batchEveryDays * DAY) return wait(`one batch every ${plural(b.batchEveryDays, 'day')} here, and the last went ${ago(new Date(last).toISOString(), now)}`);
+  if (perDay < b.batchPerDay) return wait(`the changes worth making come to ${formatDollars(perDay)} a day together so far, and a batch goes at ${formatDollars(b.batchPerDay)}`);
+  return { ...r, ok: true };
+}
+
 // Whether thinker may do an item now, and if not, why (`why`), and whether it is only waiting its turn (`later`):
-// the level, the setting for its kind, then how lately it did the same. What the person tells it to do in the chat
-// is held to none of this.
-export function mayAct(store, item, b, { now = Date.now(), home = thinkerHome(), prOpen = false } = {}) {
+// the level, the setting for its kind, then its turn -- a context change goes with the batch (`batch`: the batch as
+// already worked out, by a caller asking about several), a sweep at most so often. What the person tells it to do in
+// the chat is held to none of this.
+export function mayAct(store, item, b, { now = Date.now(), batch } = {}) {
   if (!item.important || !item.action || !item.allow) return { ok: false };
   if (b.level !== 'auto') return { ok: false, why: 'you asked to be asked first' };
-  if (!b[item.allow]) return { ok: false, why: `you told it not to (${item.allow} is off)` };
-  const mine = readUpkeep(store).done.filter(d => d.by === 'thinker' && !d.undoneAt);
-  const last = (chore, kind) => Math.max(0, ...mine.filter(d => d.chore === chore && (!kind || d.kind === kind)).map(d => Date.parse(d.at)));
+  if (!allowed(b, item)) return { ok: false, why: OFF_WHY[b[item.allow] ? 'prs' : item.allow] || `${item.allow} is off` };
   const wait = why => ({ ok: false, later: true, why });
   if (item.chore === 'waiting') return item.data.tries >= UPKEEP.retries ? { ok: false, why: `it failed ${item.data.tries} times` } : now - Date.parse(item.data.failedAt) < DAY ? wait('it is tried again a day after it failed') : { ok: true };
-  if (item.allow === 'prs') {
-    if (prOpen) return wait('a pull request is still open here');
-    if (now - last('context', 'pr') < b.prEveryDays * DAY) return wait(`one pull request every ${plural(b.prEveryDays, 'day')} here`);
-    if (machineTimes(home, 'prs').filter(t => now - Date.parse(t) < DAY).length >= b.prsPerDay) return wait(`${plural(b.prsPerDay, 'pull request')} a day over the machine`);
-  }
-  if (item.allow === 'tools' && machineTimes(home, 'tools').some(t => now - Date.parse(t) < b.toolEveryDays * DAY)) return wait(`one tool every ${plural(b.toolEveryDays, 'day')} over the machine`);
+  if (item.chore === 'context') { const bt = batch || batchOf(store, b, { now }); return bt.ok ? { ok: true } : { ok: false, ...(bt.later ? { later: true } : {}), why: bt.why || 'not now' }; }
+  const mine = readUpkeep(store).done.filter(d => d.by === 'thinker' && !d.undoneAt);
+  const last = chore => Math.max(0, ...mine.filter(d => d.chore === chore).map(d => Date.parse(d.at)));
   if (item.allow === 'sweep' && now - last('sweep') < b.sweepEveryDays * DAY) return wait(`one sweep every ${plural(b.sweepEveryDays, 'day')} here`);
   return { ok: true };
+}
+
+// A batch made: every change in it through the one door (context-suggest.js:approveChanges, which keeps each decision
+// under the batch's id), its sections as one job and one pull request whatever they shorten and remove. One thing
+// done, and one line of the activity.
+async function doBatch(store, items, { now, by, fns = {} }) {
+  const canPr = (fns.prAvailable || prAvailable)(store.repo).ok;
+  const picked = contextChore.pick(store, items, { fns }).filter(c => c.default && (c.kind !== 'section' || canPr));
+  if (!picked.length) return { error: 'nothing of the batch can be made now; it is looked for again at the next check' };
+  const id = randomBytes(5).toString('hex'), made = [];
+  try { await approveChanges(store, picked, { via: VIA.thinker, now, pr: true, batch: id, made, ...(fns.spawn ? { spawnFn: fns.spawn } : {}) }); }
+  catch (e) { if (!made.some(m => !m.error)) return { error: short(e.message || e, 200) }; }
+  const keys = new Set(made.filter(m => !m.error).map(m => m.key));
+  if (!keys.size) return { error: short(made[0]?.error || 'nothing could be changed', 200) };
+  const went = items.filter(it => keys.has(it.data.key)), of = k => picked.filter(c => keys.has(c.key) && k(c));
+  const secs = of(c => c.kind === 'section'), gone = secs.filter(c => (c.chosen || c.default.act) === 'remove').length, kept = secs.length - gone, tools = of(c => c.kind === 'tool').length, skills = of(c => c.kind === 'skill').length;
+  const perDay = went.reduce((a, it) => a + (it.perDay || 0), 0);
+  const parts = [secs.length ? `a pull request that ${[kept ? `shortens ${plural(kept, 'section')}` : '', gone ? `removes ${kept ? gone : plural(gone, 'section')}` : ''].filter(Boolean).join(' and ')}` : '', tools ? `${plural(tools, 'tool')} switched off or made a reference` : '', skills ? `${plural(skills, 'skill')} switched off` : ''].filter(Boolean);
+  const said = `Sent a batch of ${plural(keys.size, 'change')}${perDay ? ` worth about ${formatDollars(perDay)} a day` : ''}: ${parts.join(', ')}`;
+  const st = readUpkeep(store);
+  for (const it of went) forget(st, it.id);
+  const entry = { id, at: new Date(now).toISOString(), item: 'batch', chore: 'context', kind: 'batch', title: `A batch of ${plural(keys.size, 'change')}`, said, by, kept: true, batch: { keys: [...keys], perDay, sections: secs.length, removed: gone, tools, skills } };
+  st.done.push(entry);
+  writeUpkeep(store, st);
+  store.log({ op: 'upkeep-do', chore: 'context', kind: 'batch', by, changes: keys.size });
+  return { said, done: id, title: entry.title, changes: keys.size };
+}
+
+// --- a week on: did it pay? ----------------------------------------------------------------------------------
+// The owner's answer, 2026-11-21: "Check, and undo what backfired" -- a week after a change takes effect thinker
+// measures it; where the saving did not show up, or the thing turned out to be needed, it takes it back, does not try
+// that one again, and says so in Recent activity. No model call: everything read here was measured already.
+// When a change took effect: a tool when it was switched, a section when its pull request merged.
+const sinceOf = e => Date.parse(e.kind === 'section' ? (e.pr?.state === 'merged' ? e.pr.at || '' : '') : e.at || '');
+// How often sessions broke a section's rule between two times, from the one read each session gets when it ends
+// (instruction-value.js: the verdicts kept on its record).
+function ruleTally(store, section, from, to) {
+  let bore = 0, broken = 0;
+  const id = String(section || '').toLowerCase();
+  for (const rec of Object.values(readValueState(store).sessions || {})) {
+    const at = Date.parse(rec.judged?.at || '');
+    if (!(at >= from && at < to)) continue;
+    const v = Object.entries(rec.judged.verdicts || {}).find(([k]) => k.toLowerCase() === id)?.[1];
+    if (!v) continue;
+    bore++; if (v.verdict === 'violated') broken++;
+  }
+  return { bore, broken };
+}
+// One change judged: { verdict: 'undo', why } where it backfired, { verdict: 'kept', why } where it paid or nothing
+// says it did not, null while it is too early to say. Three things say a change backfired:
+//   - its measured effect (report.js:actionEffect, the thing's cost a prompt before against since) is no saving at all;
+//   - a shortened section's rule was broken in UPKEEP.ruleBroken sessions since, and more often than before;
+//   - a tool made a reference was still called in UPKEEP.needShare of prompts (the kept report's window, all of it
+//     after the switch).
+function judge(store, e, { now, b, view }) {
+  const since = sinceOf(e);
+  if (!Number.isFinite(since) || now - since < b.followUpDays * DAY) return null;
+  // an effect speaks only where the thing had a cost to lose: nothing on both sides is no measurement
+  const fx = e.effect?.before?.perPrompt > 0 ? e.effect : null, late = now - since >= UPKEEP.followGiveUpDays * DAY;
+  if (fx && !fx.few && fx.delta <= 0) return { verdict: 'undo', why: `it saved nothing: it cost ${formatTokens(Math.round(fx.before.perPrompt))} tokens a prompt before and ${formatTokens(Math.round(fx.after.perPrompt))} since` };
+  if (e.kind === 'section' && e.act === 'compress') {
+    const after = ruleTally(store, e.section, since, now), before = ruleTally(store, e.section, since - (now - since), since);
+    if (after.broken >= UPKEEP.ruleBroken && after.broken / after.bore > (before.bore ? before.broken / before.bore : 0)) return { verdict: 'undo', why: `agents broke it in ${after.broken} of the ${plural(after.bore, 'session')} it came up in since it was shortened (${before.broken} of ${before.bore} over as long before)` };
+  }
+  if (e.kind === 'tool' && /reference/i.test(e.action || '') && view?.days && view.days * DAY <= now - since) {
+    const row = (view.tools || []).find(t => `${t.client}:${t.key}` === e.key);
+    if (row?.usedShare != null && row.usedShare >= UPKEEP.needShare) return { verdict: 'undo', why: `it was still called in ${Math.round(100 * row.usedShare)}% of prompts after it was made a reference` };
+  }
+  // under five sessions on a side is early: looked at again, until it has been long enough to stop waiting
+  if (fx && (!fx.few || late)) return { verdict: 'kept', why: `it saves ${formatTokens(Math.round(fx.delta))} tokens a prompt, over ${plural(fx.after.sessions, 'session')} since${fx.few ? ' (few, so the figure is early)' : ''}` };
+  return late ? { verdict: 'kept', why: 'no session since could measure it' } : null;
+}
+// Every change of thinker's own batches that has been in effect long enough and was not checked yet: checked, and
+// taken back where it backfired. Returns what was taken back, as things done. A change the person asked for by name is
+// not thinker's to take back; one whose undo fails is tried again at the next checks, UPKEEP.retries times in all.
+async function followUp(store, b, { now, fns = {} }) {
+  const mine = new Set(readUpkeep(store).done.filter(d => d.kind === 'batch' && d.by === 'thinker').map(d => d.id));
+  if (!mine.size) return [];
+  let history = []; try { history = changeHistory(store, { now }); } catch { return []; }
+  try { history = withEffects(history, (fns.report ? fns.report(store) : keptRows(store, { now })).rows || [], now); } catch {}
+  const view = fns.view ? fns.view(store) : viewOf(store), did = [];
+  for (const e of history) {
+    if (!e.batch || !mine.has(e.batch) || e.decision === 'dismissed' || e.revertedAt || e.running || e.failed) continue;
+    const had = readUpkeep(store).followed[e.id];
+    if (had && had.verdict !== 'retry') continue;
+    const j = judge(store, e, { now, b, view });
+    if (!j) continue;
+    const at = new Date(now).toISOString(), keep = f => { const st = readUpkeep(store); f(st); writeUpkeep(store, st); };
+    if (j.verdict === 'kept') { keep(st => { st.followed[e.id] = { at, verdict: 'kept', why: j.why }; }); store.log({ op: 'upkeep-follow', kind: e.kind, verdict: 'kept' }); continue; }
+    let r;
+    try {
+      r = e.kind === 'section'
+        ? await (fns.restore || restoreSection)(store, e.id, { now, why: j.why, ...(fns.prs ? { prs: fns.prs } : {}), ...(fns.edit ? { edit: fns.edit } : {}) })
+        : await (fns.revert || revertDecision)(store, e.id, { now, ...(fns.prs ? { prs: fns.prs } : {}) });
+    } catch (err) { r = { error: short(err.message || err, 200) }; }
+    if (r.error) {
+      const tries = (had?.tries || 0) + 1;
+      keep(st => { st.followed[e.id] = { at, verdict: tries >= UPKEEP.retries ? 'held' : 'retry', tries, why: j.why, error: short(r.error, 200) }; });
+      continue;
+    }
+    const said = r.pr ? `Opened PR #${r.pr.number} to put ${e.title} back as it was: ${j.why}` : `Turned ${e.title} back on: ${j.why}`;
+    keep(st => {
+      st.followed[e.id] = { at, verdict: 'undone', why: j.why };
+      for (const k of e.keys || [e.key]) st.dismissed[`change:${k}`] = at;
+      st.done.push({ id: randomBytes(5).toString('hex'), at, item: `follow:${e.id}`, chore: 'follow', kind: 'did', title: e.title, said, by: 'thinker', ...(r.pr?.url ? { url: r.pr.url } : {}) });
+    });
+    store.log({ op: 'upkeep-follow', kind: e.kind, verdict: 'undone' });
+    did.push({ id: `follow:${e.id}`, kind: 'did', said });
+  }
+  return did;
 }
 
 // --- a check -------------------------------------------------------------------------------------------------
@@ -372,61 +533,81 @@ export async function upkeepCheck(store, { now = Date.now(), fns = {}, act = tru
   writeUpkeep(store, st);
   const did = [];
   if (act && b.level === 'auto') {
-    // never a second pull request while one is open or being made: a team is handed one at a time
-    let prOpen = changeHistory(store, { now }).some(e => !e.revertedAt && (e.attention === 'pr' || e.attention === 'running'));
-    for (const it of openItems(store, { now })) {
-      if (!mayAct(store, it, b, { now, home, prOpen }).ok) continue;
-      const r = await upkeepDo(store, it.id, { now, by: 'thinker', fns });
-      if (r.error) continue;
-      did.push({ id: it.id, kind: it.kind, said: r.said });
-      if (it.allow === 'prs') { prOpen = true; if (it.chore === 'context') noteMachine(home, 'prs', now); }
-      if (it.allow === 'tools') noteMachine(home, 'tools', now);
+    // a failed change of its own tried again, a sweep: each on its own turn
+    for (const it of openItems(store, { now, b })) {
+      if (it.chore === 'context' || !mayAct(store, it, b, { now }).ok) continue;
+      const r = await upkeepDo(store, it.id, { now, by: 'thinker', fns, home });
+      if (!r.error) did.push({ id: it.id, kind: it.kind, said: r.said });
     }
+    // the context changes worth making, together or not at all
+    const batch = batchOf(store, b, { now });
+    if (batch.ok) {
+      const r = await doBatch(store, batch.items, { now, by: 'thinker', fns });
+      if (!r.error) did.push({ id: 'batch', kind: 'batch', said: r.said, changes: r.changes });
+    }
+    // and the changes of earlier batches, once each, a week into their effect
+    if (b.followUp) { try { did.push(...await followUp(store, b, { now, fns })); } catch (e) { errors.push({ chore: 'follow', message: short(e.message || e, 200) }); } }
   }
   const { pending } = upkeepPending(store, { now, home });
   store.log({ op: 'upkeep', did: did.length, pending: pending.length || undefined, level: b.level, acted: Boolean(act), chores: Object.fromEntries(CHORES.map(c => [c.id, did.filter(d => choreOfItem(d.id) === c.id).length]).filter(([, n]) => n)), ...(errors.length ? { errors: errors.length } : {}) });
   return { did, pending: pending.length, errors };
 }
-const choreOfItem = id => id === 'sweep' ? 'sweep' : id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
+const choreOfItem = id => id === 'sweep' ? 'sweep' : id === 'batch' || id.startsWith('change:') ? 'context' : id.startsWith('wait:') ? 'waiting' : id.startsWith('rule:') ? 'rules' : 'other';
 
 // --- what is not done yet ------------------------------------------------------------------------------------
 const ORDER = { pr: 1, do: 2, note: 3 };
 // pull requests first, then the rest; within a kind the chores in their own order, then the costliest, then the newest
 const choreAt = it => { const i = CHORES.findIndex(c => c.id === it.chore); return i < 0 ? CHORES.length : i; };
 const byOrder = (a, b) => (ORDER[a.kind] ?? 9) - (ORDER[b.kind] ?? 9) || choreAt(a) - choreAt(b) || (b.rank || 0) - (a.rank || 0) || String(b.found || '').localeCompare(String(a.found || ''));
-// Everything important the last check found that still holds and was not left alone, in the order it matters.
-function openItems(store, { now = Date.now() } = {}) {
+// Everything worth doing the last check found that still holds and was not left alone, in the order it matters. A
+// context change is worth making at the bar in force now (`b.minPerDay`), not the one its check ran under, so a word
+// in the chat moves what is held at once.
+function openItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
   const st = readUpkeep(store);
   let decided = new Set(); try { decided = decidedKeys(store, { now }); } catch {}
+  // A pull request of thinker's own that was closed without merging means "not this" (the owner's answer, 2026-11-21):
+  // its sections are left alone for UPKEEP.dismissDays, though `thinker context` lists them again at once.
+  let refused = new Set(); try { refused = new Set(changeHistory(store, { now }).filter(h => h.via === VIA.thinker && h.rejected && now - Date.parse(h.pr?.at || h.at) < UPKEEP.dismissDays * DAY).flatMap(h => h.keys || [h.key])); } catch {}
   const items = [];
   for (const c of CHORES) { if (c.live) { try { items.push(...c.live(store, { now })); } catch {} } }
   for (const it of st.items) {
     const c = choreOf(it.chore); if (!c) continue;
-    let cur = it; try { if (c.still) cur = c.still(store, it, { decided, now }); } catch { cur = it; }
+    let cur = it; try { if (c.still) cur = c.still(store, it, { decided, refused, now }); } catch { cur = it; }
     if (cur) items.push(cur);
   }
-  return items.filter(it => it.important && (!st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY)).sort(byOrder);
+  // (one kept by a check from before the bar was dollars carries no figure, and waits for the next check to price it)
+  const worth = it => (it.chore === 'context' ? it.perDay != null && it.perDay >= b.minPerDay : Boolean(it.important));
+  return items.filter(it => worth(it) && (!st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY)).map(it => (it.important ? it : { ...it, important: true })).sort(byOrder);
 }
-// What thinker found and has not done, each with why (`pending`: it waits its turn, or the person's word, or a
-// setting says no), and what is worth knowing (`notes`: a rule sessions keep breaking). Neither is a list for the
-// person to work through: the page shows only how much is waiting, and the chat is shown both, so thinker can say
-// what it is holding and be told to go ahead.
+// What thinker found and has not done, each with why (`pending`: it waits its turn or its batch, or the person's
+// word, or a setting says no), what is worth knowing (`notes`: a rule sessions keep breaking), and the batch those
+// changes make (`batch`: how many, what they waste a day together, why it has not gone). None of it is a list for the
+// person to work through: the page shows only how much is waiting, and the chat is shown all of it, so thinker can
+// say what it is holding and be told to go ahead.
 export function upkeepPending(store, { now = Date.now(), home = thinkerHome() } = {}) {
-  const st = readUpkeep(store), b = behaviorOf(store, { home }), pending = [], notes = [];
-  for (const it of openItems(store, { now })) {
+  const st = readUpkeep(store), b = behaviorOf(store, { home }), pending = [], notes = [], open = openItems(store, { now, b });
+  const batch = batchOf(store, b, { now, items: open });
+  for (const it of open) {
     if (!it.action) { notes.push(it); continue; }
-    const may = mayAct(store, it, b, { now, home });
-    pending.push({ ...it, why: may.ok ? 'at its next check' : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}) });
+    const may = mayAct(store, it, b, { now, batch });
+    pending.push({ ...it, why: may.ok ? (it.chore === 'context' ? 'it goes with the batch at the next check' : 'at its next check') : may.why || 'not now', ...(may.ok || may.later ? { later: true } : {}) });
   }
-  return { lastCheck: st.lastCheck, pending, notes };
+  return { lastCheck: st.lastCheck, pending, notes, batch: { changes: batch.items.length, perDay: batch.perDay, ok: batch.ok, ...(batch.later ? { later: true } : {}), ...(batch.why ? { why: batch.why } : {}) } };
 }
-const itemOf = (store, ref, now) => openItems(store, { now }).find(it => it.id === ref) || null;
+const itemOf = (store, ref, now, b) => openItems(store, { now, b }).find(it => it.id === ref) || null;
 const forget = (st, id) => { st.items = st.items.filter(it => it.id !== id); };
 
 // Do what an item offers, by its id. `by`: a check (`thinker`), or the person saying so in the chat (`you`), who is
-// held to no limit. What was done is kept for the activity with its undo.
-export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns = {}, pr } = {}) {
-  const it = itemOf(store, ref, now);
+// held to no limit. `batch` is the batch itself: everything thinker may change here, now, whatever it comes to and
+// however lately the last one went. What was done is kept for the activity with its undo.
+export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns = {}, pr, home = thinkerHome() } = {}) {
+  const b = behaviorOf(store, { home });
+  if (ref === 'batch') {
+    const batch = batchOf(store, b, { now });
+    if (!batch.items.length) return { error: 'nothing is waiting for a batch here' };
+    return doBatch(store, batch.items, { now, by, fns });
+  }
+  const it = itemOf(store, ref, now, b);
   if (!it) return { error: `nothing is waiting under ${ref}` };
   const c = choreOf(it.chore);
   if (!it.action || !c?.act) return { error: `${it.title}: there is nothing thinker can do about it` };
@@ -441,9 +622,9 @@ export async function upkeepDo(store, ref, { now = Date.now(), by = 'you', fns =
   return { said: [r.said, impactSaid(r.impact)].filter(Boolean).join(' · '), done: entry.id, title: it.title };
 }
 // Leave a thing alone, as the person said in the chat: thinker does not come back to it for UPKEEP.dismissDays (a
-// context change is also left alone in its own history, as in `thinker context`).
-export function upkeepDismiss(store, ref, { now = Date.now(), fns = {} } = {}) {
-  const it = itemOf(store, ref, now);
+// context change is also left alone in its own history, as `thinker context --dismiss` leaves it).
+export function upkeepDismiss(store, ref, { now = Date.now(), fns = {}, home = thinkerHome() } = {}) {
+  const it = itemOf(store, ref, now, behaviorOf(store, { home }));
   if (!it) return { error: `nothing is waiting under ${ref}` };
   const c = choreOf(it.chore), st = readUpkeep(store);
   let kept = false; try { kept = Boolean(c?.dismiss?.(store, it, { now, fns })?.kept); } catch {}
@@ -455,19 +636,35 @@ export function upkeepDismiss(store, ref, { now = Date.now(), fns = {} } = {}) {
 }
 // Take back something that was done, by the id the activity carries: a sweep is put back (`<id>`), a decision is
 // reverted where its history is kept (`h:<id>`, context-suggest.js:revertDecision -- a tool turned back on, an open
-// pull request closed).
+// pull request closed, a merged one reverted by another), a whole batch each of its changes in turn (`b:<id>`).
+// What the person took back is not done again: its change is left alone as if they had said so.
+const leaveAlone = (store, keys, now) => { const st = readUpkeep(store); for (const k of keys) st.dismissed[`change:${k}`] = new Date(now).toISOString(); writeUpkeep(store, st); };
+// (the decision's own words end "suggested again": not by thinker, which now leaves it alone)
+const tookBack = r => String(r.said || 'Taken back').replace(/; suggested again.*$/, '');
 export async function upkeepUndo(store, id, { now = Date.now(), fns = {} } = {}) {
+  if (String(id).startsWith('b:')) {
+    const bid = String(id).slice(2), all = changeHistory(store, { now }).filter(h => h.batch === bid), left = all.filter(h => !h.revertedAt && h.revertible);
+    if (!all.length) return { error: 'no such batch' };
+    if (!left.length) return { error: all.every(h => h.revertedAt) ? 'already taken back' : 'nothing of that batch can be taken back from here' };
+    const said = [], failed = [], done = new Set();
+    for (const h of left) {
+      // the sections of one pull request go together: the first takes the others with it
+      const g = h.group || h.id; if (done.has(g)) continue; done.add(g);
+      const r = await revertDecision(store, h.id, { now, ...(fns.prs ? { prs: fns.prs } : {}) });
+      if (r.error) failed.push(`${h.title}: ${r.error}`); else said.push(tookBack(r));
+    }
+    if (!said.length) return { error: failed[0] };
+    leaveAlone(store, left.flatMap(h => h.keys || [h.key]), now);
+    store.log({ op: 'upkeep-undo', chore: 'context', kind: 'batch' });
+    return { said: [...said, ...(failed.length ? [`could not take back: ${failed.join('; ')}`] : [])].join('. ') };
+  }
   if (String(id).startsWith('h:')) {
     const hid = String(id).slice(2), e = changeHistory(store, { now }).find(h => h.id === hid);
     const r = await revertDecision(store, hid, { now, ...(fns.prs ? { prs: fns.prs } : {}) });
     if (r.error) return { error: r.error };
-    // what the person took back is not done again: its change is left alone as if they had said so
-    const st = readUpkeep(store);
-    for (const k of e ? e.keys || [e.key] : []) st.dismissed[`change:${k}`] = new Date(now).toISOString();
-    writeUpkeep(store, st);
+    leaveAlone(store, e ? e.keys || [e.key] : [], now);
     store.log({ op: 'upkeep-undo', chore: 'context' });
-    // (the decision's own words end "suggested again": not by thinker, which now leaves it alone)
-    return { said: String(r.said || 'Taken back').replace(/; suggested again.*$/, '') };
+    return { said: tookBack(r) };
   }
   const st = readUpkeep(store), e = st.done.find(d => d.id === id);
   if (!e) return { error: 'no such action' };
@@ -496,7 +693,9 @@ export function impactSaid(i) {
   if (i.kb) return `${size(i.kb)} freed`;
   if (!i.perPrompt) return '';
   const saved = i.perPrompt > 0, day = i.perDay != null && Math.abs(i.perDay) >= 0.005 ? ` · ${formatDollars(Math.abs(i.perDay))}/day${saved ? '' : ' more'}` : '';
-  return `${i.measured ? '' : 'about '}${saved ? '−' : '+'}${formatTokens(Math.abs(Math.round(i.perPrompt)))} tokens per prompt${day}${i.pending ? ' once merged' : ''}`;
+  // `wait`: the part of it that is not in effect until a pull request merges (a batch: its tools are, its sections are not)
+  const w = i.wait, waits = !w || !w.perPrompt ? '' : ` (${w.perDay != null && Math.abs(w.perDay) >= 0.005 ? `${formatDollars(Math.abs(w.perDay))}/day` : `${formatTokens(Math.abs(Math.round(w.perPrompt)))} tokens`} of it once ${w.pr ? `PR #${w.pr}` : 'its pull request'} merges)`;
+  return `${i.measured ? '' : 'about '}${saved ? '−' : '+'}${formatTokens(Math.abs(Math.round(i.perPrompt)))} tokens per prompt${day}${waits || (i.pending ? ' once merged' : '')}`;
 }
 const profileSaid = (p, where = '') => `Updated your profile${where}: ${[p.added ? `${plural(p.added, 'line')} added` : '', p.reworded ? `${p.reworded} reworded` : '', p.dropped ? `${p.dropped} dropped` : ''].filter(Boolean).join(', ')}`;
 // a decision as the thing that was done, in one line
@@ -511,6 +710,37 @@ function didSaid(e, what) {
   if (e.kind === 'tool' || e.kind === 'skill') return e.act === 'on' ? `Turned ${what} back on` : /reference/i.test(e.action || '') ? `Made ${what} a tool reference` : `Switched off ${what}`;
   return `${what}: ${e.result || e.decision}`;
 }
+// A batch as one line: what its pull request does and where it stands, the tools it switched, and what all of it came
+// to -- measured for the changes the sessions since can speak for, expected for the rest, and how much of it waits on
+// the pull request. `of`: the batch's decisions with their effects; `perDay`: the prompts a day here.
+const count = (n, one) => plural(n, one);
+function batchLine(of, { rate, perDay, by }) {
+  const secs = of.filter(h => h.kind === 'section'), rest = of.filter(h => h.kind !== 'section'), first = of[0];
+  const stay = secs.filter(h => !h.revertedAt), put = secs.length - stay.length;
+  const pr = secs.find(h => h.pr)?.pr || null, gone = stay.filter(h => h.act === 'remove').length, kept = stay.length - gone;
+  const waiting = h => Boolean(h.running || h.pr?.state === 'open'), nothing = h => Boolean(h.failed || h.revertedAt || h.pr?.state === 'closed');
+  const does = (a, b) => [kept ? `${a} ${count(kept, 'section')}` : '', gone ? `${b} ${kept ? gone : count(gone, 'section')}` : ''].filter(Boolean).join(' and ');
+  const parts = [];
+  if (secs.length) {
+    parts.push(secs.every(h => h.revertedAt) ? `its pull request${pr ? ` #${pr.number}` : ''} was taken back`
+      : secs.some(h => h.running) ? `${does('shortening', 'removing')}`
+      : secs.some(h => h.failed) ? `could not change ${count(secs.length, 'section')}`
+      : !pr ? `${does('shortened', 'removed')} in the working tree`
+      : pr.state === 'merged' ? `PR #${pr.number} merged, which ${does('shortened', 'removed')}${put ? `; ${put} put back since` : ''}`
+      : pr.state === 'closed' ? `PR #${pr.number} closed without merging (${count(secs.length, 'section')})`
+      : `PR #${pr.number} in review ${does('shortens', 'removes')}`);
+  }
+  const live = rest.filter(h => !h.revertedAt), refs = live.filter(h => /reference/i.test(h.action || '')).length, off = live.length - refs, back = rest.length - live.length;
+  if (rest.length) parts.push([refs ? `${count(refs, 'tool')} made ${refs === 1 ? 'a reference' : 'references'}` : '', off ? `${off} switched off` : '', back ? `${back} taken back` : ''].filter(Boolean).join(', '));
+  // the newest thing that happened to it: made, its pull request opened, merged or closed
+  const at = of.map(h => h.pr?.at || h.job?.finishedAt || h.at).sort().at(-1);
+  const counted = of.filter(h => !nothing(h)), fig = h => (!waiting(h) && h.effect ? h.effect.delta : h.saving || 0);
+  const perPrompt = counted.reduce((a, h) => a + fig(h), 0), held = counted.filter(waiting).reduce((a, h) => a + fig(h), 0);
+  const dollars = n => (rate != null && perDay ? n * perDay * rate : null);
+  const impact = perPrompt ? { perPrompt, perDay: dollars(perPrompt), promptsPerDay: perDay, measured: counted.every(h => !waiting(h) && h.effect), ...(held && held < perPrompt ? { wait: { perPrompt: held, perDay: dollars(held), ...(pr ? { pr: pr.number } : {}) } } : held ? { pending: true } : {}) } : null;
+  const undoable = of.some(h => h.revertible && !h.revertedAt), shared = rest.filter(h => h.scope === 'machine').map(h => h.id);
+  return { at, impact, x: { id: `b:${first.batch}`, at, kind: pr ? 'pr' : 'change', steer: 'changes', batch: { changes: of.length, sections: secs.length, tools: rest.length }, text: `Batch of ${of.length}: ${parts.join('; ')}`, by, ...(pr?.url ? { url: pr.url } : {}), ...(pr ? { pr: { number: pr.number, state: pr.state } } : {}), ...(of.every(h => h.revertedAt) ? { undone: true } : undoable ? { undo: `b:${first.batch}` } : {}), ...(shared.length ? { sharedIn: shared } : {}) } };
+}
 // Newest first, a line an action with what it came to: what thinker did here and what the person did through it, the
 // pull requests that followed, and the profile as it was updated. Not its own housekeeping: the sessions it read and
 // the state files it cleared are how it works, not something done for the person (the owner, 2026-11-21).
@@ -521,7 +751,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
   const done = readUpkeep(store).done;
   for (const d of done) {
     if (Date.parse(d.at) < since || d.kept) continue;
-    out.push(line({ id: `d:${d.id}`, at: d.at, kind: 'did', ...(d.chore === 'sweep' ? { steer: 'sweep' } : {}), text: d.said, by: d.by, ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
+    out.push(line({ id: `d:${d.id}`, at: d.at, kind: 'did', ...(d.chore === 'sweep' ? { steer: 'sweep' } : d.chore === 'follow' ? { steer: 'changes' } : {}), text: d.said, by: d.by, ...(d.url ? { url: d.url } : {}), ...(d.undo && !d.undoneAt ? { undo: d.id } : {}), ...(d.undoneAt ? { undone: true } : {}) }, d.undoneAt ? null : d.impact));
   }
   let history = []; try { history = changeHistory(store, { now }); } catch {}
   if (history.length) {
@@ -529,9 +759,16 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
     // this repository's pace: the prompts a day over the last week
     let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
     const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
-    const groups = new Set();
+    const groups = new Set(), batches = new Set();
     for (const e of history) {
       if (e.decision === 'dismissed') continue;
+      // a batch of thinker's own is one line, whatever it holds (the owner's answer, 2026-11-21)
+      if (e.batch) {
+        if (batches.has(e.batch)) continue; batches.add(e.batch);
+        const l = batchLine(history.filter(h => h.batch === e.batch && h.decision !== 'dismissed'), { rate, perDay, by: done.find(d => d.id === e.batch)?.by || 'thinker' });
+        if (Date.parse(l.at) >= since) out.push(line(l.x, l.impact));
+        continue;
+      }
       // several sections changed together are one job and one pull request: one line, their savings added
       const g = e.group && (e.job || e.pr) ? e.group : null;
       if (g) { if (groups.has(g)) continue; groups.add(g); }
@@ -601,27 +838,52 @@ export function upkeepDelegated(store, { now = Date.now(), days = UPKEEP.feedDay
 // nothing is measured here.
 const dateSaid = t => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 const DOORS = { page: 'by the person, on the page', session: 'by the person, answering the weekly question in a session', command: 'by the person, from the command line', setup: 'by the person, while installing' };
+// one decision as facts: what it was, its size, why it was picked, what it measured as
+function decisionFacts(h) {
+  const out = [`${h.title}${h.what ? ` (${String(h.what).toLowerCase()})` : ''}${h.about ? `. It begins: "${short(h.about, 240)}"` : ''}`];
+  if (h.tokens?.before != null) out.push(`  Its size: ${formatTokens(h.tokens.before)} tokens before the change, ${formatTokens(h.tokens.after || 0)} after. It is read again by every model call of every session that loads the file.`);
+  if (h.saving) out.push(`  Why it was picked: about ${formatTokens(h.saving)} of its tokens in an average prompt were going where they were not needed${h.total && h.days ? `, ${formatTokens(h.total)} tokens over the ${h.days} days before` : ''}.`);
+  const fx = h.effect;
+  if (fx) out.push(`  Measured: it cost ${formatTokens(fx.before.perPrompt)} tokens a prompt before (${plural(fx.before.sessions, 'session')}, ${fx.before.prompts} prompts) and ${formatTokens(fx.after.perPrompt)} since (${plural(fx.after.sessions, 'session')}, ${fx.after.prompts} prompts): ${formatTokens(Math.abs(fx.delta))} ${fx.delta >= 0 ? 'fewer' : 'more'} a prompt${fx.share != null ? `, ${Math.round(1000 * Math.abs(fx.share)) / 10}% of what a whole prompt cost before` : ''}${fx.since?.prompts ? `; ${formatTokens(Math.abs(fx.window))} tokens ${fx.window >= 0 ? 'saved' : 'more'} over the ${fx.since.prompts} prompts since` : ''}${fx.few ? '. Under five sessions on one side, so the figure is early' : ''}.`);
+  else out.push(`  Not measured yet: ${h.pr?.state === 'open' || h.job?.state === 'running' ? 'it is not in effect until its pull request merges' : 'it needs sessions on both sides of the change'}. The figure given is what was expected when it was picked.`);
+  return out;
+}
+const prFact = pr => `Its pull request: #${pr.number}, ${pr.state === 'open' ? 'in review' : pr.state}${pr.at ? ` since ${dateSaid(pr.at)}` : ''}${pr.url ? `, ${pr.url}` : ''}.${pr.state === 'open' ? ' It is the team\'s to review and merge; the change is not in effect until then.' : ''}`;
 export function upkeepDetail(store, id, { now = Date.now(), log, report, compression, home = thinkerHome() } = {}) {
   const out = [];
   id = String(id || '');
-  if (id.startsWith('h:')) {
+  if (id.startsWith('h:') || id.startsWith('b:')) {
     let history = []; try { history = changeHistory(store, { now }); } catch {}
     let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
+    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
+    const dollars = rate != null && perDay ? `How the dollars a day are reckoned: the tokens off a prompt, times the ${Math.round(perDay)} prompts a day this repository ran over the last week, at $${(rate * 1e6).toFixed(2)} a million input tokens (what input cost here, cache reads and writes as they were).` : '';
+    if (id.startsWith('b:')) {
+      // a batch: why these went together, then each change in it with its own undo
+      const of = history.filter(h => h.batch === id.slice(2) && h.decision !== 'dismissed');
+      if (!of.length) return out;
+      const kept = readUpkeep(store), rec = kept.done.find(d => d.id === id.slice(2)), followed = kept.followed, b = behaviorOf(store, { home }), secs = of.filter(h => h.kind === 'section');
+      out.push(`A batch of ${plural(of.length, 'change')} made together on ${dateSaid(of.at(-1).at)}, ${rec?.by === 'you' ? 'on the person\'s word in the chat' : 'by thinker itself at one of its checks'}.${rec?.batch?.perDay ? ` Together they were wasting about ${formatDollars(rec.batch.perDay)} a day.` : ''}`);
+      out.push(`Why a batch: thinker makes a change only when it saves ${formatDollars(b.minPerDay)} a day or more by itself, and sends the ones that do together once they come to ${formatDollars(b.batchPerDay)} a day between them, at most every ${plural(b.batchEveryDays, 'day')}. Each of those is a setting the person can change by saying so.`);
+      for (const h of of) {
+        out.push(...decisionFacts(h));
+        const f = followed[h.id];
+        if (f && f.verdict !== 'retry') out.push(`  Checked on ${dateSaid(f.at)}: ${f.verdict === 'undone' ? 'taken back, because ' : f.verdict === 'held' ? 'it should be taken back, and thinker could not do it, because ' : 'kept: '}${f.why}.`);
+        out.push(`  ${h.revertedAt ? 'It was taken back.' : h.revertible ? `It can be taken back by itself (undo id h:${h.id})${h.kind === 'section' && secs.length > 1 ? ', which takes the rest of the pull request back with it' : ''}.` : 'It cannot be taken back from here.'}`);
+      }
+      const pr = secs.find(h => h.pr)?.pr;
+      if (pr) out.push(prFact(pr));
+      if (dollars) out.push(dollars);
+      if (b.followUp && of.some(h => !followed[h.id] && !h.revertedAt)) out.push(`Each change is checked ${plural(b.followUpDays, 'day')} after it takes effect (a section when its pull request merges), and taken back if it did not pay.`);
+      out.push(of.every(h => h.revertedAt) ? 'The whole batch was taken back.' : of.some(h => h.revertible) ? `The whole batch can be taken back at once (undo id ${id}).` : 'It cannot be taken back from here.');
+      return out;
+    }
     const e = history.find(h => h.id === id.slice(2));
     if (!e) return out;
     const done = readUpkeep(store).done.find(d => d.kept && d.item === `change:${e.key || (e.keys || [])[0]}`);
-    for (const h of e.group && (e.job || e.pr) ? history.filter(x => x.group === e.group) : [e]) {
-      out.push(`${h.title}${h.what ? ` (${String(h.what).toLowerCase()})` : ''}${h.about ? `. It begins: "${short(h.about, 240)}"` : ''}`);
-      if (h.tokens?.before != null) out.push(`  Its size: ${formatTokens(h.tokens.before)} tokens before the change, ${formatTokens(h.tokens.after || 0)} after. It is read again by every model call of every session that loads the file.`);
-      if (h.saving) out.push(`  Why it was picked: about ${formatTokens(h.saving)} of its tokens in an average prompt were going where they were not needed${h.total && h.days ? `, ${formatTokens(h.total)} tokens over the ${h.days} days before` : ''}.`);
-      const fx = h.effect;
-      if (fx) out.push(`  Measured: it cost ${formatTokens(fx.before.perPrompt)} tokens a prompt before (${plural(fx.before.sessions, 'session')}, ${fx.before.prompts} prompts) and ${formatTokens(fx.after.perPrompt)} since (${plural(fx.after.sessions, 'session')}, ${fx.after.prompts} prompts): ${formatTokens(Math.abs(fx.delta))} ${fx.delta >= 0 ? 'fewer' : 'more'} a prompt${fx.share != null ? `, ${Math.round(1000 * Math.abs(fx.share)) / 10}% of what a whole prompt cost before` : ''}${fx.since?.prompts ? `; ${formatTokens(Math.abs(fx.window))} tokens ${fx.window >= 0 ? 'saved' : 'more'} over the ${fx.since.prompts} prompts since` : ''}${fx.few ? '. Under five sessions on one side, so the figure is early' : ''}.`);
-      else out.push(`  Not measured yet: ${h.pr?.state === 'open' || h.job?.state === 'running' ? 'it is not in effect until its pull request merges' : 'it needs sessions on both sides of the change'}. The figure given is what was expected when it was picked.`);
-    }
-    out.push(`How it was done: ${e.action ? `${e.action.toLowerCase()}, ` : ''}${e.decision}, on ${dateSaid(e.at)}, ${e.via === VIA.thinker ? (done?.by === 'thinker' ? 'by thinker itself at one of its checks' : 'by thinker, on the person\'s word in the chat') : DOORS[e.via] || 'by the person'}${e.result ? `. ${e.result}` : ''}.`);
-    if (e.pr) out.push(`Its pull request: #${e.pr.number}, ${e.pr.state === 'open' ? 'in review' : e.pr.state}${e.pr.at ? ` since ${dateSaid(e.pr.at)}` : ''}${e.pr.url ? `, ${e.pr.url}` : ''}.${e.pr.state === 'open' ? ' It is the team\'s to review and merge; the change is not in effect until then.' : ''}`);
-    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
-    if (rate != null && perDay) out.push(`How the dollars a day are reckoned: the tokens off a prompt, times the ${Math.round(perDay)} prompts a day this repository ran over the last week, at $${(rate * 1e6).toFixed(2)} a million input tokens (what input cost here, cache reads and writes as they were).`);
+    for (const h of e.group && (e.job || e.pr) ? history.filter(x => x.group === e.group) : [e]) out.push(...decisionFacts(h));
+    out.push(`How it was done: ${e.action ? `${e.action.toLowerCase()}, ` : ''}${e.decision}, on ${dateSaid(e.at)}, ${e.via === VIA.thinker ? (done?.by === 'thinker' || e.batch ? 'by thinker itself at one of its checks' : 'by thinker, on the person\'s word in the chat') : DOORS[e.via] || 'by the person'}${e.result ? `. ${e.result}` : ''}.`);
+    if (e.pr) out.push(prFact(e.pr));
+    if (dollars) out.push(dollars);
     out.push(e.revertedAt ? 'It was taken back.' : e.revertible ? `It can be taken back (undo id h:${e.id}).` : 'It cannot be taken back from here.');
   } else if (id.startsWith('d:')) {
     const d = readUpkeep(store).done.find(x => x.id === id.slice(2));
@@ -662,10 +924,12 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
 
 // --- what both doors read ------------------------------------------------------------------------------------
 // One line on how things stand.
-export function summary({ level, lastCheck, later, held }) {
+export function summary({ level, lastCheck, later, held, batch }) {
   if (level === 'off') return 'Thinker is not looking after this repository.';
   if (!lastCheck) return 'Thinker has not looked here yet.';
-  const said = [later ? `${plural(later, 'change')} waiting ${later === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
+  // the changes of the next batch are said as the batch they will be; anything else waiting, by its count
+  const inBatch = batch?.changes && (batch.ok || batch.later) ? batch.changes : 0, other = Math.max(0, (later || 0) - inBatch);
+  const said = [inBatch ? `${plural(inBatch, 'change')} worth ${formatDollars(batch.perDay)} a day ${batch.ok ? 'going out in the next batch' : 'waiting for the next batch'}` : '', other ? `${inBatch ? `${other} more` : plural(other, 'change')} waiting ${other === 1 ? 'its' : 'their'} turn` : '', held ? `${held} held back until you say` : ''].filter(Boolean);
   return said.length ? `${said.join(', ')}.` : 'Up to date.';
 }
 // `pending` and `notes` are for the chat (chat.js:chatContext); the page and the command show the feed and the count.
@@ -673,39 +937,54 @@ export function upkeepView(store, { now = Date.now(), log, report, compression, 
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
   const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
   return { ...v, summary: summary(v) };
 }
 // Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is
 // the oldest one, since that is how stale the list can be.
+// What one thing came to in two repositories, as one figure: the dollars a day added, the tokens a prompt the average
+// over their prompts. What still waits on a pull request (`wait`, `pending`) is the first one's.
+const bothImpacts = (a, b) => {
+  const n = (a.promptsPerDay || 0) + (b.promptsPerDay || 0);
+  return { ...a, perPrompt: n ? (a.perPrompt * (a.promptsPerDay || 0) + b.perPrompt * (b.promptsPerDay || 0)) / n : a.perPrompt, perDay: a.perDay == null && b.perDay == null ? null : (a.perDay || 0) + (b.perDay || 0), promptsPerDay: n, measured: Boolean(a.measured && b.measured) };
+};
 export function mergeUpkeepViews(pairs) {
-  const pending = [], notes = [], feed = [], checks = [], profiles = [], sessions = [], totals = [], shared = new Map(), said = new Map();
+  const pending = [], notes = [], feed = [], checks = [], profiles = [], sessions = [], totals = [], shared = new Map(), said = new Map(), batches = new Map(), waiting = [];
   for (const { repo, name, view } of pairs) {
     if (!view) continue;
     if (view.delegated) { sessions.push(...view.delegated.sessions.map(d => ({ ...d, repo, repoName: name }))); totals.push(view.delegated.total); }
     for (const i of view.pending || []) {
       // a tool is switched for the whole machine, so the same tool found in three repositories is one thing: the
       // costliest of them, and doing it from any one of them does it for all (context-suggest.js)
-      if (i.machine) { const g = shared.get(i.id) || { n: 0, top: null }; g.n++; if (!g.top || (i.rank || 0) > (g.top.rank || 0)) g.top = { ...i, repo, repoName: name }; shared.set(i.id, g); }
+      if (i.machine) { const g = shared.get(i.id) || { n: 0, top: null, perDay: 0 }; g.n++; g.perDay += i.perDay || 0; if (!g.top || (i.rank || 0) > (g.top.rank || 0)) g.top = { ...i, repo, repoName: name }; shared.set(i.id, g); }
       else pending.push({ ...i, repo, repoName: name });
     }
     notes.push(...(view.notes || []).map(i => ({ ...i, repo, repoName: name })));
     for (const f of view.feed) {
       // the profiles of several repositories are one line, the newest update's time and their changes added
       if (f.kind === 'profile' && f.profile) { profiles.push({ ...f, repo, repoName: name }); continue; }
+      // a batch whose tools were switched for the whole machine is in every repository's history: one line, the one
+      // of the repository it was made in (it has the pull request), with what the tools save in the others added
+      if (f.batch && String(f.id).startsWith('b:')) { const g = batches.get(f.id) || []; g.push({ ...f, repo, repoName: name }); batches.set(f.id, g); continue; }
       if (!f.shared) { feed.push({ ...f, repo, repoName: name }); continue; }
       // a decision for the whole machine: one line, what it saves a day added over the repositories, and the tokens a
       // prompt the average over their prompts
       const had = said.get(f.shared);
       if (!had) { const x = { ...f, repo, repoName: 'All repositories' }; said.set(f.shared, x); feed.push(x); continue; }
       if (!f.impact || !had.impact) { if (f.impact && !had.impact) Object.assign(had, { impact: f.impact, impactSaid: f.impactSaid }); continue; }
-      const a = had.impact, b = f.impact, n = (a.promptsPerDay || 0) + (b.promptsPerDay || 0);
-      had.impact = { perPrompt: n ? (a.perPrompt * (a.promptsPerDay || 0) + b.perPrompt * (b.promptsPerDay || 0)) / n : a.perPrompt, perDay: a.perDay == null && b.perDay == null ? null : (a.perDay || 0) + (b.perDay || 0), promptsPerDay: n, measured: a.measured && b.measured, ...(a.pending || b.pending ? { pending: true } : {}) };
+      had.impact = bothImpacts(had.impact, f.impact);
       had.impactSaid = impactSaid(had.impact);
     }
+    if (view.batch?.changes) waiting.push(view.batch);
     if (view.level !== 'off') checks.push(view.lastCheck);
   }
-  for (const g of shared.values()) pending.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories` } : g.top);
+  for (const g of batches.values()) {
+    const [base, ...rest] = g.sort((a, b) => (b.batch.changes || 0) - (a.batch.changes || 0));
+    for (const o of rest) { if (o.impact) base.impact = base.impact ? bothImpacts(base.impact, o.impact) : o.impact; }
+    if (base.impact) base.impactSaid = impactSaid(base.impact);
+    feed.push(base);
+  }
+  for (const g of shared.values()) pending.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories`, ...(g.top.perDay != null ? { perDay: g.perDay } : {}) } : g.top);
   pending.sort(byOrder);
   if (profiles.length === 1) feed.push(profiles[0]);
   else if (profiles.length) { const sum = k => profiles.reduce((a, f) => a + f.profile[k], 0), p = { added: sum('added'), reworded: sum('reworded'), dropped: sum('dropped') }; feed.push({ at: profiles.map(f => f.at).sort().at(-1), kind: 'profile', by: 'thinker', profile: p, text: profileSaid(p, ` in ${profiles.length} repositories`), repoName: '' }); }
@@ -713,7 +992,10 @@ export function mergeUpkeepViews(pairs) {
   const on = pairs.filter(p => p.view && p.view.level !== 'off'), levels = [...new Set(on.map(p => p.view.level))];
   const level = !on.length ? 'off' : levels.length === 1 ? levels[0] : 'mixed', lastCheck = checks.length && checks.every(Boolean) ? checks.sort()[0] : null;
   const first = on[0]?.view;
-  const v = { level, behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
+  // what waits for a batch over every repository: each change once (a tool is the machine's), and what they waste a day
+  const going = pending.filter(i => i.chore === 'context' && i.action && i.later);
+  const batch = going.length ? { changes: going.length, perDay: going.reduce((a, i) => a + (i.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true } : null;
+  const v = { level, ...(batch ? { batch } : {}), behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
     // the sessions of every repository newest first, and their totals added
     delegated: { days: UPKEEP.feedDays, total: Object.fromEntries(['sessions', 'reads', 'runs', 'handed', 'saved', 'unpriced'].map(k => [k, totals.reduce((a, t) => a + (t[k] || 0), 0)])), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
   return { ...v, summary: summary(v) };
