@@ -696,8 +696,8 @@ export function cutCandidates(messages, { keepMin = 3, cut = [], minChars = CUT_
   // flat, because the band runs up to the protection boundary, so everything between the first replaced
   // result and the live turn is itself replaced and the tail is only the part that survives.
   // The deepest step IS this set, and its `recache` is that same tail summed message by message rather than
-  // stringified in one slice, which `test/cut-ladder.test.js` holds to the old figure. So the whole-set
-  // candidate the other doors and the old tests read is the last rung, and nothing is measured twice.
+  // stringified in one slice. So the whole-set
+  // candidate the other doors read is the last rung, and nothing is measured twice.
   // With `thinking` ({ to, done }: where the turn in progress starts, and the ranges earlier cuts left out) every
   // rung also loses the thinking between its oldest result and that turn. It comes off what the rung writes,
   // at the rate the ladder counted it, and what an earlier cut had not already left out is added to what the
@@ -1393,7 +1393,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
               // which door was refused. The Messages path is the only one that rewrites a call's own text, and the
               // only one where a thinking block is bound to the conversation's bytes at all -- but the Responses
               // (Codex) door replaces results through this same path, so a refusal there must not read as blank on a
-              // machine that uses only that door (test/metrics-dashboard.test.js holds every card to both).
+              // machine that uses only that door.
               log({ at: new Date().toISOString(), op: 'proxy-cut-rejected', kind: history ? 'history' : 'edit',
                 door: t.protocol === 'responses' ? 'responses' : 'messages',
                 session, upstream: up.origin, status: 400, says: String(body).slice(0, 200),

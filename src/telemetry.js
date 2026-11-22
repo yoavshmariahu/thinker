@@ -449,7 +449,7 @@ export function proxyMetrics({ home = thinkerHome(), now = Date.now(), env = pro
   // the API said stays in the machine's own log.
   // Split by door as well as by kind: only the Messages path rewrites a call's own text, so a refusal on the
   // Responses (Codex) door would mean something different, and a machine that uses only that door may not read as
-  // a blank (test/metrics-dashboard.test.js). A row from before the door was written on it counts in neither.
+  // a blank. A row from before the door was written on it counts in neither.
   const rejected = { total: 0, history: 0, edit: 0, sessions: 0, messages: 0, responses: 0 };
   const rejectedSessions = new Set();
   for (const r of rows) {

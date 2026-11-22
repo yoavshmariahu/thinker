@@ -18,7 +18,7 @@
 // install: "actually 0 holdout. cutting doesn't even get tirggered very often"). A cut is rare -- fourteen sessions
 // in a fortnight on the owner's machine, three quarters of the saving in one of them -- so a holdout takes its
 // share of exactly the sessions the saving is made of and still fills too slowly to read. It was a quarter from
-// 2026-11-18 (a held-out session is forwarded byte for byte, test/holdout-untouched.test.js), 0 from 2026-11-12,
+// 2026-11-18 (a held-out session is forwarded byte for byte, test/proxy-cut.test.js), 0 from 2026-11-12,
 // half of the sessions from 2026-11-09, 15% from 2026-10-24. Why it was off the first time, which holds again: The holdout compared sessions that got a cut with sessions held out from one, and a
 // session that gets a cut is a long session, so the two sides were never like with like, and at half the sessions it
 // cost every install half the saving to answer a question it could not answer. What it was kept for -- the model
@@ -664,7 +664,7 @@ const takeReplaced = (home, agent) => {
 export const withProxyUrl = (settings, url) => setEnv(settings, url);
 export const withoutProxyUrl = (settings, home = thinkerHome()) => isOwnUrl(settings?.env?.[PROXY_ENV], home) ? setEnv(settings, null) : settings;
 
-// in test mode an agent's real file is left alone unless the test names the directory (test/proxy-service.test.js:fakeMachine)
+// in test mode an agent's real file is left alone unless the test names the directory
 const testGuard = key => (isTestMode() && !process.env[key] ? `test mode and ${key} is not set: the real file is left alone` : null);
 const claudeSettings = () => path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'settings.json');
 const piModels = () => path.join(process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent'), 'models.json');

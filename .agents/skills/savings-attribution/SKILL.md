@@ -43,8 +43,7 @@ back. So:
   share of it (2026-11-18). The report's rewrite heuristic (`cutting.js:isRewrite`: 100k of context, half of it
   written) is not the test: its floor is on the context after the cut, so large cuts were recorded as free.
 
-The code is `compression.js:clearingCostBySession`; the desktop mod holds the same rule and
-`test/claude-clear.test.js` holds the two together.
+The code is `compression.js:clearingCostBySession`; the desktop mod holds the same rule.
 
 ## Net, for a cut
 

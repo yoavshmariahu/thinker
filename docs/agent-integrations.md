@@ -139,9 +139,7 @@ copy you want.
   `DEVIN_PROJECT_DIR` and Devin's payload yield to the dedicated adapter. A Claude
   subprocess carrying its own transcript path continues to use the Claude adapter.
 
-Tests cover wiring preservation, refresh/removal, hook delivery and recording,
-worker recursion prevention, and a real local MCP/session-provider round trip with
-no external model calls. A network-isolated Docker smoke test with the official
+A network-isolated Docker smoke test with the official
 Devin CLI `3000.11.234` (`92c83011d113`) confirms that `thinker connect --clients devin`
 produces a registration that the real `devin mcp list` and `devin mcp get thinker`
 recognize. An authenticated macOS smoke test on the same version with SWE-1.6 Slow
@@ -365,10 +363,7 @@ ranking model. `thinker doctor --fix` repairs what it can (dependencies, missing
 stale wiring, PATH, the model) and checks again.
 
 
-The workflow respects disabled learning and tool controls. Installation tests cover
-all eight delivery paths, preservation of existing text, repeated installs, upgrade
-refresh, dry runs and removal. This verifies delivery, not that every model will
-follow every instruction.
+The workflow respects disabled learning and tool controls.
 
 ## Desktop apps: model calls through the app, never a CLI
 
@@ -625,8 +620,7 @@ plugin on a machine without thinker does nothing.
   read the log, which is a megabyte within a week. It is shown three turns after the first clear
   (`TURNS_AFTER`), not at the clear: the first cleared call saves nothing anybody would notice, since the saving
   is every *later* call that reads the shorter prefix, and a card at that moment would show the cache rewrite and
-  none of the return. Four doors, one sentence between them (`compressionHeader`, held together by
-  `test/claude-card.test.js`): the Claude Code card mod draws it under the answer
+  none of the return. Four doors, one sentence between them (`compressionHeader`): the Claude Code card mod draws it under the answer
   (`src/integrations/claude-card`), the Codex desktop card as a second section (`src/notice-card.js`), the Stop
   hook prints it where no mod runs (`usage.js:compressionNotice`), and `thinker proxy report` prints it for the
   window. Like the cache-hit card's, the figure is gross: a clear also writes the prompt cache again from the
@@ -695,18 +689,7 @@ plugin on a machine without thinker does nothing.
   The token file remains yours and is not deleted. Opt-in configuration and restoration data are private
   files under `THINKER_HOME/state`; tokens are not put in service arguments or proxy logs.
 
-  Run `npm test -- test/proxy-bedrock.test.js` for the loopback-only compatibility checks. They need no
-  AWS account, credentials, Python packages or paid model calls. The real proxy forwards to a mock
-  `/anthropic/v1/messages` endpoint with fake `x-api-key` and `Authorization: Bearer` tokens. The tests
-  inspect the upstream's received bytes: the original request in holdout, exactly seven replaced results
-  with the newest three preserved, and identical cuts within the turn and after a proxy restart. They also
-  check unchanged authentication, absence of AWS signing headers, intact streamed responses and request
-  IDs, and access refusals passed through once without a route change or service stand-down. Test-only
-  size thresholds make the fixture small; the shipped cut policy stays unchanged.
-
-  The dedicated route also checks token rotation, refused local authentication, and missing credentials
-  without a fallback. Setup tests cover opt-in, reconnect, conflicting routes, and restoration. For the
-  installed Claude Code client, run `THINKER_TEST=1 node scripts/bedrock-claude-preflight.mjs`: it creates
+  For the installed Claude Code client, run `THINKER_TEST=1 node scripts/bedrock-claude-preflight.mjs`: it creates
   isolated settings and fake credentials, starts the actual Thinker service command, and verifies that
   Claude reaches a local mock through `/anthropic/v1/messages` with the selected Bedrock model. This passed
   with native Bedrock enabled in the client's inherited environment; the opt-in settings selected the
@@ -838,12 +821,8 @@ learning controls.
 
 ## Validation
 
-`test/clients.test.js` checks native payload processing, retrieval output,
-recording, repeat installation, refresh, local excludes, and uninstall.
-`test/integrations.test.js` loads generated Pi/OpenCode modules and invokes their
-host contracts, checking session isolation, preservation of tool output, options,
-and subprocess failure behavior. These are contract and subprocess tests, not
-live authenticated sessions in all four hosts. A release should smoke-test each
+No test stands in for a live authenticated session in these hosts. A release
+should smoke-test each
 supported host version with a profile in place, a prompt, a file read/edit, and session
 end; inspect the trace and confirm the model actually received the context.
 
