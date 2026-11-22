@@ -666,6 +666,12 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - `THINKER_OFFERS=on`: restore offers (offer tests only).
 - Every child must inherit. Never send test runs to production. Mocked or loopback only.
 
+**The telemetry job is bounded (MANDATORY, 2026-11-21):**
+- One attempt an hour, claimed before the job exists (`telemetry.js:claimAttempt`); one job at a time (`holdTelemetryRun`).
+- Built in a worker under a deadline and a memory ceiling (`telemetry-guard.js:BUILD_LIMITS`); past one, the parts that finished are sent with `incomplete`.
+- The limits are constants, not settings. A new block is a new part in `telemetryParts`, cheapest first, and reads each file once.
+- Anything started from a prompt marks itself before it starts, never when it finishes. See "The telemetry job" below.
+
 **Matched models (MANDATORY):**
 - Same model and effort per phase (exploration, coding, judging). Agent config fixed except intervention.
 - Record model before run. Disable silent fallback. Report correctness, tokens, latency separately.
@@ -848,6 +854,63 @@ The owner: "drop the 'find savings' page and 'view report' page. Thinker should 
 - **Cold cut pricing:** the ledger (`compression.js:clearingCostBySession`) charges a cut made on a cold request nothing (cache expired, rewrite happens anyway). Warm cuts charged their rewrite. **The decision does not price cold at zero** (2026-11-18, the owner's call): `cutting.js:priceCut` and `clear-door.js:clearPays` price a pause past the cache's hour as a live session, so a resumed session is cut only where a live one would be.
 - **Dashboards:** **Savings per session** (`thinker-internal: scripts/savings-dashboard.mjs`), **Pull requests delivered** (`thinker-internal: scripts/delivery-dashboard.mjs`, `valid` accepts schema 2 or 3). Read from `reports.raw_json`.
 - **Limits:** Clearing holdout off since 2026-11-12 (was per-machine baseline, now end). Unstamped clears on current machine until next build. Sessions with no usage (Cursor) counted but no cost. Model per-session reread tracked in `src/rereads.js`.
+
+## The telemetry job: one an hour, one at a time, under limits (2026-11-21, the owner's ask)
+
+On 2026-11-21 the owner's 16 GB machine ran out of memory. Eleven `thinker telemetry --background` jobs were alive
+at once, 240-340 MB resident each and 3 GB between them, the oldest sixteen minutes old. Three things made that,
+and each is now closed on its own, so that no one of them is what the machine depends on.
+
+- **Nothing stopped a second job.** The only mark was `telemetry.last`, written after a report had been *sent*.
+  While a job built, every prompt in every session started another; a report that could not be sent (no network,
+  a refusal) never wrote the mark, so there every prompt started one for as long as the endpoint stayed out of
+  reach. Every other job a prompt starts (`update`, `learn`, `savings --refresh`, `session-work`) marked itself
+  before it started; this one did not. Now the hour is **claimed before the job exists**
+  (`telemetry.js:claimAttempt`, `state/telemetry/attempt.<n>`): an exclusive create of the next number, which the
+  file system gives to one of however many ask, and which is the attempt whether or not anything is sent. Eight
+  processes asking in the same millisecond is a test (`test/telemetry-job.test.js`). A second file,
+  `state/telemetry/run.lock`, is held while a report is built and sent, by the forced ones too (`install`,
+  `update`, `uninstall`), which wait up to 20 s for their turn; a lock whose process is gone, or older than a job
+  may live, is taken over.
+- **The report had no ceiling.** It is read out of everything the machine has logged, synchronously, so no timer
+  in its own thread could stop it. It is built in a **worker thread** (`telemetry-worker.js`) and the thread that
+  started it holds three limits over it (`telemetry-guard.js:BUILD_LIMITS`): V8's own limit on the worker's heap
+  (160 MB), how much the process may grow while it runs (384 MB, for what V8 does not count: a buffer), and 60
+  seconds. Past any of them the worker is terminated and **the report is the parts that had finished**, in the
+  order `telemetryParts` gives them -- the machine's identity and its activity first, the walks over every
+  repository last -- with `incomplete: { reason: deadline | memory | error, missing, ms }`. A missing part's keys
+  are absent, never zero, which is how a report from a client older than the block already reads; the ingest
+  takes a report with only its identity (checked against `infra/metrics/report.mjs`). Why a part failed stays on
+  the machine, among its error records (`telemetry.build`): the reason can name a path. The job runs at the
+  lowest priority. The limits are constants: one somebody can raise is not a limit.
+- **The report was heavy for no reason.** 8.5 s and 910 MB for one build on that machine; the whole job is now
+  about 3 s and 270-300 MB resident, 77 of it node and the CLI's own modules, with a payload that is byte for
+  byte the same apart from the two corrections below (compared block by block against main over a frozen copy
+  of the logs). Replayed with the real command against a loopback endpoint: on main 3 prompts at once were 3
+  jobs, 3 identical reports and 2.2 GB between them for 14 s; here 12 prompts at once are 1 job and 1 report,
+  and 12 more after a failed send start nothing. What it was doing: computing one repository's delivery report once per worktree (15 times; one per log
+  and config now, `delivery-telemetry.js`), allocating a list per session per pull request to link them (172 MB
+  a report; `delivery.js:linkFor`), reading each of the proxy log's three maps once per repository
+  (`delivery.js:once`), reading a 4 MB kept report 45 times, and holding every log as one string and again as an
+  array of lines (`jsonl.js:eachLine` reads a chunk at a time).
+- **A journal grew by the whole window on every sync.** `thinker prs sync` appended every pull request of the 30
+  days whether or not it had moved: 77,421 rows for 3,868 pull requests in one journal, 49 MB in three weeks, four
+  rows in five word for word the row before. `syncPrs` writes a pull request only when what it would write
+  differs from what the journal last said (`written` beside `synced`), and `readDelivery` keeps a run of
+  identical rows as its newest one, which decides the same fields. Journals already on disk are not rewritten:
+  other processes append to them.
+
+**Two figures were wrong, and are now smaller.** The worktrees of a repository share one cache, and two blocks
+walked checkouts and added the same file up once per worktree: `profile` sent 5,340 observations where the
+ledgers held 923, and `arms` sent that repository's sessions 15 times over. Both now read each cache once
+(`telemetry.js:caches`, by the real path of its `.thinker`). A dashboard that sums `arms` or `profile` over
+machines drops on the day a machine with worktrees updates; the earlier figure was the wrong one.
+
+**What it still cannot do.** The usage log has no rotation, and the report holds its rows (about 25 MB of heap
+for a 19 MB log): a history several times this one's will reach the heap limit, and the report will then go out
+without its last parts and say so. That is the limit working, and `incomplete` on the dashboard is where it will
+show first. A worker inside one native call cannot be interrupted; the job then ends itself from outside
+(`commands/telemetry.js:endIfStuck`) once the report is sent.
 
 ## Usage history
 

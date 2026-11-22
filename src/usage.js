@@ -3,6 +3,7 @@
 // note servings, their assessments and the reading they were estimated to save left with the knowledge notes
 // on 2026-11-08; what thinker saves is the clearing's, measured (compression.js, savings-ledger.js).
 import fs from 'node:fs';
+import { eachLine } from './jsonl.js';
 import { emptySpend, addSpend, formatTokens, normalizeModelUsage, relativeRate, weightedTokens, retiredPurpose } from './model-usage.js';
 export { formatTokens };
 import { logFile, adoptLocalLog, repoId } from './store.js';
@@ -60,8 +61,10 @@ const parse = f => {
   let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return null; }
   let hit = parsed.get(f);
   if (!hit || hit.stamp !== stamp) {
-    let raw = ''; try { raw = fs.readFileSync(f, 'utf8'); } catch {}
-    const rows = raw.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(e => e && e.t && e.op);
+    // a line at a time (jsonl.js): the file as one string and again as an array of its lines was twice the
+    // log's size held for nothing, on top of the rows
+    const rows = [];
+    try { eachLine(f, l => { if (!l) return; let e; try { e = JSON.parse(l); } catch { return; } if (e && e.t && e.op) rows.push(e); }); } catch {}
     rows.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
     let anonymous = false;
     for (const e of rows) { if (!e.repo) { anonymous = true; continue; } if (!e.origin) e.origin = repoId(e.repo); }

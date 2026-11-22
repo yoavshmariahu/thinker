@@ -211,6 +211,54 @@ test('a sync of the window is one GitHub call, and one pull request named brings
   assert.equal(mine.changedFiles, 3);
 });
 
+// 2026-11-21. Every read of GitHub used to write every pull request of the window again: on one machine 77,421
+// rows named 3,868 pull requests, 49 MB, and every reader of the journal read all of it.
+test('a pull request that has not moved is not written again, and a journal full of repeats reads as if it had none', async t => {
+  const { store, home } = fixture(t);
+  execFileSync('git', ['init', '-q'], { cwd: store.repo });
+  execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/private/repo.git'], { cwd: store.repo });
+  const listing = [
+    { number: 60, title: 'Mine', html_url: 'u60', state: 'open', merged_at: null, created_at: at(20), updated_at: at(2), head: { ref: 'agent/mine', sha: 'tip1' }, base: { sha: 'b' }, user: { login: 'me' } },
+    { number: 61, title: 'Theirs', html_url: 'u61', state: 'open', merged_at: null, created_at: at(10), updated_at: at(3), head: { ref: 'other/branch', sha: 't1' }, base: { sha: 'b' }, user: { login: 'them' } },
+  ];
+  const request = async endpoint => (endpoint.includes('page=1') ? listing : []);
+  const sync = () => syncPrs(store, { request, now, home });
+  const first = await sync();
+  assert.deepEqual([first.synced, first.written], [2, 2]);
+  const size = fs.statSync(deliveryFile(store)).size;
+  const again = await sync();
+  assert.deepEqual([again.synced, again.written], [2, 0], 'GitHub listed two, and neither had moved');
+  assert.equal(fs.statSync(deliveryFile(store)).size, size, 'the journal did not grow');
+  listing[0] = { ...listing[0], state: 'closed', merged_at: at(1), updated_at: at(1), merge_commit_sha: 'mc' };
+  const moved = await sync();
+  assert.equal(moved.written, 1, 'the one that merged is written');
+  assert.equal(readDelivery(store).events.filter(e => e.op === 'pr').length, 3);
+});
+
+test('a run of identical pull request rows is read as its newest one, and folds to the same pull request', t => {
+  const { store } = fixture(t);
+  const A = { number: 7, title: 'One', state: 'OPEN', branch: 'b', head: 'h1', commits: ['c1', 'c2'] };
+  const B = { number: 7, title: 'One', state: 'OPEN', branch: 'b', head: 'h2' };          // no commits: the listing has none
+  const C = { number: 8, title: 'Other', state: 'MERGED', branch: 'o', head: 'x' };
+  const rows = [[40, A], [39, A], [38, C], [37, A], [30, B], [29, B], [28, C], [20, A], [19, A], [10, B]];
+  for (const [hoursAgo, pr] of rows) appendDelivery(store, { t: at(hoursAgo), op: 'pr', pr });
+  appendDelivery(store, { t: at(5), op: 'observation', session: 's1', branch: 'b', head: 'h2' });
+  // a row out of its place in time, as two processes appending at once can leave it
+  appendDelivery(store, { t: at(35), op: 'pr', pr: B });
+
+  // what a reader folds: a pull request is its rows merged in order of time, later over earlier
+  const fold = events => { const m = new Map(); for (const e of events) if (e.op === 'pr') m.set(e.pr.number, { ...(m.get(e.pr.number) || {}), ...e.pr }); return Object.fromEntries(m); };
+  const everyRow = fs.readFileSync(deliveryFile(store), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).sort((a, b) => a.t.localeCompare(b.t));
+  const r = readDelivery(store);
+  assert.deepEqual(fold(r.events), fold(everyRow), 'nothing a reader folds has changed');
+  assert.deepEqual(fold(r.events)[7], { ...A, ...B }, 'the commits a named sync bought are kept under the listing that came after');
+  assert.equal(everyRow.filter(e => e.op === 'pr').length, 11);
+  assert.ok(r.events.filter(e => e.op === 'pr').length <= 7, 'the repeats are not held');
+  assert.equal(r.events.filter(e => e.op === 'observation').length, 1);
+  assert.deepEqual(r.events.map(e => e.t), [...r.events.map(e => e.t)].sort(), 'in order of time');
+  assert.equal(r.warnings.length, 0);
+});
+
 test('the saved buckets cover every merged pull request exactly once', () => {
   for (const saved of [0, 1, 10_000, 10_001, 999_999, 5_000_000]) {
     const hit = SAVED_BUCKETS.filter(u => u === null || saved <= u);
