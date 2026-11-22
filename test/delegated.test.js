@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { delegatedOf } from '../src/delegated.js';
-import { weeklySavings } from '../src/report-savings.js';
+import { weeklySavings } from '../src/accountant.js';
 import { listPrice, costOf } from '../src/prices.js';
 import { noteFiring } from '../src/delegate.js';
 

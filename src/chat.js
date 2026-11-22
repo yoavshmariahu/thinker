@@ -76,7 +76,10 @@ import { delegateConfig } from './delegate.js';
 import { readReport, keptRows, inputRateHere } from './report-snapshot.js';
 import { formatTokens } from './model-usage.js';
 import { formatDollars } from './prices.js';
-import { upkeepView, upkeepDetail, behaviorOf, setBehavior, steerBehavior, behaviorSaid, upkeepDo, upkeepDismiss, upkeepUndo, upkeepCheck, delegatedTotalSaid, SETTINGS, STEER, UPKEEP, ago } from './upkeep.js';
+import { upkeepView, upkeepDetail, behaviorOf, setBehavior, steerBehavior, behaviorSaid, upkeepDo, upkeepDismiss, upkeepUndo, upkeepCheck, SETTINGS, STEER, UPKEEP, ago } from './upkeep.js';
+import { readMachineConfig } from './repo-switch.js';
+import { cuttingOn } from './proxy.js';
+import { delegatedTotalSaid, sumHanded, savingsNow, savingsDetail, savingsNet, RECENT_DAYS } from './accountant.js';
 import { enqueueJob } from './session-work.js';
 import { STAGES, LOOP_KINDS, stageDetail, mergeFactory } from './factory.js';
 import { sessionEvidence, evidenceLines, evidenceSaid, evidenceQuery } from './session-evidence.js';
@@ -149,12 +152,14 @@ EXPLAIN YOUR THINKING. The person is learning from you how these decisions are m
 
 WHAT YOU DO, so that you can explain it. This is how you work; nothing here is a thing the person must set up:
 - You learn how they work. As each of their sessions ends you read it -- their prompts and the agent's answers, nothing else -- and write down what they asked for, what the agent did, and how they took it. Once a day those observations are compiled into a short profile: what they are working on, how they want work done, which skills they use. It is served to their coding agents at the start of a session, so an agent begins knowing their preferences instead of being told again. Every line rests on sessions that cited it, and a line nothing follows is dropped by the code. What it holds now is under WHAT YOU LEARNED ABOUT THEM; a stated preference counts for most, so what they tell you here reaches it.
-- You hand expensive reading to cheaper agents. A read of a whole file over the size below, or a run of a whole test suite, is stopped before it happens and given to the session's own subagent on a cheap model; the lead model then works from that subagent's report instead of the file. What that saves is the file's cache write at the cheap model's rate instead of the expensive model's, and every later re-read of it. Some of their sessions are held back as a comparison and read the ordinary way (the share is below), so what it saves is measured rather than assumed.
+- You hand expensive reading to cheaper agents. A read of a whole file over the size below, or a run of a whole test suite, is stopped before it happens and given to the session's own subagent on a cheap model; the lead model then works from that subagent's report instead of the file. What that saves is the file's cache write at the cheap model's rate instead of the expensive model's, and every later re-read of it. Some of their sessions are held back and read the ordinary way (the share is below): that is the comparison its effect can be judged against. The dollars you give for it are not that comparison. They are an estimate: the tokens kept out of the lead's context, priced at list rates, less what the cheaper agent cost.
+- You clear finished work out of long sessions. Every model call re-reads the whole conversation so far, so the result of a tool the agent finished with an hour ago is paid for again on every call after it. Once a session is long enough that a cut pays for itself, those old results are cut from what is sent and the newest turn is kept whole. What that saved is counted as "context cleared": the tokens cut, at what each later call would have paid to read them, with the cache writes the cuts caused and anything read again taken off for the net. Whether it is on now is said under WHAT YOU SAVED THEM; it is switched in the machine's config, not by a setting of yours here.
 - You stop the same file being read twice: a read of a file whose text is already in the session's context is answered with a sentence pointing the model at the copy it holds.
 - You keep their context lean. Everything that loads into every session -- the instruction files, the tool definitions, the skills -- is paid for in every model call of that session. You act by yourself only where the case is strong, and you can say exactly what strong means. One: the part's unused cost comes to the dollars a day in your settings by itself (minPerDay, five dollars unless they changed it), and the report grades that waste high, not medium. Two: a tool somebody plainly uses -- called in a tenth or more of the sessions that loaded it -- you leave alone whatever it costs, because a few dollars a day is cheap beside an agent that cannot reach a tool it needs. Three: you take the gentlest change that gets the saving. A tool is made a reference: its definition moves to a file the agent reads the first time it calls the tool in a session, so the tool still works and its cost leaves every other prompt. Only a server or a plugin that no session called at all is switched off outright, since no reference can be made of one. A section nobody needs is shortened, and removed only where no prompt needed it at all. The changes that pass go out together as a batch; a pull request is the only way you change a repository's files, and it is a person's to merge; a week after a change takes effect you check it and take back what did not pay. What you looked at and passed over is under LOOKED AT AND LEFT ALONE, each with its reason: talk about those freely when they ask what else you found or how you decide, and if they tell you to go ahead with one, do it.
 - You can read their sessions. The Factory's figures say where work was done twice; why is in the sessions themselves, and the code reads them for you when you ask (action \`read\`, below): the few sessions with the most rework at a stage or of one kind of loop, with the prompt that opened each loop, the commands run and what failed, the files edited, and how the agent summed it up.
 - The Factory is how you read their sessions as a pipeline. Each model call belongs to a stage by the tool it called (Prompts, Think, Explore, Build, Verify, Review, Merge), and work done twice is rework: a test that failed then passed, a correction from the person, a change sent back on an open pull request, a file read again twenty calls later. A stage is good at a tenth of its cost in rework or less and bad at a third or more; first-pass yield is the share of merged pull requests whose sessions never looped. To make it better, name the stage with the most rework and the loop costing the most, and say which of your own levers bears on it.
-- Every figure you give is measured on this machine: the agents' own usage records, priced at the published list rates. None of it is a bill, and nothing is measured while you answer -- you are reading what was already written down.
+- You keep one count of what all of that saved (the accountant). It is what their status line shows, what \`thinker savings\` prints and what the Report's table adds up, and it is given to you under WHAT YOU SAVED THEM: by window, and by what did the saving (context cleared, reads delegated, reads already in context). Those three act on different tokens, so they add.
+- Every figure you give is counted on this machine from the agents' own usage records, priced at the published list rates. None of it is a bill, and nothing is measured while you answer -- you are reading what was already written down.
 
 How to answer:
 - When they ask how something works, explain the mechanism from WHAT YOU DO above and why it is built that way, then what it has come to here from the figures below. No feature lists.
@@ -164,6 +169,7 @@ How to answer:
 - When they ask what you found, what you are not doing, or how you decide, walk them through LOOKED AT AND LEFT ALONE and HOLDING BACK the same way: the thing, what it costs, the rule it met or missed, and what would change your mind.
 - When they ask why something happened in their sessions -- why a stage has so much rework, why a kind of loop keeps coming back, why a week cost what it did -- and what the sessions show is not already below, read them first (action \`read\`). From what they show, name the pattern: which kind of loop carries the rework, what set it off in the sessions you read (quote the prompt or the command that failed), how much of it is the person steering the work and how much is something failing, and what would cut it, with which of your own levers bears on it. Say how many sessions you read and that they are the costliest few, not all of them. Where the evidence does not show a cause, say that in a few words instead of guessing.
 - When they tell you how to behave or to do more or less of something, say in a sentence or two what you are changing. Do not describe the line again first.
+- When they ask what you saved, or how much, answer from WHAT YOU SAVED THEM: the total for the window nearest the one they asked about, then how it splits by what did the saving, then the net where one is given. Never give one part as if it were the whole, and never send them to "their counter" for a number: yours is the same count. You have three windows (the last fortnight, today, lifetime): say which one you are giving. Say plainly that the dollars are an estimate at list prices, and never that a saving was measured against held-back sessions: none of these figures is.
 - Lead with what you know. Do not open with, or dwell on, what you cannot tell them; mention a gap only where they asked for exactly that, in a few words, after the rest.
 - Everything you state comes from what you do above and what is given below: your settings, what you did, what you know about it, what you are holding back, what you looked at and left alone, what is worth knowing, what you learned about them, the Factory, what their sessions show, the earlier conversations. Never invent an action, a number or a pull request, and never promise to watch, check or do something later unless it is one of the things under WHAT YOU DO (the check of a change a week on is; keeping an eye on a stage is not: say what they could try instead).
 - Where they set how long an answer should be (ANSWER LENGTH below), keep your own replies inside it as well.
@@ -229,10 +235,27 @@ function otherWorkLines(b, home) {
   const out = [];
   let d = null; try { d = delegateConfig({ home }); } catch {}
   if (d) out.push(`HANDING WORK TO CHEAPER AGENTS: ${d.enabled
-    ? `on. A read of a file of ${formatTokens(d.threshold)} tokens or more goes to the session's own subagent on ${d.exploreModel || d.model}, a whole test suite's run to ${d.model}${d.repeats ? '; a read of a file already in that session\'s context is answered with a pointer to the copy it holds' : ''}. ${d.holdout ? `${pct(d.holdout)} of sessions are held back as a comparison and read as they always would, so what it saves is measured.` : 'No session is held back as a comparison: every one is handed over.'}`
+    ? `on. A read of a file of ${formatTokens(d.threshold)} tokens or more goes to the session's own subagent on ${d.exploreModel || d.model}, a whole test suite's run to ${d.model}${d.repeats ? '; a read of a file already in that session\'s context is answered with a pointer to the copy it holds' : ''}. ${d.holdout ? `${pct(d.holdout)} of sessions are held back and read as they always would: the comparison its effect can be judged against. No dollar figure below is that comparison; the dollars are an estimate at list prices.` : 'No session is held back as a comparison: every one is handed over.'}`
     : 'off: every read and test run stays with the person\'s own model.'}`);
   out.push(`ANSWER LENGTH: ${b.answerWords ? `under ${b.answerWords} words, and no table unless they ask for one. Their own rule, served to every session of theirs; asking for a number lands about a tenth over it.` : 'not set by them, so the compile writes its own line about it.'}`);
   return out;
+}
+// What thinker saved, as the accountant counts it (accountant.js:savingsNow, the ledger the status line reads): the
+// last fortnight with what the clearing cost over it and the net, today, and since the log began, each by what did
+// the saving. The one count: a figure said here is the figure `thinker savings` and `thinker report` print. Until
+// 2026-11-22 the chat was shown the handoffs' share alone and answered "what did you save" with a quarter of it.
+function savedLines(store, home, now) {
+  let l = null; try { l = savingsNow(store, { now }); } catch {}
+  if (!l?.lifetime || (!l.lifetime.tokens && !l.lifetime.unpricedTokens)) return ['WHAT YOU SAVED THEM: nothing counted yet on this machine.'];
+  const row = (label, c) => `- ${label}: ${formatDollars(c.cost)} in all, gross -- ${savingsDetail(c)}${c.net != null ? `; ${savingsNet(c)}` : ''}${c.unpricedTokens ? `; ${formatTokens(c.unpricedTokens)} more tokens were kept out on models with no list price and are in no dollar figure` : ''}`;
+  let cutting = null; try { cutting = cuttingOn(readMachineConfig(home).proxy || {}); } catch {}
+  return [
+    'WHAT YOU SAVED THEM, over every repository on this machine, by the one count their status line, `thinker savings` and `thinker report` show. Dollars are API list prices for context their sessions did not have to pay for: an estimate, not a bill, and not a comparison against held-back sessions.',
+    ...(l.recent ? [row(`the last ${l.recentDays || RECENT_DAYS} days`, l.recent)] : []),
+    ...(l.sameDay === false ? [] : [row('today', l.today)]),
+    row(`since ${String(l.from || '').slice(0, 10) || 'the log began'} (lifetime)`, l.lifetime),
+    ...(cutting == null ? [] : [`- Context clearing is ${cutting ? 'on' : 'off'} on this machine now${cutting ? '.' : ': nothing new is being added to "context cleared", and what it saved before is in the figures above.'}`]),
+  ];
 }
 // The profile as their sessions are served it, for the repository in view: read from the file the compile wrote.
 function profileLines({ r }, now) {
@@ -338,14 +361,14 @@ export function chatContext(repos, { about = null, now = Date.now(), home = thin
   // what each session handed to cheaper agents and what that saved, the newest few and the window's total
   const handed = views.flatMap(({ r, view }) => (view?.delegated?.sessions || []).map(d => ({ r, d }))).sort((a, b) => String(b.d.at).localeCompare(String(a.d.at)));
   if (handed.length) {
-    const totals = views.map(v => v.view?.delegated?.total).filter(Boolean), sum = k => totals.reduce((a, t) => a + (t[k] || 0), 0);
-    lines.push('', `DELEGATED TO CHEAPER AGENTS, by session, newest first: ${delegatedTotalSaid({ days: views.find(v => v.view?.delegated)?.view.delegated.days, total: { sessions: sum('sessions'), reads: sum('reads'), runs: sum('runs'), handed: sum('handed'), saved: sum('saved'), unpriced: sum('unpriced') } })}`);
+    const totals = views.map(v => v.view?.delegated?.total).filter(Boolean);
+    lines.push('', `DELEGATED TO CHEAPER AGENTS, by session, newest first: ${delegatedTotalSaid({ days: views.find(v => v.view?.delegated)?.view.delegated.days, total: sumHanded(totals) })}`);
     for (const { r, d } of handed.slice(0, CHAT.sessions)) push('session', r, d, `- [delegation] ${ago(d.at, now)} · ${r.name} · ${d.text}${d.impactSaid ? ` [${d.impactSaid}]` : ''}${d.title ? ` · the session began: "${cut(d.title, 80)}"` : ''}`);
   }
   // what the profile holds and how the sessions read as a pipeline, for the repository in view (the first above):
   // the two things a person asks about that are not actions of thinker's. Both are read from what is already
   // written down -- the compile's file, the report the checkout kept -- so a chat message measures nothing.
-  if (views.length) lines.push('', ...profileLines(views[0], now), '', ...factoryLines(views[0], now));
+  if (views.length) lines.push('', ...savedLines(views[0].r.store, home, now), '', ...profileLines(views[0], now), '', ...factoryLines(views[0], now));
   // the line of the context an attached card is, by its time and words (and its repository where the card names one)
   const lineOf = x => x && (said.find(l => l.at === x.at && l.text === x.text && (!x.repo || l.repo === x.repo)) || said.find(l => l.at === x.at && l.text === x.text))?.line || null;
   return { text: lines.join('\n'), refs, lineOf };

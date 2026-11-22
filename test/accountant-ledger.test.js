@@ -1,4 +1,4 @@
-// The ledger behind the footers (src/savings-ledger.js): the Report page's own savings series (the clearing) over
+// The ledger behind the footers (src/accountant.js): the Report page's own savings series (the clearing) over
 // two windows, today and the whole log, kept in a file every surface can read for nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
-import { computeSavings, dayKey, dayStart, readSavings, refreshSavings, refreshSavingsInBackground, savingsDetail, savingsFile, savingsLine, savingsStatus, writeSavings, REFRESH_MS } from '../src/savings-ledger.js';
+import { computeSavings, dayKey, dayStart, readSavings, refreshSavings, refreshSavingsInBackground, savingsDetail, savingsNet, savingsNow, savingsFile, savingsLine, savingsStatus, writeSavings, REFRESH_MS, RECENT_DAYS } from '../src/accountant.js';
 import { reportView } from '../src/report.js';
 import { formatDollars } from '../src/prices.js';
 
@@ -247,4 +247,41 @@ test('a read answered with the copy the model already had is a row of its own in
   assert.equal(l.today.delegated.tokens, 0, 'and it is not the handoff\'s figure');
   assert.ok(Math.abs(l.today.cost - (l.today.cleared.cost + l.today.repeated.cost)) < 1e-9, 'the total is the rows');
   assert.match(savingsDetail(l.lifetime), /context cleared .* · reads already in context /);
+});
+
+test('the fortnight between today and lifetime, with what the clearing cost over it and the net', t => {
+  const now = Date.parse('2026-11-20T15:00:00Z');
+  // one clear inside the last fourteen days, one a month back
+  const { store, home } = machine(t, { now, cleared: [{ at: now - 3 * DAY, tokens: 1_000_000 }, { at: now - 30 * DAY, tokens: 4_000_000 }] });
+  const l = computeSavings(store, { now });
+  assert.equal(l.recentDays, RECENT_DAYS); assert.equal(RECENT_DAYS, 14);
+  assert.equal(l.recent.cleared.tokens, 1_000_000);
+  assert.equal(l.lifetime.cleared.tokens, 5_000_000);
+  // nothing cut a cache here, so the net is the saving itself, and said so
+  assert.deepEqual([l.recent.rewrite, l.recent.reread], [0, 0]);
+  assert.ok(Math.abs(l.recent.net - l.recent.cost) < 1e-12);
+  assert.equal(savingsNet(l.recent), `net ${formatDollars(l.recent.cost)}: the clears cost nothing over it`);
+  // a request that made a cut and wrote the cache again, and a session that read a cleared file again: both come off
+  fs.appendFileSync(process.env.THINKER_PROXY_LOG, JSON.stringify({ op: 'proxy', session: 'p', at: new Date(now - 2 * DAY).toISOString(), model: 'claude-opus-5-5', status: 200, cleared: 1_200_000, clearedUses: 9, clear: { tokens: 200_000 }, write: 300_000, read: 50_000 }) + '\n');
+  store.log({ op: 'session', t: new Date(now - DAY).toISOString(), session: 'p', model: 'claude-opus-5-5', rereads: { reads: 2, tokens: 10_000, laterTokens: 40_000 } });
+  const n = computeSavings(store, { now });
+  assert.ok(n.recent.rewrite > 0, 'the cut\'s own cache write is charged');
+  assert.ok(n.recent.reread > 0, 'and what was read again');
+  assert.ok(Math.abs(n.recent.net - (n.recent.cost - n.recent.rewrite - n.recent.reread)) < 1e-9);
+  assert.match(savingsNet(n.recent), /^net −?\$[\d.]+ after \$[\d.]+ of cache writes the clears caused and \$[\d.]+ of cleared files read again$/);
+  // the other windows carry no net: lifetime reaches back past the rules that price a clear's cost
+  assert.equal(n.lifetime.net, undefined); assert.equal(savingsNet(n.lifetime), '');
+  // for somebody answering now: the kept ledger where it is current and has every window, else counted afresh and
+  // never written from there (the file is the Stop hook's, and carries its version for the status line)
+  assert.equal(readSavings(store, { now }), null);
+  const live = savingsNow(store, { now });
+  assert.equal(live.recent.cleared.tokens, n.recent.cleared.tokens);
+  assert.equal(fs.existsSync(savingsFile(store)), false, 'an answer writes no ledger');
+  writeSavings(store, { ...n, recent: undefined });   // one an older copy kept: two windows
+  assert.ok(savingsNow(store, { now }).recent, 'a ledger without the fortnight is counted again');
+  writeSavings(store, { ...n, version: 'kept' });
+  assert.equal(savingsNow(store, { now }).version, 'kept', 'a current one is read as it is');
+  // `thinker savings` prints the fortnight between the two, with its net under it
+  const out = execFileSync(process.execPath, [path.join(ROOT, 'src', 'cli.js'), 'savings', '--repo', store.repo], { encoding: 'utf8', env: { ...process.env, THINKER_HOME: home, THINKER_TEST: '1', THINKER_TELEMETRY: 'off' } });
+  assert.match(out, /\n {2}Today .*\n {2}14 days {3}\$[\d.]+ +context cleared \$[\d.]+ \([\d.]+M tokens\)\n +net −?\$[\d.]+ after [^\n]*\n {2}Lifetime /);
 });

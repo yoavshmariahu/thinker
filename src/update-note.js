@@ -47,7 +47,7 @@ export function updateNoteShown(store, { note = UPDATE_NOTE, now = Date.now() } 
 }
 
 // The note as the end-of-turn lines of an agent that draws no card. The version is named here as the
-// status row names it (savings-ledger.js:savingsStatus): a note about what changed is the one moment a
+// status row names it (accountant.js:savingsStatus): a note about what changed is the one moment a
 // person wants to know which thinker they are running.
 export const updateNoteText = (note = UPDATE_NOTE, { version = appVersion() } = {}) =>
   [`🧠 thinker${version ? ` v${version}` : ''} · ${note.title}`, ...note.lines.map(l => `  • ${l}`), note.more ? `  ${note.more}` : ''].filter(Boolean).join('\n');

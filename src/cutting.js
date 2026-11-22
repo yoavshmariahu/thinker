@@ -456,7 +456,7 @@ function decide(rec, cfg, m, { turn = m.turn, cand = null, ttl = '1h', now = Dat
   // trigger and the floor stand here too. And since 2026-11-18 so does the payback: the rewrite is priced as
   // a warm one is (`priceCut`), so a resumed session is cut only where a live one would be. `cold` is kept
   // on a cut's row as a fact about the request, which is what tells the ledger that request's write was the
-  // expired cache's (compression.js:clearingCostBySession).
+  // expired cache's (accountant.js:clearingCostBySession).
   // nothing to cut comes before the trigger, so `below-trigger` means what it says: there WAS something to cut
   // and the prompt was too small to spend it. A row reading 'below-trigger' is then the trigger's to answer for.
   if (!cand || !cand.ids.length) return { ...same, turn, candidate: 0, reason: 'nothing-to-cut' };

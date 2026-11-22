@@ -62,12 +62,8 @@ import { prAvailable } from './instruction-pr.js';
 import { instructionFiles, sections, sectionId, readValueState } from './instruction-value.js';
 import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
 import { keptRows, inputRateHere } from './report-snapshot.js';
-import { withEffects } from './report.js';
-import { delegationBySession, delegationDetail } from './report-savings.js';
+import { records, withEffects, wastePerDay, promptsADay, dollarsADay, mergeImpacts, impactSaid, delegatedView, delegatedTotalSaid, delegationDetail, cutTitle, sumHanded } from './accountant.js';
 import { readProfile, answerStyle, ANSWER_WORDS } from './profile.js';
-import { clearingRows, compressionDir } from './compression.js';
-import { proxyLogFile } from './proxy-service.js';
-import { sessionKey } from './usage.js';
 import { delegateConfig } from './delegate.js';
 import { thinkerHome } from './update.js';
 import { readLog } from './usage.js';
@@ -239,9 +235,6 @@ function writeUpkeep(store, st) {
 // item is still true), `act`, and where leaving a thing alone is more than forgetting it, `dismiss`. An item says
 // whether it is `important` (worth doing) and which setting lets thinker do it (`allow`).
 const viewOf = store => lastSnapshot(store, SUGGEST.days)?.view || null;
-// What a change wastes a day here, in dollars: the tokens that went on it unused over the report's window, at what an
-// input token cost here (context-view.js:rateOf, the Report's rule), a day of that window. null where nothing is priced.
-const perDayOf = (c, rate) => (rate == null || !c.total || !c.days ? null : (c.total * rate) / c.days);
 // What thinker does to a section by itself: removes it where no prompt of the window needed it at all, over enough
 // sessions to say so, and it may; shortens it otherwise (the report's own suggestion is always to shorten).
 const sectionAct = (c, b) => (b.remove && c.usedShare === 0 && (c.sessions || 0) >= UPKEEP.removeSessions && c.options?.some(o => o.act === 'remove') ? 'remove' : c.default.act);
@@ -278,7 +271,7 @@ const contextChore = {
     // were listed by a copy from before they carried it (a kept report outlives an update)
     const useOf = c => { const row = c.used != null ? null : (c.kind === 'skill' ? view.skills : view.tools)?.find(t => `${t.client}:${t.key}` === c.key); return { used: c.used ?? row?.used ?? null, loaded: c.sessions || row?.loaded || 0 }; };
     return currentChanges(store, view, { now: opts.now, max: UPKEEP.batchMax }).filter(c => c.default && (c.kind !== 'section' || canPr)).map(c => {
-      const sec = c.kind === 'section', perDay = perDayOf(c, rate), act = sec ? sectionAct(c, opts.behavior) : c.default.act, use = sec ? null : useOf(c);
+      const sec = c.kind === 'section', perDay = wastePerDay(c, rate), act = sec ? sectionAct(c, opts.behavior) : c.default.act, use = sec ? null : useOf(c);
       const worth = !c.total ? '' : perDay == null ? ` About ${formatTokens(c.total)} tokens went on it unused over the last ${c.days} days.` : ` About ${formatDollars(c.total * rate)} went on it unused over the last ${c.days} days, ${formatDollars(perDay)} a day.`;
       const label = !sec ? c.default.text : `Put up a PR to ${act === 'remove' ? 'remove' : 'shorten'} it`;
       // `perDay`: what it is worth; `waste`: the report's grade of it; `use`: the sessions that called a tool, of the
@@ -461,7 +454,7 @@ function ruleTally(store, section, from, to) {
 }
 // One change judged: { verdict: 'undo', why } where it backfired, { verdict: 'kept', why } where it paid or nothing
 // says it did not, null while it is too early to say. Three things say a change backfired:
-//   - its measured effect (report.js:actionEffect, the thing's cost a prompt before against since) is no saving at all;
+//   - its measured effect (accountant.js:actionEffect, the thing's cost a prompt before against since) is no saving at all;
 //   - a shortened section's rule was broken in UPKEEP.ruleBroken sessions since, and more often than before;
 //   - a tool made a reference was still called in UPKEEP.needShare of prompts (the kept report's window, all of it
 //     after the switch).
@@ -701,19 +694,6 @@ const sweptBack = d => {
 
 // --- what was done -------------------------------------------------------------------------------------------
 const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-// What a line came to, in a few words (the owner's ask, 2026-11-21: "one line summary of the action and its impact,
-// e.g. -10k tokens per prompt, $45/day"). Tokens off every prompt are the decision's own measured effect once the
-// sessions since can say (report.js:actionEffect: the thing's cost a prompt before against after), and until then what
-// the Context report expected of it, said as "about". A day's dollars are those tokens over the prompts a day here at what an
-// input token costs here (report-snapshot.js:inputRateHere, the Report's rate), and are left out where nothing is priced.
-export function impactSaid(i) {
-  if (!i) return '';
-  if (!i.perPrompt) return '';
-  const saved = i.perPrompt > 0, day = i.perDay != null && Math.abs(i.perDay) >= 0.005 ? ` · ${formatDollars(Math.abs(i.perDay))}/day${saved ? '' : ' more'}` : '';
-  // `wait`: the part of it that is not in effect until a pull request merges (a batch: its tools are, its sections are not)
-  const w = i.wait, waits = !w || !w.perPrompt ? '' : ` (${w.perDay != null && Math.abs(w.perDay) >= 0.005 ? `${formatDollars(Math.abs(w.perDay))}/day` : `${formatTokens(Math.abs(Math.round(w.perPrompt)))} tokens`} of it once ${w.pr ? `PR #${w.pr}` : 'its pull request'} merges)`;
-  return `${i.measured ? '' : 'about '}${saved ? '−' : '+'}${formatTokens(Math.abs(Math.round(i.perPrompt)))} tokens per prompt${day}${waits || (i.pending ? ' once merged' : '')}`;
-}
 const profileSaid = (p, where = '') => `Updated your profile${where}: ${[p.added ? `${plural(p.added, 'line')} added` : '', p.reworded ? `${p.reworded} reworded` : '', p.dropped ? `${p.dropped} dropped` : ''].filter(Boolean).join(', ')}`;
 // a decision as the thing that was done, in one line
 function didSaid(e, what) {
@@ -753,7 +733,7 @@ function batchLine(of, { rate, perDay, by }) {
   const at = of.map(h => h.pr?.at || h.job?.finishedAt || h.at).sort().at(-1);
   const counted = of.filter(h => !nothing(h)), fig = h => (!waiting(h) && h.effect ? h.effect.delta : h.saving || 0);
   const perPrompt = counted.reduce((a, h) => a + fig(h), 0), held = counted.filter(waiting).reduce((a, h) => a + fig(h), 0);
-  const dollars = n => (rate != null && perDay ? n * perDay * rate : null);
+  const dollars = n => dollarsADay(n, { promptsPerDay: perDay, rate });
   const impact = perPrompt ? { perPrompt, perDay: dollars(perPrompt), promptsPerDay: perDay, measured: counted.every(h => !waiting(h) && h.effect), ...(held && held < perPrompt ? { wait: { perPrompt: held, perDay: dollars(held), ...(pr ? { pr: pr.number } : {}) } } : held ? { pending: true } : {}) } : null;
   const undoable = of.some(h => h.revertible && !h.revertedAt), shared = rest.filter(h => h.scope === 'machine').map(h => h.id);
   return { at, impact, x: { id: `b:${first.batch}`, at, kind: pr ? 'pr' : 'change', steer: 'changes', batch: { changes: of.length, sections: secs.length, tools: rest.length }, text: `Batch of ${of.length}: ${parts.join('; ')}`, by, ...(pr?.url ? { url: pr.url } : {}), ...(pr ? { pr: { number: pr.number, state: pr.state } } : {}), ...(of.every(h => h.revertedAt) ? { undone: true } : undoable ? { undo: `b:${first.batch}` } : {}), ...(shared.length ? { sharedIn: shared } : {}) } };
@@ -775,7 +755,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
     // each decision with its measured effect, from the report kept here (a file read; nothing is measured now), and
     // this repository's pace: the prompts a day over the last week
     let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
-    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
+    const perDay = promptsADay(rows, now);
     const groups = new Set(), batches = new Set();
     for (const e of history) {
       if (e.decision === 'dismissed') continue;
@@ -795,7 +775,7 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
       if (Date.parse(at) < since) continue;
       const waiting = e.running || e.pr?.state === 'open', nothing = e.failed || e.revertedAt || e.pr?.state === 'closed';
       const measured = !waiting && of.every(h => h.effect), perPrompt = nothing ? 0 : of.reduce((a, h) => a + (measured ? h.effect.delta : h.saving || 0), 0);
-      const impact = perPrompt ? { perPrompt, perDay: rate != null && perDay ? perPrompt * perDay * rate : null, promptsPerDay: perDay, measured, ...(waiting ? { pending: true } : {}) } : null;
+      const impact = perPrompt ? { perPrompt, perDay: dollarsADay(perPrompt, { promptsPerDay: perDay, rate }), promptsPerDay: perDay, measured, ...(waiting ? { pending: true } : {}) } : null;
       const mine = done.find(d => d.kept && d.by === 'thinker' && d.item === `change:${e.key || (e.keys || [])[0]}`);
       // `shared`: a decision for the whole machine is in every repository's history, and is one line when they are read together
       // a pull request's line always carries its link (`url`): it may be in review for days, and the line is how the
@@ -812,38 +792,6 @@ export function upkeepFeed(store, { now = Date.now(), days = UPKEEP.feedDays, lo
   }
   if (last) out.push({ ...last, text: profileSaid(last.profile) });
   return out.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.feedMax);
-}
-
-// --- what was handed to cheaper agents -----------------------------------------------------------------------
-// Per session: how much of its reading and test running went to a cheaper agent, and what that saved (the owner's
-// ask, 2026-11-21). The figures are the Report's own (report-savings.js:delegationBySession over the "Reads
-// delegated" series), read from the log and the proxy's records as the savings ledger reads them: nothing is
-// measured here. Kept a minute a repository in this process, since the page asks every half minute.
-const handedCache = new Map();
-const cutTitle = t => short(String(t || '').replace(/<[^>]{1,40}>[\s\S]*?<\/[^>]{1,40}>/g, ' '), 70);
-export function delegatedSaid(d) {
-  const what = [d.reads ? plural(d.reads, 'read') : '', d.runs ? plural(d.runs, 'test run') : ''].filter(Boolean).join(' and ');
-  const worth = [d.handed ? `${formatTokens(d.handed)} tokens handed over` : '', d.saved == null || Math.abs(d.saved) < 0.005 ? '' : d.saved > 0 ? `${formatDollars(d.saved)} saved` : `cost ${formatDollars(-d.saved)} more`].filter(Boolean).join(' · ');
-  return { text: `Handed ${what} to ${d.models?.length === 1 ? d.models[0] : 'cheaper agents'}`, impactSaid: worth };
-}
-// the dollars are over the sessions that can be priced; one whose lead model is not known to the log, or has no list
-// price, is counted (`unpriced`) and left out of them, never added at zero
-const handedTotal = sessions => ({ sessions: sessions.length, reads: sessions.reduce((a, d) => a + d.reads, 0), runs: sessions.reduce((a, d) => a + d.runs, 0), handed: sessions.reduce((a, d) => a + d.handed, 0), saved: sessions.reduce((a, d) => a + (d.saved || 0), 0), unpriced: sessions.filter(d => d.saved == null).length });
-export function upkeepDelegated(store, { now = Date.now(), days = UPKEEP.feedDays, log, compression, home = thinkerHome() } = {}) {
-  const key = `${store.repo}\t${home}`, had = handedCache.get(key);
-  if (!log && !compression && had && now - had.at >= 0 && now - had.at < 60_000) return had.value;
-  let sessions = [];
-  try {
-    const events = log || readLog(store);
-    // the proxy's rows and the recorded clears, as the ledger reads them (savings-ledger.js:computeSavings); a test
-    // with no home and no log of its own has none
-    const rows = compression || (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(home), compressionDir(home), { events, key: sessionKey }));
-    let config = {}; try { config = store.config(); } catch {}
-    sessions = delegationBySession({ events, compression: rows, config, since: now - days * DAY }).map(d => ({ id: `s:${d.session}`, at: new Date(d.at).toISOString(), title: cutTitle(d.title), reads: d.reads, runs: d.runs, handed: d.handed, models: d.models, saved: d.saved, steer: 'delegation', ...delegatedSaid(d) }));
-  } catch {}
-  const value = { days, total: handedTotal(sessions), sessions: sessions.slice(0, UPKEEP.sessionsMax) };
-  if (!log && !compression) handedCache.set(key, { at: now, value });
-  return value;
 }
 
 // --- what is known about one line ----------------------------------------------------------------------------
@@ -872,7 +820,7 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
   if (id.startsWith('h:') || id.startsWith('b:')) {
     let history = []; try { history = changeHistory(store, { now }); } catch {}
     let rows = [], rate = null; try { ({ rows, rate } = report || { rows: keptRows(store, { now }).rows, rate: inputRateHere(store, { now }) }); history = withEffects(history, rows, now); } catch {}
-    const perDay = rows.filter(r => r.t >= now - 7 * DAY).reduce((a, r) => a + Math.max(1, r.prompts || 0), 0) / 7;
+    const perDay = promptsADay(rows, now);
     const dollars = rate != null && perDay ? `How the dollars a day are reckoned: the tokens off a prompt, times the ${Math.round(perDay)} prompts a day this repository ran over the last week, at $${(rate * 1e6).toFixed(2)} a million input tokens (what input cost here, cache reads and writes as they were).` : '';
     if (id.startsWith('b:')) {
       // a batch: why these went together, then each change in it with its own undo
@@ -910,10 +858,7 @@ export function upkeepDetail(store, id, { now = Date.now(), log, report, compres
   } else if (id.startsWith('s:')) {
     let d = null;
     try {
-      const events = log || readLog(store);
-      const rows = compression || (process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(home), compressionDir(home), { events, key: sessionKey }));
-      let config = {}; try { config = store.config(); } catch {}
-      d = delegationDetail({ events, compression: rows, config, session: id.slice(2) });
+      d = delegationDetail({ ...records(store, { home, log, compression }), session: id.slice(2) });
     } catch {}
     if (!d?.handoffs.length) return out;
     if (d.title) out.push(`The session began: "${cutTitle(d.title)}"${d.lead ? `. Its own model was ${d.lead}` : ''}.`);
@@ -949,17 +894,13 @@ export function upkeepView(store, { now = Date.now(), log, report, compression, 
   const b = behaviorOf(store, { home }), on = b.level !== 'off';
   const p = on ? upkeepPending(store, { now, home }) : { lastCheck: readUpkeep(store).lastCheck, pending: [], notes: [], passed: [] };
   const { set, ...behavior } = b;
-  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, passed: p.passed || [], ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: upkeepDelegated(store, { now, log, compression, home }) };
+  const v = { level: b.level, behavior, behaviorSaid: behaviorSaid(b), lastCheck: p.lastCheck, later: p.pending.filter(i => i.later).length, held: p.pending.filter(i => !i.later).length, pending: p.pending, notes: p.notes, passed: p.passed || [], ...(p.batch ? { batch: p.batch } : {}), feed: upkeepFeed(store, { now, log, report }), delegated: delegatedView(store, { now, log, compression, home, max: UPKEEP.sessionsMax }) };
   return { ...v, summary: summary(v) };
 }
 // Every repository's view as one (the page's All repositories): each line says whose it is, and the last check is
 // the oldest one, since that is how stale the list can be.
 // What one thing came to in two repositories, as one figure: the dollars a day added, the tokens a prompt the average
 // over their prompts. What still waits on a pull request (`wait`, `pending`) is the first one's.
-const bothImpacts = (a, b) => {
-  const n = (a.promptsPerDay || 0) + (b.promptsPerDay || 0);
-  return { ...a, perPrompt: n ? (a.perPrompt * (a.promptsPerDay || 0) + b.perPrompt * (b.promptsPerDay || 0)) / n : a.perPrompt, perDay: a.perDay == null && b.perDay == null ? null : (a.perDay || 0) + (b.perDay || 0), promptsPerDay: n, measured: Boolean(a.measured && b.measured) };
-};
 export function mergeUpkeepViews(pairs) {
   const pending = [], notes = [], feed = [], checks = [], profiles = [], sessions = [], totals = [], shared = new Map(), said = new Map(), batches = new Map(), waiting = [];
   for (const { repo, name, view } of pairs) {
@@ -984,7 +925,7 @@ export function mergeUpkeepViews(pairs) {
       const had = said.get(f.shared);
       if (!had) { const x = { ...f, repo, repoName: 'All repositories' }; said.set(f.shared, x); feed.push(x); continue; }
       if (!f.impact || !had.impact) { if (f.impact && !had.impact) Object.assign(had, { impact: f.impact, impactSaid: f.impactSaid }); continue; }
-      had.impact = bothImpacts(had.impact, f.impact);
+      had.impact = mergeImpacts(had.impact, f.impact);
       had.impactSaid = impactSaid(had.impact);
     }
     if (view.batch?.changes) waiting.push(view.batch);
@@ -992,7 +933,7 @@ export function mergeUpkeepViews(pairs) {
   }
   for (const g of batches.values()) {
     const [base, ...rest] = g.sort((a, b) => (b.batch.changes || 0) - (a.batch.changes || 0));
-    for (const o of rest) { if (o.impact) base.impact = base.impact ? bothImpacts(base.impact, o.impact) : o.impact; }
+    for (const o of rest) { if (o.impact) base.impact = base.impact ? mergeImpacts(base.impact, o.impact) : o.impact; }
     if (base.impact) base.impactSaid = impactSaid(base.impact);
     feed.push(base);
   }
@@ -1009,14 +950,8 @@ export function mergeUpkeepViews(pairs) {
   const batch = going.length ? { changes: going.length, perDay: going.reduce((a, i) => a + (i.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true } : null;
   const v = { level, ...(batch ? { batch } : {}), behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
     // the sessions of every repository newest first, and their totals added
-    delegated: { days: UPKEEP.feedDays, total: Object.fromEntries(['sessions', 'reads', 'runs', 'handed', 'saved', 'unpriced'].map(k => [k, totals.reduce((a, t) => a + (t[k] || 0), 0)])), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
+    delegated: { days: UPKEEP.feedDays, total: sumHanded(totals), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
   return { ...v, summary: summary(v) };
-}
-// The window's delegated work in one line, for both doors.
-export function delegatedTotalSaid(d) {
-  const t = d?.total;
-  if (!t?.sessions) return '';
-  return `${plural(t.sessions, 'session')} over ${plural(d.days, 'day')}: ${[t.reads ? plural(t.reads, 'read') : '', t.runs ? plural(t.runs, 'test run') : ''].filter(Boolean).join(' and ')} handed to cheaper agents${t.handed ? `, ${formatTokens(t.handed)} tokens` : ''}${Math.abs(t.saved || 0) < 0.005 ? '' : t.saved > 0 ? ` · ${formatDollars(t.saved)} saved` : ` · cost ${formatDollars(-t.saved)} more`}${t.unpriced ? ` (${plural(t.unpriced, 'session')} left out: no price known for ${t.unpriced === 1 ? 'its' : 'their'} model)` : ''}`;
 }
 
 // --- the command's page --------------------------------------------------------------------------------------

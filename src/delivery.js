@@ -1,19 +1,20 @@
 // What a pull request cost and what thinker saved on it.
 //
 // A session is linked to the pull request it was working on; what thinker saved in that session is then the
-// pull request's: the tokens the clearing left out of the session's prompts, added up (compression.js), MEASURED
-// and gross, as the card is, since a clear also rewrites the prompt cache. The estimated reading the knowledge
-// notes avoided was a second figure until 2026-11-08.
+// pull request's. Which sessions, which pull request and with what share is this module's; what a session saved,
+// what its clears cost and the net of them is the accountant's (accountant.js:clearingFor, sessionSaving, netOf),
+// and nothing here prices a saving. The estimated reading the knowledge notes avoided was a second figure until
+// 2026-11-08.
 //
 // Nothing here calls a model, mines anything or spends a token. The pull requests come from the person's own
 // `gh` login, read-only; the sessions come from the usage log; the savings come from records already written.
 import { execFileSync } from 'node:child_process';
 import { repoId } from './store.js';
 import { readLog, sessionKey } from './usage.js';
-import { rereadCost } from './rereads.js';
 import { formatTokens } from './model-usage.js';
 import { listPrice, formatDollars, costOf } from './prices.js';
-import { compressionDir, readCompression, clearedBySession, clearingCostBySession, usageBySession, CLEARING_OP } from './compression.js';
+import { usageBySession, CLEARING_OP } from './compression.js';
+import { clearingFor, rewriteCostFor, rewriteOfLogged, sessionSaving, netOf, addSaving, sumSavings, NET_BASIS } from './accountant.js';
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { isTestMode } from './test-mode.js';
@@ -142,25 +143,10 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     if (!x.model && x.logged?.model) x.model = x.logged.model;
     if (!x.model && c.model) x.model = c.model;   // the model the proxy's own clearing rows name
     delete x.logged;
-    // Dollars, at the session's own model's list rates: a cleared token saved a cache read, or a cache write on a
-    // request that found its cache gone and wrote the whole context again (cutting.js:savedAs, 2026-11-18); the write
-    // of the request that made a cut and what the model read again after a cut took it out are what it cost
-    // (prices.js, rereads.js). One rule: net is cleared at what each request would have paid for it, less the cut's
-    // own cache write, less the re-reads of cleared files.
+    // Dollars: what the clearing saved in the session, what the cut's own cache write and the re-reads of cleared
+    // files cost, and the net of them, priced by the accountant (accountant.js:sessionSaving, the one rule)
     const price = listPrice(x.model, { config });
-    // Saved is priced row by row where the proxy's log has the rows (`c.usd` over `c.pricedTokens`, each row at the
-    // model that answered it), as the ledger and the Report price it and as the rewrites below are charged. What
-    // the rows do not cover -- a desktop clear known from its record alone, a row whose model has no price -- is
-    // priced at the session's own model, and a session with such a remainder and no priced model stays unpriced.
-    const byRow = Math.min(c.pricedTokens || 0, x.cleared || 0), rest = (x.cleared || 0) - byRow;
-    x.cost = price || (byRow > 0 && rest === 0)
-      ? { saved: (byRow > 0 ? c.usd * (byRow / c.pricedTokens) : 0) + (price ? rest * price.cacheRead / 1e6 : 0),
-        // of `saved`, what was saved on requests that wrote their whole context again; a clear known from its
-        // record alone has no request to read that off, and is priced as reads
-        cold: byRow > 0 ? (c.coldUsd || 0) * (byRow / c.pricedTokens) : 0,
-        rewrite: x.rewrite?.usd || 0, reread: price ? rereadCost(x.rereads, price) : 0, priced: true }
-      : { saved: 0, cold: 0, rewrite: 0, reread: 0, priced: false };
-    x.cost.net = x.cost.saved - x.cost.rewrite - x.cost.reread;
+    x.cost = sessionSaving({ cleared: x.cleared, clearing: c, rewrite: x.rewrite, rereads: x.rereads, model: x.model, config });
     // What the session's own calls cost, in dollars at list prices by token type (fresh input, cache reads, cache
     // writes by TTL, output; prices.js:costOf), the subagents each at their own model. The owner's call, 2026-11-08: a
     // pull request's cost is said in dollars and not in tokens, since tokens add reads, writes and output as if they
@@ -174,62 +160,6 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
   return sessions;
 }
 
-// What the context proxy's clearing saved in a session: the proxy's own log first, since it is the durable
-// record, and the card's state file only where the log's tail no longer reaches (compression.js).
-export function clearingFor({ home = thinkerHome(), env = process.env, since = '', config } = {}) {
-  let logged = new Map();
-  try { for (const [id, row] of clearedBySession(proxyLogFile(home, env), { since, config })) logged.set(sessionKey(id), row); } catch { logged = new Map(); }
-  const dir = compressionDir(home);
-  return id => {
-    let state = null;
-    try { state = readCompression(dir, id); } catch { state = null; }
-    // The record is the session's whole life, so it may only be read inside the window the log's rows are read
-    // over -- otherwise a clear made days before `since` counts as a saving inside it. On this machine a
-    // five-day window drew in 16 sessions cleared 8 to 13 days earlier, 425M of its 441M tokens, which is how
-    // a question about the last five days got answered with a fortnight's clears (`desktopClearRows` and
-    // `desktopClearingCost` have dated their rows all along; this door did not).
-    const at = state?.lastAt ?? state?.firstAt;
-    const dated = typeof at === 'number' ? new Date(at).toISOString() : at;
-    if (state && since && dated && dated < since) state = null;
-    const a = logged.get(id);
-    const cleared = Math.max(finite(a?.cleared) ? a.cleared : 0, finite(state?.saved) ? state.saved : 0);
-    // Which cut policy saved it (cutting.js:policyId), off whichever record carried the figure -- the log
-    // first, as above. Null for a clear made before the policy was stamped on the row, which is not the same
-    // as a clear under today's policy: a reader comparing savings leaves those out rather than pooling them.
-    const named = a?.policy ? a : state?.policy ? state : null;
-    return { cleared, model: a?.model || state?.model || null,
-      // what the log's own rows saved, each at its own model, and how many of the cleared tokens that covers;
-      // `coldUsd` is the part of it saved on requests that wrote their whole context again (cutting.js:wroteCold)
-      usd: a?.usd || 0, pricedTokens: a?.pricedTokens || 0, coldUsd: a?.coldUsd || 0,
-      policy: named?.policy || null, policyChanged: Boolean(a?.policyChanged || state?.policyChanged) };
-  };
-}
-
-// What a session's clearing saved, as a number, for the readers that want only that.
-export function clearedFor(opts = {}) { const clearing = clearingFor(opts); return id => clearing(id).cleared; }
-
-// What a mirrored desktop clear cost, priced here because the row carries the write tokens the mod counted
-// and the model that answered (compression.js:loggedClearingCost prices the same row for the Report).
-function rewriteOfLogged(logged, config) {
-  if (!logged?.cost) return null;
-  const price = listPrice(logged.model, { config });
-  const write = logged.cost.write || 0;
-  return { rewrites: logged.cost.rewrites || 0, write, usd: price ? writeCostOf(write, price) : 0,
-    unpriced: price || !write ? 0 : 1, ...(logged.model ? { model: logged.model } : {}) };
-}
-
-// What the clearing cost in that session: the cache writes on the calls from its first clear onwards
-// (compression.js:clearingCostBySession). The proxy's log knows this for the sessions it served; a desktop
-// session never reaches the proxy, and its record (the clearing mod's, in the card's state directory) keeps
-// the same count since 2026-11-06, read where the log has no rows for the session. A session the log's tail
-// no longer reaches, or a record from before the mod counted, has no cost figure, and `costed` on the report
-// says how many did.
-export function rewriteCostFor({ home = thinkerHome(), env = process.env, since = '', config } = {}) {
-  let logged = new Map();
-  try { for (const [id, x] of clearingCostBySession(proxyLogFile(home, env), { since, config, dir: compressionDir(home), key: sessionKey })) logged.set(sessionKey(id), x); } catch { logged = new Map(); }
-  return id => logged.get(id) || null;
-}
-
 // ---------------------------------------------------------------------------
 // Which pull request a session belongs to.
 
@@ -239,7 +169,6 @@ export function rewriteCostFor({ home = thinkerHome(), env = process.env, since 
 // Commits a session sitting there is proof it was working on this pull request. The listing gives the head
 // and the merge commit; the whole list comes only with `--pr n`. The base is where the branch started, so a
 // session there says nothing.
-const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6;
 
 const prCommits = p => [...(p.commits || []), p.head, p.mergeCommit].filter(sha => sha && sha !== p.base);
 
@@ -285,7 +214,8 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   // are priced, and a report whose sessions are all of this kind says so rather than showing a loss.
   const costOfObserved = key => {
     const rewrite = rewriteCost(key);
-    return { saved: 0, rewrite: rewrite?.usd || 0, reread: 0, net: -(rewrite?.usd || 0), priced: false, spend: null };
+    const cost = { saved: 0, rewrite: rewrite?.usd || 0, reread: 0, priced: false, spend: null };
+    return { ...cost, net: netOf(cost) };
   };
   for (const e of events) {
     if (e.op !== 'observation' || !e.session || e.t < since) continue;
@@ -315,9 +245,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       p.tokens.prompts += x.prompts * share;
       p.saved.cleared += x.cleared * share;
       if (x.cleared > 0) p.policies.add(x.policy || 'unstamped');
-      p.cost.saved += x.cost.saved * share;
-      p.cost.rewrite += x.cost.rewrite * share;
-      p.cost.reread += (x.cost.reread || 0) * share;
+      addSaving(p.cost, x.cost, share);
       if (x.rereads?.reads) p.rereads += x.rereads.reads * share;
       if (x.cost.priced) p.cost.priced++; else p.cost.unpriced++;
       if (x.cost.spend != null) p.cost.spend += x.cost.spend * share; else p.cost.spendUnknown++;
@@ -327,7 +255,7 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   for (const p of all) {
     p.saved.cleared = Math.round(p.saved.cleared);
     p.saved.total = p.saved.cleared;
-    p.cost.net = p.cost.saved - p.cost.rewrite - p.cost.reread;
+    p.cost.net = netOf(p.cost);
     p.rereads = Math.round(p.rereads);
     p.tokens.agent = Math.round(p.tokens.agent);
     p.tokens.prompts = Math.round(p.tokens.prompts);
@@ -375,15 +303,12 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
       },
       tokens: { agent: sum(merged, p => p.tokens.agent), complete: merged.filter(p => p.tokens.complete).length },
       rereads: sum(merged, p => p.rereads),
-      // Dollars, netted (compression.js:clearingCostBySession). The one figure that answers "was it worth it",
+      // Dollars, netted (accountant.js:clearingCostBySession). The one figure that answers "was it worth it",
       // because tokens cannot: the clearing's own saving and its own cost are not the same kind of token.
       cost: {
-        saved: sum(merged, p => p.cost.saved),
-        rewrite: sum(merged, p => p.cost.rewrite),
-        reread: sum(merged, p => p.cost.reread),
-        net: sum(merged, p => p.cost.net),
+        ...sumSavings(merged.map(p => p.cost)),
         costed: merged.filter(p => p.cost.priced).length,
-        basis: 'cleared at the cache-read rate (the cache-write rate on a request that wrote its whole context again), less the cache writes after a clear, less the re-reads of cleared files, at list prices',
+        basis: NET_BASIS,
         // what the merged pull requests cost in model calls, over the ones whose every session is priced
         spend: sum(merged.filter(p => p.cost.spendComplete), p => p.cost.spend),
         spendComplete: merged.filter(p => p.cost.spendComplete).length,
@@ -401,7 +326,6 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
 
 const blank = p => ({ state: 'UNKNOWN', ...p, sessions: [], policies: new Set(), tokens: { agent: 0, prompts: 0, unknownSessions: 0, complete: false }, saved: { cleared: 0, total: 0 }, rereads: 0, cost: { saved: 0, rewrite: 0, reread: 0, net: 0, priced: 0, unpriced: 0, spend: 0, spendUnknown: 0, spendComplete: false } });
 const summary = x => ({ id: x.id, cost: x.cost, spend: x.cost?.spend ?? null, rewrites: x.rewrite?.rewrites || 0, rereads: x.rereads?.reads || 0, client: x.client, model: x.model, firstAt: x.firstAt, lastAt: x.lastAt, tokens: finite(x.tokens) ? x.tokens : null, subagents: (x.subagents || []).length, subagentTokens: x.subagentTokens || 0, prompts: x.prompts, complete: !!x.complete, cleared: x.cleared, policy: x.policy ?? null, ...(x.policyChanged ? { policyChanged: true } : {}) });
-
 
 // ---------------------------------------------------------------------------
 // A person's own word on where a session belongs.

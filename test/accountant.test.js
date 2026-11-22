@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { weeklySavings, mergeSavings, savingsValue, SAVINGS_SERIES } from '../src/report-savings.js';
+import { weeklySavings, mergeSavings, savingsValue, SAVINGS_SERIES } from '../src/accountant.js';
 import { listPrice } from '../src/prices.js';
 
 const columns = [{ t: Date.parse('2026-10-19T00:00Z'), prompts: 10, pricedPrompts: 8 }, { t: Date.parse('2026-10-26T00:00Z'), prompts: 20, pricedPrompts: 16 }];

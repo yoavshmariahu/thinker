@@ -198,7 +198,7 @@ test('a built-in tool never called keeps its definition on disk and is sent as a
   const saved = harnessSavings(store, { sessions: after, home: h, thinkerHome: th });
   assert.equal(saved.sources[0].absent, 4); assert.equal(saved.sources[0].stillLoaded, 0);
   assert.equal(saved.sources[0].tokensPerSession, applied.tokens - STUB_TOKENS);
-  // and so does what a prompt costs (the timeline report.js:actionEffect and the Report read): a session that ran
+  // and so does what a prompt costs (the timeline accountant.js:actionEffect and the Report read): a session that ran
   // since the switch is costed at the pointer, one from before it at the definition the transcript still records
   const old = { client: 'claude', file: sessions[0].file, session: 'b0', mtime: T0 - 3600_000 };
   const costs = harnessUsage(store.repo, { home: h, sessions: [...after, old], builtinTools: true, thinkerHome: th }).timeline;

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { savingsStatus } from '../savings-ledger.js';
+import { savingsStatus } from '../accountant.js';
 
 // OpenCode 2's terminal part: the savings footer on the built-in footer row, and the end-of-turn
 // summary as a toast. It runs in the TUI process, which has the filesystem, so it reads thinker's

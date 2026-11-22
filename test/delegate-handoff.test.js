@@ -125,7 +125,7 @@ test('a read the host is already exploring decides nothing, and the turn\'s budg
   assert.equal(rows.at(-1).after, 'budget'); assert.equal(rows.at(-1).fired, false);
   assert.deepEqual(rows.at(-1).files, ['e.py']);
 
-  // a file with a report of its own stays `handoff`, which is the lead reading it anyway: report-savings.js drops that saving
+  // a file with a report of its own stays `handoff`, which is the lead reading it anyway: accountant.js drops that saving
   assert.equal(await call(ev), null);
   assert.equal(rows.at(-1).after, 'handoff');
 });

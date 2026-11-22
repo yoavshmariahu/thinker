@@ -18,7 +18,7 @@ process.env.THINKER_CE = 'off';
 const { installClient, inferWiring, uninstallWiring } = await import('../src/clients.js');
 const { opencodeV2, SYNTHETIC_NOTE } = await import('../src/integrations/opencode-v2.js');
 const { thinkerTui, readFooterLine, LEDGER_POLL_MS } = await import('../src/integrations/opencode-tui.js');
-const { savingsStatus } = await import('../src/savings-ledger.js');
+const { savingsStatus } = await import('../src/accountant.js');
 const { writeNoticeLast, noticeLastFile } = await import('../src/notice-cadence.js');
 
 const CLI = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'src', 'cli.js');

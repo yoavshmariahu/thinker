@@ -27,10 +27,10 @@ test('Bedrock opt-in flags belong to the shared CLI; page setup cannot enable th
 
 test('the footers, the ledger and the Report page price one thing the same way', async () => {
   // The footers say money, which the rest of the product deliberately does not (src/prices.js). The one
-  // thing that keeps that honest is that every surface reads report-savings.js:weeklySavings, so a figure
-  // under a prompt can never contradict the table in `thinker report`. savings-ledger.test.js checks the
+  // thing that keeps that honest is that every surface reads accountant.js:weeklySavings, so a figure
+  // under a prompt can never contradict the table in `thinker report`. accountant-ledger.test.js checks the
   // arithmetic; this holds the wiring.
-  assert.match(read('commands/hooks.js'), /savings-ledger\.js/);
+  assert.match(read('commands/hooks.js'), /accountant\.js/);
   // and every door says it in the ledger's own words
   for (const [file, fn] of [['commands/savings.js', 'savingsLine'], ['commands/hooks.js', 'savingsLine']]) assert.match(read(file), new RegExp(fn));
   // OpenCode 2's terminal part is one more door: its footer calls savingsStatus, so the words under the
@@ -408,7 +408,7 @@ test('the Report is `thinker report`: the weeks, parts, prices and trend rule, k
   // the decisions tables show 20 rows a page
   assert.match(read('ui/page.html'), /const TABLE_PAGE = 20;/);
   // the decisions are not on the Report (2026-10-24, the owner's call): Recent activity and `thinker context --history` show
-  // every decision with before, after and saved a prompt, attributed to the thing it changed alone (report.js:actionEffect
+  // every decision with before, after and saved a prompt, attributed to the thing it changed alone (accountant.js:actionEffect
   // over the kept report, report-snapshot.js:historyEffects), under a cell over Saved with what a prompt costs on average
   // here (promptAverageHere), the size the savings are read against; no text under the table
   assert.doesNotMatch(read('report.js'), /Recent improvements|reportTop/);
@@ -636,7 +636,7 @@ test('thinker containers is machine-wide and CLI-only, and installs from this bu
 
 // The Report carries the session profile's own measure on both doors (2026-11-08, the owner's ask), from one
 // computation (profile-metric.js); the verdict wording is the page's copy of report.js's. The notes' cache-hits row
-// went with the notes (report-savings.js, 2026-11-08) and may not come back as a row of zeros.
+// went with the notes (accountant.js, 2026-11-08) and may not come back as a row of zeros.
 test('the Report prints the profile metric, and no row of the removed notes', async () => {
   const report = read('report.js');
   assert.match(report, /profileMetric\(store/); assert.match(report, /mergeProfileMetrics\(/, 'All repositories pools the arms');
@@ -710,7 +710,8 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(html, /chat\.className = 'fx-chat'; chat\.textContent = 'Chat about this'; chat\.onclick = \(\) => \{ fxPopClose\(\); chatAboutStage\(stage, dollars\); \};/);
   assert.match(html, /CHAT_REF = \{ kind: 'stage', id: s\.key, text: /); assert.match(read('chat.js'), /lines: stageDetail\(v, card\.id, /); assert.match(read('chat.js'), /readReport\(r\.store\)\?\.view/, 'from the kept report, never made for a message');
   // per session, what was handed to cheaper agents and what that saved: the Report's delegation figure, one rule, both doors
-  assert.match(read('upkeep.js'), /delegationBySession\(\{ events, compression: rows, config,/); assert.match(read('report-savings.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
+  // the per-session figure is the accountant's, over its own records, and the activity asks for it there
+  assert.match(read('upkeep.js'), /delegated: delegatedView\(store, \{ now, log, compression, home, max: UPKEEP\.sessionsMax \}\)/); assert.match(read('accountant.js'), /delegationBySession\(\{ \.\.\.records\(store, \{ home, log, compression \}\), since: now - days \* DAY \}\)/); assert.match(read('accountant.js'), /for \(const r of delegationSavings\(\{ events, compression, config \}\)\) \{\n    const g = of\(r\.session\);/);
   assert.match(html, /Delegated to cheaper agents<\/div><div class="side-total">\$\{esc\(g\.said\)\}/); assert.match(read('upkeep.js'), /`Delegated to cheaper agents · \$\{delegatedTotalSaid\(v\.delegated\)\}`/);
   assert.match(read('commands/chat.js'), /chatSend\(text, /); assert.match(read('ui/server.js'), /chatSend\(String\(b\.message/);
   // A visit to the page never has thinker act: the page's own check only looks. Acting is maintenance's clock.
@@ -762,7 +763,7 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.equal((await ui.get('/api/chat')).chat, fresh.chat, 'no conversation named: the one last spoken in');
   assert.equal((await ui.get(`/api/chat?chat=${said.chat}`)).messages.length, 4);
   assert.deepEqual([(await ui.get('/api/chat?chat=new')).chat, (await ui.get('/api/chat?chat=new')).messages.length, (await ui.get('/api/chat?chat=new')).chats.length], [null, 0, 2]);
-  assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0 }, sessions: [], said: '' });
+  assert.deepEqual(shown.delegated, { days: 14, total: { sessions: 0, reads: 0, runs: 0, handed: 0, saved: 0, unpriced: 0, unrecorded: 0, opencode: 0 }, sessions: [], said: '' });
 });
 
 test('models from other providers are the command line\'s alone: the page has no door to a key, and every flag is in help', () => {

@@ -18,15 +18,12 @@ import { findRepoSessions, instructionValue } from './instruction-value.js';
 import { harnessUsage } from './harness.js';
 import { sessionUsage, toolOutputs } from './tool-outputs.js';
 import { changeHistory } from './context-suggest.js';
-import { readLog, sessionKey } from './usage.js';
+import { readLog } from './usage.js';
 import { dietConfig, dietTimeline } from './diet.js';
-import { listPrice, providerOf, costOf, costOfInputSavings, writeCost, formatDollars, PRICED_ON } from './prices.js';
+import { listPrice, providerOf, costOf, writeCost, formatDollars, PRICED_ON } from './prices.js';
 import { REWRITE_CAUSES, subagentSessions } from './transcripts.js';
 import { deliveryReport } from './delivery.js';
-import { repoId } from './store.js';
-import { clearingRows, compressionDir } from './compression.js';
-import { proxyLogFile } from './proxy-service.js';
-import { weeklySavings, mergeSavings, savingsValue } from './report-savings.js';
+import { repositorySavings, mergeSavings, savingsValue, withEffects, sumSavings } from './accountant.js';
 import { profileMetric, mergeProfileMetrics } from './profile-metric.js';
 
 export const REPORT_WEEKS = 6;
@@ -250,10 +247,8 @@ export function reportView(store, { weeks = REPORT_WEEKS, now = Date.now(), sess
 // (`refreshLogParts`) and keeps the sessions' half as it stands.
 export function logParts(store, { columns, sessionRows, from, days, now = Date.now(), sessions = [], config = {}, includePrs = true }) {
   const actions = reportActions(store, from, sessionRows, now);
-  const everyEvent = readLog(store, { all: true });
-  // the proxy's log, and the recorded clears of the sessions that never reached it (compression.js:clearingRows)
-  const proxyRows = process.env.THINKER_TEST === '1' && !process.env.THINKER_HOME && !process.env.THINKER_PROXY_LOG ? [] : clearingRows(proxyLogFile(), compressionDir(), { events: everyEvent, key: sessionKey });
-  const savings = weeklySavings({ columns, now, config, events: readLog(store), compression: proxyRows, sessions, origin: repoId(store.repo), ownership: everyEvent });
+  // what thinker saved here by week, counted by the accountant over its own records (accountant.js:repositorySavings)
+  const { series: savings, events: everyEvent } = repositorySavings(store, { columns, now, sessions, config });
   const prs = includePrs ? prSavings(store, { days, now }) : null;
   // the session profile's own measure (profile-metric.js): over the ledger's window, not the Report's weeks
   const profile = (() => { try { return profileMetric(store, { now, events: everyEvent }); } catch { return null; } })();
@@ -375,7 +370,7 @@ export function weeklyPrStats(prs, columns, now = Date.now()) {
     // The cache writes after a clear are in the cost, so the saving is not netted against them here (the owner, the same
     // day: "saved per PR doesn't need to be negative"); the netted figure stays in the data and in thinker prs.
     const priced = rows.filter(r => r.savedUsd != null), spent = rows.filter(r => r.spend != null);
-    const savedUsd = priced.reduce((sum, r) => sum + r.savedUsd, 0), net = priced.reduce((sum, r) => sum + (r.net ?? 0), 0);
+    const { saved: savedUsd, net } = sumSavings(priced.map(r => ({ saved: r.savedUsd, net: r.net })));
     const spend = spent.reduce((sum, r) => sum + r.spend, 0);
     return { t, merged: rows.length, complete: complete.length, saved, tokens,
       savedPerPr: rows.length ? saved / rows.length : null,
@@ -387,60 +382,6 @@ export function weeklyPrStats(prs, columns, now = Date.now()) {
   });
 }
 
-// What compressing a tool's output measured: the tool's row under the compression against its row from before
-// (tool-outputs.js:aggregateOutputs, one row a setting, each over the sessions that ran under it), the compressed row
-// the latest one with a level. `perCall` is what compression acts on, the size of a result; `perPrompt` is what the
-// person pays on an average prompt, the results times the calls that read them again, and moves with how the sessions
-// since used the tool as well. A delta is before minus since, positive a saving; `window` is the prompt delta over the
-// prompts since. null until both periods have a session in the window.
-export function outputComparison(rows, name) {
-  const mine = rows.filter(r => r.name === name), before = mine.find(r => !r.level), after = mine.filter(r => r.level).sort((a, b) => (b.from || 0) - (a.from || 0))[0];
-  if (!before || !after || !before.sessions || !after.sessions) return null;
-  const pick = r => ({ level: r.level || null, sessions: r.sessions, prompts: r.prompts ?? null, from: r.from ?? null, to: r.to ?? null, calls: r.calls, perCall: r.perCall, perPrompt: r.perPrompt, wasted: r.wasted ?? null });
-  const d = k => ({ before: before[k], after: after[k], delta: before[k] - after[k], share: before[k] ? (before[k] - after[k]) / before[k] : null });
-  return { name, before: pick(before), after: pick(after), perCall: d('perCall'), perPrompt: d('perPrompt'), window: (before.perPrompt - after.perPrompt) * (after.prompts || 0), few: after.sessions < 5 };
-}
-
-// From when an action is in effect, and until when: a dismissal and a pull request not merged never were, nor a section's
-// change still running in the background or failed (context-suggest.js:startSectionJob); a merged one from its merge; a
-// change written when its job was done from then; anything else from the decision, until it was reverted.
-export const effectSpan = (e, now) => e.decision === 'dismissed' || (e.job && e.job.state !== 'done') ? null
-  : e.pr ? (e.pr.state === 'merged' && e.pr.at ? { from: Date.parse(e.pr.at), to: now } : null)
-  : { from: Date.parse(e.job?.finishedAt || e.at), to: e.revertedAt ? Date.parse(e.revertedAt) : now };
-// What the one thing an action changed costs in a session (sessionRows, reportView), on one side of it: a section its
-// tokens on that side times the session's model calls where the session read its file (the entry's `tokens`, recorded
-// from the edit: 0 after a removal); a skill, MCP server, plugin or built-in tool its tokens a call times the calls where
-// the session loaded it (harness.js `loaded`); a tool's outputs what that tool's results cost the session (tool-outputs.js
-// `by`). null where the row cannot say (a section decided before the tokens were recorded).
-export function itemCost(e, r, side) {
-  if (e.kind === 'section') { const t = e.tokens?.[side]; if (t == null) return null; const file = e.file || e.key.replace(/^section:/, '').split(':')[0]; return (r.files || []).includes(file) ? t * (r.calls || 0) : 0; }
-  if (e.kind === 'output') { const name = e.key.replace(/^output:/, ''); return Object.entries(r.outputs || {}).reduce((a, [k, t]) => a + (k === name || k.startsWith(`${name}@`) ? t : 0), 0); } // a compressed tool's key carries its level (tool-outputs.js:splitKey)
-  return (r.sources || {})[e.key] || 0;
-}
-// What an action saved, attributed to it alone: the cost of the thing it changed (itemCost) per prompt over the window's
-// sessions before the decision (`before`) and over those since it was in effect (`after`, until its revert), each side the
-// sum over its sessions divided by their prompts, with its sessions, prompts and dates; `delta` before minus since a prompt,
-// positive a saving, `share` of what a whole prompt cost before; `window` the delta over the prompts since (`since`: the thing over those prompts at
-// the before rate against as it was); `few` under five sessions a side. null
-// while a side has no session, the action is not in effect, or the thing cannot be costed. Independent of every other
-// action: a tool switched off is measured on that tool's tokens, not on what the prompts cost in all.
-export function actionEffect(e, sessionRows = [], now = Date.now(), { until = null } = {}) {
-  const span = effectSpan(e, now); if (!span) return null;
-  if (until != null && until < span.to) span.to = until; // a later decision on the same thing takes over from there
-  const before = sessionRows.filter(r => r.t < span.from), after = sessionRows.filter(r => r.t >= span.from && r.t < span.to);
-  if (!before.length || !after.length) return null;
-  const side = (xs, k) => { const cs = xs.map(r => itemCost(e, r, k)); if (cs.some(c => c == null)) return null; const prompts = xs.reduce((a, r) => a + Math.max(1, r.prompts || 0), 0); const total = cs.reduce((a, c) => a + c, 0); return { sessions: xs.length, prompts, from: Math.min(...xs.map(r => r.t)), to: Math.max(...xs.map(r => r.t)), total, perPrompt: Math.round(total / prompts) }; };
-  const b = side(before, 'before'), a = side(after, 'after');
-  if (!b || !a) return null;
-  const delta = b.perPrompt - a.perPrompt;
-  // `share`: the saving against what a whole prompt cost before the decision (`whole.before`, the sessions' input over
-  // their prompts), not against the thing's own size, so a small cut of a large part counts for what it is (the owner's
-  // ask, 2026-10-24); the same share in the Total view, the window being the delta over the prompts since
-  const whole = { before: Math.round(before.reduce((x, r) => x + r.input, 0) / b.prompts), after: Math.round(after.reduce((x, r) => x + r.input, 0) / a.prompts) };
-  // `since`: the thing over the prompts since the decision, at the before rate (`atBefore`, what it would have cost) and as
-  // it was (`total`, after.total); `window` is exactly their gap (the Total view's Saved is its Before minus its After)
-  return { from: span.from, to: e.revertedAt ? span.to : null, before: b, after: a, delta, share: whole.before ? delta / whole.before : null, whole, since: { prompts: a.prompts, atBefore: Math.round(b.total / b.prompts * a.prompts), total: a.total }, window: Math.round(b.total / b.prompts * a.prompts) - a.total, few: b.sessions < 5 || a.sessions < 5 };
-}
 // What a prompt costs on average over the view's measured sessions (`sessionRows`): their input over their prompts. Shown
 // over the Saved column of Recent activity, the size the savings are read against.
 // What an input token cost here, in dollars at the list prices: the window's input cost over its input tokens, over
@@ -459,13 +400,6 @@ export function mergePromptAverages(list) {
   list = list.filter(Boolean); if (!list.length) return null;
   const sum = k => list.reduce((a, x) => a + x[k], 0), prompts = sum('prompts');
   return { sessions: sum('sessions'), prompts, tokens: sum('tokens'), perPrompt: prompts ? Math.round(sum('tokens') / prompts) : 0 };
-}
-// The history with what each decision saved (actionEffect over the view's session rows), as both doors list it. A decision
-// on a thing decided again later (sed compressed on Tuesday, then again on Thursday) is measured until the later one is in
-// effect, so the two rows share no session.
-export function withEffects(history, sessionRows = [], now = Date.now()) {
-  const later = e => history.filter(o => o !== e && o.key === e.key && Date.parse(o.at) > Date.parse(e.at)).map(o => effectSpan(o, now)?.from).filter(t => t != null);
-  return history.map(e => { const ts = later(e); return { ...e, effect: actionEffect(e, sessionRows, now, { until: ts.length ? Math.min(...ts) : null }) }; });
 }
 // The decisions taken since `from` (by thinker, in a session, from the command line), newest first, each with what it saved (`effect`): the view's
 // `actions`, for `thinker report --json`.
@@ -533,7 +467,7 @@ function mergePrSavings(list) {
     meanHours: mean(rows.map(r => r.hours)),
     // the dollars add like the tokens; the mean is signed, since a net can be a loss (delivery.js:meanSigned)
     cost: {
-      saved: sum(p => p.cost?.saved), rewrite: sum(p => p.cost?.rewrite), reread: sum(p => p.cost?.reread), net: sum(p => p.cost?.net),
+      ...sumSavings(parts.map(x => x.p.cost)),
       costed: sum(p => p.cost?.costed), basis: parts[0].p.cost?.basis || '',
     },
     meanNet: mean(rows.map(r => r.net).filter(n => n != null), { signed: true }),

@@ -8,7 +8,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { parseTranscript } from '../src/transcripts.js';
-import { rereadsOf, cutTimesFor, rereadCost } from '../src/rereads.js';
+import { rereadsOf, cutTimesFor } from '../src/rereads.js';
+import { rereadCost } from '../src/accountant.js';
 import { RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { CLEARING_OP } from '../src/compression.js';
 

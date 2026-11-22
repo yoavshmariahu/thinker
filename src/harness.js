@@ -299,7 +299,7 @@ function claudeUsage(repo, { days = 30, home = os.homedir(), sessions, thinkerHo
       if (k.startsWith('tool:')) { const r = row(k); if (!r.fileAt || s.mtime > r.fileAt) { r.file = s.file; r.fileAt = s.mtime; } }
     }
     for (const [k, at] of stubbedAt) if (tokens.has(k) && s.mtime > at) tokens.set(k, STUB_TOKENS);
-    // `loaded`: each source's tokens a call, so the Report can cost one source a session before and since it was switched off (report.js:actionEffect)
+    // `loaded`: each source's tokens a call, so the Report can cost one source a session before and since it was switched off (accountant.js:actionEffect)
     timeline.push({ t: s.mtime, session: s.session, client: 'claude', calls: h.calls, parts: partsOf(tokens), loaded: Object.fromEntries(tokens) });
     for (const [k, t] of tokens) {
       // `prompts`: the model calls of every session that carried it, since each call reads its tokens again

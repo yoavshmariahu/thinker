@@ -9,7 +9,7 @@ import { installClient, uninstallWiring } from '../src/clients.js';
 import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool } from '../src/compression.js';
 import { NOTICE_PROMPTS, NOTICE_HOURS } from '../src/notice-cadence.js';
 import { formatTokens } from '../src/model-usage.js';
-import { dayKey, savingsStatus } from '../src/savings-ledger.js';
+import { dayKey, savingsStatus } from '../src/accountant.js';
 import { UPDATE_NOTE } from '../src/update-note.js';
 import { formatDollars } from '../src/prices.js';
 
@@ -128,7 +128,7 @@ test('the mod polls the ledger file and reads it again only when it moved', () =
 test('the status row says what the ledger says, in the same words and the same dollars', () => {
   const src = fs.readFileSync(path.join(MOD, 'hooks', 'register.tsx'), 'utf8');
   // The mod runs inside Claude Code, so it carries its own copy of the sentence and of the two
-  // helpers under it. These hold the copies to src/savings-ledger.js and src/prices.js.
+  // helpers under it. These hold the copies to src/accountant.js and src/prices.js.
   // the line's own template, to the end of its line: it nests a template inside itself
   const mod = src.match(/export const savingsStatus = \(today: string \| null, lifetime: string, version\?: string\) =>\n  (.+)/);
   assert.ok(mod, 'the mod exports the status line');
@@ -145,7 +145,7 @@ test('the status row says what the ledger says, in the same words and the same d
   // the mod's copies are src's with the types put back on; the mod is always given a time, where src
   // defaults it, and that one difference in the signature is allowed for here
   const strip = s => s.replace(/: (number|string)\b/g, '').replace(/\): string/g, ')').replace(/;$/gm, '').replace(/\(now = Date\.now\(\)\)/, '(now)');
-  for (const [name, from] of [['formatDollars', path.join(ROOT, 'src', 'prices.js')], ['dayKey', path.join(ROOT, 'src', 'savings-ledger.js')]]) {
+  for (const [name, from] of [['formatDollars', path.join(ROOT, 'src', 'prices.js')], ['dayKey', path.join(ROOT, 'src', 'accountant.js')]]) {
     const one = src.match(new RegExp(`export (?:function|const) ${name}[\\s\\S]*?\\n}`))[0];
     const two = fs.readFileSync(from, 'utf8').match(new RegExp(`export (?:function|const) ${name}[\\s\\S]*?\\n}`))[0];
     assert.equal(strip(one), strip(two), `the mod's ${name} matches ${path.basename(from)}`);

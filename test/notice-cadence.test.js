@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../src/store.js';
 import { seedProfile } from './fixtures/seed-profile.js';
 import { NOTICE_PROMPTS, NOTICE_HOURS, noticeCadence, noticeDue, noticeShown, countPrompt, holdNotice, pendingNotice } from '../src/notice-cadence.js';
-import { writeSavings, dayKey } from '../src/savings-ledger.js';
+import { writeSavings, dayKey } from '../src/accountant.js';
 
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'cli.js');
 process.env.THINKER_CE = 'off';   // ranking has its own tests; keep the cross-encoder out of the hook spawns
@@ -79,7 +79,7 @@ test('the hooks say their piece once, then hold the turns until a summary comes 
   // two prompts is enough to show the holding; the hours floor is checked above
   const dir = repo(t, { notice: { everyPrompts: 3, everyHours: 0 } });
   const env = { ...process.env, THINKER_HOME: home, THINKER_NO_BG_VERIFY: '1', THINKER_LOG: 'local', THINKER_HOLDOUT: '0' };
-  // the summary is the money line (savings-ledger.js); a kept ledger stands in for the refresh the hooks start
+  // the summary is the money line (accountant.js); a kept ledger stands in for the refresh the hooks start
   const prev = process.env.THINKER_HOME; process.env.THINKER_HOME = home;
   try { writeSavings(new Store(dir), { at: Date.now(), day: dayKey(), today: { cost: 1.5, tokens: 100_000, unpricedTokens: 0, cleared: { cost: 1.5, tokens: 100_000 } }, lifetime: { cost: 12, tokens: 900_000, unpricedTokens: 0, cleared: { cost: 12, tokens: 900_000 } } }); }
   finally { if (prev === undefined) delete process.env.THINKER_HOME; else process.env.THINKER_HOME = prev; }

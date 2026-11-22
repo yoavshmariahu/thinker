@@ -15,7 +15,7 @@ import { beginTurn, currentTurn, isHarnessEvent, sessionState, locked } from '..
 import { delegatedOf } from '../delegated.js';
 import { parseTranscript, subagentStats, continuedSince, recordEvent, traceFile, toolName, toolInput, textOf } from '../transcripts.js';
 import { compressionNotice, formatTokens } from '../usage.js';
-import { readSavings, refreshSavingsInBackground, savingsLine } from '../savings-ledger.js';
+import { readSavings, refreshSavingsInBackground, savingsLine } from '../accountant.js';
 import { compressionBlock, compressionDir, markCompressionTurn, mirrorClearing } from '../compression.js';
 import { profileTurn, profileArmOf } from '../profile.js';
 import { retireNotes } from '../notes-retired.js';
@@ -143,7 +143,7 @@ async function hookCommand(ctx) {
       if (o) out(o);
       return;
     }
-    // What thinker has saved, today and over the whole log, off the kept ledger (savings-ledger.js): a
+    // What thinker has saved, today and over the whole log, off the kept ledger (accountant.js): a
     // read of one small file, because the figure itself is a second of log and transcript reading and a
     // hook may not spend that. The Stop hook starts the refresh in the background. Nothing where the
     // notices are off: this is one of them, not a figure that follows the person around regardless.
@@ -328,7 +328,7 @@ async function hookCommand(ctx) {
     if (client === 'agy') out('{"decision":"allow"}');
     if (client === 'agy' && ev.fullyIdle === false) return;
     // The savings ledger the footers read, recomputed in the background at most every REFRESH_MS
-    // (savings-ledger.js): a second of log and transcript reading, so never in the hook itself, and
+    // (accountant.js): a second of log and transcript reading, so never in the hook itself, and
     // never a model call, so it runs the same inside a desktop app. Started here rather than at the
     // prompt so the figure a turn's own notes and clears belong to is in it by the next turn.
     if (noticeOn(store)) { try { refreshSavingsInBackground(store, { cli }); } catch (e) { recordError('hook.savings', e, { repo }); } }

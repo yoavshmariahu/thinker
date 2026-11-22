@@ -40,7 +40,7 @@ const end = (turnId: string, text = answer) => ({ answer: text, durationMs: 1, i
 const mount = ($: any, surface: 'terminal' | 'desktop', text = answer) =>
   $.ui.mount({ plugin: 'thinker', surface, component: 'AssistantMessage', props: { text, isFirstOfReply: true } as any })
 
-// the ledger as src/savings-ledger.js writes it; `day` is stamped in the person's own timezone
+// the ledger as src/accountant.js writes it; `day` is stamped in the person's own timezone
 const today = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

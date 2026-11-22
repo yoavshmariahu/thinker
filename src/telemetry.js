@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize, readLog, knownRepos, sessionKey, onlyLogSince } from './usage.js';
+import { summarize, readLog, knownRepos, onlyLogSince } from './usage.js';
 import { readLedger, holdoutReport } from './profile.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
@@ -20,8 +20,7 @@ import { deliveryMetrics } from './delivery-telemetry.js';
 import { WINDOW_DAYS } from './delivery.js';
 import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
-import { clearingRows, compressionDir } from './compression.js';
-import { delegationSavings, readAnyway, repeatSavings } from './report-savings.js';
+import { readAnyway, savingsByDay } from './accountant.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
 import { historyEffects, promptAverageHere, readReport, keptRows } from './report-snapshot.js';
@@ -804,14 +803,14 @@ export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, a
 // Days add up, as the proxy's and the sessions' do. Never a file, a command or a session.
 //
 // `ignored` (schema 3, 2026-11-20, the owner's ask) is the handoffs of that day the lead went on to read itself,
-// by the rule the saving uses (`report-savings.js:readAnyway`), so a day's count and a day's dollars are one
+// by the rule the saving uses (`accountant.js:readAnyway`), so a day's count and a day's dollars are one
 // rule: `delegated - ignored` is what the saving is drawn from. A subset of `delegated` and never taken out of
 // it, because a field cannot change what it meant on days already sent: a client from before this reads as
 // `ignored` absent, which is not zero, and the dashboard's own cards say which. The subagent's cost stays in
 // `costUsd` either way -- the run was paid for whether or not the lead then read the file.
 //
 // And what it saved (schema 2): `savedTokens`, `savedUsd` and `unpricedTokens` are the savings ledger's own rows
-// (report-savings.js:delegationSavings, the computation behind the footer, `thinker savings` and the Report's
+// (accountant.js:delegationSavings, the computation behind the footer, `thinker savings` and the Report's
 // "Reads delegated"), each on the UTC day it was saved -- the write the lead never made on the day of the handoff,
 // and the read of it avoided on each later call on the day of that call, less what the subagent cost. So a day may
 // carry a saving and no handoff. A saving in a session whose model has no list price is in `unpricedTokens` and in
@@ -834,21 +833,8 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
       if (Number.isFinite(e.cost)) d.costUsd += e.cost;
     }
   }
-  try {
-    let config = {}; try { config = store.config(); } catch { config = {}; }
-    // the proxy's rows and the recorded clears, as the ledger reads them (savings-ledger.js:computeSavings); a
-    // test with no home and no log of its own has none
-    const compression = env.THINKER_TEST === '1' && !env.THINKER_HOME && !env.THINKER_PROXY_LOG
-      ? [] : clearingRows(proxyLogFile(home, env), compressionDir(home), { events, key: sessionKey });
-    for (const r of delegationSavings({ events, compression, config })) {
-      if (!Number.isFinite(r.at) || r.at > now) continue;
-      const at = new Date(r.at).toISOString();
-      if (at < since) continue;
-      const d = dayOf(at.slice(0, 10));
-      d.savedTokens += r.tokens || 0;
-      if (r.cost == null) d.unpricedTokens += r.tokens || 0; else d.savedUsd += r.cost;
-    }
-  } catch { /* the counts above still leave */ }
+  // what those handoffs saved, by the day it was saved: the accountant's own count (accountant.js:savingsByDay)
+  try { for (const [day, s] of Object.entries(savingsByDay('delegation', store, { events, since, now, home, env }))) Object.assign(dayOf(day), s); } catch { /* the counts above still leave */ }
   for (const d of Object.values(byDay)) {
     for (const k of ['costUsd', 'savedUsd']) d[k] = Math.round(d[k] * 100) / 100;
     for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);
@@ -865,7 +851,7 @@ export function delegateMetrics(store, { all = true, now = Date.now(), home = th
 // the sessions' own post-processed figure, which is also what the saving excludes (delegated.js). So the day's
 // count and the day's dollars are one rule here too: `pointed - ignored` is what the saving is drawn from.
 //
-// `savedTokens`, `savedUsd` and `unpricedTokens` are the ledger's own rows (report-savings.js:repeatSavings): the
+// `savedTokens`, `savedUsd` and `unpricedTokens` are the ledger's own rows (accountant.js:repeatSavings): the
 // write the lead never made, and the read of it avoided on each later call, on the UTC day it was saved. Nothing is
 // netted off -- no subagent ran. A session whose model has no list price is in `unpricedTokens` and in no dollar
 // figure. Counts alone: no file, no session, no repository.
@@ -890,17 +876,8 @@ export function repeatMetrics(store, { all = true, now = Date.now() } = {}) {
     if (!prev || prev.t < e.t) last.set(e.session, { t: e.t, ignored: e.repeated.ignored || 0 });
   }
   for (const v of last.values()) if (v.ignored) dayOf(v.t.slice(0, 10)).ignored += v.ignored;
-  try {
-    let config = {}; try { config = store.config(); } catch { config = {}; }
-    for (const r of repeatSavings({ events, config })) {
-      if (!Number.isFinite(r.at) || r.at > now) continue;
-      const at = new Date(r.at).toISOString();
-      if (at < since) continue;
-      const d = dayOf(at.slice(0, 10));
-      d.savedTokens += r.tokens || 0;
-      if (r.cost == null) d.unpricedTokens += r.tokens || 0; else d.savedUsd += r.cost;
-    }
-  } catch { /* the counts above still leave */ }
+  // what the pointers saved, by the day it was saved: the accountant's own count (accountant.js:savingsByDay)
+  try { for (const [day, s] of Object.entries(savingsByDay('repeat', store, { events, since, now }))) Object.assign(dayOf(day), s); } catch { /* the counts above still leave */ }
   for (const d of Object.values(byDay)) {
     d.savedUsd = Math.round(d.savedUsd * 100) / 100;
     for (const k of ['savedTokens', 'unpricedTokens']) d[k] = Math.round(d[k]);

@@ -14,8 +14,8 @@ const HOME = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-upke
 for (const [k, v] of Object.entries({ THINKER_LOG: 'local', THINKER_TELEMETRY: 'off', THINKER_HOME: HOME })) process.env[k] = v;
 
 const { Store } = await import('../src/store.js');
-const { upkeepCheck, upkeepPending, upkeepDo, upkeepDismiss, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, upkeepDelegated, delegatedTotalSaid, mergeUpkeepViews, renderUpkeep, behaviorOf, setBehavior, steerBehavior, behaviorSaid, mayAct, batchOf, readUpkeep, impactSaid, BEHAVIOR, UPKEEP } = await import('../src/upkeep.js');
-const { delegationBySession } = await import('../src/report-savings.js');
+const { upkeepCheck, upkeepPending, upkeepDo, upkeepDismiss, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, mergeUpkeepViews, renderUpkeep, behaviorOf, setBehavior, steerBehavior, behaviorSaid, mayAct, batchOf, readUpkeep, BEHAVIOR, UPKEEP } = await import('../src/upkeep.js');
+const { delegatedView, delegatedTotalSaid, impactSaid, delegationBySession } = await import('../src/accountant.js');
 const { delegateConfig, DELEGATE_DEFAULTS } = await import('../src/delegate.js');
 const { changeHistory, VIA } = await import('../src/context-suggest.js');
 const { maintain, renderMaintain, maintenanceNotice } = await import('../src/maintain.js');
@@ -649,23 +649,37 @@ test('per session: what was handed to cheaper agents and what that saved, the Re
     ['s1', 2, 1, 150_000, ['cheap'], 3],
   ]);
   assert.equal(rows[1].title.slice(0, 40), '<thinker-profile>x</thinker-profile>fix ');
-  const d = upkeepDelegated(r.store, { now, log, compression });
-  assert.deepEqual(d.total, { sessions: 2, reads: 3, runs: 1, handed: 250_000, saved: rows[1].saved, unpriced: 1 });
+  const d = delegatedView(r.store, { now, log, compression });
+  assert.deepEqual(d.total, { sessions: 2, reads: 3, runs: 1, handed: 250_000, saved: rows[1].saved, unpriced: 1, unrecorded: 0, opencode: 0 });
   assert.deepEqual(d.sessions.map(x => [x.text, x.impactSaid, x.title, x.steer]), [
-    ['Handed 1 read to cheaper agents', '100k tokens handed over', 'read it all', 'delegation'],
+    // a session with no dollars says which it is: here a model with no list price
+    ['Handed 1 read to cheaper agents', '100k tokens handed over · no list price for nobody-prices-this, so no dollars', 'read it all', 'delegation'],
     ['Handed 2 reads and 1 test run to cheap', '150k tokens handed over · $3.00 saved', 'fix the flaky proxy test and say why it was flaky in the first place,…', 'delegation'],
   ]);
-  assert.equal(delegatedTotalSaid(d), '2 sessions over 14 days: 3 reads and 1 test run handed to cheaper agents, 250k tokens · $3.00 saved (1 session left out: no price known for its model)');
+  assert.equal(delegatedTotalSaid(d), '2 sessions over 14 days: 3 reads and 1 test run handed to cheaper agents, 250k tokens · $3.00 saved (1 session left out of the dollars: no list price is known for its model)');
   // both doors: the view carries it, the command prints a line a session under the actions
   const v = upkeepView(r.store, { now, log, compression });
   assert.deepEqual(v.delegated, d);
   const text = renderUpkeep(v, { now }).join('\n');
-  assert.match(text, /\nDelegated to cheaper agents · 2 sessions over 14 days: 3 reads and 1 test run handed to cheaper agents, 250k tokens · \$3\.00 saved \(1 session left out: no price known for its model\)\n[^\n]*Handed 1 read to cheaper agents {2}100k tokens handed over {2}“read it all”\n[^\n]*Handed 2 reads and 1 test run to cheap {2}150k tokens handed over · \$3\.00 saved {2}“fix the flaky/);
+  assert.match(text, /\nDelegated to cheaper agents · 2 sessions over 14 days: 3 reads and 1 test run handed to cheaper agents, 250k tokens · \$3\.00 saved \(1 session left out of the dollars: no list price is known for its model\)\n[^\n]*Handed 1 read to cheaper agents {2}100k tokens handed over · no list price for nobody-prices-this, so no dollars {2}“read it all”\n[^\n]*Handed 2 reads and 1 test run to cheap {2}150k tokens handed over · \$3\.00 saved {2}“fix the flaky/);
   // every repository's as one: the sessions newest first, the totals added
   const all = mergeUpkeepViews([{ repo: 'one', name: 'One', view: v }, { repo: 'two', name: 'Two', view: { ...v, delegated: { days: 14, total: { sessions: 1, reads: 4, runs: 0, handed: 9, saved: 1, unpriced: 0 }, sessions: [{ at: at(1), text: 'Handed 4 reads to cheap', reads: 4, runs: 0 }] } } }]);
-  assert.deepEqual(all.delegated.total, { sessions: 3, reads: 7, runs: 1, handed: 250_009, saved: rows[1].saved + 1, unpriced: 1 });
+  assert.deepEqual(all.delegated.total, { sessions: 3, reads: 7, runs: 1, handed: 250_009, saved: rows[1].saved + 1, unpriced: 1, unrecorded: 0, opencode: 0 });
   assert.deepEqual(all.delegated.sessions.map(x => [x.text, x.repoName]), [['Handed 4 reads to cheap', 'Two'], ['Handed 1 read to cheaper agents', 'One'], ['Handed 2 reads and 1 test run to cheap', 'One']]);
   assert.equal(delegatedTotalSaid({ days: 14, total: { sessions: 0 } }), '');
+  // the other reason a session carries no dollars: the model it ran on was never recorded, as for an OpenCode session,
+  // which keeps no transcript to read one from. Said on the session's own line and in the total.
+  const oc = [{ t: at(3), op: 'request', session: 'ses_a', task: 'read the file' }, { t: at(3), op: 'delegate', session: 'ses_a', client: 'opencode', kind: 'explore', tool: 'Read', tokens: 30_000 },
+    { t: at(2), op: 'delegate', session: 'ses_b', client: 'opencode', kind: 'explore', tool: 'Read', tokens: 20_000 }, { t: at(2), op: 'delegate', session: 'plain', client: 'claude', kind: 'explore', tool: 'Read', tokens: 10_000 }];
+  const o = delegatedView(r.store, { now, log: oc, compression: [] });
+  assert.deepEqual(o.total, { sessions: 3, reads: 3, runs: 0, handed: 60_000, saved: 0, unpriced: 3, unrecorded: 3, opencode: 2 });
+  assert.deepEqual(o.sessions.map(x => [x.client, x.lead, x.impactSaid]).sort((a, b) => a[2].localeCompare(b[2])), [
+    ['claude', null, '10k tokens handed over · its own model was not recorded, so no dollars'],
+    ['opencode', null, '20k tokens handed over · an OpenCode session: its own model was not recorded, so no dollars'],
+    ['opencode', null, '30k tokens handed over · an OpenCode session: its own model was not recorded, so no dollars']]);
+  assert.equal(delegatedTotalSaid(o), '3 sessions over 14 days: 3 reads handed to cheaper agents, 60k tokens (3 sessions left out of the dollars: the model they ran on was never recorded, 2 of them OpenCode sessions)');
+  assert.match(delegatedTotalSaid({ days: 14, total: { sessions: 2, reads: 2, handed: 10, saved: 0, unpriced: 2, unrecorded: 2, opencode: 2 } }), /\(2 sessions left out of the dollars: the model they ran on was never recorded, all OpenCode sessions\)$/);
+  assert.match(delegatedTotalSaid({ days: 14, total: { sessions: 3, reads: 3, handed: 10, saved: 1, unpriced: 2, unrecorded: 1, opencode: 0 } }), /\(2 sessions left out of the dollars: the model 1 of them ran on was never recorded, and the rest ran on one with no list price\)$/);
 });
 
 test('what is known about one line, for somebody asking about it: what it was, why, how it measured, where its pull request stands, whether it comes back', async () => {
