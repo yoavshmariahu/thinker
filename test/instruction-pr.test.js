@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { Store } from '../src/store.js';
 import { previewEdit, editRecord } from '../src/instruction-edit.js';
-import { openEditPr, textOnBase, prState, closePr, prAvailable, defaultBranch, baseTexts } from '../src/instruction-pr.js';
+import { openEditPr, textOnBase, prState, closePr, prAvailable, defaultBranch, baseTexts, sectionBefore } from '../src/instruction-pr.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 const git = (cwd, ...a) => execFileSync('git', a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -109,6 +109,36 @@ test('baseTexts: the change is made from the base branch\'s own text, whatever t
   // a section that is not on the base is refused by name, before any model call
   const none = await previewEdit(store, 'nowhere', 'compress', { completeFn: () => { throw new Error('not asked'); }, texts: src.textOf, base: src });
   assert.match(none.error, /no section "nowhere" in AGENTS\.md on main/);
+});
+
+test('a section put back: its text is read from before the merge that shortened it, and the pull request restores that one section on the base as it is now', async () => {
+  const { store, r, origin } = checkout();
+  // a pull request shortened Releases and Ports and was merged; somebody then added a section on main
+  fs.writeFileSync(path.join(r, 'AGENTS.md'), AGENTS.replace('long text about releases\nand more of it', '- short').replace('reserve a port first', '- port'));
+  git(r, 'commit', '-q', '-am', 'compress two sections'); const merge = git(r, 'rev-parse', 'HEAD');
+  fs.appendFileSync(path.join(r, 'AGENTS.md'), '\n## Added since\n\na new rule\n');
+  git(r, 'commit', '-q', '-am', 'a new section'); git(r, 'push', '-q', 'origin', 'main');
+  const was = sectionBefore(r, { mergeCommit: merge, number: 12, file: 'AGENTS.md', id: 'releases' });
+  assert.equal(was, '## Releases\n\nlong text about releases\nand more of it');
+  assert.equal(sectionBefore(r, { mergeCommit: merge, file: 'AGENTS.md', id: 'no-such-section' }), null);
+  assert.equal(sectionBefore(r, { mergeCommit: merge, file: 'GONE.md', id: 'releases' }), null);
+  assert.equal(sectionBefore(r, { file: 'AGENTS.md', id: 'releases' }, { slug: null }), null, 'no merge commit known, and nobody to ask');
+  // restore: no model call, the earlier text set over the base's own, and a section already as it was is refused
+  const src = baseTexts(r);
+  const p = await previewEdit(store, ['releases'], 'restore', { texts: src.textOf, base: src, restore: { releases: was }, note: 'agents broke it in 4 of the 5 sessions since', completeFn: async () => { throw new Error('no model is asked'); } });
+  assert.equal(p.error, undefined, p.error);
+  assert.deepEqual([p.action, p.sections[0].title, p.sections[0].tokensBefore < p.sections[0].tokensAfter], ['restore', 'Releases', true]);
+  assert.match((await previewEdit(store, ['tests'], 'restore', { texts: src.textOf, base: src, restore: { tests: '## Tests\n\nnpm test' } })).error, /"tests" is already as it was/);
+  assert.match((await previewEdit(store, ['ports'], 'restore', { texts: src.textOf, base: src, restore: {} })).error, /nothing kept to restore "ports" from/);
+  const gh = fakeGh();
+  const pr = await openEditPr(store, 'releases', { gh, slug: 'o/r', changes: [{ pr: { number: 12 } }], now: Date.parse('2026-12-01T10:00:00Z') });
+  assert.equal(pr.error, undefined, pr.error);
+  assert.equal(pr.title, 'AGENTS.md: restore Releases');
+  const body = gh.calls.find(c => c[1] === 'create').at(-1);
+  assert.match(body, /^Puts a section of the instruction file back as it was before thinker shortened it in #12\. Opened by thinker, which checks each of its changes a week after it takes effect\.\n\nWhy: agents broke it in 4 of the 5 sessions since\.\n/);
+  assert.match(body, /Closing it without merging leaves it shortened; thinker does not shorten it again either way\.$/);
+  // on the branch: Releases as it was, Ports still shortened, the section added since still there
+  assert.equal(git(origin, 'show', `${pr.branch}:AGENTS.md`), (AGENTS.replace('reserve a port first', '- port') + '\n## Added since\n\na new rule\n').trim());
 });
 
 test('textOnBase: the preview\'s text where the base is what it was made from, else each replacement, once', () => {

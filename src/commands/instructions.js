@@ -15,18 +15,22 @@ async function instructionsCommand({ store, repo, flags, out }) {
   if (retired.length) out(`Removed the trimmed copy of ${SOURCE} an older thinker kept for this checkout (${retired.join(', ')}): agents here read ${SOURCE} whole; a change to it is a pull request (--compress, --remove with --pr).\n`);
   // --remove / --compress <section id>: the diff of that change; --pr opens a pull request with it (instruction-pr.js), --apply
   // writes it to the working tree (instruction-edit.js)
-  for (const action of ['remove', 'compress']) {
-    if (typeof flags[action] !== 'string') continue;
-    const ids = flags[action].split(',').map(x => x.trim()).filter(Boolean);
-    // --job <group>: the page's Apply started this command detached (context-suggest.js:startSectionJob); the change is made
-    // and the decision it recorded is finished here (a pull request, the working tree, or failed with the reason), for
-    // Recent activity to show; nothing is printed to a terminal nobody is at
-    if (typeof flags.job === 'string') {
+  // --job <group>: a change started detached (context-suggest.js:startSectionJob); the change is made and the decision
+  // it recorded is finished here (a pull request, the working tree, or failed with the reason), for Recent activity to
+  // show; nothing is printed to a terminal nobody is at. A batch of thinker's own gives both lists, and is one change.
+  if (typeof flags.job === 'string') {
+    const idsOf = a => (typeof flags[a] === 'string' ? flags[a].split(',').map(x => x.trim()).filter(Boolean) : []);
+    const given = ['compress', 'remove'].filter(a => idsOf(a).length);
+    if (given.length) {
       const { runSectionJob } = await import('../context-suggest.js');
-      const r = await runSectionJob(store, { group: flags.job, ids, action, pr: Boolean(flags.pr) });
+      const r = await runSectionJob(store, { group: flags.job, ids: given.flatMap(idsOf), action: given.length > 1 ? 'each' : given[0], pr: Boolean(flags.pr) });
       out(r.said || r.error);
       return;
     }
+  }
+  for (const action of ['remove', 'compress']) {
+    if (typeof flags[action] !== 'string') continue;
+    const ids = flags[action].split(',').map(x => x.trim()).filter(Boolean);
     // one section id, or several separated by commas; with --pr the change is made from the base branch's own text
     // (instruction-pr.js:baseTexts), so the checkout's state plays no part in it
     let src = null;

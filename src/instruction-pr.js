@@ -24,7 +24,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
 import { repoId } from './store.js';
-import { editRecord, dropEdit } from './instruction-edit.js';
+import { editRecord, dropEdit, locate } from './instruction-edit.js';
 import { formatTokens } from './model-usage.js';
 
 const NET_MS = 60_000; // a fetch or a push over the network
@@ -67,6 +67,19 @@ export function baseTexts(repo, { branch = defaultBranch(repo) } = {}) {
   if (!commit) return { error: `no commit for ${branch} here` };
   const texts = new Map();
   return { commit, branch, textOf: file => { if (!texts.has(file)) texts.set(file, fileAt(repo, commit, file)); return texts.get(file); } };
+}
+
+// One section's text as it stood before a merged pull request: the file at the merge commit's first parent, the
+// section by its id (instruction-edit.js:locate). null where the commit, the file or the section is not to be had.
+export function sectionBefore(repo, { mergeCommit, number, file, id }, { gh = ghCli, slug = githubSlug(repo) } = {}) {
+  let merge = mergeCommit;
+  if (!merge && number && slug) merge = prState(repo, number, { gh, slug })?.commit;
+  if (!merge) return null;
+  if (!tryGit(repo, ['rev-parse', '-q', '--verify', `${merge}^{commit}`])) netGit(repo, ['fetch', '-q', 'origin', merge]);
+  const text = fileAt(repo, `${merge}^1`, file);
+  if (text == null) return null;
+  const loc = locate(text, id);
+  return loc ? loc.lines.slice(loc.start, loc.end).join('\n').replace(/\n+$/, '') : null;
 }
 
 // Whether a pull request can be opened from this checkout, with the reason when not; kept a minute, since the page asks
@@ -145,7 +158,7 @@ export async function openEditPr(store, key, { changes = [], gh = ghCli, slug: s
   } catch (err) { return { error: `could not build the commit: ${firstLine(err)}` }; }
   finally { try { fs.rmSync(index, { force: true }); } catch {} }
   const titles = (e.sections || []).map(s => s.title), names = [...new Set(files.map(f => f.file))];
-  const verb = e.action === 'remove' ? 'remove' : 'compress';
+  const verb = e.action === 'remove' ? 'remove' : e.action === 'each' ? 'compress or remove' : e.action === 'restore' ? 'restore' : 'compress';
   const title = `${names.join(', ')}: ${verb} ${titles.length <= 3 ? titles.join(', ') : `${titles.length} sections`}`.slice(0, 120);
   const body = prBody(e, changes, baseName);
   const branch = `thinker/context-${new Date(now).toISOString().slice(0, 10).replace(/-/g, '')}-${randomBytes(3).toString('hex')}`;
@@ -166,10 +179,17 @@ export async function openEditPr(store, key, { changes = [], gh = ghCli, slug: s
   return { number, url, branch, commit, base: baseName, slug, title, said: `Pull request #${number} opened: ${url}` };
 }
 function prBody(e, changes, baseName) {
+  // a section put back as it was: why, and what the earlier pull request had done to it
+  if (e.action === 'restore') {
+    const from = changes.find(c => c.pr?.number)?.pr.number, rows = (e.sections || []).map(s => `| ${s.title.replace(/\|/g, '\\|')} | ~${formatTokens(s.tokensBefore)} → ~${formatTokens(s.tokensAfter)} |`);
+    return [`Puts ${rows.length === 1 ? 'a section' : `${rows.length} sections`} of the instruction file back as ${rows.length === 1 ? 'it was' : 'they were'} before thinker shortened ${rows.length === 1 ? 'it' : 'them'}${from ? ` in #${from}` : ''}. Opened by thinker, which checks each of its changes a week after it takes effect.`,
+      e.note ? `\nWhy: ${e.note}.` : '', '', '| section | tokens in every model call |', '|---|---|', ...rows,
+      `\nMerging puts the section back on ${baseName}. Closing it without merging leaves it shortened; thinker does not shorten it again either way.`].filter(l => l != null).join('\n');
+  }
   const rows = (e.sections || []).map(s => `| ${s.title.replace(/\|/g, '\\|')} | ~${formatTokens(s.tokensBefore)} → ~${formatTokens(s.tokensAfter)} |`);
   const saving = changes.reduce((a, c) => a + (c.saving || 0), 0), total = changes.reduce((a, c) => a + (c.total || 0), 0), days = changes[0]?.days;
   return [
-    `${e.action === 'remove' ? 'Removes' : 'Compresses'} ${rows.length === 1 ? 'a section' : `${rows.length} sections`} of the instruction file the coding agents read on every model call. Opened by thinker (\`thinker context\` shows what each section costs and how often sessions used it).`,
+    `${e.action === 'remove' ? 'Removes' : e.action === 'each' ? 'Compresses or removes' : 'Compresses'} ${rows.length === 1 ? 'a section' : `${rows.length} sections`} of the instruction file the coding agents read on every model call. Opened by thinker (\`thinker context\` shows what each section costs and how often sessions used it).`,
     '', '| section | tokens in every model call |', '|---|---|', ...rows,
     saving ? `\nSaves ~${formatTokens(saving)} input tokens a session${total && days ? `, ~${formatTokens(total)} over the ${days} days before it was decided` : ''}.` : '',
     `\nMerging makes the change on ${baseName}. Closing it without merging leaves the file as it is, and thinker suggests the sections again.`,

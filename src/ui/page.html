@@ -525,7 +525,7 @@
 
         <div class="faq-item">
           <h3>Can Thinker cut what my agents load into every session?</h3>
-          <p>Yes. <code>thinker context</code> lists every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. Thinker acts on the clearest of them itself, and Recent activity says what it did and what that saved: a section it compresses or removes is a pull request, so nothing in your team's file changes until you merge it. Tell it in the chat to do more, less or nothing.</p>
+          <p>Yes. <code>thinker context</code> lists every section of your instruction files, every skill and every tool with what it costs a prompt and how many sessions it bore on. Thinker makes the ones that clearly pay itself: each has to save $1 a day or more, and they go out together as one batch once they come to $5 a day, at most one batch a week in a repository. Skills it leaves alone. Recent activity has one line for a batch with what it saved; the sections it shortens or removes are one pull request, so nothing in your team's file changes until someone merges it. A week later it checks each change and takes back what did not pay. Tell it in the chat to change any of this.</p>
         </div>
 
         <div class="faq-item">
@@ -906,8 +906,8 @@ function renderSide(d) {
   const el = $('#side-body'), many = HREPO === 'all';
   const whose = x => many && x.repoName ? `<span>${esc(x.repoName)}</span>` : '';
   // one line on how thinker behaves here (the whole sentence on hover; it is changed by telling it, in the chat)
-  const how = { auto: 'Acting on its own for important things', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
-  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${d.later ? ` · ${d.later} waiting ${d.later === 1 ? 'its' : 'their'} turn` : ''}${d.held ? ` · ${d.held} held back until you say` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
+  const how = { auto: 'Acting on its own, in batches', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
+  $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${(d.later || d.held) && d.summary ? ` · ${esc(d.summary.replace(/\.$/, ''))}` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
   // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, red
   // where it measured as costing more, grey while it is only expected), then when, where and by whom
   const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? '' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? '' : ' soft'}">${esc(f.impactSaid)}</div>`;
