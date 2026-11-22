@@ -187,15 +187,15 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  through your agent's own login; what it changed is printed under its answer. With no message,
                                  the conversation so far. A message goes on with the conversation last spoken in; --new starts
                                  another with it, --chat <id> names one, and --history lists them, as the page's Chat history does
-  settings [set <id> <value>] [--here] [--json]
-                                 how thinker works, set by hand, as on the page's Settings tab: what it may change on its
-                                 own (automatic, suggest only, off; instruction files, tools and MCP servers, skills,
-                                 merged worktrees), what is handed to a cheaper model (big reads, whole-suite test runs,
-                                 from what size, on which model), learning from sessions and the profile, what it tells
-                                 you, and what leaves the machine. A setting sits under the one it depends on and is not
-                                 shown while that one is off; its value is kept for when it is on again. set changes
-                                 one by the id printed beside it (a switch: on or off; a choice: one of its values);
-                                 --here is this repository's, whose own values win over the machine's
+  settings [set <id> <value>] [--json]
+                                 how thinker works on this machine, set by hand, as on the page's Settings tab: what it
+                                 may change on its own (automatic, suggest only, off; instruction files, tools and MCP
+                                 servers, skills, merged worktrees), what is handed to a cheaper model (big reads,
+                                 whole-suite test runs, from what size, on which model), learning from sessions and the
+                                 profile, what it tells you, and what leaves the machine. A setting sits under the one
+                                 it depends on and is not shown while that one is off; its value is kept for when it is
+                                 on again. set changes one by the id printed beside it (a switch: on or off; a choice:
+                                 one of its values)
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]

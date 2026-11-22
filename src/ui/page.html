@@ -450,7 +450,6 @@
     .set-help { display: block; font-size: 0.8rem; font-weight: 400; color: #6b7280; line-height: 1.45; margin-top: 0.1rem; max-width: 520px; }
     .set-help code { font-size: 0.76rem; background: #f3f4f6; padding: 0.05rem 0.3rem; border-radius: 4px; }
     .set-note { color: #92400e; }
-    .set-tag { display: inline-block; margin-left: 0.5rem; padding: 0.02rem 0.45rem; border: 1px solid #e5e7eb; border-radius: 999px; font-size: 0.68rem; font-weight: 500; color: #6b7280; vertical-align: 1px; }
     .set-sub { font-size: 0.8rem; font-weight: 600; color: #111; margin: 1.5rem 0 0.6rem; }
     .set-sub + .set-row { padding-top: 0.2rem; }
     /* what depends on the row above it */
@@ -490,7 +489,6 @@
     .set-row > .sel { flex: none; font-size: 0.82rem; }
     .sw:focus-visible, .set-card:focus-visible, .set-tile-main:focus-visible, .set-tile-sub:focus-visible, .set-nav button:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
     .set-tile-main:focus-visible, .set-tile-sub:focus-visible { outline-offset: -2px; }
-    .set-off { font-size: 0.86rem; color: #6b7280; padding: 1.2rem 0; }
     .in { animation: set-in 0.2s ease; }
     @keyframes set-in { from { opacity: 0; transform: translateY(-5px); } }
     @media (prefers-reduced-motion: reduce) { .in { animation: none; } .sw, .sw::after, .set-card, .set-tile { transition: none; } }
@@ -576,16 +574,11 @@
     </section>
 
     <!-- Settings: how thinker works, set by hand (settings.js:settingsView, as `thinker settings`): what it may change on
-         its own, what is handed to a cheaper model, learning, what it tells you, what leaves the machine. For the machine,
-         or for one repository with its own values over the machine's (`thinker settings --here`). A setting sits under the
-         one it depends on and is not drawn while that one is off -->
+         its own, what is handed to a cheaper model, learning, what it tells you, what leaves the machine. One set for the
+         machine, none per repository. A setting sits under the one it depends on and is not drawn while that one is off -->
     <section id="tab-settings" hidden>
       <div class="ctx-top"><div><h1>Settings</h1>
-      <p class="lede">How thinker works. A change applies from your next session.</p></div>
-      <div class="controls">
-        <div class="seg" id="s-scope" role="tablist" aria-label="Settings for"><button type="button" data-scope="machine" class="on" role="tab" aria-selected="true">This machine</button><button type="button" data-scope="repo" role="tab" aria-selected="false">One repository</button></div>
-        <select class="sel" id="s-repo" aria-label="Repository" hidden></select>
-      </div></div>
+      <p class="lede">How thinker works on this machine. A change applies from your next session.</p></div></div>
       <div id="settings-body" class="section"><div class="empty"><span class="spinner"></span>Reading…</div></div>
     </section>
   </main>
@@ -1157,31 +1150,17 @@ async function fetchRepos() {
 // its word on which are shown, so the page and the command can never hold two lists. A change is one POST and the answer
 // is the view after it: what depended on the setting just switched off is gone from the next drawing, and what comes
 // back (its value was kept) fades in. Only how a setting is drawn is the page's: a row, a card of three, a tile to tick.
-let SSCOPE = 'machine', SREPO = '', SSEEN = new Set();
-const settingsRepo = () => (SSCOPE === 'machine' ? 'all' : SREPO);
+let SSEEN = new Set();
 const setHelp = t => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>');
-// the machine's settings need no list of repositories, and that list can take a while on a fresh start (it is read
-// from the agents' transcripts): the settings are drawn at once and "One repository" comes alive when the list is in
-function settingsScope() {
-  if (!REPOS.some(r => r.id === SREPO)) SREPO = (REPOS.find(r => r.current) || REPOS[0] || {}).id || '';
-  if (!SREPO) SSCOPE = 'machine';
-  for (const b of $('#s-scope').children) { const on = b.dataset.scope === SSCOPE; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); if (b.dataset.scope === 'repo') b.disabled = !SREPO; }
-  $('#s-repo').hidden = SSCOPE !== 'repo';
-  $('#s-repo').innerHTML = REPOS.map(r => `<option value="${esc(r.id)}"${r.id === SREPO ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
-}
 async function loadSettings() {
-  settingsScope();
-  if (!REPOS.length) fetchRepos().then(() => { if (TAB === 'settings') settingsScope(); }).catch(() => {});
-  try { renderSettings(await api(`/api/settings?repo=${encodeURIComponent(settingsRepo())}`)); }
+  try { renderSettings(await api('/api/settings')); }
   catch (e) { $('#settings-body').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 function renderSettings(v) {
   const before = SSEEN, fresh = id => (before.size && !before.has(id) ? ' in' : '');
   SSEEN = new Set();
   const val = o => esc(JSON.stringify(o.value)), checked = on => (on ? 'true' : 'false');
-  // in one repository: a setting that is the whole machine's says so, and so does one this repository set for itself
-  const tag = i => (v.scope !== 'repo' ? '' : i.where === 'machine' ? '<span class="set-tag" title="One value for every repository">whole machine</span>' : i.from === 'repo' ? '<span class="set-tag" title="Set for this repository; elsewhere the machine\'s value holds">set here</span>' : '');
-  const text = i => `<span class="set-text"><span class="set-label">${esc(i.label)}${tag(i)}</span>${i.help ? `<span class="set-help">${setHelp(i.help)}</span>` : ''}${i.note ? `<span class="set-help set-note">${esc(i.note)}</span>` : ''}</span>`;
+  const text = i => `<span class="set-text"><span class="set-label">${esc(i.label)}</span>${i.help ? `<span class="set-help">${setHelp(i.help)}</span>` : ''}${i.note ? `<span class="set-help set-note">${esc(i.note)}</span>` : ''}</span>`;
   const control = i => i.kind === 'switch'
     ? `<button class="sw" type="button" role="switch" aria-checked="${checked(i.value)}" aria-label="${esc(i.label)}" data-set="${esc(i.id)}"></button>`
     : `<select class="sel" aria-label="${esc(i.label)}" data-set="${esc(i.id)}">${i.options.map(o => `<option value="${val(o)}"${o.value === i.value ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
@@ -1207,9 +1186,7 @@ function renderSettings(v) {
     return `<section class="set-group" id="set-${esc(g.id)}"><h2 class="set-gtitle">${esc(g.title)}</h2>${g.about ? `<p class="set-gabout">${esc(g.about)}</p>` : ''}${list(kids(null))}</section>`;
   };
   const groups = v.groups.map(g => [g, group(g)]).filter(([, html]) => html);
-  // one repository has a switch of its own over everything (repo-switch.js, `thinker disable`)
-  const whole = v.scope === 'repo' ? `<section class="set-group"><div class="set-row"><span class="set-text"><span class="set-label">Thinker in ${esc(v.repo)}</span><span class="set-help">Off, nothing is served or learned in this repository and nothing is written into it.</span></span><button class="sw" type="button" role="switch" aria-checked="${checked(v.on)}" aria-label="Thinker in ${esc(v.repo)}" data-set="repo.on"></button></div></section>` : '';
-  $('#settings-body').innerHTML = `<div class="set-layout"><div class="set-nav" role="navigation" aria-label="Settings sections">${groups.map(([g]) => `<button type="button" data-goto="set-${esc(g.id)}">${esc(g.title)}</button>`).join('')}</div><div class="set-main">${whole}${groups.map(([, html]) => html).join('')}</div></div>`;
+  $('#settings-body').innerHTML = `<div class="set-layout"><div class="set-nav" role="navigation" aria-label="Settings sections">${groups.map(([g]) => `<button type="button" data-goto="set-${esc(g.id)}">${esc(g.title)}</button>`).join('')}</div><div class="set-main">${groups.map(([, html]) => html).join('')}</div></div>`;
   settingsSpy();
 }
 // the name beside the column that is the group now under the eye
@@ -1222,7 +1199,7 @@ function settingsSpy() {
 addEventListener('scroll', () => { if (TAB === 'settings') settingsSpy(); }, { passive: true });
 async function changeSetting(id, value) {
   try {
-    const r = await api('/api/settings', { repo: settingsRepo(), id, value });
+    const r = await api('/api/settings', { id, value });
     renderSettings(r.view);
     // the control that was used keeps the keyboard: the page was drawn again under it
     const again = [...document.querySelectorAll('#settings-body [data-set]')].filter(e => e.dataset.set === id);
@@ -1238,8 +1215,6 @@ $('#settings-body').addEventListener('click', e => {
   else if (!b.classList.contains('on')) changeSetting(b.dataset.set, JSON.parse(b.dataset.value));
 });
 $('#settings-body').addEventListener('change', e => { const s = e.target.closest('select[data-set]'); if (s) changeSetting(s.dataset.set, JSON.parse(s.value)); });
-$('#s-scope').onclick = e => { const b = e.target.closest('button[data-scope]'); if (!b || b.disabled || b.dataset.scope === SSCOPE) return; SSCOPE = b.dataset.scope; SSEEN = new Set(); loadSettings(); };
-$('#s-repo').onchange = e => { SREPO = e.target.value; SSEEN = new Set(); e.target.blur(); loadSettings(); };
 // ---- Factory (factory.js, as `thinker factory`): read from the kept report `thinker report` prints, so a figure here
 // can never contradict the command. The canvas lays the detected loops out itself: shorter routes take the inner lanes,
 // sides alternate, a lane holds only loops whose spans and labels do not overlap, and loops sharing a stage edge spread

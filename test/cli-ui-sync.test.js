@@ -777,16 +777,17 @@ test('Settings: the page\'s tab and `thinker settings` are one list, one view an
   // second one, so a setting cannot be on the page and missing from the command, or shown by one and hidden by the other
   const html = read('ui/page.html'), cmd = read('commands/settings.js'), server = read('ui/server.js');
   assert.match(html, /<button class="nav-link" data-tab="settings"/); assert.match(html, /<section id="tab-settings" hidden>/);
-  assert.match(server, /settingsView\(s\.store, \{ scope: s\.scope, home \}\)/); assert.match(cmd, /const v = settingsView\(st, \{ scope \}\);/);
-  assert.match(server, /await setSetting\(s\.store, String\(b\.id \|\| ''\), b\.value, \{ scope: s\.scope, home \}\)/); assert.match(cmd, /await setSetting\(st, id, rest\.join\(' '\), \{ scope \}\)/);
+  assert.match(server, /settingsView\(\{ home \}\)/); assert.match(cmd, /const v = settingsView\(\);/);
+  assert.match(server, /await setSetting\(String\(b\.id \|\| ''\), b\.value, \{ home \}\)/); assert.match(cmd, /await setSetting\(id, rest\.join\(' '\)\)/);
   // which settings are shown is the view's word through both doors: under a parent that is off, neither prints one
   assert.match(html, /g\.items\.filter\(i => i\.shown\)/); assert.match(read('settings.js'), /const rows = g\.items\.filter\(i => i\.shown\);/);
   const { GROUPS } = await import('../src/settings.js');
-  assert.deepEqual([...html.matchAll(/data-set="([a-z][A-Za-z.]*)"/g)].map(m => m[1]), ['repo.on'], 'the page names one setting itself, the repository\'s own switch; the rest are the list\'s');
+  assert.deepEqual([...html.matchAll(/data-set="([a-z][A-Za-z.]*)"/g)].map(m => m[1]), [], 'the page names no setting itself: they are the list\'s');
   for (const i of GROUPS.flatMap(g => g.items).filter(i => i.id.includes('.'))) assert.ok(!cmd.includes(i.id), `${i.id} is the list's, not the command's`);
-  // the machine, or one repository with its own values over the machine's
-  assert.match(html, /data-scope="machine"[^>]*>This machine</); assert.match(html, /data-scope="repo"[^>]*>One repository</); assert.match(cmd, /const st = here \? store : null, scope = here \? 'repo' : 'machine';/);
-  assert.match(read('cli.js'), /settings \[set <id> <value>\] \[--here\] \[--json\]/); assert.match(read('cli.js'), /--tab chat\|factory\|activity\|settings/);
+  // one set for the machine ("don't make settings per repo"): no scope switch, no repository dropdown, no --here
+  const tab = html.slice(html.indexOf('<section id="tab-settings"'), html.indexOf('</section>', html.indexOf('<section id="tab-settings"')));
+  assert.doesNotMatch(tab, /<select|data-scope|One repository/); assert.doesNotMatch(cmd, /flags\.here|--here/);
+  assert.match(read('cli.js'), /settings \[set <id> <value>\] \[--json\]/); assert.match(read('cli.js'), /--tab chat\|factory\|activity\|settings/);
   // context cutting is not set here (the owner's call), through either door
   assert.ok(!GROUPS.flatMap(g => g.items).some(i => /^proxy\./.test(i.id)));
 });

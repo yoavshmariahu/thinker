@@ -14,15 +14,14 @@
 // kind), profile.js serves nothing where `learn.sessions` is off, hooks.js says nothing where `notice` is off,
 // error-report.js sends nothing where telemetry is off.
 //
-// Where a value is kept: `<THINKER_HOME>/config.json` for the machine, `.thinker/config.json` for one repository,
-// which wins (`where: 'both'`, read through repo-switch.js:layeredConfig or the reader's own layering). The
-// delegation trigger and the error reports are the machine's alone (`where: 'machine'`): a hook decides them before
-// it knows much of the repository. Not here, on purpose: the clearing (context cutting, the owner's call), the
-// holdouts (an experiment's arms), prices, and what only thinker's own upkeep needs (the update schedule).
-import fs from 'node:fs';
-import path from 'node:path';
+// One set of settings for the machine, kept in `<THINKER_HOME>/config.json` (the owner, 2026-11-21: "don't make
+// settings per repo"). `learn`, `notice` and `maintain` were read from a repository's `.thinker/config.json` alone
+// until this; they are now the machine's (repo-switch.js:layeredConfig), and a repository whose own file already
+// sets one still has it honoured there, as before. Neither door shows or writes a repository's file. Not here, on
+// purpose: the clearing (context cutting, the owner's call), the holdouts (an experiment's arms), prices, and what
+// only thinker's own upkeep needs (the update schedule).
 import { thinkerHome } from './update.js';
-import { readMachineConfig, updateMachineConfig, isDisabledRepo, setRepoDisabled } from './repo-switch.js';
+import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
 import { BEHAVIOR, SETTINGS as UPKEEP_SETTINGS, setBehavior } from './upkeep.js';
 import { DELEGATE_DEFAULTS } from './delegate.js';
 import { DEFAULTS as MAINTAIN_DEFAULTS } from './maintain.js';
@@ -62,16 +61,16 @@ export const GROUPS = [
       note: v => (v['learn.sessions'] === false ? 'Learning is off, so this check sees cost alone, not broken rules.' : '') },
   ] },
   { id: 'delegation', title: 'Delegation', about: 'Simple work handed to a cheaper model. Thinking, edits and fixes stay on yours.', items: [
-    { id: 'delegate.enabled', where: 'machine', label: 'Hand simple work to a cheaper model', dflt: DELEGATE_DEFAULTS.enabled,
+    { id: 'delegate.enabled', label: 'Hand simple work to a cheaper model', dflt: DELEGATE_DEFAULTS.enabled,
       help: 'It reports back and your model works from the report.' },
-    { id: 'delegate.reads', where: 'machine', parent: ['delegate.enabled', [true]], label: 'Big file reads', dflt: DELEGATE_DEFAULTS.reads,
+    { id: 'delegate.reads', parent: ['delegate.enabled', [true]], label: 'Big file reads', dflt: DELEGATE_DEFAULTS.reads,
       help: 'A subagent reports where things are. Your model still reads the lines it edits.' },
-    { id: 'delegate.threshold', where: 'machine', parent: ['delegate.reads', [true]], label: 'Reads of at least', dflt: DELEGATE_DEFAULTS.threshold, options: [2000, 4000, 8000, 16_000, 32_000, 64_000], fmt: tokens, help: '' },
-    { id: 'delegate.exploreModel', where: 'machine', parent: ['delegate.reads', [true]], label: 'Model for reads', dflt: null, options: [[null, 'Same as test runs'], ...MODELS], help: '' },
-    { id: 'delegate.suites', where: 'machine', parent: ['delegate.enabled', [true]], label: 'Whole-suite test runs', dflt: DELEGATE_DEFAULTS.suites,
+    { id: 'delegate.threshold', parent: ['delegate.reads', [true]], label: 'Reads of at least', dflt: DELEGATE_DEFAULTS.threshold, options: [2000, 4000, 8000, 16_000, 32_000, 64_000], fmt: tokens, help: '' },
+    { id: 'delegate.exploreModel', parent: ['delegate.reads', [true]], label: 'Model for reads', dflt: null, options: [[null, 'Same as test runs'], ...MODELS], help: '' },
+    { id: 'delegate.suites', parent: ['delegate.enabled', [true]], label: 'Whole-suite test runs', dflt: DELEGATE_DEFAULTS.suites,
       help: 'A subagent reports the summary and the failures. A single test file stays with your model.' },
-    { id: 'delegate.model', where: 'machine', parent: ['delegate.suites', [true]], label: 'Model for test runs', dflt: DELEGATE_DEFAULTS.model, options: MODELS, help: '' },
-    { id: 'delegate.repeats', where: 'machine', parent: ['delegate.enabled', [true]], label: 'Skip reading a file again', dflt: DELEGATE_DEFAULTS.repeats,
+    { id: 'delegate.model', parent: ['delegate.suites', [true]], label: 'Model for test runs', dflt: DELEGATE_DEFAULTS.model, options: MODELS, help: '' },
+    { id: 'delegate.repeats', parent: ['delegate.enabled', [true]], label: 'Skip reading a file again', dflt: DELEGATE_DEFAULTS.repeats,
       help: 'A repeat read is answered with a pointer to the copy your model already has.' },
   ] },
   { id: 'learning', title: 'Learning', about: 'How you work, read from your sessions and kept on this machine.', items: [
@@ -87,7 +86,7 @@ export const GROUPS = [
   ] },
   { id: 'privacy', title: 'Privacy', about: 'What leaves this machine.', items: [
     { id: 'telemetry', label: 'Share usage figures', dflt: true, help: 'Counts, tokens and dollars. No prompts, no code, no names.' },
-    { id: 'errors', where: 'machine', own: true, parent: ['telemetry', [true]], label: 'Share error reports', dflt: false,
+    { id: 'errors', own: true, parent: ['telemetry', [true]], label: 'Share error reports', dflt: false,
       help: '`thinker errors` prints exactly what would be sent.' },
   ] },
 ];
@@ -103,9 +102,6 @@ const put = (cfg, id, v) => {
   const b = block(cfg, head);
   return { ...cfg, [head]: { ...(b && typeof b === 'object' ? b : {}), [key]: v } };
 };
-const repoFile = store => path.join(store.dir, 'config.json');
-const readRepo = store => { try { return JSON.parse(fs.readFileSync(repoFile(store), 'utf8')) || {}; } catch { return {}; } };
-
 const optionsOf = (item, value) => {
   if (!item.options) return null;
   const opts = item.options.map(o => (Array.isArray(o) ? { value: o[0], label: o[1], ...(o[2] ? { about: o[2] } : {}) } : { value: o, label: item.fmt ? item.fmt(o) : String(o) }));
@@ -115,30 +111,23 @@ const optionsOf = (item, value) => {
 };
 const valid = (item, v) => v !== undefined && (item.options ? true : typeof v === 'boolean');
 
-/**
- * The settings as they stand, for the machine (`scope: 'machine'`) or for one repository (`scope: 'repo'`, the
- * machine's values with the repository's own over them). Every row carries whether it is shown.
- */
-export function settingsView(store, { scope = store ? 'repo' : 'machine', home = thinkerHome() } = {}) {
-  if (scope === 'repo' && !store) scope = 'machine';
-  const machine = readMachineConfig(home), repo = scope === 'repo' ? readRepo(store) : {};
-  const values = {}, from = {};
+/** The machine's settings as they stand. Every row carries whether it is shown. */
+export function settingsView({ home = thinkerHome() } = {}) {
+  const machine = readMachineConfig(home);
+  const values = {};
   for (const item of ITEMS.values()) {
-    if (item.own) { values[item.id] = errorConsent(home) === 'yes'; from[item.id] = 'machine'; continue; }
-    const r = item.where === 'machine' ? undefined : at(repo, item.id), m = at(machine, item.id);
-    const [v, f] = valid(item, r) ? [r, 'repo'] : valid(item, m) ? [m, 'machine'] : [item.dflt, 'default'];
-    values[item.id] = v; from[item.id] = f;
+    const v = item.own ? errorConsent(home) === 'yes' : at(machine, item.id);
+    values[item.id] = item.own || valid(item, v) ? v : item.dflt;
   }
   const on = id => { const p = ITEMS.get(id).parent; return !p || (p[1].includes(values[p[0]]) && on(p[0])); };
   const depth = id => { const p = ITEMS.get(id).parent; return p ? 1 + depth(p[0]) : 0; };
-  const off = scope === 'repo' && isDisabledRepo(store.repo, { home });
   const groups = GROUPS.map(g => ({ id: g.id, title: g.title, about: g.about, items: g.items.map(i => ({
     id: i.id, label: i.label, help: i.help, kind: i.options ? 'choice' : 'switch', value: values[i.id], dflt: i.dflt,
     ...(i.options ? { options: optionsOf(i, values[i.id]) } : {}), ...(i.section ? { section: i.section } : {}), ...(i.as ? { as: i.as } : {}),
-    parent: i.parent ? i.parent[0] : null, depth: depth(i.id), shown: !off && on(i.id), where: i.where || 'both', from: from[i.id],
+    parent: i.parent ? i.parent[0] : null, depth: depth(i.id), shown: on(i.id),
     ...(i.note && i.note(values) ? { note: i.note(values) } : {}),
   })) }));
-  return { scope, ...(scope === 'repo' ? { repo: path.basename(store.repo), on: !off } : {}), groups };
+  return { groups };
 }
 
 const BOOL = { true: true, on: true, yes: true, false: false, off: false, no: false };
@@ -149,40 +138,23 @@ function coerce(item, raw) {
   return hit ? hit.value : undefined;
 }
 
-/**
- * One setting changed, for the machine or for one repository. `repo.on` is the repository's own switch
- * (repo-switch.js: `thinker disable`). Returns what it is now in words and the view after it, or what was wrong.
- */
-export async function setSetting(store, id, raw, { scope = store ? 'repo' : 'machine', home = thinkerHome() } = {}) {
-  if (scope === 'repo' && !store) return { error: 'no repository to set it for' };
-  const done = said => ({ id, said, view: settingsView(store, { scope, home }) });
-  if (id === 'repo.on') {
-    const v = BOOL[String(raw).toLowerCase()];
-    if (scope !== 'repo' || v === undefined) return { error: 'repo.on is on or off, for one repository' };
-    setRepoDisabled(store.repo, { disabled: !v, home });
-    return done(`thinker is ${v ? 'on' : 'off'} in ${path.basename(store.repo)}`);
-  }
+/** One setting changed, on this machine. Returns what it is now in words and the view after it, or what was wrong. */
+export async function setSetting(id, raw, { home = thinkerHome() } = {}) {
   const item = ITEMS.get(id);
   if (!item) return { error: `there is no setting called ${id}` };
   const v = coerce(item, raw);
   if (v === undefined) return { error: `${id} cannot be ${JSON.stringify(raw)}: ${item.options ? optionsOf(item, item.dflt).map(o => o.value).join(', ') : 'on or off'}` };
-  const where = item.where === 'machine' ? 'machine' : scope;
   const [head, key] = id.split('.');
-  if (item.own) await answerErrorOffer(v ? 'yes' : 'never', { store, home, client: 'settings', sendFn: async () => ({ sent: false }) });
-  else if (head === 'upkeep' && UPKEEP_SETTINGS[key]) { const r = setBehavior(store, key, v, { scope: where, home }); if (r.error) return r; }
-  else {
-    if (where === 'repo') { const f = repoFile(store); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(put(readRepo(store), id, v), null, 2) + '\n'); }
-    else updateMachineConfig(home, cfg => put(cfg, id, v));
-    try { store?.log({ op: 'settings-set', key: id, scope: where }); } catch {}
-  }
+  if (item.own) await answerErrorOffer(v ? 'yes' : 'never', { home, client: 'settings', sendFn: async () => ({ sent: false }) });
+  else if (head === 'upkeep' && UPKEEP_SETTINGS[key]) { const r = setBehavior(null, key, v, { scope: 'machine', home }); if (r.error) return r; }
+  else updateMachineConfig(home, cfg => put(cfg, id, v));
   const opt = item.options && optionsOf(item, v).find(o => o.value === v);
-  return done(`${item.label}: ${opt ? opt.label : v ? 'on' : 'off'} ${where === 'repo' ? `in ${path.basename(store.repo)}` : 'on this machine'}`);
+  return { id, said: `${item.label}: ${opt ? opt.label : v ? 'on' : 'off'}`, view: settingsView({ home }) };
 }
 
 /** The view in lines, as `thinker settings` prints it: the rows the page shows, under their groups. */
 export function renderSettings(view) {
-  const lines = [view.scope === 'repo' ? `Settings in ${view.repo} (the machine's, with this repository's own over them)` : 'Settings on this machine'];
-  if (view.scope === 'repo') lines.push('', `  Thinker in this repository: ${view.on ? 'on' : 'off'}   [repo.on]`);
+  const lines = ['Settings on this machine'];
   for (const g of view.groups) {
     const rows = g.items.filter(i => i.shown);
     if (!rows.length) continue;
