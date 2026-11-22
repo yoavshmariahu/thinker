@@ -10,10 +10,13 @@ import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { mirrorClearing } from '../src/compression.js';
 import { sessionsOf } from '../src/delivery.js';
-import { buildTelemetryPayload, armsMetrics, profileMetrics } from '../src/telemetry.js';
+import { buildTelemetryPayload, armsMetrics, factoryMetrics, profileMetrics } from '../src/telemetry.js';
 import { writeReport } from '../src/report-snapshot.js';
-import { armTally } from '../src/factory.js';
-import { REPORT_WEEKS } from '../src/report.js';
+import { armTally, weeklyTally, STAGES, LOOP_KINDS } from '../src/factory.js';
+import { REPORT_WEEKS, weekColumns } from '../src/report.js';
+import { cuttingOn } from '../src/proxy.js';
+import { readMachineConfig } from '../src/repo-switch.js';
+import { thinkerHome } from '../src/update.js';
 import { installGitHooks, uninstallGitHooks } from '../src/git-hooks.js';
 import { guardScript, install, MARKER } from '../scripts/install-pr-guard.mjs';
 
@@ -52,7 +55,10 @@ test('the arms block is the kept report\'s two sides per feature, as sums, with 
   // is the shape since 2026-11-19, when the cutting was turned off (proxy.js:PROXY_DEFAULTS): a dashboard reading
   // these payloads must be able to tell a machine that cut nothing from one that cut under some policy.
   assert.match(empty.policy, /^v\d+\.\d+\.\d+-(off|t\d+k-f\d+k-p\d+-(deep|one)(\+in)?(\+img)?(\+bp)?(\+th\d*)?)$/, 'the policy this machine runs today');
-  assert.equal(empty.policy.endsWith('-off'), true, 'and on an unconfigured machine it is the one that cuts nothing');
+  // off unless the machine this runs on turned the cutting on in its own config (`proxy: { cut: true }`), which is
+  // what the line above allows for: held to the config's own reader, so it passes on that machine and on a bare one
+  const cutting = cuttingOn(readMachineConfig(thinkerHome()).proxy || {});
+  assert.equal(empty.policy.endsWith('-off'), !cutting, 'and it is the one that cuts nothing unless this machine\'s config says to cut');
   const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
   const r = (cost, exchanges, loops = []) => ({ cost, tokens: cost * 1e5, calls: 10, exchanges, stages: { ...stages, build: { cost: cost / 2, tokens: 0, rework: cost / 10, reworkTokens: 0 } }, loops, cacheWrite: 1000, cacheRead: 9000 });
   const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');
@@ -71,6 +77,54 @@ test('the arms block is the kept report\'s two sides per feature, as sums, with 
   assert.ok(!/PRIVATE|session|\/tmp|thinker-delivery/i.test(text.replace(/"sessions"/g, '')), 'no session id, path or repository in the block');
   const payload = buildTelemetryPayload(store, { all: false, home });
   assert.equal(payload.arms.profile.shown.sessions, 1, 'the payload carries it');
+});
+
+// The Factory itself leaves the machine too (telemetry.js:factoryMetrics; the owner, 2026-11-22: "we should also get
+// rework metrics from users by stage. let's use this data later to figure out if context cutting is causing rework"):
+// every measured session by stage, by kind of loop and by week, as sums, with the cut policy the machine runs.
+test('the factory block is the kept report\'s stages, loops and weeks as sums, with the cut policy and nothing named', t => {
+  const store = fixture(t), home = path.join(store.repo, 'home');
+  store.log({ op: 'session', t: at(2), session: 'PRIVATE_SESSION_A', client: 'claude' });
+  const empty = factoryMetrics(store, { all: false, now });
+  assert.deepEqual([empty.schemaVersion, empty.windowWeeks, empty.repos, empty.reposWithoutReport, empty.sessions, empty.stages, empty.loops, empty.weeks], [1, REPORT_WEEKS, 1, 1, 0, null, null, []]);
+  assert.match(empty.policy, /^v\d+\.\d+\.\d+-/, 'the policy this machine runs today, so a reader can tell a machine that cuts from one that does not');
+  // a kept report with the two sides alone, as a test or an older copy leaves one, is no Factory to send
+  writeReport(store, REPORT_WEEKS, { factory: { arms: null } }, { now });
+  assert.equal(factoryMetrics(store, { all: false, now }).reposWithoutReport, 1);
+  // two sessions this week. One looped: a fix loop that held $2 of Verify's $4 and $1 of Build's $5
+  const cols = weekColumns(now, REPORT_WEEKS), zero = () => ({ cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 });
+  const rec = (per, loops = []) => ({ cost: Object.values(per).reduce((a, x) => a + x.cost, 0), tokens: 1e6, calls: 20, stages: Object.fromEntries(STAGES.map(([k]) => [k, { ...zero(), ...(per[k] || {}) }])), loops });
+  const looped = rec({ build: { cost: 5, calls: 8, rework: 1 }, verify: { cost: 4, calls: 6, rework: 2 }, merge: { cost: 1, calls: 2 } }, [{ kind: 'fix', cost: 3, tokens: 3e5, calls: 6 }]);
+  const clean = rec({ explore: { cost: 2, calls: 10 } });
+  const weekly = weeklyTally(cols);
+  weekly.add(now, looped, 'PRIVATE_SESSION_A'); weekly.add(now, clean, 'PRIVATE_SESSION_B');
+  const stages = STAGES.map(([key, name, desc]) => { const a = looped.stages[key], b = clean.stages[key]; return { key, name, desc, ...zero(), cost: a.cost + b.cost, calls: a.calls + b.calls, rework: a.rework + b.rework }; });
+  const pr = (number, firstPass) => ({ number, title: 'PRIVATE PR TITLE', url: 'https://github.com/private/repo/pull/12', mergedAt: at(4), measured: 1, firstPass, cost: 6 });
+  writeReport(store, REPORT_WEEKS, { factory: { days: 42, from: cols[0].t, to: now, sessions: 2, conversations: 3, calls: 40, cost: 12, tokens: 2e6, priced: true, unpriced: [], stages,
+    loops: [{ key: 'fix', ...LOOP_KINDS.fix, loops: 1, cost: 3, tokens: 3e5, calls: 6, sessions: 1 }], rework: 3, reworkTokens: 3e5,
+    prs: { merged: 2, measured: 2, firstPass: 1, rows: [pr(12, true), pr(13, false)] }, weekly: weekly.finish(), arms: null } }, { now });
+  const f = factoryMetrics(store, { all: false, now });
+  assert.deepEqual([f.repos, f.reposWithoutReport, f.reportsFrom], [1, 0, new Date(now).toISOString()]);
+  assert.deepEqual([f.sessions, f.conversations, f.calls, f.cost, f.tokens, f.rework, f.reworkTokens, f.priced], [2, 3, 40, 12, 2e6, 3, 3e5, true]);
+  // by stage: what it cost and the part of that spent inside a loop, every stage present
+  assert.deepEqual(Object.keys(f.stages), STAGES.map(([k]) => k));
+  assert.deepEqual(f.stages.verify, { cost: 4, tokens: 0, calls: 6, rework: 2, reworkTokens: 0 });
+  assert.deepEqual(f.stages.build, { cost: 5, tokens: 0, calls: 8, rework: 1, reworkTokens: 0 });
+  assert.deepEqual(f.stages.think, { cost: 0, tokens: 0, calls: 0, rework: 0, reworkTokens: 0 });
+  assert.deepEqual(f.loops, { fix: { loops: 1, cost: 3, tokens: 3e5, calls: 6, sessions: 1 } });
+  assert.deepEqual(f.prs, { merged: 2, measured: 2, firstPass: 1 });
+  // and by week, the current week last, each named by the day it starts on this machine's calendar
+  assert.equal(f.weeks.length, REPORT_WEEKS);
+  const wk = f.weeks.at(-1), d = new Date(cols.at(-1).t);
+  assert.equal(wk.from, `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+  assert.deepEqual([wk.sessions, wk.calls, wk.cost, wk.stages.verify.rework, wk.stages.build.rework, wk.stages.explore.cost], [2, 40, 12, 2, 1, 2]);
+  assert.deepEqual(wk.loops, { fix: { loops: 1, cost: 3, tokens: 3e5, calls: 6, sessions: 1 } });
+  assert.deepEqual([f.weeks[0].sessions, f.weeks[0].cost, f.weeks[0].loops, f.weeks[0].stages.verify.rework], [0, 0, {}, 0]);
+  const text = JSON.stringify(f);
+  assert.ok(!/PRIVATE|github\.com|\/tmp|thinker-delivery/i.test(text), 'no session id, pull request, path or repository in the block');
+  const payload = buildTelemetryPayload(store, { all: false, home });
+  assert.equal(payload.factory.stages.verify.rework, 2, 'the payload carries it');
+  assert.equal(Object.keys(payload).indexOf('factory'), Object.keys(payload).indexOf('arms') + 1, 'beside the two sides, in the payload\'s own order');
 });
 
 // 2026-11-21. The worktrees of a repository share one cache -- one ledger, one kept report -- and both blocks walked

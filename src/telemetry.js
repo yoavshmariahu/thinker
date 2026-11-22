@@ -25,7 +25,7 @@ import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
 import { historyEffects, promptAverageHere, readReport, keptRows } from './report-snapshot.js';
 import { mergePromptAverages, REPORT_WEEKS } from './report.js';
-import { mergeArms, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
+import { mergeArms, mergeFactory, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
 import { partIdentity, publicToolName } from './part-describe.js';
 import { buildGuarded } from './telemetry-guard.js';
 import { ownsMachine, launchAgentPath, systemdUserDir, NOT_THE_MACHINE } from './machine-home.js';
@@ -212,6 +212,56 @@ export function armsMetrics(store, { all = true, now = Date.now() } = {}) {
     out[feature] = { ...(feature === 'compression' ? { rate: a?.rate ?? null } : {}), [spec.on]: cell(a?.[spec.on]), [spec.off]: cell(a?.[spec.off]) };
   }
   return out;
+}
+
+// The Factory itself, over every repository's kept report (2026-11-22, the owner's ask: "we should also get rework
+// metrics from users by stage. let's use this data later to figure out if context cutting is causing rework").
+// The arms block above is the controlled comparison, and on most machines it is empty: it holds only the sessions a
+// feature reached against the ones held out from it, and with the cutting off (the default since 2026-11-19) no
+// session is on the clearing's on side at all. This is the whole of the pipeline instead: every measured session of
+// the window, by stage -- what the stage cost and the part of that spent inside a loop -- by kind of loop, and by
+// week, with the cut policy the machine runs today (`policy`, `-off` where it cuts nothing). So a fleet reads
+// rework by stage against whether cutting is on, machine against machine, and on one machine the weeks before a
+// switch against the weeks after it.
+// Sums alone, as the arms are, so a dashboard takes every share as a ratio of sums over the fleet; a week is named by
+// the day it starts. Read off the report each repository keeps, which maintenance now makes (commands/learn.js): a
+// repository with none yet is counted in `reposWithoutReport` and contributes nothing. Nothing here names a
+// repository, a session or a pull request.
+// a week is named by the day it starts, on the machine's own calendar (the Report's weeks are local Mondays)
+const localDay = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+export function factoryMetrics(store, { all = true, now = Date.now() } = {}) {
+  const parts = []; let repos = 0, without = 0, from = null, to = null;
+  for (const s of caches(store, { all })) {
+    let kept = null;
+    repos++;
+    try { kept = readReport(s, REPORT_WEEKS, { now }); } catch {}
+    if (!kept?.view?.factory?.stages) { without++; continue; }
+    parts.push({ view: kept.view }); from = from == null ? kept.at : Math.min(from, kept.at); to = to == null ? kept.at : Math.max(to, kept.at);
+  }
+  const m = mergeFactory(parts);
+  const r2 = x => Math.round((x || 0) * 100) / 100, int = x => Math.round(x || 0);
+  const stage = s => ({ cost: r2(s?.cost), tokens: int(s?.tokens), calls: int(s?.calls), rework: r2(s?.rework), reworkTokens: int(s?.reworkTokens) });
+  const loop = l => ({ loops: int(l?.loops), cost: r2(l?.cost), tokens: int(l?.tokens), calls: int(l?.calls), sessions: int(l?.sessions) });
+  const out = { schemaVersion: 1, windowWeeks: REPORT_WEEKS, repos, reposWithoutReport: without, reportsFrom: from ? new Date(from).toISOString() : null, reportsTo: to ? new Date(to).toISOString() : null, policy: currentPolicy() };
+  if (!m) return { ...out, sessions: 0, stages: null, loops: null, weeks: [] };
+  const w = m.weekly;
+  return {
+    ...out,
+    sessions: int(m.sessions), conversations: int(m.conversations), calls: int(m.calls), cost: r2(m.cost), tokens: int(m.tokens), rework: r2(m.rework), reworkTokens: int(m.reworkTokens),
+    // false where a session ran on a model with no list price: its tokens are in, its dollars are not
+    priced: Boolean(m.priced),
+    stages: Object.fromEntries(m.stages.map(s => [s.key, stage(s)])),
+    loops: Object.fromEntries(m.loops.map(l => [l.key, loop(l)])),
+    prs: { merged: int(m.prs?.merged), measured: int(m.prs?.measured), firstPass: int(m.prs?.firstPass) },
+    // the same by week, the current week last: a week's sessions (each counted in the week of its last request, as
+    // the Report places it), its stages and its loops
+    weeks: (w?.columns || []).map((c, i) => ({
+      from: localDay(c.t),
+      sessions: int(w.totals?.[i]?.sessions), calls: int(w.totals?.[i]?.calls), cost: r2(w.totals?.[i]?.cost), tokens: int(w.totals?.[i]?.tokens),
+      stages: Object.fromEntries(Object.entries(w.stages || {}).map(([k, cells]) => [k, stage(cells[i])])),
+      loops: Object.fromEntries(Object.entries(w.loops || {}).filter(([, cells]) => cells[i]?.loops).map(([k, cells]) => [k, loop(cells[i])])),
+    })),
+  };
 }
 
 // Whether the agents on this machine run thinker at all, for a device with caches and no cache request
@@ -752,6 +802,11 @@ export function telemetryParts(store, { home = thinkerHome(), days = 1, all = tr
     // kept report, with the cut policy the on side was cleared under (armsMetrics). The Diff by feature dashboard reads it.
     ['arms', () => ({ arms: armsMetrics(store, { all }) })],
 
+    // the Factory itself: every measured session by stage, by kind of loop and by week, as sums off the same kept
+    // reports, with the cut policy the machine runs (factoryMetrics). Rework by stage, for a fleet to read against
+    // whether cutting is on.
+    ['factory', () => ({ factory: factoryMetrics(store, { all }) })],
+
     // what was suggested, offered and decided on the context, 30 days, and what each decision measured as
     // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
     ['spend', () => { spend ||= spendMetrics(store, { all }); return { actions: spend.actions, savings: spend.savings }; }],
@@ -776,7 +831,7 @@ export function prepareTelemetryWorker({ now = Date.now() } = {}) {
 
 // The payload's keys in the order they have always been sent, whatever order the parts were built in.
 const PAYLOAD_KEYS = ['installId', 'deviceId', 'deviceSource', 'event', 'version', 'platform', 'timestamp', 'periodHours',
-  'cacheSize', 'prs', 'sessions', 'profile', 'proxy', 'arms', 'delegate', 'repeat', 'compactions', 'actions', 'savings',
+  'cacheSize', 'prs', 'sessions', 'profile', 'proxy', 'arms', 'factory', 'delegate', 'repeat', 'compactions', 'actions', 'savings',
   'distillation', 'clients', 'activity', 'incomplete'];
 
 // The report from the parts that were built. `incomplete` is absent from a whole report; on one that was stopped
