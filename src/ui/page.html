@@ -128,6 +128,8 @@
     .side-text a { color: #111; }
     .up-undone .side-text { text-decoration: line-through; color: #6b7280; }
     .side-impact { font-size: 0.84rem; font-weight: 600; color: #15803d; font-variant-numeric: tabular-nums; margin-top: 0.1rem; }
+    /* a saving is green; one that has been measured is highlighted too (the owner, 2026-11-21) */
+    .side-impact.measured { width: fit-content; background: #dcfce7; border-radius: 4px; padding: 0 0.4rem; }
     .side-impact.soft { color: #6b7280; font-weight: 500; }
     .side-impact.worse { color: #b91c1c; }
     .side-meta { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.72rem; color: #6b7280; margin-top: 0.15rem; }
@@ -939,15 +941,15 @@ function renderSide(d) {
   // one line on how thinker behaves here (the whole sentence on hover; it is changed by telling it, in the chat)
   const how = { auto: 'Acting on its own for important things', ask: 'Waiting for your word', off: 'Switched off here', mixed: 'Behaves differently by repository' }[d.level] || '';
   $('#side-status').innerHTML = `<span title="${esc(d.behaviorSaid)}">${esc(how)}</span>${d.level !== 'off' ? ` · looked ${esc(d.lastCheck ? sinceMeasured(Date.parse(d.lastCheck)) : 'not yet')}` : ''}${d.later ? ` · ${d.later} waiting ${d.later === 1 ? 'its' : 'their'} turn` : ''}${d.held ? ` · ${d.held} held back until you say` : ''}${d.looking ? ' · <span class="spinner"></span>looking…' : ''}`;
-  // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, red
-  // where it measured as costing more, grey while it is only expected), then when, where and by whom
-  const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? '' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? '' : ' soft'}">${esc(f.impactSaid)}</div>`;
+  // a line an action: what was done (a pull request's number is its link), what it came to (green for a saving, with a
+  // light green highlight once it is measured; red where it measured as costing more), then when, where and by whom
+  const impact = f => !f.impactSaid ? '' : `<div class="side-impact${f.impact?.kb ? ' measured' : f.impact?.perPrompt < 0 ? ' worse' : f.impact?.measured ? ' measured' : ''}">${esc(f.impactSaid)}</div>`;
   const text = f => f.url ? esc(f.text).replace(/PR #(\d+)/, `<a href="${esc(f.url)}" target="_blank" rel="noopener">PR #$1</a>`) : esc(f.text);
   const line = (f, i) => `<li class="${f.undone ? 'up-undone' : ''}"><div class="side-text">${text(f)}</div>${f.undone ? '' : impact(f)}<div class="side-meta"><span>${esc(upWhen(f.at))}</span>${whose(f)}${f.undone ? '<span class="up-by">taken back</span>' : ''}${f.by === 'thinker' && ['did', 'pr', 'change'].includes(f.kind) ? '<span class="up-by">on its own</span>' : ''}${f.url && f.pr?.state === 'open' ? `<a href="${esc(f.url)}" target="_blank" rel="noopener">open the review</a>` : ''}</div><button class="side-about" type="button" data-about="a:${i}">Chat about this</button></li>`;
   // under it, a line a session: what it handed to cheaper agents and what that saved, with how the session began so it
   // can be told from the next (upkeep.js:upkeepDelegated, the Report's own delegation figure by session)
   const g = d.delegated, shown = (g?.sessions || []).slice(0, SIDE_SESSIONS);
-  const sess = (x, i) => `<li><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact${x.saved > 0 ? '' : x.saved < 0 ? ' worse' : ' soft'}">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta"><span>${esc(upWhen(x.at))}</span>${whose(x)}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}</div><button class="side-about" type="button" data-about="s:${i}">Chat about this</button></li>`;
+  const sess = (x, i) => `<li><div class="side-text">${esc(x.text)}</div>${x.impactSaid ? `<div class="side-impact${x.saved > 0 ? ' measured' : x.saved < 0 ? ' worse' : ' soft'}">${esc(x.impactSaid)}</div>` : ''}<div class="side-meta"><span>${esc(upWhen(x.at))}</span>${whose(x)}${x.title ? `<span>“${esc(x.title)}”</span>` : ''}</div><button class="side-about" type="button" data-about="s:${i}">Chat about this</button></li>`;
   const handed = g?.total.sessions ? `<div class="side-sub">Delegated to cheaper agents</div><div class="side-total">${esc(g.said)}</div><ol class="side-feed">${shown.map(sess).join('')}</ol>${g.total.sessions > shown.length ? `<div class="side-empty">and ${g.total.sessions - shown.length} more sessions</div>` : ''}` : '';
   swapBody(el, (d.feed.length ? `<ol class="side-feed">${d.feed.map(line).join('')}</ol>`
     : `<div class="side-empty">${esc(d.level === 'off' ? 'Thinker is switched off here.' : 'Nothing yet. What thinker does for you, here and while you are away, is listed here with what it saved.')}</div>`) + handed);
