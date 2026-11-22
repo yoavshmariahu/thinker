@@ -675,6 +675,10 @@ test('the page opens on the chat with Recent activity beside it: `thinker chat` 
   assert.match(html, /show\(H\(\)\.get\('tab'\) \|\| 'chat'\);/, 'no tab named: the chat');
   assert.match(html, /<button class="nav-link" data-tab="chat"/); assert.match(html, /<section id="tab-chat" hidden>/);
   assert.match(html, /<aside class="home-side" aria-label="Recent activity and chat history">/);
+  // the side opens on the chat history (the owner, 2026-11-22): its button is the one that is on, its list the one that
+  // is shown, and Recent activity with its "All decisions" link waits behind the toggle
+  assert.deepEqual([...html.matchAll(/<button type="button" data-side="([a-z]+)"( class="on")? role="tab" aria-selected="(true|false)">/g)].map(m => [m[1], Boolean(m[2]), m[3]]), [['activity', false, 'false'], ['history', true, 'true']]);
+  assert.match(html, /<div id="side-history">/); assert.match(html, /<div id="side-activity" hidden>/); assert.match(html, /<button class="side-link" id="side-more"[^>]* hidden>/);
   assert.match(html, /esc\(f\.impactSaid\)/, 'the page prints the impact the server worded, as the command does');
   assert.match(read('upkeep.js'), /\$\{f\.impactSaid \? ` {2}\$\{f\.impactSaid\}` : ''\}/);
   // a pull request may be in review for days: its line carries its link through both doors
