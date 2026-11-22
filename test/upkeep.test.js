@@ -134,6 +134,17 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   assert.deepEqual(b, BEHAVIOR);
   assert.deepEqual([b.level, b.sweep, b.prs, b.tools, b.important, b.prEveryDays, b.prsPerDay, b.toolEveryDays], ['auto', true, true, true, 'high', 7, 1, 1], 'on its own, for important things, and not often');
   assert.equal(behaviorSaid(b), 'Thinker acts on its own here, for important things only: it removes merged worktrees and branches, puts up a pull request for a costly section nobody needs, at most one every 7 days, switches off costly tools nobody calls.');
+  // two of them are not the upkeep block's: the handoffs to cheaper agents (delegate.js) and how long an answer the
+  // person asked their agents for (profile.js), each read and written where that part of thinker keeps it, and the
+  // machine's alone however they are asked for
+  assert.deepEqual([b.delegation, b.answerWords], [true, null]);
+  assert.equal(setBehavior(r.store, 'delegation', 'off', { scope: 'repo' }).said, 'delegation is now false on this machine');
+  assert.equal(setBehavior(r.store, 'answerWords', '60').said, 'answerWords is now 60 on this machine');
+  assert.deepEqual([behaviorOf(r.store).delegation, behaviorOf(r.store).answerWords], [false, 60]);
+  const machineCfg = JSON.parse(fs.readFileSync(path.join(HOME, 'config.json'), 'utf8'));
+  assert.deepEqual([machineCfg.delegate, machineCfg.style, machineCfg.upkeep], [{ enabled: false }, { answerWords: 60 }, undefined]);
+  assert.deepEqual(behaviorOf(r.store).set, { machine: {}, repo: {} }, 'neither was written into an upkeep block');
+  assert.match(setBehavior(r.store, 'answerWords', '5').error, /answerWords cannot be "5"/);
   // the machine's wish, then one repository's over it
   assert.equal(setBehavior(r.store, 'prEveryDays', '30').said, 'prEveryDays is now 30 on this machine');
   assert.equal(setBehavior(r.store, 'prs', 'off', { scope: 'repo' }).said, 'prs is now false in this repository');
