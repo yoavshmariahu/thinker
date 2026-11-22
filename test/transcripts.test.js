@@ -371,7 +371,10 @@ test('learning hooks are installed for every agent and record the session', () =
   assert.ok(read('.cursor/hooks.json').hooks.sessionEnd[0].command.includes('hook stop --client cursor'));
   assert.ok(read('.cursor/hooks.json').hooks.afterShellExecution[0].command.includes('hook tool'));
 
-  const env = { ...process.env, THINKER_NO_BG_VERIFY: '1', HOME: tmp() };
+  // THINKER_TEST is named here, not left to whoever runs the file: run by hand outside `npm test` these commands
+  // inherited none, and with HOME in a temporary directory each was a real install on a home of its own (2026-11-21:
+  // it wired eight agents, took the person's proxy out of launchd and reported itself to the metrics endpoint)
+  const env = { ...process.env, THINKER_TEST: '1', THINKER_NO_BG_VERIFY: '1', HOME: tmp() };
   const hook = (what, ev) => execFileSync('node', [CLI, 'hook', what, '--client', 'gemini', '--record', '--repo', dir, ...(what === 'stop' ? ['--no-distill'] : [])], { input: JSON.stringify(ev), encoding: 'utf8', env });
   hook('prompt', { session_id: 'g1', prompt: 'where is x' });
   hook('tool', { session_id: 'g1', tool_name: 'read_file', tool_input: { absolute_path: path.join(dir, 'a.py') }, tool_response: { llmContent: 'def x(): pass' } });
@@ -387,7 +390,7 @@ test('learn.sessions: false keeps session distillation off while maintenance goe
   execFileSync('git', ['init', '-q'], { cwd: dir });
   fs.mkdirSync(path.join(dir, '.thinker'), { recursive: true });
   fs.writeFileSync(path.join(dir, '.thinker/config.json'), JSON.stringify({ learn: { sessions: false } }));
-  const env = { ...process.env, HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' };
+  const env = { ...process.env, THINKER_TEST: '1', HOME: tmp(), THINKER_LOG: 'off', THINKER_TELEMETRY: 'off' };
   const run = args => execFileSync('node', [CLI, ...args, '--repo', dir], { encoding: 'utf8', env });
   assert.match(run(['learn']), /learning from sessions is off \(learn\.sessions/);
   const both = run(['learn', '--maintain', '--dry']);

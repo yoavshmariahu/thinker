@@ -32,6 +32,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { thinkerHome } from './update.js';
 import { readMachineConfig } from './repo-switch.js';
 import { isTestMode } from './test-mode.js';
+import { ownsMachine, launchAgentPath, systemdUserDir } from './machine-home.js';
 import { containerKind, inContainer } from './container-kind.js';
 import { wireCodexProxy } from './proxy-codex.js';
 import { routeEvidence, ownGateway, cloudOn, isAnthropicHost, CLOUD_VARS, BASE_URL_VAR } from './proxy-route.js';
@@ -360,9 +361,12 @@ function deadPort({ cli, home }) {
 // ~/.config/systemd/user/thinker-proxy.service to point at its own port and restarted it, which killed the proxy the
 // person's Claude Code was talking through ("Connection lost mid-response", then ECONNREFUSED for 12 hours). Any
 // other home keeps its entry under itself and never touches launchctl or systemctl.
-const ownsService = home => !isTestMode() && path.resolve(home) === path.resolve(os.homedir(), '.thinker');
-const plistPath = home => path.join(ownsService(home) ? path.join(os.homedir(), 'Library', 'LaunchAgents') : path.join(home, 'LaunchAgents'), `${PROXY_LABEL}.plist`);
-const unitPath = home => ownsService(home) ? path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user', 'thinker-proxy.service') : path.join(home, 'systemd-user', 'thinker-proxy.service');
+// Which home is the machine's is machine-home.js:ownsMachine, the one rule the telemetry and update schedules ask
+// too: the account's home from the password database, so a `HOME` pointed at a temporary directory is not it
+// (2026-11-21: such a run registered a test copy's proxy under the person's launchd label).
+const ownsService = (home, machine) => ownsMachine(home, machine);
+const plistPath = (home, machine) => launchAgentPath(home, PROXY_LABEL, machine);
+const unitPath = (home, machine) => path.join(systemdUserDir(home, machine), 'thinker-proxy.service');
 const xml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export function plistText({ cli, home = thinkerHome(), args = serviceArgs(home) }) {
   const items = [process.execPath, cli, ...args].map(a => `        <string>${xml(a)}</string>`).join('\n');
@@ -483,6 +487,34 @@ export function idleRestartWatcher({ home, running = null, load, close, respawn 
   const timer = setInterval(tick, every); timer.unref?.();
   return () => clearInterval(timer);
 }
+
+// --- a proxy that is not the machine's service goes when its home does (2026-11-21) ---
+// The machine's service has a manager and a prompt hook that account for it. Every other proxy -- a test's, a
+// benchmark arm's, one a hook started for a scratch THINKER_HOME -- is a detached process that nothing accounts
+// for, and nothing ever told one to stop: on 2026-11-21 this machine had 36 of them alive and idle, 1.2 GB between
+// them, the oldest seventeen days old. So such a proxy watches the one thing it cannot work without. When its
+// THINKER_HOME is gone it stops listening, lets what is in flight finish (up to `grace`), and exits. A home that was
+// never there has not gone: the proxy may be about to make it. The machine's own home is not watched at all, so
+// nothing here can end the service (machine-home.js:ownsMachine); returns null there.
+export const HOME_GONE_CHECK_MS = 2000;
+export const HOME_GONE_GRACE_MS = 30_000;
+export function homeGoneWatcher({ home, close, exit, say = () => {}, every = HOME_GONE_CHECK_MS, grace = HOME_GONE_GRACE_MS, exists = fs.existsSync, machine } = {}) {
+  if (ownsMachine(home, machine)) return null;
+  let seen = false, going = false, left = false;
+  const leave = () => { if (!left) { left = true; exit(); } };
+  const tick = () => {
+    if (going) return;
+    if (exists(home)) { seen = true; return; }
+    if (!seen) return;
+    going = true; clearInterval(timer);
+    try { say(`thinker proxy: its THINKER_HOME (${home}) is gone, so it stops.`); } catch { /* the log went with the home */ }
+    const cap = setTimeout(leave, grace); cap.unref?.();
+    Promise.resolve().then(close).then(leave, leave).finally(() => clearTimeout(cap));
+  };
+  const timer = setInterval(tick, every); timer.unref?.();
+  tick();
+  return () => clearInterval(timer);
+}
 const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
 export function bootOutAgent({ wait = BOOTOUT_WAIT_MS, step = 100 } = {}) {
   run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]);
@@ -504,23 +536,25 @@ export function bootstrapAgent(plist, { was = null } = {}) {
 // service recorded itself as on, and nothing ever listened -- so the agent in the container had
 // `ANTHROPIC_BASE_URL` pointing at a dead port and would have failed every model call. systemd is in charge
 // only where it booted the machine, which is what `/run/systemd/system` says; the stub cannot fake that.
-const hasSystemd = () => process.platform === 'linux' && fs.existsSync('/run/systemd/system') && run('systemctl', ['--user', 'show-environment']);
+const systemdBooted = () => process.platform === 'linux' && fs.existsSync('/run/systemd/system');
+const hasSystemd = () => systemdBooted() && run('systemctl', ['--user', 'show-environment']);
 
 // the service manager's entry: launchd on macOS, systemd on Linux with a user session; elsewhere the hook alone
-export function installService({ cli, home = thinkerHome(), manage = !isTestMode() } = {}) {
-  manage = manage && ownsService(home);
+export function installService({ cli, home = thinkerHome(), manage = !isTestMode(), machine } = {}) {
+  manage = manage && ownsService(home, machine);
   const s = serviceState(home);
   if (!s.port) return { type: 'none' };
   if (process.platform === 'darwin') {
-    const p = plistPath(home);
+    const p = plistPath(home, machine);
     fs.mkdirSync(path.dirname(p), { recursive: true });
     if (manage) bootOutAgent();
     fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
     if (manage && !bootstrapAgent(p)) return { type: 'hook', path: p, reason: 'launchctl refused the agent' };
     return { type: 'launchd', path: p };
   }
-  if (hasSystemd()) {
-    const u = unitPath(home);
+  // a home that manages nothing writes its unit where systemd runs the machine, and asks systemctl nothing
+  if (manage ? hasSystemd() : systemdBooted()) {
+    const u = unitPath(home, machine);
     fs.mkdirSync(path.dirname(u), { recursive: true });
     fs.writeFileSync(u, unitText({ cli, home }), { mode: 0o600 }); fs.chmodSync(u, 0o600);
     if (manage) { run('systemctl', ['--user', 'daemon-reload']); if (!run('systemctl', ['--user', 'enable', '--now', 'thinker-proxy.service'])) return { type: 'hook', path: u, reason: 'systemctl refused the unit' }; }
@@ -528,12 +562,12 @@ export function installService({ cli, home = thinkerHome(), manage = !isTestMode
   }
   return { type: 'hook' };
 }
-export function uninstallService({ home = thinkerHome(), manage = !isTestMode() } = {}) {
-  manage = manage && ownsService(home);
+export function uninstallService({ home = thinkerHome(), manage = !isTestMode(), machine } = {}) {
+  manage = manage && ownsService(home, machine);
   const done = [];
-  const p = plistPath(home);
+  const p = plistPath(home, machine);
   if (fs.existsSync(p)) { if (manage) run('launchctl', ['bootout', `gui/${uid()}/${PROXY_LABEL}`]); fs.rmSync(p, { force: true }); done.push(p); }
-  const u = unitPath(home);
+  const u = unitPath(home, machine);
   if (fs.existsSync(u)) { if (manage) { run('systemctl', ['--user', 'disable', '--now', 'thinker-proxy.service']); } fs.rmSync(u, { force: true }); if (manage) run('systemctl', ['--user', 'daemon-reload']); done.push(u); }
   const s = serviceState(home);
   if (s.pid && manage) { try { process.kill(s.pid, 'SIGTERM'); } catch {} }
@@ -542,12 +576,12 @@ export function uninstallService({ home = thinkerHome(), manage = !isTestMode() 
 // after an update the service runs the old code until it is started again
 // `whenIdle`: leave the marker and let the proxy go at an idle moment, where the manager would start the same
 // program line again (answers 'pending'); false boots it out now, for a port with nothing listening on it.
-export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false, whenIdle = true, why = 'restart' } = {}) {
-  manage = manage && ownsService(home);
+export function restartService({ cli, home = thinkerHome(), manage = !isTestMode(), managedOnly = false, whenIdle = true, why = 'restart', machine } = {}) {
+  manage = manage && ownsService(home, machine);
   const s = serviceState(home);
   if (!s.enabled || !manage) return false;
-  if (process.platform === 'darwin' && fs.existsSync(plistPath(home))) {
-    const p = plistPath(home);
+  if (process.platform === 'darwin' && fs.existsSync(plistPath(home, machine))) {
+    const p = plistPath(home, machine);
     fs.writeFileSync(p, plistText({ cli, home }), { mode: 0o600 }); fs.chmodSync(p, 0o600);
     const inst = whenIdle && s.idleRestart ? agentInstance() : null;
     const program = [process.execPath, cli, ...serviceArgs(home, s)].join('\n');
@@ -558,8 +592,8 @@ export function restartService({ cli, home = thinkerHome(), manage = !isTestMode
     const started = bootstrapAgent(p, { was: s.pid });
     return managedOnly || started; // an installed manager must not race a detached fallback
   }
-  if (fs.existsSync(unitPath(home))) {
-    const u = unitPath(home), text = unitText({ cli, home });
+  if (fs.existsSync(unitPath(home, machine))) {
+    const u = unitPath(home, machine), text = unitText({ cli, home });
     let same = false; try { same = fs.readFileSync(u, 'utf8') === text; } catch {}
     fs.writeFileSync(u, text, { mode: 0o600 }); fs.chmodSync(u, 0o600);
     if (whenIdle && s.idleRestart && same && run('systemctl', ['--user', 'is-active', '--quiet', 'thinker-proxy.service'])) { requestRestart(home, { why }); return 'pending'; } // Restart=always brings it back

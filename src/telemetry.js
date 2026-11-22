@@ -29,6 +29,7 @@ import { mergePromptAverages, REPORT_WEEKS } from './report.js';
 import { mergeArms, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
 import { partIdentity, publicToolName } from './part-describe.js';
 import { buildGuarded } from './telemetry-guard.js';
+import { ownsMachine, launchAgentPath, systemdUserDir, NOT_THE_MACHINE } from './machine-home.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1241,20 +1242,29 @@ export const CLAIMED = 'claimed';
 
 export const maybeSendDailyTelemetryInBackground = maybeSendTelemetryInBackground;
 
-export function getTelemetryLaunchAgentPath(customPath) {
-  return customPath || path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.thinker.telemetry.plist');
+// The schedule is the machine's, one per account, and only the machine's own home writes it or asks the service
+// manager about it (machine-home.js:ownsMachine, the rule the proxy's entry and the update schedule keep too). On
+// 2026-11-21 a proxy that launchd had started for a test's temporary THINKER_HOME ran this from its own start-up:
+// it had the person's real `$HOME`, so it wrote the person's plist to run a test copy against the temp home every
+// hour. Any other home has its entry under itself and no service manager: `serviceManager` answers null for it. A
+// `run` handed in is the caller's own (a test's fake), never the machine's.
+const serviceManager = (home, opts) => opts.run || (ownsMachine(home, opts.machine) ? execFileSync : null);
+export function getTelemetryLaunchAgentPath(customPath, home = thinkerHome(), machine) {
+  return customPath || launchAgentPath(home, 'com.thinker.telemetry', machine);
 }
 
 export function isTelemetryScheduled(home = thinkerHome(), opts = {}) {
-  const run = opts.run || execFileSync;
+  const run = serviceManager(home, opts);
   const platform = opts.platform || process.platform;
   if (platform === 'darwin') {
-    const plist = opts.plistPath || getTelemetryLaunchAgentPath();
+    const plist = getTelemetryLaunchAgentPath(opts.plistPath, home, opts.machine);
     if (!fs.existsSync(plist)) return false;
     if (opts.checkFileOnly) return true;
+    if (!run) return false;
     try { return run('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes('com.thinker.telemetry'); }
     catch { return false; }
   } else if (platform === 'linux') {
+    if (!run) return false;
     try {
       const crontab = run('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       if (crontab.split('\n').some(isTelemetryCron)) return true;
@@ -1270,8 +1280,7 @@ export function isTelemetryScheduled(home = thinkerHome(), opts = {}) {
 const isTelemetryCron = line => !line.trimStart().startsWith('#') &&
   (line.endsWith('# thinker-telemetry') || (line.includes('thinker') && line.includes('telemetry --send')));
 
-const telemetryUnitDir = () => path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'systemd', 'user');
-function scheduleSystemdTelemetry({ home, command, run, unitDir = telemetryUnitDir() }) {
+function scheduleSystemdTelemetry({ home, command, run, unitDir }) {
   try {
     run('systemctl', ['--user', 'show-environment'], { stdio: 'pipe', timeout: 5000 });
   } catch {
@@ -1293,17 +1302,20 @@ export function scheduleTelemetry(opts = {}) {
   const home = opts.home || thinkerHome();
   const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
   const nodeBinDir = path.dirname(process.execPath);
-  const run = opts.run || execFileSync;
+  const run = serviceManager(home, opts);
   const platform = opts.platform || process.platform;
+  // another home's schedule is the invocations themselves (maybeSendTelemetryInBackground); a plist a caller
+  // names and asks not to load (`skipLaunchctl`) is only a file
+  if (!run && !(platform === 'darwin' && opts.skipLaunchctl)) return { type: 'invocation', reason: NOT_THE_MACHINE };
   const quote = s => "'" + String(s).replaceAll("'", "'\"'\"'") + "'";
   const xml = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
   const command = `THINKER_HOME=${quote(home)} PATH=${quote(nodeBinDir)}:$PATH:/usr/local/bin:/opt/homebrew/bin ${opts.cliPath ? `${quote(process.execPath)} ${quote(opts.cliPath)}` : quote(binPath)} telemetry --send --quiet`;
 
   if (platform === 'darwin') {
-    const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
+    const plistPath = getTelemetryLaunchAgentPath(opts.plistPath, home, opts.machine);
     fs.mkdirSync(path.dirname(plistPath), { recursive: true });
 
-    if (!opts.skipLaunchctl) {
+    if (!opts.skipLaunchctl && run) {
       try { run('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
     }
 
@@ -1330,7 +1342,7 @@ export function scheduleTelemetry(opts = {}) {
 `;
     fs.writeFileSync(plistPath, plistContent);
 
-    if (!opts.skipLaunchctl) {
+    if (!opts.skipLaunchctl && run) {
       try {
         const uid = process.getuid ? process.getuid() : 501;
         run('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'ignore' });
@@ -1348,7 +1360,7 @@ export function scheduleTelemetry(opts = {}) {
     try {
       crontab = run('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     } catch (e) {
-      if (e.code === 'ENOENT') return scheduleSystemdTelemetry({ home, command, run, unitDir: opts.unitDir });
+      if (e.code === 'ENOENT') return scheduleSystemdTelemetry({ home, command, run, unitDir: opts.unitDir || systemdUserDir(home, opts.machine) });
       // `crontab -l` exits 1 when there is no table yet. Do not overwrite a
       // table we failed to read for any other reason.
       if (e.status !== 1) throw e;
@@ -1367,13 +1379,14 @@ export function scheduleTelemetry(opts = {}) {
 }
 
 export function unscheduleTelemetry(opts = {}) {
-  const run = opts.run || execFileSync;
+  const home = opts.home || thinkerHome();
+  const run = serviceManager(home, opts);
   const platform = opts.platform || process.platform;
 
   if (platform === 'darwin') {
-    const plistPath = opts.plistPath || getTelemetryLaunchAgentPath();
+    const plistPath = getTelemetryLaunchAgentPath(opts.plistPath, home, opts.machine);
     if (fs.existsSync(plistPath)) {
-      if (!opts.skipLaunchctl) {
+      if (!opts.skipLaunchctl && run) {
         try {
           const uid = process.getuid ? process.getuid() : 501;
           run('launchctl', ['bootout', `gui/${uid}`, plistPath], { stdio: 'ignore' });
@@ -1386,8 +1399,9 @@ export function unscheduleTelemetry(opts = {}) {
     }
     return { unscheduled: false, type: 'launchd' };
   } else if (platform === 'linux') {
+    if (!run) return { unscheduled: false };
     let unscheduled = false;
-    const unitDir = opts.unitDir || telemetryUnitDir();
+    const unitDir = opts.unitDir || systemdUserDir(home, opts.machine);
     const timer = path.join(unitDir, 'thinker-telemetry.timer');
     if (fs.existsSync(timer)) {
       run('systemctl', ['--user', 'disable', '--now', 'thinker-telemetry.timer'], { stdio: 'pipe', timeout: 5000 });

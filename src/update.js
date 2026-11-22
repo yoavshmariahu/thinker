@@ -1,5 +1,6 @@
 import { isTestMode } from './test-mode.js';
 import { repairNotice, repairAfterUpdate } from './environment-repair.js';
+import { ownsMachine, launchAgentPath, NOT_THE_MACHINE } from './machine-home.js';
 // Self-update and daily automatic updates for thinker CLI.
 // Supports both archive installations (~/.thinker/app) and git checkouts.
 import fs from 'node:fs';
@@ -462,15 +463,16 @@ export async function applyUpdate(opts = {}) {
 }
 
 // OS background auto-update scheduler (LaunchAgent on macOS, cron on Linux)
-export function getLaunchAgentPath(customPath) {
-  return customPath || path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.thinker.update.plist');
+export function getLaunchAgentPath(customPath, home = thinkerHome(), machine) {
+  return customPath || launchAgentPath(home, 'com.thinker.update', machine);
 }
 
 export function isScheduled(home = thinkerHome(), opts = {}) {
   if (process.platform === 'darwin') {
-    const plist = opts.plistPath || getLaunchAgentPath();
+    const plist = getLaunchAgentPath(opts.plistPath, home, opts.machine);
     if (!fs.existsSync(plist)) return false;
     if (opts.skipLaunchctl) return true;
+    if (!ownsSchedule(home, opts.machine)) return false;
     try {
       const out = execFileSync('launchctl', ['list'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       return out.includes('com.thinker.update');
@@ -478,6 +480,7 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
       return fs.existsSync(plist);
     }
   } else if (process.platform === 'linux') {
+    if (!ownsSchedule(home, opts.machine)) return false;
     try {
       const crontab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       return crontab.includes('thinker') && crontab.includes('update');
@@ -492,25 +495,30 @@ export function isScheduled(home = thinkerHome(), opts = {}) {
 // schedule. Daily until 2026-10-16; four hours brings a fix out the same working day.
 export const UPDATE_EVERY_MS = 4 * 3600_000;
 
-// The crontab is one per user, not per THINKER_HOME: a test or a benchmark with a home of its own must not
-// write or prune the machine's line (`uninstall` from such a run took the person's update line out with it).
-// A test that puts a fake crontab on PATH says so with THINKER_TEST_CRONTAB=1.
-const ownsCrontab = home => isTestMode() ? process.env.THINKER_TEST_CRONTAB === '1' : path.resolve(home) === path.resolve(os.homedir(), '.thinker');
+// The schedule is one per account, not per THINKER_HOME -- the crontab, and the LaunchAgent's label just the same:
+// a test or a benchmark with a home of its own must not write or prune the machine's (`uninstall` from such a run
+// took the person's update line out with it). Only the machine's own home does, and which home that is comes from
+// machine-home.js:ownsMachine, the rule the proxy's entry and the telemetry schedule keep too: the account's home
+// from the password database, never `$HOME`. Any other home has no schedule but its own invocations, and reaches
+// neither launchctl nor crontab. A test that puts a fake crontab on PATH says so with THINKER_TEST_CRONTAB=1.
+const ownsSchedule = (home, machine) => ownsMachine(home, machine) || (process.platform === 'linux' && isTestMode() && process.env.THINKER_TEST_CRONTAB === '1');
 // `thinker update --unschedule` (or the installer's --no-auto-update) is an answer the background check keeps
 export const autoUpdateOffFile = (home = thinkerHome()) => path.join(home, 'state', 'auto-update-off');
 
 // The OS schedule at UPDATE_EVERY_MS (the name is older than the interval)
 export function scheduleDaily(opts = {}) {
   const home = opts.home || thinkerHome();
-  if (process.platform === 'linux' && !ownsCrontab(home)) return { type: 'invocation', reason: 'not the machine\'s own THINKER_HOME' };
+  const owns = ownsSchedule(home, opts.machine);
+  // a plist a caller names and asks not to load (`skipLaunchctl`) is only a file
+  if (!owns && !(process.platform === 'darwin' && opts.skipLaunchctl)) return { type: 'invocation', reason: NOT_THE_MACHINE };
   const binPath = opts.binPath || path.join(home, 'bin', 'thinker');
   const nodeBinDir = path.dirname(process.execPath);
 
   if (process.platform === 'darwin') {
-    const plistPath = opts.plistPath || getLaunchAgentPath();
+    const plistPath = getLaunchAgentPath(opts.plistPath, home, opts.machine);
     fs.mkdirSync(path.dirname(plistPath), { recursive: true });
 
-    if (!opts.skipLaunchctl) {
+    if (!opts.skipLaunchctl && owns) {
       try { execFileSync('launchctl', ['unload', plistPath], { stdio: 'ignore' }); } catch {}
     }
 
@@ -537,7 +545,7 @@ export function scheduleDaily(opts = {}) {
 `;
     fs.writeFileSync(plistPath, plistContent);
 
-    if (!opts.skipLaunchctl) {
+    if (!opts.skipLaunchctl && owns) {
       try {
         const uid = process.getuid ? process.getuid() : 501;
         execFileSync('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'ignore' });
@@ -578,11 +586,11 @@ export function scheduleDaily(opts = {}) {
 // job that is reloading it.
 export function refreshSchedule(opts = {}) {
   const home = opts.home || thinkerHome();
-  if (process.platform === 'linux' && !ownsCrontab(home)) return null;
+  if (process.platform === 'linux' && !ownsSchedule(home, opts.machine)) return null;
   if (!isScheduled(home, opts)) return null;
   try {
     if (process.platform === 'darwin') {
-      if (fs.readFileSync(opts.plistPath || getLaunchAgentPath(), 'utf8').includes(`<integer>${UPDATE_EVERY_MS / 1000}</integer>`)) return null;
+      if (fs.readFileSync(getLaunchAgentPath(opts.plistPath, home, opts.machine), 'utf8').includes(`<integer>${UPDATE_EVERY_MS / 1000}</integer>`)) return null;
     } else if (process.platform === 'linux') {
       if (execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).includes(`0 */${UPDATE_EVERY_MS / 3600_000} * * *`)) return null;
     } else return null;
@@ -601,12 +609,13 @@ export function ensureSchedule(opts = {}) {
 
 export function unscheduleDaily(opts = {}) {
   const home = opts.home || thinkerHome();
-  if (process.platform === 'linux' && !ownsCrontab(home)) return { unscheduled: false, type: 'cron' };
+  const owns = ownsSchedule(home, opts.machine);
+  if (process.platform === 'linux' && !owns) return { unscheduled: false, type: 'cron' };
 
   if (process.platform === 'darwin') {
-    const plistPath = opts.plistPath || getLaunchAgentPath();
+    const plistPath = getLaunchAgentPath(opts.plistPath, home, opts.machine);
     if (fs.existsSync(plistPath)) {
-      if (!opts.skipLaunchctl) {
+      if (!opts.skipLaunchctl && owns) {
         try {
           const uid = process.getuid ? process.getuid() : 501;
           execFileSync('launchctl', ['bootout', `gui/${uid}`, plistPath], { stdio: 'ignore' });
