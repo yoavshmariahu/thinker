@@ -351,6 +351,16 @@ test('what a batch may hold: sections shortened or removed and tools, never a sk
   await upkeepCheck(q.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
   assert.deepEqual(upkeepPending(q.store, { now }).batch, { changes: 3, perDay: (4_000_000 + 2_000_000 + 2_100_000) * 5e-6 / 7, ok: true });
   assert.equal(upkeepView(q.store, { now }).summary, '3 changes worth $5.79 a day going out in the next batch.');
+  // over all repositories the tool is one change (it is switched for the machine), worth what it wastes in each
+  const q2 = repo();
+  await upkeepCheck(q2.store, { fns: { ...given(spawned(), { report: view }), findMess: none }, act: false, now });
+  const both = mergeUpkeepViews([{ repo: 'a', name: 'o/a', view: upkeepView(q.store, { now }) }, { repo: 'b', name: 'o/b', view: upkeepView(q2.store, { now }) }]);
+  assert.deepEqual([both.batch.changes, Math.round(both.batch.perDay * 100) / 100, both.summary], [5, 11.57, '5 changes worth $11.6 a day going out in the next batch.']);
+  // a change kept by a check from before the bar was dollars has no figure: it is not held, and the next check prices it
+  const old = repo();
+  fs.mkdirSync(path.join(old.store.dir, 'state'), { recursive: true });
+  fs.writeFileSync(path.join(old.store.dir, 'state', 'upkeep.json'), JSON.stringify({ lastCheck: new Date(now).toISOString(), items: [{ id: 'change:section:AGENTS.md:releases', chore: 'context', kind: 'pr', allow: 'prs', important: true, title: 'AGENTS.md · Releases', action: { label: 'x' }, data: { key: 'section:AGENTS.md:releases' } }] }));
+  assert.deepEqual([upkeepPending(old.store, { now }).pending, upkeepView(old.store, { now }).summary], [[], 'Up to date.']);
   // where a section was needed at all, or by too few sessions to say, it is shortened, never removed
   const few = repo(), sp = spawned();
   await upkeepCheck(few.store, { fns: { ...given(sp, { report: () => ({ ...piled(), sessions: 4, instructions: { ...piled().instructions, sessions: 4 } }) }), findMess: none }, now });

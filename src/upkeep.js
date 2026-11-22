@@ -575,7 +575,8 @@ function openItems(store, { now = Date.now(), b = behaviorOf(store) } = {}) {
     let cur = it; try { if (c.still) cur = c.still(store, it, { decided, refused, now }); } catch { cur = it; }
     if (cur) items.push(cur);
   }
-  const worth = it => (it.chore === 'context' && 'perDay' in it ? it.perDay != null && it.perDay >= b.minPerDay : Boolean(it.important));
+  // (one kept by a check from before the bar was dollars carries no figure, and waits for the next check to price it)
+  const worth = it => (it.chore === 'context' ? it.perDay != null && it.perDay >= b.minPerDay : Boolean(it.important));
   return items.filter(it => worth(it) && (!st.dismissed[it.id] || now - Date.parse(st.dismissed[it.id]) >= UPKEEP.dismissDays * DAY)).map(it => (it.important ? it : { ...it, important: true })).sort(byOrder);
 }
 // What thinker found and has not done, each with why (`pending`: it waits its turn or its batch, or the person's
@@ -955,7 +956,7 @@ export function mergeUpkeepViews(pairs) {
     for (const i of view.pending || []) {
       // a tool is switched for the whole machine, so the same tool found in three repositories is one thing: the
       // costliest of them, and doing it from any one of them does it for all (context-suggest.js)
-      if (i.machine) { const g = shared.get(i.id) || { n: 0, top: null }; g.n++; if (!g.top || (i.rank || 0) > (g.top.rank || 0)) g.top = { ...i, repo, repoName: name }; shared.set(i.id, g); }
+      if (i.machine) { const g = shared.get(i.id) || { n: 0, top: null, perDay: 0 }; g.n++; g.perDay += i.perDay || 0; if (!g.top || (i.rank || 0) > (g.top.rank || 0)) g.top = { ...i, repo, repoName: name }; shared.set(i.id, g); }
       else pending.push({ ...i, repo, repoName: name });
     }
     notes.push(...(view.notes || []).map(i => ({ ...i, repo, repoName: name })));
@@ -983,7 +984,7 @@ export function mergeUpkeepViews(pairs) {
     if (base.impact) base.impactSaid = impactSaid(base.impact);
     feed.push(base);
   }
-  for (const g of shared.values()) pending.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories` } : g.top);
+  for (const g of shared.values()) pending.push(g.n > 1 ? { ...g.top, repoName: `${g.n} repositories`, ...(g.top.perDay != null ? { perDay: g.perDay } : {}) } : g.top);
   pending.sort(byOrder);
   if (profiles.length === 1) feed.push(profiles[0]);
   else if (profiles.length) { const sum = k => profiles.reduce((a, f) => a + f.profile[k], 0), p = { added: sum('added'), reworded: sum('reworded'), dropped: sum('dropped') }; feed.push({ at: profiles.map(f => f.at).sort().at(-1), kind: 'profile', by: 'thinker', profile: p, text: profileSaid(p, ` in ${profiles.length} repositories`), repoName: '' }); }
@@ -991,7 +992,9 @@ export function mergeUpkeepViews(pairs) {
   const on = pairs.filter(p => p.view && p.view.level !== 'off'), levels = [...new Set(on.map(p => p.view.level))];
   const level = !on.length ? 'off' : levels.length === 1 ? levels[0] : 'mixed', lastCheck = checks.length && checks.every(Boolean) ? checks.sort()[0] : null;
   const first = on[0]?.view;
-  const batch = waiting.length ? { changes: waiting.reduce((a, w) => a + w.changes, 0), perDay: waiting.reduce((a, w) => a + (w.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true } : null;
+  // what waits for a batch over every repository: each change once (a tool is the machine's), and what they waste a day
+  const going = pending.filter(i => i.chore === 'context' && i.action && i.later);
+  const batch = going.length ? { changes: going.length, perDay: going.reduce((a, i) => a + (i.perDay || 0), 0), ok: waiting.some(w => w.ok), later: true } : null;
   const v = { level, ...(batch ? { batch } : {}), behavior: first?.behavior || null, behaviorSaid: level === 'mixed' ? 'Thinker behaves differently from one repository to the next here.' : first?.behaviorSaid || behaviorSaid({ level: 'off' }), lastCheck, later: pending.filter(i => i.later).length, held: pending.filter(i => !i.later).length, pending, notes, feed: feed.slice(0, UPKEEP.feedMax),
     // the sessions of every repository newest first, and their totals added
     delegated: { days: UPKEEP.feedDays, total: Object.fromEntries(['sessions', 'reads', 'runs', 'handed', 'saved', 'unpriced'].map(k => [k, totals.reduce((a, t) => a + (t[k] || 0), 0)])), sessions: sessions.sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, UPKEEP.sessionsMax) } };
