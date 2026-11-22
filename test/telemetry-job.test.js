@@ -17,7 +17,11 @@ import { buildGuarded, BUILD_LIMITS } from '../src/telemetry-guard.js';
 import { readErrors } from '../src/error-report.js';
 
 process.env.THINKER_TEST = '1';
-const TELEMETRY = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'telemetry.js')).href;
+// The switches that turn telemetry off are the runner's to set and not this file's subject: the release runs
+// every test with THINKER_TELEMETRY=off, and seven of these read "disabled" there and nowhere else. Nothing
+// here can reach the endpoint either way: each send is handed its own fetch, and no job is really started.
+for (const k of ['THINKER_TELEMETRY', 'THINKER_NO_TELEMETRY', 'THINKER_NO_LEARN']) delete process.env[k];
+const TELEMETRY =pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src', 'telemetry.js')).href;
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-telemetry-job-'));
