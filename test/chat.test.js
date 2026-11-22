@@ -576,3 +576,34 @@ test('an expert that explains itself: the voice, what it looked at and left alon
   assert.match(CHAT_SYSTEM, /Length follows the question\. A quick factual question gets a sentence or two\./);
   assert.match(CHAT_SCHEMA.properties.reply.description, /friendly and decisive, in sentences; as long as the explanation needs/);
 });
+
+test('what was saved is the accountant\'s one count: every window, split by what did the saving, with the net, and never one part as the whole', async () => {
+  const { writeSavings, dayKey } = await import('../src/accountant.js');
+  const { home, repos } = machine(['api']);
+  const [api] = repos;
+  const now = Date.now();
+  // nothing counted yet: said so, and no figure is made up
+  assert.match(chatContext(repos, { about: api.id, home, now }).text, /\nWHAT YOU SAVED THEM: nothing counted yet on this machine\.\n/);
+  // the ledger as the Stop hook's refresh keeps it (accountant.js:computeSavings): the fortnight with what the
+  // clearing cost over it, today, and lifetime
+  const cell = (cleared, delegated, tokens) => ({ cost: cleared + delegated, tokens, unpricedTokens: 0, cleared: { cost: cleared, tokens: tokens * 0.8 }, delegated: { cost: delegated, tokens: tokens * 0.2 }, repeated: { cost: 0, tokens: 0 } });
+  writeSavings(api.store, { at: now, day: dayKey(now), version: '9.9.9', from: '2026-09-26T09:33:10.438Z',
+    today: cell(0, 0.13, 344_000), recent: { ...cell(128.84, 38.46, 333_800_000), rewrite: 31.2, reread: 0.4, net: 135.7 }, recentDays: 14,
+    lifetime: { ...cell(1027.39, 38.46, 1_654_700_000), unpricedTokens: 5_600_000 } });
+  const text = chatContext(repos, { about: api.id, home, now }).text;
+  assert.match(text, /\nWHAT YOU SAVED THEM, over every repository on this machine, by the one count their status line, `thinker savings` and `thinker report` show\. Dollars are API list prices for context their sessions did not have to pay for: an estimate, not a bill, and not a comparison against held-back sessions\.\n- the last 14 days: \$167 in all, gross -- context cleared \$129 \(267M tokens\) · reads delegated \$38\.5 \(66\.8M tokens\); net \$136 after \$31\.2 of cache writes the clears caused and \$0\.40 of cleared files read again\n- today: \$0\.13 in all, gross -- context cleared \$0\.00 \(275k tokens\) · reads delegated \$0\.13 \(69k tokens\)\n- since 2026-09-26 \(lifetime\): \$1066 in all, gross -- context cleared \$1027 \(1323\.8M tokens\) · reads delegated \$38\.5 \(330\.9M tokens\); 5\.6M more tokens were kept out on models with no list price and are in no dollar figure\n- Context clearing is off on this machine now: nothing new is being added to "context cleared", and what it saved before is in the figures above\.\n/);
+  // it is in front of the model when it is asked, so the answer can be the whole count
+  const fn = model({ reply: 'About $167 over the last two weeks: $129 from clearing and $38 from handing reads over.', actions: [] });
+  await chatReply('how much did you save me in the past two weeks?', { repos, about: api.id, home, now, completeFn: fn });
+  assert.match(fn.asked[0].prompt, /- the last 14 days: \$167 in all, gross -- context cleared \$129/);
+  // with the cut switched on in the machine's config the line says so
+  fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ proxy: { cut: true } }));
+  assert.match(chatContext(repos, { about: api.id, home, now }).text, /\n- Context clearing is on on this machine now\.\n/);
+  // the rules of the answer are the prompt's
+  assert.match(CHAT_SYSTEM, /When they ask what you saved, or how much, answer from WHAT YOU SAVED THEM: the total for the window nearest the one they asked about, then how it splits by what did the saving, then the net where one is given\. Never give one part as if it were the whole, and never send them to "their counter" for a number: yours is the same count\./);
+  assert.match(CHAT_SYSTEM, /never that a saving was measured against held-back sessions: none of these figures is\./);
+  assert.match(CHAT_SYSTEM, /- You clear finished work out of long sessions\./);
+  assert.match(CHAT_SYSTEM, /The dollars you give for it are not that comparison\. They are an estimate: the tokens kept out of the lead's context, priced at list rates, less what the cheaper agent cost\./);
+  assert.doesNotMatch(CHAT_SYSTEM, /so what it saves is measured/);
+  assert.doesNotMatch(text, /so what it saves is measured/);
+});

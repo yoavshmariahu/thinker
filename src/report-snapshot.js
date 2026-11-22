@@ -18,7 +18,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { reportView, withEffects, REPORT_WEEKS, promptAverage, inputRate, weekColumns } from './report.js';
+import { reportView, REPORT_WEEKS, promptAverage, inputRate, weekColumns } from './report.js';
+import { withEffects } from './accountant.js';
 import { findRepoSessions } from './instruction-value.js';
 import { sourceStamp, sessionsStamp, canKeep, reportWindow } from './view-sources.js';
 
@@ -28,7 +29,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // the readers behind the report: a snapshot made by other code is not this code's report
 let codeKey;
-const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'report-savings.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'factory.js', 'compression.js', 'profile.js', 'profile-metric.js']
+const code = () => codeKey ||= crypto.createHash('sha256').update(['report.js', 'accountant.js', 'instruction-value.js', 'instruction-sections.js', 'harness.js', 'harness-codex.js', 'tool-outputs.js', 'transcripts.js', 'usage.js', 'cache-savings.js', 'prices.js', 'model-usage.js', 'delivery.js', 'factory.js', 'compression.js', 'profile.js', 'profile-metric.js']
   .map(f => { try { return fs.readFileSync(path.join(HERE, f), 'utf8'); } catch { return f; } }).join('\0')).digest('hex').slice(0, 16);
 
 export const reportFile = store => path.join(store.dir, 'state', 'report.json');
@@ -123,7 +124,7 @@ export function keptRows(store, { weeks = REPORT_WEEKS, now = Date.now() } = {})
   return { rows: mine ? s.view.sessionRows || [] : [], stale: !mine || now - s.at > REFRESH_MS };
 }
 
-// The decisions with what each saved (report.js:actionEffect), read over the report kept here without making one: what
+// The decisions with what each saved (accountant.js:actionEffect), read over the report kept here without making one: what
 // Recent activity and `thinker context --history` show. With no report of this code's the effects are null.
 // `kept`: the rows already read (keptRows), for a caller that asks two things of one report and should read it once.
 export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now(), kept = keptRows(store, { weeks, now }) } = {}) {

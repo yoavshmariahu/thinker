@@ -237,7 +237,7 @@ export function responsesReport(rows, { since } = {}) {
     s.removedBytes += r.removedBytes || 0;
     // What a cut here took out, in the unit every other door speaks. The Messages path is told by the API how
     // much it cleared (`cleared`); this path cuts the text itself, so the row carries the proxy's own estimate
-    // (proxy-responses.js:transformResponses, `chars * TOKENS_PER_CHAR`), which report-savings.js:49 already
+    // (proxy-responses.js:transformResponses, `chars * TOKENS_PER_CHAR`), which accountant.js already
     // reads as this protocol's cleared tokens. Dropping it here left the whole Codex side of the clearing with
     // no token figure at all: the telemetry's proxy block reported bytes, so every spend card that speaks
     // tokens read a Codex machine as zero.

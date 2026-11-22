@@ -225,7 +225,7 @@ test('the record keeps what the clear cost, counted as the proxy counts it, and 
   assert.ok(s.includes('if (u && chargedRewrite(u))'), 'the mod charges by the one rule');
   assert.ok(step.includes('state.model = String(r.usage.model)'), 'the model that answered is kept');
   for (const f of ['input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) assert.ok(s.includes(`usage.${f}`), `reads ${f}`);
-  // and kept across clears in the same shape compression.js:clearingCostBySession returns
+  // and kept across clears in the same shape accountant.js:clearingCostBySession returns
   const record = s.slice(s.indexOf('state = {'));
   assert.ok(record.includes('cost: state?.cost ?? { rewrites: 0, write: 0 }'), 'the record carries cost: { rewrites, write }');
   assert.ok(record.includes('model: state.model'), 'the record carries the model');

@@ -10,14 +10,14 @@
 // once and scrolling away. That is why Claude Code's footer is here and not in the Stop hook's line:
 // the figures are a running total, so they belong somewhere permanent, and the hook leaves them out
 // where this mod runs (commands/hooks.js). The numbers are read off the ledger thinker's hooks keep
-// refreshed (src/savings-ledger.js) -- this mod only ever reads one small file.
+// refreshed (src/accountant.js) -- this mod only ever reads one small file.
 import type { Register } from 'claude-code'
 
 export type Tool = { name: string; calls: number; tokens: number }
 export type Saving = { saved: number; requests: number; uses: number; tools: Tool[] }
 export type Note = { id: string; title: string; lines: string[]; more?: string; version?: string }
 export type Card = { tail: string; at: number; prompts?: number; compression?: Saving; update?: Note }
-// the kept ledger, as src/savings-ledger.js writes it
+// the kept ledger, as src/accountant.js writes it
 export type Cell = { cost: number; tokens: number; unpricedTokens?: number }
 export type Ledger = { at: number; day: string; version?: string; today: Cell; lifetime: Cell }
 
@@ -69,7 +69,7 @@ async function markSession($: any): Promise<void> {
   } catch {}
 }
 
-// The status line's words, as src/savings-ledger.js:savingsStatus writes them (test/claude-card.test.js
+// The status line's words, as src/accountant.js:savingsStatus writes them (test/claude-card.test.js
 // holds the two sentences together). Both figures are already formatted; `today` is null when the kept
 // ledger's day is not this one, since a figure stamped yesterday is not what was saved this morning.
 // The version is the ledger's own (the copy that counted these figures), and this row is the only
@@ -90,7 +90,7 @@ export const savingsStatus = (today: string | null, lifetime: string, version?: 
 // words, so the line names thinker and then says the figures.
 export const statusTail = (line: string): string => line
 
-// The person's own day, in their own timezone, as the ledger stamps it (savings-ledger.js:dayKey).
+// The person's own day, in their own timezone, as the ledger stamps it (accountant.js:dayKey).
 export const dayKey = (now: number): string => {
   const d = new Date(now)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

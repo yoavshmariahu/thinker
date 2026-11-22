@@ -231,7 +231,7 @@ const entryOf = (store, c, decision, result, now, undo, { group = null, tokens =
   return { id, ...(c.scope === 'machine' ? { scope: 'machine' } : {}), ...(group ? { group } : {}), ...(batch ? { batch } : {}), at: new Date(now).toISOString(), ...(via ? { via } : {}), key: c.key, ...(c.keys ? { keys: c.keys } : {}), kind: c.kind, title: c.title, ...(c.what ? { what: c.what } : {}), ...(c.about ? { about: c.about } : {}), ...(c.kind === 'section' && c.file ? { file: c.file } : {}), ...(tokens ? { tokens } : {}), saving: c.saving, total: c.total, days: c.days ?? null, action: c.default?.text || null, act: c.default?.act || null, decision, result: result || null, ...(undo ? { revertible: true } : {}) };
 };
 // a section's tokens before and after its edit (instruction-edit.js:previewEdit `sections`), kept on the entry so the
-// Report can cost the section a session on each side (report.js:actionEffect)
+// Report can cost the section a session on each side (accountant.js:actionEffect)
 export const sectionTokens = (p, id) => { const x = (p?.sections || []).find(s => s.id === id) || (p?.sections?.length === 1 ? p.sections[0] : null); return x ? { before: x.tokensBefore, after: x.tokensAfter } : p && p.tokensBefore != null ? { before: p.tokensBefore, after: p.tokensAfter } : null; };
 // the entries of one edit over several sections: one per section, each with its own title and saving, sharing the
 // group id their undo is kept under (written once, here) and, for a pull request, the pull request

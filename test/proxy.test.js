@@ -7,7 +7,8 @@ import path from 'node:path';
 import { startProxy, AUTH_REFUSALS, refusesEdit, rewriteWarning, LONG_CONTEXT, transformRequest, proxyConfig, proxyReport, heldOut, usageTap, cutCandidates, applyCut, cutActions, EDIT_BETA, PROXY_DEFAULTS, cutPlaceholder } from '../src/proxy.js';
 import { isRewrite, freshCut, cutResponse } from '../src/cutting.js';
 import { idleRestartWatcher, requestRestart, restartWanted } from '../src/proxy-service.js';
-import { clearedBySession, compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
+import { compressionHeader, compressionSaving, compressionTools } from '../src/compression.js';
+import { clearedBySession } from '../src/accountant.js';
 import { TOKENS_PER_CHAR, RESULT_WEIGHTS, resultTokens } from '../src/proxy.js';
 // the type Claude Code's own tool clearing goes by: the proxy recognises it to stand aside, never sends it
 const AGENT_CLEAR = 'clear_tool_uses_20250919';

@@ -24,10 +24,11 @@
 import { harnessView, harnessSavings, harnessOn, undoHarness, switchOffNow, setHarnessSettings } from '../harness.js';
 import { refreshing, dropSnapshots } from '../context-snapshot.js';
 import { retryJob, revertDecision, changeHistory, refreshPrStates } from '../context-suggest.js';
-import { mergeReports, reportActions, withEffects, mergePromptAverages, REPORT_WEEKS } from '../report.js';
+import { mergeReports, reportActions, mergePromptAverages, REPORT_WEEKS } from '../report.js';
+import { withEffects, delegatedTotalSaid } from '../accountant.js';
 import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptAverageHere, keptRows } from '../report-snapshot.js';
 import { uiScans, scanStatus } from './scans.js';
-import { upkeepView, mergeUpkeepViews, delegatedTotalSaid, UPKEEP } from '../upkeep.js';
+import { upkeepView, mergeUpkeepViews, UPKEEP } from '../upkeep.js';
 import { chatSend, chatView } from '../chat.js';
 import { settingsView, setSetting } from '../settings.js';
 import http from 'node:http';
@@ -268,7 +269,7 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
         } catch {} }
         // what it holds back and what is worth knowing are the chat's to say (chat.js:chatContext), not a list on the page
         const { pending, notes, ...shown } = mergeUpkeepViews(pairs);
-        // the window's delegated work in the one line both doors print (upkeep.js:delegatedTotalSaid)
+        // the window's delegated work in the one line both doors print (accountant.js:delegatedTotalSaid)
         return json(res, 200, { ...shown, delegated: { ...shown.delegated, said: delegatedTotalSaid(shown.delegated) }, repos: pairs.length, looking });
       }
       // a conversation with thinker and the history beside it (chat.js:chatView, as `thinker chat` and its --history):

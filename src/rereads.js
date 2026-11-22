@@ -165,11 +165,3 @@ export function rereadsOf({ events = [], calls = [] } = {}, cuts = [], { keepMin
   }
   return out;
 }
-
-// Dollars at list for a session's re-reads: the write once, the reads after at the cache-read rate (prices.js).
-export function rereadCost(rereads, price) {
-  if (!rereads || !price || !(rereads.reads > 0)) return 0;
-  const write = (rereads.tokens || 0) * (price.cacheWrite1h ?? 2 * price.input);
-  const read = (rereads.laterTokens || 0) * price.cacheRead;
-  return (write + read) / 1e6;
-}

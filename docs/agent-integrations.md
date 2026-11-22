@@ -826,7 +826,7 @@ a checkout's own copy moves to the machine-wide one on its next prompt.
   toasting it (opencode-tui.js). The terminal part also draws the savings footer on the built-in
   footer row (`prompt.footer.status`, before the host's version), polling the kept ledger
   (`THINKER_HOME/state/savings.json`) every 5 s as the Claude Code mod does — the words are
-  `savings-ledger.js:savingsStatus`, the status row's own. A headless `opencode run` has no
+  `accountant.js:savingsStatus`, the status row's own. A headless `opencode run` has no
   terminal part and the summary is dropped there, as it was in v1. Checked against a real
   opencode 2.2.7 (2026-11-10).
 

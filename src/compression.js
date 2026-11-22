@@ -9,6 +9,10 @@
 //
 //   Tokens saved = the tokens the server left out of each prompt since the clear, added up.
 //
+// This module keeps the records and words the session's own card. What the records come to in dollars -- a
+// session's saving, what its clears cost, the net, and every sum of them -- is the accountant's (accountant.js),
+// and nothing here prices a token.
+//
 // It is a gross figure, as the cache-hit card's is: a clear also writes the prompt cache again from the first
 // result it removed, which the replay prices (proxy-replay.js). The card says what was left out; what that is
 // worth after the rewrite is `thinker proxy replay`.
@@ -20,8 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { chargedRewrite, clearedOf, clearedUsesOf, clearedEstimated, wroteCold, savedAs } from './cutting.js';
-import { listPrice, costOfInputSavings } from './prices.js';
+import { clearedOf, clearedUsesOf, clearedEstimated } from './cutting.js';
 
 // Turns after the first clear of a session before the saving is shown. Three: enough that the figure is the
 // clearing's return and not its cost, few enough that it still lands in the session that paid for it.
@@ -269,7 +272,7 @@ function carrySeeded(rows) {
 // both would count the clear twice. The mod keeps the model the API answered with on the record (since
 // 2026-11-06); a record from before that carries none, and `modelOf` names it from the machine's log, else
 // the row is unpriced and the ledger says so rather than guessing a rate.
-function desktopRecords(dir, { covered = new Set(), key = s => String(s) } = {}) {
+export function desktopRecords(dir, { covered = new Set(), key = s => String(s) } = {}) {
   const out = [];
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return out; }
@@ -289,22 +292,6 @@ export function desktopClearRows(dir, { covered = new Set(), modelOf = () => nul
   return desktopRecords(dir, { covered, key }).map(({ record: r, at }) =>
     ({ op: 'proxy', session: r.session, at, model: r.model || modelOf(r.session) || null, status: 200, cleared: Math.round(r.saved), clearedUses: r.uses || 0, recorded: 'session',
       ...(r.policy ? { policy: r.policy } : {}), ...(r.policyChanged ? { policyChanged: true } : {}) }));
-}
-
-// What a desktop session's clears cost, read from the record: the mod counts, on every request from its first
-// clear onward, the requests charged to a clear and the cache-write tokens they carried (register.tsx:charge,
-// by cutting.js:chargedRewrite), and keeps the model that answered. Priced as the proxy's rows are, below. A record
-// with no `cost` block is from before the mod counted it: no cost figure, rather than a zero that reads as free.
-export function desktopClearingCost(dir, { covered = new Set(), since = '', key = s => String(s), config } = {}) {
-  const out = new Map();
-  for (const { record: r, at } of desktopRecords(dir, { covered, key })) {
-    if (!r.cost || (since && at < since)) continue;
-    const x = { rewrites: r.cost.rewrites || 0, write: r.cost.write || 0, usd: 0, unpriced: 0, ...(r.model ? { model: r.model } : {}) };
-    const price = listPrice(r.model, { config });
-    if (price) x.usd += writeCostOf(x.write, price); else if (x.write > 0) x.unpriced++;
-    out.set(r.session, x);
-  }
-  return out;
 }
 
 // The rows the ledger and the Report price: the proxy's log, and the recorded clears of the sessions it
@@ -351,19 +338,6 @@ export function loggedClearing(events = [], { key = s => String(s), since = '' }
   return out;
 }
 
-// What a mirrored clear cost, priced as the proxy's rows and the records are (`desktopClearingCost`).
-export function loggedClearingCost(events, { covered = new Set(), key = s => String(s), since = '', config } = {}) {
-  const out = new Map();
-  for (const [id, e] of loggedClearing(events, { key, since })) {
-    if (covered.has(id) || !e.cost) continue;
-    const x = { rewrites: e.cost.rewrites || 0, write: e.cost.write || 0, usd: 0, unpriced: 0, ...(e.model ? { model: e.model } : {}) };
-    const price = listPrice(e.model, { config });
-    if (price) x.usd += writeCostOf(x.write, price); else if (x.write > 0) x.unpriced++;
-    out.set(id, x);
-  }
-  return out;
-}
-
 export function clearingRows(file, dir, { events = [], key = s => String(s) } = {}) {
   const rows = compressionRecords(file);
   const covered = new Set(rows.map(r => key(r.session)));
@@ -377,49 +351,6 @@ export function clearingRows(file, dir, { events = [], key = s => String(s) } = 
       status: 200, cleared: e.cleared, clearedUses: e.uses || 0, recorded: 'log',
       ...(e.policy ? { policy: e.policy } : {}), ...(e.policyChanged ? { policyChanged: true } : {}) }));
   return [...rows, ...desktop, ...mirrored];
-}
-
-// a write after a clear is a one-hour write for the agents the proxy serves, as proxy-replay.js prices it
-const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * price.input) / 1e6;
-
-// With `dir`, the sessions the log has no rows for are read from their records (desktopClearingCost): a clear
-// made inside a desktop session is charged its writes as a proxied one is, so no door shows it gross.
-export function clearingCostBySession(file, { since = '', config, dir = null, key = s => String(s), events = [] } = {}) {
-  const out = new Map(), covered = new Set(), highest = new Map();
-  const rows = compressionRecords(file);
-  for (const r of rows) {
-    covered.add(key(r.session));
-    // read before the window is applied, so a figure that stood before it is not taken for a new cut inside it
-    const high = highest.get(r.session) || 0, now = clearedOf(r);
-    if (now > high) highest.set(r.session, now);
-    if (since && r.at && r.at < since) continue;
-    // Only the rewrite a cut caused is the clearing's cost (the owner's call, 2026-11-16). A cut changes the
-    // prefix once, on the request that makes it; every request after it sends the same replacements byte for
-    // byte and reads the cache back. So a rewrite on any later request -- a compaction, the agent editing its
-    // own history, a cache that lapsed part-way -- was coming with or without the clearing. The request that
-    // made a cut carries the decision (`clear`); a row from before the cut was thinker's own carries neither
-    // that nor `clientCut`, and there the mark is the cleared figure rising past the session's highest so far.
-    const madeCut = r.clear ? true : !r.clientCut && now > high;
-    if (!madeCut || !chargedRewrite(r)) continue;
-    // A cold cut's own call is not the clearing's cost. Past the cache's hour the request writes its whole
-    // context again whether or not anything was replaced, which is exactly why `decideCut` prices that cut at
-    // zero (cutting.js, the cold branch) -- and then this door charged the very same write to the clearing.
-    // Measured on this machine: both Fable cuts of the five days to 2026-11-11 were cold, each wrote its
-    // context with a cache read of ZERO (202k and 349k, nothing to read back), and no call after either one
-    // rewrote a prefix at all -- 0 of 227 over 100k of context. Those two writes were the whole of the $11.01
-    // charged against $3.89 saved, and at Fable's 80 reads to a written token they read as the clearing
-    // losing money on a session it had not cost a token. The two doors have to price a cold cut alike.
-    if (r.clear?.cold) continue;
-    // and a write that read nothing back is the expired cache's for the same reason (cutting.js:chargedRewrite)
-    const price = listPrice(r.model, { config });
-    const x = out.get(r.session) || { rewrites: 0, write: 0, usd: 0, unpriced: 0 };
-    x.rewrites++; x.write += r.write || 0;
-    if (price) x.usd += writeCostOf(r.write, price); else x.unpriced++;
-    out.set(r.session, x);
-  }
-  if (dir) for (const [id, x] of desktopClearingCost(dir, { covered, since, key, config })) { out.set(id, x); covered.add(id); }
-  for (const [id, x] of loggedClearingCost(events, { covered, since, key, config })) out.set(id, x);
-  return out;
 }
 
 const num = v => (Number.isFinite(v) ? v : 0);
@@ -460,34 +391,3 @@ export function usageBySession(file, { since = '' } = {}) {
   return out;
 }
 
-export function clearedBySession(file, { since = '', config } = {}) {
-  const out = new Map();
-  for (const r of compressionRecords(file)) {
-    const cleared = clearedOf(r);
-    if (!(cleared > 0) || (since && r.at && r.at < since)) continue;
-    const prev = out.get(r.session) || { cleared: 0, requests: 0, usd: 0, pricedTokens: 0, coldUsd: 0, coldRequests: 0 };
-    // What the row saved, at the model that answered that row -- the ledger's and the Report's rule
-    // (report-savings.js:weeklySavings). A session is not one model: its subagents and its routes to another
-    // provider run on their own, and the rewrites after a clear are already priced row by row. Pricing the
-    // whole session's cleared tokens at the one model its last `session` row named put a machine's 339M
-    // cleared tokens at $0.01 a million against rewrites charged at the model that made them (2026-11-16).
-    const price = listPrice(r.model, { config });
-    // And at what the request would have paid for it (cutting.js:savedAs, 2026-11-18): a cache read, or a cache
-    // write on a request that read nothing back and wrote its whole context again. `coldUsd` is that second
-    // kind on its own, so a reader can see how much of a saving came from a cache that had expired -- it is
-    // part of `usd`, not beside it.
-    const worth = price ? costOfInputSavings(savedAs(r, cleared), price) : 0, cold = wroteCold(r);
-    out.set(r.session, { cleared: prev.cleared + cleared, requests: prev.requests + 1,
-      usd: prev.usd + worth, pricedTokens: prev.pricedTokens + (price ? cleared : 0),
-      coldUsd: prev.coldUsd + (cold ? worth : 0), coldRequests: prev.coldRequests + (cold ? 1 : 0),
-      // The model the API answered with, from the rows themselves. Without it a session is priced only when
-      // the usage log's own `session` row names one, and on this machine that left 96% of the cleared tokens
-      // in a five-day window unpriced -- so the netted dollars were computed from a handful of sessions and
-      // read as noise. The proxy has known the model all along; nothing asked it.
-      ...(r.model || prev.model ? { model: r.model || prev.model } : {}),
-      // the policy the rows name (cutting.js:policyId), the newest winning, and a mark where a session spans two
-      ...(r.policy || prev.policy ? { policy: r.policy || prev.policy } : {}),
-      ...((prev.policy && r.policy && prev.policy !== r.policy) || prev.policyChanged ? { policyChanged: true } : {}) });
-  }
-  return out;
-}

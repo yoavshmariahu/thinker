@@ -27,7 +27,8 @@ import { heldOut, PROXY_DEFAULTS } from './proxy.js';
 import { SERVICE_HOLDOUT } from './proxy-service.js';
 import { readMachineConfig } from './repo-switch.js';
 import { thinkerHome } from './update.js';
-import { deliveryReport, clearingFor } from './delivery.js';
+import { deliveryReport } from './delivery.js';
+import { clearingFor } from './accountant.js';
 import { policyId } from './cutting.js';
 import { diskCache, cacheKey, cachedByFiles } from './disk-cache.js';
 import { weekColumns, REPORT_WEEKS } from './report.js';
@@ -379,7 +380,7 @@ function clearingShare() { try { const cfg = readMachineConfig(thinkerHome()).pr
 export function currentPolicy() { try { return policyId({ ...PROXY_DEFAULTS, ...(readMachineConfig(thinkerHome()).proxy || {}) }); } catch { return policyId(PROXY_DEFAULTS); } }
 // a session's two arms: the profile's from its state file (null where none was recorded); the clearing's is a treatment,
 // not an assignment (2026-11-10, the owner's ask): the `on` side holds the sessions that actually got a clear (`cleared`,
-// read from the proxy's log and the clearing mod's records, delivery.js:clearedFor) and the `holdout` side the ones
+// read from the proxy's log and the clearing mod's records, accountant.js:clearedFor) and the `holdout` side the ones
 // held out by the hash (`proxy.js:heldOut`); a session on the clearing's arm that was never cleared is on neither, since
 // nothing touched it. Until then the on side was the arm itself, and 230 of its 249 sessions had never had a clear
 // (2026-11-09), so the table compared untouched sessions with untouched sessions. Both sides need the trigger reached

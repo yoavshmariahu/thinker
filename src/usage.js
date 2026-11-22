@@ -1,7 +1,7 @@
 // Usage history: a summary of the machine's log (see store.js: logFile), the append-only record of what the
 // sessions asked, what thinker's own model calls spent, and what each session cost, in every repository. The
 // note servings, their assessments and the reading they were estimated to save left with the knowledge notes
-// on 2026-11-08; what thinker saves is the clearing's, measured (compression.js, savings-ledger.js).
+// on 2026-11-08; what thinker saves is the clearing's, measured (compression.js, accountant.js).
 import fs from 'node:fs';
 import { eachLine } from './jsonl.js';
 import { emptySpend, addSpend, formatTokens, normalizeModelUsage, relativeRate, weightedTokens, retiredPurpose } from './model-usage.js';
@@ -45,7 +45,7 @@ export function normalizeClient(client, session = '') {
 // What each reader asks for is kept beside it under the same stamp (`sorted`): the events of one repository, or of
 // every one, in order. Until 2026-11-10 only the parse was kept and every call re-made 35,000 objects, filtered them
 // and sorted them again -- a sixth of a second a call, and one report calls this five times over (report.js,
-// context-view.js, delivery.js, profile-metric.js, savings-ledger.js), once per repository of `--refresh --all`:
+// context-view.js, delivery.js, profile-metric.js, accountant.js), once per repository of `--refresh --all`:
 // three of the fifteen seconds that run took here. The events are read, never written, so every caller shares one array.
 //
 // **Nothing is copied to answer a read** (2026-11-12). An event records the repository it happened in, so the two
@@ -66,7 +66,7 @@ const parsed = new Map(); // file -> { stamp, rows, anonymous, sorted: Map(`${re
 //
 //   - every row dated at or after that instant;
 //   - every earlier row of a session that has one there. A session's rows are cumulative -- what it saved so far
-//     is on each row, and a day's saving is the difference from the row before (report-savings.js) -- so a
+//     is on each row, and a day's saving is the difference from the row before (accountant.js) -- so a
 //     session is kept whole or not at all, never cut where the window starts;
 //   - and, from the rows it lets go, the one thing asked of the whole log: which checkouts it names and under
 //     which repository (`index`, what `knownRepos` and `knownCheckouts` answer from), in the order the rows

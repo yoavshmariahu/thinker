@@ -20,7 +20,7 @@ import type { Register, SessionMessage } from 'claude-code'
 // losing sessions were. The mod now asks the installed CLI at each decision (`ask`, below) and does what it is told.
 // What a clear costs, counted as the proxy counts it (cutting.js:chargedRewrite; test/claude-clear.test.js holds
 // the two together): what the first request after a clear wrote into the prompt cache, priced at the one-hour
-// write rate (compression.js:clearingCostBySession) -- unless it read nothing back, which means the cache had
+// write rate (accountant.js:clearingCostBySession) -- unless it read nothing back, which means the cache had
 // expired and the write was coming anyway. No floor on the context and no share of it (2026-11-18): the floor was
 // on the context after the clear, so a large clear was recorded as free. The engine reports every request's
 // usage to `turn.step` in the API's own counts, so the figure is measured, not modelled.
@@ -30,7 +30,7 @@ export const usageOf = (usage: any) => usage ? { input: Number(usage.input_token
 export type Cost = { rewrites: number; write: number }
 // the cost after one more request: its cache write, when the cache was warm, as the proxy charges it
 // Only on the first request after a clear (`caused`): that is the one request whose prefix the clear changed, and a
-// rewrite on any later one was coming without it (compression.js:clearingCostBySession holds the same rule).
+// rewrite on any later one was coming without it (accountant.js:clearingCostBySession holds the same rule).
 export const charge = (cost: Cost | undefined, usage: any, caused = true): Cost => {
   const u = usageOf(usage), c = { rewrites: cost?.rewrites ?? 0, write: cost?.write ?? 0 }
   if (!caused) return c
@@ -86,7 +86,7 @@ export function applyPlan(messages: readonly SessionMessage[], replace: Record<s
 // request after it) or is the estimate alone.
 export type Kinds = { results: number; inputs: number; thinking: number; total: number; measured: boolean }
 // `cost` and `model` are this door's own too: the proxy's log carries each request's writes and model on its rows,
-// and a desktop session has no rows, so the record keeps what the netted figure needs (delivery.js:rewriteCostFor).
+// and a desktop session has no rows, so the record keeps what the netted figure needs (accountant.js:rewriteCostFor).
 export type State = { session: string; firstAt: number; lastAt: number; requests: number; saved: number; uses: number; policy?: string; policyChanged?: boolean; tools?: Tools; recent: { at: number; cleared: number; uses: number }[]; kinds?: Kinds; cost?: Cost; model?: string; firstTurn?: number; told?: boolean }
 
 // module state: starts over on a reload (the record on disk does not)

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { TURNS_AFTER, clearedBySession, clearingCostBySession, desktopClearRows, desktopClearingCost, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
+import { TURNS_AFTER, desktopClearRows, compressionBlock, compressionDetail, compressionDir, compressionHeader, compressionSaving, compressionTools, markCompressionTurn, noteCompression, readCompression, shortTool } from '../src/compression.js';
+import { clearedBySession, clearingCostBySession, desktopClearingCost } from '../src/accountant.js';
 import { cutActions } from '../src/proxy.js';
 import { compressionNotice, formatTokens } from '../src/usage.js';
 

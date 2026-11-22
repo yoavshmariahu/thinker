@@ -100,7 +100,7 @@ export const DELEGATE_DEFAULTS = Object.freeze({
                       // later calls it rides on). Cost break-even is around 400 to 600 tokens, so the money is not
                       // what holds the floor up: below some size the 25-line report is the worse answer, because
                       // the model wanted those lines to edit and reads the file anyway (`after: 'handoff'`, whose
-                      // saving report-savings.js drops). Where that size is has never been measured -- the 40
+                      // saving accountant.js drops). Where that size is has never been measured -- the 40
                       // bench sessions of 2026-11-16 found no correctness loss where it fires, and where it fired
                       // was 8000 and up -- so the holdout below is what says, on the share of handoffs the lead
                       // reads anyway (0 of 30 at 8000) and on cost per exchange. Over this machine's 247
@@ -342,7 +342,7 @@ export function forgetReads(st) { if (st.reads) st.reads = { offset: st.reads.of
 // file itself would be refused it five times running.
 // `handed` says which of the two let the read through, because the two are not the same event and were logged
 // as one `after: 'handoff'` row until 2026-11-19: this very file has a report of its own, which is the lead
-// reading it anyway (and then nothing was kept out -- report-savings.js drops the saving on it), against the
+// reading it anyway (and then nothing was kept out -- accountant.js drops the saving on it), against the
 // turn's budget being spent on other files, which says nothing about this read at all.
 export function decide(st, { prompt, read, suite, cfg = DELEGATE_DEFAULTS, handoff = false }) {
   const d = st.delegate && st.delegate.prompt === prompt ? st.delegate : { prompt, reports: {}, handoffs: {} };
@@ -700,7 +700,7 @@ async function handoffCall({ ev, state, session, cwd, cfg = DELEGATE_DEFAULTS, l
     state.update(st => { noteHandoff(st, prompt, d.kind, d.key); if (d.kind === 'explore') noteFiring(st, { t: Date.now(), tokens: d.tokens, files, agent: exec.agent }); });
     // `model` where the host's agent is pinned to one (Claude Code's Explore.md and thinker-verify.md, `pins`):
     // the saving nets the lead's write against the same read at this model's rate
-    // (report-savings.js:delegationSavings). Where nothing is pinned the subagent runs on a model thinker does
+    // (accountant.js:delegationSavings). Where nothing is pinned the subagent runs on a model thinker does
     // not choose, and the row names none.
     log({ ...row, agent: exec.agent, handoffTool: exec.tool, briefChars: brief.length, ...(exec.model ? { model: exec.model, family: exec.family } : pinnedTo ? { model: pinnedTo } : {}) });
     const label = handoffLabel(d.kind, files, cwd);

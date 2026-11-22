@@ -127,7 +127,7 @@ function sessionRecords(store, sessions, { levelAt = null, key = '', onSession }
 // every session of the window with its model, its reported usage (null where the agent reported none: Cursor) and
 // what its tool outputs cost in input tokens
 export function sessionUsage(store, sessions, { levelAt = null, key = '', onSession } = {}) {
-  // `by`: each tool's own cost in the session, so the Report can cost one tool's outputs a session before and since its compression (report.js:actionEffect)
+  // `by`: each tool's own cost in the session, so the Report can cost one tool's outputs a session before and since its compression (accountant.js:actionEffect)
   return sessionRecords(store, sessions, { levelAt, key, onSession }).map(r => ({ session: r.session, t: r.t, client: r.client, parent: r.parent || null, agent: r.agent || null, type: r.type || null, model: r.model || null, turns: r.turns || 0, usage: r.usage || null, outputs: Object.values(r.by).reduce((a, x) => a + x.input, 0), by: Object.fromEntries(Object.entries(r.by).map(([k, x]) => [k, x.input])) }));
 }
 // The rows of one tool linked: each carries `others`, the same tool's rows under its other settings (level, sessions,
