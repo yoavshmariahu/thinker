@@ -123,10 +123,10 @@ test('the parent is honoured where the key is read: the delegation rule, the pro
 
 test('one set of settings, the machine\'s: no scope, no repository switch, and no repository\'s file is written', async t => {
   const { home, store, dir } = fixture(t);
-  const v = (await setSetting('upkeep.minPerDay', 4, { home })).view;
+  const v = (await setSetting('upkeep.minPerDay', 2, { home })).view;
   assert.deepEqual(Object.keys(v), ['groups'], 'the view is the machine\'s and says nothing of a repository');
   assert.ok(!v.groups.flatMap(g => g.items).some(i => 'where' in i || 'from' in i));
-  assert.equal(readMachineConfig(home).upkeep.minPerDay, 4);
+  assert.equal(readMachineConfig(home).upkeep.minPerDay, 2);
   for (const id of ['learn.sessions', 'notice.enabled', 'telemetry', 'prComments', 'delegate.enabled']) await setSetting(id, false, { home });
   assert.equal(fs.existsSync(path.join(dir, '.thinker', 'config.json')), false);
   assert.equal(isDisabledRepo(dir, { home }), false);

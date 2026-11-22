@@ -60,9 +60,9 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   replaced, and the context the proxy cleared. They are API-list-price equivalents of context nobody
   had to read, at the providers' published rates, not a bill.
 - **Context cuts, made for you.** Thinker measures what every prompt carries and never uses, and makes the
-  changes that clearly pay itself: each has to save $1 a day or more, and they go out together as one batch
+  changes that clearly pay itself: each has to save $5 a day or more, and they go out together as one batch
   (one pull request for the instruction sections it shortens or removes, left for a person to merge; unused
-  tools switched off). A week later it checks each change and takes back what did not pay. Your next
+  tools made references that stay callable, and a tool you plainly use never touched). A week later it checks each change and takes back what did not pay. Your next
   session says once what it did.
 - **The page.** `thinker ui` opens a chat with thinker in your browser, over every repository on the
   machine: ask what it did, and tell it how to behave. Beside the conversation is what it did lately, a line

@@ -42,10 +42,12 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
   const r = repo();
   const { set, ...b } = behaviorOf(r.store);
   assert.deepEqual(b, BEHAVIOR);
-  // the owner's answers, 2026-11-21: $1 a day is clear value, a batch once enough has piled up and at most weekly,
-  // sections shortened or removed and tools switched, skills left alone
-  assert.deepEqual([b.level, b.prs, b.remove, b.tools, b.skills, b.minPerDay, b.batchPerDay, b.batchEveryDays, b.followUp, b.followUpDays], ['auto', true, true, true, false, 1, 5, 7, true, 7]);
-  assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it shortens or removes instruction sections nobody needs in a pull request and switches off tools nobody calls, but only what saves $1.00 a day or more, together in one batch once that comes to $5.00 a day, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
+  // the owner's answers, 2026-11-21, and a day later "at least $5 per day": five dollars a day a change is clear
+  // value, a batch at most weekly, sections shortened or removed and tools made references, skills left alone
+  assert.deepEqual([b.level, b.prs, b.remove, b.tools, b.skills, b.minPerDay, b.batchPerDay, b.batchEveryDays, b.followUp, b.followUpDays], ['auto', true, true, true, false, 5, 5, 7, true, 7]);
+  assert.equal(behaviorSaid(b), 'Thinker acts on its own here: it shortens or removes instruction sections nobody needs in a pull request and makes a reference of tools nobody calls, but only high-waste parts that save $5.00 a day or more each, together in one batch, at most every 7 days. 7 days after a change takes effect it checks it, and takes back what did not pay.');
+  // a bar set under what a batch goes at is said with the pile-up it brings back
+  assert.match(behaviorSaid({ ...b, minPerDay: 1 }), /that save \$1\.00 a day or more each, together in one batch once that comes to \$5\.00 a day, at most every 7 days/);
   assert.doesNotMatch(behaviorSaid({ ...b, followUp: false }), /takes back what did not pay/);
   assert.match(behaviorSaid({ ...b, remove: false, tools: false, skills: true }), /it shortens instruction sections nobody needs in a pull request and switches off skills nobody calls, but only/);
   // two of them are not the upkeep block's: the handoffs to cheaper agents (delegate.js) and how long an answer the
@@ -84,6 +86,9 @@ test('how thinker behaves: it does its work itself unless told otherwise, the ma
 
 // A kept Context report, each part by what it wasted over the week at $5 a million tokens: Releases $2.86 a day,
 // Ports $1.43, Style $0.64 (under the $1 a day that is worth acting on), and the Workflow tool $1.50.
+// `LOW`: the bar these repositories are set to, a dollar a day a change, so that a batch has to pile up to its five
+// (how a batch, its pull request, its undo and its week-on check work does not depend on where the bar is). Since
+// 2026-11-22 thinker's own bar is five dollars a change; "only what is high value" below holds that one.
 const section = (id, title, waste, wastedWindow, usedShare = 0.02) => ({ id, file: 'AGENTS.md', title, tokens: 2000, wasted: 30_000, wastedWindow, waste, usedShare, text: `About ${title}.` });
 const view = () => ({
   days: 7, sessions: 40, rate: { perToken: 5e-6 },
@@ -98,13 +103,14 @@ const sectionsOnly = () => ({ ...view(), tools: [] });
 const withSections = (...more) => ({ ...sectionsOnly(), instructions: { sessions: 40, sections: [...sectionsOnly().instructions.sections, ...more] } });
 const piled = () => withSections(section('legacy', 'Legacy', 'high', 1_750_000, 0));
 const WAITS = 'the changes worth making come to $4.29 a day together so far, and a batch goes at $5.00';
+const LOW = { minPerDay: 1 };
 const spawned = () => { const calls = []; return { calls, spawn: (cmd, args) => { calls.push(args); return { pid: process.pid, on() {}, unref() {} }; } }; };
 // the functions a check is given in place of the machine: the report, whether a pull request can be opened
 const given = (sp, { canPr = true, report = sectionsOnly } = {}) => ({ view: report, prAvailable: () => ({ ok: canPr }), spawn: sp.spawn });
 
 test('told to wait for the person\'s word, a check does nothing: what is important is held, with why, for the chat to speak of', async () => {
   freshHome();
-  const r = repo({ upkeep: { level: 'ask' } });
+  const r = repo({ upkeep: { level: 'ask', ...LOW } });
   const sp = spawned();
   const check = await upkeepCheck(r.store, { fns: given(sp, { report: view }) });
   assert.deepEqual(check.did, []); assert.equal(check.pending, 3); assert.equal(sp.calls.length, 0);
@@ -124,14 +130,14 @@ test('told to wait for the person\'s word, a check does nothing: what is importa
   assert.match(text, /^Recent activity · thinker last looked just now\n {2}3 held back until you say\. Thinker does nothing here until you tell it to\.\n\n {2}Nothing yet\./);
   assert.doesNotMatch(text, /Needs you|thinker activity do|Releases/);
   // a kind switched off is held for that reason; the rest go ahead
-  const q = repo({ upkeep: { prs: false } });
+  const q = repo({ upkeep: { prs: false, ...LOW } });
   await upkeepCheck(q.store, { fns: given(spawned()), act: false });
   assert.deepEqual(upkeepPending(q.store).pending.map(i => i.why), ['pull requests are switched off here', 'pull requests are switched off here']);
 });
 
 test('on the person\'s word (the chat\'s do and leave): done at once whatever the limits, and left for three months', async () => {
   freshHome();
-  const r = repo({ upkeep: { level: 'ask' } });
+  const r = repo({ upkeep: { level: 'ask', ...LOW } });
   const sp = spawned(), fns = given(sp, { report: view });
   await upkeepCheck(r.store, { fns });
   // the section: a job in the background that ends as a pull request, by the door `thinker`
@@ -161,7 +167,7 @@ test('on the person\'s word (the chat\'s do and leave): done at once whatever th
 
 test('a decision is taken back where its history is kept, its pull request closed, and thinker does not put it up again', async () => {
   freshHome();
-  const r = repo(), now = Date.now(), at = new Date(now - DAY).toISOString();
+  const r = repo({ upkeep: LOW }), now = Date.now(), at = new Date(now - DAY).toISOString();
   fs.mkdirSync(path.join(r.store.dir, 'state'), { recursive: true });
   fs.writeFileSync(path.join(r.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [
     { id: 'p1', at, key: 'section:AGENTS.md:releases', kind: 'section', title: 'AGENTS.md · Releases', saving: 1200, act: 'compress', decision: 'pull request', via: 'thinker', pr: { number: 12, state: 'open', url: 'https://github.com/o/r/pull/12', branch: 'thinker/releases', at } },
@@ -186,7 +192,7 @@ test('a decision is taken back where its history is kept, its pull request close
 
 test('by itself: only what clearly pays, together as one batch and one pull request once enough has piled up, at most weekly, and a look does nothing', async () => {
   freshHome();
-  const r = repo();
+  const r = repo({ upkeep: LOW });
   const sp = spawned(), fns = given(sp);
   const now = Date.now();
   // a look (all a visit to the page starts) finds and keeps, and does nothing
@@ -231,9 +237,67 @@ test('by itself: only what clearly pays, together as one batch and one pull requ
   assert.deepEqual(mayAct(r.store, { important: false, action: {}, allow: 'tools', kind: 'do', chore: 'context' }, BEHAVIOR), { ok: false }, 'what is not worth doing is never done');
 });
 
+// The owner, 2026-11-22: "only automatically make fixes that are high value not medium value. at least $5 per day and
+// the tool should not have clear utility. push it towards tool references rather than removing entirely."
+test('only what is high value, by itself: five dollars a day a change and high waste, never a tool plainly in use, a reference before a switch-off; what is passed over is kept with why, and done on the person\'s word', async () => {
+  freshHome();
+  // at $25 a million tokens: Costly $14.29 a day and high; Middling $7.14 but graded medium; Small $3.57, high
+  const tool = (name, used, wastedWindow, extra = {}) => ({ name, kind: 'tool', group: 'builtin', client: 'claude', key: `builtin:${name}`, label: `${name} tool`, used, loaded: 40, tokens: 3000, wasted: 20_000, wastedWindow, waste: 'high', ...extra });
+  const report = () => ({
+    days: 7, sessions: 40, rate: { perToken: 25e-6 },
+    instructions: { sessions: 40, sections: [section('costly', 'Costly', 'high', 4_000_000), section('middling', 'Middling', 'medium', 2_000_000), section('small', 'Small', 'high', 1_000_000)] },
+    skills: [], outputs: { tools: [] },
+    tools: [
+      tool('Workflow', 0, 2_100_000),                                                             // $7.50, nobody called it: a reference
+      tool('Agent', 6, 2_800_000),                                                                // $10, called in 6 of 40 sessions: plainly of use
+      tool('Wakeup', 1, 1_000_000),                                                               // $3.57: under the bar
+      tool('big', 0, 2_800_000, { kind: 'mcp', group: 'mcp', key: 'mcp:big', label: 'big MCP server' }),    // no reference can be made, and nobody called it
+      tool('docs', 2, 2_800_000, { kind: 'mcp', group: 'mcp', key: 'mcp:docs', label: 'docs MCP server' }), // no reference, and two sessions called it
+      tool('new', 0, 2_800_000, { kind: 'mcp', group: 'mcp', key: 'mcp:new', label: 'new MCP server', loaded: 4 }), // too few sessions to say
+    ],
+  });
+  const r = repo({ upkeep: { level: 'ask' } }), now = Date.now(), sp = spawned();
+  const fns = { view: report, prAvailable: () => ({ ok: true }), spawn: sp.spawn };
+  await upkeepCheck(r.store, { now, fns });
+  const p = upkeepPending(r.store, { now });
+  // worth making: the costly section, the tool nobody called (as a reference), the server nobody called at all
+  assert.deepEqual(Object.fromEntries(p.pending.map(i => [i.id, i.action.label])), { 'change:section:AGENTS.md:costly': 'Put up a PR to shorten it', 'change:claude:builtin:Workflow': 'Create tool reference', 'change:claude:mcp:big': 'Switch off' });
+  assert.equal(p.batch.changes, 3);
+  // and everything else it found is kept with the reason, the costliest first, for the chat to say
+  const why = Object.fromEntries(p.passed.map(i => [i.id.replace(/^change:(claude:|section:AGENTS\.md:)/, ''), i.why]));
+  assert.deepEqual(Object.keys(why).sort(), ['builtin:Agent', 'builtin:Wakeup', 'mcp:docs', 'mcp:new', 'middling', 'small']);
+  assert.equal(why['builtin:Agent'], 'it is plainly of use: called in 6 of the 40 sessions that loaded it, and a tool somebody uses is left alone whatever it costs');
+  assert.equal(why['builtin:Wakeup'], 'it wastes $3.57 a day, and one change must save $5.00 a day before thinker makes it by itself');
+  assert.equal(why.small, 'it wastes $3.57 a day, and one change must save $5.00 a day before thinker makes it by itself');
+  assert.equal(why.middling, 'the report grades its waste medium, not high');
+  assert.equal(why['mcp:docs'], 'it can only be switched off outright, not made a reference, and 2 sessions called it');
+  assert.equal(why['mcp:new'], 'it can only be switched off outright, and 4 sessions is too few to say nobody needs it');
+  assert.ok(p.passed.every(i => !i.important && i.action) && p.passed[0].perDay >= p.passed.at(-1).perDay);
+  assert.match(p.passed.find(i => i.id === 'change:claude:builtin:Agent').detail, /^Called in 6 of the 40 sessions that loaded it\. /);
+  // the view carries them for the chat; the page's counts are of what is worth doing alone
+  const v = upkeepView(r.store, { now });
+  assert.deepEqual([v.held, v.later, v.passed.length], [3, 0, 6]);
+  // a word in the chat moves the bar at once: at $2 the small section and the wakeup tool are worth making too
+  setBehavior(r.store, 'minPerDay', 2, { scope: 'repo' });
+  assert.deepEqual(upkeepPending(r.store, { now }).passed.map(i => i.id).sort(), ['change:claude:builtin:Agent', 'change:claude:mcp:docs', 'change:claude:mcp:new', 'change:section:AGENTS.md:middling']);
+  setBehavior(r.store, 'minPerDay', 5, { scope: 'repo' });
+  // what the person tells it to do is held to none of this: a section it passed over is put up on their word
+  const did = await upkeepDo(r.store, 'change:section:AGENTS.md:middling', { now, fns, by: 'you' });
+  assert.equal(did.error, undefined);
+  assert.equal(sp.calls.length, 1);
+  assert.ok(!upkeepPending(r.store, { now }).passed.some(i => i.id === 'change:section:AGENTS.md:middling'));
+  // by itself, a check at the default bar makes a batch of the ones worth making and nothing else: no tool here, so
+  // the tests write nobody's settings
+  const q = repo(), sq = spawned(), sections = () => ({ ...report(), tools: [] });
+  const made = await upkeepCheck(q.store, { now, fns: { view: sections, prAvailable: () => ({ ok: true }), spawn: sq.spawn } });
+  assert.deepEqual(made.did.map(d => [d.id, d.changes]), [['batch', 1]]);
+  assert.match(made.did[0].said, /^Sent a batch of 1 change worth about \$14\.3 a day: a pull request that shortens 1 section$/);
+  freshHome();
+});
+
 test('what a batch may hold: sections shortened or removed and tools, never a skill unless told, and each kind as its setting says', async () => {
   freshHome();
-  const q = repo(), now = Date.now();
+  const q = repo({ upkeep: LOW }), now = Date.now();
   const item = (allow, perDay) => ({ id: `change:x:${allow}`, chore: 'context', kind: allow === 'prs' || allow === 'remove' ? 'pr' : 'do', allow, important: true, perDay, action: {}, data: { key: `x:${allow}` } });
   const items = [item('prs', 3), item('remove', 2), item('tools', 2), item('skills', 9)];
   const of = b => { const x = batchOf(q.store, b, { now, items }); return [x.items.map(i => i.allow), x.perDay, x.ok]; };
@@ -252,24 +316,24 @@ test('what a batch may hold: sections shortened or removed and tools, never a sk
   assert.deepEqual(upkeepPending(q.store, { now }).batch, { changes: 3, perDay: (4_000_000 + 2_000_000 + 2_100_000) * 5e-6 / 7, ok: true });
   assert.equal(upkeepView(q.store, { now }).summary, '3 changes worth $5.79 a day going out in the next batch.');
   // over all repositories the tool is one change (it is switched for the machine), worth what it wastes in each
-  const q2 = repo();
+  const q2 = repo({ upkeep: LOW });
   await upkeepCheck(q2.store, { fns: given(spawned(), { report: view }), act: false, now });
   const both = mergeUpkeepViews([{ repo: 'a', name: 'o/a', view: upkeepView(q.store, { now }) }, { repo: 'b', name: 'o/b', view: upkeepView(q2.store, { now }) }]);
   assert.deepEqual([both.batch.changes, Math.round(both.batch.perDay * 100) / 100, both.summary], [5, 11.57, '5 changes worth $11.6 a day going out in the next batch.']);
   // a change kept by a check from before the bar was dollars has no figure: it is not held, and the next check prices it
-  const old = repo();
+  const old = repo({ upkeep: LOW });
   fs.mkdirSync(path.join(old.store.dir, 'state'), { recursive: true });
   fs.writeFileSync(path.join(old.store.dir, 'state', 'upkeep.json'), JSON.stringify({ lastCheck: new Date(now).toISOString(), items: [{ id: 'change:section:AGENTS.md:releases', chore: 'context', kind: 'pr', allow: 'prs', important: true, title: 'AGENTS.md · Releases', action: { label: 'x' }, data: { key: 'section:AGENTS.md:releases' } }] }));
   assert.deepEqual([upkeepPending(old.store, { now }).pending, upkeepView(old.store, { now }).summary], [[], 'Up to date.']);
   // where a section was needed at all, or by too few sessions to say, it is shortened, never removed
-  const few = repo(), sp = spawned();
+  const few = repo({ upkeep: LOW }), sp = spawned();
   await upkeepCheck(few.store, { fns: given(sp, { report: () => ({ ...piled(), sessions: 4, instructions: { ...piled().instructions, sessions: 4 } }) }), now });
   assert.deepEqual(sp.calls[0].slice(1, 5), ['instructions', '--compress', 'releases,ports,legacy', '--pr']);
 });
 
 test('a pull request of thinker\'s own closed without merging is a no: its sections are left alone for three months', async () => {
   freshHome();
-  const r = repo(), now = Date.now(), at = new Date(now - 10 * DAY).toISOString();
+  const r = repo({ upkeep: LOW }), now = Date.now(), at = new Date(now - 10 * DAY).toISOString();
   fs.mkdirSync(path.join(r.store.dir, 'state'), { recursive: true });
   const closed = (id, key, via) => ({ id, at, key, kind: 'section', title: `AGENTS.md · ${id}`, saving: 1200, act: 'compress', decision: 'pull request', via, pr: { number: 12, state: 'closed', at } });
   fs.writeFileSync(path.join(r.store.dir, 'state', 'context-suggest.json'), JSON.stringify({ history: [closed('p1', 'section:AGENTS.md:releases', 'thinker'), closed('p2', 'section:AGENTS.md:legacy', 'command')] }));
@@ -361,12 +425,12 @@ test('by itself: no pull request, no section; and its own failure is tried again
   freshHome();
   const now = Date.now();
   // where no pull request can be opened a section is not thinker's to change at all: not done, not held
-  const c = repo(), sp2 = spawned();
+  const c = repo({ upkeep: LOW }), sp2 = spawned();
   assert.deepEqual((await upkeepCheck(c.store, { fns: given(sp2, { canPr: false, report: piled }), now: now + 3 * DAY })).did, []);
   assert.equal(sp2.calls.length, 0); assert.deepEqual(upkeepPending(c.store, { now: now + 3 * DAY }).pending, []);
   // a batch of its own that failed is tried again a day later, three times in all, with nobody asked: the same
   // sections by the same actions
-  const f = repo(), sp3 = spawned(), fail = () => { const file = path.join(f.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(file, 'utf8')); for (const x of st.history) x.job = { ...x.job, state: 'failed', error: 'the model timed out', finishedAt: new Date(now + 20 * DAY).toISOString() }; fs.writeFileSync(file, JSON.stringify(st)); };
+  const f = repo({ upkeep: LOW }), sp3 = spawned(), fail = () => { const file = path.join(f.store.dir, 'state', 'context-suggest.json'), st = JSON.parse(fs.readFileSync(file, 'utf8')); for (const x of st.history) x.job = { ...x.job, state: 'failed', error: 'the model timed out', finishedAt: new Date(now + 20 * DAY).toISOString() }; fs.writeFileSync(file, JSON.stringify(st)); };
   const once = given(sp3, { report: piled });
   await upkeepCheck(f.store, { fns: once, now: now + 20 * DAY });
   assert.equal(sp3.calls.length, 1); fail();
@@ -470,7 +534,7 @@ test('the activity is a line an action with what it came to, never thinker\'s ow
 
 test('a batch in the activity: one line with what all of it came to and the part still waiting on its pull request, one line over all repositories, its facts for the chat, and taken back whole', async () => {
   freshHome();
-  const a = repo(), b = repo(), now = Date.now(), at = new Date(now - 3 * DAY).toISOString();
+  const a = repo({ upkeep: LOW }), b = repo({ upkeep: LOW }), now = Date.now(), at = new Date(now - 3 * DAY).toISOString();
   const state = s => path.join(s.dir, 'state', 'context-suggest.json');
   const sec = (batch, id, title, saving, act) => ({ id, group: `g-${batch}`, batch, at, via: 'thinker', key: `section:AGENTS.md:${id}`, kind: 'section', title: `AGENTS.md · ${title}`, file: 'AGENTS.md', section: id, saving, act, decision: 'pull request', job: { state: 'done', action: act, pr: true }, pr: { number: 12, state: 'open', url: 'https://github.com/o/r/pull/12', branch: 'thinker/context-1', at } });
   fs.mkdirSync(path.dirname(state(a.store)), { recursive: true });
@@ -494,7 +558,7 @@ test('a batch in the activity: one line with what all of it came to and the part
   // what the chat is given about it: why these went together, each change with its own undo, the pull request
   const facts = upkeepDetail(a.store, 'b:b1', { now, log: [], report }).join('\n');
   assert.match(facts, /^A batch of 3 changes made together on [A-Z][a-z]+ \d+, by thinker itself at one of its checks\./);
-  assert.match(facts, /Why a batch: thinker makes a change only when it saves \$1\.00 a day or more by itself, and sends the ones that do together once they come to \$5\.00 a day between them, at most every 7 days\./);
+  assert.match(facts, /Why a batch: thinker makes a change by itself only where the report grades the waste high and it comes to \$1\.00 a day or more by itself \(the bar as it stands now\), never to a tool somebody plainly uses, and sends the ones that pass together once they come to \$5\.00 a day between them, at most every 7 days\./);
   assert.match(facts, /AGENTS\.md · Releases[^\n]*\n {2}Why it was picked: about 20k of its tokens[^\n]*\n {2}Not measured yet: it is not in effect until its pull request merges\.[^\n]*\n {2}It can be taken back by itself \(undo id h:p1\), which takes the rest of the pull request back with it\./);
   assert.match(facts, /Workflow tool[\s\S]*It can be taken back by itself \(undo id h:machine-t1\)\./);
   assert.match(facts, /Its pull request: #12, in review since [^\n]*https:\/\/github\.com\/o\/r\/pull\/12\./);
@@ -506,7 +570,7 @@ test('a batch in the activity: one line with what all of it came to and the part
   setPr('closed');
   assert.deepEqual([upkeepFeed(a.store, { now, log: [], report })[0].text, upkeepFeed(a.store, { now, log: [], report })[0].impactSaid], ['Batch of 3: PR #12 closed without merging (2 sections); 1 tool made a reference', 'about −3k tokens per prompt · $1.50/day']);
   // taken back whole: a batch of sections alone, its pull request closed once for both, and neither is put up again
-  const c = repo(), closed = [];
+  const c = repo({ upkeep: LOW }), closed = [];
   fs.mkdirSync(path.dirname(state(c.store)), { recursive: true });
   fs.writeFileSync(state(c.store), JSON.stringify({ history: [sec('b2', 'q1', 'Releases', 20_000, 'compress'), sec('b2', 'q2', 'Ports', 5_000, 'compress')] }));
   const took = await upkeepUndo(c.store, 'b:b2', { now, fns: { prs: { closePr: (dir, n, o) => { closed.push([n, o.branch]); return {}; } } } });
@@ -524,14 +588,18 @@ test('"more like this" and "less like this": one kind of thing moved one step, f
   freshHome();
   const r = repo();
   // changes to what loads into a prompt (a batch, a pull request, a tool, all one bar): what a change must save a
-  // day, doubled for fewer of them, in this repository alone
-  assert.equal(steerBehavior(r.store, 'changes', 'less', { scope: 'repo' }).said, 'a change must now save $2.00 a day before thinker makes it in this repository (it was $1.00)');
-  assert.equal(steerBehavior(r.store, 'prs', 'less', { scope: 'repo' }).said, 'a change must now save $4.00 a day before thinker makes it in this repository (it was $2.00)');
-  assert.deepEqual([behaviorOf(r.store).minPerDay, behaviorOf(repo().store).minPerDay], [4, 1]);
-  // more, on the machine: halved, down to a quarter a day and no further
-  assert.equal(steerBehavior(r.store, 'changes', 'more').said, 'a change must now save $0.50 a day before thinker makes it on this machine (it was $1.00)');
-  assert.equal(steerBehavior(null, 'tools', 'more').said, 'a change must now save $0.25 a day before thinker makes it on this machine (it was $0.50)');
+  // day, the next step up for fewer of them, in this repository alone
+  assert.equal(steerBehavior(r.store, 'changes', 'less', { scope: 'repo' }).said, 'a change must now save $10.0 a day before thinker makes it in this repository (it was $5.00)');
+  assert.equal(steerBehavior(r.store, 'prs', 'less', { scope: 'repo' }).said, 'a change must now save $20.0 a day before thinker makes it in this repository (it was $10.0)');
+  assert.deepEqual([behaviorOf(r.store).minPerDay, behaviorOf(repo().store).minPerDay], [20, 5]);
+  // more, on the machine: the next step down, to a quarter a day and no further; every step is a choice Settings offers
+  assert.equal(steerBehavior(r.store, 'changes', 'more').said, 'a change must now save $2.00 a day before thinker makes it on this machine (it was $5.00)');
+  assert.equal(steerBehavior(null, 'tools', 'more').said, 'a change must now save $1.00 a day before thinker makes it on this machine (it was $2.00)');
+  assert.deepEqual([steerBehavior(null, 'changes', 'more').said, steerBehavior(null, 'changes', 'more').said].map(x => x.slice(0, 32)), ['a change must now save $0.50 a d', 'a change must now save $0.25 a d']);
   assert.match(steerBehavior(null, 'changes', 'more').error, /the bar is already as low as thinker will go \(\$0\.25 a day\)/);
+  // a bar somebody set between two steps moves to the step beyond it
+  setBehavior(null, 'minPerDay', 3);
+  assert.match(steerBehavior(null, 'changes', 'less').said, /must now save \$5\.00 a day .* \(it was \$3\.00\)/);
   // a kind that was switched off comes back on "more", and "less" of it is nothing to do
   setBehavior(r.store, 'tools', false);
   assert.match(steerBehavior(null, 'tools', 'less').error, /thinker already does none of that on this machine/);

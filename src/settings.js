@@ -22,7 +22,7 @@
 // only thinker's own upkeep needs (the update schedule).
 import { thinkerHome } from './update.js';
 import { readMachineConfig, updateMachineConfig } from './repo-switch.js';
-import { BEHAVIOR, SETTINGS as UPKEEP_SETTINGS, setBehavior } from './upkeep.js';
+import { BEHAVIOR, STEER, SETTINGS as UPKEEP_SETTINGS, setBehavior } from './upkeep.js';
 import { DELEGATE_DEFAULTS } from './delegate.js';
 import { DEFAULTS as MAINTAIN_DEFAULTS } from './maintain.js';
 import { NOTICE_HOURS } from './notice-cadence.js';
@@ -43,16 +43,16 @@ const AUTO = ['upkeep.level', ['auto']], LOOKING = ['upkeep.level', ['auto', 'as
 export const GROUPS = [
   { id: 'automation', title: 'Automation', about: 'What thinker changes on its own to cut what your sessions cost.', items: [
     { id: 'upkeep.level', as: 'cards', label: 'How much thinker does on its own', dflt: BEHAVIOR.level, help: '', options: [
-      ['auto', 'Automatic', 'Opens pull requests and switches off unused tools itself.'],
+      ['auto', 'Automatic', 'Opens pull requests and makes references of unused tools itself, where it clearly pays.'],
       ['ask', 'Suggest only', 'Lists what it would do and waits for your word in the chat.'],
       ['off', 'Off', 'Stops looking.']] },
     { id: 'upkeep.prs', as: 'tile', parent: LOOKING, section: 'It may change', label: 'Instruction files', dflt: BEHAVIOR.prs,
       help: 'Shorten sections sessions rarely need, in a pull request you merge.' },
     { id: 'upkeep.remove', parent: ['upkeep.prs', [true]], label: 'Remove sections outright', dflt: BEHAVIOR.remove, help: '' },
-    { id: 'upkeep.tools', as: 'tile', parent: LOOKING, label: 'Tools and MCP servers', dflt: BEHAVIOR.tools, help: 'Switch off the ones nobody calls.' },
+    { id: 'upkeep.tools', as: 'tile', parent: LOOKING, label: 'Tools and MCP servers', dflt: BEHAVIOR.tools, help: 'Make a reference of a tool nobody calls, which stays callable. One you plainly use is never touched.' },
     { id: 'upkeep.skills', as: 'tile', parent: LOOKING, label: 'Skills', dflt: BEHAVIOR.skills, help: 'Switch off the ones nobody calls.' },
-    { id: 'upkeep.minPerDay', parent: LOOKING, section: 'How readily', label: 'A change must save at least', dflt: BEHAVIOR.minPerDay, options: [0.25, 0.5, 1, 2, 4, 8, 16, 32, 64], fmt: usd,
-      help: 'Smaller savings are left alone.' },
+    { id: 'upkeep.minPerDay', parent: LOOKING, section: 'How readily', label: 'A change must save at least', dflt: BEHAVIOR.minPerDay, options: STEER.minPerDay.steps, fmt: usd,
+      help: 'Each change, a day. Smaller savings are left alone.' },
     { id: 'upkeep.batchEveryDays', parent: AUTO, label: 'A pull request at most every', dflt: BEHAVIOR.batchEveryDays, options: [1, 3, 7, 14, 30], fmt: days,
       help: 'Changes go together, in one pull request.' },
     { id: 'upkeep.followUp', parent: AUTO, label: 'Check each change after a week', dflt: BEHAVIOR.followUp,

@@ -5,7 +5,9 @@ is cut, and how each cut is undone. Back to the [README](../README.md).
 
 **thinker makes these cuts for you.** Between sessions it reads the same report and acts on the clearest
 items itself, a few at a time: a section of an instruction file that nobody needs becomes a pull request for
-you to merge, a tool nobody calls is switched off or moved out of the prompt. What it did is listed, a line
+you to merge, a tool nobody calls is moved out of the prompt as a reference and stays callable (a tool you
+plainly use is never touched, and an MCP server is switched off only where no session called it at all). It
+acts by itself only on what is graded high waste and saves $5 a day or more. What it did is listed, a line
 an action with what it saved, beside the chat on the page (`thinker ui`) and in `thinker activity`. Tell it in
 the chat to do more, less or nothing; every action has an undo.
 
