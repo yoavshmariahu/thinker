@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Store } from '../src/store.js';
 import {
   claimAttempt, recentTelemetry, holdTelemetryRun, sendTelemetry, maybeSendTelemetryInBackground,
-  telemetryParts, assembleTelemetry, buildTelemetryPayload, CLAIMED, HOUR_MS,
+  telemetryParts, assembleTelemetry, buildTelemetryPayload, CLAIMED, HOUR_MS, LOG_DAYS,
 } from '../src/telemetry.js';
 import { buildGuarded, BUILD_LIMITS } from '../src/telemetry-guard.js';
 import { readErrors } from '../src/error-report.js';
@@ -293,6 +293,17 @@ test('a report that cannot be built at all still says who it is and that the res
 test('the report built a part at a time, in the worker, is the report built whole', async t => {
   const { home, store } = fixture(t);
   store.log({ op: 'request', t: new Date().toISOString(), session: 's1', client: 'claude' });
+  // The worker holds only the rows its parts can look back to (usage.js:onlyLogSince); this process holds all of
+  // them. A session that began before that and is still going is where the two would part: what it saved is
+  // cumulative on its rows, so a day's saving is measured from the row before -- which is ten days older than
+  // the window here. And a checkout only old rows name is still one of the machine's.
+  const day = n => new Date(Date.now() - n * 86400_000).toISOString();
+  assert.ok(LOG_DAYS > 30 && LOG_DAYS < 40);
+  store.log({ op: 'request', t: day(60), repo: path.join(path.dirname(store.repo), 'long-gone'), session: 'old', client: 'claude' });
+  store.log({ op: 'session', t: day(40), session: 'spanning', client: 'claude', model: 'claude-opus-5-5', turns: 5, totalTokens: 1000, delegated: { tokens: 1000 } });
+  store.log({ op: 'delegate', t: day(40), session: 'spanning', kind: 'read', tokens: 1000 });
+  store.log({ op: 'session', t: day(2), session: 'spanning', client: 'claude', model: 'claude-opus-5-5', turns: 9, totalTokens: 9000, delegated: { tokens: 5000 } });
+  store.log({ op: 'delegate', t: day(2), session: 'spanning', kind: 'read', tokens: 4000 });
   const strip = p => { const { timestamp, ...rest } = p; return rest; };
   const whole = buildTelemetryPayload(store, { home });
   const parts = telemetryParts(store, { home });
@@ -308,6 +319,8 @@ test('the report built a part at a time, in the worker, is the report built whol
   assert.deepEqual(Object.keys(fromWorker), Object.keys(whole), 'the same keys in the same order');
   assert.deepEqual(strip(fromWorker), strip(whole));
   assert.ok(!('incomplete' in fromWorker));
+  const saved = Object.values(whole.delegate.byDay).reduce((n, d) => n + d.savedTokens, 0);
+  assert.ok(saved > 0 && saved < 5000, `the spanning session's saving inside the window is the difference from its older row (${saved})`);
 });
 
 test('the limits are small, and are constants', () => {

@@ -12,13 +12,15 @@ import { StringDecoder } from 'node:string_decoder';
 const CHUNK = 1 << 16;
 
 // `fn(line, index)` for every line of the file, in order; blank lines too, so an index is the line's number
-// less one. A file that cannot be opened throws, as readFileSync did.
-export function eachLine(file, fn, { chunk = CHUNK } = {}) {
+// less one. A file that cannot be opened throws, as readFileSync did. `end`: read no further than this many
+// bytes -- a reader that goes over the file twice sees the same lines both times, whatever was appended between.
+export function eachLine(file, fn, { chunk = CHUNK, end = Infinity } = {}) {
   const fd = fs.openSync(file, 'r');
   try {
     const buf = Buffer.allocUnsafe(chunk), dec = new StringDecoder('utf8');
-    let rest = '', index = 0, n;
-    while ((n = fs.readSync(fd, buf, 0, chunk, null)) > 0) {
+    let rest = '', index = 0, n, at = 0;
+    while (at < end && (n = fs.readSync(fd, buf, 0, Math.min(chunk, end - at), null)) > 0) {
+      at += n;
       const text = rest + dec.write(buf.subarray(0, n));
       let start = 0, nl;
       while ((nl = text.indexOf('\n', start)) !== -1) { fn(text.slice(start, nl), index++); start = nl + 1; }

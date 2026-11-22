@@ -33,6 +33,18 @@ test('every line, in order, with its index, wherever a chunk ends -- inside a ch
   }
 });
 
+test('a reader told where the file ended reads no further, so two passes see the same lines', t => {
+  const f = file(t, 'one\ntwo\n');
+  const end = fs.statSync(f).size;
+  fs.appendFileSync(f, 'three\n');
+  for (const chunk of [1, 3, 1 << 16]) {
+    const got = []; eachLine(f, l => got.push(l), { end, chunk });
+    assert.deepEqual(got, ['one', 'two'], `chunk ${chunk}`);
+  }
+  const all = []; eachLine(f, l => all.push(l));
+  assert.deepEqual(all, ['one', 'two', 'three']);
+});
+
 test('a file that is not there throws, as reading it whole did', () => {
   assert.throws(() => eachLine(path.join(os.tmpdir(), 'thinker-jsonl-missing', 'none.jsonl'), () => {}), /ENOENT/);
 });

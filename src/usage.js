@@ -56,19 +56,64 @@ export function normalizeClient(client, session = '') {
 // hidden by the cache below; the allocation was not, and it is what a page load costs on a machine already short of
 // memory, which is when the person notices. A log whose rows do not all name a repository (`anonymous`) keeps the old
 // path, since there the fields depend on which checkout is asking.
-const parsed = new Map(); // file -> { stamp, rows, anonymous, sorted: Map(`${repo}\t${all}` -> events) }
+const parsed = new Map(); // file -> { stamp, rows, anonymous, sorted: Map(`${repo}\t${all}` -> events), index? }
+
+// **A reader that only asks about recent days holds only recent days** (2026-11-21, `onlyLogSince`). The log has
+// no end: this machine's was ten weeks and 19 MB, 25 MB of heap as rows, and a process that reads it holds all of
+// it whatever it wants to know. The hourly telemetry job wants thirty days, and its heap has a ceiling
+// (telemetry-guard.js) that a longer history would one day reach. So a process may say, once, how far back it
+// will ever look, and from then on a parse keeps:
+//
+//   - every row dated at or after that instant;
+//   - every earlier row of a session that has one there. A session's rows are cumulative -- what it saved so far
+//     is on each row, and a day's saving is the difference from the row before (report-savings.js) -- so a
+//     session is kept whole or not at all, never cut where the window starts;
+//   - and, from the rows it lets go, the one thing asked of the whole log: which checkouts it names and under
+//     which repository (`index`, what `knownRepos` and `knownCheckouts` answer from), in the order the rows
+//     would have given.
+//
+// Two passes over the file, a chunk at a time, both stopping where the first one's `stat` said the file ended.
+// A log with rows that name no repository keeps the old path whole, as it does above. The setting is the
+// process's own: only the telemetry worker makes it, and a worker shares no module with anything else.
+let floor = '';
+export function onlyLogSince(iso) { floor = iso ? String(iso) : ''; parsed.clear(); }
+
+const readRows = (f, { end, keep = () => true, each = () => {} } = {}) => {
+  const rows = []; let i = 0;
+  try { eachLine(f, l => { if (!l) return; let e; try { e = JSON.parse(l); } catch { return; } if (!e || !e.t || !e.op) return; each(e, i++); if (keep(e)) rows.push(e); }, { end }); } catch {}
+  return rows;
+};
+const byTime = (a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0;
 const parse = f => {
-  let stamp; try { const s = fs.statSync(f); stamp = `${s.size}\t${s.mtimeMs}`; } catch { return null; }
+  let stamp, size; try { const s = fs.statSync(f); size = s.size; stamp = `${s.size}\t${s.mtimeMs}`; } catch { return null; }
   let hit = parsed.get(f);
   if (!hit || hit.stamp !== stamp) {
     // a line at a time (jsonl.js): the file as one string and again as an array of its lines was twice the
     // log's size held for nothing, on top of the rows
-    const rows = [];
-    try { eachLine(f, l => { if (!l) return; let e; try { e = JSON.parse(l); } catch { return; } if (e && e.t && e.op) rows.push(e); }); } catch {}
-    rows.sort((a, b) => a.t < b.t ? -1 : a.t > b.t ? 1 : 0);
-    let anonymous = false;
+    let rows = null, index = null, anonymous = false;
+    if (floor) {
+      const active = new Set(), first = new Map(); // `${origin}\t${repo}` -> where the pair is first named
+      readRows(f, { end: size, keep: () => false, each: (e, i) => {
+        if (!e.repo) { anonymous = true; return; }
+        if (e.t >= floor && e.session) active.add(sessionKey(e.session));
+        const key = `${e.origin || ''}\t${e.repo}`, seen = first.get(key);
+        if (!seen || e.t < seen.t) first.set(key, { t: e.t, i, origin: e.origin || '', repo: e.repo });
+      } });
+      if (!anonymous) {
+        rows = readRows(f, { end: size, keep: e => e.t >= floor || Boolean(e.session && active.has(sessionKey(e.session))) });
+        // a row that names no origin gets its checkout's, as every row below does; two spellings of one pair are one
+        const pairs = new Map();
+        for (const p of first.values()) {
+          const origin = p.origin || repoId(p.repo), key = `${origin}\t${p.repo}`, seen = pairs.get(key);
+          if (!seen || p.t < seen.t || (p.t === seen.t && p.i < seen.i)) pairs.set(key, { ...p, origin });
+        }
+        index = [...pairs.values()].sort((a, b) => byTime(a, b) || a.i - b.i);
+      }
+    }
+    if (!rows) { anonymous = false; rows = readRows(f, { end: size }); }
+    rows.sort(byTime);
     for (const e of rows) { if (!e.repo) { anonymous = true; continue; } if (!e.origin) e.origin = repoId(e.repo); }
-    hit = { stamp, rows, anonymous, sorted: new Map() };
+    hit = { stamp, rows, anonymous, sorted: new Map(), ...(index && !anonymous ? { index } : {}) };
     parsed.set(f, hit);
   }
   return hit;
@@ -103,14 +148,26 @@ export function readLog(store, { all = false } = {}) {
 
 // Every repository the machine's log has named, with its checkouts (clones, worktrees), over the whole
 // log: the caches on the machine, as against summarize's repositories with an event in a window.
+// Where the process holds only recent rows (onlyLogSince) the answer is the parse's own index of the whole log.
 export function knownRepos(store, { all = false } = {}) {
   const repos = new Map();
-  for (const e of readLog(store, { all })) {
+  const events = readLog(store, { all }), index = logIndex(store);
+  const here = index && !all ? repoId(store.repo) : null;
+  for (const e of index ? index.filter(p => all || p.origin === here) : events) {
     if (!repos.has(e.origin)) repos.set(e.origin, { repo: e.origin, checkouts: new Set() });
     if (e.repo) repos.get(e.origin).checkouts.add(e.repo);
   }
   return [...repos.values()].map(r => ({ ...r, checkouts: [...r.checkouts] }));
 }
+
+// Every checkout any repository's rows name, in the order the log first names them: what a walk over every row
+// of the machine's log for its `repo` used to give (delivery-telemetry.js).
+export function knownCheckouts(store) {
+  const events = readLog(store, { all: true }), index = logIndex(store), out = new Set();
+  for (const e of index || events) if (typeof e.repo === 'string') out.add(e.repo);
+  return [...out];
+}
+const logIndex = store => { const main = logFile(store); return (main && parsed.get(main)?.index) || null; };
 
 // A request is a prompt the hooks saw (`request`; `orient` on logs written before 2026-11-08). A session is one
 // the Stop hook wrote a `session` row for, or that made a request under its id.

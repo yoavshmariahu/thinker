@@ -19,7 +19,7 @@
 // used on and how much it saved on them, which is the claim the project wants to be able to make.
 import fs from 'node:fs';
 import { Store, repoId, logFile } from './store.js';
-import { readLog } from './usage.js';
+import { knownCheckouts } from './usage.js';
 import { deliveryReport, WINDOW_DAYS, SAVED_BUCKETS } from './delivery.js';
 import { deliveryCheckouts } from './delivery-journal.js';
 
@@ -94,7 +94,7 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
   };
   add(store.repo);
   if (all) {
-    for (const e of readLog(store, { all: true })) add(e.repo);
+    for (const checkout of knownCheckouts(store)) add(checkout);
     // A checkout whose sessions were recorded before it ever served a note is only in the journal.
     for (const checkout of deliveryCheckouts(store)) add(checkout);
   }

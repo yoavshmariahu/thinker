@@ -59,12 +59,14 @@ export function readDelivery(store) {
       const e = JSON.parse(line);
       if (e.schema !== SCHEMA || typeof e.eventId !== 'string' || typeof e.t !== 'string' || !Number.isFinite(Date.parse(e.t)) || e.origin !== origin || !OPS.includes(e.op)) throw new Error('unsupported or invalid record');
       if (seen.has(e.eventId)) return;
-      seen.add(e.eventId);
       if (e.op === 'pr' && e.pr && e.pr.number != null) {
         const json = JSON.stringify(e.pr), kept = lastPr.get(e.pr.number);
+        // A repeat is not remembered by its id either: the ids of every row ever written were 12 MB held for a
+        // journal of 120,000 rows, and a row with the id of a repeat is that repeat again, which is dropped here.
         if (kept && kept.json === json) { if (e.t >= events[kept.index].t) events[kept.index] = e; return; }
         lastPr.set(e.pr.number, { json, index: events.length });
       }
+      seen.add(e.eventId);
       events.push(e);
     } catch { warnings.push(`Unreadable delivery record at line ${index + 1}`); }
   });

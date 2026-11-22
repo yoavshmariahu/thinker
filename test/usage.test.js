@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Store, logFile } from '../src/store.js';
-import { summarize, renderUsage, readLog, knownRepos, sessionKey, normalizeClient, isoWeek, formatTokens, compressionNotice } from '../src/usage.js';
+import { summarize, renderUsage, readLog, knownRepos, knownCheckouts, onlyLogSince, sessionKey, normalizeClient, isoWeek, formatTokens, compressionNotice } from '../src/usage.js';
 
 const tmp = p => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), p)));
 function withEnv(vars, fn) {
@@ -12,6 +12,62 @@ function withEnv(vars, fn) {
   try { return fn(); } finally { for (const k in prev) { if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k]; } }
 }
 const repo = () => new Store(tmp('thinker-usage-')).init();
+
+// 2026-11-21. The log has no end, and a process that reads it held all of it: 25 MB of rows for ten weeks. The
+// hourly telemetry job looks back thirty days and has a ceiling on its memory, so it says how far back it looks.
+test('a process that only looks at recent days holds recent rows, whole sessions, and still knows every checkout', t => {
+  const home = tmp('thinker-home-');
+  t.after(() => onlyLogSince(''));
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined }, () => {
+    const one = repo(), two = repo(), gone = repo();
+    const day = n => new Date(Date.now() - n * 86400_000).toISOString();
+    // a repository nothing has touched for two months, a session that ended long ago, a machine-wide row of then
+    gone.log({ op: 'request', t: day(60), session: 'long-gone', task: 'q' });
+    one.log({ op: 'session', t: day(50), session: 'ended', turns: 3, delegated: { tokens: 900 } });
+    one.log({ op: 'upkeep', t: day(45) });
+    // a session that began before the window and is still going: what it saved is cumulative on its rows
+    one.log({ op: 'session', t: day(40), session: 'spanning', turns: 5, delegated: { tokens: 1000 } });
+    one.log({ op: 'delegate', t: day(40), session: 'spanning', tokens: 1000 });
+    one.log({ op: 'session', t: day(2), session: 'spanning', turns: 9, delegated: { tokens: 5000 } });
+    two.log({ op: 'request', t: day(1), session: 'new', task: 'q' });
+    const key = e => `${e.t}|${e.op}|${e.session || ''}`;
+
+    const every = readLog(one, { all: true }).map(key);
+    const repos = knownRepos(one, { all: true }), mine = knownRepos(one), checkouts = knownCheckouts(one);
+    assert.equal(every.length, 7); assert.equal(repos.length, 3); assert.deepEqual(checkouts, [gone.repo, one.repo, two.repo]);
+
+    onlyLogSince(day(31));
+    const recent = readLog(one, { all: true }).map(key);
+    assert.deepEqual(recent, every.filter(k => /\|spanning$|\|new$/.test(k)), 'the window\'s rows, and every row of a session that reaches into it');
+    assert.equal(recent.filter(k => k.endsWith('|spanning')).length, 3, 'the spanning session is whole: its first row is what its last is measured from');
+    assert.deepEqual(readLog(one).map(key), recent.filter(k => k.endsWith('|spanning')), 'one repository\'s rows the same way');
+    // what is asked of the whole log is still answered for the whole log, in the same order
+    assert.deepEqual(knownRepos(one, { all: true }), repos);
+    assert.deepEqual(knownRepos(one), mine);
+    assert.deepEqual(knownCheckouts(one), checkouts, 'the repository only old rows name is still a checkout of this machine');
+
+    // a row written afterwards is read, and a session that comes back brings its old rows with it
+    one.log({ op: 'request', t: day(0), session: 'ended', task: 'again' });
+    assert.equal(readLog(one, { all: true }).filter(e => e.session === 'ended').length, 2);
+
+    onlyLogSince('');
+    assert.equal(readLog(one, { all: true }).length, 8, 'and a process that takes it back holds every row again');
+  });
+});
+
+test('a log with rows that name no repository is held whole, whatever the process says', t => {
+  const home = tmp('thinker-home-');
+  t.after(() => onlyLogSince(''));
+  withEnv({ THINKER_HOME: home, THINKER_LOG: undefined }, () => {
+    const one = repo();
+    const old = new Date(Date.now() - 60 * 86400_000).toISOString();
+    fs.writeFileSync(logFile(one), [{ t: old, op: 'orient', session: 'old' }, { t: old, op: 'request', session: 'old2', repo: one.repo }].map(e => JSON.stringify(e)).join('\n') + '\n');
+    const every = readLog(one, { all: true }).length;
+    onlyLogSince(new Date(Date.now() - 31 * 86400_000).toISOString());
+    assert.equal(readLog(one, { all: true }).length, every);
+    assert.deepEqual(knownCheckouts(one), [one.repo]);
+  });
+});
 
 test('usage is kept in one log for the machine and summarized across repositories', () => {
   const home = tmp('thinker-home-');

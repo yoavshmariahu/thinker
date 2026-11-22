@@ -670,6 +670,7 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - One attempt an hour, claimed before the job exists (`telemetry.js:claimAttempt`); one job at a time (`holdTelemetryRun`).
 - Built in a worker under a deadline and a memory ceiling (`telemetry-guard.js:BUILD_LIMITS`); past one, the parts that finished are sent with `incomplete`.
 - The limits are constants, not settings. A new block is a new part in `telemetryParts`, cheapest first, and reads each file once.
+- The worker holds `LOG_DAYS` of the usage log (`usage.js:onlyLogSince`): a part that looks further back raises it.
 - Anything started from a prompt marks itself before it starts, never when it finishes. See "The telemetry job" below.
 
 **Matched models (MANDATORY):**
@@ -916,11 +917,24 @@ ledgers held 923, and `arms` sent that repository's sessions 15 times over. Both
 (`telemetry.js:caches`, by the real path of its `.thinker`). A dashboard that sums `arms` or `profile` over
 machines drops on the day a machine with worktrees updates; the earlier figure was the wrong one.
 
-**What it still cannot do.** The usage log has no rotation, and the report holds its rows (about 25 MB of heap
-for a 19 MB log): a history several times this one's will reach the heap limit, and the report will then go out
-without its last parts and say so. That is the limit working, and `incomplete` on the dashboard is where it will
-show first. A worker inside one native call cannot be interrupted; the job then ends itself from outside
-(`commands/telemetry.js:endIfStuck`) once the report is sent.
+**The job's memory does not grow with the machine's history (2026-11-21, the same day).** The usage log has no
+rotation, and a process that read it held all of it: 39,494 rows and 25 MB of heap for ten weeks, on the way to
+the worker's heap limit. The worker now says how far back its parts look (`telemetry.js:LOG_DAYS`, the longest
+of their windows and a day; `usage.js:onlyLogSince`) and a parse keeps the rows from then on, **every row of a
+session that has one there** -- a session's savings are cumulative on its rows, so it is kept whole or not at
+all, never cut where the window starts -- and an index of every checkout the whole log names, which is what
+`knownRepos` and `knownCheckouts` answer from. 11,534 rows held instead of 39,494; the report is the same one,
+compared whole against the in-process build on a frozen copy of the logs, and the job peaks at 213 MB where it
+was 243. A part that looks further back than its window must raise `LOG_DAYS`. The journal reader no
+longer remembers the ids of the repeated rows it drops (12 MB for a journal of 120,000 rows).
+
+**What it still does, and why it was left.** The job still *reads* its files every hour, a chunk at a time: the
+usage log twice over (19 MB here), the journals (79 MB) and the proxy log's last 16 MB. Not reading them would
+take a kept fold of each with a place to resume from. Measured with the journals already folded, that is 0.77 s
+and 205 MB against 1.0 s and 213 MB: a quarter of a second and 7 MB, for a cache that can be wrong without
+anything saying so. What remains is node and the CLI's modules (77 MB before any work, and loaded again in the
+worker) and the proxy log. A worker inside one native call cannot be interrupted; the job then ends itself from
+outside (`commands/telemetry.js:endIfStuck`) once the report is sent.
 
 ## Usage history
 

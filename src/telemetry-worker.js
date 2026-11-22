@@ -7,7 +7,9 @@ const { module, repo, options } = workerData;
 const why = e => String(e?.message || e).slice(0, 200);
 
 try {
-  const { telemetryParts } = await import(module);
+  const { telemetryParts, prepareTelemetryWorker } = await import(module);
+  // this thread builds one report and ends: it may say how far back it will ever look (telemetry.js)
+  prepareTelemetryWorker?.();
   let store;
   if (repo) { const { Store } = await import('./store.js'); store = new Store(repo); }
   const parts = telemetryParts(store, options);

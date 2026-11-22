@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
-import { summarize, readLog, knownRepos, sessionKey } from './usage.js';
+import { summarize, readLog, knownRepos, sessionKey, onlyLogSince } from './usage.js';
 import { readLedger, holdoutReport } from './profile.js';
 import { Store, findRepoRoot } from './store.js';
 import { deviceIdentity } from './device.js';
@@ -17,6 +17,7 @@ import { containerKind } from './container-kind.js';
 import { detectClients, inferWiring, USER_SCOPE_CLIENTS } from './clients.js';
 import { detectHarnesses } from './harnesses.js';
 import { deliveryMetrics } from './delivery-telemetry.js';
+import { WINDOW_DAYS } from './delivery.js';
 import { proxyReport, clearedOf } from './proxy.js';
 import { serviceState, proxyLogFile, SERVICE_HOLDOUT } from './proxy-service.js';
 import { clearingRows, compressionDir } from './compression.js';
@@ -762,6 +763,15 @@ export function telemetryParts(store, { home = thinkerHome(), days = 1, all = tr
     // the saving, so a dashboard never pools two policies or dates one from this machine's clock.
     ['delivery', () => { delivery ||= deliveryMetrics(store, { all, home }); return { prs: delivery.prs, sessions: delivery.sessions }; }],
   ];
+}
+
+// How far back any part above looks into the usage log: the longest of their windows, and a day for the clock
+// between this instant and theirs. The worker that builds the report says so before it builds
+// (telemetry-worker.js), and holds no older rows than these (usage.js:onlyLogSince) -- which is what keeps the
+// job's memory from growing with the machine's history. A part that looks further back must say so here.
+export const LOG_DAYS = Math.max(WINDOW_DAYS, SPEND_WINDOW_DAYS, HOLDOUT_WINDOW_DAYS) + 1;
+export function prepareTelemetryWorker({ now = Date.now() } = {}) {
+  onlyLogSince(new Date(now - LOG_DAYS * DAY_MS).toISOString());
 }
 
 // The payload's keys in the order they have always been sent, whatever order the parts were built in.
