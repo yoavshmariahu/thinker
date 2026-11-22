@@ -518,14 +518,14 @@
     <section id="tab-chat" hidden>
       <div class="home">
         <aside class="home-side" aria-label="Recent activity and chat history">
-          <div class="side-head"><div class="seg small" id="side-view" role="tablist" aria-label="Show"><button type="button" data-side="activity" class="on" role="tab" aria-selected="true">Activity</button><button type="button" data-side="history" role="tab" aria-selected="false">Chat history</button></div><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests">All decisions</button></div>
-          <div id="side-activity">
+          <div class="side-head"><div class="seg small" id="side-view" role="tablist" aria-label="Show"><button type="button" data-side="activity" role="tab" aria-selected="false">Activity</button><button type="button" data-side="history" class="on" role="tab" aria-selected="true">Chat history</button></div><button class="side-link" id="side-more" type="button" title="Every decision with what it saved, and the merged pull requests" hidden>All decisions</button></div>
+          <div id="side-activity" hidden>
             <div class="side-status" id="side-status" role="status"></div>
             <div id="side-body"><div class="side-empty"><span class="spinner"></span>Reading…</div></div>
           </div>
-          <div id="side-history" hidden>
+          <div id="side-history">
             <button class="side-new" id="chat-new" type="button" title="Start a new conversation with thinker">+ New chat</button>
-            <div id="side-chats"></div>
+            <div id="side-chats"><div class="side-empty"><span class="spinner"></span>Reading…</div></div>
           </div>
         </aside>
         <div class="home-chat">
@@ -964,7 +964,8 @@ async function pollActivity() {
 // did, and tells it how to behave. A message says which repository is picked above it. What thinker changed is listed
 // under its answer in the server's own words (`did`). A message that had to be queued for an app's own session shows
 // as waiting, and the page checks back for the answer.
-// Down the left, a toggle between two views (the owner, 2026-11-21). Chat history (chat.js:chatList, as `thinker chat
+// Down the left, a toggle between two views (the owner, 2026-11-21), which opens on the chat history (the owner,
+// 2026-11-22; the markup holds that default, setSide the toggle). Chat history (chat.js:chatList, as `thinker chat
 // --history`): the conversations, a line each by the first thing said in it, under the day it was last spoken in. The
 // page opens on the one last spoken in; a line opens another, and New chat one that starts with its first message.
 // Recent activity (/api/upkeep: upkeep.js:upkeepView, as `thinker activity`): a line an action with what
