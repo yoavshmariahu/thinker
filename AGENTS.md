@@ -665,6 +665,14 @@ Headroom Labs; `delegate.js` "the same file, read again", `op: repeat`):**
 - `THINKER_TEST=1`: blocks production telemetry and background work, keeps logs local.
 - `THINKER_OFFERS=on`: restore offers (offer tests only).
 - Every child must inherit. Never send test runs to production. Mocked or loopback only.
+- A test that spawns the CLI with a `HOME` of its own names `THINKER_TEST: '1'` in that env itself: a file run by hand outside `npm test` inherits none.
+
+**The machine's service entries have one owner (MANDATORY, 2026-11-21):**
+- `machine-home.js:ownsMachine`: only the account's own `~/.thinker`, outside test mode, writes or restarts the proxy's entry, the telemetry schedule and the update schedule. The account's home is the password database's (`os.userInfo()`), never `$HOME`. All three writers ask it; a new entry asks it too.
+- Any other home (a test's, a benchmark's, a `HOME` pointed elsewhere) keeps its entries under itself and calls no launchctl, systemctl or crontab. Its schedules are its own invocations.
+- A proxy of any other home exits when that home is gone (`proxy-service.js:homeGoneWatcher`); the machine's own is never watched.
+- Tests of the writers stand a directory in for the account (`machine: { account }`) and leave only stubs on `PATH` (`test/service-ownership.test.js`). Never the real service manager, never a real entry.
+- Why: a test file run outside `npm test` with `HOME=<tmp>` counted as the machine under the old rule (`os.homedir()`), booted the person's proxy out of launchd and registered a test copy under its label; the proxy launchd started for it then rewrote the person's telemetry job. 36 proxies of deleted homes were alive, 1.2 GB.
 
 **The telemetry job is bounded (MANDATORY, 2026-11-21):**
 - One attempt an hour, claimed before the job exists (`telemetry.js:claimAttempt`); one job at a time (`holdTelemetryRun`).

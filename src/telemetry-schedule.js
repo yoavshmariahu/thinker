@@ -7,6 +7,7 @@ import { isTestMode } from './test-mode.js';
 import { fileURLToPath } from 'node:url';
 import { thinkerHome, DAY_MS } from './update.js';
 import { isTelemetryEnabled, scheduleTelemetry } from './telemetry.js';
+import { ownsMachine } from './machine-home.js';
 
 const statePath = home => path.join(home, 'state', 'telemetry-schedule.json');
 export function telemetryScheduleState(home = thinkerHome()) {
@@ -22,12 +23,17 @@ export function setTelemetryScheduleDisabled(disabled, home = thinkerHome()) {
 
 export function ensureTelemetryScheduled({
   home = thinkerHome(), rootDir, force = false,
-  schedule = scheduleTelemetry, testMode = isTestMode(), now = Date.now(),
+  schedule = scheduleTelemetry, testMode = isTestMode(), now = Date.now(), machine,
 } = {}) {
   // Tests may exercise the migration only with a fake scheduler; no OS jobs. A CLI a test spawns with
   // THINKER_TEST=0 (to reach its loopback server) still inherits NODE_TEST_CONTEXT: a real job from it
   // would outlive the test and send its temporary home's reports to the production endpoint every hour.
   if ((testMode || isTestMode() || process.env.NODE_TEST_CONTEXT) && schedule === scheduleTelemetry) return { skipped: 'test' };
+  // The job is the machine's, and only the machine's own home schedules it (machine-home.js:ownsMachine). Every
+  // command runs this, a proxy included: on 2026-11-21 one that launchd had started for a test's temporary
+  // THINKER_HOME rewrote the person's hourly job to run a test copy against that home. Nothing is kept for another
+  // home either, so the question is asked again the day that home is the machine's.
+  if (schedule === scheduleTelemetry && !ownsMachine(home, machine)) return { skipped: 'not the machine\'s own home' };
   if (testMode || process.env.THINKER_IN_LLM || !isTelemetryEnabled({ home })) return { skipped: 'disabled' };
   const state = telemetryScheduleState(home);
   if (state.disabled) return { skipped: 'unscheduled' };
@@ -38,7 +44,7 @@ export function ensureTelemetryScheduled({
   // failed scheduler is retried on the next invocation, at most once an hour.
   if (!force && state.key === key && now - state.at < (state.error ? 3600_000 : DAY_MS)) return { ...state, cached: true };
   try {
-    const result = schedule({ home, cliPath });
+    const result = schedule({ home, cliPath, machine });
     const next = { key, at: now, type: result.type };
     save(home, next);
     return next;

@@ -13,7 +13,7 @@ import { formatTokens } from '../model-usage.js';
 import { compressionHeader } from '../compression.js';
 import { bedrockState } from '../proxy-bedrock.js';
 import { verifyResponsesUsage, responsesUsageRecords } from '../proxy-responses.js';
-import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, appVersion } from '../proxy-service.js';
+import { enableProxyService, disableProxyService, serviceState, isListening, wiredLines, serviceArgs, proxyUrl, proxyLogFile, standDown, proxyThrough, gatewayHint, recordProxyListening, idleRestartWatcher, homeGoneWatcher, appVersion } from '../proxy-service.js';
 import { readMachineConfig } from '../repo-switch.js';
 
 
@@ -226,6 +226,9 @@ async function proxyCommand({ pos, flags, out, repo, HERE }) {
       log: row => { try { fs.appendFileSync(logFile, JSON.stringify({ at: new Date().toISOString(), ...row }) + '\n'); } catch {} },
     });
   }
+  // Any proxy but the machine's own service goes when its THINKER_HOME does: a test's or a benchmark's proxy is a
+  // detached process nothing else would ever stop (proxy-service.js:homeGoneWatcher; null for the machine's home).
+  homeGoneWatcher({ home: thinkerHome(), close: () => new Promise(r => server.close(r)), exit: () => process.exit(0), say: out });
   await new Promise(resolve => {
     for (const sig of ['SIGINT', 'SIGTERM']) process.once(sig, () => server.close(resolve));
   });
