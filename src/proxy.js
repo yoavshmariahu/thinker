@@ -43,7 +43,7 @@ import { imageTokens } from './transcripts.js';
 import { isRewrite, LONG_CONTEXT, clearedOf } from './cutting.js';
 import { retryPlan, addressBook, cachingLookup } from './proxy-retry.js';
 import { keptCalls, keepPatterns } from './keep.js';
-import { decideCut, cutResponse, cutStore, freshCut, addThink, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
+import { decideCut, isRecap, cutResponse, cutStore, freshCut, addThink, policyId, sessionOf, MIN_CHARS as CUTTING_MIN_CHARS, placeholder as cutting_placeholder, imagePlaceholder, cutInput } from './cutting.js';
 export { isRewrite, LONG_CONTEXT, clearedOf };
 
 export const EDIT_BETA = 'context-management-2025-06-27';
@@ -1022,7 +1022,7 @@ export function transformRequest(method, url, headers, body, cfg) {
   const had = breakpointsOf(j);
   const bp = { n: had.n, ttl: [...new Set(had.ttls)].join(',') };
   const room = cfg.cutBreakpoint ? canMark(j, cand, { cutInputs: cfg.cutInputs }) : null;
-  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, mark: !!room, markTtl: room?.ttl });
+  const d = decideCut(rec, cfg, m, { cand, ttl: cfg.ttl, now: cfg.now, model: j.model, mark: !!room, markTtl: room?.ttl, recap: isRecap(j.messages) });
   // the images are on disk before the prompt loses them, or they stay in the prompt
   const imagePath = cfg.imagePath && d.cut?.length && saveCutImages(j.messages, d.cut, cfg.imagePath) ? cfg.imagePath : null;
   // a cut made on this request adds its own range: from the oldest result it newly replaces to this turn
@@ -1054,7 +1054,9 @@ export function transformRequest(method, url, headers, body, cfg) {
   // the decision's, never derived here from `candidate` (2026-11-08): see `cutting.js:decideCut`.
   // the policy that decided this, named on the row so no reader has to date it (cutting.js:policyId): on a
   // refusal it says which floor refused, on a clear it says what the saving is worth comparing with
-  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, turn: m.turn, cut: d.cut, bp, ...keptRow, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
+  // a recap's row carries no turn: the turn a row carries is the one the record is moved to (the reservation
+  // and `cutting.js:cutResponse` both read it), and a recap moves nothing
+  if (!applied.cut) return asCame({ policy: d.policy || policyId(cfg), reason: d.reason === 'seed' ? 'seed-unplaced' : d.reason || 'nothing-to-cut', model: j.model, ...(d.reason === 'recap' ? {} : { turn: m.turn }), cut: d.cut, bp, ...keptRow, ...seed, ...(d.held ? { held: d.held } : {}), ...(d.candidate ? { candidate: d.candidate } : {}) });
   // What each action's result was worth is read from the request as the agent sent it, before the cut
   // replaces it: in `applied.messages` every cut result is already the placeholder, so the breakdown the
   // card, the Codex card, `thinker proxy report` and the agent's own `<thinker-compression>` block read
@@ -1064,6 +1066,8 @@ export function transformRequest(method, url, headers, body, cfg) {
   j.messages = marked ? marked.messages : applied.messages;
   return { body: Buffer.from(JSON.stringify(j)), injected: true, bp, ...keptRow, ...markRow, ...seed, model: j.model, keep: cfg.keepMin ?? 3, policy: d.policy || policyId(cfg),
     cut: d.cut, changed: !!d.clear, addBeta: false, actions, ...(stubbed ? { stubbed } : {}),
+    // a row that carries a cut says no reason, so a recap in a session already cut is marked here
+    ...(d.reason === 'recap' ? { recap: true } : {}),
     // `inputChars` and `thinking` stood here until 2026-11-05 and `applyCut` returned neither: they are the
     // API-side clearing's fields, and the cut touches neither the call text nor the thinking.
     clientCut: { cut: applied.cut, chars: applied.chars, tokens: applied.tokens, firstChanged: applied.firstChanged, ...(applied.thinking != null ? { thinking: applied.thinking } : {}) },
@@ -1422,7 +1426,7 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
             if (rates && t.protocol === 'chat' && ures.statusCode === 200 && Number.isFinite(usage?.cost)) { try { rates.observe(t.model, usage); } catch { /* a rate is never worth a failed request */ } }
             if (tap) logProxy({ at: new Date().toISOString(), op: 'proxy', session: t.session || sessionOf(req.headers), model: t.model, status: ures.statusCode,
               ...(t.protocol === 'responses' || t.protocol === 'chat' ? { protocol: t.protocol, ...(t.gateway ? { gateway: t.gateway } : {}), ...(t.usageRequested ? { usageRequested: true } : {}), ...(t.rates ? { rates: t.rates } : {}), removedBytes: t.removedBytes || 0, estimatedRemovedTokens: t.estimatedRemovedTokens || 0, clearedUses: t.clearedUses || 0 } : {}),
-              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.kept ? { kept: t.kept } : {}), ...(t.bp ? { bp: t.bp } : {}), ...(t.mark ? { mark: t.mark } : {}), ...(t.planned ? { planned: t.planned } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
+              injected: !!t.injected, ...(t.stubbed ? { stubbed: t.stubbed } : {}), ...(t.clientCut ? { clientCut: t.clientCut } : {}), ...(t.clear ? { clear: t.clear } : {}), ...(t.kept ? { kept: t.kept } : {}), ...(t.bp ? { bp: t.bp } : {}), ...(t.mark ? { mark: t.mark } : {}), ...(t.planned ? { planned: t.planned } : {}), ...(t.held ? { held: t.held } : {}), ...(t.candidate != null ? { candidate: t.candidate } : {}), ...(t.policy ? { policy: t.policy } : {}), ...(t.turn != null ? { turn: t.turn } : {}), ...(t.injected ? { keep: t.keep, ...(t.inputs ? { inputs: true } : {}), ...(t.recap ? { recap: true } : {}) } : { reason: t.reason }), ...(t.addBeta ? { betaAdded: true } : {}), ...(t.notes ? { notes: t.notes.served.length, notesReplayed: t.notes.replayed, ...(t.notes.reason ? { notesReason: t.notes.reason } : {}) } : {}), overheadMs: Math.round(overheadMs * 1000) / 1000, ...(attempt ? { retried: true } : {}), ...(truncated ? { truncated: true } : {}), ...(routed ? routeRow(routed, { firstByteMs, ...(routeDropped?.length ? { dropped: routeDropped } : {}) }) : {}), ...usage, ...clearedBy(t) }, t.actions);
             dump(t.session || sessionOf(req.headers), t, usage);
             // the record after the answer (cutting.js:cutResponse): what the cut saved, what the rewrite cost;
             // each event is a log line, and the record goes back to disk

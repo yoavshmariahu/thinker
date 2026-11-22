@@ -87,9 +87,9 @@ export function eventsTarget({ env = process.env, home = thinkerHome() } = {}) {
 // asserted. Two sources, both already written and neither of them new:
 //
 //   the proxy's log  one row a request, carrying either the cut it made (`clear`, with the policy and the
-//                    turn) or the reason it made none -- `cutting.js:decideCut`'s own seven branches
-//                    (`off`, `nothing-to-cut`, `below-trigger`, `below-clear-minimum`, `mid-turn`, `one-cut`,
-//                    `payback`), so "why was nothing cut here" has a recorded answer per request. `off` is
+//                    turn) or the reason it made none -- `cutting.js:decideCut`'s own eight branches
+//                    (`off`, `recap`, `nothing-to-cut`, `below-trigger`, `below-clear-minimum`, `mid-turn`,
+//                    `one-cut`, `payback`), so "why was nothing cut here" has a recorded answer per request. `off` is
 //                    every row since 2026-11-19, when the cutting was turned off (proxy.js:PROXY_DEFAULTS),
 //                    and it carries the `candidate` the request would have given up, which is what keeps the
 //                    log answering what a cut was worth while none is made.
