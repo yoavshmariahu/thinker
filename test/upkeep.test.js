@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { UPKEEP, BEHAVIOR, worthOf, upkeepCheck, upkeepPending, upkeepDo, upkeepUndo, upkeepView, readUpkeep } from '../src/upkeep.js';
+import { UPKEEP, BEHAVIOR, worthOf, setBehavior, behaviorOf, upkeepCheck, upkeepPending, upkeepDo, upkeepUndo, upkeepView, upkeepFeed, upkeepDetail, mergeUpkeepViews, readUpkeep } from '../src/upkeep.js';
+import { formatTokens } from '../src/model-usage.js';
 import { changeHistory, VIA } from '../src/context-suggest.js';
 import { maintain, MAINTENANCE_INTERVAL_MS } from '../src/maintain.js';
 
@@ -109,6 +110,52 @@ test('thinker takes the gentlest change that gets the saving', async () => {
   assert.match(mcp({ use: { used: 1, loaded: 40 } }).why, /switched off outright/);
   assert.match(mcp({ use: { used: 0, loaded: enough - 1 } }).why, /too few/);
   assert.equal(mcp({ use: { used: 0, loaded: enough } }).ok, true, 'nobody called it, over enough sessions');
+});
+
+test('a second setting keeps the first', async () => {
+  const { store, home } = fresh();
+  for (const scope of ['machine', 'repo']) {
+    const where = scope === 'machine' ? path.join(home, 'config.json') : path.join(store.dir, 'config.json');
+    assert.equal(setBehavior(store, 'batchEveryDays', '30', { scope, home }).value, 30);
+    assert.equal(setBehavior(store, 'skills', 'on', { scope, home }).value, true);
+    assert.deepEqual(JSON.parse(fs.readFileSync(where, 'utf8')).upkeep, { batchEveryDays: 30, skills: true }, `${scope}: the second wish did not wipe the first`);
+  }
+  assert.deepEqual([behaviorOf(store, { home }).batchEveryDays, behaviorOf(store, { home }).skills], [30, true]);
+});
+
+test('what a batch did is one line of the activity, and that line is how it is taken back', async () => {
+  const { store, home } = fresh();
+  const sp = spawner();
+  const seen = { now: NOW, home, log: [], report: { rows: [], rate: RATE } };
+  await upkeepCheck(store, { now: NOW, home, fns: given(report({ sections: [section('releases'), section('ports')] }), { spawn: sp.spawn }) });
+  const id = `b:${readUpkeep(store).done.find(d => d.kind === 'batch').id}`;
+  const lineOf = () => { const ls = upkeepFeed(store, seen).filter(f => f.id === id); assert.equal(ls.length, 1, 'one line for the whole batch'); return ls[0]; };
+  const made = lineOf();
+  assert.equal(made.batch.changes, 2);
+  assert.ok(made.impactSaid, 'the line says what it came to');
+  assert.match(made.text, /shorten/i);
+  assert.doesNotMatch(made.text, /remov/i, 'it shortened them, and says so');
+  assert.equal(made.undo, undefined, 'nothing to take back while it is still being made');
+  assert.match((await upkeepUndo(store, id, { now: NOW })).error, /taken back/);
+  const at = new Date(NOW).toISOString(); // its job finished and opened one pull request over both sections
+  patchHistory(store, e => { e.job = { ...e.job, state: 'done' }; e.tokens = { before: 2000, after: 400 }; e.pr = { number: 12, state: 'open', url: 'https://github.com/o/r/pull/12', branch: 'thinker/batch', at }; });
+  const open = lineOf();
+  assert.equal(open.undo, id);
+  assert.equal(open.url, 'https://github.com/o/r/pull/12', 'the line carries the link while it is in review');
+  const facts = upkeepDetail(store, id, seen).join('\n');
+  assert.ok(facts.includes(formatTokens(400)), 'the chat can be told what the batch was, and what it left behind');
+  // and the id takes all of it back at once: one pull request closed, both sections reverted
+  const closed = [];
+  const took = await upkeepUndo(store, id, { now: NOW + DAY, fns: { prs: { closePr: (dir, number) => { closed.push(number); return {}; } } } });
+  assert.equal(took.error, undefined);
+  assert.deepEqual(closed, [12], 'closed once, not once per section');
+  assert.equal(changeHistory(store, { now: NOW + DAY }).every(e => e.revertedAt), true);
+  assert.equal(lineOf().undone, true);
+  // read beside a repository that could not be read at all, the line is still there
+  const view = upkeepView(store, seen);
+  const all = mergeUpkeepViews([{ repo: 'a', name: 'o/a', view }, { repo: 'b', name: 'o/b', view: null }]);
+  assert.equal(all.level, view.level);
+  assert.equal(all.feed.filter(f => f.id === id).length, 1);
 });
 
 test('the changes worth making go out together, as one job and one pull request', async () => {

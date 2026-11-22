@@ -88,6 +88,21 @@ test('a setting thinker does not have, or a value it cannot take, never lands', 
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(home, 'config.json'), 'utf8')).upkeep), ['level'], 'nothing unknown was written');
 });
 
+test('an action that blows up is reported as not done, and the ones after it still run', async () => {
+  const { home, repos } = fresh();
+  // this repository's config cannot be written: the wish aimed at it throws where it is written down
+  const blocked = path.join(repos[0].store.dir, 'config.json');
+  fs.rmSync(blocked, { force: true });
+  fs.mkdirSync(blocked);
+  const fn = model({ reply: 'Both of those, then.', actions: [{ type: 'set', repo: 'r1', key: 'prs', value: 'false' }, { type: 'set', key: 'batchEveryDays', value: '30' }] });
+  const r = await say('no pull requests here, and once a month everywhere', { repos, about: repos[0].id, home, completeFn: fn });
+  const did = answer(r).did;
+  assert.deepEqual(did.map(d => d.ok), [false, true], 'the one that blew up is not reported as done');
+  assert.match(did[0].text, /directory/, 'and it carries what went wrong');
+  assert.equal(behaviorOf(repos[0].store, { home }).prs, true, 'nothing was written for the repository');
+  assert.equal(behaviorOf(repos[0].store, { home }).batchEveryDays, 30, 'and the wish after it still landed');
+});
+
 test('a wish for one repository stays there, a wish for none is the whole machine, and "less of these" moves the bar one step', async () => {
   const { home, repos } = fresh(2);
   const [api, web] = repos;
@@ -173,6 +188,19 @@ test('an answer that needs the sessions costs one more model call and only one',
   assert.equal(asked[0].stage, 'merge');
   assert.deepEqual(answer(r).did.map(d => [d.type, d.ok]), [['read', true]]);
   assert.equal(answer(r).text, 'Here is what they show.', 'the second answer is the one kept');
+  assert.ok(fn.asked[1].prompt.includes('fix the build'), 'and it is asked again about the sessions that were read');
+});
+
+test('a model that cannot answer leaves the message and says why', async () => {
+  const { home, repos } = fresh();
+  const broken = async () => { throw new Error('the model timed out\nand a second line nobody needs'); };
+  const r = await say('what did you do?', { repos, about: repos[0].id, home, completeFn: broken });
+  const [mine, said] = r.messages;
+  assert.deepEqual([mine.role, mine.text], ['you', 'what did you do?'], 'the message is kept');
+  assert.equal(said.failed, 'the model timed out', 'the first line of the reason, and only that');
+  assert.deepEqual([said.text, said.did], ['', undefined], 'nothing was said and nothing was carried out');
+  assert.equal(fs.existsSync(path.join(home, 'config.json')), false);
+  assert.equal(chatView({ home }).messages.length, 2, 'and the conversation holds both');
 });
 
 test('with no model on this machine the message waits for a session and is answered later', async () => {

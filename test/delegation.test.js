@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import {
-  DELEGATE_DEFAULTS, delegateTool, preToolHook, decide, noteHandoff, readOf, suiteCommand,
+  DELEGATE_DEFAULTS, delegateConfig, delegateTool, preToolHook, decide, readOf, suiteCommand,
   hostEvent, HOSTS, OPENCODE_EXPLORE, CLAUDE_VERIFY,
 } from '../src/delegate.js';
 import { installClaudeVerifier, claudeVerifierPath } from '../src/delegate-agents.js';
@@ -67,8 +67,10 @@ test('a big read is handed to a subagent and the denial says where to take it, w
   assert.match(got.permissionDecisionReason, /core\.py/, 'the file it would have read');
   assert.match(got.permissionDecisionReason, /Explore/, 'the subagent to take it to');
   assert.match(got.permissionDecisionReason, /Nothing has gone wrong/, 'a denial read as a fault is routed around');
+  assert.match(got.permissionDecisionReason, /rename the handler/, 'the subagent is told what the person asked');
   assert.equal(rows.length, 1);
   assert.deepEqual([rows[0].kind, rows[0].agent, rows[0].held], ['explore', 'Explore', false]);
+  assert.equal(rows[0].model, DELEGATE_DEFAULTS.model, 'the model it will be billed at, where thinker pins one');
 
   const quiet = [];
   assert.equal(await door(read(SMALL), { log: r => quiet.push(r) }), null, 'the small read goes through');
@@ -146,6 +148,9 @@ test('a whole-suite run goes to the verifier and one test file stays with the mo
   assert.equal(got.permissionDecision, 'deny');
   assert.match(got.permissionDecisionReason, new RegExp(CLAUDE_VERIFY), 'the suite run has a subagent of its own');
   assert.match(got.permissionDecisionReason, /Nothing has gone wrong/);
+  // each handoff carries its own work and not the other's: a command to run here, a file to read above
+  assert.match(got.permissionDecisionReason, /npm test/, 'the command the verifier is to run');
+  assert.doesNotMatch(got.permissionDecisionReason, /core\.py|rename the handler/, 'nothing of a read\'s brief');
   assert.equal(rows[0].kind, 'verify');
   assert.equal(await door(shell('pytest tests/test_one.py')), null, 'one file is the model checking its own edit');
 });
@@ -168,6 +173,20 @@ test('each switch lets its own kind of work through', async () => {
   assert.equal(await door(read(BIG), { cfg: { reads: false }, log: r => off.push(r) }), null, 'reads kept with the model');
   assert.equal(await door(shell('npm test'), { cfg: { suites: false }, log: r => off.push(r) }), null, 'suite runs kept with the model');
   assert.deepEqual(off, [], 'a switch that is off decides nothing and logs nothing');
+});
+
+test('what a person set in their own settings is what the trigger does', () => {
+  const dir = tmp('settings');
+  const set = delegate => {
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ delegate }));
+    return delegateConfig({ env: {}, home: dir });
+  };
+  const chosen = set({ threshold: THRESHOLD * 4 });
+  assert.equal(chosen.threshold, THRESHOLD * 4, 'the size they chose');
+  assert.equal(chosen.enabled, true, 'and everything they did not choose left as it was');
+  assert.equal(set(false).enabled, false, 'switched off altogether');
+  assert.equal(set({ enabled: false }).enabled, false, 'switched off by its own key');
+  assert.equal(delegateConfig({ env: {}, home: tmp('no-settings') }).threshold, THRESHOLD, 'nothing set, the default');
 });
 
 test('a read nothing can answer for goes through', async () => {
@@ -225,9 +244,11 @@ test('on OpenCode the read is understood in its own words and the denial comes b
   // its tools are lower case and its Read takes `path`
   const ev = hostEvent('opencode', { tool_name: 'read', tool_input: { path: BIG }, prompt_id: 'turn-1', agent: 'build' });
   assert.equal(ev.tool_name, 'Read');
-  const got = answer(await door(ev, { client: 'opencode', readCap: HOSTS.opencode.readCap }));
+  const rows = [];
+  const got = answer(await door(ev, { client: 'opencode', readCap: HOSTS.opencode.readCap, log: r => rows.push(r) }));
   assert.match(got.permissionDecisionReason, new RegExp(OPENCODE_EXPLORE), 'the agent thinker installed there');
   assert.match(got.permissionDecisionReason, /Nothing has gone wrong/);
+  assert.equal('model' in rows[0], false, 'it runs on the session\'s own model, so the row claims none');
 
   // the plugin's own door: what the hook denies is thrown, which OpenCode makes the tool call's result
   const hooks = {}, asked = [];

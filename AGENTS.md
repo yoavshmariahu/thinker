@@ -51,8 +51,9 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 - One file per core feature: `cutting` (the policy and the desktop door), `proxy-cut` (the cut on the wire), `savings` (the accountant), `delegation`, `instructions`, `chat`, `upkeep`. The clearing mod has its own: `claude plugin test src/integrations/claude-clear`.
 - A test is a behavior a person would notice broken, driven through the function the door calls, with the model, `gh`, the clock and any child process injected. It must go red when one line of the product is broken; a test that cannot is not added.
 - Not tests: wording, history, internals read out of source text, a tunable's literal value. A check of the source is allowed only where the rule is about the source: one accountant, the mod holding no policy, every proxy setting honoured or exempt at the desktop door.
-- `test/helpers.js` is imported first by every test file: a throwaway home, test mode, no telemetry, a git that knows nothing of the machine. A file stays under a second and about 300 lines.
+- `test/helpers.js` is imported first by every test file: a throwaway home, test mode, no telemetry, a git that knows nothing of the machine. A file stays around a second and under about 400 lines.
 - A known gap is a test skipped with what is wrong in a line (`{ skip: 'known gap: …' }`), never a deleted one. Fixing the gap means taking the skip off.
+- What it catches, measured the day it was written: of 126 one-token breaks made at random in the core source files, the suite went red on 56 (44%). The suite it replaced went red on 35 of a sample of 42 (83%), at 41 s a run against 2 s, and caught every break this one catches. Lean is a trade, and what it gives up is mostly display, logging and report code; a break there is not noticed here.
 - Requires Node 20+. `npm test` runs `scripts/test.sh`.
 
 **Desktop apps (MANDATORY):**

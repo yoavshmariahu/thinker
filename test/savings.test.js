@@ -12,9 +12,10 @@ import {
   netOf, readSavings, rereadCost, savingsLine, savingsValue, sessionSaving, sumSavings, weeklySavings,
   RECENT_DAYS,
 } from '../src/accountant.js';
-import { clearingRows, loggedClearing, noteCompression } from '../src/compression.js';
+import { clearingRows, loggedClearing, mirrorClearing, noteCompression } from '../src/compression.js';
+import { delegatedOf } from '../src/delegated.js';
 import { costOf, costOfInputSavings, listPrice } from '../src/prices.js';
-import { rereadsOf } from '../src/rereads.js';
+import { cutTimesFor, rereadsOf } from '../src/rereads.js';
 import { RESULT_TOKENS_PER_CHAR } from '../src/proxy.js';
 import { sessionKey } from '../src/usage.js';
 
@@ -101,12 +102,15 @@ test('each clear is counted once across the proxy\'s log, the desktop record and
   record('desktop', 80_000, at(2));        // a session the proxy never served
   const events = [
     { op: 'clearing', session: 'desktop', t: iso(at(2)), cleared: 80_000, model: MODEL },   // mirrored too: still once
-    { op: 'clearing', session: 'pruned', t: iso(at(3)), cleared: 9000, model: MODEL },      // its record is gone
+    { op: 'clearing', session: 'pruned', t: iso(at(3)), cleared: 9000 },                    // its record is gone
+    { op: 'session', session: 'pruned', t: iso(at(3)), model: MODEL },                      // and its model is the log's to name
   ];
   const rows = clearingRows(f, dir, { events, key: sessionKey });
   assert.deepEqual(rows.map(r => [r.session, r.cleared]), [['proxied', 5000], ['desktop', 80_000], ['pruned', 9000]]);
   const c = cleared({ compression: rows, events: [...events, known('proxied'), known('desktop'), known('pruned')] });
   assert.equal(c.tokens, 94_000, 'each clear once, whichever record carried it');
+  near(c.cost, readsCost(94_000), 'every clear priced at the model that answered it, wherever that was named');
+  assert.equal(c.unpricedTokens, 0, 'and none of them left without a model');
 });
 
 test('a session\'s per-request rows add up; its running total takes the newest, never the sum', () => {
@@ -117,6 +121,21 @@ test('a session\'s per-request rows add up; its running total takes the newest, 
   // the desktop mod's mirror is the session's total so far, written once a turn it grew
   const mirrored = [1000, 3000, 6000].map((n, i) => ({ op: 'clearing', session: 's', t: iso(at(i + 1)), cleared: n, model: MODEL }));
   assert.equal(loggedClearing(mirrored, { key: sessionKey }).get('s').cleared, 6000, 'the newest total, not 10,000');
+});
+
+test('a desktop clear reaches the machine\'s log once, and again only once it has grown', () => {
+  const dir = tmp('mirror');
+  const state = { session: 'd', firstAt: iso(at(0)), lastAt: iso(at(2)), requests: 2, saved: 80_000, uses: 3, model: MODEL, cost: { rewrites: 1, write: 50_000 } };
+  const write = s => fs.writeFileSync(path.join(dir, 'd.json'), JSON.stringify(s));
+  const logged = [];
+  write(state);
+  const first = mirrorClearing(dir, 'd', r => logged.push(r));
+  assert.equal(first.cleared, 80_000, 'the session\'s running total, so no reader adds two of these');
+  assert.deepEqual([first.op, first.model, first.cost.write], ['clearing', MODEL, 50_000], 'with the model that answered and what the clear cost');
+  assert.equal(mirrorClearing(dir, 'd', r => logged.push(r)), null, 'the same total is never written twice');
+  write({ ...JSON.parse(fs.readFileSync(path.join(dir, 'd.json'), 'utf8')), saved: 120_000 });
+  assert.equal(mirrorClearing(dir, 'd', r => logged.push(r)).cleared, 120_000, 'the session cleared more, so the log is told');
+  assert.equal(logged.length, 2, 'one row a growth, not one a turn');
 });
 
 test('a delegated read saves the write the lead never made, less what the subagent cost, plus a read on each later call', () => {
@@ -156,6 +175,34 @@ test('a handoff that was held out, declined, failed or that the lead then read a
   for (const after of ['budget', 'in-flight']) {
     assert.equal(count([fired, { ...fired, t: iso(at(12)), fired: false, after }]), 2, `a read refused as ${after} is still kept out by the first`);
   }
+});
+
+test('what a delegated read kept out is read back from the session\'s own transcript', () => {
+  const body = 'y'.repeat(50_000);   // the lead reading a file whole, against a handoff of its own size
+  const lead = [2, 3, 4, 5, 6].map(m => ({ t: iso(at(m)) }));
+  const transcript = {
+    events: [
+      { t: 'prompt', at: iso(at(0)), text: 'go' },
+      { t: 'tool', at: iso(at(2)), name: 'Bash', input: { command: 'grep -rn foo src' }, result: 'one hit' },
+      { t: 'prompt', at: iso(at(20)), text: 'and this one' },
+      { t: 'tool', at: iso(at(22)), name: 'Read', input: { file_path: '/repo/notes.py' }, result: body },
+    ],
+    calls: [...lead, { t: iso(at(3)), agent: 'a1' }],   // the subagent's own calls are not the lead's
+  };
+  const firings = [
+    { t: iso(at(1)), tokens: 40_000, files: ['/repo/core.py'], agent: 'Explore' },
+    { t: iso(at(21)), tokens: 20_000, files: ['/repo/notes.py'], agent: 'Explore' },   // the lead read this one itself
+  ];
+  // the subagent of the firing's own kind that the turn started after the denial, and a later one that is nobody's
+  const subagents = [{ agent: 'a1', type: 'Explore', at: iso(at(2)) }, { agent: 'a2', type: 'Explore', at: iso(at(25)) }];
+  const cut = delegatedOf(transcript, firings, { cuts: [at(5)], subagents });
+  assert.deepEqual([cut.reads, cut.ignored, cut.agents], [1, 1, ['a1']], 'one read kept out, one the lead made anyway');
+  assert.equal(cut.tokens, 40_000, 'the write the lead never made');
+  assert.equal(cut.laterTokens, 2 * 40_000, 'the first later call would have written it, so the reads start at the second');
+  const compacted = delegatedOf({ ...transcript, calls: transcript.calls.map(c => (c.t === iso(at(5)) ? { ...c, compaction: true } : c)) }, firings, { subagents });
+  assert.equal(compacted.laterTokens, 2 * 40_000, 'a compaction ends the counting where a cut would have');
+  assert.equal(delegatedOf(transcript, firings, { subagents }).laterTokens, 4 * 40_000, 'with neither, every later call of the lead');
+  assert.equal(delegatedOf(transcript, []), null, 'a session that handed nothing over has no figure at all');
 });
 
 test('a session whose end-of-turn record holds the answer is counted from that record alone, never twice', () => {
@@ -201,6 +248,21 @@ test('a model nobody priced leaves a gap in the dollars, never a zero', () => {
   assert.equal(handed[0].reads, 1, 'and the handoff itself is still counted');
   // a session cleared beyond what its priced rows cover, on a model nobody priced
   assert.equal(sessionSaving({ cleared: 200_000, clearing: { usd: 1, pricedTokens: 100_000 }, model: null }).priced, false);
+});
+
+test('when a session was cut is read from the proxy\'s log, the mod\'s record and the log\'s mirror of it', () => {
+  const dir = tmp('cuts');
+  const f = file('cuts', [row({ session: 'x', at: iso(at(10)), clear: { tokens: 1000 } })]);
+  // the mod's own record, which stamps its clears in milliseconds where the proxy's rows carry a date
+  fs.writeFileSync(path.join(dir, 'x.json'), JSON.stringify({ session: 'x', firstAt: at(0), lastAt: at(20), requests: 2, saved: 5000, uses: 2, recent: [{ at: at(20), cleared: 5000, uses: 2 }] }));
+  const events = [
+    { op: 'clearing', session: 'x', t: iso(at(30)), cleared: 9000 },
+    { op: 'clearing', session: 'x', t: iso(at(35)), cleared: 12_000 },
+    { op: 'clearing', session: 'x', t: iso(at(40)), cleared: 12_000 },      // the total did not grow: no new cut
+    { op: 'clearing', session: 'other', t: iso(at(50)), cleared: 3000 },    // another session's cut, not this one's
+  ];
+  assert.deepEqual(cutTimesFor({ session: 'x', proxyLog: f, dir, events }), [at(10), at(20), at(30), at(35)]);
+  assert.deepEqual(cutTimesFor({ session: 'unknown', proxyLog: f, dir, events }), [], 'a session with no id of its own was never cut');
 });
 
 test('a file read again after a cut took it is charged; a kept file and the newest results are not', () => {
@@ -279,8 +341,8 @@ test('no module but the accountant prices a saving', () => {
     .flatMap(e => (e.name === 'node_modules' ? [] : e.isDirectory() ? walk(path.join(dir, e.name)) : /\.(js|mjs|tsx?)$/.test(e.name) ? [path.join(dir, e.name)] : []));
   // the code of a file without its comments: a rule about what a module does is not broken by what it says
   const code = f => fs.readFileSync(f, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map(l => l.replace(/(^|\s)\/\/.*$/, '')).join('\n');
-  const others = walk().filter(f => path.relative(src, f) !== 'accountant.js');
-  const offenders = (re, allowed = []) => others.filter(f => re.test(code(f))).map(f => path.relative(src, f)).filter(f => !allowed.includes(f));
+  const others = walk().map(f => [path.relative(src, f), code(f)]).filter(([name]) => name !== 'accountant.js');
+  const offenders = (re, allowed = []) => others.filter(([name, text]) => re.test(text) && !allowed.includes(name)).map(([name]) => name);
   assert.deepEqual(offenders(/\bcostOfInputSavings\b/, ['prices.js']), [], 'what a saved input token is worth is asked of the accountant');
   assert.deepEqual(offenders(/\bsaved\w*\s*-\s*[\w.?()|\s]*\b(rewrite|reread)/i), [], 'a saving is netted against what it cost in the accountant');
   assert.deepEqual(offenders(/\bclearingRows\(/, ['compression.js']), [], 'the clearing\'s rows are read for a count through the accountant\'s one reader');

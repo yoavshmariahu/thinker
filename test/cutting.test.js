@@ -9,9 +9,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import nodeModule from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { decideCut, freshCut, mergeCut, cutStore, priceCut, policyId, placeholder, cutInput, chargedRewrite, PAYBACK, COLD_MS } from '../src/cutting.js';
+import { decideCut, freshCut, mergeCut, cutStore, cutResponse, priceCut, policyId, placeholder, cutInput, chargedRewrite, PAYBACK, COLD_MS } from '../src/cutting.js';
 import { clearAnswer, clearPays, desktopPolicy, stampOf, HOLD_GROWTH, NEVER } from '../src/clear-door.js';
-import { keptCalls } from '../src/keep.js';
+import { keptCalls, keepPatterns, writeKeep } from '../src/keep.js';
 import { PROXY_DEFAULTS, resultTokens } from '../src/proxy.js';
 import { SERVICE_HOLDOUT } from '../src/proxy-service.js';
 
@@ -108,6 +108,22 @@ test('a stale copy of a conversation\'s record cannot undo a newer one', () => {
   assert.equal(store.read('s').turn, 3);
 });
 
+test('when the answer to a cut lands, the record and the row say what left the prompt', () => {
+  const rec = freshCut('s');
+  const made = { turn: 2, cut: ['a'], clear: true, tokens: 30000, recache: 20000, cost: 35000, payback: 12, clientCut: { chars: 60000, tokens: 30000, cut: 3 } };
+  const [ev] = cutResponse(rec, cfg, made, { read: 1, write: 2 }, { now: 1000 });
+  assert.equal(ev.clear, true);
+  assert.equal(ev.tokens, made.tokens, 'what the cut took out, which is the figure every saving is read from');
+  assert.equal(ev.recache, made.recache, 'what it had written again');
+  assert.equal(ev.cost, made.cost); assert.equal(ev.payback, made.payback);
+  assert.equal(ev.results, 3, 'and how many results it was');
+  assert.equal(rec.clears, 1, 'the record counts the clear');
+  assert.ok(rec.saved > 0, 'the cut is worth a read of those tokens on this call and every later one');
+  // an answer that arrives after a later request has reserved the next boundary cannot roll the set back
+  assert.deepEqual(cutResponse(rec, cfg, { turn: 1, cut: [], clear: false }, { read: 1, write: 2 }, { now: 2000 }), []);
+  assert.equal(rec.turn, 2); assert.deepEqual(rec.cut, ['a']);
+});
+
 test('a session picked up cold obeys the same trigger and size floor', () => {
   const now = 1e12;
   const cold = { ...freshCut('s'), at: now - COLD_MS - 1 };
@@ -147,20 +163,45 @@ test('with cutting switched off neither door cuts, both stamp it off, and both s
 
 test('the newest copy of a file the person works from stays in the prompt', () => {
   const read = (id, file, more = {}) => ({ id, name: 'Read', input: { file_path: file, ...more } });
+  const shell = (id, command) => ({ id, name: 'Bash', input: { command } });
   const calls = [
     read('md1', '/r/notes.md'), read('md2', '/r/notes.md'),            // a *.md read twice
     read('py1', '/r/core.py'), read('py2', '/r/core.py', { offset: 1, limit: 20 }),
     read('log1', '/r/run.log'), read('log2', '/r/run.log'),            // nobody's notes
     read('cut1', '/r/plan.txt'), read('cut2', '/r/plan.txt'),          // cut once, then read again
+    shell('sh1', 'cat /r/README.md'), shell('sh2', 'cat /r/README.md | head -5'),
   ];
   const { ids, files } = keptCalls(calls, { prompts: ['have another look at core.py please'], cut: ['cut1'] });
   const why = Object.fromEntries(files.map(f => [f.id, f.why]));
   assert.equal(why.md2, 'pattern', 'notes are written to be carried from one call to the next');
   assert.equal(why.py1, 'named', 'the person named this one');
   assert.equal(why.cut2, 'reread', 'a file is lost at most once');
+  assert.equal(why.sh1, 'pattern', 'the notes are kept however the model read them, a shell line included');
   assert.ok(!ids.has('md1'), 'an older copy of a kept file still goes');
   assert.ok(!ids.has('log1') && !ids.has('log2'), 'an ordinary read is the cut\'s to take');
   assert.ok(!ids.has('py2'), 'a few lines of a file never displace the whole read of it');
+  assert.ok(!ids.has('sh2'), 'nor does a line that only passed a few of them on');
+});
+
+test('what the profile learned the person points at is kept, and each checkout\'s list is its own', () => {
+  const dir = tmp('keep-home'), at = Date.now();
+  const learned = ['plan.txt', 'https://site.com/insights'];
+  assert.equal(writeKeep('/r/one', learned, { dir, now: at }), true, 'a list the profile learned is written');
+  assert.equal(writeKeep('/r/one', learned, { dir, now: at }), false, 'and writing the same list again changes nothing');
+  assert.equal(writeKeep('/r/two', ['other.txt'], { dir, now: at }), true);
+  const patterns = keepPatterns({ dir, now: at + 2000 });
+  for (const p of [...learned, 'other.txt']) assert.ok(patterns.includes(p), `${p} is read back, by whichever door asks`);
+  const call = (id, name, input) => ({ id, name, input });
+  const { ids } = keptCalls([call('p1', 'Bash', { command: 'cat /r/one/plan.txt' }),
+    call('u1', 'WebFetch', { url: 'https://site.com/insights?range=7d' }), call('u2', 'Bash', { command: 'curl https://site.com/insights | jq .' })], { patterns });
+  assert.ok(ids.has('p1'), 'a file the person points at is kept from then on');
+  assert.ok(ids.has('u1'), 'so is a page they point at, and the pages under it');
+  assert.ok(!ids.has('u2'), 'a fetch piped on somewhere else is no copy of the page');
+  // a checkout's list is replaced on its own; what it no longer points at goes, and nobody else's list moves
+  assert.equal(writeKeep('/r/one', ['plan.txt'], { dir, now: at }), true);
+  const after = keepPatterns({ dir, now: at + 4000 });
+  assert.ok(!after.includes('https://site.com/insights'), 'the address this checkout no longer points at');
+  assert.ok(after.includes('other.txt'), 'and another checkout\'s is untouched');
 });
 
 test('the desktop door clears exactly where the proxy\'s pricing says a cut pays', () => {

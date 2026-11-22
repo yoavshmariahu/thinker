@@ -8,7 +8,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { transformRequest, startProxy, PROXY_DEFAULTS, authWatch, AUTH_REFUSALS, cutActions, saveCutImages, imagePathIn } from '../src/proxy.js';
+import { transformRequest, startProxy, PROXY_DEFAULTS, authWatch, AUTH_REFUSALS, cutActions, saveCutImages, imagePathIn, breakpointsOf } from '../src/proxy.js';
 import { freshCut, cutResponse, addThink } from '../src/cutting.js';
 import { routedHeaders } from '../src/proxy-routing.js';
 
@@ -50,7 +50,11 @@ const SESSION = { 'x-claude-code-session-id': 's' };
 const door = (ms, cfg = {}) => transformRequest('POST', '/v1/messages', SESSION, Buffer.isBuffer(ms) ? ms : asked(ms), { ...CUT, cutRecord: freshCut('s'), ...cfg });
 // what startProxy does with a request's decision: reserve it, then count the answer against it
 const answer = (rec, t, cfg = CUT) => {
-  if (Array.isArray(t.cut) && t.turn != null) { rec.cut = t.cut; rec.turn = t.turn; if (t.think) rec.think = addThink(rec.think, t.think); }
+  if (Array.isArray(t.cut) && t.turn != null) {
+    rec.cut = t.cut; rec.turn = t.turn;
+    if ('seed' in t) rec.seed = t.seed || null;
+    if (t.think) rec.think = addThink(rec.think, t.think);
+  }
   cutResponse(rec, cfg, t, { read: 1, write: 1 }, { now: NOW });
 };
 
@@ -75,6 +79,28 @@ test('past the trigger the old finished results go up as placeholders and nothin
   assert.equal(signatures(out), signatures(ms), 'every thinking block is as it came');
   assert.equal(callInputs(out), callInputs(ms), 'every call input is as it came');
   assert.equal(t.clientCut.cut, 8, 'the row counts the results it replaced');
+  assert.equal(t.clear.whole, undefined, 'with no breakpoint of its own the cut pays for the whole conversation, not the tail');
+});
+
+test('as it ships, a boundary seeds the cut on one request and makes it on the next', () => {
+  // The shipped default puts a cache breakpoint of the proxy's own before the first result it will replace and
+  // cuts nothing; the request after that one makes the cut, so the API has the kept prefix stored when it lands.
+  const ms = messages({ first: 12 });
+  const last = ms[ms.length - 1].content;
+  last[last.length - 1] = { ...last[last.length - 1], cache_control: { type: 'ephemeral', ttl: '1h' } };
+  const body = asked(ms);
+  const cfg = { ...PROXY_DEFAULTS, keepPatterns: [], now: NOW };   // the breakpoint is on, as it ships
+  const rec = freshCut('s');
+  const seed = transformRequest('POST', '/v1/messages', SESSION, body, { ...cfg, cutRecord: rec });
+  assert.equal(seed.reason, 'seed', 'the first boundary past the trigger only seeds');
+  assert.ok(!seed.injected, 'and takes nothing out yet');
+  assert.equal(breakpointsOf(sent(seed)).n, breakpointsOf(JSON.parse(body)).n + 1, "one breakpoint of the proxy's own");
+  answer(rec, seed, cfg);
+  const cut = transformRequest('POST', '/v1/messages', SESSION, body, { ...cfg, cutRecord: rec });
+  assert.equal(cut.injected, true, 'the request after it makes the cut');
+  assert.equal(cut.clear.seeded, true, 'the cut the seed had chosen');
+  assert.equal(cut.mark.at, seed.mark.at, 'at the breakpoint the seed left, in the same place');
+  assert.ok(cut.clientCut.cut > 0, 'and the results go up as placeholders');
 });
 
 test('inside a turn the cut does not move', () => {
@@ -154,14 +180,66 @@ test('the same conversation on three wires gives one decision', () => {
   }
 });
 
-test('a held-out session goes up untouched', () => {
-  const body = asked(messages({ first: 12 }));
-  const cfg = { ...CUT, holdout: 0.5 };
-  const held = transformRequest('POST', '/v1/messages', { 'x-claude-code-session-id': 'b' }, body, { ...cfg, cutRecord: freshCut('b') });
-  assert.equal(held.reason, 'holdout');
-  assert.ok(held.body === body, "the very buffer the agent sent");
-  const cut = transformRequest('POST', '/v1/messages', { 'x-claude-code-session-id': 'a' }, body, { ...cfg, cutRecord: freshCut('a') });
-  assert.equal(cut.injected, true, 'a session on the other side of the same holdout is cut');
+// the same conversation on each wire, addressed to one session: 'b' falls on the held-out side of a half share, 'a' does not
+const wires = [
+  ['Messages', s => [['POST', '/v1/messages', { 'x-claude-code-session-id': s }, asked(messages({ first: 12 }))], {}]],
+  ['Responses', s => [['POST', '/v1/responses', { session_id: s }, Buffer.from(JSON.stringify({ model: 'gpt-5', input: responsesInput({}) }))], { protocol: 'responses' }]],
+  ['Chat', s => [['POST', '/v1/chat/completions', { 'x-session-id': s }, Buffer.from(JSON.stringify({ model: 'gpt-5', messages: chatMessages({}) }))], { protocol: 'chat' }]],
+];
+
+test('a held-out session goes up untouched, whichever wire it is on', () => {
+  const cfg = { ...CUT, holdout: 0.5, trigger: 0, clearAtLeast: 0 };
+  for (const [name, make] of wires) {
+    const [args, over] = make('b');
+    const held = transformRequest(...args, { ...cfg, ...over, cutRecord: freshCut('b') });
+    assert.equal(held.reason, 'holdout', `${name}: a held-out session is not cut`);
+    assert.ok(held.body === args[3], `${name}: the very buffer the agent sent`);
+    const [other, also] = make('a');
+    const cut = transformRequest(...other, { ...cfg, ...also, cutRecord: freshCut('a') });
+    assert.equal(cut.injected, true, `${name}: a session on the other side of the same holdout is cut`);
+  }
+});
+
+test('the Codex and gateway doors replace what they cut and send the rest in the shape it came', () => {
+  const SHORT = 'z'.repeat(180);     // no bigger than its own placeholder would be: never worth replacing
+  // a1 came as a list of parts rather than text; `tiny` is in the set the record already holds
+  const made = [['a0', BIG], ['a1', [{ type: 'input_text', text: BIG }]], ['a2', BIG], ['a3', BIG], ['a4', BIG], ['a5', BIG], ['tiny', SHORT]];
+  // the person named a file in their own words, and a0 is the newest read of it: the keep list holds it back
+  const said = 'first, and check plan.txt while you are there';
+  const arg = id => JSON.stringify({ path: id === 'a0' ? '/x/plan.txt' : `/x/${id}.txt` });
+  const inp = [{ role: 'user', content: said }], chat = [{ role: 'user', content: said }];
+  for (const [id, output] of made) {
+    inp.push({ type: 'function_call', call_id: id, name: 'read', arguments: arg(id) }, { type: 'function_call_output', call_id: id, output });
+    chat.push({ role: 'assistant', tool_calls: [{ id, function: { name: 'read', arguments: arg(id) } }] },
+      { role: 'tool', tool_call_id: id, content: Array.isArray(output) ? [{ type: 'text', text: BIG }] : output });
+  }
+  inp.push({ role: 'user', content: 'second' }); chat.push({ role: 'user', content: 'second' });
+  // the turn in progress has finished results of its own, more of them than the recency rule holds back: never cut
+  for (const id of ['c0', 'c1', 'c2', 'c3']) {
+    inp.push({ type: 'function_call', call_id: id, name: 'read', arguments: arg(id) }, { type: 'function_call_output', call_id: id, output: BIG });
+    chat.push({ role: 'assistant', tool_calls: [{ id, function: { name: 'read', arguments: arg(id) } }] }, { role: 'tool', tool_call_id: id, content: BIG });
+  }
+  const cfg = { ...CUT, trigger: 0, clearAtLeast: 0 };
+  const rec = () => ({ ...freshCut('s'), cut: ['tiny'] });
+  const r = transformRequest('POST', '/v1/responses', { session_id: 's' }, Buffer.from(JSON.stringify({ model: 'gpt-5', input: inp })), { ...cfg, protocol: 'responses', cutRecord: rec() });
+  const c = transformRequest('POST', '/v1/chat/completions', { 'x-session-id': 's' }, Buffer.from(JSON.stringify({ model: 'gpt-5', stream: true, messages: chat })), { ...cfg, protocol: 'chat', cutRecord: rec() });
+  const outputOf = (id, j) => j.input.find(x => x.type === 'function_call_output' && x.call_id === id).output;
+  const contentOf = (id, j) => j.messages.find(m => m.role === 'tool' && m.tool_call_id === id).content;
+  for (const [name, t, read] of [['Codex', r, outputOf], ['gateway', c, contentOf]]) {
+    const j = sent(t), text = id => { const v = read(id, j); return (typeof v === 'string' ? v : v.map(p => p.text).join('')); };
+    assert.equal(t.clientCut.cut, 5, `${name}: the results outside the newest three are replaced`);
+    assert.ok(text('a2').length < 400 && text('a1').length < 400, `${name}: each one is a placeholder`);
+    assert.equal(typeof read('a2', j), 'string', `${name}: a result the agent sent as text goes up as text`);
+    assert.ok(Array.isArray(read('a1', j)), `${name}: one it sent as a list of parts goes up as a list`);
+    for (const id of ['c0', 'c1', 'c2', 'c3']) assert.equal(text(id).length, BIG.length, `${name}: the turn in progress keeps ${id}, a result it is working from`);
+    assert.ok(t.clear.recache > 1000, `${name}: the cut is priced against the conversation it still sends, not against nothing`);
+    assert.equal(text('a0').length, BIG.length, `${name}: the newest read of a file the person named stays`);
+    assert.equal(text('tiny'), SHORT, `${name}: a result too small for a placeholder stays as it came`);
+  }
+  assert.equal(c.usageRequested, true, 'a streamed gateway call asks for the usage the saving is counted from');
+  assert.equal(sent(c).stream_options.include_usage, true, 'and the request carries the ask');
+  const nobody = transformRequest('POST', '/v1/chat/completions', {}, Buffer.from(JSON.stringify({ model: 'm', messages: [{ role: 'tool', tool_call_id: 't', content: BIG }] })), { ...cfg, protocol: 'chat' });
+  assert.equal(nobody.reason, 'missing-session', 'a conversation the door cannot name is passed through, never broken');
 });
 
 test('what a cut is credited with is counted from the results as they were before it', () => {

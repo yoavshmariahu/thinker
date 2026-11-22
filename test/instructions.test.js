@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Store } from '../src/store.js';
-import { sections, sectionId, sessionActivity, appliedTurns, instructionValue, use, RARE } from '../src/instruction-value.js';
+import { sections, sectionId, sessionActivity, appliedTurns, instructionValue, instructionFiles, fileLoaded, valueSections, use, RARE } from '../src/instruction-value.js';
 import { deriveTriggers, sectionFires } from '../src/instruction-sections.js';
 import { locate, previewEdit, applyEdit, editRecord } from '../src/instruction-edit.js';
-import { baseTexts, openEditPr, textOnBase } from '../src/instruction-pr.js';
+import { baseTexts, openEditPr, textOnBase, prAvailable } from '../src/instruction-pr.js';
 import { topChanges, currentChanges, decidedKeys, dismissChanges, approveChanges, startSectionJob, runSectionJob,
   retryJob, changeHistory, refreshPrStates, revertDecision, SUGGEST } from '../src/context-suggest.js';
 
@@ -78,6 +78,23 @@ test('a section is counted as used when the work does what it is about, and a tu
     { t: 'tool', name: 'Read', input: { file_path: 'src/app/main.py' }, result: '', turn: 7 },
   ]);
   assert.deepEqual(appliedTurns([{ id: 'ports', triggered: true, triggers: port }], activity), { ports: 2 }, 'two turns, three calls');
+});
+
+test('a rule that names no paths is read by every session, and one that names paths only when they are touched', () => {
+  const dir = repo({
+    'AGENTS.md': AG,
+    '.claude/rules/always.md': 'Say what you changed and why, in every session.\n',
+    '.claude/rules/python.md': '---\npaths:\n  - src/**/*.py\n---\n\nKeep the type hints.\n',
+    'src/app/main.py': 'def go():\n    pass\n',
+  }, { at: AT });
+  const of = name => instructionFiles(dir).find(f => f.file.endsWith(name));
+  for (const [what, file, touched, want] of [
+    ['a rule about everything is read whatever the session opened', 'always.md', ['README.md'], true],
+    ['a rule that names paths waits for one of them', 'python.md', ['README.md'], false],
+    ['and is read once one is touched', 'python.md', ['src/app/main.py'], true],
+  ]) assert.equal(fileLoaded(of(file), 'claude', touched), want, what);
+  assert.equal(fileLoaded(of('always.md'), 'codex', ['src/app/main.py']), false, 'only the agent whose rules they are reads them');
+  assert.equal(fileLoaded(of('AGENTS.md'), 'codex', []), true, 'the file at the root is read by every agent');
 });
 
 // --- what it costs, and the ranking --------------------------------------------------------------------------
@@ -155,6 +172,13 @@ test('a preview writes nothing, and keeps what each section said and what it wou
   assert.ok(one.next.includes('never push main'), 'and as it would stand');
   assert.ok(kept.files[0].text.includes('never push main'), 'with the whole file as it would be');
   assert.ok(p.tokensAfter < p.tokensBefore, 'shorter than it was');
+  // two sections of the same name under different parents: the change lands on the one asked for
+  const twins = store(repo({ 'AGENTS.md': '# T\n\n## Releases\n\n### Notes\n\nrelease notes go in the tag\n\n## Ports\n\n### Notes\n\nport notes go in the log\n' }, { at: AT }));
+  const picked = await previewEdit(twins, 'ports-notes', 'remove', {});
+  assert.equal(picked.error, undefined);
+  const planned = editRecord(twins, picked.key).files[0].text;
+  assert.ok(!planned.includes('port notes go in the log'), 'the one asked for is the one taken out');
+  assert.ok(planned.includes('release notes go in the tag'), 'and the section of the same name under another parent is left as it was');
 });
 
 test('a compress keeps the heading even when the model drops it, and a rewrite that is not shorter is asked for once more, not for ever', async () => {
@@ -182,6 +206,37 @@ test('apply writes exactly what was previewed, and refuses a file that changed s
   assert.match(refused.error, /changed since/);
   assert.equal(editRecord(s, stale.key), null, 'and the preview that no longer fits is gone');
   assert.ok(read(dir).includes('something the person added'), 'the hand edit stands');
+});
+
+test('a file that is one instruction from end to end is shortened whole, and taken out by being deleted', async () => {
+  const rule = '.claude/rules/review.md';
+  const dir = repo({ 'AGENTS.md': AG, [rule]: '---\npaths:\n  - src/**/*.py\n---\n\nRead the whole change before commenting on any part of it, every time.\n' }, { at: AT });
+  const s = store(dir), id = valueSections(s).find(x => x.whole).id, file = path.join(dir, rule);
+  const shorter = await previewEdit(s, id, 'compress', { completeFn: say('Read the whole change first.') });
+  assert.equal(shorter.error, undefined);
+  assert.ok(shorter.tokensAfter < shorter.tokensBefore);
+  assert.equal(applyEdit(s, shorter.key).error, undefined);
+  const now = fs.readFileSync(file, 'utf8');
+  assert.ok(now.includes('paths:'), 'what the file says it applies to is kept');
+  assert.ok(now.includes('Read the whole change first.') && !now.includes('every time'), 'and the instruction itself is the shorter one');
+  const gone = await previewEdit(s, id, 'remove', {});
+  assert.equal(gone.error, undefined);
+  assert.equal(applyEdit(s, gone.key).error, undefined);
+  assert.equal(fs.existsSync(file), false, 'removing the only section of a file removes the file');
+  assert.equal(read(dir), AG, 'and the file at the root is untouched');
+});
+
+test('no pull request can be opened without a GitHub origin, or without the GitHub CLI', () => {
+  const broken = { run() { throw new Error('not here'); } };
+  const onGitHub = () => { const dir = repo({ 'AGENTS.md': AG }, { at: AT }); git(dir, 'remote', 'add', 'origin', 'https://github.com/o/r.git'); return dir; };
+  const elsewhere = prAvailable(repo({ 'AGENTS.md': AG }, { at: AT }), { gh: broken, now: T });
+  assert.equal(elsewhere.ok, false);
+  assert.match(elsewhere.reason, /not on GitHub/, 'a repository kept somewhere else');
+  const noCli = prAvailable(onGitHub(), { gh: broken, now: T });
+  assert.equal(noCli.ok, false, 'on GitHub, but the command to talk to it is missing');
+  assert.match(noCli.reason, /GitHub CLI/);
+  const ready = prAvailable(onGitHub(), { gh: { run: () => '' }, now: T });
+  assert.deepEqual([ready.ok, ready.slug, ready.base], [true, 'o/r', 'main'], 'with both, a pull request can be opened');
 });
 
 test('opening a pull request leaves the checkout alone and carries the change made from the default branch', async () => {
@@ -251,7 +306,9 @@ test('a job whose process died reads as failed once, with its reason, and a retr
   assert.equal(r.error, undefined);
   const args = again.calls[0].args;
   assert.deepEqual(args[args.indexOf('--compress') + 1].split(',').sort(), ['ports', 'releases'], 'the same command, both sections');
-  assert.equal(changeHistory(s, { now: T + 11 * 60_000 }).filter(e => e.running).length, 2);
+  const retried = changeHistory(s, { now: T + 11 * 60_000 });
+  assert.equal(retried.filter(e => e.running).length, 2);
+  assert.equal(retried.filter(e => e.job.pid === process.pid).length, 2, 'and it holds on to the process it started, so it is not read as dead again');
 });
 
 test('a pull request is followed to its fate: merged is done, merged but not pulled says so, closed is offered again', async () => {
@@ -263,12 +320,13 @@ test('a pull request is followed to its fate: merged is done, merged but not pul
   assert.equal(pending.pending, true);
   assert.equal(pending.attention, 'pr');
   assert.equal(read(dir), AG, 'a change that became a pull request never touched the working tree');
-  assert.equal(await refreshPrStates(s, { prs: prFns(dir, 'merged', 'the-merge'), force: true, now: T }), 1);
+  const merge = git(dir, 'rev-parse', 'HEAD'); // a commit this checkout does have
+  assert.equal(await refreshPrStates(s, { prs: prFns(dir, 'merged', merge), force: true, now: T }), 1);
   const notPulled = changeHistory(s, { now: T, git: () => false })[0];
   assert.equal(notPulled.pending, false);
   assert.equal(notPulled.unpulled, true, 'merged, and this checkout does not have it yet');
   assert.equal(notPulled.pullFrom, 'main', 'which branch to pull');
-  const pulled = changeHistory(s, { now: T, git: () => true })[0];
+  const pulled = changeHistory(s, { now: T })[0]; // nothing standing in: git itself is asked
   assert.equal(pulled.unpulled, undefined);
   assert.ok(pulled.pr.pulledAt, 'once the merge is here it is done');
   await open('ports');
