@@ -10,7 +10,7 @@ import { appendDelivery } from '../src/delivery-journal.js';
 import { deliveryMetrics } from '../src/delivery-telemetry.js';
 import { mirrorClearing } from '../src/compression.js';
 import { sessionsOf } from '../src/delivery.js';
-import { buildTelemetryPayload, armsMetrics } from '../src/telemetry.js';
+import { buildTelemetryPayload, armsMetrics, profileMetrics } from '../src/telemetry.js';
 import { writeReport } from '../src/report-snapshot.js';
 import { armTally } from '../src/factory.js';
 import { REPORT_WEEKS } from '../src/report.js';
@@ -71,6 +71,38 @@ test('the arms block is the kept report\'s two sides per feature, as sums, with 
   assert.ok(!/PRIVATE|session|\/tmp|thinker-delivery/i.test(text.replace(/"sessions"/g, '')), 'no session id, path or repository in the block');
   const payload = buildTelemetryPayload(store, { all: false, home });
   assert.equal(payload.arms.profile.shown.sessions, 1, 'the payload carries it');
+});
+
+// 2026-11-21. The worktrees of a repository share one cache -- one ledger, one kept report -- and both blocks walked
+// the checkouts: with 15 worktrees of one repository a machine sent 5,340 observations where its ledgers held 923,
+// and that repository's sessions 15 times over.
+test('a cache shared by a repository\'s worktrees is counted once, however many checkouts lead to it', t => {
+  const store = fixture(t), wt = path.join(store.repo, '.worktrees', 'wt'), other = path.join(store.repo, '.worktrees', 'other');
+  const git = (...args) => execFileSync('git', ['-c', 'user.email=t@example.com', '-c', 'user.name=T', ...args], { cwd: store.repo });
+  git('init', '-q'); git('remote', 'add', 'origin', 'https://github.com/private/example.git'); git('commit', '-qm', 'init', '--allow-empty');
+  const ledger = path.join(store.dir, 'local', 'profile', 'ledger.jsonl');
+  fs.mkdirSync(path.dirname(ledger), { recursive: true });
+  fs.writeFileSync(ledger, [
+    { id: 'o1', at: at(30), session: 'PRIVATE_SESSION_A', arm: 'shown', outcome: 'accepted' },
+    { id: 'o2', at: at(29), session: 'PRIVATE_SESSION_A', arm: 'shown', outcome: 'corrected' },
+    { id: 'o3', at: at(20), session: 'PRIVATE_SESSION_B', arm: 'holdout', outcome: 'accepted' },
+  ].map(o => JSON.stringify(o)).join('\n') + '\n');
+  git('worktree', 'add', '-q', wt, '-b', 'wt'); git('worktree', 'add', '-q', other, '-b', 'other');
+  assert.equal(fs.realpathSync(new Store(wt).dir), fs.realpathSync(store.dir), 'a worktree reads the main checkout\'s cache');
+  // the machine's log names all three checkouts, as it does once a session has run in each
+  for (const repo of [store.repo, wt, other]) store.log({ op: 'session', t: at(2), repo, session: `s-${path.basename(repo)}`, client: 'claude' });
+
+  const p = profileMetrics(store, { all: true, now });
+  assert.deepEqual([p.shown.sessions, p.shown.observations, p.holdout.observations], [1, 2, 1], 'the ledger\'s three observations, not nine');
+  assert.equal(p.shown.corrected, 0.5);
+
+  const stage = { cost: 0, tokens: 0, rework: 0, reworkTokens: 0 }, stages = Object.fromEntries(['prompts', 'think', 'explore', 'build', 'verify', 'review', 'merge'].map(k => [k, { ...stage }]));
+  const tally = armTally(0.5, 'r1-t140k-f60k-p25-deep');
+  tally.add({ profile: 'shown', compression: 'on' }, { cost: 10, tokens: 1e6, calls: 10, exchanges: 4, stages, loops: [], cacheWrite: 1000, cacheRead: 9000 }, 'PRIVATE_SESSION_A');
+  writeReport(store, REPORT_WEEKS, { factory: { arms: tally.finish() } }, { now });
+  const a = armsMetrics(store, { all: true, now });
+  assert.deepEqual([a.repos, a.reposWithoutReport], [1, 0], 'one cache, with a report');
+  assert.deepEqual([a.profile.shown.sessions, a.profile.shown.cost, a.profile.shown.cacheRead], [1, 10, 9000], 'the kept report\'s one session, not three');
 });
 
 test('pull request metrics are numbers only, and name nothing', t => {

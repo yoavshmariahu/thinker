@@ -18,7 +18,7 @@
 // person's work in progress stays on their machine; what is counted is how many pull requests thinker was
 // used on and how much it saved on them, which is the claim the project wants to be able to make.
 import fs from 'node:fs';
-import { Store, repoId } from './store.js';
+import { Store, repoId, logFile } from './store.js';
 import { readLog } from './usage.js';
 import { deliveryReport, WINDOW_DAYS, SAVED_BUCKETS } from './delivery.js';
 import { deliveryCheckouts } from './delivery-journal.js';
@@ -168,12 +168,24 @@ export function deliveryMetrics(store, { all = true, now = Date.now(), home } = 
     bumpGroup(sessions.byClient[client] ||= group(), x);
     if (x.cleared > 0 && x.cost?.priced) sessions.netBuckets.find(b => b.upper === null || x.cost.net <= b.upper).count++;
   };
+  // What every repository's report reads out of the proxy's log, built once for the pass (delivery.js:once).
+  const shared = new Map();
   for (const [origin, stores] of candidates) {
     if (excluded.has(origin)) continue;
     try {
       // Worktrees of one repository share a journal. Take the checkout that knows the most, and never add
       // the same pull request twice from two of them.
-      const reports = stores.map(s => deliveryReport(s, { days: WINDOW_DAYS, now, ...(home ? { home } : {}) }));
+      // A report is made from the repository's journal, the log the checkout reads (store.js:logFile -- the
+      // machine's, unless the checkout keeps its own) and the checkout's own config, and from nothing else of
+      // the checkout: two worktrees that share a log and a config give the same report. So one is computed
+      // for each such pair, not for each worktree -- this repository had 15 worktrees on the machine this was
+      // measured on (2026-11-21), and its report, the heaviest there is, was computed 15 times an hour.
+      const distinct = new Map();
+      for (const s of stores) {
+        let key; try { key = `${logFile(s)}\t${JSON.stringify(s.config())}`; } catch { key = s.repo; }
+        if (!distinct.has(key)) distinct.set(key, s);
+      }
+      const reports = [...distinct.values()].map(s => deliveryReport(s, { days: WINDOW_DAYS, now, shared, ...(home ? { home } : {}) }));
       const report = reports.sort((a, b) => b.summary.sessions.linked - a.summary.sessions.linked || b.prs.length - a.prs.length)[0];
       out.repositories++;
       if (report.warnings.length) out.unreadableRepositories++;

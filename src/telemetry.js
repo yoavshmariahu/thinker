@@ -23,10 +23,11 @@ import { clearingRows, compressionDir } from './compression.js';
 import { delegationSavings, readAnyway, repeatSavings } from './report-savings.js';
 import { readMachineConfig } from './repo-switch.js';
 import { changeHistory } from './context-suggest.js';
-import { historyEffects, promptAverageHere, readReport } from './report-snapshot.js';
+import { historyEffects, promptAverageHere, readReport, keptRows } from './report-snapshot.js';
 import { mergePromptAverages, REPORT_WEEKS } from './report.js';
 import { mergeArms, ARMS, CLEARING_SINCE, currentPolicy } from './factory.js';
 import { partIdentity, publicToolName } from './part-describe.js';
+import { buildGuarded } from './telemetry-guard.js';
 
 export const HOUR_MS = 60 * 60 * 1000;
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -138,7 +139,7 @@ export function computeCacheMetrics(store, { home = thinkerHome(), all = true } 
 export function profileMetrics(store, { all = true, now = Date.now() } = {}) {
   const since = new Date(now - HOLDOUT_WINDOW_DAYS * DAY_MS).toISOString();
   const rows = [];
-  for (const r of knownRepos(store, { all })) for (const checkout of r.checkouts) { try { if (fs.existsSync(path.join(checkout, '.thinker'))) rows.push(...readLedger(new Store(checkout, { readonly: true }), { now })); } catch {} }
+  for (const s of caches(store, { all })) { try { for (const row of readLedger(s, { now })) rows.push(row); } catch {} }
   const h = holdoutReport(rows);
   const side = s => ({ sessions: s.sessions, observations: s.observations, corrected: s.corrected, redirected: s.redirected, accepted: s.accepted });
   const served = { shown: 0, holdout: 0, afterCompaction: 0 };
@@ -147,6 +148,28 @@ export function profileMetrics(store, { all = true, now = Date.now() } = {}) {
 }
 
 export const HOLDOUT_WINDOW_DAYS = 30;
+
+// Every cache on the machine, once: a store for each `.thinker` directory the checkouts in the machine's log lead
+// to. The worktrees of a repository share one cache -- one ledger, one kept report -- so a walk over checkouts
+// read the same file once per worktree and added it up as many times. On the machine this was found on
+// (2026-11-21, 15 worktrees of one repository) the profile block sent 5,340 observations where the ledgers held
+// 923, the Factory's sides sent that repository's sessions 15 times over, and its 4 MB report was parsed 45 times
+// an hour. A figure summed over the machine is summed over its caches.
+function caches(store, { all = true } = {}) {
+  const out = [], dirs = new Set();
+  for (const r of knownRepos(store, { all })) for (const checkout of r.checkouts) {
+    try {
+      if (!fs.existsSync(path.join(checkout, '.thinker'))) continue;
+      const s = new Store(checkout, { readonly: true }), dir = cacheDir(s);
+      if (dirs.has(dir)) continue;
+      dirs.add(dir); out.push(s);
+    } catch {}
+  }
+  return out;
+}
+// the cache a store reads, as the one directory it is: a worktree reaches the main checkout's through git, which
+// names it by its real path, and the checkout itself may have been reached through a link
+const cacheDir = s => { try { return fs.realpathSync(s.dir); } catch { return path.resolve(s.dir); } };
 
 // The Factory's two-sided comparisons (factory.js:ARMS, "See diff by"), merged over every repository's kept report
 // (2026-11-12, the owner's ask: the only controlled comparison thinker has is per machine, and nothing of it left
@@ -161,9 +184,10 @@ export const HOLDOUT_WINDOW_DAYS = 30;
 // in `reposWithoutReport` and contributes nothing. Nothing here names a repository, a session or a pull request.
 export function armsMetrics(store, { all = true, now = Date.now() } = {}) {
   const parts = []; let repos = 0, without = 0, from = null, to = null;
-  for (const r of knownRepos(store, { all })) for (const checkout of r.checkouts) {
+  for (const s of caches(store, { all })) {
     let kept = null;
-    try { if (!fs.existsSync(path.join(checkout, '.thinker'))) continue; repos++; kept = readReport(new Store(checkout, { readonly: true }), REPORT_WEEKS, { now }); } catch {}
+    repos++;
+    try { kept = readReport(s, REPORT_WEEKS, { now }); } catch {}
     const arms = kept?.view?.factory?.arms;
     if (!arms) { without++; continue; }
     parts.push(arms); from = from == null ? kept.at : Math.min(from, kept.at); to = to == null ? kept.at : Math.max(to, kept.at);
@@ -444,28 +468,35 @@ function collectDecisions(store, { all = true, now = Date.now() } = {}) {
   const entries = [], averages = [];
   let repositories = 0, withDecisions = 0, withReport = 0;
   for (const r of knownRepos(store, { all })) {
-    const seen = new Set(), mine = [];
+    const seen = new Set(), mine = [], dirs = new Set();
     let optedOut = false, average = null, read = false;
     for (const checkout of r.checkouts) {
       let s;
       try { s = store && path.resolve(store.repo || '') === path.resolve(checkout) ? store : new Store(checkout, { readonly: true }); } catch { continue; }
+      // a cache already read through another worktree has nothing new to say: the same decisions (deduplicated
+      // by id below, the first read winning) and the same kept report
+      const dir = cacheDir(s);
+      if (dirs.has(dir)) continue;
       try { if (!s.exists()) continue; } catch { continue; }
+      dirs.add(dir);
       try { if (s.config()?.telemetry === false) { optedOut = true; break; } } catch {}
       read = true;
+      // the kept report's rows, read once for both questions asked of them below
+      let kept; const keptOnce = () => kept ||= keptRows(s, { now });
       let history = [];
       // no `git merge-base` per entry from a background report: whether a merged change is pulled in some
       // checkout is the page's business, not telemetry's
       try { history = changeHistory(s, { now, git: () => null }); } catch { history = []; }
       if (history.length) {
         let measured = history;
-        try { measured = historyEffects(s, history, { now }); } catch { measured = history; }
+        try { measured = historyEffects(s, history, { now, kept: keptOnce() }); } catch { measured = history; }
         for (const e of measured) {
           const id = e.id || `${e.at}:${e.key}`;
           if (seen.has(id)) continue;
           seen.add(id); mine.push(e);
         }
       }
-      if (!average) { try { average = promptAverageHere(s, { now }); } catch {} }
+      if (!average) { try { average = promptAverageHere(s, { now, kept: keptOnce() }); } catch {} }
     }
     if (optedOut || !read) continue;
     repositories++;
@@ -627,100 +658,127 @@ export function spendMetrics(store, { all = true, now = Date.now() } = {}) {
   };
 }
 
-export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
-  let version = 'unknown';
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8'));
-    version = pkg.version || 'unknown';
-  } catch {}
+// The report, a part at a time, in the order it is built: what identifies the machine and counts it as active
+// first, the walks over every repository last. The order is a promise about a report that was stopped early
+// (telemetry-guard.js): it has every part that finished, so a machine whose history has outgrown the job's budget
+// still reads as installed, on this version and active, and says which parts it could not build -- where it used
+// to hold 900 MB for as long as it took and, when that never ended, send nothing. Each part returns the payload's
+// own keys; `buildTelemetryPayload` runs them all and is the same report as before.
+export function telemetryParts(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
+  let u, spend, delivery;
+  const usage = () => u ||= summarize(store, { days, all });
+  return [
+    ['core', () => {
+      let version = 'unknown';
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.resolve(HERE, '..', 'package.json'), 'utf8'));
+        version = pkg.version || 'unknown';
+      } catch {}
+      const device = deviceIdentity({ home });
+      return {
+        installId: getInstallId(home),
+        deviceId: device.id,
+        deviceSource: device.source,
+        event,
+        version,
+        platform: process.platform,
+        timestamp: new Date().toISOString(),
+        periodHours: (days || 1) * 24,
+      };
+    }],
 
-  const u = summarize(store, { days, all });
-  const cacheSize = computeCacheMetrics(store, { home, all });
-  const d = u.distillationPerformance, spend = d.spending;
-  const cls = u.clients || {};
+    // requests and sessions, the denominators the dashboards count a machine as active by; the note servings and
+    // their assessments that stood here until 2026-11-08 went with the knowledge notes
+    ['activity', () => ({ activity: { schemaVersion: 1, requestsTotal: usage().requests, sessions: usage().sessions } })],
 
-  const device = deviceIdentity({ home });
-  const tokenSpend = spendMetrics(store, { all });
-  const delivery = deliveryMetrics(store, { all, home });
-  return fitPayload({
-    installId: getInstallId(home),
-    deviceId: device.id,
-    deviceSource: device.source,
-    event,
-    version,
-    platform: process.platform,
-    timestamp: new Date().toISOString(),
-    periodHours: (days || 1) * 24,
+    ['clients', () => {
+      const cls = usage().clients || {};
+      return { clients: {
+        schemaVersion: 1,
+        // the supported agents found, none when none is (the `claude` fallback is for setting up, not for reporting)
+        detected: detectClients({ fallback: false }),
+        // every coding agent found, supported or not, with the days since it was last used (harnesses.js)
+        harnesses: detectHarnesses(),
+        wiring: wiringHealth(),
+        // the machine these counts were read on: a container, a moved agent home or a home that cannot keep
+        // the install id all make a count of 0 mean "not seen" rather than "not used"
+        machine: machineFacts({ home }),
+        activeRequests: cls.active || {},
+        sessions: cls.sessions || {},
+      } };
+    }],
 
+    // Explicit coverage keeps old logs and unsupported provider costs unknown.
+    // SQL dashboards read this versioned block from reports.raw_json.
+    ['distillation', () => {
+      const d = usage().distillationPerformance, spent = d.spending;
+      return { distillation: {
+        schemaVersion: 1,
+        attempts: d.attempts, succeeded: d.succeeded, failed: d.failed,
+        durationMs: d.durationMs, durationSamples: d.durationSamples,
+        sessionsRead: usage().learned.sessions, observations: usage().learned.observations, compiles: usage().learned.compiles,
+        modelCalls: spent.calls, modelFailedCalls: spent.failed,
+        reportedCostUsd: spent.calls > 0 && spent.calls === spent.unknownCostCalls ? null : spent.reportedCost,
+        costKnownCalls: spent.calls - spent.unknownCostCalls, costUnknownCalls: spent.unknownCostCalls,
+        reportedTokens: spent.calls > 0 && spent.calls === spent.unknownTokenCalls ? null : spent.totalTokens,
+        tokenKnownCalls: spent.calls - spent.unknownTokenCalls, tokenUnknownCalls: spent.unknownTokenCalls,
+      } };
+    }],
 
-    cacheSize,
+    ['cacheSize', () => ({ cacheSize: computeCacheMetrics(store, { home, all }) })],
+
+    // the context proxy, 30 days: the service here, the clearing side against the holdout side, by model (proxyMetrics)
+    ['proxy', () => ({ proxy: proxyMetrics({ home }) })],
+
+    // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
+    ['delegate', () => ({ delegate: delegateMetrics(store, { all, home }) })],
+
+    // the pointer by day: reads answered with the copy the model already had, held out, asked for again, and
+    // what that saved (repeatMetrics). Beside the delegation block, never added into it: two policies.
+    ['repeat', () => ({ repeat: repeatMetrics(store, { all }) })],
+
+    // an agent's own compactor that thinker steers and measures, by day: Devin's, the one agent whose model
+    // calls no proxy of ours can carry (compactionMetrics). The daily dashboard counts them beside the proxy's cuts.
+    ['compactions', () => ({ compactions: compactionMetrics(store, { all }) })],
+
+    // The profile: the sessions it was shown to against the ones held out, by what the person corrected, 30 days (profileMetrics).
+    ['profile', () => ({ profile: profileMetrics(store, { all }) })],
+
+    // the Factory's "see diff by": the profile's two sides and the clearing's, sums per side over every repository's
+    // kept report, with the cut policy the on side was cleared under (armsMetrics). The Diff by feature dashboard reads it.
+    ['arms', () => ({ arms: armsMetrics(store, { all }) })],
+
+    // what was suggested, offered and decided on the context, 30 days, and what each decision measured as
+    // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
+    ['spend', () => { spend ||= spendMetrics(store, { all }); return { actions: spend.actions, savings: spend.savings }; }],
 
     // The pull requests this machine's sessions produced and what thinker saved on them, 30 days regardless
     // of the usage snapshot's periodHours (delivery-telemetry.js): counts, tokens, what each cost and whether
     // it got a context clear. `sessions` is the same saving per session, from the same walk -- the figure a
     // pull request cannot give, since most sessions belong to none. Both grouped by the cut policy that made
     // the saving, so a dashboard never pools two policies or dates one from this machine's clock.
-    prs: delivery.prs,
-    sessions: delivery.sessions,
+    ['delivery', () => { delivery ||= deliveryMetrics(store, { all, home }); return { prs: delivery.prs, sessions: delivery.sessions }; }],
+  ];
+}
 
-    // The profile: the sessions it was shown to against the ones held out, by what the person corrected, 30 days (profileMetrics).
-    profile: profileMetrics(store, { all }),
+// The payload's keys in the order they have always been sent, whatever order the parts were built in.
+const PAYLOAD_KEYS = ['installId', 'deviceId', 'deviceSource', 'event', 'version', 'platform', 'timestamp', 'periodHours',
+  'cacheSize', 'prs', 'sessions', 'profile', 'proxy', 'arms', 'delegate', 'repeat', 'compactions', 'actions', 'savings',
+  'distillation', 'clients', 'activity', 'incomplete'];
 
-    // the context proxy, 30 days: the service here, the clearing side against the holdout side, by model (proxyMetrics)
-    proxy: proxyMetrics({ home }),
+// The report from the parts that were built. `incomplete` is absent from a whole report; on one that was stopped
+// it names why (`deadline`, `memory`, `error`) and the parts that are missing, whose keys are absent rather than
+// zero -- the same as a report from a client older than the block, which every dashboard already reads as unknown.
+// Without the machine's identity there is no report: null.
+export function assembleTelemetry(fragments, { incomplete = null } = {}) {
+  const got = Object.assign({}, ...fragments);
+  if (typeof got.installId !== 'string' || !got.installId) return null;
+  if (incomplete) got.incomplete = incomplete;
+  return fitPayload(Object.fromEntries(PAYLOAD_KEYS.filter(k => k in got).map(k => [k, got[k]])));
+}
 
-    // the Factory's "see diff by": the profile's two sides and the clearing's, sums per side over every repository's
-    // kept report, with the cut policy the on side was cleared under (armsMetrics). The Diff by feature dashboard reads it.
-    arms: armsMetrics(store, { all }),
-
-    // the delegation trigger by day: reads and suite runs handed to a subagent, held out, failed (delegateMetrics)
-    delegate: delegateMetrics(store, { all, home }),
-
-    // the pointer by day: reads answered with the copy the model already had, held out, asked for again, and
-    // what that saved (repeatMetrics). Beside the delegation block, never added into it: two policies.
-    repeat: repeatMetrics(store, { all }),
-
-    // an agent's own compactor that thinker steers and measures, by day: Devin's, the one agent whose model
-    // calls no proxy of ours can carry (compactionMetrics). The daily dashboard counts them beside the proxy's cuts.
-    compactions: compactionMetrics(store, { all }),
-
-    // what was suggested, offered and decided on the context, 30 days, and what each decision measured as
-    // saved over the report kept in its repository (spendMetrics). The Token spend dashboard reads both.
-    actions: tokenSpend.actions,
-    savings: tokenSpend.savings,
-
-    // Explicit coverage keeps old logs and unsupported provider costs unknown.
-    // SQL dashboards read this versioned block from reports.raw_json.
-    distillation: {
-      schemaVersion: 1,
-      attempts: d.attempts, succeeded: d.succeeded, failed: d.failed,
-      durationMs: d.durationMs, durationSamples: d.durationSamples,
-      sessionsRead: u.learned.sessions, observations: u.learned.observations, compiles: u.learned.compiles,
-      modelCalls: spend.calls, modelFailedCalls: spend.failed,
-      reportedCostUsd: spend.calls > 0 && spend.calls === spend.unknownCostCalls ? null : spend.reportedCost,
-      costKnownCalls: spend.calls - spend.unknownCostCalls, costUnknownCalls: spend.unknownCostCalls,
-      reportedTokens: spend.calls > 0 && spend.calls === spend.unknownTokenCalls ? null : spend.totalTokens,
-      tokenKnownCalls: spend.calls - spend.unknownTokenCalls, tokenUnknownCalls: spend.unknownTokenCalls,
-    },
-
-    clients: {
-      schemaVersion: 1,
-      // the supported agents found, none when none is (the `claude` fallback is for setting up, not for reporting)
-      detected: detectClients({ fallback: false }),
-      // every coding agent found, supported or not, with the days since it was last used (harnesses.js)
-      harnesses: detectHarnesses(),
-      wiring: wiringHealth(),
-      // the machine these counts were read on: a container, a moved agent home or a home that cannot keep
-      // the install id all make a count of 0 mean "not seen" rather than "not used"
-      machine: machineFacts({ home }),
-      activeRequests: cls.active || {},
-      sessions: cls.sessions || {},
-    },
-
-    // requests and sessions, the denominators the dashboards count a machine as active by; the note servings and
-    // their assessments that stood here until 2026-11-08 went with the knowledge notes
-    activity: { schemaVersion: 1, requestsTotal: u.requests, sessions: u.sessions },
-  });
+export function buildTelemetryPayload(store, { home = thinkerHome(), days = 1, all = true, event = 'hourly' } = {}) {
+  return assembleTelemetry(telemetryParts(store, { home, days, all, event }).map(([, make]) => make()));
 }
 
 // The delegation trigger by UTC day (delegate.js, the usage log's `op: delegate` rows): how often a read or a
@@ -884,6 +942,106 @@ export function fitPayload(payload, { budget = PAYLOAD_BUDGET } = {}) {
   return payload;
 }
 
+// ---------------------------------------------------------------------------
+// One report an hour, one at a time.
+//
+// Until 2026-11-21 the only thing between a prompt and a telemetry job was `telemetry.last`, written when a
+// report had been *sent*. A job that was still building had written nothing, so every prompt on the machine in
+// the meantime started another: eleven jobs in eight minutes on the machine this was found on, 3 GB between them
+// and none finished for a quarter of an hour, because each slowed the rest. And a report that could not be sent
+// -- no network, a proxy, a refusal -- never wrote the stamp at all, so there every prompt started a job, for
+// as long as the endpoint stayed out of reach.
+//
+// Two rules now, each kept by a file made with an exclusive create, which the file system grants to exactly one
+// of however many processes ask at once:
+//
+//   the attempt   `state/telemetry/attempt.<n>`: made before the job exists, by whoever is about to start it
+//                 (the hook, or the scheduled job itself). An hour belongs to the one that made it, sent or not.
+//                 A new attempt is the next number, so two processes that both saw the last one go stale ask
+//                 for the same file and one of them gets it; nothing is ever replaced, which is where a stamp
+//                 that is checked and then rewritten lets a second one through.
+//   the run       `state/telemetry/run.lock`: held while a report is built and sent, by the forced ones too (an
+//                 install, an update), which wait their turn instead. Left behind by a job that was killed, it
+//                 is taken over once its process is gone or it is older than any job is allowed to live.
+const HOLD_MS = 2 * 60_000;       // longer than a job can live: the build's deadline, the grace after it, the send
+const FORCED_WAIT_MS = 20_000;    // how long an install or an update waits for the hourly one in front of it
+const telemetryDir = home => path.join(home, 'state', 'telemetry');
+// a stamp dated after now is a clock that was set back, not an attempt in the future: it is old
+const ageOf = (mtimeMs, now) => (mtimeMs > now + 60_000 ? Infinity : now - mtimeMs);
+const minInterval = intervalMs => Math.max(0, intervalMs - 60_000);
+
+function lastAttempt(home) {
+  let best = null;
+  try {
+    for (const name of fs.readdirSync(telemetryDir(home))) {
+      const m = /^attempt\.(\d+)$/.exec(name);
+      if (m && (!best || Number(m[1]) > best.n)) best = { n: Number(m[1]), name };
+    }
+  } catch { return null; }
+  if (!best) return null;
+  try { best.at = fs.statSync(path.join(telemetryDir(home), best.name)).mtimeMs; } catch { best.at = 0; }
+  return best;
+}
+
+// When a report was last sent, if that is inside the interval: `telemetry.last`, the one stat that answers for a
+// machine whose reports go through (and what a copy from before the attempt wrote).
+const sentAt = (home, min, now) => { try { const at = fs.statSync(path.join(home, 'state', 'telemetry.last')).mtimeMs; return ageOf(at, now) < min ? at : null; } catch { return null; } };
+
+// When a report was last sent or tried, if that is inside the interval: { at }.
+export function recentTelemetry({ home = thinkerHome(), intervalMs = HOUR_MS, now = Date.now() } = {}) {
+  const min = minInterval(intervalMs), sent = sentAt(home, min, now);
+  if (sent != null) return { at: sent };
+  const last = lastAttempt(home);
+  return last && ageOf(last.at, now) < min ? { at: last.at } : null;
+}
+
+// The hour, taken: true for exactly one caller an interval. False where the state directory cannot be written,
+// so a home that cannot keep the stamp sends nothing rather than a job per prompt.
+//
+// The attempts are looked at once, and the number asked for is the one after the newest *seen*. Looking twice --
+// once to judge the last attempt stale, again to pick the number -- lets a process that judged before a rival
+// made its file pick the number after the rival's, and both have the hour (found by the eight-process test under
+// a loaded machine, the day this was written).
+export function claimAttempt({ home = thinkerHome(), intervalMs = HOUR_MS, now = Date.now() } = {}) {
+  const min = minInterval(intervalMs);
+  if (sentAt(home, min, now) != null) return false;
+  const last = lastAttempt(home);
+  if (last && ageOf(last.at, now) < min) return false;
+  const dir = telemetryDir(home), n = (last?.n || 0) + 1;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `attempt.${n}`), new Date(now).toISOString() + '\n', { flag: 'wx' });
+  } catch { return false; }
+  try {
+    for (const name of fs.readdirSync(dir)) { const m = /^attempt\.(\d+)$/.exec(name); if (m && Number(m[1]) < n) fs.rmSync(path.join(dir, name), { force: true }); }
+  } catch {}
+  return true;
+}
+
+const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+
+// The run, taken: a function that gives it back, or null while another job holds it.
+export async function holdTelemetryRun({ home = thinkerHome(), waitMs = 0, holdMs = HOLD_MS } = {}) {
+  const dir = telemetryDir(home), file = path.join(dir, 'run.lock'), until = Date.now() + waitMs;
+  for (let takeovers = 0; ;) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ pid: process.pid, at: Date.now() }), { flag: 'wx' });
+      return () => { try { if (JSON.parse(fs.readFileSync(file, 'utf8')).pid === process.pid) fs.rmSync(file, { force: true }); } catch {} };
+    } catch (e) { if (e.code !== 'EEXIST') return null; }
+    let held = null, age = 0;
+    try { age = Date.now() - fs.statSync(file).mtimeMs; held = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    // unreadable is a lock being written this instant, unless it has been that way for seconds
+    const left = held ? !alive(held.pid) || age > holdMs : age > 5_000;
+    // a lock that cannot be removed is not asked for twice: no job, rather than a loop
+    if (left) { if (takeovers++) return null; try { fs.rmSync(file, { force: true }); } catch {} continue; }
+    if (Date.now() >= until) return null;
+    await sleep(250);
+  }
+}
+
+// `claimed`: the hour was already taken for this job by whoever started it (maybeSendTelemetryInBackground).
+// `build`: the report under its limits (telemetry-guard.js); a test hands in its own.
 export async function sendTelemetry({
   home = thinkerHome(),
   store = new Store(findRepoRoot()),
@@ -893,6 +1051,9 @@ export async function sendTelemetry({
   dryRun = false,
   event = 'hourly',
   intervalMs = HOUR_MS,
+  claimed = false,
+  build = buildGuarded,
+  waitMs = force ? FORCED_WAIT_MS : 0,
 } = {}) {
   if (!isTelemetryEnabled({ home, store })) {
     return { sent: false, reason: 'disabled' };
@@ -901,55 +1062,80 @@ export async function sendTelemetry({
     return { sent: false, reason: 'test_environment' };
   }
 
-  const stampFile = path.join(home, 'state', 'telemetry.last');
-  if (!force) {
-    try {
-      const st = fs.statSync(stampFile);
-      const minInterval = Math.max(0, intervalMs - 60_000);
-      if (Date.now() - st.mtimeMs < minInterval) {
-        return {
-          sent: false,
-          reason: intervalMs >= DAY_MS ? 'already_sent_today' : 'already_sent_recently',
-          lastSent: new Date(st.mtimeMs).toISOString(),
-        };
-      }
-    } catch {}
+  if (!force && !claimed) {
+    const recent = recentTelemetry({ home, intervalMs });
+    // the hour is taken before the report is built, so a second job has nothing to start on; a look costs nothing
+    if (recent || (!dryRun && !claimAttempt({ home, intervalMs }))) {
+      return {
+        sent: false,
+        reason: intervalMs >= DAY_MS ? 'already_sent_today' : 'already_sent_recently',
+        ...(recent ? { lastSent: new Date(recent.at).toISOString() } : {}),
+      };
+    }
   }
 
-  const payload = buildTelemetryPayload(store, { home, days: 1, all: true, event });
-
-  if (dryRun) {
-    return { sent: true, dryRun: true, endpoint, payload };
-  }
-
+  const release = dryRun ? () => {} : await holdTelemetryRun({ home, waitMs });
+  if (!release) return { sent: false, reason: 'already_running' };
   try {
-    const res = await fetchFn(endpoint, {
-      method: 'POST',
-      redirect: 'error',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'thinker-cli',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
+    const options = { home, days: 1, all: true, event };
+    const built = await build({ repo: store?.repo, options });
+    const incomplete = built.incomplete ? { reason: built.incomplete.reason, missing: built.incomplete.missing, ms: built.incomplete.ms } : null;
+    let payload = assembleTelemetry(built.fragments || [], { incomplete });
+    if (!payload) {
+      // Not even the machine's identity came back (the worker could not start, or died loading). That part is
+      // two small files, read here, so the machine still reports -- and reports that the rest is missing.
+      try {
+        const parts = telemetryParts(store, options);
+        payload = assembleTelemetry([parts[0][1]()], { incomplete: { reason: incomplete?.reason || 'error', missing: parts.slice(1).map(([name]) => name), ms: built.ms ?? null } });
+      } catch { payload = null; }
+    }
+    const stuck = Boolean(built.stuck);
+    if (built.incomplete) noteIncomplete(built, { home, repo: store?.repo });
+    if (!payload) return { sent: false, reason: 'build_failed', stuck };
 
-    if (!res.ok) {
-      return { sent: false, status: res.status, error: `HTTP ${res.status}` };
+    if (dryRun) {
+      return { sent: true, dryRun: true, endpoint, payload, stuck };
     }
 
-    let result = {};
-    try { result = await res.json(); } catch {}
-
     try {
-      fs.mkdirSync(path.dirname(stampFile), { recursive: true });
-      fs.writeFileSync(stampFile, new Date().toISOString() + '\n');
-    } catch {}
+      const res = await fetchFn(endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'thinker-cli',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10_000),
+      });
 
-    return { sent: true, status: res.status, key: result.key, payload };
-  } catch (err) {
-    return { sent: false, error: err.message };
-  }
+      if (!res.ok) {
+        return { sent: false, status: res.status, error: `HTTP ${res.status}`, stuck };
+      }
+
+      let result = {};
+      try { result = await res.json(); } catch {}
+
+      try {
+        const stampFile = path.join(home, 'state', 'telemetry.last');
+        fs.mkdirSync(path.dirname(stampFile), { recursive: true });
+        fs.writeFileSync(stampFile, new Date().toISOString() + '\n');
+      } catch {}
+
+      return { sent: true, status: res.status, key: result.key, payload, stuck };
+    } catch (err) {
+      return { sent: false, error: err.message, stuck };
+    }
+  } finally { release(); }
+}
+
+// A report that hit a limit is kept among the machine's own error records (error-report.js: scrubbed, and sent
+// only where the person said yes), with what stopped it. The payload itself says only that it happened and which
+// parts are missing: the reason a part failed can name a path, and no path leaves in a report.
+function noteIncomplete(built, { home, repo }) {
+  const i = built.incomplete;
+  const err = Object.assign(new Error(`telemetry report incomplete (${i.reason}) after ${i.ms} ms; missing: ${(i.missing || ['everything']).join(', ')}${built.detail ? `; ${built.detail}` : ''}`), { name: 'TelemetryIncomplete', code: i.reason });
+  import('./error-report.js').then(m => m.recordError('telemetry.build', err, { home, repo })).catch(() => {});
 }
 
 // The reason someone gives when uninstalling, sent only when they typed one. It goes to the endpoint the
@@ -1000,6 +1186,10 @@ export function sendTelemetryAfterUpdate({ cliPath, home = thinkerHome(), spawnF
   } catch { return false; }
 }
 
+// The hourly report, started from whatever thinker command or hook happens to run. Returns whether a job was
+// started. The hour is claimed here, before the job exists (claimAttempt): the prompts that follow, in this
+// session and every other, find it taken and start nothing, whether the job is still building, was sent, or
+// could not be. The child is told so, and does not ask again.
 export function maybeSendTelemetryInBackground({
   home = thinkerHome(),
   cliPath = path.join(HERE, 'cli.js'),
@@ -1007,36 +1197,34 @@ export function maybeSendTelemetryInBackground({
   force = false,
   event = 'hourly',
   intervalMs = HOUR_MS,
+  spawnFn = spawn,
+  env = process.env,
+  testMode = isTestMode(),
 } = {}) {
-  if (isTestMode() || !isTelemetryEnabled({ home, store })) return;
-  if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }))) return;
-  if (process.env.THINKER_IN_LLM) return;
-  if (process.env.THINKER_BACKGROUND_UPDATE || process.env.THINKER_BACKGROUND_TELEMETRY) return;
+  if (testMode || !isTelemetryEnabled({ home, store })) return false;
+  if (isTestTelemetryBlocked(getTelemetryEndpoint({ home }), env)) return false;
+  if (env.THINKER_IN_LLM) return false;
+  if (env.THINKER_BACKGROUND_UPDATE || env.THINKER_BACKGROUND_TELEMETRY) return false;
 
-  const stateDir = path.join(home, 'state');
-  const stampFile = path.join(stateDir, 'telemetry.last');
-
-  if (!force) {
-    try {
-      const st = fs.statSync(stampFile);
-      const minInterval = Math.max(0, intervalMs - 60_000);
-      if (Date.now() - st.mtimeMs < minInterval) return;
-    } catch {}
-  }
+  if (!force && !claimAttempt({ home, intervalMs })) return false;
 
   try {
     const args = ['telemetry', '--background', '--quiet'];
     if (store?.repo) args.push('--repo', store.repo);
     if (force) args.push('--force');
     if (event) args.push('--event', event);
-    const child = spawn(process.execPath, [cliPath, ...args], {
+    const child = spawnFn(process.execPath, [cliPath, ...args], {
       detached: true,
       stdio: 'ignore',
-      env: { ...process.env, THINKER_BACKGROUND_TELEMETRY: '1' },
+      env: { ...env, THINKER_BACKGROUND_TELEMETRY: force ? '1' : CLAIMED },
     });
-    child.unref();
-  } catch {}
+    child?.unref?.();
+    return true;
+  } catch { return false; }
 }
+// what the child of a claimed start finds in THINKER_BACKGROUND_TELEMETRY (commands/telemetry.js); a copy from
+// before the claim set '1', and its child takes the hour itself
+export const CLAIMED = 'claimed';
 
 export const maybeSendDailyTelemetryInBackground = maybeSendTelemetryInBackground;
 

@@ -17,7 +17,7 @@ import { compressionDir, readCompression, clearedBySession, clearingCostBySessio
 import { proxyLogFile } from './proxy-service.js';
 import { thinkerHome } from './update.js';
 import { isTestMode } from './test-mode.js';
-import { appendDelivery, readDelivery, positiveInteger } from './delivery-journal.js';
+import { appendDelivery, readDelivery, lastPrRecords, positiveInteger } from './delivery-journal.js';
 
 export const WINDOW_DAYS = 30;
 // Savings per merged pull request, for the shape of the distribution in the telemetry.
@@ -53,7 +53,17 @@ const hours = (from, to) => from && to ? Math.max(0, (Date.parse(to) - Date.pars
 export const COST_SINCE = '2026-11-05T00:00:00.000Z';
 const costFrom = (since, costSince = isTestMode() ? '' : COST_SINCE) => (costSince > (since || '') ? costSince : since || '');
 const READ_LATER = new Set(['profile', 'model', 'distill-skipped']);
-export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env, costSince } = {}) {
+// What one pass over many repositories asks for again and again. The three maps below are read out of the proxy's
+// log, which is the machine's and not a repository's: the same window and the same prices give the same map,
+// whichever repository asked. A pass that hands every report one `shared` map (delivery-telemetry.js) builds each
+// once; a report asked for alone builds its own, as before. Keyed on everything the map is made from.
+const once = (shared, key, make) => {
+  if (!shared) return make();
+  if (!shared.has(key)) shared.set(key, make());
+  return shared.get(key);
+};
+const sharedKey = (what, { home, since, config }) => `${what}\t${home}\t${since}\t${config === undefined ? '' : JSON.stringify(config)}`;
+export function sessionsOf(store, { since = '', log = null, home = thinkerHome(), env = process.env, costSince, shared = null } = {}) {
   const from = costFrom(since, costSince);
   const events = (log || readLog(store)).filter(e => e.origin === repoId(store.repo) && e.t >= since);
   const sessions = new Map();
@@ -89,12 +99,15 @@ export function sessionsOf(store, { since = '', log = null, home = thinkerHome()
     if (e.op === CLEARING_OP && e.cleared > 0 && e.t >= from && (!x.logged || e.cleared >= x.logged.cleared)) x.logged = e;
   }
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const clearing = clearingFor({ home, env, since: from, config });
+  const clearing = once(shared, sharedKey('clearing', { home, since: from, config }), () => clearingFor({ home, env, since: from, config }));
   // What the proxy itself saw of each session, for the clients that keep no transcript (compression.js:
   // usageBySession). Read once, like the clearing.
-  let served = new Map();
-  try { for (const [id, x] of usageBySession(proxyLogFile(home, env), { since })) served.set(sessionKey(id), x); } catch { served = new Map(); }
-  const rewriteCost = rewriteCostFor({ home, env, since: from, config });
+  const served = once(shared, sharedKey('served', { home, since }), () => {
+    const m = new Map();
+    try { for (const [id, x] of usageBySession(proxyLogFile(home, env), { since })) m.set(sessionKey(id), x); } catch { m.clear(); }
+    return m;
+  });
+  const rewriteCost = once(shared, sharedKey('rewrite', { home, since: from, config }), () => rewriteCostFor({ home, env, since: from, config }));
   for (const x of sessions.values()) {
     // agent tokens: the person's own conversation and every subagent it ran, since each was a model call made for
     // the same work; the parent's figure stays beside it (`ownTokens`), and a subagent with no counter is left out
@@ -230,10 +243,13 @@ const writeCostOf = (write, price) => (write || 0) * (price.cacheWrite1h ?? 2 * 
 
 const prCommits = p => [...(p.commits || []), p.head, p.mergeCommit].filter(sha => sha && sha !== p.base);
 
-export function linkFor(session, prs, links) {
+// `commitsOf` is the pull request's commits as a set. A report asks this of every session against every pull
+// request, and making the list afresh each time was 172 MB of arrays for one report of 430 sessions over a few
+// hundred pull requests (measured 2026-11-21), so the report hands in one that remembers (deliveryReport).
+export function linkFor(session, prs, links, commitsOf = p => new Set(prCommits(p))) {
   const manual = links.get(session.id);
   if (manual) return manual.map(a => ({ ...a, how: 'manual' }));
-  const byCommit = prs.filter(p => prCommits(p).some(sha => session.heads.includes(sha)));
+  const byCommit = session.heads.length ? prs.filter(p => { const commits = commitsOf(p); return session.heads.some(sha => commits.has(sha)); }) : [];
   if (byCommit.length === 1) return [{ pr: byCommit[0].number, share: 1, how: 'commit' }];
   const byBranch = prs.filter(p => p.branch && session.branches.includes(p.branch));
   const pool = byCommit.length > 1 ? byCommit : byBranch;
@@ -248,7 +264,7 @@ export function linkFor(session, prs, links) {
 // ---------------------------------------------------------------------------
 // The report.
 
-export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now(), home = thinkerHome(), log = null, costSince } = {}) {
+export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now(), home = thinkerHome(), log = null, costSince, shared = null } = {}) {
   days = positiveInteger(days, 'days');
   if (pr !== undefined) pr = positiveInteger(pr, 'PR');
   const since = new Date(now - days * 86400_000).toISOString();
@@ -259,10 +275,11 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
     else if (e.op === 'link') links.set(sessionKey(e.session), e.allocations);
   }
   // An observation is the only record of a session that served nothing and was never assessed.
-  const sessions = sessionsOf(store, { since, log, home, costSince });
-  const clearing = clearingFor({ home, since: costFrom(since, costSince) });
+  const sessions = sessionsOf(store, { since, log, home, costSince, shared });
+  const costSinceAt = costFrom(since, costSince);
+  const clearing = once(shared, sharedKey('clearing', { home, since: costSinceAt }), () => clearingFor({ home, since: costSinceAt }));
   const config = (() => { try { return store.config(); } catch { return {}; } })();
-  const rewriteCost = rewriteCostFor({ home, since: costFrom(since, costSince), config });
+  const rewriteCost = once(shared, sharedKey('rewrite', { home, since: costSinceAt, config }), () => rewriteCostFor({ home, since: costSinceAt, config }));
   // An observation carries no model, so a session known only this way can be priced for what the clearing
   // cost it but not for what the clearing saved it: the rates are the model's. `costed` counts the ones that
   // are priced, and a report whose sessions are all of this kind says so rather than showing a loss.
@@ -286,8 +303,10 @@ export function deliveryReport(store, { days = WINDOW_DAYS, pr, now = Date.now()
   const ensure = n => { if (!byPr.has(n)) { const p = blank({ number: n, state: 'UNKNOWN' }); all.push(p); byPr.set(n, p); } return byPr.get(n); };
 
   const unlinked = [];
+  const commitSets = new Map();
+  const commitsOf = p => { let c = commitSets.get(p); if (!c) commitSets.set(p, c = new Set(prCommits(p))); return c; };
   for (const x of sessions.values()) {
-    const allocations = linkFor(x, all, links);
+    const allocations = linkFor(x, all, links, commitsOf);
     if (!allocations.length) { unlinked.push(summary(x)); continue; }
     for (const a of allocations) {
       const p = ensure(a.pr), share = a.share;
@@ -450,9 +469,14 @@ export async function syncPrs(store, { pr, days = WINDOW_DAYS, request = null, n
       if (batch.length < 100 || batch.at(-1).updated_at < since) break;
     }
   }
-  let synced = 0;
+  // A pull request the journal already describes this way is not written again. Every read of GitHub used to
+  // append every pull request of the window whether or not it had moved, so a journal grew by the whole window
+  // every four hours for ever: 49 MB in three weeks for one repository, four rows in five a repeat of the row
+  // before, and every reader of the journal reads all of it. `synced` is still how many GitHub listed.
+  let known = new Map(); try { known = lastPrRecords(store); } catch { known = new Map(); }
+  let synced = 0, written = 0;
   for (const p of listed) {
-    appendDelivery(store, { op: 'pr', pr: {
+    const record = {
       number: p.number, title: p.title, url: p.html_url,
       state: p.merged_at ? 'MERGED' : String(p.state).toUpperCase(),
       createdAt: p.created_at, updatedAt: p.updated_at, mergedAt: p.merged_at, closedAt: p.closed_at,
@@ -461,10 +485,15 @@ export async function syncPrs(store, { pr, days = WINDOW_DAYS, request = null, n
       ...(commitsOf.has(p.number) ? { commits: commitsOf.get(p.number) } : {}),
       ...(p.additions === undefined ? {} : { additions: p.additions, deletions: p.deletions, changedFiles: p.changed_files }),
       author: p.user?.login,
-    } });
+    };
     synced++;
+    const text = JSON.stringify(record);
+    if (known.get(p.number) === text) continue;
+    appendDelivery(store, { op: 'pr', pr: record });
+    known.set(p.number, text);
+    written++;
   }
-  return { synced, detailed: commitsOf.size };
+  return { synced, written, detailed: commitsOf.size };
 }
 
 // ---------------------------------------------------------------------------

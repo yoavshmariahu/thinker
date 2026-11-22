@@ -125,13 +125,14 @@ export function keptRows(store, { weeks = REPORT_WEEKS, now = Date.now() } = {})
 
 // The decisions with what each saved (report.js:actionEffect), read over the report kept here without making one: what
 // Recent activity and `thinker context --history` show. With no report of this code's the effects are null.
-export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
-  return withEffects(history, keptRows(store, { weeks, now }).rows, now);
+// `kept`: the rows already read (keptRows), for a caller that asks two things of one report and should read it once.
+export function historyEffects(store, history, { weeks = REPORT_WEEKS, now = Date.now(), kept = keptRows(store, { weeks, now }) } = {}) {
+  return withEffects(history, kept.rows, now);
 }
 
 // What a prompt costs on average here (report.js:promptAverage), over the report kept here; null without one of this code's.
-export function promptAverageHere(store, { weeks = REPORT_WEEKS, now = Date.now() } = {}) {
-  return promptAverage(keptRows(store, { weeks, now }).rows);
+export function promptAverageHere(store, { weeks = REPORT_WEEKS, now = Date.now(), kept = keptRows(store, { weeks, now }) } = {}) {
+  return promptAverage(kept.rows);
 }
 
 // What an input token costs here (report.js:inputRate), from the report kept in this checkout -- a file read, never a

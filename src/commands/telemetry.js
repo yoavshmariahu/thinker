@@ -1,9 +1,17 @@
 import { ensureTelemetryScheduled, telemetryScheduleState, setTelemetryScheduleDisabled } from '../telemetry-schedule.js';
 // `thinker telemetry`: the metrics sent to the metrics service, by hand or on a schedule.
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, unscheduleTelemetry, isTelemetryScheduled } from '../telemetry.js';
+import { isTelemetryEnabled, getTelemetryEndpoint, buildTelemetryPayload, sendTelemetry, unscheduleTelemetry, isTelemetryScheduled, CLAIMED } from '../telemetry.js';
 import { thinkerHome } from '../update.js';
+
+// A report whose build was stopped at a limit while inside one native call leaves a thread that cannot be
+// interrupted (telemetry-guard.js: `stuck`), and a process waits for its threads before it exits. The report has
+// been sent by now; this job is over, and the one way to make that true is to end the process from outside it.
+function endIfStuck(res) {
+  if (res?.stuck) { try { process.kill(process.pid, 'SIGKILL'); } catch {} }
+}
 
 async function telemetryCommand(ctx) {
   const { flags, store, out, HERE } = ctx;
@@ -33,11 +41,18 @@ async function telemetryCommand(ctx) {
 
   if (flags.background) {
     if (!enabled) return;
-    await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event });
+    // Nobody is waiting for this, and somebody is working on the machine: the lowest priority there is.
+    try { os.setPriority(os.constants.priority.PRIORITY_LOW); } catch {}
+    // the hour was taken by the hook that started this job (telemetry.js:maybeSendTelemetryInBackground)
+    const claimed = !flags.force && process.env.THINKER_BACKGROUND_TELEMETRY === CLAIMED;
+    const res = await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event, claimed });
+    endIfStuck(res);
     return;
   }
 
   if (flags.send || flags.force) {
+    // the scheduled job (`--send --quiet`, every hour from launchd, cron or systemd) is the background's twin
+    if (flags.quiet) { try { os.setPriority(os.constants.priority.PRIORITY_LOW); } catch {} }
     const res = await sendTelemetry({ home, store, endpoint, force: !!flags.force, event: flags.event });
     if (!flags.quiet) {
       if (res.sent) {
@@ -47,6 +62,7 @@ async function telemetryCommand(ctx) {
         if (res.lastSent) out(`Last sent: ${new Date(res.lastSent).toLocaleString()}`);
       }
     }
+    endIfStuck(res);
     return;
   }
 
