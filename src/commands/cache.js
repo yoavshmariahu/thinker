@@ -43,6 +43,11 @@ async function uiCommand(ctx) {
   const { createUiServer, openBrowser, DEFAULT_PORT, refreshCheckouts } = await import('../ui/server.js');
   // the checkouts the page lists, looked for again (ui/server.js:refreshCheckouts); the page runs this in the background
   if (flags.refresh) { const cs = refreshCheckouts(store); if (!flags.quiet) out(`${cs.length} checkouts with a cache kept for the page.`); return; }
+  // --ensure: the address of the machine's page on a line of its own, one started in the background where none runs
+  // (context-suggest.js:ensureUi). How the Claude Code card gets links that open (integrations/claude-card): the mod
+  // can start nothing that outlives its call, and this returns as soon as the page says where it is. Exit 1 and no
+  // line where none could be started.
+  if (flags.ensure) { const { ensureUi } = await import('../context-suggest.js'); const url = ensureUi(store); if (url) out(url); else process.exitCode = 1; return; }
   const { box, c } = await import('../setup/ui.js');
   // --background (context-suggest.js:ensureUi): a page started for the machine without a terminal, its address in
   // THINKER_HOME/state/ui.json while it runs; no browser, gone once idle

@@ -27,6 +27,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { thinkerHome } from './update.js';
+import { isTestMode } from './test-mode.js';
 import { formatTokens } from './model-usage.js';
 import { sections, sectionId } from './instruction-value.js';
 import { describePart, describeEntry } from './part-describe.js';
@@ -374,6 +375,25 @@ export function retryJob(store, id, { now = Date.now(), spawnFn = spawn, cliPath
 const alive = pid => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 // where a page started for the machine (`thinker ui --background`, cache.js:uiCommand) keeps its address while it runs
 export const uiFile = (home = thinkerHome()) => path.join(home, 'state', 'ui.json');
+// The address of the machine's page (`http://127.0.0.1:<port>/`), one started in the background where none runs, or
+// null where none could be. A link in something thinker says (update-note.js) has to open when it is clicked, and the
+// page is only up while somebody runs `thinker ui`: this is what puts it up. One per machine, reused while it runs,
+// gone once nothing has asked it anything for cache.js:UI_IDLE_MS. The weekly question had this until it was retired;
+// it came back on 2026-11-22 for the update note's links. Under THINKER_TEST nothing is started unless the test hands
+// in its own spawnFn: a suite leaves no server behind.
+export const UI_WAIT_MS = 3000;   // how long ensureUi waits for the page it started to say where it is
+const sleep = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+export function ensureUi(store, { home = thinkerHome(), spawnFn = isTestMode() ? null : spawn, cliPath = CLI, waitMs = UI_WAIT_MS } = {}) {
+  const f = uiFile(home), running = () => { const u = readJson(f); return u?.url && u.pid && alive(u.pid) ? u.url : null; };
+  const now = running();
+  if (now || !spawnFn) return now;
+  try {
+    const child = spawnFn(process.execPath, [cliPath, 'ui', '--background'], { cwd: store.repo, detached: true, stdio: 'ignore' });
+    child.on?.('error', () => {}); child.unref?.();
+  } catch { return null; }
+  for (let t = 0; t < waitMs; t += 100) { sleep(100); const u = running(); if (u) return u; }
+  return null;
+}
 
 // The person approved these changes (`thinker context --approve 1,3|all`, the page's Approve, the answer to the weekly
 // suggestion, the installer's picks): each one's default, made as the Context tab makes it. A skill or tool is switched

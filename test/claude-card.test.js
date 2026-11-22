@@ -10,7 +10,7 @@ import { CARD_TOOLS, TURNS_AFTER, compressionHeader, compressionTools, shortTool
 import { NOTICE_PROMPTS, NOTICE_HOURS } from '../src/notice-cadence.js';
 import { formatTokens } from '../src/model-usage.js';
 import { dayKey, savingsStatus } from '../src/accountant.js';
-import { UPDATE_NOTE } from '../src/update-note.js';
+import { UPDATE_NOTE, noteLinks } from '../src/update-note.js';
 import { formatDollars } from '../src/prices.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -276,6 +276,12 @@ test('the update card says what src/update-note.js says, once per note', () => {
   assert.match(src, /if \(tail && \(await noticeOn\(\$\)\)/);
   // and the Stop hook leaves it to the card where the mod runs, as it leaves the money to the status row
   const hooks = fs.readFileSync(path.join(ROOT, 'src', 'commands', 'hooks.js'), 'utf8');
-  assert.match(hooks, /const update = !carded && updateNoteDue\(store\) \? updateNoteText\(\) : ''/);
+  assert.match(hooks, /const update = !carded && updateNoteDue\(store\) && stopOutput\(client, '\.'\) \? updateNoteText\(UPDATE_NOTE, \{ page: notePage\(store\) \}\) : ''/);
   assert.match(hooks, /if \(update\) updateNoteShown\(store\)/);
+  // a line's places on the page are filled the same way by both: the same addresses while a page runs, the
+  // same commands where none does, and the mod asks the CLI for the page as the Stop hook asks ensureUi
+  for (const v of Object.values(noteLinks('${page}'))) assert.ok(src.includes(`\`${v}\``), v);
+  for (const v of Object.values(noteLinks(null))) assert.ok(src.includes(`'${v}'`), v);
+  assert.match(src, /\$\.process\.run\(\['node', cli, 'ui', '--ensure'\]/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'src', 'commands', 'cache.js'), 'utf8'), /if \(flags\.ensure\) \{ const \{ ensureUi \}/);
 });

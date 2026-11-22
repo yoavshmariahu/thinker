@@ -1,7 +1,7 @@
 // Run with `claude plugin test src/integrations/claude-card` (npm test runs test/claude-card.test.js).
 import { test, expect, mock } from 'claude-code/testing'
 import type { On } from 'claude-code'
-import { compressionHeader, compressionTools, statusTail, tailOf, TURNS_AFTER, UPDATE_NOTE } from './register'
+import { cliOf, compressionHeader, compressionTools, noteParts, statusTail, tailOf, TURNS_AFTER, UPDATE_NOTE } from './register'
 
 const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compact JSON.'
 
@@ -9,7 +9,10 @@ const answer = 'Here is how the hash is computed.\n\nIt is SHA-256 of the compac
 // session's checkout.
 // `noted` is the update note this machine has already been told, which is this note by default: the
 // note is a one-off and every other test here is about a machine that has had it.
-function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any, noted = UPDATE_NOTE.id as string, stored = [] as [string, any][] } = {}) {
+function engine(on: On, { root = '/r', writes = [] as string[], compression = null as any, savings = null as any, status = [] as (string | undefined)[], pinned = [] as (string | undefined)[], hidden = '', env = {} as Record<string, string>, config = null as any, noted = UPDATE_NOTE.id as string, stored = [] as [string, any][], page = '' as string, cli = '/t/cli.js' as string, ran = [] as (readonly string[])[] } = {}) {
+  // the installed thinker, asked for the page the note's links open (`thinker ui --ensure`): its address
+  // on a line, or exit 1 and nothing where no page could be started
+  on('process.run', ($, e) => { ran.push(e.argv); return { value: { exitCode: page ? 0 : 1, stdout: page ? `${page}\n` : '', stderr: '' } as any } })
   on('store.get', ($, e) => ({ value: e.key === 'savings-hidden-on' && hidden ? hidden : e.key === 'update-note' ? noted : undefined }))
   on('store.set', ($, e) => { stored.push([e.key, e.value]); return { value: undefined } })
   on('command.register', () => ({ value: undefined }))
@@ -28,6 +31,8 @@ function engine(on: On, { root = '/r', writes = [] as string[], compression = nu
     if (e.path === '/home/me/.thinker/state/compression/sess-1.json' && compression) return { value: JSON.stringify(compression) }
     if (e.path === '/home/me/.thinker/state/savings.json' && savings) return { value: JSON.stringify(savings) }
     if (e.path === `${root}/.thinker/config.json` && config) return { value: JSON.stringify(config) }
+    // Claude Code's own settings, where thinker's prompt hook names the CLI the hooks run
+    if (e.path === '/home/me/.claude/settings.json' && cli) return { value: JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ command: `node "${cli}" hook prompt --client claude --user` }] }] } }) }
     return { deny: 'no such file' }
   })
   on('fs.stat', ($, e) => ({ value: { kind: 'file', size: e.path.endsWith('clients.js') ? 100000 : 3600, mtimeMs: 0 } as any }))
@@ -216,17 +221,44 @@ test('a subagent turn keeps no card', async ($, on) => {
 // What changed in thinker, once per machine. A person's agents never name a version, so a release that
 // turns their notes into a profile has to say so somewhere; this is the Claude Code door for it.
 test('the update note is drawn once, under the first answer, and never again', async ($, on) => {
-  const stored: [string, any][] = []
-  engine(on, { savings: { ...ledger(), version: '0.3.0' }, noted: '', stored })   // a machine that has not been told
+  const stored: [string, any][] = [], ran: (readonly string[])[] = []
+  engine(on, { savings: { ...ledger(), version: '0.3.0' }, noted: '', stored, page: 'http://127.0.0.1:4848/', ran })   // a machine that has not been told
   await $.session.start({ cwd: '/r', surface: 'terminal', isInteractive: true })   // where the ledger, and its version, is first read
   await $.turn.complete(end('t1'))
   const ui = await mount($, 'terminal')
   expect((await ui.findAll({ text: /Thinker v0\.3\.0/ })).length).toBeGreaterThan(0)   // the version, which nothing else in a session says
   expect((await ui.findAll({ text: new RegExp(UPDATE_NOTE.title) })).length).toBeGreaterThan(0)
-  for (const line of UPDATE_NOTE.lines) expect((await ui.findAll({ text: line.slice(0, 30) })).length).toBeGreaterThan(0)
+  for (const line of UPDATE_NOTE.lines) expect((await ui.findAll({ text: line.split('{')[0].slice(0, 30) })).length).toBeGreaterThan(0)
+  // the two places the note sends a person are links to the page running for this machine, which the
+  // installed thinker was asked for once (and started, where none ran): a link that opens when clicked
+  expect((await ui.findAll({ type: 'Link' })).map(l => l.props.href)).toEqual(['http://127.0.0.1:4848/#tab=chat', 'http://127.0.0.1:4848/#tab=factory'])
+  expect(ran).toEqual([['node', '/t/cli.js', 'ui', '--ensure']])
+  expect((await ui.findAll({ text: /[{}]/ })).length).toBe(0)
   await ui.unmount()
   // the note's id is kept the moment it is drawn, so the next session asks for nothing
   expect(stored.find(([k]) => k === 'update-note')?.[1]).toBe(UPDATE_NOTE.id)
+})
+
+// No page to link to -- none could be started, thinker's CLI is not in the settings, or what came back is
+// not the page's own address: the same lines name the command, and nothing is drawn as a link.
+for (const [why, opts] of [['none could be started', { page: '' }], ['no CLI in the settings', { page: 'http://127.0.0.1:4848/', cli: '' }], ['an answer that is not the page', { page: 'https://elsewhere.example/' }]] as const) {
+  test(`with no page to link to the note names the command, and draws no link (${why})`, async ($, on) => {
+    engine(on, { savings: ledger(), noted: '', ...opts })
+    await $.turn.complete(end('t1'))
+    const ui = await mount($, 'terminal')
+    expect((await ui.findAll({ type: 'Link' })).length).toBe(0)
+    expect((await ui.findAll({ text: /the dashboard \(run: thinker ui\)/ })).length).toBeGreaterThan(0)
+    expect((await ui.findAll({ text: /\(run: thinker ui --tab factory\)/ })).length).toBeGreaterThan(0)
+    await ui.unmount()
+  })
+}
+
+test('a line is its words and its links, and the CLI is the one the prompt hook names', () => {
+  expect(noteParts('Chat in {chat} now.', 'http://127.0.0.1:4848/')).toEqual([{ text: 'Chat in ' }, { text: 'http://127.0.0.1:4848/#tab=chat', href: 'http://127.0.0.1:4848/#tab=chat' }, { text: ' now.' }])
+  expect(noteParts('See {factory}', undefined)).toEqual([{ text: 'See ' }, { text: '(run: thinker ui --tab factory)' }])
+  expect(noteParts('No link here.', 'http://127.0.0.1:4848/')).toEqual([{ text: 'No link here.' }])
+  expect(cliOf({ hooks: { UserPromptSubmit: [{ hooks: [{ command: 'other' }] }, { hooks: [{ command: 'node "/h/.thinker/app/src/cli.js" hook prompt --client claude --user' }] }] } })).toBe('/h/.thinker/app/src/cli.js')
+  expect(cliOf({})).toBe(null)
 })
 
 test('a machine already told draws no update note', async ($, on) => {

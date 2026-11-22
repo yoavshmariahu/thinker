@@ -282,6 +282,9 @@ then "actually 0 holdout. cutting doesn't even get tirggered very often"; `proxy
 - `UPDATE_NOTE` in `src/update-note.js` (id, title, lines, more); mirrored by mod (`test/claude-card.test.js`).
 - Keyed on note id, never version (`updateNoteShown` in `state/update-note.json`).
 - Card where mod runs (end of first turn); Stop hook's summary everywhere else.
+- A line links to the local page with `{chat}` / `{factory}` (2026-11-22): filled with the address of a page started for it
+  (`context-suggest.js:ensureUi`; the mod asks `thinker ui --ensure`), or with the command where none could be started. The page
+  stops after 30 idle minutes.
 
 **Savings footer (2026-11-06):**
 - Dollars from the accountant's ledger (`accountant.js:computeSavings`, the Report's own `weeklySavings` over two windows and, since 2026-11-22, the last fortnight between them); never contradicts `thinker report`. See "Savings: one accountant" above.

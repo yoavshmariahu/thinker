@@ -217,14 +217,15 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the four-hour update job. First run starts tracking, without backfilling.
                                  --dry lists eligible recorded PRs without syncing or posting. Set prComments:
                                  false in the machine or repository config to disable automatic comments
-  ui [--port n] [--no-open] [--tab chat|factory|activity|settings] [--here] [--refresh]
+  ui [--port n] [--no-open] [--tab chat|factory|activity|settings] [--here] [--refresh] [--ensure]
                                  open the local page, from any directory, over every repository on the machine (--here: this
                                  checkout alone), on the chat with thinker and what it did lately (--tab chat); the Factory
                                  (--tab factory, thinker factory) and Recent activity (--tab activity): every decision with what
                                  it saved, and the merged pull requests. Find Savings and View Report are no longer tabs of it:
                                  thinker makes those decisions itself, and their figures are \`thinker context\` and \`thinker report\`;
                                  127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the
-                                 page reads (it runs this itself)
+                                 page reads (it runs this itself); --ensure prints the address of the page running for this
+                                 machine, starting one in the background where none runs (it stops once idle for 30 minutes)
   usage [--here] [--days n] [--json]
                                  how thinker has been used on this machine, in every repository: requests, sessions, the
                                  clearing's savings and what learning spent (--here: this repository only; history is kept in
