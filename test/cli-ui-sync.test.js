@@ -182,7 +182,7 @@ test('the Context report is one computation: `thinker context`, the installer an
   assert.match(read('commands/cache.js'), /flags\.here && !flags\.all \? 'repo=here' : 'repo=all'/);
   assert.match(read('ui/page.html'), /const hashRepo = \(\) => \{ const r = H\(\)\.get\('repo'\); return r === 'here' \? '' : r \|\| 'all'; \}/);
   for (const d of [/REPO = hashTab\(\) === 'factory' \? hashRepo\(\)/, /AREPO = hashTab\(\) === 'activity' \? hashRepo\(\)/, /HREPO = hashTab\(\) === 'chat' \? hashRepo\(\)/]) assert.match(read('ui/page.html'), d);
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|factory\|activity\] \[--here\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|factory\|activity\|settings\] \[--here\]/);
   // setup asks the same question over the same report for its one repository (setup/context-ask.js)
   assert.match(read('setup.js'), /askMachineReport\(\{ r, recs: recommendations\(view\)/);
   assert.match(read('setup/context-ask.js'), /renderMachineReport\(r, recs\)/);
@@ -322,8 +322,8 @@ test('over the wire: a section change started by another door is counted by Rece
 // (`thinker context`, `thinker report`) and the computations behind them stay, since thinker acts on them.
 test('Find Savings and View Report are no tabs of the page: no button, no section, no route, and an old link opens the chat', async t => {
   const html = read('ui/page.html');
-  assert.deepEqual([...html.matchAll(/class="nav-link" data-tab="([a-z]+)"/g)].map(m => m[1]), ['chat', 'factory', 'activity'], 'the nav is the chat, the Factory and Recent activity');
-  assert.deepEqual([...html.matchAll(/<section id="tab-([a-z]+)"/g)].map(m => m[1]), ['chat', 'factory', 'activity']);
+  assert.deepEqual([...html.matchAll(/class="nav-link" data-tab="([a-z]+)"/g)].map(m => m[1]), ['chat', 'factory', 'activity', 'settings'], 'the nav is the chat, the Factory, Recent activity and (since 2026-11-21) Settings');
+  assert.deepEqual([...html.matchAll(/<section id="tab-([a-z]+)"/g)].map(m => m[1]), ['chat', 'factory', 'activity', 'settings']);
   assert.doesNotMatch(html, /Find Savings<\/button>|View Report<\/button>|id="tab-save"|id="tab-report"|id="context-body"|id="report-body"/);
   assert.doesNotMatch(html, /function loadContext|function loadReport|function renderContext|function renderReport|function applyRows|\/api\/context|\/api\/explain|\/api\/changes\/(approve|dismiss|start)/);
   // an old link (tab=save, report, changes, cache) and a tab the page does not know open the chat; Save's old History view
@@ -335,7 +335,7 @@ test('Find Savings and View Report are no tabs of the page: no button, no sectio
     const context = vm.createContext({
       H: () => new URLSearchParams(hash), $: sel => ({ set hidden(v) { shown[sel] = !v; } }),
       document: { querySelectorAll: () => [] }, history: { replaceState: (a, b, to) => { shown.hash = to; } }, scanProgress: () => {},
-      loadHome: () => loaded.push('chat'), loadFactory: () => loaded.push('factory'), loadActivity: () => loaded.push('activity'),
+      loadHome: () => loaded.push('chat'), loadFactory: () => loaded.push('factory'), loadActivity: () => loaded.push('activity'), loadSettings: () => loaded.push('settings'),
     });
     vm.runInContext(`${hashTab}\nlet TAB;\n${show}\nshow(H().get('tab') || 'chat');`, context);
     return [vm.runInContext('hashTab()', context), vm.runInContext('TAB', context), loaded.join(), shown.hash, Object.keys(shown).filter(k => shown[k] === true).join()];
@@ -343,8 +343,9 @@ test('Find Savings and View Report are no tabs of the page: no button, no sectio
   for (const hash of ['tab=save', 'tab=report', 'tab=changes', 'tab=cache', 'tab=context', 'tab=save&view=all&repo=r1&from=suggestion', '']) assert.deepEqual(opened(hash), ['chat', 'chat', 'chat', '#tab=chat', '#tab-chat'], hash || 'no tab');
   assert.deepEqual(opened('tab=save&view=history'), ['activity', 'activity', 'activity', '#tab=activity', '#tab-activity']);
   assert.deepEqual(opened('tab=factory'), ['factory', 'factory', 'factory', '#tab=factory', '#tab-factory']);
+  assert.deepEqual(opened('tab=settings'), ['settings', 'settings', 'settings', '#tab=settings', '#tab-settings']);
   // the command names the three tabs, and says where the two pages' figures are
-  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|factory\|activity\] \[--here\] \[--refresh\]/);
+  assert.match(read('cli.js'), /ui \[--port n\] \[--no-open\] \[--tab chat\|factory\|activity\|settings\] \[--here\] \[--refresh\]/);
   assert.match(read('cli.js'), /Find Savings and View Report are no longer tabs of it:\s+thinker makes those decisions itself, and their figures are \\`thinker context\\` and \\`thinker report\\`/);
   assert.doesNotMatch(read('commands/cache.js'), /Find Savings \(where your agents' context goes\)/);
   // over the wire: the routes that served the two tabs answer as any unknown route does; the ones the page still reads answer
@@ -769,4 +770,24 @@ test('models from other providers are the command line\'s alone: the page has no
   assert.doesNotMatch(read('ui/page.html'), /thinker models|--key-env|providers\.json/);
   for (const f of ['--key-env NAME|--key-file path|--key value|--no-key', '--format messages|chat', '--template reader|worker', '--input n --output n', 'models profile [--days n] [--here] [--json] [--refresh]']) assert.ok(read('cli.js').includes(f), f);
   // prices stay one door: the registry's prices reach the Report through prices.js, and nowhere else prices a token
+});
+
+test('Settings: the page\'s tab and `thinker settings` are one list, one view and one way to change a value', async () => {
+  // 2026-11-21, the owner's ask: how thinker works can be set by hand. settings.js holds the list; neither door holds a
+  // second one, so a setting cannot be on the page and missing from the command, or shown by one and hidden by the other
+  const html = read('ui/page.html'), cmd = read('commands/settings.js'), server = read('ui/server.js');
+  assert.match(html, /<button class="nav-link" data-tab="settings"/); assert.match(html, /<section id="tab-settings" hidden>/);
+  assert.match(server, /settingsView\(\{ home \}\)/); assert.match(cmd, /const v = settingsView\(\);/);
+  assert.match(server, /await setSetting\(String\(b\.id \|\| ''\), b\.value, \{ home \}\)/); assert.match(cmd, /await setSetting\(id, rest\.join\(' '\)\)/);
+  // which settings are shown is the view's word through both doors: under a parent that is off, neither prints one
+  assert.match(html, /g\.items\.filter\(i => i\.shown\)/); assert.match(read('settings.js'), /const rows = g\.items\.filter\(i => i\.shown\);/);
+  const { GROUPS } = await import('../src/settings.js');
+  assert.deepEqual([...html.matchAll(/data-set="([a-z][A-Za-z.]*)"/g)].map(m => m[1]), [], 'the page names no setting itself: they are the list\'s');
+  for (const i of GROUPS.flatMap(g => g.items).filter(i => i.id.includes('.'))) assert.ok(!cmd.includes(i.id), `${i.id} is the list's, not the command's`);
+  // one set for the machine ("don't make settings per repo"): no scope switch, no repository dropdown, no --here
+  const tab = html.slice(html.indexOf('<section id="tab-settings"'), html.indexOf('</section>', html.indexOf('<section id="tab-settings"')));
+  assert.doesNotMatch(tab, /<select|data-scope|One repository/); assert.doesNotMatch(cmd, /flags\.here|--here/);
+  assert.match(read('cli.js'), /settings \[set <id> <value>\] \[--json\]/); assert.match(read('cli.js'), /--tab chat\|factory\|activity\|settings/);
+  // context cutting is not set here (the owner's call), through either door
+  assert.ok(!GROUPS.flatMap(g => g.items).some(i => /^proxy\./.test(i.id)));
 });

@@ -29,6 +29,7 @@ import { reportSnapshot, refreshing as reportRefreshing, historyEffects, promptA
 import { uiScans, scanStatus } from './scans.js';
 import { upkeepView, mergeUpkeepViews, delegatedTotalSaid, UPKEEP } from '../upkeep.js';
 import { chatSend, chatView } from '../chat.js';
+import { settingsView, setSetting } from '../settings.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -273,8 +274,17 @@ export function createUiServer(store, { home = thinkerHome(), transcriptsHome, c
       // a conversation with thinker and the history beside it (chat.js:chatView, as `thinker chat` and its --history):
       // the one named (`chat`), `new` for one not yet started, else the one last spoken in
       if (req.method === 'GET' && url.pathname === '/api/chat') return json(res, 200, chatView({ home, chat: url.searchParams.get('chat') || null }));
+      // how thinker works on this machine, set by hand (settings.js:settingsView, as `thinker settings`)
+      if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, settingsView({ home }));
       if (req.method !== 'POST') return json(res, 405, { error: 'method not allowed' });
       const b = await readBody(req);
+      // one setting changed (settings.js:setSetting, as `thinker settings set`); the answer is the view after it
+      if (url.pathname === '/api/settings') {
+        const r = await setSetting(String(b.id || ''), b.value, { home });
+        if (r.error) return json(res, 400, { error: r.error });
+        harnessCache.clear();
+        return json(res, 200, { ok: true, said: r.said, view: r.view });
+      }
       // a message to thinker (chat.js:chatSend): one model call through the person's own login, or queued for an app's
       // session where no model can be called from here; shown every repository, told which one the person is looking at
       if (url.pathname === '/api/chat') {

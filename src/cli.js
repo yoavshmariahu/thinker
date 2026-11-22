@@ -32,7 +32,8 @@ import { commands as errorCommands } from './commands/errors.js';
 import { commands as fleetCommands } from './commands/fleet.js';
 import { commands as activityCommands } from './commands/activity.js';
 import { commands as chatCommands } from './commands/chat.js';
-import { isDisabledRepo, OFF_MESSAGE } from './repo-switch.js';
+import { commands as settingsCommands } from './commands/settings.js';
+import { isDisabledRepo, OFF_MESSAGE, layeredConfig } from './repo-switch.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -60,7 +61,7 @@ const learnOn = () => !NO_LEARN && !flags['no-learn'] && !flags['serve-only'];
 // session, about 10¢ with Sonnet, and in a week on this repository 30% of them produced no note.
 // `learn: {sessions: false}` in .thinker/config.json keeps it off; verification in maintenance goes on.
 // `thinker distill <file>` by hand is still answered. THINKER_NO_LEARN=1 switches off everything.
-const sessionLearning = () => store.config().learn?.sessions !== false;
+const sessionLearning = () => layeredConfig(store, 'learn')?.sessions !== false;
 
 // The MCP entry for a checkout's own files pins the repository; the user's machine-wide entry
 // pins none, and the server takes the repository from the directory the client starts it in.
@@ -186,6 +187,15 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  through your agent's own login; what it changed is printed under its answer. With no message,
                                  the conversation so far. A message goes on with the conversation last spoken in; --new starts
                                  another with it, --chat <id> names one, and --history lists them, as the page's Chat history does
+  settings [set <id> <value>] [--json]
+                                 how thinker works on this machine, set by hand, as on the page's Settings tab: what it
+                                 may change on its own (automatic, suggest only, off; instruction files, tools and MCP
+                                 servers, skills, merged worktrees), what is handed to a cheaper model (big reads,
+                                 whole-suite test runs, from what size, on which model), learning from sessions and the
+                                 profile, what it tells you, and what leaves the machine. A setting sits under the one
+                                 it depends on and is not shown while that one is off; its value is kept for when it is
+                                 on again. set changes one by the id printed beside it (a switch: on or off; a choice:
+                                 one of its values)
   hook <prompt|tool|stop> [--client c]   hook entrypoints (JSON on stdin): prompt = the profile and thinker's questions,
                                  tool = the instruction sections and the diet, stop = the summary and the session's read
   prs [--days n] [--pr n] [--detail] [--json]
@@ -205,7 +215,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the four-hour update job. First run starts tracking, without backfilling.
                                  --dry lists eligible recorded PRs without syncing or posting. Set prComments:
                                  false in the machine or repository config to disable automatic comments
-  ui [--port n] [--no-open] [--tab chat|factory|activity] [--here] [--refresh]
+  ui [--port n] [--no-open] [--tab chat|factory|activity|settings] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
                                  checkout alone), on the chat with thinker and what it did lately (--tab chat); the Factory
                                  (--tab factory, thinker factory) and Recent activity (--tab activity): every decision with what
@@ -320,10 +330,10 @@ function unknownFlags(c, given, help = HELP) {
 const CACHE_COMMANDS = ['learn', 'profile', 'maintain', 'session-work', 'instructions', 'context', 'explain', 'report', 'factory', 'activity'];
 
 // One handler per command, in src/commands/; each gets the context below and nothing else of this file.
-const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands, ...activityCommands, ...chatCommands };
+const COMMANDS = { ...cacheCommands, ...prsCommands, ...learnCommands, ...profileCommands, ...hookCommands, ...setupCommands, ...telemetryCommands, ...doctorCommands, ...switchCommands, ...externalCommands, ...harnessCommands, ...instructionsCommands, ...contextCommands, ...explainCommands, ...reportCommands, ...factoryCommands, ...modelsCommands, ...savingsCommands, ...proxyCommands, ...containerCommands, ...errorCommands, ...fleetCommands, ...activityCommands, ...chatCommands, ...settingsCommands };
 // Commands that still answer in a repository thinker is switched off for (repo-switch.js): the machine-wide
 // ones, the ones about the install itself, and the switch. `hook` keeps quiet by itself.
-const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', 'config', 'status', 'fleet-report', undefined];
+const OFF_COMMANDS = ['version', 'enable', 'disable', 'ui', 'help', 'update', 'upgrade', 'switch', 'branch', 'connect', 'doctor', 'uninstall', 'telemetry', 'usage', 'savings', 'stats', 'ranker', 'hook', 'serve', 'proxy', 'containers', 'errors', 'models', 'config', 'settings', 'status', 'fleet-report', undefined];
 
 async function main() {
   // Retired entrypoints must not initialize a cache, schedule work or execute a command.

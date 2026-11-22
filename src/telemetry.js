@@ -56,6 +56,9 @@ export function isTelemetryEnabled({ home = thinkerHome(), store } = {}) {
     } catch {}
   }
 
+  // the machine's own settings (settings.js writes `telemetry: false` there; install.json is the installer's)
+  try { if (readMachineConfig(home, { local: true }).telemetry === false) return false; } catch {}
+
   // Check global install config
   try {
     const installJson = JSON.parse(fs.readFileSync(path.join(home, 'install.json'), 'utf8'));
