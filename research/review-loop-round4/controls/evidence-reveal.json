@@ -1,0 +1,47 @@
+{
+  "state": {
+    "task": "Verify the existing claim using only supplied source. The client implementation is currently unavailable. Do not infer how remove handles its signal from the signature or conventional behavior. Qualify unsupported consequences; do not pretend to inspect a missing file. No network, edits, tests, or outside reads.",
+    "contracts": [
+      "cleanup must remove the local record; cancellation behavior depends on the called implementation."
+    ],
+    "diff": "",
+    "source": {
+      "src/cleanup.js": "import { remove } from './client.js';\nexport function cleanup(store) {\n  const controller = new AbortController();\n  controller.abort();\n  return remove(controller.signal, store);\n}\n"
+    },
+    "findings": [
+      {
+        "file": "src/cleanup.js",
+        "line": 5,
+        "severity": "warning",
+        "message": "Passing the already-aborted signal guarantees that cleanup cannot remove the record.",
+        "evidence": "cleanup aborts its controller before calling remove."
+      }
+    ],
+    "coverage": "No review performed yet.",
+    "limitations": [
+      "Only the staged source files are available; external implementations and upstream integration tests are not supplied."
+    ],
+    "history": [],
+    "roundsUsed": 0,
+    "maxRounds": 3,
+    "availableActions": {
+      "verify_existing": "Check existing findings against the supplied source; correct or limit unsupported claims.",
+      "inspect_callers": "Fetch the predeclared additional source excerpt and inspect the caller/control flow.",
+      "investigate_remaining": "Inspect the current diff and source for distinct unreported contract violations.",
+      "finalize": "Finish with supported findings and explicit scope limits.",
+      "manual_review": "Stop with an unresolved question that requires human intent or unavailable evidence."
+    }
+  },
+  "steps": [
+    {
+      "action": "verify_existing"
+    },
+    {
+      "action": "inspect_callers",
+      "addSource": {
+        "src/client.js": "export function remove(signal, store) {\n  store.deleted = true;\n  return 'deleted-despite-cancel';\n}\n"
+      },
+      "task": "The previously missing client implementation is now staged at src/client.js. Inspect it and update the existing report. Reconcile the previous limitation with this new evidence; retain only supported defects. No network, edits, tests, or outside reads."
+    }
+  ]
+}

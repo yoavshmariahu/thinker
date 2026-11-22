@@ -131,10 +131,6 @@ For real-session passages, deterministic selection retained 10/13 reference fact
 
 [Five Opus coding tasks and five Sol reviews](../research/jev-sol-opus-ten/README.md), with exact matched models and reasoning effort. Opus: tool calls −6.2%, input tokens −3.1%, elapsed time +0.3%, unchanged essential-criteria scores. Sol: the same 4/5 target bugs caught with 26 → 6 notes, but verification doubled model calls, increasing total tokens 86.2% and time 53.5%. Separate cohorts, one historical/new run per task; these results do not establish a general causal benefit.
 
-## Jev-directed review loop (2026-10-07), removed
-
-Four rounds in which Jev judged a review agent's report (intent, support, coverage, next action, each finding) and code chose the agent's next step, against the agent directing itself. The pilot's first policy escalated all three cases on low action confidence; round two's reconciliation gate resolved a conflicting-intent routing failure and still finalized an overclaim. In the two paired rounds (four cases × two policies × two repetitions each) both arms passed 8/8 frozen case assessments: the graph added two executor passes, about 34% more executor tokens and 21% more active time in round three, and three passes, 35% more tokens and 43% more time on fresh cases in round four. **No review benefit observed; small cohorts, a manual rubric that was not blinded.** The directories (`research/review-loop-pilot`, `-round2`, `-round3`, `-round4`) were removed on 2026-11-21: their scripts import `src/jev.js`, which left with Jev, and nothing else read them. The full record is in git at `422e75cbb`.
-
 ## Headline results and how to read them
 
 The numbers shown in the README, with their explanation. PostHog,

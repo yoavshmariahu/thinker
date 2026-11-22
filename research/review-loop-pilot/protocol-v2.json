@@ -1,0 +1,10 @@
+{
+  "status": "predeclared after open-loop v1, before any v2 execution",
+  "parent": "protocol.json",
+  "change": "Remove the universal 0.6 next-action confidence cutoff for this bounded read-only review experiment. Select the highest-probability available action; retain all probabilities in the trace. No edit/publication/merge authority is granted.",
+  "reason": "All three open-loop states selected plausible actions with confidence below 0.6, causing v1 to route every case to a human. Choice concentration mixes uncertainty about facts with competition between acceptable next actions.",
+  "hypothesis": "Allowing low-confidence read-only action preferences will execute useful verification instead of escalating all cases, while preserving known distinct findings and scope limits.",
+  "unchanged": "Cases, questions, evidence, model identities, effort, fallback policy, action menu, per-arm ceilings, executor prompts, and success criteria.",
+  "comparison": "Run only the changed Jev arm; reuse the same-run fixed_verify controls. This is a development iteration on exposed cases, not an independent validation cohort.",
+  "limits": "No claim that confidence can be ignored for factual verdicts, edits, or high-impact actions. Finalize means report completion, never a clean bill of health."
+}

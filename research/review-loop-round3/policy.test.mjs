@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {route,stopReason} from './policy.mjs';import {questionsFor,findingKey} from './questions.mjs';
+const state={findings:[{message:'The operation always fails.'}]};
+const answers=(status='grounded')=>({claim_support:{choice:'supported'},coverage:{choice:'accounted_for'},intent_status:{choice:'settled'},next_action:{choice:'finalize'},finding_0:{choice:status}});
+test('a per-finding objection overrides global supported and finalize',()=>{for(const x of ['missing','contradicted'])assert.equal(route(answers(x),state).action,'verify_existing');});
+test('explicit qualification or complete evidence can finalize',()=>{for(const x of ['grounded','qualified'])assert.equal(route(answers(x),state).action,'finalize');});
+test('human intent precedes evidence work',()=>{const a=answers('missing');a.intent_status.choice='needs_human';assert.equal(route(a,state).action,'manual_review');});
+test('missing or malformed evidence judgments are rejected',()=>{assert.throws(()=>route(answers('unknown'),state));const a=answers();delete a.finding_0;assert.throws(()=>route(a,state));});
+test('edits change evidence identity; questions follow current findings',()=>{assert.notEqual(findingKey(state.findings[0]),findingKey({message:'The operation may fail.'}));assert.equal(Object.keys(questionsFor(state)).length,5);assert.equal(Object.keys(questionsFor({findings:[]})).length,4);});
+test('budget counts initial review and every follow-up; terminal is report only',()=>{assert.equal(stopReason('verify_existing',3,'new',new Set()),'incomplete_budget');assert.equal(stopReason('finalize',3,'new',new Set()),'finalize');assert.equal(stopReason('verify_existing',2,'old',new Set(['old'])),'incomplete_stalled');});

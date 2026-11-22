@@ -1,0 +1,9 @@
+{
+  "repo": "kubernetes/autoscaler",
+  "base": "40889a675092c0939c59160fc5270273db4e0555",
+  "fix": "cd7235a0aa4117597d6bdf4cd98201947d2160fe",
+  "parent": "7a7f63f9bac4ae1a39f2a6627a443c6bb8d9a393",
+  "paths": [
+    "vertical-pod-autoscaler/pkg/updater/priority/update_priority_calculator.go"
+  ]
+}

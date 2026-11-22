@@ -1,0 +1,256 @@
+{
+  "scope": "Experimental five-case controller study, two repetitions. Not a production or held-out benchmark.",
+  "audits": "Passed source/input pins, replay, state transitions, ceilings, exact model/effort invocation pins, and matching first-action prompts where both arms execute.",
+  "modelIdentityLimit": "Executor identity validated from invocation only; CLI does not echo model.",
+  "totals": {
+    "v2": {
+      "arms": 10,
+      "criteriaMet": 6,
+      "finalize": 10,
+      "manual_review": 0,
+      "executorCalls": 6,
+      "jevCalls": 16,
+      "elapsedMs": 114312,
+      "jevUsage": {
+        "input_tokens": 49521,
+        "output_tokens": 3066
+      },
+      "executorUsage": {
+        "input_tokens": 99924,
+        "cached_input_tokens": 73728,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2885,
+        "reasoning_output_tokens": 836
+      }
+    },
+    "v3": {
+      "arms": 10,
+      "criteriaMet": 8,
+      "finalize": 8,
+      "manual_review": 2,
+      "executorCalls": 4,
+      "jevCalls": 14,
+      "elapsedMs": 78816,
+      "jevUsage": {
+        "input_tokens": 44867,
+        "output_tokens": 2682
+      },
+      "executorUsage": {
+        "input_tokens": 65734,
+        "cached_input_tokens": 49152,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 2144,
+        "reasoning_output_tokens": 477
+      }
+    }
+  },
+  "openLoop": {
+    "calls": 5,
+    "usage": {
+      "input_tokens": 17086,
+      "output_tokens": 959
+    }
+  },
+  "rows": [
+    {
+      "id": "A-10349",
+      "rep": 0,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 23149
+    },
+    {
+      "id": "A-10349",
+      "rep": 0,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 20184
+    },
+    {
+      "id": "A-10349",
+      "rep": 1,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 19544
+    },
+    {
+      "id": "A-10349",
+      "rep": 1,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 17365
+    },
+    {
+      "id": "A-10141",
+      "rep": 0,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 18326
+    },
+    {
+      "id": "A-10141",
+      "rep": 0,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 21000
+    },
+    {
+      "id": "A-10141",
+      "rep": 1,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 20591
+    },
+    {
+      "id": "A-10141",
+      "rep": 1,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 19579
+    },
+    {
+      "id": "A-10178",
+      "rep": 0,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 142
+    },
+    {
+      "id": "A-10178",
+      "rep": 0,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 124
+    },
+    {
+      "id": "A-10178",
+      "rep": 1,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 180
+    },
+    {
+      "id": "A-10178",
+      "rep": 1,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 138
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 0,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 110
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 0,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 106
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 1,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 137
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 1,
+      "policy": "v3",
+      "outcome": "finalize",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 107
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 0,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 15568
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 0,
+      "policy": "v3",
+      "outcome": "manual_review",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 96
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 1,
+      "policy": "v2",
+      "outcome": "finalize",
+      "criterionMet": false,
+      "executorCalls": 1,
+      "jevCalls": 2,
+      "elapsedMs": 16565
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 1,
+      "policy": "v3",
+      "outcome": "manual_review",
+      "criterionMet": true,
+      "executorCalls": 0,
+      "jevCalls": 1,
+      "elapsedMs": 117
+    }
+  ]
+}

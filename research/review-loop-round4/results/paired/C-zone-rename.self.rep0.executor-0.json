@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 23268,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 75515,
+      "cached_input_tokens": 61056,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 445,
+      "reasoning_output_tokens": 0
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Inspected CHANGE.diff, staged extractNodeLabels and setLabelIfNotEmpty (lines 641–667), and the buildTemplateLabels/TemplateNodeInfo caller flow (lines 390–465). The change consistently renames a local map variable; allocation, nil-label handling, copied keys, and returned values remain identical. Stable and legacy zone-copy calls remain present.",
+    "limitations": [
+      "External Kubernetes constant definitions and JoinStringMaps implementation are not supplied, so their behavior was not independently verified.",
+      "No tests were run."
+    ],
+    "contribution": "Confirmed from actual source that the diff preserves behavior. Challenged potential zone-label loss: both zone-copy calls and their template integration are unchanged, providing no evidence of an introduced defect.",
+    "next_action": "finalize"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "tasks/A-10094.json": "e4f41d716ed7aa1709aa2e99ee5ed8b7c7861772486798cb230aff78cf4ccfe6",
+  "tasks/A-10258.json": "aea9f0c232019073c6bde947f78d800dc0a426d42769202f48839e4a6ef7e1c5",
+  "tasks/A-10325.json": "d516e9d1203ae91fedf50e739de63bf5542b0d420a2b8a3d4a270c04b003275f",
+  "tasks/C-zone-rename.json": "f7646bd10e5569a78c6d65d08f68b49b91d500fff0e54d05301c365ce6db1847",
+  "controls/conflicting-intent.json": "4e504ae1dfcf0dea592df167266815d13d69ab0363af112394e9f16362248983",
+  "controls/evidence-reveal.json": "45f303b53a969621381510b95481d9c25737e23b632b89bb222f5f405a86d653",
+  "controls/scope-bait.json": "c77e0783f11cfb165ef7284f6ba80339f0032cc1c69bcecc4414c42df2b5fb47",
+  "evaluator/A-10094.fixed.json": "6e313cfbcd74e2062221242faf8e02bef1f5692c82c80d655f4348b1550b7a98",
+  "evaluator/A-10094.provenance.json": "ca636dcf6557fc4a7b99271ab5557db06f3bc1211ac1923da4702a9d3099e574",
+  "evaluator/A-10258.fixed.json": "3d5c485f9dc3e0713dd133d92504f4381daf9749614de0b7c54e407b84813e6e",
+  "evaluator/A-10258.provenance.json": "1faec1119d91c7b0c2a4980f1b3cb5f6313ff9cd27980f8356edb0e7a425587a",
+  "evaluator/A-10325.fixed.json": "07277cbda0859b8de9d107253e55feb27395c06ac6ff39808754db315a140bb5",
+  "evaluator/A-10325.provenance.json": "1abf98c9d1e702456e56ec4d8c65a65a6a890827acc93553671a72041c73ac39"
+}

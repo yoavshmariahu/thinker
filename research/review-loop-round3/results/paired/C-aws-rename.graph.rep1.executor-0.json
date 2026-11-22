@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 19750,
+  "toolCalls": 5,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 74571,
+      "cached_input_tokens": 64256,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 436,
+      "reasoning_output_tokens": 18
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Reviewed TASK.json, CHANGE.diff, the staged parser at lines 223–244, and local caller references. The change consistently renames a local variable from name to parsedName; capture selection, validation, returned Name, and original ProviderID are unchanged. No actionable defect introduced by this change was found.",
+    "limitations": [
+      "The placeholder prefix definition and external manager/cache implementations are not supplied.",
+      "No tests were run; conclusions are based on source inspection."
+    ],
+    "contribution": "Established that both assignment branches and the returned field use the renamed variable consistently, confirming behavior preservation without asserting unsupported downstream consequences.",
+    "next_action": "finalize"
+  }
+}

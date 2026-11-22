@@ -1,0 +1,72 @@
+{
+  "scope": "Exact extracted local predicates/branches with stdlib wrappers. Zone constant names mapped to distinct string keys; not Kubernetes integration or whole caller-path verification. Synthetic controls execute their complete supplied functions.",
+  "records": [
+    {
+      "id": "A-10325",
+      "variant": "fixed",
+      "sourceSha256": "7684591b07686562726e17b75a6d776d73a797e8895d2ed1a3d62284fcc9ccec",
+      "checks": {
+        "longRuntimeIgnored": true,
+        "recentQuickRecognized": true,
+        "staleQuickIgnored": true
+      }
+    },
+    {
+      "id": "A-10325",
+      "variant": "reversed",
+      "sourceSha256": "51ea31e2331d49b080369c8b2300d2f33ce345b369d94c002c1e22de75f5f850",
+      "checks": {
+        "longRuntimeIgnored": true,
+        "recentQuickRecognized": true,
+        "staleQuickIgnored": false
+      }
+    },
+    {
+      "id": "A-10258",
+      "variant": "fixed",
+      "sourceSha256": "4f495cdc18485f8ca7563f4cc1b9baa2be6736fbb193582fe811cc747ab4b655",
+      "checks": {
+        "legacyZonePreserved": true,
+        "nilLabelsAccepted": true,
+        "stableZonePreserved": true
+      }
+    },
+    {
+      "id": "A-10258",
+      "variant": "reversed",
+      "sourceSha256": "2738b7b49b8f3e3590dec5d1b8550e0d019c219847494e09b75f8ecb1a5d4f66",
+      "checks": {
+        "legacyZonePreserved": true,
+        "nilLabelsAccepted": true,
+        "stableZonePreserved": false
+      }
+    },
+    {
+      "id": "A-10094",
+      "variant": "fixed",
+      "sourceSha256": "1ca30a9185fe9e5977676076d797f1f91dcb52d03e8b8640f872c735217c9493",
+      "checks": {
+        "transientErrorDeferred": true
+      }
+    },
+    {
+      "id": "A-10094",
+      "variant": "reversed",
+      "sourceSha256": "d0f344250e7aeb8ea2dd26fc33b0759ba58aff9d75922e8120e8935fa43eba76",
+      "checks": {
+        "transientErrorDeferred": false
+      }
+    },
+    {
+      "id": "C-zone-rename",
+      "identifierOnly": true
+    },
+    {
+      "id": "synthetic-controls",
+      "checks": {
+        "extraRetryAtLimit": true,
+        "deletesDespiteAbort": true
+      }
+    }
+  ]
+}

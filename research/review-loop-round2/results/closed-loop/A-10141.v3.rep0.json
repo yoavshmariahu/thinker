@@ -1,0 +1,244 @@
+{
+  "id": "A-10141",
+  "rep": 0,
+  "policy": "v3",
+  "order": [
+    "v3",
+    "v2"
+  ],
+  "valid": true,
+  "outcome": "finalize",
+  "unresolved": [],
+  "hashes": {
+    "run.mjs": "0c6b1401e36a7a3fceb73262221c00ff4b1ec2334fbf42cc14744bf06dcd6f2a",
+    "clients.mjs": "0fb48c0ca975d1254bda84d90829d9e39b8b124656ada953b58b5cc92f2312d4",
+    "policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20",
+    "protocol.json": "3d49b7898b2f80d75b857d988ae359c162c6853f2b4394d4ddf013064780ba05"
+  },
+  "stateHash": "0006b8fc52ced5a3f8c9cec9c417864e92a01fe678d5e9f5632b8aa2a2431e1c",
+  "elapsedMs": 21000,
+  "trace": [
+    {
+      "type": "judgment",
+      "decision": {
+        "action": "verify_existing",
+        "reason": "Resolve or qualify unsupported claims before finalizing.",
+        "unresolved": [
+          "Claim support: overclaimed"
+        ]
+      },
+      "elapsedMs": 140,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "claim_support": {
+            "type": "choice",
+            "choice": "overclaimed",
+            "confidence": 0.69,
+            "probabilities": {
+              "insufficient": 0.01,
+              "overclaimed": 0.77,
+              "contradicted": 0.08,
+              "supported": 0.14
+            }
+          },
+          "coverage": {
+            "type": "choice",
+            "choice": "accounted_for",
+            "confidence": 0.64,
+            "probabilities": {
+              "gap": 0.23,
+              "accounted_for": 0.76,
+              "unknown": 0.01
+            }
+          },
+          "next_action": {
+            "type": "choice",
+            "choice": "verify_existing",
+            "confidence": 0.3,
+            "probabilities": {
+              "verify_existing": 0.44,
+              "finalize": 0.12,
+              "inspect_callers": 0.36,
+              "manual_review": 0.01,
+              "investigate_remaining": 0.07
+            }
+          },
+          "intent_status": {
+            "type": "choice",
+            "choice": "settled",
+            "confidence": 0.8,
+            "probabilities": {
+              "settled": 0.9,
+              "needs_human": 0.1
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 2332,
+          "output_tokens": 193
+        }
+      }
+    },
+    {
+      "type": "execution",
+      "action": "verify_existing",
+      "valid": true,
+      "elapsedMs": 20706,
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "modelVerification": "explicit invocation only; CLI did not echo model",
+      "warnings": [
+        "clamping SessionEnd hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json",
+        "clamping Interrupt hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json"
+      ],
+      "usage": [
+        {
+          "input_tokens": 16245,
+          "cached_input_tokens": 12288,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 577,
+          "reasoning_output_tokens": 169
+        }
+      ],
+      "result": {
+        "findings": [
+          {
+            "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+            "line": 151,
+            "severity": "error",
+            "message": "The zero-ready guard rejects DaemonSets with desired scheduled pods but none ready, violating the replica-count contract. Restore the DesiredNumberScheduled zero guard. The local error is demonstrated; downstream recovery failure is unverified.",
+            "evidence": "Lines 151–152 return an error when NumberReady == 0. With DesiredNumberScheduled = 5 and NumberReady = 0, the function errors instead of returning 5."
+          },
+          {
+            "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+            "line": 154,
+            "severity": "error",
+            "message": "Returning NumberReady undercounts replicas when some desired pods are unready, even when the zero-ready guard does not trigger. Return DesiredNumberScheduled to satisfy the replica-count contract.",
+            "evidence": "Line 154 returns int(ds.Status.NumberReady). With DesiredNumberScheduled = 5 and NumberReady = 2, the function returns 2 instead of 5."
+          }
+        ],
+        "coverage": "Verified the existing finding and the distinct return-value defect using only the supplied diff and source excerpt, lines 138–159. No whole-repository completeness claim.",
+        "limitations": [
+          "Caller control flow was not supplied, so downstream recovery consequences remain unverified.",
+          "No test diff or test source was supplied to substantiate removal of a regression case.",
+          "No tools were used or tests executed."
+        ],
+        "contribution": "Preserved the supported zero-ready rejection, separated the positive-readiness undercount into an individually actionable finding, qualified the recovery claim, and removed the unsupported assertion that a regression test was deleted."
+      }
+    },
+    {
+      "type": "judgment",
+      "decision": {
+        "action": "finalize",
+        "reason": "No blocking semantic judgment; use action preference.",
+        "unresolved": []
+      },
+      "elapsedMs": 153,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "claim_support": {
+            "type": "choice",
+            "choice": "supported",
+            "confidence": 0.95,
+            "probabilities": {
+              "insufficient": 0,
+              "contradicted": 0,
+              "overclaimed": 0.04,
+              "supported": 0.96
+            }
+          },
+          "coverage": {
+            "type": "choice",
+            "choice": "accounted_for",
+            "confidence": 0.94,
+            "probabilities": {
+              "accounted_for": 0.96,
+              "gap": 0.04,
+              "unknown": 0
+            }
+          },
+          "next_action": {
+            "type": "choice",
+            "choice": "finalize",
+            "confidence": 0.39,
+            "probabilities": {
+              "investigate_remaining": 0.01,
+              "manual_review": 0,
+              "inspect_callers": 0.47,
+              "verify_existing": 0.01,
+              "finalize": 0.51
+            }
+          },
+          "intent_status": {
+            "type": "choice",
+            "choice": "settled",
+            "confidence": 1,
+            "probabilities": {
+              "settled": 1,
+              "needs_human": 0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 2524,
+          "output_tokens": 191
+        }
+      }
+    }
+  ],
+  "finalState": {
+    "task": "Finish this bounded code review. Preserve supported distinct defects and accurately scope their impact. Do not claim whole-repository completeness.",
+    "revision": {
+      "base": "40889a675092c0939c59160fc5270273db4e0555",
+      "reversedFix": "e29b8194d8bfaedddc43b843300d4e3994040cb9"
+    },
+    "contracts": [
+      "DaemonSet replica counts use desired scheduled pods, even when none are ready.",
+      "Distinguish a demonstrated local failure from an unverified downstream recovery consequence."
+    ],
+    "diff": "diff --git a/vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go b/vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go\nindex 9418a670c..617139192 100644\n--- a/vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go\n+++ b/vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go\n@@ -146,14 +146,14 @@ func (f *PodsRestrictionFactoryImpl) getReplicaCount(creator podReplicaCreator)\n \t\t}\n \t\tds, ok := dsObj.(*appsv1.DaemonSet)\n \t\tif !ok {\n \t\t\treturn 0, errors.New(\"failed to parse DaemonSet\")\n \t\t}\n-\t\tif ds.Status.DesiredNumberScheduled == 0 {\n-\t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s has no desired scheduled pods\", creator.Namespace, creator.Name)\n+\t\tif ds.Status.NumberReady == 0 {\n+\t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n \t\t}\n-\t\treturn int(ds.Status.DesiredNumberScheduled), nil\n+\t\treturn int(ds.Status.NumberReady), nil\n \t}\n \treturn 0, nil\n }\n \n // GetCreatorMaps is a helper function that returns a map of pod replica creators to their single group stats\n",
+    "source": {
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go": "138: \t\treturn int(*ss.Spec.Replicas), nil\n139: \tcase daemonSet:\n140: \t\tdsObj, exists, err := f.informerFactory.Apps().V1().DaemonSets().Informer().GetStore().GetByKey(creator.Namespace + \"/\" + creator.Name)\n141: \t\tif err != nil {\n142: \t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s is not available, err: %v\", creator.Namespace, creator.Name, err)\n143: \t\t}\n144: \t\tif !exists {\n145: \t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s does not exist\", creator.Namespace, creator.Name)\n146: \t\t}\n147: \t\tds, ok := dsObj.(*appsv1.DaemonSet)\n148: \t\tif !ok {\n149: \t\t\treturn 0, errors.New(\"failed to parse DaemonSet\")\n150: \t\t}\n151: \t\tif ds.Status.NumberReady == 0 {\n152: \t\t\treturn 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n153: \t\t}\n154: \t\treturn int(ds.Status.NumberReady), nil\n155: \t}\n156: \treturn 0, nil\n157: }\n158: \n159: // GetCreatorMaps is a helper function that returns a map of pod replica creators to their single group stats"
+    },
+    "findings": [
+      {
+        "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "line": 151,
+        "severity": "error",
+        "message": "The zero-ready guard rejects DaemonSets with desired scheduled pods but none ready, violating the replica-count contract. Restore the DesiredNumberScheduled zero guard. The local error is demonstrated; downstream recovery failure is unverified.",
+        "evidence": "Lines 151–152 return an error when NumberReady == 0. With DesiredNumberScheduled = 5 and NumberReady = 0, the function errors instead of returning 5."
+      },
+      {
+        "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "line": 154,
+        "severity": "error",
+        "message": "Returning NumberReady undercounts replicas when some desired pods are unready, even when the zero-ready guard does not trigger. Return DesiredNumberScheduled to satisfy the replica-count contract.",
+        "evidence": "Line 154 returns int(ds.Status.NumberReady). With DesiredNumberScheduled = 5 and NumberReady = 2, the function returns 2 instead of 5."
+      }
+    ],
+    "coverage": "Verified the existing finding and the distinct return-value defect using only the supplied diff and source excerpt, lines 138–159. No whole-repository completeness claim.",
+    "limitations": [
+      "Caller control flow was not supplied, so downstream recovery consequences remain unverified.",
+      "No test diff or test source was supplied to substantiate removal of a regression case.",
+      "No tools were used or tests executed."
+    ],
+    "availableActions": {
+      "verify_existing": "Check existing findings against the supplied source; correct or limit unsupported claims.",
+      "inspect_callers": "Fetch the predeclared additional source excerpt and inspect the caller/control flow.",
+      "investigate_remaining": "Inspect the current diff and source for distinct unreported contract violations.",
+      "finalize": "Finish with supported findings and explicit scope limits.",
+      "manual_review": "Stop with an unresolved question that requires human intent or unavailable evidence."
+    },
+    "roundsUsed": 1,
+    "maxRounds": 2,
+    "history": [
+      {
+        "action": "verify_existing",
+        "contribution": "Preserved the supported zero-ready rejection, separated the positive-readiness undercount into an individually actionable finding, qualified the recovery claim, and removed the unsupported assertion that a regression test was deleted."
+      }
+    ]
+  }
+}

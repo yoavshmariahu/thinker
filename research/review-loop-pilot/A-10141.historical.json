@@ -1,0 +1,507 @@
+{
+  "id": "A-10141",
+  "pr": 10141,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "base": "40889a675092c0939c59160fc5270273db4e0555",
+  "historical": {
+    "id": "A-10141",
+    "pr": 10141,
+    "source": "https://github.com/kubernetes/autoscaler/pull/10141",
+    "sha": "e29b8194d8bfaedddc43b843300d4e3994040cb9",
+    "base": "40889a675092c0939c59160fc5270273db4e0555",
+    "armOrder": [
+      "baseline",
+      "cached"
+    ],
+    "model": "gpt-6.1-sol",
+    "reasoningEffort": "high",
+    "expect": {
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go": [
+        151,
+        152,
+        154
+      ],
+      "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go": [
+        642,
+        643,
+        644,
+        645,
+        646,
+        647,
+        649,
+        650,
+        651,
+        652,
+        653,
+        657,
+        658,
+        659,
+        660,
+        662,
+        663,
+        664,
+        665,
+        666,
+        667,
+        669,
+        670,
+        671,
+        673,
+        674,
+        675,
+        676,
+        677,
+        678,
+        679
+      ]
+    },
+    "baseline": {
+      "elapsedMs": 9995,
+      "tokens": 18147,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 0,
+        "direct": 1,
+        "related": 0,
+        "assessed": 0,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [],
+      "findings": [],
+      "verdicts": [
+        {
+          "id": "nocache",
+          "verdict": "nocache",
+          "reason": "No bugs established by the supplied code. The DaemonSet replica count now uses NumberReady, and the changed test reflects that behavior; caller code or requirements establishing a violated invariant are not shown."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    },
+    "cached": {
+      "elapsedMs": 19743,
+      "tokens": 19622,
+      "models": {
+        "codex/gpt-6.1-sol": 1
+      },
+      "notes": {
+        "consulted": 7,
+        "direct": 1,
+        "related": 6,
+        "assessed": 7,
+        "staleBefore": [],
+        "outdated": [],
+        "uncovered": [],
+        "skipped": 0
+      },
+      "toAssess": [
+        {
+          "id": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+          "title": "Use desired DaemonSet size for VPA eviction restrictions",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10141"
+          },
+          "why": "rests on vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go:TestEvictReplicatedByDaemonSet; 83 changed lines in it, naming what the note names"
+        },
+        {
+          "id": "scaleway-creation-errors-must-retain-the-creating-state",
+          "title": "Scaleway creation errors must retain the creating state",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9949"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "defer-transient-kubelet-resize-errors-without-caching-infeas",
+          "title": "Defer transient kubelet resize errors without caching infeasibility",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10094"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "quick-oom-eligibility-requires-a-recent-termination",
+          "title": "Quick-OOM eligibility requires a recent termination",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10325"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "anchor-oom-staleness-to-the-latest-memory-sample",
+          "title": "Anchor OOM staleness to the latest memory sample",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#9725"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "preserve-complete-aws-placeholder-names-when-parsing-provide",
+          "title": "Preserve complete AWS placeholder names when parsing provider IDs",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10349"
+          },
+          "why": "shares identifiers with the change"
+        },
+        {
+          "id": "require-failed-phase-before-tracking-a-machine-as-failed",
+          "title": "Require Failed phase before tracking a machine as failed",
+          "kind": "rule",
+          "source": {
+            "type": "pr",
+            "ref": "kubernetes/autoscaler#10001"
+          },
+          "why": "shares identifiers with the change"
+        }
+      ],
+      "findings": [
+        {
+          "severity": "error",
+          "category": "violation",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+          "line": 151,
+          "message": "Using NumberReady reintroduces the DaemonSet recovery failure: a DaemonSet with five desired pods and zero ready pods now returns an error instead of a replica count of five. Preserve DesiredNumberScheduled for both the zero check and returned count. The test change also removes the zero-ready regression case.",
+          "evidence": "+ if ds.Status.NumberReady == 0 {\n+     return 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n  }\n+ return int(ds.Status.NumberReady), nil\nRemoved test case: desiredNumberScheduled: 5, numberReady: 0.",
+          "confidence": 1,
+          "note": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+          "inChange": true,
+          "notes": [
+            "use-desired-daemonset-size-for-vpa-eviction-restrictions"
+          ],
+          "id": "f-ebb27dda0cf95f3927e17a82"
+        }
+      ],
+      "verdicts": [
+        {
+          "id": "holistic",
+          "verdict": "holistic",
+          "reason": "Verdicts: use-desired-daemonset-size-for-vpa-eviction-restrictions: violation; scaleway-creation-errors-must-retain-the-creating-state: unrelated; defer-transient-kubelet-resize-errors-without-caching-infeas: unrelated; quick-oom-eligibility-requires-a-recent-termination: unrelated; anchor-oom-staleness-to-the-latest-memory-sample: unrelated; preserve-complete-aws-placeholder-names-when-parsing-provide: unrelated; require-failed-phase-before-tracking-a-machine-as-failed: unrelated."
+        }
+      ],
+      "intentEvidence": [],
+      "criterionSupport": [],
+      "errors": [],
+      "validModel": true
+    }
+  },
+  "expect": {
+    "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go": [
+      151,
+      152,
+      154
+    ],
+    "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go": [
+      642,
+      643,
+      644,
+      645,
+      646,
+      647,
+      649,
+      650,
+      651,
+      652,
+      653,
+      657,
+      658,
+      659,
+      660,
+      662,
+      663,
+      664,
+      665,
+      666,
+      667,
+      669,
+      670,
+      671,
+      673,
+      674,
+      675,
+      676,
+      677,
+      678,
+      679
+    ]
+  },
+  "elapsedMs": 30800,
+  "report": {
+    "scope": "working tree against HEAD",
+    "state": false,
+    "strategy": {
+      "mode": "holistic",
+      "related": true,
+      "callers": true,
+      "triage": false,
+      "triageModel": "haiku",
+      "verify": true,
+      "chunks": 1
+    },
+    "files": [
+      {
+        "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "status": "M",
+        "added": 3,
+        "removed": 3
+      },
+      {
+        "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+        "status": "M",
+        "added": 31,
+        "removed": 52
+      }
+    ],
+    "notes": {
+      "consulted": 1,
+      "direct": 1,
+      "related": 0,
+      "assessed": 1,
+      "staleBefore": [],
+      "outdated": [],
+      "uncovered": [],
+      "relatedJev": [],
+      "skipped": 0
+    },
+    "verdicts": [
+      {
+        "id": "holistic",
+        "verdict": "holistic",
+        "reason": "violation: The pre-change implementation and test support the note; this change reverses that behavior and removes its regression coverage."
+      }
+    ],
+    "intentEvidence": [],
+    "criterionSupport": [],
+    "findings": [
+      {
+        "severity": "error",
+        "category": "violation",
+        "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "line": 151,
+        "message": "Using NumberReady reintroduces the documented recovery failure: a DaemonSet with five desired pods and zero ready pods now returns an error. Restore DesiredNumberScheduled and its zero-desired guard. The test change also removes the zero-ready regression case.",
+        "evidence": "- if ds.Status.DesiredNumberScheduled == 0 {\n+ if ds.Status.NumberReady == 0 {\n+     return 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n  }\n- return int(ds.Status.DesiredNumberScheduled), nil\n+ return int(ds.Status.NumberReady), nil\nRemoved test case: desiredNumberScheduled: 5, numberReady: 0",
+        "confidence": 1,
+        "note": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+        "inChange": true,
+        "notes": [
+          "use-desired-daemonset-size-for-vpa-eviction-restrictions"
+        ],
+        "verified": "The change makes getReplicaCount return an error for a DaemonSet with five desired pods and zero ready pods; previously it returned 5. This directly confirms the reported replica-count regression, though the downstream recovery impact is not shown.",
+        "id": "f-2674e5bf569c8718f1e3a9a7"
+      }
+    ],
+    "cost": 0,
+    "tokens": 35443,
+    "model": "gpt-6.1-sol",
+    "errors": [],
+    "integrity": {
+      "status": "needs-review",
+      "findings": [
+        {
+          "id": "gate-5f30378773d4138ab7ea",
+          "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+          "line": 0,
+          "rule": "assertion-changed",
+          "severity": "warning",
+          "certainty": "needs-assessment",
+          "evidenceType": "text-change",
+          "message": "Assertions were removed or rewritten; equivalent replacement coverage has not been established.",
+          "before": "\t\t\tassert.Len(t, creatorToSingleGroupStatsMap, 1, \"DaemonSet should not be skipped\")",
+          "after": "",
+          "resolution": "needs-review"
+        }
+      ],
+      "limitation": "Pattern-based signals do not establish equivalent coverage or detect every weakened gate."
+    },
+    "task": null,
+    "symbols": [
+      {
+        "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+        "changed": [
+          "getReplicaCount"
+        ],
+        "removed": []
+      },
+      {
+        "path": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go",
+        "changed": [
+          "TestEvictReplicatedByDaemonSet"
+        ],
+        "removed": []
+      }
+    ],
+    "gates": {
+      "worth_reviewing": 0.91,
+      "callers": 0.52,
+      "chunks": 0.07,
+      "verify": 0.6,
+      "tests": 0.46
+    },
+    "toAssess": [
+      {
+        "id": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+        "title": "Use desired DaemonSet size for VPA eviction restrictions",
+        "kind": "rule",
+        "source": {
+          "type": "pr",
+          "ref": "kubernetes/autoscaler#10141"
+        },
+        "why": "rests on vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory_test.go:TestEvictReplicatedByDaemonSet; 83 changed lines in it, naming what the note names"
+      }
+    ],
+    "chunks": 1,
+    "models": {
+      "codex/gpt-6.1-sol": 1
+    },
+    "verified": {
+      "kept": 1,
+      "dropped": []
+    },
+    "behaviors": [],
+    "counts": {
+      "error": 1,
+      "warning": 0,
+      "info": 0
+    },
+    "runId": "bf701671-fb0c-459a-99a1-71225b364c9a",
+    "impact": {
+      "recorded": true,
+      "pr": null,
+      "events": [
+        {
+          "op": "model",
+          "eventId": "6156f798-3c21-4abb-920b-d4ed88b165a1",
+          "purpose": "review",
+          "phase": "review",
+          "impactRun": "bf701671-fb0c-459a-99a1-71225b364c9a",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "usage": [
+            {
+              "input_tokens": 17832,
+              "cached_input_tokens": 12288,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 771,
+              "reasoning_output_tokens": 493
+            }
+          ],
+          "tokens": {
+            "inputTokens": 17832,
+            "outputTokens": 771,
+            "cacheReadTokens": 12288,
+            "cacheWriteTokens": null,
+            "totalTokens": 18603
+          },
+          "cost": null,
+          "failed": false,
+          "schema": 1,
+          "t": "2026-10-06T18:28:39.284Z",
+          "origin": "github.com/kubernetes/autoscaler",
+          "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/jev-sol-opus-ten/bench/worktrees/jev-sol-review-A-10141"
+        },
+        {
+          "op": "model",
+          "eventId": "bbab52e8-0adc-4f8e-b9ea-3117d193104b",
+          "purpose": "review-verify",
+          "phase": "review",
+          "impactRun": "bf701671-fb0c-459a-99a1-71225b364c9a",
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "usage": [
+            {
+              "input_tokens": 16714,
+              "cached_input_tokens": 12288,
+              "cache_write_input_tokens": 0,
+              "output_tokens": 126,
+              "reasoning_output_tokens": 61
+            }
+          ],
+          "tokens": {
+            "inputTokens": 16714,
+            "outputTokens": 126,
+            "cacheReadTokens": 12288,
+            "cacheWriteTokens": null,
+            "totalTokens": 16840
+          },
+          "cost": null,
+          "failed": false,
+          "schema": 1,
+          "t": "2026-10-06T18:28:45.801Z",
+          "origin": "github.com/kubernetes/autoscaler",
+          "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/jev-sol-opus-ten/bench/worktrees/jev-sol-review-A-10141"
+        },
+        {
+          "op": "impact-review",
+          "runId": "bf701671-fb0c-459a-99a1-71225b364c9a",
+          "startedAt": "2026-10-06T18:28:15.005Z",
+          "completedAt": "2026-10-06T18:28:45.802Z",
+          "head": "40889a675092c0939c59160fc5270273db4e0555",
+          "branch": null,
+          "scope": {
+            "base": "40889a675092c0939c59160fc5270273db4e0555",
+            "head": "worktree",
+            "label": "working tree against HEAD"
+          },
+          "model": "gpt-6.1-sol",
+          "tokens": 35443,
+          "findings": [
+            {
+              "severity": "error",
+              "category": "violation",
+              "file": "vertical-pod-autoscaler/pkg/updater/restriction/pods_restriction_factory.go",
+              "line": 151,
+              "message": "Using NumberReady reintroduces the documented recovery failure: a DaemonSet with five desired pods and zero ready pods now returns an error. Restore DesiredNumberScheduled and its zero-desired guard. The test change also removes the zero-ready regression case.",
+              "evidence": "- if ds.Status.DesiredNumberScheduled == 0 {\n+ if ds.Status.NumberReady == 0 {\n+     return 0, fmt.Errorf(\"daemon set %s/%s has no number ready pods\", creator.Namespace, creator.Name)\n  }\n- return int(ds.Status.DesiredNumberScheduled), nil\n+ return int(ds.Status.NumberReady), nil\nRemoved test case: desiredNumberScheduled: 5, numberReady: 0",
+              "confidence": 1,
+              "note": "use-desired-daemonset-size-for-vpa-eviction-restrictions",
+              "inChange": true,
+              "notes": [
+                "use-desired-daemonset-size-for-vpa-eviction-restrictions"
+              ],
+              "verified": "The change makes getReplicaCount return an error for a DaemonSet with five desired pods and zero ready pods; previously it returned 5. This directly confirms the reported replica-count regression, though the downstream recovery impact is not shown.",
+              "id": "f-2674e5bf569c8718f1e3a9a7"
+            }
+          ],
+          "notes": {
+            "consulted": 1,
+            "direct": 1,
+            "related": 0,
+            "assessed": 1,
+            "staleBefore": [],
+            "outdated": [],
+            "uncovered": [],
+            "relatedJev": [],
+            "skipped": 0
+          },
+          "errors": [],
+          "schema": 1,
+          "eventId": "4ff115c2-e2bb-4302-9965-cc789a37e9a1",
+          "t": "2026-10-06T18:28:45.802Z",
+          "origin": "github.com/kubernetes/autoscaler",
+          "checkout": "/Users/yoavshmariahu/src/thinker/.worktrees/jev-sol-opus-ten/bench/worktrees/jev-sol-review-A-10141"
+        }
+      ]
+    }
+  },
+  "retrievalErrors": [],
+  "valid": true
+}

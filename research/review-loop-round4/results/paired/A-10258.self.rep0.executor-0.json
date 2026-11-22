@@ -1,0 +1,35 @@
+{
+  "elapsedMs": 28880,
+  "toolCalls": 5,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 68973,
+      "cached_input_tokens": 55808,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 729,
+      "reasoning_output_tokens": 88
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [
+      {
+        "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+        "line": 657,
+        "severity": "P2",
+        "message": "Restore copying corev1.LabelTopologyZone from existing nodes. Removing it violates the contract that node templates retain topology.kubernetes.io/zone: when the existing node supplies this label and resource labels do not, the generated template loses it. Retaining the legacy zone label does not preserve the stable key.",
+        "evidence": "CHANGE.diff deletes the LabelTopologyZone copy. extractNodeLabels constructs a fresh map and returns it at line 659 without that key. buildTemplateLabels merges this map from the existing node at line 462, and TemplateNodeInfo assigns the resulting labels to its node at line 418. Generic labels at lines 628–637 provide no zone fallback."
+      }
+    ],
+    "coverage": "Reviewed the complete diff, label extraction helper, generic label construction, and the caller path through buildTemplateLabels into TemplateNodeInfo. Found one distinct contract violation.",
+    "limitations": [
+      "External constant definitions, map-merge implementation, and scheduler consumers are not supplied; downstream scheduling outcomes were not verified.",
+      "No tests were run."
+    ],
+    "contribution": "Confirmed that the deletion changes template behavior when the stable zone label comes from an existing node. Considered resource-provided labels as an alternative source and limited the finding to cases where that source does not supply the key.",
+    "next_action": "finalize"
+  }
+}

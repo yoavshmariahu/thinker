@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 22614,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 74268,
+      "cached_input_tokens": 64128,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 497,
+      "reasoning_output_tokens": 0
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Inspected TASK.json, CHANGE.diff, and staged clusterapi_nodegroup.go, including extractNodeLabels (lines 641–660), setLabelIfNotEmpty (663–667), and template-label callers (390–465). The change consistently renames a local map variable; allocation, branching, copied keys, and returned values remain identical. Stable and legacy zone-label extraction calls remain present.",
+    "limitations": [
+      "External constant definitions and JoinStringMaps implementation were not supplied or inspected.",
+      "No tests were run; conclusions are based on the supplied diff and source."
+    ],
+    "contribution": "Confirmed from staged source that both zone-label extraction calls remain intact. Checked nil-label handling, empty-value filtering, and caller nil-node guarding; each is unchanged, so none supports a defect introduced by this rename.",
+    "next_action": "finalize"
+  }
+}

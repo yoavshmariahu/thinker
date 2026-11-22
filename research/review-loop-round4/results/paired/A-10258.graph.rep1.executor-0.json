@@ -1,0 +1,36 @@
+{
+  "elapsedMs": 31550,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 82760,
+      "cached_input_tokens": 67328,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 755,
+      "reasoning_output_tokens": 51
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [
+      {
+        "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+        "line": 657,
+        "severity": "P2",
+        "message": "Restore copying corev1.LabelTopologyZone from existing nodes. Removing it violates the stable-zone retention contract: when the selected existing node has a nonempty topology.kubernetes.io/zone label and the resource labels do not supply that key, the generated template loses the zone label. Retaining the legacy zone label does not preserve the stable key.",
+        "evidence": "CHANGE.diff removes the LabelTopologyZone copy. extractNodeLabels creates a fresh map and returns only explicitly copied keys (lines 641–659). buildTemplateLabels merges this map from the selected existing node at line 462; generic labels contain only architecture, OS, and hostname (lines 628–637). TemplateNodeInfo assigns the resulting labels to its node at line 418."
+      }
+    ],
+    "coverage": "Inspected TASK.json, CHANGE.diff, the complete staged source, and the local extraction-to-template call path. Found one distinct defect in the single-line deletion.",
+    "limitations": [
+      "No tests were run.",
+      "Dependency constant definitions, map-merge implementation, and downstream scheduling consumers are not supplied; no specific scheduling or scale-up failure is asserted.",
+      "Resource-provided labels may mask the omission when they already supply the stable zone key."
+    ],
+    "contribution": "Established that the deleted copy feeds generated node templates, checked alternative local label sources, and limited the finding to loss of the stable zone key when it is not supplied elsewhere.",
+    "next_action": "finalize"
+  }
+}

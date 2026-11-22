@@ -1,0 +1,392 @@
+{
+  "status": "experimental pilot complete",
+  "terminology": {
+    "open_loop": "Jev judges frozen recorded/reconstructed state without controlling execution",
+    "closed_loop": "Jev chooses an action, an executor performs it, and Jev observes the updated state",
+    "shadow": "Reserved for observing an independently running live agent; not performed in this pilot"
+  },
+  "cases": [
+    {
+      "id": "A-10349",
+      "openLoop": {
+        "claim_support": {
+          "type": "choice",
+          "choice": "overclaimed",
+          "confidence": 0.4,
+          "probabilities": {
+            "overclaimed": 0.55,
+            "supported": 0.32,
+            "contradicted": 0.11,
+            "insufficient": 0.01
+          }
+        },
+        "coverage": {
+          "type": "choice",
+          "choice": "accounted_for",
+          "confidence": 0.4,
+          "probabilities": {
+            "gap": 0.39,
+            "accounted_for": 0.6,
+            "unknown": 0.01
+          }
+        },
+        "next_action": {
+          "type": "choice",
+          "choice": "verify_existing",
+          "confidence": 0.36,
+          "probabilities": {
+            "verify_existing": 0.49,
+            "inspect_callers": 0.07,
+            "investigate_remaining": 0.25,
+            "finalize": 0.18,
+            "manual_review": 0.01
+          }
+        }
+      },
+      "arms": {
+        "fixed_verify": {
+          "outcome": "finalize",
+          "actions": [
+            "verify_existing"
+          ],
+          "executorCalls": 1,
+          "executorInputTokens": 17630,
+          "executorOutputTokens": 555,
+          "executorCachedInputTokens": 12288,
+          "jevCalls": 0,
+          "jevInputTokens": 0,
+          "jevOutputTokens": 0,
+          "elapsedMs": 17616
+        },
+        "jev_v1": {
+          "outcome": "manual_review",
+          "actions": [],
+          "executorCalls": 0,
+          "executorInputTokens": 0,
+          "executorOutputTokens": 0,
+          "executorCachedInputTokens": 0,
+          "jevCalls": 1,
+          "jevInputTokens": 2595,
+          "jevOutputTokens": 160,
+          "elapsedMs": 204
+        },
+        "jev_v2": {
+          "outcome": "finalize",
+          "actions": [
+            "verify_existing"
+          ],
+          "executorCalls": 1,
+          "executorInputTokens": 16622,
+          "executorOutputTokens": 508,
+          "executorCachedInputTokens": 12288,
+          "jevCalls": 2,
+          "jevInputTokens": 5246,
+          "jevOutputTokens": 318,
+          "elapsedMs": 18461
+        }
+      },
+      "assessment": {
+        "fixed_verify": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": true
+        },
+        "jev_v2": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": true
+        },
+        "explanation": "Both arms retain the malformed-prefix and slash-truncation findings and replace an unavailable deleted-test citation with source evidence. The raw historical finding already included slash truncation in locations; earlier written miss labels conflict with that artifact. No new-discovery credit."
+      }
+    },
+    {
+      "id": "A-10141",
+      "openLoop": {
+        "claim_support": {
+          "type": "choice",
+          "choice": "overclaimed",
+          "confidence": 0.8,
+          "probabilities": {
+            "insufficient": 0.01,
+            "supported": 0.08,
+            "contradicted": 0.06,
+            "overclaimed": 0.85
+          }
+        },
+        "coverage": {
+          "type": "choice",
+          "choice": "accounted_for",
+          "confidence": 0.67,
+          "probabilities": {
+            "gap": 0.22,
+            "accounted_for": 0.78,
+            "unknown": 0
+          }
+        },
+        "next_action": {
+          "type": "choice",
+          "choice": "verify_existing",
+          "confidence": 0.27,
+          "probabilities": {
+            "investigate_remaining": 0.06,
+            "verify_existing": 0.42,
+            "finalize": 0.14,
+            "inspect_callers": 0.37,
+            "manual_review": 0.01
+          }
+        }
+      },
+      "arms": {
+        "fixed_verify": {
+          "outcome": "finalize",
+          "actions": [
+            "verify_existing"
+          ],
+          "executorCalls": 1,
+          "executorInputTokens": 16245,
+          "executorOutputTokens": 545,
+          "executorCachedInputTokens": 12288,
+          "jevCalls": 0,
+          "jevInputTokens": 0,
+          "jevOutputTokens": 0,
+          "elapsedMs": 17995
+        },
+        "jev_v1": {
+          "outcome": "manual_review",
+          "actions": [],
+          "executorCalls": 0,
+          "executorInputTokens": 0,
+          "executorOutputTokens": 0,
+          "executorCachedInputTokens": 0,
+          "jevCalls": 1,
+          "jevInputTokens": 2162,
+          "jevOutputTokens": 160,
+          "elapsedMs": 94
+        },
+        "jev_v2": {
+          "outcome": "finalize",
+          "actions": [
+            "verify_existing"
+          ],
+          "executorCalls": 1,
+          "executorInputTokens": 16245,
+          "executorOutputTokens": 578,
+          "executorCachedInputTokens": 12288,
+          "jevCalls": 2,
+          "jevInputTokens": 4527,
+          "jevOutputTokens": 318,
+          "elapsedMs": 19281
+        }
+      },
+      "assessment": {
+        "fixed_verify": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": true
+        },
+        "jev_v2": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": true
+        },
+        "explanation": "Both arms preserve the ready-versus-desired replica-count mechanism, explicitly qualify downstream recovery, and remove the unsupported assertion about deleted tests. Splitting zero-ready and partial-ready examples does not count as discovering two independent root causes."
+      }
+    },
+    {
+      "id": "A-10178",
+      "openLoop": {
+        "claim_support": {
+          "type": "choice",
+          "choice": "overclaimed",
+          "confidence": 0.37,
+          "probabilities": {
+            "insufficient": 0,
+            "contradicted": 0.01,
+            "overclaimed": 0.53,
+            "supported": 0.46
+          }
+        },
+        "coverage": {
+          "type": "choice",
+          "choice": "accounted_for",
+          "confidence": 0.8,
+          "probabilities": {
+            "accounted_for": 0.87,
+            "gap": 0.13,
+            "unknown": 0
+          }
+        },
+        "next_action": {
+          "type": "choice",
+          "choice": "finalize",
+          "confidence": 0.42,
+          "probabilities": {
+            "investigate_remaining": 0.13,
+            "manual_review": 0,
+            "inspect_callers": 0.1,
+            "verify_existing": 0.23,
+            "finalize": 0.54
+          }
+        }
+      },
+      "arms": {
+        "fixed_verify": {
+          "outcome": "finalize",
+          "actions": [
+            "verify_existing"
+          ],
+          "executorCalls": 1,
+          "executorInputTokens": 20994,
+          "executorOutputTokens": 573,
+          "executorCachedInputTokens": 12288,
+          "jevCalls": 0,
+          "jevInputTokens": 0,
+          "jevOutputTokens": 0,
+          "elapsedMs": 22464
+        },
+        "jev_v1": {
+          "outcome": "manual_review",
+          "actions": [],
+          "executorCalls": 0,
+          "executorInputTokens": 0,
+          "executorOutputTokens": 0,
+          "executorCachedInputTokens": 0,
+          "jevCalls": 1,
+          "jevInputTokens": 7538,
+          "jevOutputTokens": 161,
+          "elapsedMs": 273
+        },
+        "jev_v2": {
+          "outcome": "finalize",
+          "actions": [],
+          "executorCalls": 0,
+          "executorInputTokens": 0,
+          "executorOutputTokens": 0,
+          "executorCachedInputTokens": 0,
+          "jevCalls": 1,
+          "jevInputTokens": 7538,
+          "jevOutputTokens": 161,
+          "elapsedMs": 185
+        }
+      },
+      "assessment": {
+        "fixed_verify": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": true
+        },
+        "jev_v2": {
+          "preservesKnownDefects": true,
+          "scopesClaimsToEvidence": false
+        },
+        "explanation": "The fixed arm qualifies the absolute deletion-impact claim because client cancellation behavior was not supplied. Jev v2 finalizes unchanged despite its simultaneous overclaimed verdict (0.59 probability). Both mechanisms remain reported, but the extra qualification is lost. Executable stubs reproduce the expected mechanism, not real client cancellation behavior."
+      }
+    }
+  ],
+  "totals": {
+    "fixed_verify": {
+      "executorCalls": 3,
+      "executorInputTokens": 54869,
+      "executorOutputTokens": 1673,
+      "executorCachedInputTokens": 36864,
+      "jevCalls": 0,
+      "jevInputTokens": 0,
+      "jevOutputTokens": 0,
+      "elapsedMs": 58075
+    },
+    "jev_v1": {
+      "executorCalls": 0,
+      "executorInputTokens": 0,
+      "executorOutputTokens": 0,
+      "executorCachedInputTokens": 0,
+      "jevCalls": 3,
+      "jevInputTokens": 12295,
+      "jevOutputTokens": 481,
+      "elapsedMs": 571
+    },
+    "jev_v2": {
+      "executorCalls": 2,
+      "executorInputTokens": 32867,
+      "executorOutputTokens": 1086,
+      "executorCachedInputTokens": 24576,
+      "jevCalls": 5,
+      "jevInputTokens": 17311,
+      "jevOutputTokens": 797,
+      "elapsedMs": 37927
+    }
+  },
+  "probes": [
+    {
+      "id": "A-10349",
+      "variant": "fixed",
+      "checks": {
+        "malformedRejected": true,
+        "providerIDPreserved": true,
+        "slashPreserved": true
+      },
+      "allChecksPass": true
+    },
+    {
+      "id": "A-10349",
+      "variant": "reversed",
+      "checks": {
+        "malformedRejected": false,
+        "providerIDPreserved": true,
+        "slashPreserved": false
+      },
+      "allChecksPass": false
+    },
+    {
+      "id": "A-10141",
+      "variant": "fixed",
+      "checks": {
+        "partialReadyReturnsDesired": true,
+        "zeroReadyReturnsDesired": true
+      },
+      "allChecksPass": true
+    },
+    {
+      "id": "A-10141",
+      "variant": "reversed",
+      "checks": {
+        "partialReadyReturnsDesired": false,
+        "zeroReadyReturnsDesired": false
+      },
+      "allChecksPass": false
+    },
+    {
+      "id": "A-10178",
+      "variant": "fixed",
+      "checks": {
+        "failureDoesNotAdvanceCompletion": true,
+        "gcStartsWithLiveContext": true
+      },
+      "allChecksPass": true
+    },
+    {
+      "id": "A-10178",
+      "variant": "reversed",
+      "checks": {
+        "failureDoesNotAdvanceCompletion": false,
+        "gcStartsWithLiveContext": false
+      },
+      "allChecksPass": false
+    }
+  ],
+  "invalidAttempts": [
+    {
+      "kind": "sandbox DNS failure",
+      "modelCallsCompleted": 0,
+      "artifact": "results/invalid-sandbox-attempt"
+    },
+    {
+      "kind": "harness rejected benign CLI warnings",
+      "modelCallsCompleted": 1,
+      "artifact": "results/invalid-warning-parser-attempt",
+      "usage": [
+        {
+          "input_tokens": 16622,
+          "cached_input_tokens": 12288,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 549,
+          "reasoning_output_tokens": 132
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "repo": "kubernetes/autoscaler",
+  "base": "40889a675092c0939c59160fc5270273db4e0555",
+  "fix": "2aa3bd492c6efd475ab47827c9f052fe1185fe80",
+  "parent": "d801cb53610a1ed04c652224e2cea3433ef9e3bf",
+  "paths": [
+    "vertical-pod-autoscaler/pkg/updater/restriction/pods_inplace_restriction.go"
+  ]
+}

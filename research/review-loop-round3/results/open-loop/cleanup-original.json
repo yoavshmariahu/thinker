@@ -1,0 +1,111 @@
+{
+  "id": "cleanup-original",
+  "hashes": {
+    "run.mjs": "05ab6e7f033e66f78bbace04b0dc4224f6a1eb87fd46f80ae4c9ce8c3d2467fb",
+    "clients.mjs": "e98934f4787d9d50c17defdcad78cedf645e63ce45792170beba12b6e9ff7737",
+    "policy.mjs": "cb73eae8cd16374101f5358fece322ca1424d47112a640a974f0bfd50fcccb72",
+    "questions.mjs": "fd2bb290b72c20ba51795236069440a1bc987f17421cc202c195f67e7cd8da9c",
+    "protocol.json": "2f1e1af7d4b297c35a41c68f0e1dfef107bd9959b6157b799a9aa3415ebc6c9d",
+    "prepare.py": "5707f70686baeefd5dd07a809ea713c32d6ac7ef8e7475c7f792cb7e644380c3",
+    "../review-loop-round2/policy.mjs": "ee9a433cd428b9c97b688d28ecc7ef3504a51b853bd4dd50ca6fbcbfdc387e1c",
+    "../review-loop-round2/questions.json": "31a7b08836c1b95b45a092ce145f3b3a86e8bc023b044ea7c0075790192bad20"
+  },
+  "stateHash": "1dbfcfb78a683179f65e681ed177b3d537be1be887af6ab98ce0b0d13d0a46df",
+  "valid": true,
+  "elapsedMs": 330,
+  "requestHash": "b40c95a5c8944359e10e7085e95f511a15f9d3ba7fa57e643f859f25e055d283",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "supported",
+        "confidence": 0.4,
+        "probabilities": {
+          "overclaimed": 0.44,
+          "supported": 0.55,
+          "contradicted": 0.01,
+          "insufficient": 0
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.82,
+        "probabilities": {
+          "gap": 0.12,
+          "accounted_for": 0.88,
+          "unknown": 0
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "finalize",
+        "confidence": 0.39,
+        "probabilities": {
+          "finalize": 0.51,
+          "inspect_callers": 0.1,
+          "investigate_remaining": 0.11,
+          "verify_existing": 0.28,
+          "manual_review": 0
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.96,
+        "probabilities": {
+          "settled": 0.98,
+          "needs_human": 0.02
+        }
+      },
+      "finding_0": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.31,
+        "probabilities": {
+          "missing": 0.32,
+          "grounded": 0.48,
+          "qualified": 0.17,
+          "contradicted": 0.03
+        }
+      },
+      "finding_1": {
+        "type": "choice",
+        "choice": "missing",
+        "confidence": 0.52,
+        "probabilities": {
+          "missing": 0.64,
+          "grounded": 0.13,
+          "qualified": 0.21,
+          "contradicted": 0.02
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 8156,
+      "output_tokens": 294
+    }
+  },
+  "decision": {
+    "action": "verify_existing",
+    "reason": "Correct or qualify each unsupported finding before finalization.",
+    "unresolved": [
+      "Finding 1: missing — Writing and garbage collection now share the writing deadline. If StoreCheckpoints exhausts that deadline, cleanup receives an expired context and cannot delete orphaned checkpoints. Restore separate timeout contexts created from the shared parent, starting the cleanup timeout when collection begins."
+    ],
+    "evidence": [
+      {
+        "index": 0,
+        "key": "a901784d6fd5ade5d62016e18ea8c59d40bdc375b0302f724597b60ab64b410e",
+        "message": "Cleanup is recorded as completed before collection runs, even when listing or deletion fails. Subsequent runs skip retrying until the GC interval elapses. Preserve error propagation and update lastCheckpointGC only after successful collection.",
+        "status": "grounded"
+      },
+      {
+        "index": 1,
+        "key": "d11565fc13f1f64af11d7465ba21202e13e5a0ce2ae2b1698cbad95a5f221104",
+        "message": "Writing and garbage collection now share the writing deadline. If StoreCheckpoints exhausts that deadline, cleanup receives an expired context and cannot delete orphaned checkpoints. Restore separate timeout contexts created from the shared parent, starting the cleanup timeout when collection begins.",
+        "status": "missing"
+      }
+    ]
+  }
+}

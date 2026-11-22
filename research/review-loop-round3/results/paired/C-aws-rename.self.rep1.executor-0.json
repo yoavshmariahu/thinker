@@ -1,0 +1,27 @@
+{
+  "elapsedMs": 16557,
+  "toolCalls": 3,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 55437,
+      "cached_input_tokens": 43520,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 402,
+      "reasoning_output_tokens": 68
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [],
+    "coverage": "Reviewed TASK.json, CHANGE.diff, the staged production file, and its local parser callers. Lines 233–242 consistently rename the local variable from name to parsedName. Regex validation, capture selection, error handling, and ProviderID preservation remain unchanged. No actionable defect is introduced.",
+    "limitations": [
+      "No tests were run.",
+      "The placeholderInstanceNamePrefix definition and downstream manager implementations are not supplied, limiting independent verification of their behavior."
+    ],
+    "contribution": "Confirmed from source that both capture branches assign the renamed variable and the returned Name uses it; ProviderID remains the original id. Rejected parsing-regression candidates because the change preserves behavior.",
+    "next_action": "finalize"
+  }
+}

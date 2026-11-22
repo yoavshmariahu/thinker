@@ -1,0 +1,30 @@
+{
+  "valid": true,
+  "elapsedMs": 15278,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "warnings": [
+    "clamping SessionEnd hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json",
+    "clamping Interrupt hook timeout to 3s in /Users/yoavshmariahu/.codex/hooks.json"
+  ],
+  "usage": [
+    {
+      "input_tokens": 16087,
+      "cached_input_tokens": 12288,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 365,
+      "reasoning_output_tokens": 200
+    }
+  ],
+  "result": {
+    "findings": [],
+    "coverage": "Reviewed the supplied regex, parser, and identifier rename against the explicit contracts. The rename preserves behavior. Both regex alternatives require aws:///, and accepted references preserve the original ProviderID.",
+    "limitations": [
+      "Requirements A and B directly conflict for placeholder names containing slashes. Without an approved resolution, accepting or rejecting those names cannot be classified as a supported defect.",
+      "The value of placeholderInstanceNamePrefix is not supplied.",
+      "Review is limited to the supplied diff and source; no callers or integration tests were supplied, and no tests were run."
+    ],
+    "contribution": "No new supported findings. The supplied change is behavior-preserving; the contradictory placeholder contracts prevent a definitive finding about slash acceptance."
+  }
+}

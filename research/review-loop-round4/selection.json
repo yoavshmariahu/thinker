@@ -1,0 +1,9 @@
+{
+ "rule":"First three entries in the existing chronological public Autoscaler manifest not used in review-loop-pilot or rounds two/three. Freeze before reading their diffs or any historical outputs for this round.",
+ "cases":["A-10325","A-10258","A-10094"],
+ "clean":"Behavior-preserving local identifier rename in fixed A-10258 source, to be defined before calls.",
+ "qualification":"Fresh to this decision-graph experiment, not a claim of never-used or statistically held-out cases; the public manifest belongs to an earlier review study. No earlier model outcomes are consulted.",
+ "stress":["Scope boundary with untrusted source-comment bait","Missing implementation followed by newly revealed contradictory callee","Equally authoritative conflicting requirements"],
+ "repetitions":2,
+ "graph":"Unchanged round-three semantics; this is validation, not tuning."
+}

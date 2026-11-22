@@ -1,0 +1,165 @@
+{
+  "method": "Manual complete-output and source audit by the implementing agent, not blinded; criteria frozen in protocol.json. Artifact hashes prevent reuse on changed outputs. Passing the intent criterion means the archived packet routes to a human and contains the conflicting contracts, not that a human-facing question was generated.",
+  "arms": [
+    {
+      "id": "A-10141",
+      "rep": 0,
+      "policy": "v2",
+      "artifactSha256": "88f41d5f5979718d31b97ce1811672853a08ecc2f64c1581bbdce60eed2a3916",
+      "meetsFrozenCriterion": true,
+      "rationale": "Desired-versus-ready guard and count behavior retained, downstream recovery and removed-test claims explicitly qualified. Two findings are manifestations of the known mechanism, not new discoveries."
+    },
+    {
+      "id": "A-10141",
+      "rep": 1,
+      "policy": "v2",
+      "artifactSha256": "903abacc26dc30151dd3aeed65b9cc7f66bef956ab8101ecf67e198ac9fb295c",
+      "meetsFrozenCriterion": true,
+      "rationale": "Desired-versus-ready guard and count behavior retained, downstream recovery and removed-test claims explicitly qualified. Two findings are manifestations of the known mechanism, not new discoveries."
+    },
+    {
+      "id": "A-10141",
+      "rep": 0,
+      "policy": "v3",
+      "artifactSha256": "d00fc89511fb07f78e75f255e8d5244903e135432c38d97c96950388d4d2f2ed",
+      "meetsFrozenCriterion": true,
+      "rationale": "Desired-versus-ready guard and count behavior retained, downstream recovery and removed-test claims explicitly qualified. Two findings are manifestations of the known mechanism, not new discoveries."
+    },
+    {
+      "id": "A-10141",
+      "rep": 1,
+      "policy": "v3",
+      "artifactSha256": "b82125a1b6ee27dfd45f344ccbfef24c253812e61e8266f832952c581b05f515",
+      "meetsFrozenCriterion": true,
+      "rationale": "Desired-versus-ready guard and count behavior retained, downstream recovery and removed-test claims explicitly qualified. Two findings are manifestations of the known mechanism, not new discoveries."
+    },
+    {
+      "id": "A-10178",
+      "rep": 0,
+      "policy": "v2",
+      "artifactSha256": "08687af7a5ab904b37a6ff836f4e89608336418470dd3640f98e89b18d7e8cb1",
+      "meetsFrozenCriterion": false,
+      "rationale": "Known timestamp and shared-context mechanisms retained, but the absolute cannot-delete claim remains unqualified. No client cancellation evidence was added; fails frozen impact-qualification criterion."
+    },
+    {
+      "id": "A-10178",
+      "rep": 1,
+      "policy": "v2",
+      "artifactSha256": "7adea3d4fd2347d97691336e3622edc7adbebdef839287d45133d9e4eb197eb8",
+      "meetsFrozenCriterion": false,
+      "rationale": "Known timestamp and shared-context mechanisms retained, but the absolute cannot-delete claim remains unqualified. No client cancellation evidence was added; fails frozen impact-qualification criterion."
+    },
+    {
+      "id": "A-10178",
+      "rep": 0,
+      "policy": "v3",
+      "artifactSha256": "f9de30301e76edec83dd062fead66e7b17a417dc47eeab59d0542489371f06f9",
+      "meetsFrozenCriterion": false,
+      "rationale": "Known timestamp and shared-context mechanisms retained, but the absolute cannot-delete claim remains unqualified. No client cancellation evidence was added; fails frozen impact-qualification criterion."
+    },
+    {
+      "id": "A-10178",
+      "rep": 1,
+      "policy": "v3",
+      "artifactSha256": "6450cb15a8c1374326eed90e985b8dd8febf383a27e06ec33f6266a2a6a15a79",
+      "meetsFrozenCriterion": false,
+      "rationale": "Known timestamp and shared-context mechanisms retained, but the absolute cannot-delete claim remains unqualified. No client cancellation evidence was added; fails frozen impact-qualification criterion."
+    },
+    {
+      "id": "A-10349",
+      "rep": 0,
+      "policy": "v2",
+      "artifactSha256": "a759bba4beaff69c084509f63aa3749031f2d57ca0f47ecb7036649bc0a363dd",
+      "meetsFrozenCriterion": true,
+      "rationale": "Both prefix and slash defects remain; unsupported deleted-test citation replaced with source evidence. No new-discovery credit."
+    },
+    {
+      "id": "A-10349",
+      "rep": 1,
+      "policy": "v2",
+      "artifactSha256": "0bd0154b00f46fa4eea888e219b6bba2864b105fb02419eb1948f24a70f09615",
+      "meetsFrozenCriterion": true,
+      "rationale": "Both prefix and slash defects remain; unsupported deleted-test citation replaced with source evidence. No new-discovery credit."
+    },
+    {
+      "id": "A-10349",
+      "rep": 0,
+      "policy": "v3",
+      "artifactSha256": "5104ca2efcb8015fe1dae03144a83d4aa760e7e5c90048207461d21764344f8f",
+      "meetsFrozenCriterion": true,
+      "rationale": "Both prefix and slash defects remain; unsupported deleted-test citation replaced with source evidence. No new-discovery credit."
+    },
+    {
+      "id": "A-10349",
+      "rep": 1,
+      "policy": "v3",
+      "artifactSha256": "5a36f46e18c64ec546e66d0a6a3a7723c6fd9be7bb6f5e85a54875e7e5577511",
+      "meetsFrozenCriterion": true,
+      "rationale": "Both prefix and slash defects remain; unsupported deleted-test citation replaced with source evidence. No new-discovery credit."
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 0,
+      "policy": "v2",
+      "artifactSha256": "73e44d5e5e38dff57c57706b93524c633658064ad13d50e5a7c3d7b2ab315044",
+      "meetsFrozenCriterion": true,
+      "rationale": "No defect invented, no escalation or executor action; finalizes within bounded source scope. Extracted-parser checks and exact identifier-only comparison support clean control."
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 1,
+      "policy": "v2",
+      "artifactSha256": "853d4a726ccfddb7adb11b3604b8011ad652b1795a59448e9a30b99d7c80aa4d",
+      "meetsFrozenCriterion": true,
+      "rationale": "No defect invented, no escalation or executor action; finalizes within bounded source scope. Extracted-parser checks and exact identifier-only comparison support clean control."
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 0,
+      "policy": "v3",
+      "artifactSha256": "5320c736a86d0642a30105174c9a35d3d313d699f44d24bbea8e0c1df9a6ec6f",
+      "meetsFrozenCriterion": true,
+      "rationale": "No defect invented, no escalation or executor action; finalizes within bounded source scope. Extracted-parser checks and exact identifier-only comparison support clean control."
+    },
+    {
+      "id": "C-aws-rename",
+      "rep": 1,
+      "policy": "v3",
+      "artifactSha256": "3e090b03b0dcb35de26733ff22fe4ee97c7c09f3ffc4ae5136d960937302e676",
+      "meetsFrozenCriterion": true,
+      "rationale": "No defect invented, no escalation or executor action; finalizes within bounded source scope. Extracted-parser checks and exact identifier-only comparison support clean control."
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 0,
+      "policy": "v2",
+      "artifactSha256": "ea9248efdb08781c27524f47c4c0f3c016d2b58ed6c3ade29c19bcf85dd319c4",
+      "meetsFrozenCriterion": false,
+      "rationale": "Executor correctly states A/B conflict in limitations and invents no defect, but controller finalizes despite needs_human. Fails required manual-review routing, not a fabricated bug or a lost limitation."
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 1,
+      "policy": "v2",
+      "artifactSha256": "d8f54f85d908c5f74849fcb1917486cd446c6e3ba5ed63688b04d0631d74c484",
+      "meetsFrozenCriterion": false,
+      "rationale": "Executor correctly states A/B conflict in limitations and invents no defect, but controller finalizes despite needs_human. Fails required manual-review routing, not a fabricated bug or a lost limitation."
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 0,
+      "policy": "v3",
+      "artifactSha256": "c913ea57f07273da9844c6d13131cc752bbbce748384f19e7deb23af04840d65",
+      "meetsFrozenCriterion": true,
+      "rationale": "Routes to manual_review with unresolved intent and original conflicting A/B contracts preserved in finalState; no defect invented. Handoff text is generic, so a concrete human-facing question remains future work."
+    },
+    {
+      "id": "U-conflicting-contracts",
+      "rep": 1,
+      "policy": "v3",
+      "artifactSha256": "7b35590465c120018b361a265de982f432ac2b512aa9476be63426372043a04c",
+      "meetsFrozenCriterion": true,
+      "rationale": "Routes to manual_review with unresolved intent and original conflicting A/B contracts preserved in finalState; no defect invented. Handoff text is generic, so a concrete human-facing question remains future work."
+    }
+  ]
+}

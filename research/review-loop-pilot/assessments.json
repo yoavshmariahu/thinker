@@ -1,0 +1,18 @@
+{
+  "method": "Manual audit by Codex of full findings and source; source-extraction probes provide mechanism checks. Not blinded or independent adjudication.",
+  "A-10349": {
+    "fixed_verify": {"preservesKnownDefects": true, "scopesClaimsToEvidence": true},
+    "jev_v2": {"preservesKnownDefects": true, "scopesClaimsToEvidence": true},
+    "explanation": "Both arms retain the malformed-prefix and slash-truncation findings and replace an unavailable deleted-test citation with source evidence. The raw historical finding already included slash truncation in locations; earlier written miss labels conflict with that artifact. No new-discovery credit."
+  },
+  "A-10141": {
+    "fixed_verify": {"preservesKnownDefects": true, "scopesClaimsToEvidence": true},
+    "jev_v2": {"preservesKnownDefects": true, "scopesClaimsToEvidence": true},
+    "explanation": "Both arms preserve the ready-versus-desired replica-count mechanism, explicitly qualify downstream recovery, and remove the unsupported assertion about deleted tests. Splitting zero-ready and partial-ready examples does not count as discovering two independent root causes."
+  },
+  "A-10178": {
+    "fixed_verify": {"preservesKnownDefects": true, "scopesClaimsToEvidence": true},
+    "jev_v2": {"preservesKnownDefects": true, "scopesClaimsToEvidence": false},
+    "explanation": "The fixed arm qualifies the absolute deletion-impact claim because client cancellation behavior was not supplied. Jev v2 finalizes unchanged despite its simultaneous overclaimed verdict (0.59 probability). Both mechanisms remain reported, but the extra qualification is lost. Executable stubs reproduce the expected mechanism, not real client cancellation behavior."
+  }
+}

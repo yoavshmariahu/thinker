@@ -1,0 +1,35 @@
+{
+  "elapsedMs": 30869,
+  "toolCalls": 4,
+  "model": "gpt-6.1-sol",
+  "effort": "high",
+  "modelVerification": "explicit invocation only; CLI did not echo model",
+  "usage": [
+    {
+      "input_tokens": 80662,
+      "cached_input_tokens": 65152,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 740,
+      "reasoning_output_tokens": 108
+    }
+  ],
+  "valid": true,
+  "result": {
+    "findings": [
+      {
+        "file": "cluster-autoscaler/cloudprovider/clusterapi/clusterapi_nodegroup.go",
+        "line": 657,
+        "severity": "P2",
+        "message": "Restore extraction of corev1.LabelTopologyZone. When an existing node has a nonempty topology.kubernetes.io/zone label and the scalable-resource labels omit it, the generated template now loses that label, violating the supplied retention contract. Retaining the legacy zone label does not preserve the stable key.",
+        "evidence": "CHANGE.diff removes the LabelTopologyZone copy. extractNodeLabels creates a fresh map and copies only the remaining listed keys (lines 641–659). buildTemplateLabels merges this extracted map from an existing node at line 462, and TemplateNodeInfo assigns the resulting labels at line 418. buildGenericLabels supplies only architecture, OS, and hostname (lines 628–637)."
+      }
+    ],
+    "coverage": "Reviewed the entire supplied diff, staged label extraction, helper behavior, and the local buildTemplateLabels → TemplateNodeInfo path. Found one distinct contract violation.",
+    "limitations": [
+      "No tests were run.",
+      "Dependency implementations and downstream scheduling consumers are unavailable; specific scheduling or scale-up failures were not verified."
+    ],
+    "contribution": "Established the local path by which removing stable-zone extraction loses an existing node's label, and limited the finding to template-label retention rather than unsupported downstream failures.",
+    "next_action": "finalize"
+  }
+}

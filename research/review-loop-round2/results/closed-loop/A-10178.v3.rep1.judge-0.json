@@ -1,0 +1,56 @@
+{
+  "valid": true,
+  "elapsedMs": 136,
+  "requestHash": "4056d8b2be60895a8fe5052ed44d6ccb80abb506335977d2cdf5d0bc540069ee",
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "claim_support": {
+        "type": "choice",
+        "choice": "supported",
+        "confidence": 0.39,
+        "probabilities": {
+          "overclaimed": 0.45,
+          "supported": 0.54,
+          "contradicted": 0.01,
+          "insufficient": 0
+        }
+      },
+      "coverage": {
+        "type": "choice",
+        "choice": "accounted_for",
+        "confidence": 0.82,
+        "probabilities": {
+          "gap": 0.12,
+          "accounted_for": 0.88,
+          "unknown": 0
+        }
+      },
+      "next_action": {
+        "type": "choice",
+        "choice": "finalize",
+        "confidence": 0.39,
+        "probabilities": {
+          "finalize": 0.51,
+          "inspect_callers": 0.16,
+          "investigate_remaining": 0.11,
+          "verify_existing": 0.22,
+          "manual_review": 0
+        }
+      },
+      "intent_status": {
+        "type": "choice",
+        "choice": "settled",
+        "confidence": 0.96,
+        "probabilities": {
+          "settled": 0.98,
+          "needs_human": 0.02
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 7708,
+      "output_tokens": 191
+    }
+  }
+}
