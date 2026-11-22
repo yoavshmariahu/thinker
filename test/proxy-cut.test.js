@@ -312,7 +312,7 @@ test('a 400 that names the cut sends the same request again uncut and the agent 
   assert.equal(refused.session, 's1', 'against the session it stands the cutting down for');
 });
 
-test('a cut the API refused is credited nothing', { skip: 'known gap: the refused request keeps clientCut, so the row is credited the whole cut and a cut event is written (proxy.js:1397)' }, async t => {
+test('a cut the API refused is credited nothing', async t => {
   const seen = [];
   const up = await upstream((res, body) => { seen.push(body.length); seen.length === 1 ? refusal(res) : ok(res); });
   const p = await proxy(up.url);
@@ -348,10 +348,15 @@ test('two requests of one conversation in flight together carry the same cut', a
   assert.equal(two.cleared, one.cleared, 'and is credited the same');
 });
 
-test('with no session the cut does not move inside a turn', { skip: 'known gap: no session means no record, so the set is chosen afresh on every request and grows through the turn (proxy.js:1010)' }, () => {
-  const seen = [];
-  for (let n = 0; n <= 3; n++) seen.push(transformRequest('POST', '/v1/messages', {}, asked(messages({ first: 12, second: n })), { ...CUT }).cut.join(','));
-  for (const [i, cut] of seen.entries()) assert.equal(cut, seen[0], `call ${i + 1} of the turn cuts the same results`);
+test('a request that names no session is not cut, since nothing could hold the cut still through the turn', () => {
+  for (let n = 0; n <= 3; n++) {
+    const body = asked(messages({ first: 12, second: n }));
+    const t = transformRequest('POST', '/v1/messages', {}, body, { ...CUT });
+    assert.equal(t.reason, 'missing-session', `call ${n + 1} of the turn says why it went uncut`);
+    assert.ok(t.body === body, 'and goes as the agent wrote it');
+  }
+  const named = transformRequest('POST', '/v1/messages', SESSION, asked(messages({ first: 12 })), { ...CUT });
+  assert.equal(named.injected, true, 'the same request with a session is cut');
 });
 
 // ---- the proxy doing no harm ------------------------------------------------------------------------------

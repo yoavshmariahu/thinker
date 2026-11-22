@@ -1007,7 +1007,13 @@ export function transformRequest(method, url, headers, body, cfg) {
   // applied byte for byte on every call of the turn. Nothing is asked of the API.
   // the record is the conversation's, not the session's (`conversationKey`), and the store is asked for it
   // here because this is the first point the body has been parsed
-  const rec = cfg.cutRecord || cfg.readCut?.(conversationKey(sessionOf(headers), j)) || freshCut('');
+  // A request that names no session has no record, and without one nothing holds the set still: it was chosen
+  // afresh on every request and grew through the turn (found 2026-11-22), changing bytes already sent.
+  // So it is not cut, as on the Codex door (`proxy-responses.js`). A caller that hands in its own record holds
+  // the set itself.
+  const session = sessionOf(headers);
+  const rec = cfg.cutRecord || (session ? cfg.readCut?.(conversationKey(session, j)) || freshCut('') : null);
+  if (!rec) return asCame({ reason: 'missing-session', model: j.model });
   const m = measurePrompt(cfg, j);
   // the thinking earlier cuts left out, and where a cut made now would stop: the start of the turn in progress,
   // or `thinkingKeepTurns` turns before it, so that only thinking that old goes (2026-11-17; 2 by default since 2026-11-18)
@@ -1398,7 +1404,12 @@ export function startProxy(cfg, { logFile, host = '127.0.0.1', onListen, onStand
                 door: t.protocol === 'responses' ? 'responses' : 'messages',
                 session, upstream: up.origin, status: 400, says: String(body).slice(0, 200),
                 ...(t.policy ? { policy: t.policy } : {}), ...(t.clientCut?.cut ? { cut: t.clientCut.cut } : {}) });
-              t = { ...t, body: raw, injected: false, addBeta: false, reason: 'cut-rejected' };
+              // From here on this is the request as the agent wrote it, so that is all it may say of itself: who
+              // sent it and why it went uncut. Until 2026-11-22 it kept everything the cut had put on it, so the
+              // row of a refused cut was credited the whole cut (`clearedBy`, the two cheap doors' removed
+              // counts) and the answer logged a `proxy-cut` event for it.
+              t = { body: raw, reason: 'cut-rejected', ...(t.protocol ? { protocol: t.protocol } : {}), ...(t.gateway ? { gateway: t.gateway } : {}),
+                ...(t.session ? { session: t.session } : {}), ...(t.model ? { model: t.model } : {}) };
               send(attempt);
             };
             ures.on('data', c => {
