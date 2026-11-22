@@ -902,10 +902,10 @@ turns that needed a tool, so they are a reminder, not a guarantee.
 What a source costs a session is its tokens, which every model call reads again, times the
 model calls of a typical session here (the median, per agent), mostly as prompt-cache reads.
 Cursor records no model calls, so its sources are given by size alone. What is worth switching
-off is suggested in one place, with the rest of the context: the weekly suggestion and the Find
-Savings page (`context-suggest.js`), each row saying what the source is in its own words and
-how the sessions here used it. A built-in tool is a row like any other there, with a
-confirmation, and never part of a question. Until 2026-10-25 this file's own two-weekly
+off is suggested in one place, with the rest of the context: the weekly suggestion and
+`thinker context` (`context-suggest.js`), each line saying what the source is in its own words and
+how the sessions here used it. A built-in tool is a line like any other there, decided with
+`thinker context --approve`, and never part of a question. Until 2026-10-25 this file's own two-weekly
 question asked for the same switches through each agent's question tool (Claude Code's
 AskUserQuestion, Codex's `request_user_input_async`, Cursor's AskQuestion); it was merged into
 the weekly suggestion. To support another harness, add evidence parsing, native scoped

@@ -35,7 +35,7 @@ async function explainCommand({ store, flags, out, availableFn = available, enqu
   // for the machine, so one run covers every repository that lists them. A repository with no report yet is left
   // out rather than read here -- opening its page writes one.
   const view = flags.all ? mergedView(store, days) : (lastSnapshot(store, days)?.view || snapshotView(store, days));
-  if (!view) { out('No context report has been made yet; open the Find Savings page or run `thinker context --refresh`.'); return; }
+  if (!view) { out('No context report has been made yet; run `thinker context --refresh`.'); return; }
   const have = readExplains();
   const missing = keys.length
     ? (xs => keys.map(k => xs.get(k)).filter(p => p && !have[p.key]))(new Map(viewParts(view).map(p => [p.key, p])))

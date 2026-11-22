@@ -114,12 +114,12 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  what the sessions use, and the ones worth switching off; the report changes nothing. --off switches named ones
                                  off here; --undo turns them (or the named ones) back on; --recall sets the line a request gets when it needs a
                                  switched-off tool (on with the harness). What is worth switching off is suggested with the rest of the context,
-                                 once a week in a session and on the Find Savings page (\`thinker context\`), not as a question of its own
+                                 once a week in a session and in \`thinker context\`, not as a question of its own
   instructions [--remove <id> | --compress <id> [--pr | --apply] [--job <id>]]
                                  the sections of AGENTS.md and their tokens;
                                  --remove / --compress <section id> show the diff of taking a section out or having a model shorten it;
-                                 --pr opens a pull request with it (a branch pushed to the origin; the Find Savings page's Apply runs
-                                 this in the background and follows it under Recent activity, --job naming the decision it recorded),
+                                 --pr opens a pull request with it (a branch pushed to the origin; an approved change runs
+                                 this in the background and Recent activity follows it, --job naming the decision it recorded),
                                  --apply writes it to AGENTS.md in the working tree, uncommitted
   context [--days n] [--cards] [--json] [--verbose] [--refresh] [--judge n] [--switch-off <labels> [--builtin]] [--switch-on <keys>] [--output-compression <tools> --level high|moderate|off]
           [--machine [--repos n] [--top n] [--ask [--no-browser]]]
@@ -127,38 +127,37 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  tokens, the sessions it applied to, and the judged share it bore on and was followed), every skill
                                  (read in, kept its rules), every other tool loaded; --judge n judges n recent sessions now (model
                                  calls); every session is judged in the one read it gets when it ends (instructions: { value: { judge: false } } in .thinker/config.json)
-                                 --cards says what each part is, why you would change it and what you would lose, as the page's
-                                 cards do, in the same order (\`thinker explain\` writes those words; this view spends nothing)
-                                 --refresh keeps the report for the page, which reads it instead of the transcripts (it runs this in the background)
+                                 --cards says what each part is, why you would change it and what you would lose, in the same
+                                 order (\`thinker explain\` writes those words; this view spends nothing)
+                                 --refresh keeps the report, which thinker's own check reads instead of the transcripts (maintenance runs this)
                                  --switch-off turns the harness on here and switches those tools off (--builtin: built-in tools too);
                                  --switch-on turns them back on; --output-compression sets how much of a tool's results Claude Code keeps
                                  --machine, from any directory: the same report over the repositories the agents worked in lately (the
                                  5 most active, --repos n), merged, with what to cut first (5 suggestions, --top n); the installer runs
-                                 it, from the sessions that ran before thinker was installed, and keeps each report for the page;
-                                 --ask (a terminal) asks whether to see it in the browser or here, where the suggestions are a list
-                                 to pick from and apply at once (--no-browser: the terminal without the question)
+                                 it, from the sessions that ran before thinker was installed, and keeps each report;
+                                 --ask (a terminal) puts the suggestions as a list to pick from and apply at once (--no-browser
+                                 is accepted and changes nothing: the browser answer went with the Find Savings page)
                                  the top changes with their suggested actions: --approve 1,3|all (3:remove picks another action),
                                  --dismiss 2, --history lists the decisions (a change under way, failed, or a pull request to merge
                                  is said so; reverted ones only with --reverted), --revert <n> takes one back, --retry <n> runs a
-                                 failed change again; the page's Find Savings lists every part with its actions, and Recent
-                                 activity the decisions with what needs you. Once a week the next prompt passes the five on with a link to that page
+                                 failed change again; Recent activity on the page (thinker ui) lists the decisions with what
+                                 needs you. Once a week the next prompt passes the five on as a question
                                  (maintain.contextSuggest in .thinker/config.json; false turns it off)
   explain [--days n] [--limit n] [--keys <k1,k2>] [--all] [--model m] [--json]
                                  writes what each part of the context is and why you would change it, in plain words a person who
                                  has never thought about an agent's prompt can read: one small-model call per six parts, kept for
-                                 this machine, since a built-in tool is the same tool in every repository. These are the words under
-                                 the Find Savings cards and \`thinker context --cards\`; the page asks for the parts it is showing,
-                                 and by hand this writes the ones with none, heaviest waste first (--limit, or --keys for exactly
-                                 those, --all over every repository the page merges). With no agent CLI signed in, as in a desktop
+                                 this machine, since a built-in tool is the same tool in every repository. These are the words of
+                                 \`thinker context --cards\`: this writes the ones with none, heaviest waste first (--limit, or
+                                 --keys for exactly those, --all over every repository on the machine). With no agent CLI signed in, as in a desktop
                                  app, it is queued for the session's own model; maintain.dailyTokens stops it at the day's cap
-  report [--weeks n] [--total] [--share] [--json] [--refresh [--all]]   the Report page in the terminal: the average cost of a prompt here at list prices, week by week over the
+  report [--weeks n] [--total] [--share] [--json] [--refresh [--all]]   the Report: the average cost of a prompt here at list prices, week by week over the
                                  last 6, by token type (fresh input, cache writes, cache reads, output), by part of the context
                                  (instruction files, custom and built-in tools, tool outputs, the rest) and by model under its provider, each part-table row against good and bad bounds in dollars; --total each week's
                                  sum instead of the average, --share each row as its share of the whole session (the totals stay);
                                  a cell up or down 5% against the first week is marked; then the decisions
-                                 taken on the Find Savings page in the window and the cache's numbers, its saving in dollars first
-                                 --refresh keeps the report for the page, which reads it instead of the log and the transcripts (it runs
-                                 this in the background; --all for every repository the page lists, in one run)
+                                 taken in the window and the cache's numbers, its saving in dollars first
+                                 --refresh keeps the report, which the page's Factory and Recent activity read instead of the log and the
+                                 transcripts (the page runs this in the background; --all for every repository it lists, in one run)
   factory [--weeks n] [--diff profile|compression] [--json] [--refresh]   the Factory page in the terminal: the pipeline a session runs through (Prompts, Think, Explore, Build,
                                  Verify, Review, Merge) and what each stage cost over the Report's window, the loops detected in the sessions (where
                                  work came back to an earlier stage, found by code: a failing run to the run that passed, a correction, a
@@ -201,11 +200,12 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  the four-hour update job. First run starts tracking, without backfilling.
                                  --dry lists eligible recorded PRs without syncing or posting. Set prComments:
                                  false in the machine or repository config to disable automatic comments
-  ui [--port n] [--no-open] [--tab chat|save|report|factory|activity] [--here] [--refresh]
+  ui [--port n] [--no-open] [--tab chat|factory|activity] [--here] [--refresh]
                                  open the local page, from any directory, over every repository on the machine (--here: this
-                                 checkout alone), on the chat with thinker and what it did lately (--tab chat); Find Savings (--tab save): where the agents' context goes in each
-                                 repository and what each part is worth, with the cuts (thinker context); then View Report (--tab report), what a
-                                 session costs here week by week, by part and by model, in tokens or at list prices (thinker report);
+                                 checkout alone), on the chat with thinker and what it did lately (--tab chat); the Factory
+                                 (--tab factory, thinker factory) and Recent activity (--tab activity): every decision with what
+                                 it saved, and the merged pull requests. Find Savings and View Report are no longer tabs of it:
+                                 thinker makes those decisions itself, and their figures are \`thinker context\` and \`thinker report\`;
                                  127.0.0.1 only, Ctrl+C stops it; --refresh looks for the repositories again and keeps the list the
                                  page reads (it runs this itself)
   usage [--here] [--days n] [--json]
@@ -229,7 +229,7 @@ const HELP = `thinker — saves tokens for coding agents, and learns how you wor
                                  what each model did as a subagent: runs, cost a run, what the parent did after it
                                  (re-reads, edits, corrections), latency and failures per route, and what that recommends
   savings [--json] [--refresh]   what the footers say: saved today and over the whole log, in dollars, from the context the
-                                 proxy cleared, over every repository on this machine. The Report page's own series at
+                                 proxy cleared, over every repository on this machine. The Report's own series (thinker report) at
                                  list prices, not a bill (--refresh
                                  recomputes the figure the Claude Code statusline and the end-of-turn cards read)
   update [tag] [--check] [--force] [--quiet] [--schedule] [--unschedule] [--status]

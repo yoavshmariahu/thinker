@@ -20,7 +20,8 @@ The knowledge notes (distilled per session, served per prompt, verified against 
 
 **CLI and local page in sync (MANDATORY):**
 - `src/ui/` mirrors CLI commands, never duplicates.
-- Page defaults and output must match CLI: `thinker context` ↔ Context tab, `thinker report` ↔ Report tab.
+- Page defaults and output must match CLI: `thinker chat` ↔ the chat, `thinker activity` ↔ Recent activity beside it, `thinker factory` ↔ Factory tab, `thinker context --history` ↔ Recent activity tab.
+- `thinker context` and `thinker report` have no tab since 2026-11-21 ("The Find Savings and View Report pages, removed" below): the commands are their only door.
 - New default or flag: add test to `test/cli-ui-sync.test.js`.
 - That file is for the **pair**: an assertion names both doors (page and CLI, page and the terminal's own
   renderer). One file's internals pinned by a regex over its source belongs in that file's own test, not here --
@@ -717,9 +718,9 @@ each kept of the knowledge notes (`notes-retired.js`).
 
 `thinker setup` connects the agents, adds the repository's own pieces (git hooks, Cursor's always-applied rule,
 Codex's trust in the project, `.thinker/`), fetches the ranking model the harness recall uses, and shows where the
-agents' context goes, read from their transcripts (`context-machine.js`): on a terminal it asks whether to see what
-to cut first in the browser or there (`setup/context-ask.js`), in the browser the page opens on All with the same
-suggestions checked. The old cache build (`--build`, `--prs`, `--areas`, `--no-seed` and the rest) is accepted and
+agents' context goes, read from their transcripts (`context-machine.js`): on a terminal it puts what to cut
+first as a list to pick from, the suggestions checked (`setup/context-ask.js`; the browser answer went with the Find
+Savings page, 2026-11-21). The old cache build (`--build`, `--prs`, `--areas`, `--no-seed` and the rest) is accepted and
 ignored; its history is in git before 2026-11-08.
 
 ## Upkeep and the chat (2026-11-21, the owner's direction)
@@ -731,13 +732,13 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
 - **Upkeep** (`src/upkeep.js`): a check, what was done, what is held back. One view (`upkeepView`; `mergeUpkeepViews` for All repositories).
 - **A check spends no model tokens.** It reads what was measured already: by code, or by the one pass each session gets when it ends. Nothing is replayed, nothing judged twice.
 - **When**: with maintenance (`maintain.js`, every 4 h on the next activity); `thinker activity run` is that check. The page only ever starts a look (`--look`, `act: false`): a visit never has thinker act.
-- **Chores** (`CHORES`): `sweep` merged worktrees and branches (`upkeep-sweep.js`); `context` the changes Find Savings ranks highest (`currentChanges`; a section is a pull request, a tool is switched off or made a reference; through `approveChanges`/`dismissChanges` by the door `VIA.thinker`); `rules` a section sessions broke `UPKEEP.ruleBroken` (3) times in 30 days, worth knowing and said in the chat; `waiting` a change of its own that failed, tried again a day later, `UPKEEP.retries` (3) times.
+- **Chores** (`CHORES`): `sweep` merged worktrees and branches (`upkeep-sweep.js`); `context` the changes `thinker context` ranks highest (`currentChanges`; a section is a pull request, a tool is switched off or made a reference; through `approveChanges`/`dismissChanges` by the door `VIA.thinker`); `rules` a section sessions broke `UPKEEP.ruleBroken` (3) times in 30 days, worth knowing and said in the chat; `waiting` a change of its own that failed, tried again a day later, `UPKEEP.retries` (3) times.
 - **By itself, on important things only, and not often** (`BEHAVIOR`, `mayAct`):
-  - Important: a part the Context report flags high waste; a sweep of 3 things or 500 MB. What is not important stays on Find Savings.
+  - Important: a part the Context report flags high waste; a sweep of 3 things or 500 MB. What is not important stays in `thinker context`.
   - Rate: one pull request a repository a week and never while one is open, one a day over the machine; one tool every `toolEveryDays` (1) over the machine (`<THINKER_HOME>/state/upkeep.json`); one sweep a repository a day. What waits its turn is counted (`later`), not listed.
   - A pull request is the only way it changes a repository's files, by itself or on anybody's word; where none can be opened the section is not its to change. Never the working tree.
   - What it did is said once at the end of a turn (`maintenanceNotice`) and kept in the activity.
-- **A line an action, with what it came to** (`upkeepFeed`, `impactSaid`): "−10k tokens per prompt · $45/day". Tokens are the decision's measured effect (`report.js:actionEffect`, from the kept report) and, until sessions since can say, what Find Savings expected, said as "about"; dollars a day are those tokens over the last week's prompts a day at the Report's input rate (`inputRateHere`), left out where nothing is priced; a sweep says the disk it freed. A machine-wide decision is one line over All repositories, its dollars added. **Never housekeeping**: the sessions read and the state files cleared are not listed; the profile gets one line, its last update.
+- **A line an action, with what it came to** (`upkeepFeed`, `impactSaid`): "−10k tokens per prompt · $45/day". Tokens are the decision's measured effect (`report.js:actionEffect`, from the kept report) and, until sessions since can say, what the Context report expected, said as "about"; dollars a day are those tokens over the last week's prompts a day at the Report's input rate (`inputRateHere`), left out where nothing is priced; a sweep says the disk it freed. A machine-wide decision is one line over All repositories, its dollars added. **Never housekeeping**: the sessions read and the state files cleared are not listed; the profile gets one line, its last update.
 - **Per session, what was handed to cheaper agents and what it saved** (`upkeepDelegated`, `report-savings.js:delegationBySession`; the owner, 2026-11-21): a line a session under the actions, "Handed 3 reads and 2 test runs to claude-haiku-5-5 · 175k tokens handed over · $8.82 saved", with how the session began. The dollars are the Report's "Reads delegated" series added by session, so the two can never disagree; a handoff the lead read anyway is not one; a session whose lead model is unknown or has no list price is counted and left out of the dollars, never added at zero. A test run handed over is counted and carries no saving.
 - **"Chat about this"** comes up on a line of the side under the pointer. It sets the line inside the prompt box as a card and sends it with the next message (`about` → `chat.js:refOf`); the model is told which line "this" is in the words, kind and ids it is shown that line under (`chatContext.lineOf`). **Nothing on the card is a button that says or sends anything** (the owner: "users can just chat about it, no fixed buttons or anything"); it comes off with its cross, Escape, or Backspace in an empty box.
 - **An answer about a line is about the thing** (`upkeepDetail`; the owner, of an answer that had only the one line to go on: "the answers should be more meaningful"). With a card the model is also given what is known behind it: what the thing was and how it begins, its size before and after, why it was picked, how it was done and by whom, what it measured as and over how many sessions, how the dollars a day are reckoned, where its pull request stands, whether it can be taken back; for a session, each file handed over and to whom. The prompt tells it to lead with what it knows and give the figures, not with what it cannot tell.
@@ -752,6 +753,16 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
   - It returns a reply and actions from a fixed set: `set` (a setting, machine or one repository), `steer` (more or less of a kind), `do`, `leave`, `undo`, `look`. The code carries them out and says what happened in its own words (`did`); an unknown setting, repository or item is refused.
   - Desktop app with no CLI login: the message is queued for the app's session (`session-work.js`, `thinker chat --answer`); the page shows it waiting.
 - **State**: `.thinker/state/upkeep.json` (last check, kept items, what was left alone, what was put back, the last 200 actions with their undo). Log rows `op: upkeep`, `upkeep-do`, `upkeep-dismiss`, `upkeep-undo`, `upkeep-set`, `chat`: counts, kinds and setting names, never the words.
+
+## The Find Savings and View Report pages, removed (2026-11-21, the owner's direction)
+
+The owner: "drop the 'find savings' page and 'view report' page. Thinker should be responsible to finding and making those decisions for optimizing your coding agent workflows by taking actions that are suggested in the 'find savings' page."
+
+- **What went**: the two tabs of the page (`#tab-save`, `#tab-report`, their nav buttons, script and CSS: `page.html` 2,016 → 1,289 lines); their routes (`/api/context`, `/api/explain`, `/api/changes/approve|dismiss|start`, `/api/context/switch|compression`); the installer's browser answer (`setup/context-ask.js`: the terminal list is the question); the page link in the weekly question and its preselect lists (`suggestionsUrl`, `offeredPicks`).
+- **What stays, and why**: `thinker context` and `thinker report`, and every computation behind them (`context-view.js`, `context-suggest.js`, `context-snapshot.js`, `context-machine.js`, `report.js`, `report-snapshot.js`). Thinker's own check acts on the Context report (`upkeep.js`), and the impact it reports is read from the kept Report; the commands are a person's door to the same figures.
+- **The page now**: Chat (default), Factory, Recent activity. `/api/report` stays for the Factory and Recent activity's PR savings; `/api/changes/revert|retry` stay for Recent activity. An old link (`tab=save|report|changes|cache`) opens the chat; `tab=save&view=history` opens Recent activity. Held by `test/cli-ui-sync.test.js`.
+- **No door may promise the pages**: no text or link names a tab that is not there. The weekly question points at `thinker context` for the detail; a built-in tool is decided with `thinker context --approve`.
+- **Not removed**: the weekly question itself, and what thinker decides by itself; both are the next step's (batches, clear-value actions, changed by chat). `ensureUi` (a page started for the machine) has no caller and is kept for a door that links to the chat. The scan worker can still read a Context report (`scans.read('context', …)`); no route asks it to.
 
 ## Pull requests delivered (`thinker prs`, 2026-10-29)
 
@@ -874,15 +885,15 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
 - Per-prompt cell = ratio of sums, never mean of session means.
 - **Per session**: Model/usage from `transcripts.js:Stats`, `tool-outputs.js:sessionUsage`, state `.thinker/state/tool-outputs.json` (v8). Parts joined by session id: instruction files, custom tools, built-in tools. Each × session model calls. Tool outputs re-read by later calls. Transcript: system prompt per call; tool inputs, thinking, prompts, agent text, attachments. Thinking: `thinking_tokens`, else signature length ÷ 4.3. Instructions attachment is exact. Scaling: parts scaled down where sum exceeds measured input; remainder = "Other input". Output = model output. Total = session tokens.
 - **Profile** (2026-11-08): session profile's own measure. Recurrence rate (prompts repeated with profile vs without), cost per prompt, verdict on data sufficiency (pace: measured exchanges ÷ days against 200-a-side floor), profile holdings and per-line usage (rarely/sometimes/frequently as shares). Over 60 days, not weeks. All repositories pools counts; cost interval bootstrapped per repository, no pooling across repositories.
-- **Tool output is nobody's choice** (2026-11-04): clearing on by default; removes results agent finished with (88% of output cost). Diet never in Find Savings, weekly question, installer, ACTS, `partChanges`, or `part-explain.js`. Kept: measurement, diet as `thinker context --output-compression <tools> [--level high]`, `describePart({kind:'output'})`, `output` branch of `undoOf`.
+- **Tool output is nobody's choice** (2026-11-04): clearing on by default; removes results agent finished with (88% of output cost). Diet never in the weekly question, installer, ACTS, `partChanges`, or `part-explain.js`. Kept: measurement, diet as `thinker context --output-compression <tools> [--level high]`, `describePart({kind:'output'})`, `output` branch of `undoOf`.
 
-**Find Savings: one table, a part a row (2026-11-09)**
-- Title, type, per call, used, wasted, action: dropdown + Apply in row. `›` beside title opens description and text.
-- Gone: view tabs, Potential savings card, explanatory paragraph, cards view, checkboxes, Apply over table, Over N days and Share columns. Figures stay in opened row and `thinker context`.
-- Suggested rows come first with action picked. **Wasted is dollars** (2026-11-08): row's wasted tokens at input token cost (every priced session's input cost ÷ input tokens, Report's rule, over Save window). All repositories adds dollars and tokens. **Colour**: used in <10% of carrying calls = red ≥5k tokens/call, yellow <5k, uncoloured <500 tokens.
+**Wasted in dollars, and the flag (2026-11-09)**
+- **Wasted is dollars** (2026-11-08): a part's wasted tokens at input token cost (every priced session's input cost ÷ input tokens, Report's rule, over the Context window). All repositories adds dollars and tokens.
+- **Flag** (`context-view.js:flagOf`, `FLAG`): used in <10% of carrying calls = red ≥5k tokens/call, yellow <5k, none <500 tokens. `thinker context` marks `!!` and `!`.
+- The page's table of these rows (title, type, per call, used, wasted, a dropdown and Apply in the row) went with Find Savings on 2026-11-21.
 
 **Cost per prompt (2026-10-25)**
-- Part sits in prompt, costs its size in every call carrying it. Table: **Per prompt** (`tokens`), **Needed** (`usedShare`), **Over N days** (`window`), **Wasted** (`wastedWindow`). All cells with **?** under 40 words.
+- Part sits in prompt, costs its size in every call carrying it. Figures: **Per prompt** (`tokens`), **Needed** (`usedShare`), **Over N days** (`window`), **Wasted** (`wastedWindow`). Each explained in under 40 words.
 - Needed by prompts: tool/skill = calls that called it (`harness.js:readSessionHarness` `usedCalls`), summed `usedPrompts` capped at session calls. Section = calls firing triggers (`instruction-value.js:appliedTurns`), over calls since last change. Output = re-reads before last agent use (`tool-outputs.js` `needed`).
 - Real calls: `prompts` = sum of sessions' model calls; section changed inside window costs present size in every call reading file.
 - All repositories merges output by tool with current setting (`mergeViews`); dead periods never merged. Live row's `compression` = its own level.
@@ -892,7 +903,7 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
 **Pull request savings (2026-10-30)**
 - **Figures are dollars** (2026-11-08; `delivery.js:sessionsOf` prices at list rates by token type, `prices.js:costOf`). Null unless complete; partial cost never shown. **Pull request stats** rows: PR count, Saved per PR, Cost per PR (over PRs with complete counters), in dollars. Recent activity: Sessions, Cost, Saved, Share.
 - **Saving is gross, cost beside it** (same day; `savedUsd`, `savedUsdPerPr`, `meanSavedUsd`): cost = every call at list, includes cache writes. Netted figure (`net`, `netPerPr`, `meanNet`) stays in data, `thinker prs`, posted comment.
-- View Report: four PR cards (merged work, tokens saved, share of cost, average). PR list in Recent activity under **PR savings**. Report leads with **Pull request stats**, then **Cost by context**, **Compression effectiveness**. **By model**, **By token type** collapsed under **See more metrics**. Defaults Total, weekly table no graph. Weekly follows request dates. Repository = last repo session names.
+- PR list in Recent activity under **PR savings** (the page) and in `thinker prs`. `thinker report` prints the weekly pull request stats with its tables. Weekly follows request dates. Repository = last repo session names.
 - 12 rows behind *Show all*, 10 in command (`thinker prs` for rest).
 - `report.js:prSavings` folds `delivery.js:deliveryReport` into view; both read one computation. All repositories: counts/tokens add, averages taken again over every row, each row carries repository.
 - **Typical PR = average, not median** (2026-11-04; `delivery.js:mean`): denominator = every merged PR in window (zero-saving included) = same as total sum. Per-PR rows show spread.
@@ -939,52 +950,47 @@ The owner, in one day: thinker is an agent of its own. It "should take actions o
 
 **Performance & kept report**
 - Page never recomputes on visit. Kept: `.thinker/state/report.json`, all windows under `views`. **One slot per code** (2026-11-09; `byCode`; three servers read each other's stale write without end): reader takes own code's slot first; `views` newest for older; four codes/week max. Fresh checkout reads every session once.
-- `thinker report`/`--refresh` write it. Page starts background when >10 min old or other code; shows "measured N min ago, updating…".
-- Decisions read live. Save: outgrown kept shown at once, remade behind. Transcripts read on visit only if no kept or action dropped.
+- `thinker report`/`--refresh` write it. Page starts background when >10 min old or other code.
+- Decisions read live.
 - Background one at a time. `usage.js:parse` caches log per process (size, mtime). `transcripts.js:sessionModel` cached.
 - **Kept view brought up to date, not made again** (2026-11-08; `ui/scans.js` passes `since`, `scan-worker.js` acts). This code's view older than 10 min checked: worker stats sessions, log, proxy; nothing moved = `unchanged`; something moved = read every session in one pass. Strip counts changed sessions ("N of M changed"; "Updating…"). Stamp = hash of slice (window sessions by file/mtime/size/`since`, this repo's log events, delivery journal, proxy rows/desktop clears of window only). Not watched: other repos' log (only decide if session counts here). `MAX_KEEP_MS` (6 h) backstop.
 - **One parse per process for shared logs** (2026-11-10): `compression.js:compressionRecords` keeps proxy log's parsed tail, `usage.js:logEvents` keeps events beside parse, `providers.js:registryPrices` stats `providers.json` ≤1/s. One repo's Report: 1.9 s → 1.25 s.
 - **A log append is not a reason to read a session** (2026-11-12; `report.js:logParts`, `refreshLogParts`, `scan-worker.js:logsOnly`). Report has two halves: sessions (parts, models, token types, Factory) and logs (`actions`, `savings`, `prs`, `profile`). Logs are shared and appended every few seconds of a live session, so any visit re-read every session of every repo for figures that could not move. Now: no session moved + a log moved = log half alone, one message, kept view's session half stands. Guard: `sessionsStamp` (`view-sources.js`) kept with the report; shortcut refused unless sessions are the ones it was made from (a *dropped* session has no new mtime). 13 repos here: 2.4 s → 1.4 s a visit.
 - **Log rows are shared, never copied per reader** (2026-11-12; `usage.js:parse`). Rows sorted once and `origin` put on each at parse; `all` returns the rows themselves, one repo an array of references. Was: `{...e}` over 35k events per (repo, all) pair, 51 MB of heap a copy, four held. 13 repos: 349 ms/+158 MB → 92 ms/+67 MB, same rows. Readers must not mutate an event. A log whose rows don't all name a repo (`anonymous`) keeps the copying path.
 - **A checkout in a tool's area or inside another checkout is nobody's work** (2026-11-12; `machine.js:toolArea`, `insideAnother`, beside the `TMP` rule). Hidden folder of home (`~/.claude/jobs/…`, `~/.artemis/repos/…`) or a *different* repository nested in a checkout's tree (`bench/worktrees/…/posthog/test-wt`). Linked worktree of the same repo stays (compares repo id, not path). This machine: 18 repos listed → 13.
-- Save snapshot keyed on settings fields (`context-snapshot.js:settingsKey`), not file bytes. `writeSnapshot` prunes old `context-view-*` and pre-2026-10-24 per-worktree files.
+- Context snapshot keyed on settings fields (`context-snapshot.js:settingsKey`), not file bytes. `writeSnapshot` prunes old `context-view-*` and pre-2026-10-24 per-worktree files.
 - Instruction sections read transcript once (`instruction-value.js:sessionRecord`), kept as `session-activity`. Re-read only if transcript grew or sections name new code.
 
 **Tool switches across repositories** (2026-10-30)
-- Approving from Find Savings/`thinker context --approve` uses machine settings, shared action/undo in `THINKER_HOME/state/machine-actions` (`scoped-state.js`). Skills/sections retain scopes. Page submits one per tool.
+- Approving a tool (`thinker context --approve`, thinker's own check) uses machine settings, shared action/undo in `THINKER_HOME/state/machine-actions` (`scoped-state.js`). Skills/sections retain scopes.
 - Claude Code uses user-level denies; Codex uses user config with project overrides. Undo keeps fingerprint, refuses discard if changed since switch.
 - Recent activity shows shared action once, measures over selected repos' sessions. Old repo-specific remain history.
 
 **Page updates** (`page.html:swapBody`)
-- Keep shown table, swap new. Scroll/See more/dropdown picks kept. Body height fixed.
-- Save header shows "updating…" in `#c-asof`.
-- After Apply: show change at once, re-read decisions, report.
+- Keep shown table, swap new. Scroll kept. Body height fixed.
 - Spinner only on first read/repo change.
 - **Scan progress** (2026-11-07): bottom of viewport, fixed outside sticky nav (2026-11-09). Sessions read/share/left/bar. Each reader calls `onSession` per session; `scan-worker.js:progressOf` counts once all `READERS` pass it, posted ≤200 ms no view revision.
 
 **Section change is pull request** (2026-10-29)
 - Every door (`context-suggest.js:approveChanges`): records decision, starts detached `thinker instructions … --job`, opens PR. Until then: only page; others ran inline, held turn, wrote uncommitted.
-- Diff in modal. Button: commits to new branch from default via temp index (checkout untouched), pushes, opens PR (`instruction-pr.js:openEditPr`).
+- The job commits to new branch from default via temp index (checkout untouched), pushes, opens PR (`instruction-pr.js:openEditPr`). Diff is read in the PR.
 - `prAvailable` decides (no GitHub, no `gh`, not logged). If not: working-tree write with reason.
 - Preview from base (`instruction-pr.js:baseTexts`). Parent = commit preview read from. Checkout branch, uncommitted, distance don't matter.
 - History: `pull request` with `pr` {number, url, branch, state} (`context-suggest.js:applyReviewed`).
 - PR state refreshed per `/api/activity` read, `thinker context --history` (≤1/min).
-- States: **Pending** (open; row pill linked, unpickable), **Merged**, **Rejected** (closed unmerged; re-suggested), **Unpulled** (merged, not in checkout; yellow banner, tints decisions; test: merge commit not ancestor; cleared when `pr.pulledAt` kept).
+- States: **Pending** (open; pill linked), **Merged**, **Rejected** (closed unmerged; re-suggested), **Unpulled** (merged, not in checkout; yellow banner, tints decisions; test: merge commit not ancestor; cleared when `pr.pulledAt` kept).
 - **Close = revert** (`revertDecision`): comment, close, delete branch.
 - Command: `thinker instructions --compress <id> --pr`.
 
 **Background job**
-- Apply records at once: shared `group`, `job: {state: running, pid, startedAt}` (`context-suggest.js:startSectionJob`, `/api/changes/start`).
+- An approval records at once: shared `group`, `job: {state: running, pid, startedAt}` (`context-suggest.js:startSectionJob`).
 - Detached: `thinker instructions --compress|--remove <ids> --pr --job <group>`.
-- Page toast where to follow.
 - `runSectionJob`: preview, PR (recorded on group, pending until merged) or working tree (kept under group). Failure: `job.state: failed` + reason.
 - Running with dead process, no record after 2 min = failed (`changeHistory`, `jobDied`).
 - Failed = nothing decided; re-suggested.
 - **Retry** (`retryJob`, `/api/changes/retry`, `thinker context --retry <n>`): reruns every section.
 - Diff in PR or `git diff`.
-- Save rows: under way = *Compressing…*, unpickable; failed = so, pickable.
 - Decisions on **Recent activity** (`#tab-activity`, `/api/activity`: history only, one repo or all). Top card: needs person. Rows: Retry, Close PR, Revert. Badge counts incomplete. Polls 30 s, 5 s while running.
-- Report's decisions uses `historyFigure`.
 - Row: kind line (Built-in/Custom tool/output), what it does (`part-describe.js`). Pill hover explains; decided cell shows time/action/worth.
 - Stored as `what`, `about` (older entries derived). No See more/detail. Command prints after title.
 

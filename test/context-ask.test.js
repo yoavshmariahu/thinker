@@ -1,5 +1,6 @@
-// The installer's question on the Context report (setup/context-ask.js): browser or terminal, and in the terminal
-// the suggestions as a multi-select applied at once. Driven through a mock terminal; nothing is spawned.
+// The installer's question on the Context report (setup/context-ask.js): the suggestions as a multi-select applied
+// at once, in the terminal. Driven through a mock terminal; nothing is spawned. (The browser answer went with the
+// Find Savings page, 2026-11-21.)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -7,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { Store } from '../src/store.js';
-import { askMachineReport, canOpenBrowser, ASK_WHERE } from '../src/setup/context-ask.js';
+import { askMachineReport } from '../src/setup/context-ask.js';
 
 class Stdin extends EventEmitter { constructor() { super(); this.isTTY = true; this.isRaw = false; } setRawMode(v) { this.isRaw = v; } resume() {} pause() {} }
 class Stdout { constructor() { this.isTTY = true; this.writes = []; } write(s) { this.writes.push(s); } }
@@ -33,85 +34,59 @@ const store = new Store(fs.mkdtempSync(path.join(os.tmpdir(), 'thinker-ask-')));
 
 test('without a terminal the report is printed as the command prints it, with nothing asked', async () => {
   const { r, recs } = report(), out = [];
-  const res = await askMachineReport({ r, recs, store, out: l => out.push(l), stdin: { isTTY: false }, stdout: new Stdout(), ui: () => { throw new Error('not started'); } });
+  const res = await askMachineReport({ r, recs, store, out: l => out.push(l), stdin: { isTTY: false }, stdout: new Stdout() });
   assert.equal(res.mode, 'printed');
-  assert.ok(out.some(l => /^Cut first/.test(l)) && out.some(l => /Review and apply in the browser: thinker ui/.test(l)), out.join('\n'));
+  assert.ok(out.some(l => /^Cut first/.test(l)) && out.some(l => /Review and apply in each repository: thinker context --approve <numbers>/.test(l)), out.join('\n'));
 });
 
-test('in the terminal: the summary, the choice, the cuts with the page\'s address, then the picks applied through one call', async () => {
-  const { r, recs } = report(), out = [], stdin = new Stdin(), stdout = new Stdout(), applied = [], opened = [];
-  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: true, ui: () => 'http://127.0.0.1:7777/', open: x => { opened.push(x); return true; }, apply: async picks => { applied.push(picks); return picks.map(x => `${x.title}: done`); } });
-  stdin.emit('keypress', 't', { name: 't' });           // here in the terminal
+test('in the terminal: the summary, the cuts, where the figures are, then the picks applied through one call', async () => {
+  const { r, recs } = report(), out = [], stdin = new Stdin(), stdout = new Stdout(), applied = [];
+  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, apply: async picks => { applied.push(picks); return picks.map(x => `${x.title}: done`); } });
   await tick();
   assert.ok(out.some(l => /^Where your agents' context goes, from 10 sessions/.test(l)), 'the summary came first');
   assert.ok(out.some(l => /^Cut first/.test(l)), 'then the cuts');
-  assert.ok(out.some(l => l.includes('http://127.0.0.1:7777/#tab=save&view=all&from=setup')), 'and the page\'s address, which opens with the same suggestions checked');
+  // no page to send anyone to: the figures are the command's, and no link and no question about a browser is drawn
+  assert.ok(out.some(l => /Every part with its figures: .*thinker context/.test(l)), out.join('\n'));
+  assert.ok(!out.some(l => /127\.0\.0\.1|tab=save|Find Savings/.test(l)), 'no address of a page that no longer shows the parts');
+  assert.ok(!out.some(l => /See what to cut first/.test(l)) && !stdout.writes.join('').includes('In the browser'), 'no browser-or-terminal choice');
   assert.ok(!out.some(l => /thinker instructions --remove|thinker harness --off/.test(l)), 'no commands to type');
   const drawn = stdout.writes.join('');
   assert.ok(drawn.includes('Create tool reference for the built-in tool "Artifact" in 2 repositories'), drawn);
   assert.ok(drawn.includes('Remove the AGENTS.md section "API views" in r1'), drawn);
   assert.ok(drawn.includes('needed in 0% of prompts'), drawn);
   assert.ok(drawn.includes('Create tool reference for the built-in tool "Workflow"') && drawn.includes('nothing switches it off per repository'), 'a suggestion with no action is a disabled row');
-  // the suggestions come checked, as they do on the page (page.html:preselectRows): unchecking is the work, and
-  // Enter is the Apply
+  // the suggestions come checked: unchecking is the work, and Enter is the Apply
   assert.match(drawn, /\[x\].*Create tool reference for the built-in tool "Artifact"/);
   assert.match(drawn, /\[x\].*Remove the AGENTS\.md section "API views"/);
   assert.ok(out.some(l => /Apply the checked\?/.test(l)), out.join('\n'));
   assert.match(drawn, /n clears all, Enter applies the checked/);
   stdin.emit('keypress', null, { name: 'return' });     // the checked rows, nothing else pressed
   const res = await p;
-  assert.equal(res.mode, 'terminal'); assert.equal(opened.length, 0);
+  assert.equal(res.mode, 'terminal');
   assert.equal(applied.length, 1); assert.deepEqual(applied[0].map(x => [x.title, x.act]), [['Artifact', 'off'], ['API views', 'remove']]);
   assert.ok(out.some(l => /Artifact: done/.test(l)) && out.some(l => /API views: done/.test(l)), out.join('\n'));
   assert.ok(out.some(l => /A section's rewrite goes on in the background/.test(l)));
 });
 
-test('Esc skips: nothing applied; the browser choice opens the page and prints no list; --no-browser asks no choice', async () => {
+test('Esc skips: nothing applied, and the suggestions stay in the command', async () => {
   const { r, recs } = report();
-  let out = [], stdin = new Stdin(), stdout = new Stdout(), applied = 0;
-  let p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: true, ui: () => null, apply: async () => { applied++; return []; } });
-  stdin.emit('keypress', 't', { name: 't' }); await tick();
-  stdin.emit('keypress', null, { name: 'escape' });     // checked or not, Esc applies nothing
-  let res = await p;
-  assert.equal(applied, 0); assert.deepEqual(res.picked, []);
-  assert.ok(out.some(l => /Nothing changed\. The suggestions stay on the page \(thinker ui\)/.test(l)), out.join('\n'));
-  // the browser
-  out = []; stdin = new Stdin(); stdout = new Stdout(); const opened = [];
-  p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: true, ui: () => { throw new Error('no'); }, open: x => { opened.push(x.store); return true; }, apply: async () => { applied++; return []; } });
-  stdin.emit('keypress', null, { name: 'return' });     // the first option
-  res = await p;
-  assert.equal(res.mode, 'browser'); assert.deepEqual(opened, [store]); assert.equal(applied, 0);
-  assert.ok(out.some(l => /Opening the Find Savings page in your browser .* suggested savings first, each on its suggested action/.test(l)));
-  assert.ok(!out.some(l => /^Cut first/.test(l)), 'the list is on the page');
-  assert.equal(ASK_WHERE[0].value, 'browser');
-  // no browser to offer: straight to the list
-  out = []; stdin = new Stdin(); stdout = new Stdout();
-  p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: false, ui: () => null, apply: async () => { applied++; return []; } });
+  const out = [], stdin = new Stdin(), stdout = new Stdout(); let applied = 0;
+  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, apply: async () => { applied++; return []; } });
   await tick();
-  assert.ok(!stdout.writes.join('').includes('In the browser'), 'no choice drawn');
-  assert.ok(out.some(l => /^Cut first/.test(l)));
-  stdin.emit('keypress', null, { name: 'escape' });
-  await p;
-  assert.equal(applied, 0);
+  stdin.emit('keypress', null, { name: 'escape' });     // checked or not, Esc applies nothing
+  const res = await p;
+  assert.equal(applied, 0); assert.deepEqual(res.picked, []); assert.equal(res.mode, 'terminal');
+  assert.ok(out.some(l => /Nothing changed\. The suggestions stay in .*thinker context/.test(l)), out.join('\n'));
 });
 
 test('n clears the checked suggestions, and Enter then applies nothing', async () => {
   const { r, recs } = report(), out = [], stdin = new Stdin(), stdout = new Stdout();
   let applied = 0;
-  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, browser: false, ui: () => null, apply: async () => { applied++; return []; } });
+  const p = askMachineReport({ r, recs, store, out: l => out.push(l), stdin, stdout, apply: async () => { applied++; return []; } });
   await tick();
   stdin.emit('keypress', 'n', { name: 'n' });
   stdin.emit('keypress', null, { name: 'return' });
   const res = await p;
   assert.equal(applied, 0); assert.deepEqual(res.picked, []);
   assert.ok(out.some(l => /Nothing changed/.test(l)), out.join('\n'));
-});
-
-test('the browser is offered on a display, not in tests, CI or over ssh', () => {
-  assert.equal(canOpenBrowser({}, 'darwin'), true);
-  assert.equal(canOpenBrowser({ DISPLAY: ':0' }, 'linux'), true);
-  assert.equal(canOpenBrowser({}, 'linux'), false);
-  assert.equal(canOpenBrowser({ THINKER_TEST: '1' }, 'darwin'), false);
-  assert.equal(canOpenBrowser({ CI: '1' }, 'darwin'), false);
-  assert.equal(canOpenBrowser({ SSH_CONNECTION: 'x' }, 'darwin'), false);
 });

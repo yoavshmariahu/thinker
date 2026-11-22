@@ -1,7 +1,7 @@
 // `thinker harness`: what the agent loads into every session here against what the sessions use,
 // and the sources worth switching off (harness.js). The report reads transcripts and settings and changes
 // nothing; --off switches sources off here and --undo reverses that. What is worth switching off is put to
-// the person in one place, the weekly context suggestion and the Find Savings page (context-suggest.js).
+// the person in one place, the weekly context suggestion and `thinker context` (context-suggest.js).
 import { harnessUsage, harnessAdvice, harnessSavings, clientPrefix, MIN_TOKENS, undoHarness, switchOffNow, setHarnessSettings, harnessOn, OFF_MESSAGE, perSession, recallOn } from '../harness.js';
 import { formatTokens } from '../model-usage.js';
 

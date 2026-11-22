@@ -3,12 +3,13 @@
 // The report changes nothing; --judge n spends model calls on the newest sessions not judged yet, so the
 // sections' verdicts fill in for sessions read before the pass judged them (instruction-value.js). The controls are the commands they name:
 // `thinker instructions --compress|--remove` for the sections, `thinker harness --off` for skills and tools. --refresh keeps
-// the report for the page (context-snapshot.js), which starts it in the background. --machine is the report over
+// the report (context-snapshot.js), as maintenance does in the background: thinker's own check reads the kept one. --machine is the report over
 // the repositories the agents worked in lately, merged, with what to cut first (context-machine.js): what the
 // installer runs, from the sessions that ran before thinker was installed; it needs no repository. --ask is the
-// installer's question: browser or terminal, and in the terminal the suggestions to pick from (setup/context-ask.js).
-// --cards is the Save page's card view here: what each part is, why you would change it and what you would lose
-// (part-explain.js), the same parts in the same order as the table, with the words `thinker explain` wrote.
+// installer's question: the suggestions as a list to pick from (setup/context-ask.js; --no-browser is accepted and
+// changes nothing since the browser answer went with the Find Savings page, 2026-11-21).
+// --cards says what each part is, why you would change it and what you would lose (part-explain.js), the same parts
+// in the same order as the table, with the words `thinker explain` wrote.
 import { historyEffects, promptAverageHere, keptRows, inputRateHere } from '../report-snapshot.js';
 import { contextView, switchSources, setOutputCompression, rateOf, flagOf } from '../context-view.js';
 import { judgeRecent } from '../instruction-value.js';
@@ -31,23 +32,23 @@ async function contextCommand({ store, flags, out }) {
     const recs = recommendations(r.view, { top });
     if (flags.json) { out(JSON.stringify({ ...r, views: undefined, recommendations: recs }, null, 2)); return; }
     if (!quiet) out('');
-    // --ask (the installer, on a terminal): where to see what to cut first, and in the terminal the suggestions as a
-    // list to pick from and apply at once (setup/context-ask.js); without a terminal the report is printed
+    // --ask (the installer, on a terminal): the suggestions as a list to pick from and apply at once
+    // (setup/context-ask.js); without a terminal the report is printed
     if (flags.ask && !quiet) {
-      const { askMachineReport, canOpenBrowser } = await import('../setup/context-ask.js');
-      await askMachineReport({ r, recs, store, out, browser: !flags['no-browser'] && canOpenBrowser() });
+      const { askMachineReport } = await import('../setup/context-ask.js');
+      await askMachineReport({ r, recs, store, out });
       return;
     }
     for (const l of renderMachineReport(r, recs)) out(l);
     return;
   }
-  // the tab's actions: switch tools off or back on. --output-compression is not one of the page's rows since
+  // the actions: switch tools off or back on. --output-compression is not one a person is asked about since
   // 2026-11-04 (the clearing compresses outputs, on by default): it stays here to set the diet for an experiment arm.
   const list = v => String(v).split(',').map(x => x.trim()).filter(Boolean);
   if (typeof flags['switch-off'] === 'string') { out(switchSources(store, { labels: list(flags['switch-off']), builtin: !!flags.builtin })); return; }
   if (typeof flags['switch-on'] === 'string') { out(switchSources(store, { keys: list(flags['switch-on']), on: true })); return; }
   if (typeof flags['output-compression'] === 'string') { out(setOutputCompression(store, list(flags['output-compression']), ['high', 'moderate'].includes(flags.level) ? flags.level : 'off')); return; }
-  // the Context tab's snapshot (context-snapshot.js), made again in the background by the page and maintenance
+  // the kept Context report (context-snapshot.js), made again in the background by maintenance
   // a window whose sessions and records have not moved keeps the report it has: `kept`, nothing read again
   if (flags.refresh) {
     const r = refreshSnapshots(store);
@@ -67,13 +68,13 @@ async function contextCommand({ store, flags, out }) {
   // refresh instead of being worked out again (context-snapshot.js, view-sources.js)
   const { sessions, stamp } = contextSources(store, days);
   const v = contextView(store, { days, sessions });
-  // the Wasted figures in dollars, as the page shows them (context-view.js:inputRate: the wasted tokens at what an input
-  // token cost these sessions at list prices), tokens where no session has a list price; and the page's row colour as a
+  // the Wasted figures in dollars (context-view.js:inputRate: the wasted tokens at what an input
+  // token cost these sessions at list prices), tokens where no session has a list price; and a row's flag as a
   // mark (context-view.js:flagOf): !! for red, ! for yellow
   const vrate = rateOf(v), wasteOf = x => x.wastedWindow == null ? '-' : vrate == null ? `~${formatTokens(x.wastedWindow)}` : formatDollars(x.wastedWindow * vrate), mark = x => { const f = flagOf(x); return f === 'red' ? '!!' : f === 'yellow' ? '! ' : '  '; };
-  writeSnapshot(store, days, v, { stamp }); // what the page shows next
+  writeSnapshot(store, days, v, { stamp }); // the kept report, which thinker's own check reads next
   // the top changes (context-suggest.js): approve their suggested actions, dismiss them, or read the decisions so far,
-  // as the Context tab's rows and History do
+  // as Recent activity lists them
   const top = currentChanges(store, v);
   // --via names where the decision came from (context-suggest.js:VIA): the weekly suggestion's own command says
   // `session`, so a suggestion that converted in the conversation is not counted as someone typing the command.
@@ -102,7 +103,7 @@ async function contextCommand({ store, flags, out }) {
     const state = e => e.running ? `${e.job.action === 'compress' ? 'compressing' : 'removing'}…` : e.failed ? 'failed' : e.pr ? `PR #${e.pr.number} ${e.pr.state === 'open' ? 'pending' : e.pr.state === 'merged' ? `merged${e.revertPr ? `, revert #${e.revertPr.number}` : e.unpulled ? ', pull to apply' : ''}` : 'rejected'}` : e.revertedAt ? `${e.decision}, reverted` : e.decision;
     const needs = h.filter(e => e.attention).length;
     // merged changes this checkout has not pulled (context-suggest.js:changeHistory `unpulled`): say which branch to pull
-    const waiting = h.filter(e => e.unpulled), pullLine = waiting.length ? [...new Set(waiting.map(e => e.pullFrom || 'main'))].map(br => { const n = waiting.filter(e => (e.pullFrom || 'main') === br).length; return `${n} merged change${n === 1 ? '' : 's'} take${n === 1 ? 's' : ''} effect here once you pull ${br} (git pull origin ${br}); not offered on Find Savings meanwhile.\n`; }).join('') : '';
+    const waiting = h.filter(e => e.unpulled), pullLine = waiting.length ? [...new Set(waiting.map(e => e.pullFrom || 'main'))].map(br => { const n = waiting.filter(e => (e.pullFrom || 'main') === br).length; return `${n} merged change${n === 1 ? '' : 's'} take${n === 1 ? 's' : ''} effect here once you pull ${br} (git pull origin ${br}); not suggested again meanwhile.\n`; }).join('') : '';
     // without a report of this code's kept here, nothing is measured: say what makes one
     const unmeasured = keptRows(store).stale && !avg ? 'Before and after are not measured yet: `thinker report --refresh` makes the report they are read from.\n' : '';
     out(h.length ? (needs ? `${needs} need${needs === 1 ? 's' : ''} you: a pull request to merge, or a failed change to retry.\n` : '') + pullLine + (avg ? `A prompt here costs ${formatTokens(avg.perPrompt)} tokens on average (${avg.prompts} prompts in ${avg.sessions} sessions).\n` : unmeasured) + h.map((e, i) => [e, i]).filter(([e]) => flags.reverted || !e.revertedAt).map(([e, i]) => `${String(i + 1).padStart(3)}. ${e.at.slice(0, 10)}  ${state(e).padEnd(22)} ${e.title}${e.what ? `  [${e.what}${e.about ? `: ${e.about}` : ''}]` : ''}${e.failed ? `: ${e.job.error}` : e.result ? `: ${e.result}` : ''}${e.pr?.url ? `  ${e.pr.url}` : ''}${effectLine(e)}`).join('\n') + (hidden ? `${hidden < h.length ? '\n' : ''}${hidden} reverted decision${hidden === 1 ? '' : 's'} not listed: --reverted lists ${hidden === 1 ? 'it' : 'them'}.` : '') + (h.some(e => e.revertible) ? '\n`thinker context --revert <n>` takes a decision back (a pending pull request is closed; a merged one gets a pull request that reverts it).' : '') + (h.some(e => e.retryable) ? '\n`thinker context --retry <n>` runs a failed change again.' : '') : 'No decisions on the suggested changes here yet.');
@@ -123,12 +124,12 @@ async function contextCommand({ store, flags, out }) {
   if (flags.json) { out(JSON.stringify(v, null, 2)); return; }
   // --cards: the parts as cards in the terminal (part-explain.js). The page shows these words when a row is opened and
   // the table here showed none of them, so the two doors answered differently about the same part. One source for
-  // both: `viewParts` is the page's list in the page's order (most wasted first), and the explanations are the ones
+  // both: `viewParts` is the one list in the one order (most wasted first), and the explanations are the ones
   // kept for the machine -- this prints what is there and names the command for what is not, never spending itself.
   if (flags.cards) {
     const { viewParts, readExplains } = await import('../part-explain.js');
     const have = readExplains(), all = viewParts(v);
-    // as many as the tables print, and --verbose for the rest: the page pages through them, a terminal would scroll
+    // as many as the tables print, and --verbose for the rest: a terminal would scroll
     const parts = flags.verbose ? all : all.slice(0, 12);
     const KINDS = { section: 'instruction section', skill: 'skill', tool: 'tool' };
     const wrap = (label, text, w = 94) => {
@@ -151,7 +152,7 @@ async function contextCommand({ store, flags, out }) {
     });
     if (missing) out(`${missing} of these ${missing === 1 ? 'has' : 'have'} no explanation yet: \`thinker explain\` writes them, six parts to a model call, kept for this machine (in a desktop app it is queued for the session's own model).`);
     else out('Every part here is explained.');
-    out('`thinker context` is the same parts as a table, with the figures; `thinker ui` is the same table on the page, these words under an opened row.');
+    out('`thinker context` is the same parts as a table, with the figures.');
     return;
   }
   const iv = v.instructions, t = v.totals;
@@ -162,7 +163,7 @@ async function contextCommand({ store, flags, out }) {
   out(`  custom tools      ~${formatTokens(t.custom.perPrompt)} a prompt (skills, MCP servers, plugins: ~${formatTokens(t.custom.tokens)} in every call that loads them)`);
   out(`  built-in tools    ~${formatTokens(t.builtin.perPrompt)} a prompt (~${formatTokens(t.builtin.tokens)} in every call that loads them)`);
   out(`  tool outputs      ~${formatTokens(t.outputs.perPrompt)} a prompt (each result read again by the calls after it${t.outputs.wasted != null ? `; ~${formatTokens(t.outputs.wasted)} of it after the agent last used the result` : ''}; an estimate)\n`);
-  // the five highest-leverage changes, as the page's Top changes view and the weekly summary in a session give them,
+  // the five highest-leverage changes, as the weekly summary in a session gives them,
   // with what they are worth in money where the report kept here can price an input token (report.js:inputRate): the
   // same figure the session's question quotes, so the two doors say one thing
   const rate = inputRateHere(store), money = n => rate && n > 0 ? ` (~${formatDollars(n * rate)})` : '';
@@ -170,14 +171,14 @@ async function contextCommand({ store, flags, out }) {
     const sum = top.reduce((a, c) => a + c.total, 0);
     out(`Top changes (up to ~${formatTokens(sum)} input tokens over the last ${days} days together${rate ? `, about ${formatDollars(sum * rate)} at list prices` : ''}):`);
     top.forEach((c, i) => out(`  ${i + 1}. ${c.title}: ~${formatTokens(c.total)} over ${days} days${money(c.total)}; ${c.why}\n     suggested: ${c.default ? c.default.text : 'dismiss it, or change it by hand'}${c.options.length > 1 ? ` (or: ${c.options.slice(1).map(o => o.act).join(', ')})` : ''}`));
-    out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave, or use `thinker ui` (Context, All); --history lists the decisions.\n');
+    out('  Approve the suggested actions with `thinker context --approve 1,3` (or all; 3:remove picks another action), --dismiss the ones to leave; --history lists the decisions.\n');
   }
   if (iv.file) {
     if ((iv.files || []).length > 1) out(`Instruction files: ${iv.files.map(f => `${f.file} (${f.kind === 'root' ? 'every session' : `${f.loadedIn} sessions`})`).join(', ')}.`);
     out(`${iv.file}: ${iv.sessions} sessions read it, ${iv.judged} judged${iv.judge.judge ? ` (a ${Math.round(100 * iv.judge.share)}% sample is judged at session end)` : ' (judging is off: instructions.value.judge in .thinker/config.json)'}.`);
     out(`  ${pad('prompt', 6)} ${pad('needed', 7)} ${pad(`${days}d`, 7)} ${pad('wasted', 7)} ${pad('relevant', 8)} ${pad('followed', 8)}  value        section`);
     for (const s of [...iv.sections].sort((a, b) => b.window - a.window)) {
-      // a section changed inside the window is measured over the sessions since the change, as on the page
+      // a section changed inside the window is measured over the sessions since the change
       out(`${mark(s)}${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(wasteOf(s), 7)} ${pad(s.judged ? `${s.bore}/${s.judged}` : '-', 8)} ${pad(pct(s.success), 8)}  ${s.value.padEnd(12)} ${s.fileKind && s.fileKind !== 'root' ? `${s.file} · ` : ''}${s.parent ? `${s.parent}: ` : ''}${s.title}${s.recent ? ` (changed ${s.changedAt.slice(0, 10)}: ${s.sessions} session${s.sessions === 1 ? '' : 's'} since)` : ''}`);
     }
     out(`  prompt: its tokens in every prompt that carries it; needed: % of those prompts that touched its files, commands or code; ${days}d: prompt × every prompt that carried it; wasted: ${days}d × the prompts that did not need it${vrate == null ? '' : ', at what an input token cost these sessions at list prices'}; !! a part of 5k tokens or more needed in under 10% of its prompts, ! one under 5k (nothing under 500). relevant: judged sessions where it mattered; followed: % of judged sessions that followed it. A section changed inside the window counts from its change.\n`);
@@ -195,7 +196,7 @@ async function contextCommand({ store, flags, out }) {
     for (const s of v.tools.slice(0, flags.verbose ? undefined : 20)) out(`${mark(s)}${pad(s.tokens, 6)} ${pad(pct(s.usedShare), 7)} ${pad(formatTokens(s.window), 7)} ${pad(wasteOf(s), 7)}  ${s.client === 'claude' ? '' : `${s.client}: `}${s.name} ${s.kind}${s.off ? ' (off)' : s.suggested ? ' (rarely used)' : ''}`);
     out('');
   }
-  out('`thinker context --cards` says what each part is and why you would change it, as the page does under an opened row.');
+  out('`thinker context --cards` says what each part is and why you would change it.');
   out(`Change a section as a pull request: thinker instructions --compress <id> --pr (or --remove).${v.harnessOn ? ' Switch a skill or tool off here: thinker harness --off "<label>".' : ' Switching skills and tools off needs the harness (thinker harness --enabled on).'}`);
 }
 

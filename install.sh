@@ -25,7 +25,7 @@
 #   --late              accepted for compatibility (the file-keyed notes it served went with the knowledge notes)
 #   --mcp               accepted for compatibility: the MCP server is always registered (needs npm)
 #   --no-git-hook       do not install the git post-commit hook (it runs maintenance after each commit)
-#   --no-ui             do not offer the browser for the Context report; it is shown in the terminal, with its suggestions to pick from
+#   --no-ui             accepted for compatibility: the Context report is shown in the terminal, with its suggestions to pick from
 #   --ref <tag>         release to install, a tag such as v0.1.34 (default latest; --branch also accepted)
 #   --update            update an installed thinker to the latest release and exit
 #   --no-auto-update    do not schedule background auto-updates (every 4 hours)
@@ -369,18 +369,15 @@ EOF
   # --- where the agents' context goes, from the sessions already on this machine ----------------------------
   # Nothing to build and no cache needed: the Context report reads the agents' own transcripts of the last 30
   # days, so it is there now, from the sessions that ran before thinker was installed. The most active
-  # repositories are read (each report kept for the page) and the person is asked where to see what to cut
-  # first: in the browser (the page over every repository) or here, where the suggestions are a list to pick
-  # from and apply at once, with the page's address for the detail (setup/context-ask.js). The terminal, not
-  # the piped script, answers; with --yes or no terminal the report is printed. `thinker context --machine
-  # [--ask]` does the same any time.
+  # repositories are read (each report kept) and the suggestions are put to the person as a list to pick from
+  # and apply at once (setup/context-ask.js). The terminal, not the piped script, answers; with --yes or no
+  # terminal the report is printed. `thinker context --machine [--ask]` does the same any time.
   say ""
   local xargs=(context --machine --ask)
-  [ "$ui" = 1 ] || xargs+=(--no-browser)
   if [ "$yes" != 1 ] && [ -r /dev/tty ] && (exec < /dev/tty) 2>/dev/null; then
-    "$thinker" "${xargs[@]}" < /dev/tty || say "  The Context report could not be made now; thinker context --machine prints it, thinker ui shows it."
+    "$thinker" "${xargs[@]}" < /dev/tty || say "  The Context report could not be made now; thinker context --machine prints it."
   else
-    "$thinker" context --machine || say "  The Context report could not be made now; thinker context --machine prints it, thinker ui shows it."
+    "$thinker" context --machine || say "  The Context report could not be made now; thinker context --machine prints it."
   fi
 
   # --- a cache handed over -------------------------------------------------------
@@ -400,13 +397,13 @@ EOF
     box "$green" "${green}✓${reset} ${bold}Install complete${reset} ${dim}· Thinker v$version${reset}" "" \
       "Installed into ${home/#$HOME/~} and wired into your agents." \
       "Thinker now runs in every git repository on this machine." \
-      "Where your agents' context goes, any time: ${cyan}thinker ui${reset}." \
+      "Talk to thinker and see what it did for you: ${cyan}thinker ui${reset}." \
       "${dim}What it learns stays on this machine; Thinker uploads none.${reset}" "" \
       "${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}  ${bold}all done · happy shipping${reset}  ${yellow}*${reset} ${magenta}~${reset} ${yellow}*${reset}"
   else
     say "Install complete: Thinker v$version, installed into $home and wired into your agents."
     say "Thinker now runs in every git repository on this machine."
-    say "Where your agents' context goes, any time: thinker ui."
+    say "Talk to thinker and see what it did for you: thinker ui."
     say "What it learns stays on this machine; Thinker uploads none."
   fi
 }

@@ -31,8 +31,9 @@ async function usageCommand(ctx) {
   return;
 }
 
-// `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the Save tab first (where the
-// agents' context goes and the cuts, context-view.js), then Report (what a session costs here week by week, report.js).
+// `thinker ui`: the local page (ui/server.js) until Ctrl+C, from any directory: the chat with thinker first, what it
+// did beside the conversation (chat.js, upkeep.js), then the Factory and Recent activity. Find Savings and View
+// Report were tabs of it until 2026-11-21; `thinker context` and `thinker report` are their figures.
 // --from-setup is how setup opens it (setup/steps.js:openDashboard): detached, with no terminal to press Ctrl+C in, so it opens the
 // browser itself (--tab names the page to land on), shows the page's how-to-come-back hint, and exits once no
 // request has come for UI_IDLE_MS.
@@ -43,14 +44,14 @@ async function uiCommand(ctx) {
   // the checkouts the page lists, looked for again (ui/server.js:refreshCheckouts); the page runs this in the background
   if (flags.refresh) { const cs = refreshCheckouts(store); if (!flags.quiet) out(`${cs.length} checkouts with a cache kept for the page.`); return; }
   const { box, c } = await import('../setup/ui.js');
-  // --background (context-suggest.js:ensureUi): the page a session's hook starts, its address in
+  // --background (context-suggest.js:ensureUi): a page started for the machine without a terminal, its address in
   // THINKER_HOME/state/ui.json while it runs; no browser, gone once idle
   const background = Boolean(flags.background);
   const ui = createUiServer(store);
   const listening = await ui.listen(flags.port !== undefined ? Number(flags.port) : DEFAULT_PORT);
   const { port } = listening;
   // Over every repository on the machine (2026-10-25, the owner's ask; `--all` was the flag for it and still says so):
-  // `--here` opens on this checkout alone. An old --tab context|cache opens the view that replaced it.
+  // `--here` opens on this checkout alone. A --tab the page no longer has (save, report, context, cache) opens the chat.
   const parts = [typeof flags.tab === 'string' ? `tab=${encodeURIComponent(flags.tab)}` : '', flags.here && !flags.all ? 'repo=here' : 'repo=all'].filter(Boolean);
   const tab = parts.length ? `#${parts.join('&')}` : '';
   if (background) {
@@ -76,7 +77,7 @@ async function uiCommand(ctx) {
   out('\n' + box([
     `${c.yellow('*')} ${c.magenta('~')} ${c.yellow('*')}  ${c.bold(c.cyan('Thinker'))} ${c.dim('· local')}`,
     '',
-    `Find Savings (where your agents' context goes) and View Report (what a session costs here week by week), at ${c.cyan(`http://127.0.0.1:${port}`)}`,
+    `Talk to thinker and see what it did for you, at ${c.cyan(`http://127.0.0.1:${port}`)}`,
     c.dim('On this machine only. Press Ctrl+C to stop.'),
   ], { width: 74 }) + '\n');
   if (!flags['no-open'] && process.stdout.isTTY) openBrowser(url);

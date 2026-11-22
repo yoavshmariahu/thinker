@@ -24,9 +24,8 @@ export const UPDATE_NOTE = {
     'Thinker builds a memory profile — what you are working on and how you like to work, distilled from your sessions and loaded at the top of each new one.',
     'Knowledge notes are removed: hit rates were low across many users.',
     'New Factory tab: the breakdown of your software factory, and which parts spend the most tokens or rework.',
-    'Find Savings is now one more compact table. Skill and tool suggestions from your session history are coming soon.',
   ],
-  more: 'See both: thinker ui',
+  more: 'See it: thinker ui',
 };
 
 // The state is the machine's, beside the notice cadence, because a person sees one stream of messages

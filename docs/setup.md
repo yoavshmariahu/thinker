@@ -8,18 +8,15 @@ The details behind the install line in the [README](../README.md).
 npx thinkersh
 ```
 
-The installer connects your coding agents and shows suggested savings from recent sessions.
-Choose the browser or terminal, review the suggestions, and apply the cuts you want.
+The installer connects your coding agents and shows suggested savings from recent sessions,
+as a list in the terminal: review the suggestions, and apply the cuts you want.
 Requires Node 20+, bash, git, curl, tar and a [supported agent](agent-integrations.md).
 
-In the browser, **Find Savings** opens with suggestions checked. Review their actions and
-uncheck anything you want to keep. Instruction changes are previewed as a diff, then opened
-as a pull request for you to review and merge. Without a GitHub origin or authenticated `gh`,
-they are written to your working tree, uncommitted. Skills and tools are switched off for
-that repository. [See each action and its undo](context.md#what-you-can-cut).
-
-In the terminal, use the arrow-key list to pick suggestions and apply them together.
-Instruction changes are written to the working tree for `git diff`.
+The suggestions come checked: use the arrow-key list to uncheck anything you want to keep, and
+apply the rest together. An instruction change opens as a pull request for you to review and
+merge; without a GitHub origin or authenticated `gh` it is written to your working tree,
+uncommitted. Skills and tools are switched off for that repository.
+[See each action and its undo](context.md#what-you-can-cut).
 
 From here on thinker comes to you.
 
@@ -30,7 +27,7 @@ From here on thinker comes to you.
 3. Reads the last 30 days of sessions in your five most active repositories to estimate
    context costs and suggest cuts. Generating this first report needs no model call.
 
-Over SSH or in CI, the browser is not offered; with no terminal, the report is printed.
+With no terminal, the report is printed.
 
 ## After the install
 
@@ -39,23 +36,28 @@ There are two ways in, and neither is a command to remember.
 **The weekly suggestion.** About once a week, once a repository has ten sessions to read, your agent opens
 its next reply with a short message from thinker: one line per change worth making (an instruction section to
 shorten, a skill or MCP server your sessions never use, a tool whose output to compress), what each would have
-saved over the last days, and the suggested action, with a link to the page. Reply with the numbers to approve
+saved over the last days, and the suggested action. Reply with the numbers to approve
 (or "all") and the agent applies them and tells you what changed (an instruction change approved this way is
-written to your working tree, uncommitted, for `git diff`); open the link to review them first; or ignore
+written to your working tree, uncommitted, for `git diff`); or ignore
 it and carry on. Nothing changes until you say so. `maintain: { contextSuggest: false }` in
 `.thinker/config.json` turns it off for a repository.
 
 **The page.** `thinker ui`, from any directory, opens it in your browser:
 
-- **Find Savings** shows which instructions, skills and tools consume context, how often
-  sessions use them, and what you can cut. It opens over every repository on the machine;
-  pick one from the list. Over 7 or 30 days.
-- **View Report** tracks session tokens or list-price costs over six weeks, by token type,
-  context part and model, with your changes and the cache's savings below.
-- **Recent activity** lists every change you made, with Retry, Close PR and Revert.
+- **Chat**, where it opens: talk to thinker. Ask what it did, and tell it how to behave ("ask me
+  before you put up a pull request"). Beside the conversation is what it did lately, a line an
+  action with what it saved; thinker makes the clearest context cuts itself. Over every
+  repository on the machine; pick one from the list.
+- **Factory** shows your sessions as a pipeline: what each stage cost, the loops, the
+  first-pass yield of merged pull requests.
+- **Recent activity** lists every decision with what it saved, with Retry, Close PR and
+  Revert, and the merged pull requests with what the clearing saved on each.
+
+Where the context goes part by part is `thinker context`; what a session costs week by week is
+`thinker report`.
 
 The page listens on 127.0.0.1 with a token for that run and stops after half an hour unused.
-For the measurements, actions and how each is undone, see [Find Savings](context.md).
+For the measurements, actions and how each is undone, see [Context cuts](context.md).
 
 **Everything else runs by itself.** From the install on, thinker runs in every git repository on this machine:
 a cache starts, empty, with the first agent session in a repository (kept out of `git status` through

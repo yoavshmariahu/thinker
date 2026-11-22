@@ -224,7 +224,7 @@ export function renderUsage(u, { days } = {}) {
     if (spending.legacyRecords) L.push('  history            older records omit tokens; totals are incomplete');
     L.push('  details            --json includes provider/model and per-repository spending');
   }
-  L.push('', 'What the clearing saved is on the Report page and in thinker savings; the profile is thinker profile show.');
+  L.push('', 'What the clearing saved is in thinker report and thinker savings; the profile is thinker profile show.');
   if (machine) {
     const home = process.env.HOME || '';
     const name = r => home && r.startsWith(home + '/') ? '~' + r.slice(home.length) : r;

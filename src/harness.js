@@ -430,8 +430,8 @@ const saveState = (store, st) => writeScopedState(stateFile(store), 'applied', s
 // What the question needs of a source, and nothing that could hold a secret.
 const pick = s => ({ client: s.client, dir: s.dir, evidenceKeys: s.evidenceKeys, key: s.key, name: s.name, kind: s.kind, scope: s.scope, id: s.id, how: s.how, skills: s.skills, tokens: s.tokens, used: s.used, loaded: s.loaded, texts: s.texts, file: s.file });
 
-// The sources a switch may name: the advice, or every source with a local switch (`any`: the Find Savings
-// rows, which offer a switch whatever the use). Each carries the model calls of a typical session of its
+// The sources a switch may name: the advice, or every source with a local switch (`any`: a part of
+// `thinker context`, which offers a switch whatever the use). Each carries the model calls of a typical session of its
 // agent here, since what it costs is its tokens read again by each.
 function pickSources(usage, { any = false } = {}) {
   const sources = (any ? anySource(usage) : harnessAdvice(usage)).filter(s => SAFE_NAME.test(s.name) && (s.skills || []).every(n => SAFE_NAME.test(n))).map(pick);

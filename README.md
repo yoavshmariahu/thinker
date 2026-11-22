@@ -61,12 +61,13 @@ You don't run thinker by hand. Once it is installed there are three ways in:
   had to read, at the providers' published rates, not a bill.
 - **A suggestion in your session.** About once a week, once a repository has ten sessions to read, your
   agent opens its reply with a short message from thinker: one line per change worth making (what it is,
-  the tokens it would have saved, the suggested action) and a link to the page. Reply with the numbers to
-  approve, or "all", and the agent applies them; or ignore it and keep working.
-- **The page.** `thinker ui` opens Find Savings and View Report in your browser, over every repository on
-  the machine. Every part of the context is a row there, with what it costs, how often sessions use it and
-  what you can cut; changes are previewed, instruction edits open as pull requests, and every cut has an
-  undo. View Report tracks tokens week by week.
+  the tokens it would have saved, the suggested action). Reply with the numbers to approve, or "all", and
+  the agent applies them; or ignore it and keep working.
+- **The page.** `thinker ui` opens a chat with thinker in your browser, over every repository on the
+  machine: ask what it did, and tell it how to behave. Beside the conversation is what it did lately, a line
+  an action with what it saved. thinker makes the clearest context cuts itself: an instruction edit opens as
+  a pull request for you to merge, and every cut has an undo. `thinker context` shows where the context goes
+  part by part, and `thinker report` what a session costs week by week.
 
 Everything else runs by itself: the hooks put the repository's profile into a session's first prompt, sessions
 are read into it when they end, and thinker updates itself. Reports and the profile are stored locally; learning
@@ -89,12 +90,12 @@ it back on.
 The cache is measured on real tasks from merged pull requests, same model with and without it:
 18% fewer input tokens and 10% less wall time per task across Claude Fable, Gemini 3.8 Flash and
 GPT-6 Astra, one run per arm, different tasks per model. Method, uncertainty and per-task results:
-[research/bench-history/RESULTS.md](research/bench-history/RESULTS.md). The Find Savings cuts are
+[research/bench-history/RESULTS.md](research/bench-history/RESULTS.md). The context cuts are
 measured on your own sessions, as the tokens they would save; no benchmark is claimed for them yet.
 
 ## Learn more
 
-- [Find Savings](docs/context.md): the page, what each number is, every cut and its undo
+- [Context cuts](docs/context.md): what each number is, every cut and its undo
 - [Setup, updates and telemetry](docs/setup.md): what the installer does, updates, telemetry and opting out
 - [Usage, savings and learning](docs/usage.md): what the cache saves, the holdout comparison, how sessions are learned from
 - [Skills](docs/skills.md): skill cards, the audit, what sessions say about a skill, duplicates
